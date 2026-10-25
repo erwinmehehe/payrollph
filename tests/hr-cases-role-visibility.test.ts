@@ -49,9 +49,18 @@ test("an unapproved COE cannot be closed, even if its SLA has elapsed", () => {
 });
 
 
-test("employee HR request panel visibly distinguishes API outages from disabled 404",()=>{
- const source=readFileSync("src/components/employee-hr-cases-panel.tsx","utf8");
- assert.match(source,/setAvailable\(true\);\s*setError\("Could not load HR requests\."\)/);
- assert.match(source,/if \(loading\) return <p role="status">/);
- assert.match(source,/if \(!available\) return null/);
+test("employee HR request panel visibly distinguishes API outages from disabled 404", () => {
+  const source = readFileSync("src/components/employee-hr-cases-panel.tsx", "utf8");
+  const reader = readFileSync("src/lib/employee-hr-cases-read.ts", "utf8");
+  // Failed/unauthorized/malformed GETs stay visible instead of looking like disabled.
+  assert.match(source, /setAvailable\(true\); \/\/ Auth\/server\/network errors/);
+  assert.match(source, /setError\(cause instanceof Error \? cause.message/);
+  assert.match(reader, /response.status === 404 && record\(payload\)/);
+  assert.match(reader, /payload.error === "HR cases are not enabled for this release\."/);
+  // A stale snapshot cannot keep request/reply actions available after a failed read.
+  assert.match(source, /setCases\(null\)/);
+  assert.match(source, /const canAct = cases !== null && !loading && !error && !busy/);
+  assert.match(source, /Retry HR requests/);
+  assert.match(source, /if \(loading && !available\) return <p role="status">/);
+  assert.match(source, /if \(!available\) return null/);
 });
