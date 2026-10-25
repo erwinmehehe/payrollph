@@ -34,6 +34,15 @@ export function payoutDestinationStateSha256(input: {
   })).digest("hex");
 }
 
+/** The original legal employer is frozen with the masked bank-state evidence.
+ * Legacy/unattributed requests are denied when multi-entity scope is enabled.
+ */
+export function recordedPayoutChangeLegalEntityId(snapshot: unknown): number | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const id = (snapshot as Record<string, unknown>).legalEntityId;
+  return typeof id === "number" && Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 export function safePayoutChangeRequest(row: typeof employeePayoutChangeRequests.$inferSelect) {
   return {
     id: row.id,
@@ -124,6 +133,7 @@ export async function createPayoutDestinationChangeRequest(input: {
     }
 
     const originalSnapshot = {
+      legalEntityId: currentEmployee.legalEntityId,
       maskedAccount: maskBankAccount(currentEmployee.bankAccount),
       bankCode: normalizeCode(currentEmployee.bankCode),
       mobile: normalizeMobile(currentEmployee.mobile),
@@ -174,6 +184,7 @@ export async function createPayoutDestinationChangeRequest(input: {
 export async function decidePayoutDestinationChange(input: {
   organizationId: number;
   requestId: number;
+  expectedLegalEntityId?: number;
   decidedByUserId: number;
   decidedByName: string;
   decision: "approve" | "reject";
@@ -182,7 +193,7 @@ export async function decidePayoutDestinationChange(input: {
   return db.transaction(async (tx) => {
     await tx.execute(sql`
       select id from employee_payout_change_requests
-      where id = ${input.requestId}
+      where id = ${input.requestId} and organization_id = ${input.organizationId}
       for update
     `);
 
@@ -191,6 +202,15 @@ export async function decidePayoutDestinationChange(input: {
       eq(employeePayoutChangeRequests.organizationId, input.organizationId),
     )).limit(1);
     if (!request) return { kind: "not_found" as const };
+    // Check the employer recorded when the bank request was made BEFORE
+    // returning status/maker details or performing any state mutation.
+    if (input.expectedLegalEntityId !== undefined && (
+      !Number.isSafeInteger(input.expectedLegalEntityId)
+      || input.expectedLegalEntityId <= 0
+      || recordedPayoutChangeLegalEntityId(request.originalSnapshot) !== input.expectedLegalEntityId
+    )) {
+      return { kind: "forbidden" as const, message: "Payout request is not attributed to the selected legal employer." };
+    }
     if (request.status !== "pending") {
       return { kind: "conflict" as const, message: `This request is already ${request.status}.` };
     }
@@ -209,6 +229,12 @@ export async function decidePayoutDestinationChange(input: {
       eq(employees.organizationId, input.organizationId),
     )).limit(1);
     if (!employee) return { kind: "conflict" as const, message: "The employee record no longer exists." };
+    // The employee may have transferred to a new legal employer since the
+    // request was created. Recheck the locked employee inside this transaction.
+    if (input.expectedLegalEntityId !== undefined
+      && employee.legalEntityId !== input.expectedLegalEntityId) {
+      return { kind: "forbidden" as const, message: "Employee is not in the selected legal employer." };
+    }
 
     const currentStateSha256 = payoutDestinationStateSha256({
       bankAccount: employee.bankAccount,
@@ -327,7 +353,29 @@ export async function decidePayoutDestinationChange(input: {
 export async function listPayoutDestinationChangeRequests(input: {
   organizationId: number;
   employeeId?: number | null;
+  /** Undefined preserves legacy flag-OFF reads; a positive ID is required when ON. */
+  legalEntityId?: number;
 }) {
+  if (input.legalEntityId !== undefined) {
+    if (!Number.isSafeInteger(input.legalEntityId) || input.legalEntityId <= 0) return [];
+    // Both the CURRENT employee and the FROZEN request employer must match.
+    // Join by tenant AND employee: never trust a cross-tenant legacy FK.
+    const scoped = await db.select({ request: employeePayoutChangeRequests })
+      .from(employeePayoutChangeRequests)
+      .innerJoin(employees, and(
+        eq(employeePayoutChangeRequests.employeeId, employees.id),
+        eq(employeePayoutChangeRequests.organizationId, employees.organizationId),
+      ))
+      .where(and(
+        eq(employeePayoutChangeRequests.organizationId, input.organizationId),
+        input.employeeId != null ? eq(employeePayoutChangeRequests.employeeId, input.employeeId) : undefined,
+        eq(employees.legalEntityId, input.legalEntityId),
+        sql`${employeePayoutChangeRequests.originalSnapshot} ->> 'legalEntityId' = ${String(input.legalEntityId)}`,
+      ))
+      .orderBy(desc(employeePayoutChangeRequests.createdAt));
+    return scoped.map(row => safePayoutChangeRequest(row.request));
+  }
+
   const where = input.employeeId
     ? and(
         eq(employeePayoutChangeRequests.organizationId, input.organizationId),

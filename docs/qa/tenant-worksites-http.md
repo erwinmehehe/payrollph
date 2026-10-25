@@ -19,3 +19,8 @@ No production SQL, Neon operations, provider credentials/calls, release flags, p
 ## CI fixture correction
 
 At synced head `20aed3446`, Security HTTP Smoke, DL-02 and salary-correction-case CI reached the owned worksite create and persisted its row. The assertion compared the API's canonical uppercase code with the fixture's lowercase UUID fragment. The request fixture now supplies an uppercase code, matching the existing `cleanCode` contract, while the exact persisted-code equality check remains required. No API normalization, authorization or status assertion changes. Fresh exact-head HTTP CI is still required; failed executions grant no coverage credit. Base inventory counts above describe the original base before subsequent main syncs.
+
+
+## Evidence reconciliation after passing merged-head CI
+
+Only GET receives a method credit linked to passing merged-head receipt [d733b1f34](https://github.com/erwinmehehe/payrollph/actions/runs/40091436728/job/120864754791). POST remains GAP because only three of its action branches have real acceptance evidence. Current reconciled inventory is 156 COVERED / 10 PUBLIC-BY-DESIGN / 328 GAP, with 18 page/action gaps. Prior preparation counts and inventoryCreditsAdded=0 log fields are historical; the manifest and bounded receipt verifier now define the reviewed credits. No global or production acceptance.

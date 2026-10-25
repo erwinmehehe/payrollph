@@ -1,8 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 231 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 230 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 231 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 230 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -87,9 +87,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 291 |
 | methods | 494 |
 | coveredBefore | 20 |
-| coveredAfter | 253 |
+| coveredAfter | 254 |
 | publicByDesign | 10 |
-| gap | 231 |
+| gap | 230 |
 | scopedPagesAndActions | 20 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -480,6 +480,8 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`outbox` POST](../../src/app/api/outbox/route.ts#L89) | session, query, body | assertOrganizationRole L2, getSessionUser L6, enforceSameOriginMutation L16, getSessionUser L21 | searchParams.get("organizationId") L24, body.organizationId L100 | NO VALID METHOD PROOF | **GAP** |
 | [`payout-destination-changes/[id]` PATCH](../../src/app/api/payout-destination-changes/[id]/route.ts#L10) | session, body | enforceSameOriginMutation L1, getSessionUser L2, enforceSameOriginMutation L11, getSessionUser L14 | body.organizationId L22 | NO VALID METHOD PROOF | **GAP** |
 | [`payout-destination-changes` GET](../../src/app/api/payout-destination-changes/route.ts#L10) | session, query | getSessionUser L4, assertScope L5, getAccess L5, getSessionUser L11 | searchParams.get("organizationId") L15, searchParams.get("employeeId") L16 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L543) — row L349 | **COVERED** |
+| [`payout-destination-changes/[id]` PATCH](../../src/app/api/payout-destination-changes/[id]/route.ts#L11) | session, body | Same origin, treasury assignment, MFA, selected granted employer, frozen request origin + employee lock | organizationId, request ID, legalEntityId | [own B PATCH L234](../../scripts/qa/payout-destination-entity-http.mjs#L234), [foreign denied L222](../../scripts/qa/payout-destination-entity-http.mjs#L222), [victim unchanged L229](../../scripts/qa/payout-destination-entity-http.mjs#L229) | **COVERED (provisional)** |
+| [`payout-destination-changes` GET](../../src/app/api/payout-destination-changes/route.ts#L11) | session, query | Active membership, org-unit scope, selected legal employer, frozen request origin | organizationId, employeeId | [own B GET L208](../../scripts/qa/payout-destination-entity-http.mjs#L208), [foreign denied L216](../../scripts/qa/payout-destination-entity-http.mjs#L216), [forged employee L218](../../scripts/qa/payout-destination-entity-http.mjs#L218) | **COVERED (provisional)** |
 | [`payout-profiles` GET](../../src/app/api/payout-profiles/route.ts#L69) | session, query, body | assertOrganizationRole L10, getAccess L11, getSessionUser L15, enforceSameOriginMutation L20 | searchParams.get("organizationId") L73, body.organizationId L148, body.legalEntityId L149 | NO VALID METHOD PROOF | **GAP** |
 | [`payout-profiles` PATCH](../../src/app/api/payout-profiles/route.ts#L138) | session, query, body | assertOrganizationRole L10, getAccess L11, getSessionUser L15, enforceSameOriginMutation L20 | searchParams.get("organizationId") L73, body.organizationId L148, body.legalEntityId L149 | NO VALID METHOD PROOF | **GAP** |
 | [`payroll-earnings` GET](../../src/app/api/payroll-earnings/route.ts#L132) | session, query, body | getSessionUser L12, assertOrganizationRole L15, assertScope L16, getAccess L17 | searchParams.get("organizationId") L136, body.organizationId L190, body.employeeId L191 | NO VALID METHOD PROOF | **GAP** |
@@ -768,6 +770,15 @@ At the historical PR #1322 checkpoint, the frozen DL-01 queue had 7 COVERED, 2 P
 
 Three GAP methods, `GET/POST/DELETE /api/benefits`, now have an additive [disposable three-employer HTTP candidate](../../scripts/qa/tenant-benefit-enrollments-http.mjs) and [source contract](../../tests/tenant-benefit-enrollments-source.test.mjs). It requires populated own reads, persisted own enrolment creation/ending, real higher-ID victim denials, forged worker/plan selectors, employee-role and anonymous denial, same-session membership revocation and exact unchanged victim benefits/payroll/audit snapshots. See [acceptance scope](../qa/tenant-benefit-enrollments-http.md). **Prepared only: exact-head HTTP CI has not yet passed; all three remain GAP, no new COVERED credits, global NOT ACCEPTED status and existing summary counts unchanged.** Catalogue PUT and HMO workflows remain unproven. No production operations or feature activation.
 
+## Merged benefits/worksite evidence reconciliation — four method credits
+
+The signed-in disposable-PG16 tests already merged in #1366 and #1369 passed on their reviewed heads. This closeout links **only benefits GET/POST/DELETE and worksite GET**, moving the synced baseline **158/10/326 to 162/10/322** among the same 494 API methods. It adds no endpoints and changes no runtime authorization, payroll math, flags or production data.
+
+- Benefits receipt: [Security HTTP Smoke, a112b8dd7](https://github.com/erwinmehehe/payrollph/actions/runs/40084883554/job/120845670288). The job logged BENEFIT_ENROLLMENT_HTTP_CANDIDATE after both attacker employers completed own/foreign/forged/revoked/role controls and exact victim snapshots.
+- Worksite receipt: [Security HTTP Smoke, d733b1f34](https://github.com/erwinmehehe/payrollph/actions/runs/40091436728/job/120864754791). The job logged both completed suites. **Worksite POST remains GAP**: its three tested actions do not establish photo, geofence or HCM authorization acceptance. Benefits PUT and HMO remain GAP too.
+- [Bounded proof verifier](../../scripts/qa/tenant-merged-proof-credits.mjs) checks exact route+verb identities, all assertion lines, original CI heads/jobs and immutable proof-source SHA256s. [Negative tests](../../tests/tenant-merged-proof-credits.test.mjs) reject missing pins, shifted assertions, changed source or sibling-method credit borrowing. Historical ledger guards subtract only these four validated credits, retaining their original baselines.
+
+**NOT ACCEPTED globally:** 328 API method and 18 page/action gaps remain. The four receipts establish fictional HTTP isolation evidence, not production payroll, payment-provider or complete action-level certification. Fresh closeout-head CI must also pass before merging this reconciliation. Earlier preparation notes above describe their original uncredited state.
 
 ## Prepared HMO GET/POST batch (2026-10-24; no credits yet)
 
