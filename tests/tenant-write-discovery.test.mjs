@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { pgTable, serial, integer, text, boolean, jsonb, date, uuid, foreignKey, unique } from "drizzle-orm/pg-core";
 import { describeTables, proposeFixture, proposeBody, inspectWriteHandler, buildWritePlan, probeEligibility } from "../scripts/qa/tenant-write-generator.mjs";
-import { classifyProbe, requireWriteProbeTarget, renderProbePath, runWriteProbe } from "../scripts/qa/tenant-write-probe-http.mjs";
+import { classifyProbe, requireWriteProbeTarget, renderProbePath, runWriteProbe, seedProbeWorker, probeBindingVerified } from "../scripts/qa/tenant-write-probe-http.mjs";
 
 const org = pgTable("fictional_organizations", { id: serial("id").primaryKey() });
 const parent = pgTable("fictional_parents", { tenant: integer("tenant").notNull(), key: integer("key").notNull() }, t => [unique().on(t.tenant,t.key)]);
@@ -107,13 +107,34 @@ test("probe outcomes distinguish accepted HTTP, flag hints, invalid bodies, fixt
   assert.equal(classifyProbe(422),"validation error");assert.equal(classifyProbe(400),"validation error");
   assert.equal(classifyProbe(500),"unavailable");assert.equal(classifyProbe(429),"unavailable");
 });
-test("probe fixture worker has a pay profile so read-only request mode can bind the server", async () => {
-  // With REQUEST_SCHEMA_READONLY_ENABLED, an employer whose worker lacks a pay profile fails every read
-  // (READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL), which made each candidate "unavailable".
-  const { readFileSync } = await import("node:fs");
-  const source = readFileSync("scripts/qa/tenant-write-probe-http.mjs", "utf8");
-  const worker = source.indexOf('await insert("employees", context,');
-  const profile = source.indexOf('await insert("employeePayProfiles", context, { organizationId: org.id, employeeId: worker.id,');
-  const binding = source.indexOf('phase = "binding";');
-  assert.ok(worker > 0 && profile > worker && binding > profile, "the pay profile is seeded after the worker and before the binding read");
+
+
+test("probe worker has its explicit own pay profile before server binding, and profile errors abort", async () => {
+  const calls = [];
+  const context = { organizationId: 41, legalEntityId: 51, orgUnitId: 61, marker: "Fictional-probe", references: {} };
+  await seedProbeWorker(async (symbol, ctx, values) => {
+    calls.push({ symbol, values });
+    if (symbol === "employeePayProfiles") {
+      assert.equal(ctx.employeeId, 71);
+      assert.equal(ctx.references["employees.id"], 71);
+    }
+    return { id: 71 };
+  }, context);
+  assert.deepEqual(calls.map(c => c.symbol), ["employees", "employeePayProfiles"]);
+  assert.deepEqual(calls[1].values, { organizationId: 41, employeeId: 71, payBasis: "monthly", rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8" });
+  await assert.rejects(seedProbeWorker(async (symbol) => {
+    if (symbol === "employeePayProfiles") throw Error("PROFILE_FIXTURE_REJECTED");
+    return { id: 81 };
+  }, { ...context, references: {} }), /PROFILE_FIXTURE_REJECTED/);
+});
+
+test("binding requires the exact seeded employee, employer and marker; substring matches never pass", () => {
+  const context = { employeeId: 71, organizationId: 41, marker: "Fictional-probe" };
+  const row = { id: 71, organizationId: 41, employeeNo: context.marker };
+  assert.equal(probeBindingVerified(200, [row], context), true);
+  for (const payload of [null, [], { error: context.marker }, [context.marker], [{ ...row, id: 72 }],
+    [{ ...row, organizationId: 42 }], [{ ...row, employeeNo: "other" }]]) {
+    assert.equal(probeBindingVerified(200, payload, context), false);
+  }
+  for (const status of [302, 401, 403, 500]) assert.equal(probeBindingVerified(status, [row], context), false);
 });

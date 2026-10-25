@@ -43,6 +43,24 @@ function safeError(json) {
     .replace(/(?:Bearer\s+|sk_live_|sk_test_|xnd_)[\w.-]+/gi, "[REDACTED]").slice(0, 240);
 }
 
+// A directory read refuses employees without an explicit reviewed pay profile.
+// Seed both fictional records before trying to bind the HTTP server to the DB.
+export async function seedProbeWorker(insert, context) {
+  const worker = await insert("employees", context, { organizationId: context.organizationId,
+    legalEntityId: context.legalEntityId, orgUnitId: context.orgUnitId,
+    employeeNo: context.marker, firstName: "Fictional", lastName: context.marker, title: "Probe", avatarInitials: "FP",
+    basicRate: "20000.00", startDate: "2026-01-05" });
+  context.employeeId = worker.id; context.references["employees.id"] = worker.id;
+  await insert("employeePayProfiles", context, { organizationId: context.organizationId, employeeId: worker.id,
+    payBasis: "monthly", rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8" });
+  return worker;
+}
+
+export function probeBindingVerified(status, payload, context) {
+  return status === 200 && Array.isArray(payload) && payload.some((row) =>
+    row?.id === context.employeeId && row.organizationId === context.organizationId && row.employeeNo === context.marker);
+}
+
 export async function runWriteProbe(plan, catalogue, env = process.env) {
   const origin = requireWriteProbeTarget(env); // Before importing or opening any app DB client.
   const databaseModule = await import("../../src/db/index.ts");
@@ -78,13 +96,7 @@ export async function runWriteProbe(plan, catalogue, env = process.env) {
           passwordHash: "fictional-session-only-no-password", role: "owner", totpEnabled: true });
         context.userId = owner.id; context.references["users.id"] = owner.id;
         await db.insert(schema.userOrganizations).values({ userId: owner.id, organizationId: org.id, role: "owner", active: true });
-        const worker = await insert("employees", context, { organizationId: org.id, legalEntityId: entity.id, orgUnitId: unit.id,
-          employeeNo: context.marker, firstName: "Fictional", lastName: context.marker, title: "Probe", avatarInitials: "FP", basicRate: "20000.00", startDate: "2026-01-05" });
-        context.employeeId = worker.id; context.references["employees.id"] = worker.id;
-        // Read-only request mode refuses any employer with a worker lacking a pay profile
-        // (READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL), so the fixture worker gets one, as in the proof tables.
-        await insert("employeePayProfiles", context, { organizationId: org.id, employeeId: worker.id, payBasis: "monthly",
-          rateAmount: "20000.00", standardWorkDaysPerMonth: "22", standardHoursPerDay: "8" });
+        await seedProbeWorker(insert, context);
         const token = randomBytes(32).toString("hex");
         await db.insert(schema.sessions).values({ userId: owner.id, tokenHash: createHash("sha256").update(token).digest("hex"),
           expiresAt: new Date(Date.now()+3_600_000), lastSeenAt: new Date(), mfaVerifiedAt: new Date(), authMethod: "oidc" });
@@ -93,8 +105,11 @@ export async function runWriteProbe(plan, catalogue, env = process.env) {
         phase = "binding";
         const binding = await fetch(origin + "/api/employees?organizationId=" + org.id, { headers,
           redirect: "manual", signal: AbortSignal.timeout(10_000) });
-        const bindingText = await binding.text();
-        if (binding.status !== 200 || !bindingText.includes(context.marker)) throw Error("PROBE_SERVER_BINDING_UNVERIFIED");
+        // Retain only status/identity-verification, never directory bodies or session headers.
+        outcome.bindingStatus = binding.status;
+        let bindingJson; try { bindingJson = await binding.json(); } catch { bindingJson = null; }
+        outcome.bindingVerified = probeBindingVerified(binding.status, bindingJson, context);
+        if (!outcome.bindingVerified) throw Error("PROBE_SERVER_BINDING_UNVERIFIED");
         phase = "fixture";
         const table = catalogue[item.handler.tables[0]];
         if (!table?.columns.some(c => c.key === "organizationId")) {
