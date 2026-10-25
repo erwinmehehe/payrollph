@@ -1167,6 +1167,41 @@ export const payrollEntries = pgTable("payroll_entries", {
   trace: jsonb("trace").notNull().default({}),
 });
 
+/** Append-only payroll math evidence. Run/job/employee IDs are intentionally
+ * historical scalars, so routine draft recalculation/deletion never cascades
+ * away the previous version. Only whole-organization erasure is cascaded. */
+export const payrollCalculationHistory = pgTable("payroll_calculation_history", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id"),
+  payrollRunId: integer("payroll_run_id").notNull(),
+  payrollJobId: integer("payroll_job_id").notNull(),
+  employeeId: integer("employee_id").notNull(),
+  revision: integer("revision").notNull(),
+  previousSnapshotHash: varchar("previous_snapshot_hash", { length: 64 }),
+  snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+  periodLabel: varchar("period_label", { length: 80 }).notNull(),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  payDate: date("pay_date").notNull(),
+  ruleVersion: varchar("rule_version", { length: 48 }).notNull(),
+  grossPay: numeric("gross_pay", { precision: 12, scale: 2 }).notNull(),
+  deductions: numeric("deductions", { precision: 12, scale: 2 }).notNull(),
+  netPay: numeric("net_pay", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 32 }).notNull(),
+  lineItems: jsonb("line_items").notNull(),
+  trace: jsonb("trace").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("payroll_calculation_history_job_employee_unique").on(table.payrollJobId, table.employeeId),
+  uniqueIndex("payroll_calculation_history_run_employee_revision_unique").on(table.payrollRunId, table.employeeId, table.revision),
+  index("payroll_calculation_history_org_run_read_idx").on(table.organizationId, table.payrollRunId, table.id.desc()),
+  check("payroll_calculation_history_revision_check", sql`${table.revision} > 0`),
+  check("payroll_calculation_history_hash_check",
+    sql`${table.snapshotHash} ~ '^[0-9a-f]{64}$' AND (${table.previousSnapshotHash} IS NULL OR ${table.previousSnapshotHash} ~ '^[0-9a-f]{64}$')`),
+  check("payroll_calculation_history_period_check", sql`${table.periodEnd} >= ${table.periodStart}`),
+]);
+
 /**
  * First-class payout intent ledger (A-2). Each employee is represented once
  * per payroll run; provider requests are recorded separately at batch level
