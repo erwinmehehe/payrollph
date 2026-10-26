@@ -59,6 +59,8 @@
     "drizzle-kit": "0.31.11",
     "eslint": "10.13.0",
     "eslint-config-next": "16.4.2",
+    "js-yaml": "4.3.2",
+    "picomatch": "2.3.2",
     "postcss": "8.5.31",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3"
