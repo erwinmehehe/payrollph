@@ -66,7 +66,7 @@ export function createRows({ assert, db }) {
         }).returning();
         const [position] = await db.insert(positions).values({
           organizationId: e.org.id, code: (e.marker + "-POS").slice(0, 48),
-          jobProfileId: profile.id, orgUnitId: e.unit.id, status: "filled",
+          jobProfileId: profile.id, orgUnitId: e.unit.id, status: "planned",
         }).returning();
         const [assignment] = await db.insert(positionAssignments).values({
           organizationId: e.org.id, positionId: position.id, employeeId: e.worker.id,
