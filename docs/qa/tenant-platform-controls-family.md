@@ -54,3 +54,10 @@ uses the valid `coverage_recovery` case type, distinct from HCM's
 `attendance_resolution`. A regression invokes both real row factories against the
 same employer/worker while enforcing that unique key; a repeated Platform seed
 still rejects. Neither the database constraint nor application guards change.
+
+Head `69edc7efc` passed all three real HTTP/PostgreSQL profiles (default job
+121328441504, multi-entity 121328441513, flagged-reads 121328441254). The remaining
+aggregate check failed on parsing the new environment declaration file; its
+constants now use explicit `export declare const`, matching existing declarations.
+No lint rules or guards are disabled. Fresh final-head CI is still required;
+coverage credits have not yet been generated.
