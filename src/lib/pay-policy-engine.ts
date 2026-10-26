@@ -330,11 +330,28 @@ function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord, minutes: numbe
 }
 
 function roundMoney(value: number) {
+  if (!Number.isFinite(value)) throw new Error("Pay-rule premium amount must be finite.");
   // Scale EPSILON with the magnitude so binary floating-point values that are
   // mathematically exact half-cent boundaries (for example 266.665) round
   // consistently to centavo precision instead of occasionally rounding down.
   const correction = Number.EPSILON * Math.max(1, Math.abs(value));
-  return Math.round((value + correction) * 100) / 100;
+  const cents = Math.round((value + correction) * 100);
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error("Pay-rule premium amount exceeds safe centavo precision.");
+  }
+  return cents / 100;
+}
+
+/**
+ * Premium-minute inputs are derived from the attendance/time path, not a
+ * permission to invent or silently ignore NaN/Infinity pay. Keep the existing
+ * clamp/truncation behavior for finite inputs while refusing non-finite data.
+ */
+function validatedPremiumMinutes(minutes: number, family: string) {
+  if (!Number.isFinite(minutes)) {
+    throw new Error(`${family} minutes must be finite.`);
+  }
+  return Math.max(0, Math.trunc(minutes));
 }
 
 /**
@@ -365,7 +382,7 @@ export function resolveWorkedTimePremium(input: {
   policies: PayPolicyRecord[];
   rules: PayPolicyRuleRecord[];
 }) {
-  const minutes = Math.max(0, Math.trunc(input.minutes));
+  const minutes = validatedPremiumMinutes(input.minutes, "Worked-time premium");
   const hourlyRate = Number(input.hourlyRate);
   if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
     throw new Error("Worked-time premium hourlyRate must be a non-negative finite number.");
@@ -674,7 +691,7 @@ export function resolveHolidayRestDayPremium(input: {
   policies: PayPolicyRecord[];
   rules: PayPolicyRuleRecord[];
 }) {
-  const minutes = Math.max(0, Math.trunc(input.minutes));
+  const minutes = validatedPremiumMinutes(input.minutes, "Holiday/rest-day premium");
   const hourlyRate = Number(input.hourlyRate);
   const statutoryMultiplier = Number(input.statutoryMultiplier);
   if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
@@ -959,7 +976,7 @@ export function resolveOvertimePremium(input: {
   policies: PayPolicyRecord[];
   rules: PayPolicyRuleRecord[];
 }) {
-  const minutes = Math.max(0, Math.trunc(input.minutes));
+  const minutes = validatedPremiumMinutes(input.minutes, "Overtime premium");
   const hourlyRate = Number(input.hourlyRate);
   const statutoryMultiplier = Number(input.statutoryMultiplier);
 
@@ -1253,7 +1270,7 @@ export function resolveNightDifferentialPremium(input: {
   policies: PayPolicyRecord[];
   rules: PayPolicyRuleRecord[];
 }) {
-  const minutes = Math.max(0, Math.trunc(input.minutes));
+  const minutes = validatedPremiumMinutes(input.minutes, "Night-differential premium");
   const hourlyRate = Number(input.hourlyRate);
   const statutoryMultiplier = Number(input.statutoryMultiplier);
   if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
