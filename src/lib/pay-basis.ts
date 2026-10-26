@@ -67,16 +67,31 @@ export function resolvePayProfile(input: EmployeePayProfileInput): ResolvedPayPr
   };
 }
 
+/** Keep malformed time and leave quantities out of payroll arithmetic. */
+function finiteCutoffQuantity(value: number, label: string) {
+  if (!Number.isFinite(value)) throw new Error(`${label} must be finite.`);
+  // Preserve existing behavior for finite negative correction inputs.
+  return Math.max(0, value);
+}
+
+/** Guard the exact-centavo range without rounding legitimate fractional pay here. */
+function safeCutoffAmount(amount: number, label: string) {
+  if (!Number.isFinite(amount) || !Number.isSafeInteger(Math.round(amount * 100))) {
+    throw new Error(`${label} exceeds the safe centavo range.`);
+  }
+  return amount;
+}
+
 export function basicPayForCutoff(profile: ResolvedPayProfile, regularMinutes: number) {
   if (!Number.isFinite(regularMinutes) || regularMinutes < 0) {
     throw new Error("Regular minutes must be zero or greater.");
   }
-  if (profile.payBasis === "monthly") return profile.rateAmount / 2;
+  if (profile.payBasis === "monthly") return safeCutoffAmount(profile.rateAmount / 2, "Basic pay");
   const regularHours = regularMinutes / 60;
   if (profile.payBasis === "daily") {
-    return (regularHours / profile.standardHoursPerDay) * profile.rateAmount;
+    return safeCutoffAmount((regularHours / profile.standardHoursPerDay) * profile.rateAmount, "Basic pay");
   }
-  return regularHours * profile.rateAmount;
+  return safeCutoffAmount(regularHours * profile.rateAmount, "Basic pay");
 }
 
 export function attendanceDeductionsForCutoff(
@@ -84,12 +99,14 @@ export function attendanceDeductionsForCutoff(
   tardinessMinutes: number,
   undertimeMinutes: number,
 ) {
+  const tardiness = finiteCutoffQuantity(tardinessMinutes, "Tardiness minutes");
+  const undertime = finiteCutoffQuantity(undertimeMinutes, "Undertime minutes");
   if (profile.payBasis !== "monthly") {
     return { tardinessDeduction: 0, undertimeDeduction: 0 };
   }
   return {
-    tardinessDeduction: (Math.max(0, tardinessMinutes) / 60) * profile.hourlyRate,
-    undertimeDeduction: (Math.max(0, undertimeMinutes) / 60) * profile.hourlyRate,
+    tardinessDeduction: safeCutoffAmount((tardiness / 60) * profile.hourlyRate, "Tardiness deduction"),
+    undertimeDeduction: safeCutoffAmount((undertime / 60) * profile.hourlyRate, "Undertime deduction"),
   };
 }
 
@@ -98,18 +115,18 @@ export function leaveAdjustmentForCutoff(input: {
   paidDays: number;
   unpaidDays: number;
 }) {
-  const paidDays = Math.max(0, input.paidDays);
-  const unpaidDays = Math.max(0, input.unpaidDays);
+  const paidDays = finiteCutoffQuantity(input.paidDays, "Paid leave days");
+  const unpaidDays = finiteCutoffQuantity(input.unpaidDays, "Unpaid leave days");
   const { profile } = input;
 
   if (profile.payBasis === "monthly") {
-    const adjustment = -(unpaidDays * profile.dailyRate);
+    const adjustment = safeCutoffAmount(-(unpaidDays * profile.dailyRate), "Leave adjustment");
     return adjustment === 0 ? 0 : adjustment;
   }
   if (profile.payBasis === "daily") {
-    return paidDays * profile.dailyRate;
+    return safeCutoffAmount(paidDays * profile.dailyRate, "Leave adjustment");
   }
-  return paidDays * profile.standardHoursPerDay * profile.hourlyRate;
+  return safeCutoffAmount(paidDays * profile.standardHoursPerDay * profile.hourlyRate, "Leave adjustment");
 }
 
 export function payBasisLabel(payBasis: string) {
