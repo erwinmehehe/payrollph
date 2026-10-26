@@ -59,6 +59,8 @@ async function snapshot(orgId) {
   return {
     cases: await readTenantRows(statutoryContributionIssueCases, orgId),
     events: await readTenantRows(statutoryContributionIssueEvents, orgId),
+    remittanceBatches: await readTenantRows(statutoryRemittanceBatches, orgId),
+    remittanceMembers: await readTenantRows(statutoryRemittanceMembers, orgId),
     ids: await readTenantRows(essIdentifierRequests, orgId),
     tasks: await readTenantRows(complianceActionTasks, orgId),
     audit: await readTenantRows(auditEvents, orgId),
@@ -146,15 +148,19 @@ export async function verifyEssStatutoryIdentityIsolation(f, { request, expectSt
     agency: "SSS", applicableMonth: "2026-02", dueDate: "2026-03-15",
     snapshotHash: "0".repeat(64), createdBy: "Fictional ESS isolation",
   }).returning({ id: statutoryRemittanceBatches.id });
-  const [victimMember] = await db.insert(statutoryRemittanceMembers).values({
-    batchId: victimBatch.id, organizationId: victim.org.id,
-    legalEntityId: f.entities[0].id, employeeId: victim.employeeId,
-    employeeNo: f.victimEmployee.employeeNo,
-    employeeShare: "100.00", employerShare: "150.00", totalContribution: "250.00",
-  }).returning({ id: statutoryRemittanceMembers.id, organizationId: statutoryRemittanceMembers.organizationId,
+  const remittanceMembers = await db.insert(statutoryRemittanceMembers).values(
+    f.victimEmployees.map(employee => ({
+      batchId: victimBatch.id, organizationId: victim.org.id,
+      legalEntityId: f.entities[0].id, employeeId: employee.id,
+      employeeNo: employee.employeeNo,
+      employeeShare: "100.00", employerShare: "150.00", totalContribution: "250.00",
+    })),
+  ).returning({ id: statutoryRemittanceMembers.id, organizationId: statutoryRemittanceMembers.organizationId,
     employeeId: statutoryRemittanceMembers.employeeId });
-  assert.ok(victimMember.id > 0 && victimMember.organizationId === victim.org.id &&
-    victimMember.employeeId === victim.employeeId, "genuine victim remittance member required");
+  assert.equal(remittanceMembers.length, 8, "all eight victim-only remittance members must be persisted");
+  const victimMember = remittanceMembers.find(row => row.employeeId === victim.employeeId);
+  assert.ok(victimMember?.id > 6 && victimMember.organizationId === victim.org.id,
+    "genuine victim-only member must have a real persisted ID above six");
   const victimId = await submitIdentifier(http, victim, "passportNo", "FICTIONAL9001");
   const victimCase = await submitCase(http, victim, sentinel, "2026-02", {
     memberId: victimMember.id,
@@ -223,11 +229,14 @@ export async function verifyEssStatutoryIdentityIsolation(f, { request, expectSt
     200, "a second employer keeps the same authenticated session active");
   assert.equal(session.json?.user?.id, victim.actor.id);
 
-  for (const path of ["/api/self/identifiers", "/api/self/contribution-issues"]) {
-    const result = expectStatus(await request(path, { cookie: victim.cookie }),
-      403, "revoked employer membership blocks old-employer GET " + path);
-    noLeak(result, sentinel);
-  }
+  const revokedIdentifiersGet = expectStatus(await request("/api/self/identifiers", {
+    cookie: victim.cookie,
+  }), 403, "revoked employer membership blocks old-employer GET identifiers");
+  noLeak(revokedIdentifiersGet, sentinel);
+  const revokedContributionGet = expectStatus(await request("/api/self/contribution-issues", {
+    cookie: victim.cookie,
+  }), 403, "revoked employer membership blocks old-employer GET contribution issues");
+  noLeak(revokedContributionGet, sentinel);
   const idDenied = expectStatus(await request("/api/self/identifiers", {
     method: "POST", cookie: victim.cookie, body: { kind: "tin", value: "123456789" },
   }), 403, "revoked employer membership blocks identity POST");
