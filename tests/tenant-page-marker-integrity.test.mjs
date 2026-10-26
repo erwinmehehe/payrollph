@@ -23,7 +23,7 @@ test("foreign employer HTML must continue to reject real victim markers", () => 
   assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\("VictimExclusive7"\)/);
   assert.match(probe, /victimEmployeeAndPayrollUnchanged: true/);
   assert.match(probe, /const pageGaps = pages\.filter\(\(page\) => page\.status === "GAP"\);/);
-  assert.match(probe, /assert\.equal\(pageGaps\.length, 18,/);
+  assert.match(probe, /assert\.equal\(pageGaps\.length, 17,/);
   // Two provisional COVERED pages must retain real owned-success and victim-denial proof.
   assert.match(probe, /expectStatus\(ownRes, 200, "Owned workspace SSR must load the verified snapshot"\)/);
   assert.match(probe, /expectStatus\(foreignRes, 404, "Foreign employer workspace must be denied before snapshot loading"\)/);
