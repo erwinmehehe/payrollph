@@ -48,15 +48,44 @@ test("current overview headline equals complete live method manifest (frozen bas
 });
 
 test("closure plan schedules every original GAP exactly once in priority order", () => {
-  // The closure plan is a historical 2026-10-21 queue, not a moving
-  // snapshot of current handler line numbers. Its exact Git blob, including
-  // all 406 original source links, is pinned while live source/drift is
-  // separately checked by the method coverage inventory guard.
-  const frozenPlanBlob = createHash("sha1")
-    .update("blob " + Buffer.byteLength(plan) + "\0" + plan)
-    .digest("hex");
-  assert.equal(frozenPlanBlob, "bd93253b602f02760ac434a7b387cbc56a8ae351",
-    "The frozen 406-method closure queue and its source links must not change");
+  // Preserve the EXACT original 2026-10-21 queue, including every route
+  // source link and its order, while permitting separately labelled live
+  // reconciliation notes to evolve. The old whole-file Git blob was no
+  // longer valid after those status notes were added on main; do not merely
+  // repin its new SHA and lose historical evidence integrity.
+  const firstBatch = plan.indexOf("### Batch DL-01 —");
+  const lastSafety = plan.indexOf("## Page and server-action closure");
+  const liveSnapshot = plan.indexOf("## Current live-manifest batch reconciliation");
+  assert.ok(firstBatch > 0 && lastSafety > firstBatch,
+    "Frozen closure plan must retain all original batch and page sections");
+  if (liveSnapshot >= 0) {
+    assert.ok(liveSnapshot < firstBatch, "Live status must not replace a frozen batch");
+  }
+  const sourceEntries = plan.split("\n").filter(line =>
+    /^### Batch [A-Z0-9-]+ — /u.test(line)
+    || /^- `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/.+ — \[source\]\(\.\.\/\.\.\/src\/app\/api\//u.test(line));
+  const frozenParts = [
+    {
+      label: "baseline purpose, safety boundaries and batch grouping",
+      text: plan.slice(0, liveSnapshot >= 0 ? liveSnapshot : firstBatch).trimEnd() + "\n",
+      sha: "418188cf324aeb137c6e733d3f8286f92628154b",
+    },
+    {
+      label: "ordered 12 batch headings and 406 exact historical method links",
+      text: sourceEntries.join("\n") + "\n",
+      sha: "f6c62dd9d155677d2a920140d0a28093ebb18976",
+    },
+    {
+      label: "20-page closure, proof requirements, owner decisions and safety gates",
+      text: plan.slice(lastSafety),
+      sha: "5fb04ba9c53786db3f9f816f36b41dd1391f4d27",
+    },
+  ];
+  assert.equal(sourceEntries.length, 418, "All 12 headings plus 406 original route links must remain");
+  for (const section of frozenParts) {
+    const sha = createHash("sha1").update("blob " + Buffer.byteLength(section.text) + "\0" + section.text).digest("hex");
+    assert.equal(sha, section.sha, section.label + " changed since the frozen 2026-10-21 baseline");
+  }
   const current = allMethods();
   const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)];
   assert.equal(headers.length, 12, "12 numbered baseline closure PR batches expected");

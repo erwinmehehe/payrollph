@@ -159,12 +159,16 @@ test("ESS overview records match the merged, source-pinned method-level manifest
 
 test("labor-costing GET-only source repin does not certify the legacy POST", () => {
   const file = "src/app/api/workforce/labor-costing/route.ts";
-  const baseRef = process.env.FAIL_CLOSED_GUARD_BASE_REF || "origin/main";
-  const baseline = JSON.parse(execFileSync("git", ["show", baseRef + ":" + manifestFile], {
+  // Compare with the immutable pre-GET-hardening source, not the moving
+  // merge-base or main branch (which now contains the reviewed GET change).
+  const originalSourceRef = "de6d0fb597d25e1af3db68dfe1f4884353c1916c";
+  const baseline = JSON.parse(execFileSync("git", ["show", originalSourceRef + ":" + manifestFile], {
     encoding: "utf8", maxBuffer: 32 << 20,
   }));
   const old = baseline.allApiRouteFiles[file];
   const current = manifest.allApiRouteFiles[file];
+  assert.equal(old.gitBlobSha, "e5e2c007ca41da3c6e2fc1217600f83640f48975",
+    "Historical comparator must remain the original labor-costing source");
   assert.equal(current.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
   const oldGet = old.methods.find(method => method.name === "GET");
   const newGet = current.methods.find(method => method.name === "GET");
