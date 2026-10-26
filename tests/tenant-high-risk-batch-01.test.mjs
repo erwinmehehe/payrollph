@@ -402,14 +402,64 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // distinct verifier is checked separately; it must not inflate old credits.
   const managerDirectReportCredits = manifest.allApiRouteFiles["src/app/api/hcm/manager-direct-reports/route.ts"].methods
     .filter(method => method.name === "GET" && method.status === "COVERED" && method.testedBy?.file === "scripts/qa/hcm-manager-direct-reports-http.mjs").length;
+
+  // This ESS batch contributes only two provisional contribution-case methods.
+  // Preserve the historical 124/359 baseline by separately proving and
+  // subtracting those credits, never by increasing the historical constants.
+  const essProofFile = "scripts/qa/tenant-ess-statutory-identity-http.mjs";
+  const essLines = readFileSync(essProofFile, "utf8").split("\n");
+  const contributionMethods = manifest.allApiRouteFiles["src/app/api/self/contribution-issues/route.ts"]?.methods;
+  assert.deepEqual(contributionMethods?.map(method => method.name), ["GET", "POST"],
+    "Only the two contribution-case verbs qualify for new ESS credits");
+  assert.match(harness, /verifyEssStatutoryIdentityIsolation\(f, \{ request, expectStatus, makeSession \}\)/,
+    "The real disposable HTTP/PG16 harness must execute the ESS proof");
+  assert.match(essLines.join("\n"), /for \(const index of \[1, 2\]\)/,
+    "Both independent attackers must be exercised");
+  let essContributionCredits = 0;
+  for (const [name, ownStatus] of [["GET", 200], ["POST", 201]]) {
+    const method = contributionMethods.find(item => item.name === name);
+    const proof = method?.testedBy;
+    assert.equal(method?.status, "COVERED", name + ": provisional ESS credit requires real HTTP proof");
+    assert.equal(proof?.file, essProofFile, name + ": no unrelated proof source may be borrowed");
+    assert.equal(proof.denialKind, "same-session-revoked-membership");
+    assert.equal(proof.ownStatus, ownStatus);
+    assert.equal(proof.foreignStatus, 403);
+    assert.equal(proof.line, proof.ownPositiveLine);
+    for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "victimIdOrderingLine"]) {
+      assert.ok(Number.isInteger(proof[field]) && proof[field] > 0 && proof[field] <= essLines.length,
+        name + ": source-pinned " + field + " must exist");
+    }
+    const own = essLines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 7).join("\n");
+    const denied = essLines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 7).join("\n");
+    assert.match(own, name === "GET"
+      ? /const caseResponse = expectStatus\(await request\(/
+      : /const result = expectStatus\(await request\(/);
+    assert.match(own, /\/api\/self\/contribution-issues/);
+    assert.match(own, new RegExp("\\), " + ownStatus + ","),
+      name + ": own request must succeed with its actual expected HTTP status");
+    assert.match(denied, name === "GET"
+      ? /const revokedContributionGet = expectStatus\(await request\(/
+      : /const caseDenied = expectStatus\(await request\(/);
+    assert.match(denied, /\), 403,/,
+      name + ": original employer must be denied after real membership revocation");
+    assert.match(essLines[proof.unchangedDbLine - 1] ?? "",
+      /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/,
+      name + ": victim SQL/audit/outbox must remain unchanged");
+    assert.match(essLines[proof.victimIdOrderingLine - 1] ?? "", /f\.victimEmployee\.id > 6/);
+    essContributionCredits++;
+  }
+  assert.equal(essContributionCredits, 2);
+  assert.deepEqual(manifest.allApiRouteFiles["src/app/api/self/identifiers/route.ts"].methods
+    .map(method => [method.name, method.status]), [["GET", "GAP"], ["POST", "GAP"]],
+    "The other two ESS HTTP methods remain GAP with zero new credits");
   assert.equal(managerDirectReportCredits, 1);
   assert.equal(manifest.metrics.coveredAfter - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - 7, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + 7, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

@@ -1332,6 +1332,94 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(runner, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
         continue;
       }
+      // ESS contribution case GET/POST: same-session revoked former-employer
+      // 403 is the negative proof for this employee-only route. An attacker
+      // cannot choose the other employer with a query/body selector; do not
+      // mistake that for an authenticated cross-tenant negative. Require the
+      // actual positive/negative HTTP calls, persisted victim member and
+      // unchanged PostgreSQL evidence on the isolated CI runner.
+      if (proof?.file === "scripts/qa/tenant-ess-statutory-identity-http.mjs") {
+        assert.equal(path, "src/app/api/self/contribution-issues/route.ts",
+          "Only ESS contribution-case GET/POST may use this source");
+        const pins = method.name === "GET"
+          ? { own: 123, denied: 236, ownStatus: 200 }
+          : method.name === "POST"
+            ? { own: 96, denied: 244, ownStatus: 201 } : null;
+        assert.ok(pins, "An unrelated method cannot borrow ESS contribution-case coverage");
+        assert.deepEqual([
+          proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.unchangedDbLine, proof.victimIdOrderingLine,
+          proof.denialKind, proof.ownStatus, proof.foreignStatus,
+        ], [pins.own, pins.own, pins.denied, 252, 136,
+          "same-session-revoked-membership", pins.ownStatus, 403],
+        "ESS contribution proof line pins or denial classification changed without review");
+        assert.match(method.reason, /PROVISIONAL/,
+          "Unmerged CI evidence is not independently accepted");
+        const src = readFileSync(proof.file, "utf8");
+        const lines = src.split("\n");
+        // Long synthetic POST bodies can place their explicit HTTP status
+        // more than eight lines after the request start (e.g. foreign member
+        // denial at lines 197-206). Keep the request and 404 in one proof span.
+        const from = line => lines.slice(line - 1, line + 12).join("\n");
+        const positive = evidenceLine(proof.file, pins.own, path + " own");
+        const denied = evidenceLine(proof.file, pins.denied, path + " revoked");
+        const ownSpan = from(pins.own);
+        const deniedSpan = from(pins.denied);
+        const endpoint = "/api/self/contribution-issues";
+        assert.match(positive, /expectStatus\(await request\(/,
+          "Positive evidence must start the actual HTTP request");
+        assert.match(denied, /expectStatus\(await request\(/,
+          "Negative evidence must start the actual HTTP request");
+        assert.ok(ownSpan.includes(endpoint) && deniedSpan.includes(endpoint),
+          "Both actual requests must target the credited ESS route");
+        assert.ok(ownSpan.includes("), " + pins.ownStatus + ",") &&
+          deniedSpan.includes("), 403,"),
+        "Real own 200/201 and former-member 403 are mandatory");
+        if (method.name === "POST") {
+          assert.match(ownSpan, /method: "POST"/);
+          assert.match(deniedSpan, /method: "POST"/);
+          assert.deepEqual([proof.forgedForeignMemberDenialLine,
+            proof.victimMemberHighIdLine], [197, 162]);
+          assert.match(evidenceLine(proof.file, 197, path + " foreign member"),
+            /const forbiddenMember = expectStatus\(await request\("\/api\/self\/contribution-issues"/);
+          assert.match(from(197), /\), 404,/,
+            "Genuine cross-employer remittance member must be denied by record scope");
+          assert.match(evidenceLine(proof.file, 162, path + " victim high-ID member"),
+            /victimMember\?\.id > 6 && victimMember\.organizationId === victim\.org\.id/);
+        }
+        assert.match(evidenceLine(proof.file, 136, path + " real victim ID"),
+          /f\.victimEmployee\.id > 6/);
+        assert.match(evidenceLine(proof.file, 252, path + " unchanged DB"),
+          /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/);
+        for (const table of ["cases", "events", "remittanceBatches", "remittanceMembers",
+          "ids", "tasks", "audit", "outbox"]) {
+          assert.ok(src.includes(table + ": await readTenantRows("),
+            "Snapshot must cover victim " + table);
+        }
+        assert.match(src, /for \(const index of \[1, 2\]\)/);
+        assert.match(src, /await readOwn\(http, attacker/);
+        assert.match(src, /await db\.update\(userOrganizations\)\.set\(\{ active: false \}\)/);
+        assert.match(src, /const session = expectStatus\(await request\("\/api\/auth\/me"/);
+        assert.match(src, /assert\.equal\(session\.json\?\.user\?\.id, victim\.actor\.id\)/);
+        assert.match(src, /assert\.equal\(active\.length, 1, "second employer grant must remain active"/);
+        assert.match(src, /noLeak\(revokedContributionGet, sentinel\)/);
+        assert.match(src, /noLeak\(caseDenied, sentinel\)/);
+        assert.match(src, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        assert.match(src, /process\.env\.CI, "true"/);
+        assert.match(src, /pg\.hostname, "127\.0\.0\.1"/);
+        assert.match(src, /pg\.pathname, "\/app_db"/);
+        assert.match(src, /process\.env\.PII_ENCRYPTION_KEY/);
+        assert.match(src, /!process\.env\.PAYMONGO_SECRET_KEY && !process\.env\.XENDIT_SECRET_KEY/);
+        assert.match(src, /!process\.env\.POSTMARK_SERVER_TOKEN && !process\.env\.SMTP_URL/);
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const workflow = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
+        assert.match(runner, /verifyEssStatutoryIdentityIsolation\(f, \{ request, expectStatus, makeSession \}\)/,
+          "This exact HTTP test must actually execute in the second-pass runner");
+        assert.match(workflow, /run: npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
+        assert.match(workflow, /TENANT_SECOND_PASS_MODE: isolated-ci-only/);
+        assert.match(workflow, /image: postgres:16/);
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
