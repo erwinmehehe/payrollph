@@ -61,14 +61,7 @@
     "wfm-square-sandbox-qa.yml"
   ],
   "docsOnlyFilters": [
-    "a5-vault-minio-acceptance.yml",
-    "backup-restore-rehearsal.yml",
-    "nav-runtime-sweep.yml",
-    "paymongo-export-isolation.yml",
-    "public-intake-db-acceptance.yml",
-    "tenant-money-lifecycle.yml",
-    "treasury-isolation.yml",
-    "underpayment-posting.yml"
+    "a5-vault-minio-acceptance.yml"
   ],
   "documentationPatterns": [
     "**",
@@ -98,5 +91,16 @@
     "scheduler-staging-evidence.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior.",
     "scheduler-staging-health.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior.",
     "vercel-git-deploy-policy.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior."
-  }
+  },
+  "selectivePrFilters": [
+    "nav-runtime-sweep.yml",
+    "paymongo-export-isolation.yml",
+    "public-intake-db-acceptance.yml",
+    "tenant-money-lifecycle.yml",
+    "treasury-isolation.yml",
+    "underpayment-posting.yml"
+  ],
+  "scheduledManualOnly": [
+    "backup-restore-rehearsal.yml"
+  ]
 }
