@@ -38,7 +38,7 @@ export type PeopleHomeSection = {
   hasMore: boolean;
   partial: boolean;
   total: number | null;
-  /** One of this section\x27s independent read sources failed; results are incomplete. */
+  /** One of the independent read sources failed; results are incomplete. */
   sourceUnavailable?: boolean;
 };
 
