@@ -36,6 +36,15 @@ type Domain = { id: number; providerId: number; domain: string; verified: boolea
 type ScimToken = { id: number; name: string; prefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 type PermissionSet = { id: number; name: string; description: string | null; permissions: unknown; active: boolean };
 type PermissionAssignment = { id: number; userOrganizationId: number; permissionSetId: number; dynamicGroupId: number | null; dynamicGroupVersion: number | null };
+type PermissionReviewRow = {
+  membershipId: number;
+  role: string;
+  state: string;
+  listedByOverlay: string[];
+  deniedByOverlay: string[];
+  permissionSetId: number | null;
+  dynamicGroupId: number | null;
+};
 type WorkerIdentity = { id: number; employeeNo: string; name: string; orgUnitId: number | null; status: string };
 type DynamicGroupOption = { id: number; code: string; name: string; active: boolean; version: number };
 type Member = {
@@ -69,6 +78,7 @@ type EnterpriseData = {
   scimTokens: ScimToken[];
   permissionSets: PermissionSet[];
   permissionAssignments: PermissionAssignment[];
+  permissionReview: PermissionReviewRow[];
   dynamicGroups: DynamicGroupOption[];
   workerIdentities: WorkerIdentity[];
   members: Member[];
@@ -181,6 +191,7 @@ function EnterpriseControlsPanelForOrganization({ organizationId, setNotice }: E
   const providerById = useMemo(() => new Map((data?.identityProviders ?? []).map((row) => [row.id, row])), [data]);
   const permissionById = useMemo(() => new Map((data?.permissionSets ?? []).map((row) => [row.id, row])), [data]);
   const assignmentByMembership = useMemo(() => new Map((data?.permissionAssignments ?? []).map((row) => [row.userOrganizationId, row])), [data]);
+  const reviewByMembership = useMemo(() => new Map((data?.permissionReview ?? []).map((row) => [row.membershipId, row])), [data]);
   const ruleById = useMemo(() => new Map((data?.automationRules ?? []).map((row) => [row.id, row])), [data]);
 
   async function mutate(body: Record<string, unknown>) {
@@ -520,9 +531,10 @@ function EnterpriseControlsPanelForOrganization({ organizationId, setNotice }: E
             <span>Group guards require an explicitly linked worker identity. Another administrator must link your own account; owner accounts cannot be group-gated. A group never grants a permission or payroll release authority.</span>
           </div>
           <div className="data-table-wrap"><table className="data-table">
-            <thead><tr><th>MEMBER</th><th>BASE ROLE</th><th>VERIFIED WORKER</th><th>RESTRICTION</th><th>DYNAMIC GROUP GUARD</th></tr></thead>
+            <thead><tr><th>MEMBER</th><th>BASE ROLE</th><th>VERIFIED WORKER</th><th>RESTRICTION</th><th>DYNAMIC GROUP GUARD</th><th>READ-ONLY OVERLAY AUDIT</th></tr></thead>
             <tbody>{data.members.map((member) => {
               const assignment = assignmentByMembership.get(member.membershipId);
+              const review = reviewByMembership.get(member.membershipId);
               const workerId = member.workerEmployeeId ?? (member.role === "employee" ? member.employeeLoginId : null);
               return <tr key={member.membershipId}>
                 <td><strong>{member.name}</strong><small style={{ display: "block", color: "var(--muted)" }}>{member.email}</small></td>
@@ -569,6 +581,19 @@ function EnterpriseControlsPanelForOrganization({ organizationId, setNotice }: E
                     ))}
                   </select>
                   {assignment?.dynamicGroupId != null && <small style={{ display: "block", color: "var(--muted)" }}>Frozen at group v{assignment.dynamicGroupVersion}</small>}
+                </td>
+                <td>
+                  <strong>{review?.state ?? "review-unavailable"}</strong>
+                  {review && review.deniedByOverlay.length > 0 && (
+                    <small style={{ display: "block" }}>
+                      Denied by overlay: {review.deniedByOverlay.join(", ")}
+                    </small>
+                  )}
+                  {review?.state === "conditional-dynamic-group-overlay" && (
+                    <small style={{ display: "block", color: "var(--muted)" }}>
+                      Listed gates are not effective grants; live group eligibility is checked on each action.
+                    </small>
+                  )}
                 </td>
               </tr>;
             })}</tbody>
