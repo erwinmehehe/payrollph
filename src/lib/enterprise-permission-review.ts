@@ -7,18 +7,18 @@
 export type EnterprisePermissionReviewInput = {
   organizationId: number;
   availablePermissions: readonly string[];
-  members: readonly Array<{
+  members: ReadonlyArray<{
     membershipId: number; userId: number; role: string; orgUnitId: number | null;
     membershipActive: boolean; active: boolean;
   }>;
-  permissionSets: readonly Array<{
+  permissionSets: ReadonlyArray<{
     id: number; organizationId: number; name: string; active: boolean; permissions: unknown;
   }>;
-  assignments: readonly Array<{
+  assignments: ReadonlyArray<{
     organizationId: number; userOrganizationId: number; permissionSetId: number;
     dynamicGroupId: number | null; dynamicGroupVersion: number | null;
   }>;
-  groups: readonly Array<{
+  groups: ReadonlyArray<{
     id: number; code: string; version: number; active: boolean;
   }>;
 };
