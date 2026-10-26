@@ -121,7 +121,7 @@ test("literal pipe characters in separate costing dimensions cannot alias a dupl
   });
 
   assert.equal(result.status, "allocated");
-  assert.deepEqual(result.allocations.map((item) => item.id), [1, 2]);
+  assert.deepEqual(result.allocations.map((item) => item.id).sort((a, b) => a - b), [1, 2]);
   // Both combinations previously serialized to the same pipe-delimited key.
   assert.notEqual(result.allocations[0]?.projectCode, result.allocations[1]?.projectCode);
 });
