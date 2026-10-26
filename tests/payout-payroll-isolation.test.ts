@@ -87,11 +87,24 @@ test("general CI keeps independent payroll and statutory certification mandatory
   const direct = /npx tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts/.test(workflow);
   const viaNpm = /- run: npm test(?:\s|$)/.test(workflow)
     && fullRegressionCommand.test(packageJson.scripts?.test ?? "");
-  const sharded = /needs: \[test-shard, audit-chain-protection\]/.test(workflow)
-    && /needs\.audit-chain-protection\.result != 'success'/.test(workflow)
-    && /shard: \[0, 1, 2, 3\]/.test(workflow)
-    && /node scripts\/run-sharded-tests\.mjs/.test(workflow)
-    && /npm run db:push/.test(workflow)
+  const check = workflow.split("\n  check:\n")[1] ?? "";
+  const validation = workflow.split("\n  validation:\n")[1]?.split("\n  check:\n")[0] ?? "";
+  const sharded =
+    check.includes("if: ${{ always() }}")
+    && check.includes("needs: [change-scope, test-shard, audit-chain-protection, validation]")
+    && check.includes("REGRESSION_RESULT: ${{ needs.test-shard.result }}")
+    && check.includes("AUDIT_RESULT: ${{ needs.audit-chain-protection.result }}")
+    && check.includes("VALIDATION_RESULT: ${{ needs.validation.result }}")
+    && check.includes('for result in "$REGRESSION_RESULT" "$AUDIT_RESULT" "$VALIDATION_RESULT"; do')
+    && check.includes('if [ "$result" != "success" ]; then')
+    && check.includes('if [ "$DOCS_ONLY" = "true" ]; then')
+    && check.includes('"$REGRESSION_RESULT" != "skipped"')
+    && check.includes('"$AUDIT_RESULT" != "skipped"')
+    && check.includes('"$VALIDATION_RESULT" != "skipped"')
+    && workflow.includes("shard: [0, 1, 2, 3]")
+    && workflow.includes("node scripts/run-sharded-tests.mjs")
+    && validation.includes("needs: change-scope")
+    && validation.includes("npm run db:push")
     && fullRegressionCommand.test(packageJson.scripts?.test ?? "");
   assert.ok(direct || viaNpm || sharded, "CI must run all regression tests");
   for (const command of [
