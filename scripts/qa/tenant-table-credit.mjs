@@ -7,6 +7,7 @@
  *
  *   node scripts/qa/tenant-table-credit.mjs --run-label "local PG16 2026-10-24"   # writes
  *   node scripts/qa/tenant-table-credit.mjs --refresh-links                         # existing pins only
+ *   node scripts/qa/tenant-table-credit.mjs --only-key "PATCH route" --run-label "executed receipt" # selected GAP credits
  *   node scripts/qa/tenant-table-credit.mjs --check                                  # dry run
  *
  * Family rows: scripts/qa/tenant-table-rows/{read,write}/*.mjs. Shared HTTP assertions
@@ -24,13 +25,27 @@ const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const OVERVIEW = "docs/engineering/tenant-isolation-coverage-inventory.md";
 const write = !process.argv.includes("--check");
 const refreshLinks = process.argv.includes("--refresh-links");
+// A prior executed batch can be reconciled while later families remain uncredited.
+const onlyKeys = process.argv.flatMap((arg, index) => arg === "--only-key" ? [process.argv[index + 1]] : []);
+const selectedKeys = new Set(onlyKeys);
+const catalogKeys = new Set(["read", "write"].flatMap(kind => tenantFamilyCatalog(kind).map(row => row.key)));
+// A passing create_worksite action cannot certify other POST worksite actions.
+// Keep this method GAP until a separately reviewed complete proof is accepted.
+const actionScopedMethodHolds = new Set(["POST workforce/worksites"]);
+if (onlyKeys.some(key => actionScopedMethodHolds.has(key))) {
+  throw new Error("POST workforce/worksites remains GAP: create_worksite does not prove other POST actions");
+}
+if (selectedKeys.size !== onlyKeys.length || onlyKeys.some(key => !catalogKeys.has(key))) {
+  throw new Error("--only-key requires unique exact catalog method keys");
+}
+
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
 const familyAt = process.argv.indexOf("--family");
 const family = familyAt >= 0 ? process.argv[familyAt + 1] : null;
 if (familyAt >= 0 && (!family || !/^[a-z][a-z0-9-]*$/.test(family))) throw new Error("--family requires a valid family filename");
 if (family && ![...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].some(row => row.file.endsWith("/" + family + ".mjs"))) throw new Error("unknown or empty credit family");
-// Explicit reviewed selection avoids crediting pending/partially exercised rows.
+// Explicit reviewed selection cannot silently promote pending or partially exercised rows.
 const selection = process.argv.includes("--reconcile-merged-families") ? reviewedFamilySelection() : null;
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
 
@@ -95,6 +110,8 @@ for (const source of SOURCES) {
     if (!hit) throw new Error(row.key + ": not in the manifest");
     const { method } = hit;
     const ownedHere = method.testedBy?.file === source.file;
+    if (method.status === "GAP" && actionScopedMethodHolds.has(row.key)) continue;
+    if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
     const familySelected = !family || row.file.endsWith("/" + family + ".mjs");
