@@ -84,7 +84,7 @@ test("gate env values must be generated from actual runtime employer IDs, not wi
   assert.match(envSource, /"allowlisted-reads":/);
   assert.match(workflow, /profile: \[default, multi-entity, flagged-reads, allowlisted-reads\]/);
   assert.match(workflow, /tenant-table-allowlist-bootstrap\.mjs/);
-  assert.ok(workflow.indexOf("tenant-table-allowlist-bootstrap.mjs\n") <
+  assert.ok(workflow.indexOf("- name: Preseed two attackers") <
     workflow.indexOf("Start isolated production-mode localhost server"));
   assert.match(workflow, /tenant-table-allowlist-negative\.mjs/);
   assert.match(bootstrap, /const ids = \[attackerA\.org\.id, attackerB\.org\.id, victim\.org\.id\]/);
