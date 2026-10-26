@@ -74,7 +74,10 @@ test("all four protected status workflows remain unconditional for PRs", () => {
   const ci = workflow("ci.yml");
   assert.deepEqual(ci.jobs["test-shard"].strategy.matrix.shard, [0, 1, 2, 3]);
   assert.equal(ci.jobs.check.if, "${{ always() }}");
-  assert.deepEqual(ci.jobs.check.needs, ["test-shard", "audit-chain-protection"]);
+  assert.deepEqual(ci.jobs.check.needs, ["change-scope", "test-shard", "audit-chain-protection", "validation"]);
+  assert.equal(ci.jobs["audit-chain-protection"].needs.includes("audit-chain-real-logins"), true);
+  assert.ok(ci.jobs.check.steps.some(s => s.run?.includes('for result in "$REGRESSION_RESULT" "$AUDIT_RESULT" "$VALIDATION_RESULT"')),
+    "every applicable regression, audit and validation failure must be caught");
 });
 
 test("intake reuses one exact-source build while retaining both independent database acceptance jobs", () => {
