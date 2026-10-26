@@ -55,7 +55,7 @@ for (const key of ["PATCH performance/action-items", "PATCH performance/continuo
   });
 }
 
-test("source-link refresh cannot grant the three pending Performance credits", () => {
+test("source-link refresh preserves the three executed Performance credits", () => {
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json";
   const before = readFileSync(file, "utf8");
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
@@ -65,6 +65,6 @@ test("source-link refresh cannot grant the three pending Performance credits", (
   for (const key of ["PATCH performance/action-items", "PATCH performance/continuous", "POST performance/action-items"]) {
     const [verb, route] = key.split(" ");
     const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
-    assert.equal(record.methods.find(m => m.name === verb).status, "GAP");
+    assert.equal(record.methods.find(m => m.name === verb).status, "COVERED");
   }
 });
