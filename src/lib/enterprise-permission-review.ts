@@ -1,3 +1,5 @@
+import { permissionOverlayGroupBindingValid, permissionOverlayKeysValid } from "./permission-overlay-absence";
+
 /**
  * Read-only enterprise role/permission-set reconciliation.
  * This is NOT an authorization decision: base-role guards and live Dynamic Group
@@ -65,11 +67,14 @@ export function projectEnterprisePermissionReview(input: EnterprisePermissionRev
       if (assignments.length !== 1) return deny("invalid-assignment");
       const assignment = assignments[0]!;
       const set = sets.get(assignment.permissionSetId);
-      if (!set || !set.active || !Array.isArray(set.permissions)
-        || set.permissions.some((key: unknown) => typeof key !== "string" || !permissionKeys.includes(key))) {
+      if (!set || !set.active || !permissionOverlayKeysValid(set.permissions, permissionKeys)) {
         return { ...deny("invalid-or-inactive-overlay"), permissionSetId: assignment.permissionSetId };
       }
-      const listed = permissionKeys.filter(key => (set.permissions as string[]).includes(key));
+      if (!permissionOverlayGroupBindingValid(assignment)) {
+        return { ...deny("invalid-dynamic-group"), permissionSetId: set.id,
+          dynamicGroupId: assignment.dynamicGroupId };
+      }
+      const listed = permissionKeys.filter(key => set.permissions.includes(key));
       const denied = permissionKeys.filter(key => !listed.includes(key));
       if (assignment.dynamicGroupId !== null) {
         const group = groups.get(assignment.dynamicGroupId);
