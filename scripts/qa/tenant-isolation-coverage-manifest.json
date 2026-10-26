@@ -33111,12 +33111,12 @@
       ]
     },
     "src/app/api/workforce/labor-costing/route.ts": {
-      "gitBlobSha": "e5e2c007ca41da3c6e2fc1217600f83640f48975",
+      "gitBlobSha": "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
       "route": "workforce/labor-costing",
       "methods": [
         {
           "name": "GET",
-          "line": 78,
+          "line": 79,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -33133,10 +33133,17 @@
         },
         {
           "name": "POST",
-          "line": 133,
+          "line": 156,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "GET-only authorization hardening; this POST body remains byte-identical to original route SHA e5e2c007ca41da3c6e2fc1217600f83640f48975. POST is still GAP: no independent owned-success plus real foreign denial and unchanged victim database evidence has been credited.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "unchanged-POST-in-GET-only-security-fix",
+            "originalRouteBlobSha": "e5e2c007ca41da3c6e2fc1217600f83640f48975",
+            "routeBlobSha": "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
+            "unchangedPostBlobSha": "91bcb6ee054c538f72d65630cc89deb641cfa7f5",
+            "reason": "Only GET and an import changed; POST bytes are independently pinned and retain GAP/zero coverage credit. Real HTTP POST proof and independent review are still required."
+          }
         }
       ],
       "employerSources": {
@@ -33164,111 +33171,107 @@
           "token": "getSessionUser"
         },
         {
-          "line": 21,
+          "line": 22,
           "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 66,
-          "token": "getAccess"
         },
         {
           "line": 67,
-          "token": "assertScope"
-        },
-        {
-          "line": 79,
-          "token": "getSessionUser"
-        },
-        {
-          "line": 88,
-          "token": "assertOrganizationRole"
-        },
-        {
-          "line": 96,
           "token": "getAccess"
         },
         {
-          "line": 134,
-          "token": "enforceSameOriginMutation"
+          "line": 68,
+          "token": "assertScope"
         },
         {
-          "line": 137,
+          "line": 80,
           "token": "getSessionUser"
         },
         {
-          "line": 145,
+          "line": 89,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 155,
+          "line": 97,
+          "token": "getAccess"
+        },
+        {
+          "line": 157,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 160,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 168,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 178,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 83,
+          "line": 84,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 141,
+          "line": 164,
           "token": "body.organizationId"
         },
         {
-          "line": 216,
+          "line": 239,
           "token": "body.legalEntityId"
         },
         {
-          "line": 216,
+          "line": 239,
           "token": "body.legalEntityId"
         },
         {
-          "line": 216,
+          "line": 239,
           "token": "body.legalEntityId"
         },
         {
-          "line": 218,
+          "line": 241,
           "token": "body.legalEntityId"
         },
         {
-          "line": 303,
+          "line": 326,
           "token": "body.employeeId"
         }
       ],
       "businessIds": [
         {
-          "line": 57,
+          "line": 58,
           "token": "organizationId"
         },
         {
-          "line": 57,
-          "token": "employeeId"
-        },
-        {
-          "line": 59,
+          "line": 58,
           "token": "employeeId"
         },
         {
           "line": 60,
+          "token": "employeeId"
+        },
+        {
+          "line": 61,
           "token": "organizationId"
         },
         {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 66,
+          "line": 61,
           "token": "organizationId"
         },
         {
           "line": 67,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 83,
           "token": "organizationId"
         },
         {
-          "line": 83,
+          "line": 68,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 84,
           "token": "organizationId"
         },
         {
@@ -33280,19 +33283,23 @@
           "token": "organizationId"
         },
         {
-          "line": 90,
+          "line": 86,
           "token": "organizationId"
         },
         {
-          "line": 96,
+          "line": 91,
           "token": "organizationId"
         },
         {
-          "line": 100,
+          "line": 97,
           "token": "organizationId"
         },
         {
-          "line": 100,
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
           "token": "organizationId"
         }
       ]
