@@ -18,9 +18,11 @@ test("new vertical allocation POST is a real single-row tenant write contract, n
   assert.equal(matches.length, 1);
   assert.equal(matches[0].file, "scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs");
   assert.match(matches[0].text, /state: state/);
-  assert.match(matches[0].text, /expect: \(before, after, c, response\)/);
+  assert.match(matches[0].text, /expect: async \(before, after, c, response\)/);
   assert.match(matches[0].text, /assert\.deepEqual\(after\.allocations/);
   assert.match(matches[0].text, /after\.audits/);
+  assert.match(matches[0].text, /for \(const action of \["create_cost_center", "set_gl_mapping"\]\)/);
+  assert.match(matches[0].text, /forgedMapping\.status, 422/);
   assert.match(matches[0].text, /before\.profiles/);
 });
 test("actor, victim and forged worker IDs bind independently to genuine source IDs", () => {
