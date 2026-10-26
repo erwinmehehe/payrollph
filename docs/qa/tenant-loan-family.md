@@ -15,8 +15,13 @@ worker ID under the own employer and must return 409 without creating a request.
 PATCH derives ownership from the real victim loan ID rather than a supplied employer.
 
 The active historical loan and its prior payment are fictional database fixtures,
-not an API activation or bank receipt. The request remains pending. No approval,
-resume, external payment recording, provider call or money-flag change is performed.
+not an API activation or bank receipt. The seeded active loan includes a separate
+same-employer fictional checker account and its recorded prior review timestamp
+and source reference. Those fields satisfy the existing
+`employee_loans_independent_deduction_check` without disabling the database
+constraint, self-approving or calling any approval endpoint. The new POST
+request remains pending. No HTTP approval, resume, external payment recording,
+provider call or money-flag change is performed.
 Snapshots preserve employer-scoped loan payments and payroll entries through their
 parent loans/runs, plus workers, existing pay profiles, revisions and audit business
 history. Unit cases reject false/no-op/foreign evidence, changed money fields,
