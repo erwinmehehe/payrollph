@@ -159,8 +159,15 @@ export type PayTimelineSegment = {
 };
 
 function dateValue(value: string) {
+  // JS Date.parse normalizes nonexistent calendar days (e.g. 2026-02-30)
+  // to a different payroll date. Effective-dated pay evidence must be exact.
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`Invalid payroll date: ${value}`);
+  }
   const parsed = Date.parse(`${value}T00:00:00Z`);
-  if (!Number.isFinite(parsed)) throw new Error(`Invalid payroll date: ${value}`);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== value) {
+    throw new Error(`Invalid payroll date: ${value}`);
+  }
   return parsed;
 }
 
