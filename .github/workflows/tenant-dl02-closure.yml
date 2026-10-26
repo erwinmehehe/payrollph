@@ -12,6 +12,7 @@ on:
       - 'scripts/qa/tenant-dl02-rows/**'
       - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'tests/tenant-dl02-closure-source.test.mjs'
       - 'src/app/api/self/photo/**'
       - 'src/app/api/web-bundy/evidence/**'
       - 'src/app/api/workforce/demand-observations/import/**'
