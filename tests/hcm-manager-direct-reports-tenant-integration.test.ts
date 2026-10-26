@@ -240,6 +240,28 @@ test("a bound manager sees only unambiguous current primary direct reports in th
     ]) assert.ok(!serialized.includes(forbidden), "Unexpected scope or private field: " + forbidden);
     assert.equal(Object.hasOwn(first, "totalHeadcount"), false);
 
+    // An active account/membership is not proof that its employee of record
+    // is still employed. Deny the entire manager view before selecting reports.
+    for (const status of ["Separating", "Separated", "Inactive", "Suspended"]) {
+      await db.update(employees).set({ status }).where(eq(employees.id, managerA.id));
+      await assert.rejects(read(createdUsers[0].id), ManagerDirectReportsAccessError,
+        "Worker status " + status + " must not retain manager visibility");
+    }
+    // Leave is still an employed state; scope and permissions continue to
+    // control the view without silently converting it to an unlinked account.
+    await db.update(employees).set({ status: "On leave" }).where(eq(employees.id, managerA.id));
+    assert.equal((await read(createdUsers[0].id)).items.length, 20);
+
+    // A future-start employee cannot act as a current manager even when a
+    // stale/early membership has already been assigned to the account.
+    await db.update(employees).set({
+      status: "Active", startDate: "9999-01-01",
+    }).where(eq(employees.id, managerA.id));
+    await assert.rejects(read(createdUsers[0].id), ManagerDirectReportsAccessError);
+    await db.update(employees).set({ startDate: "2020-01-01" })
+      .where(eq(employees.id, managerA.id));
+    assert.equal((await read(createdUsers[0].id)).items.length, 20);
+
     const betaView = await read(createdUsers[1].id, beta.id);
     assert.deepEqual(betaView.items.map((row) => row.employeeNo), [betaWorker.employeeNo]);
     assert.ok(!JSON.stringify(betaView).includes("AlphaDirect"));
