@@ -69,10 +69,10 @@ export async function verifyIndependentPeopleHomeTenantProof({ browser, base, lo
         assert.equal(ownPage?.status(), 200, "Real HR session must load own People Home");
         // Next SSR/RSC streams: domcontentloaded can precede completed server-rendered HTML.
         // Wait for *actual* own employer + source data rather than accepting a 200 shell.
-        await page.getByRole("heading", { name: "People Home", exact: true }).waitFor({ timeout: 30000 });
-        await page.getByText(actor.employer, { exact: false }).first().waitFor({ timeout: 30000 });
-        await page.getByText(actor.workflow, { exact: false }).first().waitFor({ timeout: 30000 });
-        const ownHtml = await page.locator("main").innerText();
+        const home = page.locator("main").filter({ has: page.getByRole("heading", { name: "People Home", exact: true }) }).last();
+        await home.getByText(actor.employer, { exact: false }).first().waitFor({ timeout: 30000 });
+        await home.getByText(actor.workflow, { exact: false }).first().waitFor({ timeout: 30000 });
+        const ownHtml = await home.innerText();
         assert.ok(ownHtml.includes(actor.employer), "Persisted own employer name must render");
         assert.ok(ownHtml.includes(actor.workflow), "Nonempty own HCM source row must render");
         assert.ok(ownHtml.includes("People Ops follow-ups"),
