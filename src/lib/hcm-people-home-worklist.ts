@@ -38,6 +38,8 @@ export type PeopleHomeSection = {
   hasMore: boolean;
   partial: boolean;
   total: number | null;
+  /** One of this section\x27s independent read sources failed; results are incomplete. */
+  sourceUnavailable?: boolean;
 };
 
 export type PeopleHomeWorklist = {
@@ -145,7 +147,7 @@ async function assignedHcmDecisions(
  * Each source read is independently capped before constructing the preview.
  */
 async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSection> {
-  const [lifecycle, provisioning] = await Promise.all([
+  const [lifecycle, provisioning] = await Promise.allSettled([
     db.select({
       id: hcmLifecycleNotificationTasks.id,
       dueDate: hcmLifecycleNotificationTasks.dueDate,
@@ -175,6 +177,38 @@ async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSec
       .orderBy(provisioningTasks.id)
       .limit(FOLLOWUP_SOURCE_LIMIT + 1),
   ]);
+
+  return projectPeopleHomeFollowUpSources(organizationId, lifecycle, provisioning);
+}
+
+type LifecycleFollowUpRow = {
+  id: number;
+  dueDate: string | null;
+  severity: string;
+};
+type ProvisioningFollowUpRow = {
+  id: number;
+  kind: string;
+  employeeId: number;
+};
+
+/**
+ * A failed lifecycle query must not erase verified provisioning rows (or
+ * vice versa). Both failed is unavailable, never a verified empty list.
+ * Failed-source errors are deliberately not copied into the response.
+ */
+export function projectPeopleHomeFollowUpSources(
+  organizationId: number,
+  lifecycleResult: PromiseSettledResult<LifecycleFollowUpRow[]>,
+  provisioningResult: PromiseSettledResult<ProvisioningFollowUpRow[]>,
+): PeopleHomeSection {
+  if (lifecycleResult.status === "rejected" && provisioningResult.status === "rejected") {
+    return missing();
+  }
+  const lifecycle = lifecycleResult.status === "fulfilled" ? lifecycleResult.value : [];
+  const provisioning = provisioningResult.status === "fulfilled" ? provisioningResult.value : [];
+  const sourceUnavailable = lifecycleResult.status === "rejected"
+    || provisioningResult.status === "rejected";
 
   const rows: PeopleHomeItem[] = [
     ...lifecycle.slice(0, FOLLOWUP_SOURCE_LIMIT).map((item) => ({
@@ -211,6 +245,7 @@ async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSec
     a.key.localeCompare(b.key));
 
   // Always partial: other People Operations Inbox categories are out of scope.
+  // The UI must ALSO distinguish a failed sub-source from a true empty preview.
   return {
     state: "ready",
     items: rows.slice(0, VISIBLE),
@@ -218,6 +253,7 @@ async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSec
       lifecycle.length > FOLLOWUP_SOURCE_LIMIT || provisioning.length > FOLLOWUP_SOURCE_LIMIT,
     partial: true,
     total: null,
+    sourceUnavailable,
   };
 }
 
