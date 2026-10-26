@@ -137,7 +137,7 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Rehearse careers consent, isolated DDL rollback and two-employer HTTP (PG${{ matrix.postgres }})
         run: npx tsx --test --test-concurrency=1 tests/careers-http-postgres.test.ts
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: public-intake-next-${{ github.sha }}
           path: .ci-artifacts
