@@ -18,6 +18,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
+import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const OVERVIEW = "docs/engineering/tenant-isolation-coverage-inventory.md";
@@ -29,6 +30,8 @@ const familyAt = process.argv.indexOf("--family");
 const family = familyAt >= 0 ? process.argv[familyAt + 1] : null;
 if (familyAt >= 0 && (!family || !/^[a-z][a-z0-9-]*$/.test(family))) throw new Error("--family requires a valid family filename");
 if (family && ![...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].some(row => row.file.endsWith("/" + family + ".mjs"))) throw new Error("unknown or empty credit family");
+// Explicit reviewed selection avoids crediting pending/partially exercised rows.
+const selection = process.argv.includes("--reconcile-merged-families") ? reviewedFamilySelection() : null;
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
 
 const SOURCES = [
@@ -56,12 +59,12 @@ const SOURCES = [
     workflow: ".github/workflows/tenant-table-proof.yml",
     reason: (label) => "Provisional: write-table disposable PG16 real-HTTP proof (" + label + "): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, " +
       "the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
-    scope: "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
+    scope: "Employer-scoped write (POST/PATCH/PUT/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
     evidenceName: "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); ",
     overviewLabel: "Tenant write-table own-write/victim PG16 proof",
     paragraphMarker: "**Tenant write-table employer-scoped writes (provisional, NOT ACCEPTED):**",
     paragraph: (n, totals, pageGaps) => "**Tenant write-table employer-scoped writes (provisional, NOT ACCEPTED):** [one shared write runner](../../scripts/qa/tenant-write-table-http.mjs) runs in the [shared table workflow](../../.github/workflows/tenant-table-proof.yml) and proves " +
-      n + " POST/PATCH/DELETE methods. For each row, two independently signed-in fictional attacker employers perform the write for their own employer (exact status, and the change is read back from PostgreSQL), " +
+      n + " POST/PATCH/PUT/DELETE methods. For each row, two independently signed-in fictional attacker employers perform the write for their own employer (exact status, and the change is read back from PostgreSQL), " +
       "the same session naming a real higher-ID victim employer or a victim row id is denied, an optional forged victim reference writes nothing, no victim marker appears in any response, and the victim's PostgreSQL rows and audit are unchanged. " +
       "Each row's expectation must also reject the other attacker's genuine before/after. Combined **" + totals + "** plus " + pageGaps +
       " page/action GAPs. Exact-head CI and independent security review are required; no production, provider, filing or payout system is touched.",
@@ -94,17 +97,20 @@ for (const source of SOURCES) {
     const ownedHere = method.testedBy?.file === source.file;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
-    const selected = !family || row.file.endsWith("/" + family + ".mjs");
-    if (!selected && !ownedHere) continue;
-    const retainEvidence = refreshLinks || !selected;
+    const familySelected = !family || row.file.endsWith("/" + family + ".mjs");
+    if (!familySelected && !ownedHere) continue;
+    if (selection && !ownedHere && !selection.methods.has(row.key)) continue;
+    const selected = selection?.methods.get(row.key);
+    const retainEvidence = refreshLinks || !familySelected || (selection && !selected);
     const was = method.status;
     method.status = "COVERED";
-    if (!retainEvidence) method.reason = source.reason(runLabel ?? method.testedBy?.evidence ?? "check");
+    if (!retainEvidence) method.reason = source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
     method.testedBy = {
       ...method.testedBy,
       file: source.file, line: ownPositiveLine, rowFile: row.file, rowLine: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
-      scope: retainEvidence ? method.testedBy.scope : (family ? source.scope.replace("CI PG16 only", "local disposable PG16; exact-head CI NOT_RUN") : source.scope),
-      evidence: retainEvidence ? method.testedBy.evidence : (family ? "Local shared runner " + source.file + "; " : source.evidenceName) + (runLabel ?? "see prior credit"),
+      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? (family ? source.scope.replace("CI PG16 only", "local disposable PG16; exact-head CI NOT_RUN") : source.scope)),
+      evidence: retainEvidence ? method.testedBy.evidence : (family ? "Local shared runner " + source.file + "; " : source.evidenceName) + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
+      ...(selected ? { reviewedHead: selection.receipt.reviewedHead, passedJob: selection.receipt.run + "/job/" + selection.receipt.profiles.default.job } : {}),
     };
     credited.push({ ...row, source, path: hit.path, was });
   }
