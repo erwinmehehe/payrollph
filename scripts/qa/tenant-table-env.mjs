@@ -22,6 +22,17 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     // Synthetic configured-policy GET/POST only; published rosters are not exercised.
     WFM_ROSTER_SCALE_RULES_ENABLED: "true",
   },
+  // Actual disposable employer IDs are inserted by the pre-server bootstrap.
+  // Never provide a wildcard, hard-coded employer ID, or production allowlist.
+  "allowlisted-reads": {
+    HCM_TEAM_LEAVE_CALENDAR_ENABLED: "true",
+    HCM_PROCESS_MONITOR_ENABLED: "true",
+    HCM_ORG_EXPLORER_ENABLED: "true",
+    HCM_MANAGER_DECISION_INBOX_ENABLED: "true",
+    WFM_SCHEDULE_RECEIPTS_ENABLED: "true",
+    WFM_HISTORICAL_OUTLOOK_ENABLED: "true",
+    WFM_OPERATIONAL_DEMAND_ENABLED: "true",
+  },
   // Multi-entity changes other workflows (entity holds), so its rows run in their own server.
   "multi-entity": {
     MULTI_ENTITY_ENABLED: "true",

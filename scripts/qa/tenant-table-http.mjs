@@ -28,7 +28,7 @@ import {
 } from "../../src/db/schema";
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
-import { auditBusinessSnapshot, seedTableRow } from "./tenant-table-invariants.mjs";
+import { auditBusinessSnapshot, seedTableRow, readAllowlistPreseed } from "./tenant-table-invariants.mjs";
 export const hex64 = () => randomBytes(32).toString("hex");
 /** A further fictional worker of the same employer (own marker plus suffix). */
 export async function addWorker(e, suffix, { payProfile = true } = {}) {
@@ -184,9 +184,9 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
   // Attackers first, victim last: every victim ID is larger than any attacker-owned ID, so a
   // response cannot pass by echoing a low or shared identifier.
-  const employers = [null];
-  for (const label of ["ATTA", "ATTB"]) employers.push(await seedEmployer(label, nonce, makeSession));
-  const victim = employers[0] = await seedEmployer("VICTIM", nonce, makeSession);
+  const employers = profile === "allowlisted-reads" ? readAllowlistPreseed(process.env.TENANT_TABLE_ALLOWLIST_FIXTURE) : [null];
+  if (employers[0] === null) for (const label of ["ATTA", "ATTB"]) employers.push(await seedEmployer(label, nonce, makeSession));
+  const victim = employers[0] ?? (employers[0] = await seedEmployer("VICTIM", nonce, makeSession));
   for (const field of ["org", "worker", "unit", "entity"]) {
     assert.ok(Number.isSafeInteger(victim[field].id) && victim[field].id > employers[1][field].id && victim[field].id > employers[2][field].id,
       "Victim-only " + field + " ID must really exist and exceed both attackers' IDs");
