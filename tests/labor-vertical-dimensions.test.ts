@@ -59,5 +59,10 @@ test("journal and API source pass typed dimensions end-to-end without changing a
   assert.match(exporter, /LABOR_VERTICAL_DIMENSION_HEADERS/);
   assert.match(exporter, /debitIndex/);
   assert.match(api, /resolvedAllocation.verticalDimensions/);
+  const ui = readFileSync("src/components/workspace/labor-costing-panel.tsx", "utf8");
+  assert.match(ui, /Additional industry allocation codes/);
+  assert.match(ui, /invalidVerticalDimensions/);
+  assert.match(ui, /row.verticalDimensions/);
+  assert.match(ui, /normalizeLaborVerticalDimensions/);
   assert.match(sql, /ADD COLUMN IF NOT EXISTS vertical_dimensions jsonb/);
 });
