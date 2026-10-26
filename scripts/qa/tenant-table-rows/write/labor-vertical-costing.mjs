@@ -10,6 +10,11 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
   employees, employeePayProfiles, employeePayRevisions, payrollRuns, payrollEntries }) {
   let schema;
   const tables = async () => (schema ??= await import("../../../../src/db/schema.ts"));
+  const request = async (url, options) =>
+    (await import("../../tenant-table-http.mjs")).standaloneRequest(url, options);
+  const actorCookies = new Map();
+  const api = "/api/workforce/labor-costing";
+  const dataOnly = (rows) => JSON.parse(JSON.stringify(rows));
   const scoped = (table, orgId) => db.select().from(table)
     .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
   const state = async orgId => {
@@ -46,12 +51,29 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
     { key: "POST workforce/labor-costing", status: 201, state: state,
       seed: async e => {
         const { costCenters, employeeLaborAllocations } = await tables();
-        const [first, second] = await db.insert(costCenters).values([
-          { organizationId: e.org.id, code: (e.marker + "-BPO").slice(0, 40),
-            name: e.marker + " fictional campaign cost center", active: true },
-          { organizationId: e.org.id, code: (e.marker + "-PLANT").slice(0, 40),
-            name: e.marker + " fictional plant cost center", active: true },
-        ]).returning();
+        actorCookies.set(e.org.id, e.cookie);
+        // Exercise both independent administrative POST branches with a real
+        // authenticated same-employer success before the victim snapshot.
+        const create = async suffix => {
+          const reply = await request(api, { method: "POST", cookie: e.cookie,
+            body: { organizationId: e.org.id, action: "create_cost_center",
+              code: (e.marker + "-" + suffix).slice(0, 40),
+              name: e.marker + " fictional " + suffix + " cost center" } });
+          assert.equal(reply.status, 201, "own cost-center POST must succeed: " + reply.text.slice(0, 140));
+          assert.equal(reply.json?.costCenter?.organizationId, e.org.id);
+          assert.ok(Number.isSafeInteger(reply.json.costCenter.id));
+          return reply.json.costCenter;
+        };
+        const first = await create("BPO");
+        const second = await create("PLANT");
+        const mapping = await request(api, { method: "POST", cookie: e.cookie,
+          body: { organizationId: e.org.id, action: "set_gl_mapping",
+            accountKey: "salary_expense", costCenterId: first.id,
+            accountCode: "EXP511", accountName: e.marker + " fictional expense account" } });
+        assert.equal(mapping.status, 201, "own GL mapping POST must succeed: " + mapping.text.slice(0, 140));
+        assert.equal(mapping.json?.glMapping?.organizationId, e.org.id);
+        assert.equal(mapping.json.glMapping.costCenterId, first.id);
+        assert.equal(mapping.json.glMapping.accountName, e.marker + " fictional expense account");
         const [old] = await db.insert(employeeLaborAllocations).values({
           organizationId: e.org.id, employeeId: e.worker.id, costCenterId: first.id,
           effectiveFrom: "2098-01-01", allocationPercent: "100.000",
@@ -64,7 +86,7 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
       foreignBody: c => body(c, c.victim.org.id, c.victim.worker.id, c.victimSeeded),
       forged: { status: 404,
         body: c => body(c, c.orgId, c.victim.worker.id, c.seeded) },
-      expect: (before, after, c, response) => {
+      expect: async (before, after, c, response) => {
         assert.deepEqual(Object.keys(after).sort(), Object.keys(before).sort());
         for (const key of Object.keys(before))
           if (!["allocations", "audits"].includes(key)) assert.deepEqual(after[key], before[key],
@@ -107,6 +129,32 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
         assert.deepEqual(event.metadata.allocations.map(r => r.verticalDimensions),
           added.map(r => r.verticalDimensions));
         assert.deepEqual(after.audits.filter(r => r.id !== event.id), before.audits);
+        const cookie = actorCookies.get(c.orgId);
+        assert.ok(cookie && cookie.startsWith("__Host-linaw_session="),
+          "foreign attack must use the still-authenticated attacker session");
+        // The real higher-ID victim is explicitly targeted for each other POST
+        // action. Every denial is checked against the full own SQL snapshot.
+        for (const action of ["create_cost_center", "set_gl_mapping"]) {
+          const foreignBody = action === "create_cost_center"
+            ? { organizationId: c.victim.org.id, action,
+                code: c.marker + "-DENY", name: c.marker + " denied foreign center" }
+            : { organizationId: c.victim.org.id, action,
+                accountKey: "salary_expense", costCenterId: c.victimSeeded.id,
+                accountCode: "DENY", accountName: c.marker + " denied foreign mapping" };
+          const denied = await request(api, { method: "POST", cookie, body: foreignBody });
+          assert.equal(denied.status, 403, action + " must deny a different employer");
+          assert.ok(!denied.text.includes(c.victim.marker), action + " must not leak victim data");
+          assert.deepEqual(dataOnly(await state(c.orgId)), after,
+            action + " foreign denial must not mutate the attacker's own rows or audit");
+        }
+        const forgedMapping = await request(api, { method: "POST", cookie,
+          body: { organizationId: c.orgId, action: "set_gl_mapping",
+            accountKey: "salary_expense", costCenterId: c.victimSeeded.id,
+            accountCode: "DENY", accountName: c.marker + " forged foreign cost center" } });
+        assert.equal(forgedMapping.status, 422, "victim cost center must be refused in own-employer GL mapping");
+        assert.ok(!forgedMapping.text.includes(c.victim.marker));
+        assert.deepEqual(dataOnly(await state(c.orgId)), after,
+          "forged cross-employer GL mapping must leave the own employer unchanged");
       } },
   ];
 }
