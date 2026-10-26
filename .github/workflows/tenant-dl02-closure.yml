@@ -35,7 +35,7 @@ jobs:
   dl02:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -93,7 +93,8 @@ jobs:
           node --test tests/tenant-isolation-coverage-inventory.test.mjs tests/tenant-dl02-closure-source.test.mjs tests/tenant-dl02-fixture-reader.test.mjs
       - run: npx tsc --noEmit
       - run: npm run lint
-      - run: npm test
+      # Execute the actual adversarial HTTP/PG proof before the long full suite.
+      # A timeout or cancellation must never be reported as method coverage.
       - run: npm run build
       - name: Start local HTTPS synthetic scanner and production-mode Next.js
         shell: bash
@@ -123,6 +124,8 @@ jobs:
           exit 1
       - name: Run DL-02 four exact methods with real PG victim before/after and forged selectors
         run: npx tsx scripts/qa/tenant-dl02-closure-http.mjs
+      - name: Run full repository regression after the four-method HTTP proof
+        run: npm test
       - name: Emit error logs only on a failure
         if: failure()
         run: |
