@@ -1,9 +1,18 @@
-// Safe optimization: only Markdown-only pull requests can skip heavy CI.
+// Safe optimization: only Markdown at known documentation locations can
+// bypass heavy CI. MDX may be executable in Next.js, and Markdown under source,
+// scripts or test directories can influence applications and test fixtures.
 // Unknown/empty comparisons and all non-PR events always run full CI.
 import { appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const SAFE_ROOT_DOCS = new Set([
+  "README.md",
+  "CONTRIBUTING.md",
+  "CHANGELOG.md",
+  ".github/PULL_REQUEST_TEMPLATE.md",
+]);
 
 export function isDocsOnly(files) {
   return Array.isArray(files) && files.length > 0 && files.every((path) =>
@@ -11,7 +20,11 @@ export function isDocsOnly(files) {
     path.length > 0 &&
     !path.includes("\0") &&
     !path.includes("..") &&
-    /\.(?:md|mdx)$/i.test(path)
+    !path.includes("\\") &&
+    (
+      SAFE_ROOT_DOCS.has(path) ||
+      /^docs\/(?:[^/]+\/)*[^/]+\.md$/.test(path)
+    )
   );
 }
 
