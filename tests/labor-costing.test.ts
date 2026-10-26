@@ -110,6 +110,22 @@ test("duplicate active dimensions fail closed", () => {
   }), /Duplicate active labor allocation dimension/);
 });
 
+test("literal pipe characters in separate costing dimensions cannot alias a duplicate", () => {
+  const result = resolveLaborAllocation({
+    employeeId: 42,
+    asOf: "2026-10-05",
+    rows: [
+      row({ id: 1, allocationPercent: 50, projectCode: "A|B", clientCode: "C" }),
+      row({ id: 2, allocationPercent: 50, projectCode: "A", clientCode: "B|C" }),
+    ],
+  });
+
+  assert.equal(result.status, "allocated");
+  assert.deepEqual(result.allocations.map((item) => item.id), [1, 2]);
+  // Both combinations previously serialized to the same pipe-delimited key.
+  assert.notEqual(result.allocations[0]?.projectCode, result.allocations[1]?.projectCode);
+});
+
 test("trace preserves finance allocation evidence", () => {
   const result = resolveLaborAllocation({
     employeeId: 42,
@@ -209,6 +225,30 @@ test("labor amount allocation balances exactly to the cent", () => {
 
   assert.equal(allocated.reduce((sum, item) => sum + item.amount, 0), 100);
   assert.deepEqual(allocated.map((item) => item.amount), [33.33, 33.33, 33.34]);
+});
+
+test("centavo allocations round half-cent adjustments symmetrically and reverse exactly", () => {
+  const resolved = resolveLaborAllocation({
+    employeeId: 42,
+    asOf: "2026-10-05",
+    rows: [
+      row({ id: 1, costCenterId: 10, allocationPercent: 50 }),
+      row({ id: 2, costCenterId: 20, allocationPercent: 50 }),
+    ],
+  });
+
+  const debit = allocateLaborAmount(1.005, resolved);
+  const reversal = allocateLaborAmount(-1.005, resolved);
+  assert.deepEqual(debit.map((entry) => entry.amount), [0.51, 0.5]);
+  assert.deepEqual(reversal.map((entry) => entry.amount), [-0.51, -0.5]);
+  assert.equal(debit.reduce((sum, entry) => sum + entry.amount, 0), 1.01);
+  assert.equal(reversal.reduce((sum, entry) => sum + entry.amount, 0), -1.01);
+
+  const unallocated = resolveLaborAllocation({ employeeId: 42, asOf: "2026-10-05", rows: [] });
+  assert.equal(allocateLaborAmount(100.005, unallocated)[0]?.amount, 100.01);
+  assert.equal(allocateLaborAmount(-100.005, unallocated)[0]?.amount, -100.01);
+  assert.equal(allocateLaborAmount(-0.005, unallocated)[0]?.amount, -0.01);
+  assert.throws(() => allocateLaborAmount(Number.MAX_VALUE, resolved), /finite|safe centavo precision/);
 });
 
 test("GL mapping resolves most specific legal-entity and cost-center account", () => {
