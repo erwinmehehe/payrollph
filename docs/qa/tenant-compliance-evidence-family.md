@@ -1,6 +1,6 @@
 # Compliance Evidence — local-only tenant proof
 
-Base: current main `1735b1ce50fac7e3dadfd8509b1a17fba3ad1656`.
+Base: main `2f90cd458c65a0902332837e579ac7196b0ab5b9`, merged before acceptance.
 Separate worktree/branch; no overlap with #1402, #1409, #1418–#1421 or #1423.
 All fixtures are fictional. No agency, email, provider or money action is invoked.
 
@@ -52,7 +52,13 @@ Mutation check actually replaced the first row's expectation with a no-op: the
 runner failed with `expect accepts another employer's data`. That mutation was
 removed before acceptance; no mutation-mode result earns credit.
 
-Final-head fresh-DB strict receipt and exact commit are recorded in the draft PR
+The post-sync fresh-DB strict run on executable source
+`49d5b9ed3d848711c5fd49cbd295b4fbc8058d55` passed all three rows,
+six own/victim pairs, three discrimination checks, two forged-reference checks,
+and unchanged victim DB/audit. Receipt: local `outputs/compliance-fresh-http.log`.
+Only this family's three credits were generated with `--family compliance-evidence`;
+unrelated pending methods retain GAP and prior proof ownership is preserved.
+The final reviewed-head repeat and exact commit are recorded in the draft PR
 and local outputs. CI is **not yet run** until a real exact-head result exists.
 All coverage is provisional and bounded to Owner/default profile, BIR draft
 generation and inspection/preflight reporting. Other principals, agency formats,
