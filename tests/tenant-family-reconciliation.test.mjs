@@ -61,7 +61,42 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
   for (const [file, entry] of Object.entries(base.allApiRouteFiles)) for (const method of entry.methods) {
     const now = manifest.allApiRouteFiles[file].methods.find(item => item.name === method.name), key = method.name + " " + entry.route;
     if (now.status !== method.status) changed.push(key);
-    if (!selected.has(key)) assert.deepEqual(now, method, key + ": existing proof ownership/scope/status must be preserved");
+    if (!selected.has(key)) {
+      if (file === "src/app/api/workforce/labor-costing/route.ts") {
+        // This PR hardens only GET. Re-pinning line numbers and annotating the
+        // byte-identical legacy POST is not a new proof or change in ownership.
+        // All other methods below still require exact full-object equality.
+        assert.equal(manifest.allApiRouteFiles[file].gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
+          "Only the exact reviewed GET-only route change may shift method lines");
+        if (method.name === "GET") {
+          assert.equal(method.line, 78);
+          assert.equal(now.line, 79);
+          assert.deepEqual({ ...now, line: method.line }, method,
+            "GET must preserve every existing own/foreign source proof and scope");
+        } else if (method.name === "POST") {
+          assert.equal(method.line, 133);
+          assert.equal(now.line, 156);
+          assert.equal(now.status, "GAP", "unchanged POST must not receive GET proof credit");
+          assert.equal(now.testedBy, null, "untested POST must have no certification");
+          const { reviewedUncertified, ...methodWithoutReview } = now;
+          assert.deepEqual({ ...methodWithoutReview, line: method.line, reason: method.reason }, method,
+            "POST must retain its original method identity, GAP and empty proof");
+          assert.deepEqual(reviewedUncertified, {
+            kind: "unchanged-POST-in-GET-only-security-fix",
+            originalRouteBlobSha: "e5e2c007ca41da3c6e2fc1217600f83640f48975",
+            routeBlobSha: "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
+            unchangedPostBlobSha: "91bcb6ee054c538f72d65630cc89deb641cfa7f5",
+            reason: "Only GET and an import changed; POST bytes are independently pinned and retain GAP/zero coverage credit. Real HTTP POST proof and independent review are still required.",
+          }, "POST exception cannot be broadened, changed or reused");
+          assert.equal(now.reason,
+            "GET-only authorization hardening; this POST body remains byte-identical to original route SHA e5e2c007ca41da3c6e2fc1217600f83640f48975. POST is still GAP: no independent owned-success plus real foreign denial and unchanged victim database evidence has been credited.");
+        } else {
+          assert.fail("Unexpected method in the reviewed labor-costing route: " + method.name);
+        }
+      } else {
+        assert.deepEqual(now, method, key + ": existing proof ownership/scope/status must be preserved");
+      }
+    }
   }
   const newlyEligible = receipt.accepted.map(row => row.key).filter(key => {
     const [verb, route] = key.split(" ");
