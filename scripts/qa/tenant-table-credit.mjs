@@ -25,6 +25,10 @@ const write = !process.argv.includes("--check");
 const refreshLinks = process.argv.includes("--refresh-links");
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
+const familyAt = process.argv.indexOf("--family");
+const family = familyAt >= 0 ? process.argv[familyAt + 1] : null;
+if (familyAt >= 0 && (!family || !/^[a-z][a-z0-9-]*$/.test(family))) throw new Error("--family requires a valid family filename");
+if (family && ![...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].some(row => row.file.endsWith("/" + family + ".mjs"))) throw new Error("unknown or empty credit family");
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
 
 const SOURCES = [
@@ -90,14 +94,17 @@ for (const source of SOURCES) {
     const ownedHere = method.testedBy?.file === source.file;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
+    const selected = !family || row.file.endsWith("/" + family + ".mjs");
+    if (!selected && !ownedHere) continue;
+    const retainEvidence = refreshLinks || !selected;
     const was = method.status;
     method.status = "COVERED";
-    if (!refreshLinks) method.reason = source.reason(runLabel ?? method.testedBy?.evidence ?? "check");
+    if (!retainEvidence) method.reason = source.reason(runLabel ?? method.testedBy?.evidence ?? "check");
     method.testedBy = {
       ...method.testedBy,
       file: source.file, line: ownPositiveLine, rowFile: row.file, rowLine: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
-      scope: refreshLinks ? method.testedBy.scope : source.scope,
-      evidence: refreshLinks ? method.testedBy.evidence : source.evidenceName + (runLabel ?? "see prior credit"),
+      scope: retainEvidence ? method.testedBy.scope : (family ? source.scope.replace("CI PG16 only", "local disposable PG16; exact-head CI NOT_RUN") : source.scope),
+      evidence: retainEvidence ? method.testedBy.evidence : (family ? "Local shared runner " + source.file + "; " : source.evidenceName) + (runLabel ?? "see prior credit"),
     };
     credited.push({ ...row, source, path: hit.path, was });
   }

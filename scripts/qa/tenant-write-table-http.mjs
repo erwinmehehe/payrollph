@@ -19,7 +19,7 @@
  * Developer aid: TENANT_TABLE_TRY=1 reports every failing row (never credits).
  */
 import assert from "node:assert/strict";
-import { loadTenantRows } from "./tenant-table-loader.mjs";
+import { loadTenantRows, selectTenantRowsByFamily } from "./tenant-table-loader.mjs";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
@@ -27,7 +27,7 @@ import {
   approvalDelegations, benefitEnrollments, benefitPlans, dataRequests, disciplinaryCases, earnedWageRequests, engagementSurveys, hcmEmploymentTermDecisions,
   hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, performanceSkillDevelopmentPlans, sessions,
   workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, apiKeys, organizations, organizationSecurityPolicies, automationExecutions, employees, auditEvents, performanceGoals, performanceCycles, performanceReviews, performanceCalibrationSessions, performanceCalibrationEntries, performanceCalibrationFlags, performanceCalibrationPolicies, performanceCalibrationPolicyEvents, performanceSkillDevelopmentMilestones, performanceSkillDevelopmentPlanEvents, performanceActionReminderPolicies, performanceActionReminderPolicyEvents,
-} from "../../src/db/schema";
+  governmentFilingValidations, laborInspectionDrills, laborInspectionRemediations, payrollRuns, payrollEntries } from "../../src/db/schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
 import {
   addWorker, requireTenantTableDisposable, seedEmployer, standaloneExpectStatus,
@@ -54,9 +54,9 @@ export async function verifyTenantWriteTable(_f, {
   request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession,
 } = {}) {
   requireTenantTableDisposable();
-  const TENANT_WRITE_TABLE = await loadTenantRows("write", { addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, pool, apiKeys, organizations, organizationSecurityPolicies, automationExecutions, employees, auditEvents, auditBusinessSnapshot, performanceGoals, performanceCycles, performanceReviews, performanceCalibrationSessions, performanceCalibrationEntries, performanceCalibrationFlags, performanceCalibrationPolicies, performanceCalibrationPolicyEvents, performanceSkillDevelopmentMilestones, performanceSkillDevelopmentPlanEvents, performanceActionReminderPolicies, performanceActionReminderPolicyEvents });
+  const TENANT_WRITE_TABLE = await loadTenantRows("write", { addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, pool, apiKeys, organizations, organizationSecurityPolicies, automationExecutions, employees, auditEvents, auditBusinessSnapshot, performanceGoals, performanceCycles, performanceReviews, performanceCalibrationSessions, performanceCalibrationEntries, performanceCalibrationFlags, performanceCalibrationPolicies, performanceCalibrationPolicyEvents, performanceSkillDevelopmentMilestones, performanceSkillDevelopmentPlanEvents, performanceActionReminderPolicies, performanceActionReminderPolicyEvents, governmentFilingValidations, laborInspectionDrills, laborInspectionRemediations, payrollRuns, payrollEntries });
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
-  const rows = TENANT_WRITE_TABLE.filter((row) => (row.profile ?? "default") === profile);
+  const rows = selectTenantRowsByFamily("write", TENANT_WRITE_TABLE, process.env.TENANT_TABLE_FAMILY).filter((row) => (row.profile ?? "default") === profile);
   if (rows.length === 0 && process.env.TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE === "1") {
     // The shared workflow runs this step in every profile job; a profile with no write rows says so and proves nothing.
     console.log(JSON.stringify({ kind: "tenant-write-table-skip", profile, rows: 0, credited: 0 }));
@@ -153,7 +153,7 @@ export async function verifyTenantWriteTable(_f, {
   assert.equal(passed.size, rows.length * 2, "every row passed for both independent attacker employers");
   assert.equal(discriminatingProofs, rows.length, "every row's expect rejected the other attacker's genuine before/after");
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
-  console.log(JSON.stringify({ kind: "tenant-write-table-proof", profile, rows: rows.length, ownAndForeignPairs: passed.size,
+  console.log(JSON.stringify({ kind: "tenant-write-table-proof", profile, family: process.env.TENANT_TABLE_FAMILY ?? null, rows: rows.length, ownAndForeignPairs: passed.size,
     discriminatingProofs, forgedReferenceProofs: forgedProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false }));
   return { rows: rows.length, pairs: passed.size };
 }
