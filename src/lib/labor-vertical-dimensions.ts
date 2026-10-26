@@ -19,6 +19,9 @@ export function normalizeLaborVerticalDimensions(raw: unknown): LaborVerticalDim
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("Labor vertical dimensions must be a plain object.");
   }
+  if (Object.getPrototypeOf(raw) !== Object.prototype && Object.getPrototypeOf(raw) !== null) {
+    throw new Error("Labor vertical dimensions must be a plain object.");
+  }
   const entries = Object.entries(raw);
   if (entries.length > LABOR_VERTICAL_DIMENSION_KEYS.length) {
     throw new Error("Too many labor vertical dimension keys.");
