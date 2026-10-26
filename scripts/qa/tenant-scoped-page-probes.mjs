@@ -2,7 +2,7 @@
  * Exploratory three-employer HTML navigation probe over every business-ID page
  * in the full manifest. This is NOT page authorization certification: many
  * feature-disabled 403/404/redirects cannot serve as valid own-page positives.
- * Record the outstanding 18 GAPs and require proper browser/action adapters.
+ * Record the outstanding 17 GAPs and require proper browser/action adapters.
  * No production traffic or real accounts.
  */
 import assert from "node:assert/strict";
@@ -26,7 +26,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   const pages = manifest.scopedPages;
   assert.equal(pages.length, 21);
   const pageGaps = pages.filter((page) => page.status === "GAP");
-  assert.equal(pageGaps.length, 18, "Manager inbox and the workspace have strict own/foreign HTTP proofs");
+  assert.equal(pageGaps.length, 17, "Four pages have independently pinned own/foreign HTTP/browser evidence");
   const runSnapshot = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   const employeeSnapshot = await db.select().from(employees)
