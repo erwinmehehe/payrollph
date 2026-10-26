@@ -140,6 +140,40 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(method.testedBy, null, "No successful owned readiness read: keep GAP");
     return;
   }
+  // GET-only labor-costing hardening must not silently certify the untouched
+  // POST action. The new whole-route SHA is pinned, and the POST handler's
+  // exact original Git blob is verified through a byte-preserving digest.
+  // Any future modification to either one reopens mandatory review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/workforce/labor-costing/route.ts POST") {
+    const record = manifest.allApiRouteFiles["src/app/api/workforce/labor-costing/route.ts"];
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
+      "Labor costing changed again; exact-source method review is required");
+    assert.equal(record.gitBlobSha, currentBlob);
+    assert.equal(reviewed?.kind, "unchanged-POST-in-GET-only-security-fix");
+    assert.equal(reviewed?.originalRouteBlobSha, "e5e2c007ca41da3c6e2fc1217600f83640f48975");
+    assert.equal(reviewed?.routeBlobSha, currentBlob);
+    const routeSource = readFileSync("src/app/api/workforce/labor-costing/route.ts", "utf8");
+    const postStart = "export async function POST(request: Request) {";
+    assert.equal(routeSource.indexOf(postStart), routeSource.lastIndexOf(postStart),
+      "The POST handler must not be duplicated");
+    assert.ok(routeSource.includes(postStart), "Original POST method must remain intact");
+    const post = routeSource.slice(routeSource.indexOf(postStart));
+    const postBlobSha = gitBlobSha(Buffer.from(post));
+    assert.equal(postBlobSha, "91bcb6ee054c538f72d65630cc89deb641cfa7f5",
+      "POST source no longer matches the original unreviewed handler; new positive/negative proof required");
+    assert.equal(reviewed.unchangedPostBlobSha, postBlobSha);
+    assert.equal(method.testedBy, null, "Untested POST stays GAP with zero new credits");
+    const readMethod = record.methods.find((item) => item.name === "GET");
+    assert.equal(readMethod?.status, "COVERED",
+      "The independently evidenced GET must retain its own real HTTP source");
+    assert.equal(readMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    assert.match(routeSource.slice(0, routeSource.indexOf(postStart)), /scopeLaborCostingRead\(\{/,
+      "GET finance projection must remain separate from the unmodified POST handler");
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -1641,6 +1675,7 @@ test("all credited proof links point to the claimed route and every recertified 
         // under a profile that really turns on every flag the row needs.
         const key = method.name + " " + entry.route;
         assert.equal(method.name, "GET", key + ": the table runner never certifies a mutation");
+
         const suite = readFileSync(proof.file, "utf8");
         const spec = tenantFamilyCatalog("read").find((entry) => entry.key === key);
         assert.ok(spec, key + ": method must be loaded from an exact family row");
@@ -1693,6 +1728,7 @@ test("all credited proof links point to the claimed route and every recertified 
         // 403/404, and whose expectation must reject the other attacker's genuine data.
         const key = method.name + " " + entry.route;
         assert.ok(["POST", "PATCH", "PUT", "DELETE"].includes(method.name), key + ": the write table certifies mutations only");
+
         const suite = readFileSync(proof.file, "utf8");
         const spec = tenantFamilyCatalog("write").find((entry) => entry.key === key);
         assert.ok(spec, key + ": method must be loaded from an exact family row");

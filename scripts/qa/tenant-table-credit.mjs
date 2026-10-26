@@ -41,6 +41,10 @@ if (selectedKeys.size !== onlyKeys.length || onlyKeys.some(key => !catalogKeys.h
 
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
+const familyAt = process.argv.indexOf("--family");
+const family = familyAt >= 0 ? process.argv[familyAt + 1] : null;
+if (familyAt >= 0 && (!family || !/^[a-z][a-z0-9-]*$/.test(family))) throw new Error("--family requires a valid family filename");
+if (family && ![...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].some(row => row.file.endsWith("/" + family + ".mjs"))) throw new Error("unknown or empty credit family");
 // Explicit reviewed selection cannot silently promote pending or partially exercised rows.
 const selection = process.argv.includes("--reconcile-merged-families") ? reviewedFamilySelection() : null;
 const onlyPathIds = process.argv.includes("--only-path-ids");
@@ -112,19 +116,21 @@ for (const source of SOURCES) {
     if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
+    const familySelected = !family || row.file.endsWith("/" + family + ".mjs");
+    if (!familySelected && !ownedHere) continue;
     if (onlyPathIds && !ownedHere && !row.pathIds) continue;
     if (selection && !ownedHere && !selection.methods.has(row.key)) continue;
     const selected = selection?.methods.get(row.key);
-    const retainEvidence = refreshLinks || (selection && !selected) || (onlyPathIds && !row.pathIds);
+    const retainEvidence = refreshLinks || !familySelected || (selection && !selected) || (onlyPathIds && !row.pathIds);
     const was = method.status;
     method.status = "COVERED";
-    if (!retainEvidence) method.reason = row.pathIds ? "Provisional explicit seeded-path real HTTP/local PG16 proof (" + (runLabel ?? "check") + "): two independent attackers receive nonempty identity-bound own success, higher-ID real victim paths are denied, proof rejects the other attacker's data and victim DB/audit stays unchanged. Writes additionally require exact persisted own changes. Bounded local proof only; exact-head CI NOT_RUN; not production, tax approval, agency acceptance or payroll release." : source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
+    if (!retainEvidence) method.reason = row.pathIds ? "Provisional explicit seeded-path real HTTP/local PG16 proof (" + (runLabel ?? "check") + "): two independently authenticated attackers receive nonempty identity-bound own success and the genuine higher-ID foreign victim is denied without modifying victim DB/audit. Local-only; exact-head CI and reviewer acceptance required; not production, agency approval or payroll release." : source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
     method.testedBy = {
       ...method.testedBy,
       file: source.file, line: ownPositiveLine, rowFile: row.file, rowLine: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
       ...(row.pathIds ? { pathIds: row.pathIds } : {}),
-      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? (row.pathIds ? "Explicit path-bound Owner/default or flagged-read HTTP proof using genuine higher-ID victim seeds; no payroll release, tax classification approval, agency acceptance or production certification; exact-head CI NOT_RUN." : source.scope)),
-      evidence: retainEvidence ? method.testedBy.evidence : (row.pathIds ? "Local shared path-bound runner; " : source.evidenceName) + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
+      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? (row.pathIds ? "Explicit path-bound authenticated fictional two-attacker/higher-ID-victim PG16 proof; exact-head CI and independent review required, not a production certification." : (family ? source.scope.replace("CI PG16 only", "local disposable PG16; exact-head CI NOT_RUN") : source.scope))),
+      evidence: retainEvidence ? method.testedBy.evidence : (row.pathIds ? "Local shared path-bound runner; " : (family ? "Local shared runner " + source.file + "; " : source.evidenceName)) + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
       ...(selected ? { reviewedHead: selection.receipt.reviewedHead, passedJob: selection.receipt.run + "/job/" + selection.receipt.profiles.default.job } : {}),
     };
     credited.push({ ...row, source, path: hit.path, was });
