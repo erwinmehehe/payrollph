@@ -1,5 +1,5 @@
 import {
-  and, asc, eq, gt, gte, isNull, lte, ne, or, sql,
+  and, asc, eq, gt, gte, inArray, isNull, lte, ne, or, sql,
 } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, positionAssignments, positions, userOrganizations } from "@/db/schema";
@@ -44,9 +44,16 @@ export async function loadManagerDirectReports(input: {
   const scopeUnitId = managerDirectReportsUnitId(access);
   if (!scopeUnitId || !access?.orgUnitName) throw new ManagerDirectReportsAccessError();
 
+  // Use one PH business date for both worker-identity eligibility and
+  // effective-dated report assignments, including at the UTC midnight edge.
+  const observedAt = new Date();
+  const today = managerDirectReportsBusinessDate(observedAt);
+
   // Bind the acting account to an actual employee in this same employer and
-  // verified manager unit. A missing, inactive or foreign worker link denies
-  // the ENTIRE view rather than widening it to a department roster.
+  // verified manager unit. An unstarted, separating/separated, inactive,
+  // unknown-status or foreign worker link denies the ENTIRE view rather than
+  // treating a still-active account membership as proof of employment.
+  // An employed worker on leave retains the existing manager role boundary.
   const [identity] = await db.select({
     managerEmployeeId: userOrganizations.workerEmployeeId,
   }).from(userOrganizations)
@@ -54,6 +61,8 @@ export async function loadManagerDirectReports(input: {
       eq(employees.id, userOrganizations.workerEmployeeId),
       eq(employees.organizationId, organizationId),
       eq(employees.orgUnitId, scopeUnitId),
+      inArray(employees.status, ["Active", "On leave"]),
+      lte(employees.startDate, today),
     ))
     .where(and(
       eq(userOrganizations.userId, userId),
@@ -67,9 +76,6 @@ export async function loadManagerDirectReports(input: {
       !Number.isSafeInteger(managerEmployeeId) || managerEmployeeId < 1) {
     throw new ManagerDirectReportsAccessError();
   }
-
-  const observedAt = new Date();
-  const today = managerDirectReportsBusinessDate(observedAt);
 
   // The current effective-dated primary assignment is authoritative for the
   // worker-position link. Its position.managerEmployeeId is only a CURRENT
