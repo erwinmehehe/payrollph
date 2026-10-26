@@ -168,23 +168,30 @@ test("labor-costing GET-only source repin does not certify the legacy POST", () 
   assert.equal(current.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
   const oldGet = old.methods.find(method => method.name === "GET");
   const newGet = current.methods.find(method => method.name === "GET");
-  // The GET-only source repin originally moved 78 -> 79 and POST
-  // 133 -> 156. Once merged, the main baseline already has 79/156.
-  // Accept only these exact historical/current coordinates without
-  // changing the independent GET evidence or certifying the legacy POST.
-  assert.ok([78, 79].includes(oldGet.line),
-    "GET baseline must be the historical or already-repinned source line");
-  assert.equal(newGet.line, 79);
-  assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
+  // The reviewed GET-only hardening moved GET 78 -> 79 and POST
+  // 133 -> 156. When main already has that exact source repin, the
+  // baseline itself carries the unchanged-POST review annotation; never
+  // strip it from one side of the comparison.
   const oldPost = old.methods.find(method => method.name === "POST");
   const newPost = current.methods.find(method => method.name === "POST");
-  assert.ok([133, 156].includes(oldPost.line),
-    "POST baseline must be the historical or already-repinned source line");
+  assert.equal(newGet.line, 79);
   assert.equal(newPost.line, 156);
   assert.equal(newPost.status, "GAP");
   assert.equal(newPost.testedBy, null);
   const { reviewedUncertified, ...withoutReview } = newPost;
-  assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
+  if (old.gitBlobSha === current.gitBlobSha) {
+    // The merged baseline must retain all GET proof and POST GAP metadata,
+    // including the source-reviewed, still-uncertified annotation.
+    assert.deepEqual(newGet, oldGet);
+    assert.deepEqual(newPost, oldPost);
+  } else {
+    // Only the original reviewed source-to-source transition is allowed.
+    assert.equal(old.gitBlobSha, "e5e2c007ca41da3c6e2fc1217600f83640f48975");
+    assert.equal(oldGet.line, 78);
+    assert.equal(oldPost.line, 133);
+    assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
+    assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
+  }
   assert.deepEqual(reviewedUncertified, {
     kind: "unchanged-POST-in-GET-only-security-fix",
     originalRouteBlobSha: "e5e2c007ca41da3c6e2fc1217600f83640f48975",
