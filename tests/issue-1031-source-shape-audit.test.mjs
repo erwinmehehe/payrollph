@@ -43,6 +43,27 @@ test("only reviewed post-pin schema additions can project to the original pinned
     /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
 });
 
+test("0138 vertical dimensions can be removed from historical evidence only as an exact reviewed pair", () => {
+  const current = readFileSync(new URL("../src/db/schema.ts", import.meta.url), "utf8");
+  const column = "    // Optional accounting labels, additive migration 0138; NEVER payroll rate inputs.\n    verticalDimensions: jsonb(\"vertical_dimensions\"),\n";
+  const check = "    // Match the reviewed 0138 constraint in disposable Drizzle-first schema.\n    check(\"employee_labor_allocations_vertical_dims_object_chk\",\n      sql`${table.verticalDimensions} is null or jsonb_typeof(${table.verticalDimensions}) = 'object'`),\n";
+  assert.equal(current.split(column).length, 2, "reviewed 0138 column bytes must appear once");
+  assert.equal(current.split(check).length, 2, "reviewed 0138 CHECK bytes must appear once");
+  assert.equal(reconstructPinnedSchemaText(current).projected, true);
+  // Missing or modified column/CHECK definitions must fail the frozen audit;
+  // no broad regex, new historical pin or silent schema-history rebaseline.
+  for (const mutated of [
+    current.replace(column, ""),
+    current.replace(check, ""),
+    current.replace('verticalDimensions: jsonb("vertical_dimensions")', 'verticalDimensions: text("vertical_dimensions")'),
+    current.replace("employee_labor_allocations_vertical_dims_object_chk", "employee_labor_allocations_unreviewed_chk"),
+    current.replace("jsonb_typeof(${table.verticalDimensions}) = 'object'", "jsonb_typeof(${table.verticalDimensions}) = 'array'"),
+  ]) {
+    assert.throws(() => reconstructPinnedSchemaText(mutated),
+      /HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE/);
+  }
+});
+
 test("source-only 100-row evidence is reproducible and receipts stay completely blank", () => {
   const report = generateShapeAudit();
   assert.equal(report.sourceOnly, true);
