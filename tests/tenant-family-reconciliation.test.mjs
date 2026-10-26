@@ -156,3 +156,32 @@ test("ESS overview records match the merged, source-pinned method-level manifest
   assert.ok(overview.includes("| gap | " + manifest.metrics.gap + " |"));
   assert.ok(overview.includes("| coveredAfter | " + manifest.metrics.coveredAfter + " |"));
 });
+
+test("labor-costing GET-only source repin does not certify the legacy POST", () => {
+  const file = "src/app/api/workforce/labor-costing/route.ts";
+  const baseRef = process.env.FAIL_CLOSED_GUARD_BASE_REF || "origin/main";
+  const baseline = JSON.parse(execFileSync("git", ["show", baseRef + ":" + manifestFile], {
+    encoding: "utf8", maxBuffer: 32 << 20,
+  }));
+  const old = baseline.allApiRouteFiles[file];
+  const current = manifest.allApiRouteFiles[file];
+  assert.equal(current.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
+  const oldGet = old.methods.find(method => method.name === "GET");
+  const newGet = current.methods.find(method => method.name === "GET");
+  assert.equal(oldGet.line, 78); assert.equal(newGet.line, 79);
+  assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
+  const oldPost = old.methods.find(method => method.name === "POST");
+  const newPost = current.methods.find(method => method.name === "POST");
+  assert.equal(oldPost.line, 133); assert.equal(newPost.line, 156);
+  assert.equal(newPost.status, "GAP");
+  assert.equal(newPost.testedBy, null);
+  const { reviewedUncertified, ...withoutReview } = newPost;
+  assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
+  assert.deepEqual(reviewedUncertified, {
+    kind: "unchanged-POST-in-GET-only-security-fix",
+    originalRouteBlobSha: "e5e2c007ca41da3c6e2fc1217600f83640f48975",
+    routeBlobSha: "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
+    unchangedPostBlobSha: "91bcb6ee054c538f72d65630cc89deb641cfa7f5",
+    reason: "Only GET and an import changed; POST bytes are independently pinned and retain GAP/zero coverage credit. Real HTTP POST proof and independent review are still required.",
+  });
+});
