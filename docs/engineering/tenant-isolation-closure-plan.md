@@ -28,9 +28,30 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 | 5 | Workforce and multi-entity | WRK-01, WRK-02, WRK-03 | 118 |
 | 6 | Auth, public edge and integrations | EDG-01, EDG-02 | 66 |
 
+
+### Live manifest reconciliation — 2026-10-26
+
+Read from `main@de6d0fb597d25e1af3db68dfe1f4884353c1916c` before new work. Current live inventory: **495 API methods = 279 COVERED + 10 PUBLIC-BY-DESIGN + 206 GAP**; **21** page/action surfaces, **18 GAP**. The earlier 490/406 and 20-page totals are the immutable historical baseline, not today's live totals. Statuses below reflect manifest claims, not independent evidence re-verification; acceptance stays **NOT ACCEPTED**. Frozen membership and priority remain unchanged; previously merged sub-batches must not be counted twice.
+
+| Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch closure |
+|---|---:|---:|---:|---:|---|
+| DL-01 | 26 | 19 | 2 | 5 | OPEN |
+| DL-02 | 26 | 22 | 0 | 4 | OPEN |
+| MNY-01 | 33 | 18 | 0 | 15 | OPEN |
+| MNY-02 | 33 | 19 | 0 | 14 | OPEN |
+| STA-01 | 27 | 18 | 0 | 9 | OPEN |
+| PII-01 | 39 | 23 | 0 | 16 | OPEN |
+| PII-02 | 38 | 9 | 0 | 29 | OPEN |
+| WRK-01 | 39 | 14 | 0 | 25 | OPEN |
+| WRK-02 | 39 | 19 | 0 | 20 | OPEN |
+| WRK-03 | 40 | 20 | 0 | 20 | OPEN |
+| EDG-01 | 33 | 1 | 0 | 32 | OPEN |
+| EDG-02 | 33 | 16 | 0 | 17 | OPEN |
+
+**Next batch in priority order:** DL-01; its 5 GAP methods must be fully proven (four-part real HTTP/disposable PG contract) in one batch PR, or escalated if that is not safely achievable. No GAP is waived by this reconciliation.
 ### Batch DL-01 — Tax, statutory, payroll exports and employee document/import files (26 methods; phase 1)
 
-**Shared fixture:** PDF/csv bytes, statutory batches, payroll run, real vault/document row and employee import; no provider. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** PDF/csv bytes, statutory batches, payroll run, real vault/document row and employee import; no provider. **Status:** 19 COVERED / 2 PUBLIC-BY-DESIGN / 5 GAP of 26 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/bir/annual-employer/module-evidence` — [source](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L65)
 - `POST /api/bir/annual-employer/module-evidence` — [source](../../src/app/api/bir/annual-employer/module-evidence/route.ts#L110)
@@ -61,7 +82,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch DL-02 — Self-service files, HR evidence, photos, report exports and workforce evidence (26 methods; phase 1)
 
-**Shared fixture:** employee principal, HR document, photo bytes, workforce evidence, report config and nonempty export. **Status:** part 1 supplies source-pinned real-HTTP/PostgreSQL evidence for 19 methods in `scripts/qa/tenant-dl02-http.mjs`; `GET /api/reports` and `GET /api/self/documents` are credited by #1318; `GET /api/multi-entity/reports`, `POST /api/self/photo`, `GET`/`POST /api/web-bundy/evidence` and `POST /api/workforce/demand-observations/import` remain GAP (need a multi-entity server, an HTTPS test scanner and per-employer allowlists). **PR:** [#1328](https://github.com/erwinmehehe/payrollph/pull/1328); source merge and current-head CI do not certify the remaining DL-02 or full tenant-isolation gaps.
+**Shared fixture:** employee principal, HR document, photo bytes, workforce evidence, report config and nonempty export. **Status:** 22 COVERED / 0 PUBLIC-BY-DESIGN / 4 GAP of 26 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** [#1328](https://github.com/erwinmehehe/payrollph/pull/1328) was partial; it is not a whole-batch closure, and current-head CI plus review remain required.
 
 **Route-specific denial evidence:** `GET`/`HEAD`/`DELETE /api/self/photo` and `GET /api/self/contribution-evidence` are session-derived self-service endpoints that accept no client-selected employer or victim-object ID. For each of two independent synthetic employee employers, their specific negative control is **the same signed-in employee's access denied with 403 after revoking that employee's active employer membership**, following a real own-request 200. A separate victim employer's PostgreSQL snapshot remains unchanged. These are *revoked-membership* controls, not fabricated foreign-object selector requests; other DL-02 routes exercise actual foreign-employer or victim-object denials.
 
@@ -96,7 +117,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch MNY-01 — Payroll lifecycle, payout destinations and compensation (33 methods; phase 2)
 
-**Shared fixture:** draft/released payroll run, distinct payer/payee, bounded fictional state transitions; no transfer/release to provider. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** draft/released payroll run, distinct payer/payee, bounded fictional state transitions; no transfer/release to provider. **Status:** 18 COVERED / 0 PUBLIC-BY-DESIGN / 15 GAP of 33 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/payroll-runs/[id]/close` — [source](../../src/app/api/payroll-runs/[id]/close/route.ts#L135)
 - `POST /api/payroll-runs/[id]/close` — [source](../../src/app/api/payroll-runs/[id]/close/route.ts#L148)
@@ -134,7 +155,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch MNY-02 — Loans, contractors, expenses, billing and treasury (33 methods; phase 2)
 
-**Shared fixture:** fictional loan, contractor, invoice, expense, card/budget and maker/checker records; no external payment. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** fictional loan, contractor, invoice, expense, card/budget and maker/checker records; no external payment. **Status:** 19 COVERED / 0 PUBLIC-BY-DESIGN / 14 GAP of 33 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `POST /api/approval-chains` — [source](../../src/app/api/approval-chains/route.ts#L72)
 - `PATCH /api/approvals/[id]` — [source](../../src/app/api/approvals/[id]/route.ts#L33)
@@ -172,7 +193,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch STA-01 — Statutory remittance, government loan, labor inspection and data requests (27 methods; phase 3)
 
-**Shared fixture:** same fictional statutory batch, contribution task, BIR filing, loan, data request and labor case. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** same fictional statutory batch, contribution task, BIR filing, loan, data request and labor case. **Status:** 18 COVERED / 0 PUBLIC-BY-DESIGN / 9 GAP of 27 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/bir/annual-employer` — [source](../../src/app/api/bir/annual-employer/route.ts#L13)
 - `POST /api/bir/annual-employer/candidate` — [source](../../src/app/api/bir/annual-employer/candidate/route.ts#L49)
@@ -204,7 +225,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch PII-01 — HCM worker and lifecycle identities (39 methods; phase 4)
 
-**Shared fixture:** worker profile, job, employment-term decision, organization tree, worker-360 and related documents. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** worker profile, job, employment-term decision, organization tree, worker-360 and related documents. **Status:** 23 COVERED / 0 PUBLIC-BY-DESIGN / 16 GAP of 39 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/hcm/business-processes/definitions` — [source](../../src/app/api/hcm/business-processes/definitions/route.ts#L48)
 - `POST /api/hcm/business-processes/definitions` — [source](../../src/app/api/hcm/business-processes/definitions/route.ts#L89)
@@ -248,7 +269,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch PII-02 — Employees, recruitment, discipline and self-service records (38 methods; phase 4)
 
-**Shared fixture:** real employee and applicant, personal identifiers, active worker session, discipline/recruitment case. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** real employee and applicant, personal identifiers, active worker session, discipline/recruitment case. **Status:** 9 COVERED / 0 PUBLIC-BY-DESIGN / 29 GAP of 38 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/careers` — [source](../../src/app/api/careers/route.ts#L26)
 - `POST /api/careers` — [source](../../src/app/api/careers/route.ts#L51)
@@ -291,7 +312,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch WRK-01 — Workforce time, attendance, schedules and work sites (39 methods; phase 5)
 
-**Shared fixture:** worker, timesheet, worksite, schedule, approval and attendance events. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** worker, timesheet, worksite, schedule, approval and attendance events. **Status:** 14 COVERED / 0 PUBLIC-BY-DESIGN / 25 GAP of 39 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/workforce/attendance-corrections` — [source](../../src/app/api/workforce/attendance-corrections/route.ts#L81)
 - `POST /api/workforce/attendance-corrections` — [source](../../src/app/api/workforce/attendance-corrections/route.ts#L136)
@@ -335,7 +356,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch WRK-02 — Performance and workforce planning (39 methods; phase 5)
 
-**Shared fixture:** owned performance review, objective, forecast, position and allocations. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** owned performance review, objective, forecast, position and allocations. **Status:** 19 COVERED / 0 PUBLIC-BY-DESIGN / 20 GAP of 39 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/performance` — [source](../../src/app/api/performance/route.ts#L316)
 - `PATCH /api/performance` — [source](../../src/app/api/performance/route.ts#L752)
@@ -379,7 +400,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch WRK-03 — Multi-entity, benefits, leave, holidays and Web Bundy (40 methods; phase 5)
 
-**Shared fixture:** unit/legal entity, attendance evidence, benefits, holiday, leave and delegated manager permissions. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** unit/legal entity, attendance evidence, benefits, holiday, leave and delegated manager permissions. **Status:** 20 COVERED / 0 PUBLIC-BY-DESIGN / 20 GAP of 40 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/attendance/offline-claims` — [source](../../src/app/api/attendance/offline-claims/route.ts#L22)
 - `PATCH /api/attendance/offline-claims` — [source](../../src/app/api/attendance/offline-claims/route.ts#L140)
@@ -424,7 +445,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch EDG-01 — Authentication, account, onboarding and readiness (33 methods; phase 6)
 
-**Shared fixture:** distinct signed-in identities, scoped token/setup links; public-only decisions require per-method owner review. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** distinct signed-in identities, scoped token/setup links; public-only decisions require per-method owner review. **Status:** 1 COVERED / 0 PUBLIC-BY-DESIGN / 32 GAP of 33 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/account` — [source](../../src/app/api/account/route.ts#L14)
 - `POST /api/account/email` — [source](../../src/app/api/account/email/route.ts#L22)
@@ -462,7 +483,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ### Batch EDG-02 — Webhooks, jobs, provisioning and infrastructure integrations (33 methods; phase 6)
 
-**Shared fixture:** dummy signatures, replay check, tenant bound events, signed service sessions and no external provider calls. **Status:** queued (all listed as GAP at baseline). **PR:** not yet created; do not confuse the historical high-risk script name with a completed closure batch.
+**Shared fixture:** dummy signatures, replay check, tenant bound events, signed service sessions and no external provider calls. **Status:** 16 COVERED / 0 PUBLIC-BY-DESIGN / 17 GAP of 33 frozen methods on `main@de6d0fb597d2` (manifest-derived; credits remain provisional pending exact-head CI and independent acceptance). **PR:** no whole-batch closure PR yet; historical slice PRs are not batch completion.
 
 - `GET /api/automation-studio` — [source](../../src/app/api/automation-studio/route.ts#L211)
 - `POST /api/automation-studio` — [source](../../src/app/api/automation-studio/route.ts#L563)
