@@ -76,10 +76,23 @@ test("invalid permissions and duplicate assignments fail closed in the review pr
   })[0]?.state, "invalid-assignment");
 });
 
-test("the enterprise admin screen displays review restrictions, not effective grants", () => {
+test("the admin UI derives a deny-only review from its existing company-wide-scoped payload", () => {
   const source = readFileSync("src/components/enterprise-controls-panel.tsx", "utf8");
+  assert.match(source, /projectEnterprisePermissionReview\(\{/);
+  assert.match(source, /availablePermissions: data\.availablePermissions/);
+  assert.match(source, /permissionSets: data\.permissionSets/);
+  assert.match(source, /assignments: data\.permissionAssignments/);
+  assert.match(source, /groups: data\.dynamicGroups/);
   assert.match(source, /READ-ONLY OVERLAY AUDIT/);
   assert.match(source, /Denied by overlay/);
   assert.match(source, /Listed gates are not effective grants/);
   assert.match(source, /review-unavailable/);
+});
+test("admin-only enterprise route remains unmodified and does not repin sensitive tenant evidence", () => {
+  const route = readFileSync("src/app/api/enterprise/route.ts", "utf8");
+  assert.doesNotMatch(route, /projectEnterprisePermissionReview|permissionReview:/);
+  assert.match(route, /ORG_ADMIN_ROLES/);
+  assert.match(route, /!access\?\.companyWide/);
+  assert.match(route, /permissionAssignments: assignments/);
+  assert.match(route, /availablePermissions: ROLE_GATE_PERMISSIONS/);
 });
