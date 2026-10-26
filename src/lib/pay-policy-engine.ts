@@ -307,7 +307,11 @@ function roundMoney(value: number) {
   // mathematically exact half-cent boundaries (for example 266.665) round
   // consistently to centavo precision instead of occasionally rounding down.
   const correction = Number.EPSILON * Math.max(1, Math.abs(value));
-  return Math.round((value + correction) * 100) / 100;
+  const cents = Math.round((value + correction) * 100);
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error("Pay-rule premium amount exceeds safe centavo precision.");
+  }
+  return cents / 100;
 }
 
 /**
