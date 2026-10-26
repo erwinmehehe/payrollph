@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { mkdir, writeFile } from "node:fs/promises";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
-import { organizations, subscriptions, userOrganizations, users } from "../src/db/schema";
+import { employees, organizations, subscriptions, userOrganizations, users } from "../src/db/schema";
 import { saasSignupVerifications } from "../src/lib/saas-billing-schema";
 
 async function main() {
@@ -34,15 +34,29 @@ async function main() {
     expiresAt: new Date(Date.now() + 86400000), verifiedAt: new Date(),
   });
   await db.insert(subscriptions).values({ organizationId: 1, status: "active", plan: "Core" });
-  // A truly empty self-serve fourth tenant is added ONLY after earlier HRIS
-  // browser tests. Employer #3 remains a populated, unauthorized victim for
-  // cross-tenant proof; the self-serve tenant must never reuse that identity.
+  // A fourth distinct self-serve tenant is added ONLY after earlier HRIS
+  // browser tests. Employer #3 remains a populated, unauthorized victim.
+  // PostgreSQL sequences are not gapless: prior rolled-back test inserts can
+  // consume IDs, so never assume the newly generated ID must equal 4.
+  const baselineOrgIds = new Set(orgs.map(org => org.id));
   const [gamma] = await db.insert(organizations).values({
     name: "Synthetic Gamma First Payroll", legalName: "Synthetic Gamma First Payroll",
     plan: "Core", payrollCalendarMode: "flexible",
   }).returning({ id: organizations.id });
-  assert.equal(gamma.id, 4,
-    "Self-serve setup must use a new employer, not victim-only employer #3");
+  assert.ok(Number.isSafeInteger(gamma?.id) && gamma.id > 3 &&
+    !baselineOrgIds.has(gamma.id),
+  "Self-serve tenant must have a new generated ID, never victim employer #3");
+  const afterOrgs = await db.select({ id: organizations.id, name: organizations.name })
+    .from(organizations);
+  assert.equal(afterOrgs.length, orgs.length + 1,
+    "Exactly one additional synthetic employer must exist");
+  assert.deepEqual(afterOrgs.filter(org => !baselineOrgIds.has(org.id)), [
+    { id: gamma.id, name: "Synthetic Gamma First Payroll" },
+  ], "The only new employer must be the independently named self-serve tenant");
+  const gammaEmployees = await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.organizationId, gamma.id)).limit(1);
+  assert.equal(gammaEmployees.length, 0,
+    "The newly created self-serve tenant must have zero employees");
   const colleagues = await db.select({ id: users.id, email: users.email, role: users.role })
     .from(users).where(inArray(users.email, [
       "hcm-hr@example.test", "hcm-payroll@example.test", "hcm-checker@example.test",
