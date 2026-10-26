@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { permissionSets, userOrganizations, userPermissionAssignments } from "@/db/schema";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
+import { absentPermissionOverlayDecision, permissionOverlayGroupBindingValid, permissionOverlayKeysValid } from "@/lib/permission-overlay-absence";
 
 export const ROLE_GATE_PERMISSIONS = [
   "org.admin",
@@ -50,16 +51,31 @@ export async function permissionSetForMembership(userId: number, organizationId:
  * base role; an unassigned membership keeps the existing role behavior.
  */
 export async function roleGateAllowed(userId: number, organizationId: number, permission: RoleGatePermission) {
-  const { permissionSet, assignment } = await permissionSetForMembership(userId, organizationId);
-  if (!permissionSet) return { allowed: true as const, restricted: false as const, permissionSet: null };
+  const { membership, permissionSet, assignment } = await permissionSetForMembership(userId, organizationId);
+  // This exported gate must deny absent or inactive membership even if called
+  // without a separate organization-role preflight.
+  if (!membership) return { allowed: false as const, restricted: true as const,
+    permissionSet: null, reason: "no-active-membership" as const };
+  // Dangling assignment or cross-employer permission set cannot silently
+  // fall back to unrestricted base-role gates.
+  if (!permissionSet) return absentPermissionOverlayDecision(assignment !== null);
   if (!permissionSet.active) {
     return { allowed: false as const, restricted: true as const, permissionSet };
   }
-  const permissions = Array.isArray(permissionSet.permissions)
-    ? permissionSet.permissions.filter((value: unknown): value is string => typeof value === "string")
-    : [];
+  // Reject the entire malformed overlay, not merely its invalid entries.
+  // Both the review projection and the live gate must fail closed.
+  if (!permissionOverlayKeysValid(permissionSet.permissions, ROLE_GATE_PERMISSIONS)) {
+    return { allowed: false as const, restricted: true as const, permissionSet };
+  }
+  const permissions = permissionSet.permissions;
   if (!permissions.includes(permission)) {
     return { allowed: false as const, restricted: true as const, permissionSet };
+  }
+  // Mismatched Dynamic Group ID/version pairs must never become unrestricted
+  // permission-set overlays, even if a legacy row bypassed the DB constraint.
+  if (assignment && !permissionOverlayGroupBindingValid(assignment)) {
+    return { allowed: false as const, restricted: true as const,
+      permissionSet, reason: "invalid-dynamic-group-binding" as const };
   }
   // A Dynamic Group may further restrict an existing permission assignment;
   // it cannot grant a role gate outside the member's base role or permission set.
