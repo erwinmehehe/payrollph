@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { absentPermissionOverlayDecision, permissionOverlayKeysValid } from "../src/lib/permission-overlay-absence";
+import { absentPermissionOverlayDecision, permissionOverlayGroupBindingValid, permissionOverlayKeysValid } from "../src/lib/permission-overlay-absence";
 
 test("no assigned overlay retains base-role behavior", () => {
   assert.deepEqual(absentPermissionOverlayDecision(false), {
@@ -43,4 +43,23 @@ test("live gate rejects inactive membership and every malformed overlay before c
     "Missing membership must be denied before base-role fallback");
   assert.ok(malformed > absent && roleGate > malformed,
     "Every malformed permission-set overlay must be denied before checking allowed gates");
+});
+
+test("group ID and frozen version must be paired before any role grant", () => {
+  assert.equal(permissionOverlayGroupBindingValid({ dynamicGroupId: null, dynamicGroupVersion: null }), true);
+  assert.equal(permissionOverlayGroupBindingValid({ dynamicGroupId: 5, dynamicGroupVersion: 2 }), true);
+  for (const bad of [
+    { dynamicGroupId: null, dynamicGroupVersion: 2 },
+    { dynamicGroupId: 5, dynamicGroupVersion: null },
+    { dynamicGroupId: 0, dynamicGroupVersion: 1 },
+    { dynamicGroupId: -1, dynamicGroupVersion: 1 },
+    { dynamicGroupId: 5, dynamicGroupVersion: 0 },
+    { dynamicGroupId: 5, dynamicGroupVersion: -1 },
+    { dynamicGroupId: 5, dynamicGroupVersion: 2.5 },
+  ]) assert.equal(permissionOverlayGroupBindingValid(bad), false);
+  const source = readFileSync("src/lib/permissions.ts", "utf8");
+  const pairCheck = source.indexOf("!permissionOverlayGroupBindingValid(assignment)");
+  const groupCall = source.indexOf("authorizedDynamicGroupMember({");
+  assert.ok(pairCheck >= 0 && groupCall > pairCheck,
+    "Invalid group bindings must be denied before looking up live group eligibility");
 });
