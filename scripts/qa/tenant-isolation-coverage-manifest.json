@@ -32995,16 +32995,16 @@
           "name": "POST",
           "line": 133,
           "status": "COVERED",
-          "reason": "PROVISIONAL #1433 - method-specific future-dated fictional vertical costing allocation POST. The disposable PG16/real-HTTP tenant write table must prove two independent authenticated employers successfully persist their own normalized labels and audit (201); actual higher-ID victim organization denied 403 and forged own-organization/victim-worker denied 404; both victim allocation and payroll/audit rows unchanged; no live payroll, provider or released-money action. Do not treat as accepted until exact-PR-head CI, DBA/history review and independent security acceptance.",
+          "reason": "PROVISIONAL #1433: all three labor-costing POST actions have source-scoped disposable PG16/localhost HTTP evidence. Authenticated own create_cost_center (201) and set_gl_mapping (201) are seeded for two independent attackers and a higher-ID victim; own set_employee_allocations (201) saves future-dated fictional 60/40 vertical labels and audit. Both attacker sessions explicitly deny foreign-organization POSTs for all three actions (403); forged victim employee (404) and forged victim cost-center (422) are refused. Existing pay profiles, payroll runs, journal entries and victim allocations/payroll/audit are unchanged. Requires passing exact-PR-head PG16 proof, independent method scope review, and DBA approval; no production migration, live money or release.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
             "line": 112,
             "rowFile": "scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs",
-            "rowLine": 46,
+            "rowLine": 51,
             "ownPositiveLine": 112,
             "foreignDenialLine": 125,
             "unchangedDbLine": 149,
-            "scope": "Fictional future-dated POST set_employee_allocations only, owned real PG16 201 and persisted 60/40 vertical dimensions, foreign employer 403 and forged victim employee 404, existing pay profiles/runs/journal entries unchanged, victim allocation/payroll/audit snapshots untouched. Other POST actions are NOT separately certified.",
+            "scope": "POST workforce/labor-costing actions: create_cost_center, set_gl_mapping, set_employee_allocations. Two authenticated attackers with real PG16 employers, own 201 for each, victim organization denied 403 for each, forged victim employee 404 and victim cost center 422, saved normalized vertical codes and audit, no payroll or victim business/audit mutation. Fictional CI only.",
             "evidence": "Provisional source pin to .github/workflows/tenant-table-proof.yml default profile: exact PR-head HTTP/PG16 pass required before acceptance; independent security reviewer required."
           }
         }
