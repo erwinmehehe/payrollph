@@ -86,10 +86,15 @@ jobs:
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Build local app with synthetic flags
         run: npm run build
-      - name: Install pinned Chromium
+      # Ubuntu runners already provide the runtime libraries. Running
+      # playwright --with-deps forces an apt update against the Azure mirrors,
+      # which can hang until the 30-minute job timeout without testing the UI.
+      # The harness launches headless Chromium, so install only its version-
+      # pinned headless shell and fail quickly if download is unavailable.
+      - name: Install pinned headless Chromium without Ubuntu apt mirrors
         run: |
           npm install --no-save --ignore-scripts playwright@1.55.0
-          npx playwright install --with-deps chromium
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start local app
         shell: bash
         run: |
