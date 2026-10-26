@@ -30,6 +30,32 @@ function normalizedRegion(region: string | null | undefined) {
   return String(region ?? "ALL").trim().toUpperCase() || "ALL";
 }
 
+/** Never let an impossible date select (or hide) a statutory rule by string ordering. */
+function validIsoCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  // Date.UTC normalizes impossible dates, so compare the parsed components.
+  if (year < 100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() + 1 === month
+    && date.getUTCDate() === day;
+}
+
+function assertValidRuleWindow(rule: ComplianceRuleRecord) {
+  if (!validIsoCalendarDate(rule.effectiveFrom)
+    || (rule.effectiveUntil !== null && !validIsoCalendarDate(rule.effectiveUntil))
+    || (rule.effectiveUntil !== null && rule.effectiveUntil < rule.effectiveFrom)) {
+    throw new Error(
+      `Invalid compliance rule effective-date window for ${rule.ruleKey} (${rule.ruleVersion}).`,
+    );
+  }
+}
+
 function dateInRange(rule: ComplianceRuleRecord, asOf: string) {
   return rule.effectiveFrom <= asOf
     && (!rule.effectiveUntil || asOf <= rule.effectiveUntil);
@@ -45,17 +71,23 @@ export function resolveComplianceRule(
   rules: ComplianceRuleRecord[],
   selector: ComplianceRuleSelector,
 ): ComplianceRuleRecord {
+  if (!validIsoCalendarDate(selector.asOf)) {
+    throw new Error("Compliance rule selection requires a valid ISO calendar date (YYYY-MM-DD).");
+  }
   const jurisdiction = String(selector.jurisdiction ?? "PH").trim().toUpperCase();
   const region = normalizedRegion(selector.region);
 
-  const applicable = rules.filter((rule) =>
+  const scopedApproved = rules.filter((rule) =>
     rule.ruleKey === selector.ruleKey
     && rule.jurisdiction.trim().toUpperCase() === jurisdiction
     && normalizedRegion(rule.region) === region
     && rule.status === "approved"
     && Boolean(rule.approvedAt)
-    && dateInRange(rule, selector.asOf)
   );
+  // Validate even future-dated candidates: a malformed approved version must
+  // not silently disappear and let an older version win by accident.
+  for (const rule of scopedApproved) assertValidRuleWindow(rule);
+  const applicable = scopedApproved.filter((rule) => dateInRange(rule, selector.asOf));
 
   if (applicable.length === 0) {
     throw new Error(
