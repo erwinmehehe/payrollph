@@ -106,12 +106,19 @@ test("verified source gate keys (including distinct operational versus historica
     "src/app/api/workforce/demand-outlook/route.ts": ["WFM_HISTORICAL_OUTLOOK_ENABLED", "WFM_HISTORICAL_OUTLOOK_ALLOWED_ORGANIZATION_IDS"],
     "src/app/api/workforce/demand-observations/outlook/route.ts": ["WFM_OPERATIONAL_DEMAND_ENABLED", "WFM_OPERATIONAL_DEMAND_ALLOWED_ORGANIZATION_IDS"],
   };
-  const source = readFileSync("scripts/qa/tenant-table-allowlist-bootstrap.mjs", "utf8");
+  const bootstrap = readFileSync("scripts/qa/tenant-table-allowlist-bootstrap.mjs", "utf8");
+  const profile = readFileSync("scripts/qa/tenant-table-env.mjs", "utf8");
   for (const [path, keys] of Object.entries(contracts)) {
     const contract = readFileSync(path, "utf8");
     for (const key of keys) {
       assert.ok(contract.includes(key), path + " must actually gate on " + key);
-      assert.ok(source.includes(key), "bootstrap must export exactly " + key);
+      if (key.endsWith("_ENABLED")) {
+        assert.ok(profile.includes(key + ': "true"'),
+          "disposable allowlisted-reads profile must enable " + key);
+      } else {
+        assert.ok(bootstrap.includes('"' + key + '"'),
+          "bootstrap must export the runtime allowlist key " + key);
+      }
     }
   }
 });
