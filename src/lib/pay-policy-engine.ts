@@ -1,3 +1,5 @@
+import { payRuleMatchesVerifiedTargets, selectAdditivePremiumRateTier } from "./pay-policy-extra-targets";
+
 export type PayPolicyScope = "organization" | "org_unit" | "employee";
 
 export type PayPolicyRecord = {
@@ -151,6 +153,11 @@ export type AppliedWorkedTimePremiumRule = {
   hourlyRate: number;
   shiftCode: string | null;
   worksiteId: number | null;
+  locationCode?: string;
+  clientCode?: string;
+  skillCode?: string;
+  languageCode?: string;
+  rateTableTier?: { minMinutes: number; maxMinutes?: number };
   premiumPercent: number;
   premiumAmountPerHour: number;
   amount: number;
@@ -201,10 +208,16 @@ function ruleMatchesWorkedTimePremium(
   context: {
     shiftCode: string | null;
     worksiteId: number | null;
+    locationCode?: string | null;
+    clientCode?: string | null;
+    skillCode?: string | null;
+    languageCode?: string | null;
   },
 ) {
   const conditions = asObject(rule.conditions, `Pay rule ${rule.ruleKey} conditions`);
-  assertOnlyKeys(conditions, ["shiftCodes", "worksiteIds"], `Pay rule ${rule.ruleKey} conditions`);
+  assertOnlyKeys(conditions,
+    ["shiftCodes", "worksiteIds", "locationCodes", "clientCodes", "skillCodes", "languageCodes"],
+    `Pay rule ${rule.ruleKey} conditions`);
 
   if (conditions.shiftCodes != null) {
     if (!Array.isArray(conditions.shiftCodes) || conditions.shiftCodes.length === 0) {
@@ -247,10 +260,10 @@ function ruleMatchesWorkedTimePremium(
     }
   }
 
-  return true;
+  return payRuleMatchesVerifiedTargets(conditions, context, rule.ruleKey);
 }
 
-function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord) {
+function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord, minutes: number) {
   const outcome = asObject(rule.outcome, `Pay rule ${rule.ruleKey} outcome`);
   assertOnlyKeys(
     outcome,
@@ -258,6 +271,7 @@ function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord) {
       "label",
       "premiumPercent",
       "premiumAmountPerHour",
+      "rateTable",
       "taxable",
       "includeInSssBase",
       "includeInPagIbigBase",
@@ -265,12 +279,22 @@ function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord) {
     `Pay rule ${rule.ruleKey} outcome`,
   );
 
-  const premiumPercent = positiveFiniteNumber(
+  // A tier table and a fixed premium rate are mutually exclusive.
+  const hasRateTable = Object.hasOwn(outcome, "rateTable");
+  if (hasRateTable && (Object.hasOwn(outcome, "premiumPercent")
+    || Object.hasOwn(outcome, "premiumAmountPerHour"))) {
+    throw new Error(`Pay rule ${rule.ruleKey} cannot mix rateTable with fixed premium rates.`);
+  }
+  const tier = hasRateTable
+    ? selectAdditivePremiumRateTier(outcome.rateTable, minutes, rule.ruleKey)
+    : null;
+  if (hasRateTable && !tier) return null;
+  const premiumPercent = hasRateTable ? tier!.premiumPercent : positiveFiniteNumber(
     outcome.premiumPercent,
     `Pay rule ${rule.ruleKey} premiumPercent`,
     500,
   );
-  const premiumAmountPerHour = positiveFiniteNumber(
+  const premiumAmountPerHour = hasRateTable ? tier!.premiumAmountPerHour : positiveFiniteNumber(
     outcome.premiumAmountPerHour,
     `Pay rule ${rule.ruleKey} premiumAmountPerHour`,
     100_000,
@@ -289,6 +313,10 @@ function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord) {
     label,
     premiumPercent,
     premiumAmountPerHour,
+    ...(tier ? { rateTableTier: {
+      minMinutes: tier.minMinutes,
+      ...(tier.maxMinutes == null ? {} : { maxMinutes: tier.maxMinutes }),
+    } } : {}),
     taxable: requiredBoolean(outcome.taxable, `Pay rule ${rule.ruleKey} taxable`),
     includeInSssBase: requiredBoolean(
       outcome.includeInSssBase,
@@ -317,8 +345,9 @@ function roundMoney(value: number) {
  * worked minutes. They never replace or reduce statutory OT, holiday/rest-day,
  * or night-differential calculations.
  *
- * Conditions are intentionally limited to shiftCodes/worksiteIds in v1. Legal
- * premium families remain on the statutory engine until independently migrated.
+ * Existing shift/worksite evidence is preserved; additional location/client/skill/
+ * language selectors require verified context or fail closed. Statutory rules
+ * remain on the statutory engine until independently migrated.
  */
 export function resolveWorkedTimePremium(input: {
   organizationId: number;
@@ -329,6 +358,10 @@ export function resolveWorkedTimePremium(input: {
   hourlyRate: number;
   shiftCode: string | null;
   worksiteId: number | null;
+  locationCode?: string | null;
+  clientCode?: string | null;
+  skillCode?: string | null;
+  languageCode?: string | null;
   policies: PayPolicyRecord[];
   rules: PayPolicyRuleRecord[];
 }) {
@@ -362,16 +395,22 @@ export function resolveWorkedTimePremium(input: {
     const matches = ruleMatchesWorkedTimePremium(rule, {
       shiftCode: input.shiftCode,
       worksiteId: input.worksiteId,
+      locationCode: input.locationCode ?? null,
+      clientCode: input.clientCode ?? null,
+      skillCode: input.skillCode ?? null,
+      languageCode: input.languageCode ?? null,
     });
     if (!matches) continue;
 
     // Higher-precedence matching policy/rule wins for the same logical rule key.
     if (claimedRuleKeys.has(rule.ruleKey)) continue;
-    claimedRuleKeys.add(rule.ruleKey);
 
     const policy = policyById.get(rule.policyId);
     if (!policy) continue;
-    const outcome = parseWorkedTimePremiumOutcome(rule);
+    const outcome = parseWorkedTimePremiumOutcome(rule, minutes);
+    // No matching tier may not mask a lower-priority same-key policy.
+    if (!outcome) continue;
+    claimedRuleKeys.add(rule.ruleKey);
     const hourlyPremium =
       hourlyRate * (outcome.premiumPercent / 100)
       + outcome.premiumAmountPerHour;
@@ -393,6 +432,11 @@ export function resolveWorkedTimePremium(input: {
       hourlyRate,
       shiftCode: input.shiftCode,
       worksiteId: input.worksiteId,
+      ...(input.locationCode != null ? { locationCode: input.locationCode.trim().toUpperCase() } : {}),
+      ...(input.clientCode != null ? { clientCode: input.clientCode.trim().toUpperCase() } : {}),
+      ...(input.skillCode != null ? { skillCode: input.skillCode.trim().toUpperCase() } : {}),
+      ...(input.languageCode != null ? { languageCode: input.languageCode.trim().toUpperCase() } : {}),
+      ...(outcome.rateTableTier ? { rateTableTier: outcome.rateTableTier } : {}),
       premiumPercent: outcome.premiumPercent,
       premiumAmountPerHour: outcome.premiumAmountPerHour,
       amount,
