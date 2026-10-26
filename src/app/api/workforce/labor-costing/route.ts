@@ -17,6 +17,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { LABOR_GL_ACCOUNT_KEYS, resolveLaborAllocation } from "@/lib/labor-costing";
+import { scopeLaborCostingRead } from "@/lib/labor-costing-read-scope";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -81,7 +82,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
@@ -96,15 +97,27 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const employeeRows = await db.select().from(employees)
-    .where(eq(employees.organizationId, organizationId))
+  // A scoped payroll operator cannot inherit company-wide finance data from
+  // an invalid/missing organizational unit.
+  const scopedUnitId = access.orgUnitId;
+  if (!access.companyWide && (typeof scopedUnitId !== "number"
+    || !Number.isSafeInteger(scopedUnitId) || scopedUnitId <= 0)) {
+    return Response.json({ error: "A verified organizational unit is required." },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
+
+  // Select only the necessary employee identity/scope columns. The SQL query
+  // itself stays unit-bounded rather than reading every employee in the tenant.
+  const employeeRows = await db.select({
+    id: employees.id,
+    organizationId: employees.organizationId,
+    orgUnitId: employees.orgUnitId,
+  }).from(employees)
+    .where(and(
+      eq(employees.organizationId, organizationId),
+      access.companyWide ? undefined : eq(employees.orgUnitId, scopedUnitId!),
+    ))
     .orderBy(asc(employees.id));
-  const visibleEmployeeIds = new Set(
-    (access.companyWide
-      ? employeeRows
-      : employeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId))
-      .map((employee) => employee.id),
-  );
 
   const [centerRows, allocationRows, entityRows, glMappingRows] = await Promise.all([
     db.select().from(costCenters)
@@ -113,21 +126,28 @@ export async function GET(request: Request) {
     db.select().from(employeeLaborAllocations)
       .where(eq(employeeLaborAllocations.organizationId, organizationId))
       .orderBy(asc(employeeLaborAllocations.employeeId), asc(employeeLaborAllocations.effectiveFrom), asc(employeeLaborAllocations.id)),
-    db.select().from(legalEntities)
-      .where(eq(legalEntities.organizationId, organizationId))
-      .orderBy(asc(legalEntities.code)),
-    db.select().from(laborGlMappings)
-      .where(eq(laborGlMappings.organizationId, organizationId))
-      .orderBy(asc(laborGlMappings.accountKey), asc(laborGlMappings.id)),
+    access.companyWide
+      ? db.select().from(legalEntities)
+        .where(eq(legalEntities.organizationId, organizationId))
+        .orderBy(asc(legalEntities.code))
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select().from(laborGlMappings)
+        .where(eq(laborGlMappings.organizationId, organizationId))
+        .orderBy(asc(laborGlMappings.accountKey), asc(laborGlMappings.id))
+      : Promise.resolve([]),
   ]);
 
-  return Response.json({
-    costCenters: centerRows,
-    allocations: allocationRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
-    legalEntities: entityRows,
-    glMappings: glMappingRows,
-    glAccountKeys: LABOR_GL_ACCOUNT_KEYS,
+  const scoped = scopeLaborCostingRead({
+    organizationId, access, employeeRows, centerRows, allocationRows,
+    entityRows, glMappingRows,
   });
+  if (!scoped) {
+    return Response.json({ error: "Labor costing scope is unavailable." },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
+  return Response.json({ ...scoped, glAccountKeys: LABOR_GL_ACCOUNT_KEYS },
+    { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
