@@ -30,7 +30,7 @@ import {
   resolveLaborGlAccount,
   type LaborGlAccountKey,
 } from "@/lib/labor-costing";
-import { LABOR_VERTICAL_DIMENSION_HEADERS, laborVerticalDimensionValues, type LaborVerticalDimensions } from "@/lib/labor-vertical-dimensions";
+import { LABOR_VERTICAL_DIMENSION_HEADERS, journalRequiresVerticalDimensionColumns, laborVerticalDimensionValues, type LaborVerticalDimensions } from "@/lib/labor-vertical-dimensions";
 
 const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -576,11 +576,19 @@ export async function generateJournalCsv(runId: number) {
     return Number.isFinite(value) ? value : null;
   };
 
-  // Legacy CSV shape remains unchanged until vertical tags are actually present.
-  const verticalHeaders = allocationRows.some((row) =>
-    row.verticalDimensions != null && typeof row.verticalDimensions === "object"
-      && Object.keys(row.verticalDimensions).length > 0)
-    ? [...LABOR_VERTICAL_DIMENSION_HEADERS] : [];
+  // Only run-effective tags on journalled employees change the column layout:
+  // unrelated/future employer allocation rows must not affect historical exports.
+  const journalEmployeeIds = new Set(entries.map(({ employee }) => employee.id));
+  const verticalHeaders = journalRequiresVerticalDimensionColumns({
+    allocations: allocationRows.map((row) => ({
+      employeeId: row.employeeId,
+      effectiveFrom: String(row.effectiveFrom),
+      effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+      verticalDimensions: row.verticalDimensions,
+    })),
+    employeeIds: journalEmployeeIds,
+    asOf: String(run.periodEnd),
+  }) ? [...LABOR_VERTICAL_DIMENSION_HEADERS] : [];
   const header = [
     "Date",
     "Journal",
