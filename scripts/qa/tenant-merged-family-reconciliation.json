@@ -1,0 +1,99 @@
+{
+  "schema": "reviewed-merged-family-reconciliation-v1",
+  "reviewedHead": "c8de88438c358a42b9aef53c1300c95b23ceef81",
+  "run": "https://github.com/erwinmehehe/payrollph/actions/runs/40251255765",
+  "profiles": {
+    "default": {
+      "job": 121343443572,
+      "conclusion": "success"
+    },
+    "multi-entity": {
+      "job": 121343443894,
+      "conclusion": "success"
+    },
+    "flagged-reads": {
+      "job": 121343443897,
+      "conclusion": "success"
+    }
+  },
+  "defaultSummary": {
+    "reads": 77,
+    "readPairs": 154,
+    "readDiscriminating": 77,
+    "writes": 35,
+    "writePairs": 70,
+    "writeDiscriminating": 35,
+    "forgedReferenceProofs": 42,
+    "victimDatabaseUnchanged": true,
+    "productionTested": false,
+    "certified": false
+  },
+  "sources": {
+    "scripts/qa/tenant-table-rows/write/performance-growth.mjs": "93b7902cf9058b62a89cbf16d7c5626397eaec96d2d967fff9310ccefd747a83",
+    "scripts/qa/tenant-table-rows/write/platform-controls.mjs": "a39eab9caebc31e1cdd39ec7c0de537501dfbf2e7ebd37009d8b988d7a9a896f",
+    "scripts/qa/tenant-table-rows/read/platform-controls.mjs": "9d213f1e8c2b1753d3fb71abd023172513e040965656e024ae15143084fdb019",
+    "src/app/api/performance/calibration/route.ts": "9f8e8fd3887f495a5967320c72de6669f574ba66899e94fc3e53f3dfbe534a61",
+    "src/app/api/enterprise/route.ts": "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3",
+    "src/app/api/organizations/route.ts": "5ac8b29658225265c8f0e53ec122606fa610df123d8d10062b4d74dd934e9537"
+  },
+  "accepted": [
+    {
+      "key": "POST performance/calibration",
+      "scope": "Default-profile Owner session creation from one completed fictional review; exact session/entry/actor, unchanged original review, real victim-cycle 403, forged victim-cycle 404, two attackers and unchanged victim DB/audit. No scoring or finalization acceptance."
+    },
+    {
+      "key": "GET enterprise",
+      "scope": "Company-wide Owner organization-selector GET with exact nonempty inactive/unassigned own permission-set fixture; real victim-employer 403, two attackers and unchanged victim DB/audit. No permission assignment, SSO/SCIM or other-role acceptance."
+    },
+    {
+      "key": "PUT organizations",
+      "scope": "Company-wide Owner/MFA rename through the single organization-update path; exact own name/id/audit and preservation of all other organization fields; real victim-employer 403 and unchanged victim DB/audit. Government identifiers, tax/calendar edits and other roles remain unexercised."
+    }
+  ],
+  "held": [
+    {
+      "key": "POST performance",
+      "reason": "Only goal creation; cycle/template/cycle-template/review creation untested."
+    },
+    {
+      "key": "PATCH performance",
+      "reason": "Only goal progress; review-item/review/cycle decisions untested."
+    },
+    {
+      "key": "POST performance/competencies",
+      "reason": "Only profile skill requirement; skill and expectation-default creation untested."
+    },
+    {
+      "key": "PATCH performance/competencies",
+      "reason": "Only requirement update; template mapping and expectation defaults untested."
+    },
+    {
+      "key": "POST performance/continuous",
+      "reason": "Only meeting creation; feedback and foreign linked-goal controls untested."
+    },
+    {
+      "key": "POST performance/development-plans",
+      "reason": "Only milestone creation; other plan actions untested."
+    },
+    {
+      "key": "PATCH performance/calibration",
+      "reason": "Only policy creation; scoring, flag decisions and finalization untested."
+    },
+    {
+      "key": "PATCH performance/follow-through-governance",
+      "reason": "Only disabled reminder policy; evidence policy, seal/verify, legal hold and amendment untested."
+    },
+    {
+      "key": "POST enterprise",
+      "reason": "Only security policy update; permission sets, assignments and lifecycle automation untested."
+    },
+    {
+      "key": "POST developer",
+      "reason": "Only key revocation; key issuance, webhook and other developer actions untested."
+    },
+    {
+      "key": "POST automation-studio",
+      "reason": "Only acknowledgement; workflow configuration, execution and other actions untested."
+    }
+  ]
+}

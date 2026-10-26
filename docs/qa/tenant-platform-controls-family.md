@@ -1,8 +1,11 @@
-# Platform controls: five pending exact-method proofs
+# Platform controls: two reconciled methods, three partial methods
 
 This separate main-based batch does not duplicate People/platform #1402, HCM
-#1404, Performance growth #1406 or Workforce operations #1409. All five methods
-remain GAP until real HTTP/PostgreSQL acceptance. Local tests are not credits.
+#1404, Performance growth #1406 or Workforce operations #1409. Reconciliation
+provisionally credits `GET enterprise` and `PUT organizations` from successful
+final-head HTTP/PostgreSQL evidence. The three POST methods remain GAP because
+their other actions are untested. See [the reviewed reconciliation](tenant-merged-family-reconciliation.md).
+Local tests are not credits. Failure notes below describe earlier attempts.
 
 | Method | Exact synthetic operation |
 | --- | --- |
@@ -59,5 +62,6 @@ Head `69edc7efc` passed all three real HTTP/PostgreSQL profiles (default job
 121328441504, multi-entity 121328441513, flagged-reads 121328441254). The remaining
 aggregate check failed on parsing the new environment declaration file; its
 constants now use explicit `export declare const`, matching existing declarations.
-No lint rules or guards are disabled. Fresh final-head CI is still required;
-coverage credits have not yet been generated.
+No lint rules or guards were disabled. The subsequent final head `c8de88438`
+passed all three profiles; the reconciliation records its exact receipts and
+only the two eligible credits. New reconciliation-head CI remains required.

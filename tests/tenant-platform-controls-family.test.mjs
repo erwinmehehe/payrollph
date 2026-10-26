@@ -108,11 +108,11 @@ test("enterprise read proves a real inactive own permission set, never defaults 
   for (const bad of [{ permissionSets: [] }, { permissionSets: [{ ...payload.permissionSets[0], id: 99 }] }, { permissionSets: [{ ...payload.permissionSets[0], organizationId: 99 }] }, { permissionSets: [{ ...payload.permissionSets[0], active: true }] }, { permissionSets: [{ ...payload.permissionSets[0], permissions: ["unexpected"] }] }]) assert.throws(() => row.prove({ json: bad }, c));
 });
 
-test("five distinct platform targets stay GAP without duplicate methods or source-only credit", () => {
+test("five distinct platform targets credit only the reviewed read and single update path", () => {
   const keys = [...rows.map(r => r.key), "GET enterprise"]; assert.equal(keys.length, 5); assert.equal(new Set(keys).size, 5);
   const catalog = [...tenantFamilyCatalog("write"), ...tenantFamilyCatalog("read")]; for (const key of keys) assert.equal(catalog.filter(r => r.key === key).length, 1);
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
-  for (const key of keys) { const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route); assert.equal(record.methods.find(m => m.name === method).status, "GAP"); }
+  for (const key of keys) { const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route); assert.equal(record.methods.find(m => m.name === method).status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP"); }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
 });
