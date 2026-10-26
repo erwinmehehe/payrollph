@@ -28,6 +28,25 @@ test("governed correction lifecycle on guarded fictional PostgreSQL", { skip: pr
     return out;
   };
   try {
+    await t.test("real HTTP refuses missing MFA, cross-origin writes and non-People reads", async () => {
+      const pending = await fresh(false), before = await state(pending.e.org.id);
+      const bareSession = await helper.standaloneMakeSession(pending.e.owner.id);
+      const body = { organizationId: pending.e.org.id, changeId: pending.seeded.id, note: "Correct the fictional requested date." };
+      const mfa = await helper.standaloneRequest("/api/hcm/effective-change-corrections/return", { method: "POST", cookie: bareSession.cookie, body });
+      assert.equal(mfa.status, 403);
+      const origin = await fetch("http://127.0.0.1:3000/api/hcm/effective-change-corrections/return", { method: "POST",
+        headers: { cookie: pending.e.cookie, origin: "https://forbidden.example.invalid", "sec-fetch-site": "cross-site", "content-type": "application/json" }, body: JSON.stringify(body), redirect: "manual" });
+      assert.equal(origin.status, 403); assert.deepEqual(await state(pending.e.org.id), before);
+      const returned = await fresh(true);
+      const path = `/api/hcm/effective-change-corrections?organizationId=${returned.e.org.id}&changeId=${returned.seeded.id}`;
+      const own = await helper.standaloneRequest(path, { cookie: returned.e.cookie });
+      assert.equal(own.status, 200); assert.equal(own.json.note, "Please correct the fictional effective date.");
+      assert.equal(own.json.employeeId, returned.seeded.workerId);
+      const malformed = await helper.standaloneRequest(path + "&organizationId=" + returned.e.org.id, { cookie: returned.e.cookie }); assert.equal(malformed.status, 400);
+      await db.update(schema.userOrganizations).set({ role: "employee" }).where(and(eq(schema.userOrganizations.organizationId, returned.e.org.id), eq(schema.userOrganizations.userId, returned.e.owner.id)));
+      const refused = await helper.standaloneRequest(path, { cookie: returned.e.cookie }); assert.equal(refused.status, 403);
+      assert.ok(!refused.text.includes("Please correct"));
+    });
     await t.test("maker, foreign source and unassigned reviewers cannot send back", async () => {
       const { e, seeded, input } = await fresh(false); const before = await state(e.org.id);
       const [maker] = await db.select().from(schema.users).where(eq(schema.users.id, seeded.makerId));
