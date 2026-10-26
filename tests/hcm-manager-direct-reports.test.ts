@@ -59,6 +59,8 @@ test("manager loader does not infer identity, scope or direct reports from unit 
   assert.match(source, /eq\(userOrganizations\.organizationId, organizationId\)/);
   assert.match(source, /eq\(employees\.organizationId, organizationId\)/);
   assert.match(source, /eq\(employees\.orgUnitId, scopeUnitId\)/);
+  assert.match(source, /inArray\(employees\.status, \["Active", "On leave"\]\)/);
+  assert.match(source, /lte\(employees\.startDate, today\)/);
   assert.match(source, /eq\(positions\.organizationId, organizationId\)/);
   assert.match(source, /eq\(positions\.managerEmployeeId, managerEmployeeId\)/);
   assert.match(source, /eq\(positionAssignments\.organizationId, organizationId\)/);
