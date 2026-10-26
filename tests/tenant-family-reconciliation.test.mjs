@@ -191,7 +191,8 @@ test("labor-costing GET-only source repin does not certify the legacy POST", () 
     assert.equal(oldGet.line, 78);
     assert.equal(oldPost.line, 133);
     assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
-    const { reviewedUncertified: _reviewed, ...withoutReview } = newPost;
+    const { reviewedUncertified, ...withoutReview } = newPost;
+    assert.ok(reviewedUncertified, "the unchanged POST must retain its explicit uncertified review");
     assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
   }
   assert.deepEqual(newPost.reviewedUncertified, {
