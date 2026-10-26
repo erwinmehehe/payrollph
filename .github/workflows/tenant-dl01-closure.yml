@@ -110,10 +110,6 @@ jobs:
           await c.end();
           NODE
           echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_dl01_test' >> "$GITHUB_ENV"
-      - name: Full repository Node test suite against the separate throwaway app_db
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-        run: npm test
       - name: Typecheck, repin guard and production build with live payout disabled
         run: |
           npx tsc --noEmit
@@ -165,6 +161,10 @@ jobs:
           done
           test "$ready" = true
           npx tsx scripts/qa/tenant-dl01-closure-http.mjs
+      - name: Full repository Node test suite against the separate throwaway app_db
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+        run: npm test
       - name: Show localhost diagnostics on failure (never print fake auth headers)
         if: failure()
         run: |
