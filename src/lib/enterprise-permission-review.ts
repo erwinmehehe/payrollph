@@ -74,7 +74,8 @@ export function projectEnterprisePermissionReview(input: EnterprisePermissionRev
         return { ...deny("invalid-dynamic-group"), permissionSetId: set.id,
           dynamicGroupId: assignment.dynamicGroupId };
       }
-      const listed = permissionKeys.filter(key => set.permissions.includes(key));
+      const validatedKeys: string[] = set.permissions;
+      const listed = permissionKeys.filter(key => validatedKeys.includes(key));
       const denied = permissionKeys.filter(key => !listed.includes(key));
       if (assignment.dynamicGroupId !== null) {
         const group = groups.get(assignment.dynamicGroupId);
