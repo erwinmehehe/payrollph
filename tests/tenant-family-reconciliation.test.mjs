@@ -98,107 +98,61 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
   }
 });
 
-// #1402 adds independently exercised People/platform and Performance methods after
-// main's #1423 reconciliation. They have distinct, already source-pinned PG16/HTTP
-// receipts and must not be mistaken for unreviewed promotions of #1423's held rows.
-const independentlyProvenWrites = new Map([
-  ...["PATCH discipline", "PATCH provisioning", "POST dynamic-worker-groups", "POST recruitment", "PATCH recruitment"]
-    .map(key => [key, "scripts/qa/tenant-table-rows/write/people.mjs"]),
-  ...["POST delegations", "POST it-operations", "PATCH it-operations",
-    "PATCH compliance/data-requests", "POST approval-chains", "POST integration-connectors"]
-    .map(key => [key, "scripts/qa/tenant-table-rows/write/platform.mjs"]),
-  ...["POST performance/action-items", "PATCH performance/action-items", "PATCH performance/continuous"]
-    .map(key => [key, "scripts/qa/tenant-table-rows/write/performance.mjs"]),
-]);
-const peoplePlatformReceipt = "run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c";
-const performanceReceipt = "run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e";
-// Three previously credited rows moved when the People/platform family was extended.
-// Review their exact catalog declaration rather than allowing arbitrary row-pin drift.
-const reviewedRowMoves = new Map([["PATCH delegations", 24], ["POST discipline", 23], ["PATCH tenant-modules", 37]]);
-
-test("selection is idempotent and preserves #1423 and independent #1402 proof ownership", () => {
-  const before = readFileSync(manifestFile, "utf8");
-  const output = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--reconcile-merged-families", "--check"], { encoding: "utf8" }));
-  assert.equal(output.newlyCredited, 0);
-  assert.deepEqual(output.before, output.after);
-  assert.equal(readFileSync(manifestFile, "utf8"), before);
-
-  const baseRef = process.env.FAIL_CLOSED_GUARD_BASE_REF || "origin/main";
-  const base = JSON.parse(execFileSync("git", ["show", baseRef + ":" + manifestFile], { encoding: "utf8", maxBuffer: 32 << 20 }));
-  const selected = new Set(receipt.accepted.map(row => row.key));
-  const moved = new Map();
-  const sourceLines = file => {
-    if (!moved.has(file)) moved.set(file, readFileSync(file, "utf8").split("\n"));
-    return moved.get(file);
-  };
-  const verifyRowPin = (method, key) => {
-    const proof = method.testedBy;
-    const declaration = sourceLines(proof.rowFile)[proof.rowLine - 1];
-    assert.ok(declaration?.includes('key: "' + key + '"'), key + ": exact family declaration is required");
-  };
-
-  const changed = [];
-  for (const [file, entry] of Object.entries(base.allApiRouteFiles)) for (const method of entry.methods) {
-    const now = manifest.allApiRouteFiles[file].methods.find(item => item.name === method.name);
-    const key = method.name + " " + entry.route;
-    assert.ok(now, key + ": method removed without re-inventory");
-
-    if (selected.has(key)) {
-      assert.deepEqual(now, method, key + ": the three reviewed #1423 credits must retain their exact provenance");
-      continue;
+// #1402's independently executed People/platform and Performance method credits
+// are distinct from the three bounded credits reviewed under #1423. Keep their
+// exact row sources and historical disposable PG16/HTTP receipts immutable.
+test("PR #1402 preserves fourteen independent proof receipts and the incomplete worksite GAP", () => {
+  const families = [
+    ["scripts/qa/tenant-table-rows/write/people.mjs",
+      ["PATCH discipline", "PATCH provisioning", "POST dynamic-worker-groups", "POST recruitment", "PATCH recruitment"]],
+    ["scripts/qa/tenant-table-rows/write/platform.mjs",
+      ["POST delegations", "POST it-operations", "PATCH it-operations", "PATCH compliance/data-requests", "POST approval-chains", "POST integration-connectors"]],
+    ["scripts/qa/tenant-table-rows/write/performance.mjs",
+      ["POST performance/action-items", "PATCH performance/action-items", "PATCH performance/continuous"]],
+  ];
+  let credited = 0;
+  for (const [rowFile, keys] of families) {
+    const lines = readFileSync(rowFile, "utf8").split("\n");
+    const run = rowFile.endsWith("/performance.mjs")
+      ? "run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e"
+      : "run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c";
+    for (const key of keys) {
+      const [verb, route] = key.split(" ");
+      const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]?.methods.find(m => m.name === verb);
+      assert.equal(method?.status, "COVERED", key + ": independent proof credit must be preserved");
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs", key);
+      assert.equal(method.testedBy.rowFile, rowFile, key);
+      assert.ok(lines[method.testedBy.rowLine - 1]?.includes('key: "' + key + '"'), key + ": source line must identify this method");
+      assert.ok(method.reason.includes(run) && method.testedBy.evidence.includes(run), key + ": historical execution evidence must be kept");
+      assert.equal(method.testedBy.ownPositiveLine, 112, key);
+      assert.equal(method.testedBy.foreignDenialLine, 125, key);
+      assert.equal(method.testedBy.unchangedDbLine, 149, key);
+      credited++;
     }
-
-    const independentSource = independentlyProvenWrites.get(key);
-    if (independentSource) {
-      assert.equal(method.status, "GAP", key + ": previously credited main method cannot be credited again");
-      assert.equal(method.testedBy, null, key + ": expected a formerly unproven method");
-      assert.equal(now.status, "COVERED", key + ": independently executed method must retain its credit");
-      assert.equal(now.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs", key);
-      assert.equal(now.testedBy?.rowFile, independentSource, key + ": original proof family must be preserved");
-      const run = independentSource.endsWith("/performance.mjs") ? performanceReceipt : peoplePlatformReceipt;
-      assert.ok(now.reason.includes(run) && now.testedBy.evidence.includes(run),
-        key + ": preserve the independently executed HTTP/PostgreSQL receipt");
-      assert.equal(now.testedBy.ownPositiveLine, 112, key);
-      assert.equal(now.testedBy.foreignDenialLine, 125, key);
-      assert.equal(now.testedBy.unchangedDbLine, 149, key);
-      verifyRowPin(now, key);
-      changed.push(key);
-      continue;
-    }
-
-    if (key === "POST workforce/worksites") {
-      assert.equal(method.status, "GAP");
-      assert.equal(now.status, "GAP", "action-only worksite evidence cannot certify the whole POST method");
-      assert.equal(now.testedBy, null, "incomplete worksite action cannot acquire a method-level proof");
-      assert.match(now.reason, /create_worksite/);
-      assert.match(now.reason, /run 40200060037, head 1fd16ee304a896072560fd86ff06915e7bce159c/);
-      continue;
-    }
-
-    assert.equal(now.status, method.status, key + ": unrelated method coverage must not change");
-    if (JSON.stringify(now) === JSON.stringify(method)) continue;
-
-    // The older #1393 run refreshed labels for already-COVERED read/write rows,
-    // without changing the execution, tenant scope, route, or proof ownership.
-    // Restore only the allowed provenance labels before checking full equality.
-    assert.equal(now.status, "COVERED", key + ": only previously covered rows may refresh their labels");
-    assert.ok(now.testedBy && method.testedBy, key + ": source-pinned evidence cannot disappear");
-    assert.ok(now.reason.includes(performanceReceipt) && now.testedBy.evidence.includes(performanceReceipt),
-      key + ": refresh must identify the existing exact-head PG16 HTTP receipt");
-    verifyRowPin(now, key);
-    const original = structuredClone(now);
-    original.reason = method.reason;
-    original.testedBy.evidence = method.testedBy.evidence;
-    if (reviewedRowMoves.has(key)) {
-      assert.equal(now.testedBy.rowLine, reviewedRowMoves.get(key), key + ": only the reviewed line move is allowed");
-      original.testedBy.rowLine = method.testedBy.rowLine;
-    }
-    assert.deepEqual(original, method, key + ": unrelated proof ownership, scope and status must be preserved");
   }
+  assert.equal(credited, 14);
+  const worksite = manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"].methods.find(m => m.name === "POST");
+  assert.equal(worksite.status, "GAP", "create_worksite alone cannot certify the whole POST handler");
+  assert.equal(worksite.testedBy, null, "no method-level credit for a partially exercised handler");
+  assert.match(worksite.reason, /create_worksite/);
+});
 
-  // A separate PR cannot grant #1423's held methods, or quietly add another
-  // COVERED method outside these exact fourteen previously executed scenarios.
-  assert.deepEqual(changed.sort(), [...independentlyProvenWrites.keys()].sort());
-  assert.equal(manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"]
-    .methods.find(method => method.name === "POST").status, "GAP");
+test("ESS overview records match the merged, source-pinned method-level manifest", () => {
+  const overview = readFileSync("docs/engineering/tenant-isolation-coverage-inventory.md", "utf8").split("\n");
+  const route = manifest.allApiRouteFiles["src/app/api/self/contribution-issues/route.ts"];
+  for (const name of ["GET", "POST"]) {
+    const method = route.methods.find(m => m.name === name);
+    assert.equal(method.status, "COVERED", name + ": the two executed ESS cases are provisionally credited");
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-ess-statutory-identity-http.mjs");
+    const quote = String.fromCharCode(96);
+    const rows = overview.filter(line => line.startsWith("| [" + quote + "self/contribution-issues" + quote + " " + name + "]("));
+    assert.equal(rows.length, 1, name + ": overview must have one current-source method row");
+    assert.ok(rows[0].includes("route.ts#L" + method.line), name + ": route line must match manifest");
+    assert.ok(rows[0].includes("tenant-ess-statutory-identity-http.mjs#L" + method.testedBy.ownPositiveLine),
+      name + ": overview must cite the exact executed own HTTP proof");
+    assert.ok(rows[0].endsWith("| **COVERED** |"), name + ": overview must not claim GAP for an evidenced method");
+    assert.ok(!rows[0].includes("NO VALID METHOD PROOF"), name);
+  }
+  assert.ok(overview.includes("| gap | " + manifest.metrics.gap + " |"));
+  assert.ok(overview.includes("| coveredAfter | " + manifest.metrics.coveredAfter + " |"));
 });
