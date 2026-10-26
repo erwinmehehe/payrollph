@@ -72,7 +72,8 @@ export type LaborGlMappingRow = {
 };
 
 function dimensionKey(row: LaborAllocationRow) {
-  // A JSON tuple prevents pipe-delimited aliasing across any old/new dimension.
+  // Preserve the collision-safe tuple key landed on main; extend with the
+  // normalized optional industry labels, never a pipe-delimited composite.
   return JSON.stringify([
     row.costCenterId,
     row.projectCode ?? "",
@@ -86,8 +87,27 @@ function round3(value: number) {
   return Math.round((value + Number.EPSILON) * 1000) / 1000;
 }
 
+/**
+ * Round a value already expressed in centavos to an integer using symmetric
+ * half-away-from-zero handling. JavaScript Math.round alone is asymmetric for
+ * negative half-cent adjustments, and small binary errors can lose +0.005.
+ */
+function roundWholeCents(value: number) {
+  if (!Number.isFinite(value)) throw new Error("Labor-cost amount must be finite.");
+  const magnitude = Math.abs(value);
+  const cents = Math.round(magnitude + Number.EPSILON * Math.max(1, magnitude));
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error("Labor-cost amount exceeds safe centavo precision.");
+  }
+  return value < 0 ? -cents : cents;
+}
+
+function toLaborCents(amount: number) {
+  return roundWholeCents(amount * 100);
+}
+
 function round2(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return toLaborCents(value) / 100;
 }
 
 /**
@@ -242,12 +262,12 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
     }];
   }
 
-  const totalCents = Math.round((amount + Number.EPSILON) * 100);
+  const totalCents = toLaborCents(amount);
   let allocatedCents = 0;
   return resolved.allocations.map((row, index) => {
     const cents = index === resolved.allocations.length - 1
       ? totalCents - allocatedCents
-      : Math.round(totalCents * (row.percent / 100));
+      : roundWholeCents(totalCents * (row.percent / 100));
     allocatedCents += cents;
     return {
       allocationId: row.id,
