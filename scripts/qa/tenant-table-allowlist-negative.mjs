@@ -5,8 +5,8 @@
  * own/foreign proof reaches authorization instead of a disabled 404.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { requireTenantTableDisposable, standaloneRequest } from "./tenant-table-http.mjs";
+import { readPrivateAllowlistFixture } from "./tenant-table-invariants.mjs";
 
 export function unlistedGateRequests(unlisted) {
   const org = unlisted.org.id, worker = unlisted.worker.id;
@@ -29,9 +29,7 @@ export async function verifyUnlistedGateDenials({
 } = {}) {
   requireTenantTableDisposable(env);
   assert.equal(env.TENANT_TABLE_PROFILE, "allowlisted-reads");
-  const path = env.TENANT_TABLE_ALLOWLIST_FIXTURE;
-  assert.match(path ?? "", /^\/tmp\/payrollph-tenant-allowlist-[a-z0-9-]+\.json$/);
-  const data = JSON.parse(readFileSync(path, "utf8"));
+  const data = readPrivateAllowlistFixture(env.TENANT_TABLE_ALLOWLIST_FIXTURE);
   assert.equal(data.schema, "payrollph-tenant-allowlist-preseed-v1");
   const unlisted = data.excluded;
   assert.ok(unlisted.org.id > Math.max(...data.allowlistedIds));

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { chmodSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { auditBusinessSnapshot, seedTableRow, readAllowlistPreseed } from "../scripts/qa/tenant-table-invariants.mjs";
 
@@ -55,7 +57,8 @@ test("both executable runners use the guarded seed order and full audit projecti
 });
 
 test("preseed loader validates real synthetic IDs, signed-in cookies, allowlist victim and private 0600 file", () => {
-  const file = "/tmp/payrollph-tenant-allowlist-unit-" + process.pid + ".json";
+  const directory = mkdtempSync(join(tmpdir(), "payrollph-tenant-allowlist-"));
+  const file = join(directory, "fixture.json");
   const cookie = "__Host-linaw_session=" + "a".repeat(64);
   const employer = (label, id) => ({ org: { id }, entity: { id }, unit: { id },
     worker: { id }, owner: { id, name: "TTBL-" + label + "-nonce owner" },
@@ -80,5 +83,10 @@ test("preseed loader validates real synthetic IDs, signed-in cookies, allowlist 
     writeFileSync(file, JSON.stringify(data));
     chmodSync(file, 0o644);
     assert.throws(() => readAllowlistPreseed(file, env), /0600/);
-  } finally { unlinkSync(file); }
+    // A symlink must never be followed, even to another private 0600 file.
+    unlinkSync(file);
+    writeFileSync(join(directory, "target.json"), JSON.stringify(data), { mode: 0o600, flag: "wx" });
+    symlinkSync("target.json", file);
+    assert.throws(() => readAllowlistPreseed(file, env), { code: "ELOOP" });
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

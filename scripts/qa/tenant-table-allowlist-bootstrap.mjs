@@ -7,7 +7,9 @@
  * written 0600 to /tmp for the read runner and never logged or uploaded.
  */
 import assert from "node:assert/strict";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { db } from "../../src/db";
 import { organizations } from "../../src/db/schema";
@@ -39,7 +41,6 @@ export async function bootstrapAllowlistedReads({
   env = process.env,
   makeSession = standaloneMakeSession,
   seed = seedEmployer,
-  file = "/tmp/payrollph-tenant-allowlist-reads.json",
 } = {}) {
   requireTenantTableDisposable(env);
   assert.equal(env.TENANT_TABLE_PROFILE, "allowlisted-reads");
@@ -59,6 +60,10 @@ export async function bootstrapAllowlistedReads({
   const data = { schema: "payrollph-tenant-allowlist-preseed-v1",
     employers: [snapshot(victim), snapshot(attackerA), snapshot(attackerB)],
     excluded: { ...snapshot(excluded), rank: 8 }, allowlistedIds: ids };
+  // An unpredictable private 0700 directory blocks /tmp precreation attacks.
+  // Only this 0600 JSON file contains the fictional session cookies.
+  const directory = mkdtempSync(join(tmpdir(), "payrollph-tenant-allowlist-"));
+  const file = join(directory, "fixture.json");
   writeFileSync(file, JSON.stringify(data), { encoding: "utf8", mode: 0o600, flag: "wx" });
   for (const key of ALLOWLIST_ENV_KEYS) appendFileSync(env.GITHUB_ENV, key + "=" + ids.join(",") + "\n");
   appendFileSync(env.GITHUB_ENV, "TENANT_TABLE_ALLOWLIST_FIXTURE=" + file + "\n");

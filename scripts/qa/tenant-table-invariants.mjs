@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
 /** Only the sealer's three chain fields may change during the audit-chain GET.
@@ -34,11 +34,30 @@ export async function seedTableRow(item, employers) {
  * No on-disk fallback or invented IDs: every dynamically allowlisted employer
  * must be preseeded before server startup, including the higher-ID victim.
  */
+/**
+ * Read the CI-only cookie fixture through one O_NOFOLLOW descriptor: checking a
+ * pathname with statSync then opening it again would permit replacement.
+ * The bootstrap writes this in a randomized private 0700 directory.
+ */
+export function readPrivateAllowlistFixture(file) {
+  assert.match(file ?? "", /^\/tmp\/payrollph-tenant-allowlist-[A-Za-z0-9]{6}\/fixture\.json$/);
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const info = fstatSync(fd);
+    assert.ok(info.isFile() && info.nlink === 1, "fixture must be a regular single-link file");
+    assert.equal(info.mode & 0o777, 0o600, "fictional session cookies must remain mode 0600");
+    if (typeof process.getuid === "function") {
+      assert.equal(info.uid, process.getuid(), "fixture must belong to the current CI account");
+    }
+    assert.ok(info.size > 0 && info.size <= 65536, "fixture must be nonempty and bounded");
+    return JSON.parse(readFileSync(fd, "utf8"));
+  } finally {
+    closeSync(fd);
+  }
+}
 export function readAllowlistPreseed(file, env = process.env) {
   assert.equal(env.TENANT_TABLE_PROFILE, "allowlisted-reads");
-  assert.match(file ?? "", /^\/tmp\/payrollph-tenant-allowlist-[a-z0-9-]+\.json$/);
-  assert.equal(statSync(file).mode & 0o077, 0, "fictional session cookies must remain mode 0600");
-  const data = JSON.parse(readFileSync(file, "utf8"));
+  const data = readPrivateAllowlistFixture(file);
   assert.equal(data.schema, "payrollph-tenant-allowlist-preseed-v1");
   assert.ok(Array.isArray(data.employers) && data.employers.length === 3);
   const [victim, attackerA, attackerB] = data.employers;
