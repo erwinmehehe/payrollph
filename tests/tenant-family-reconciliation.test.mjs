@@ -168,11 +168,19 @@ test("labor-costing GET-only source repin does not certify the legacy POST", () 
   assert.equal(current.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
   const oldGet = old.methods.find(method => method.name === "GET");
   const newGet = current.methods.find(method => method.name === "GET");
-  assert.equal(oldGet.line, 78); assert.equal(newGet.line, 79);
+  // The GET-only source repin originally moved 78 -> 79 and POST
+  // 133 -> 156. Once merged, the main baseline already has 79/156.
+  // Accept only these exact historical/current coordinates without
+  // changing the independent GET evidence or certifying the legacy POST.
+  assert.ok([78, 79].includes(oldGet.line),
+    "GET baseline must be the historical or already-repinned source line");
+  assert.equal(newGet.line, 79);
   assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
   const oldPost = old.methods.find(method => method.name === "POST");
   const newPost = current.methods.find(method => method.name === "POST");
-  assert.equal(oldPost.line, 133); assert.equal(newPost.line, 156);
+  assert.ok([133, 156].includes(oldPost.line),
+    "POST baseline must be the historical or already-repinned source line");
+  assert.equal(newPost.line, 156);
   assert.equal(newPost.status, "GAP");
   assert.equal(newPost.testedBy, null);
   const { reviewedUncertified, ...withoutReview } = newPost;
