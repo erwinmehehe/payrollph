@@ -106,3 +106,20 @@ test("DL-01 egress is kernel-scoped to the unprivileged proof UID, never the run
   assert.match(workflow, /sudo pkill -TERM -u dl01proof/);
   assert.match(workflow, /sudo chown -R "\$\(id -un\)":"\$\(id -gn\)" \.next/);
 });
+
+test("DL-01 isolated proof user has narrow, verified checkout permissions", () => {
+  const workflow = file(".github/workflows/tenant-dl01-closure.yml");
+  assert.match(workflow, /command -v setfacl/);
+  assert.match(workflow, /sudo setfacl -m "u:dl01proof:r-x" "\$dir"/);
+  assert.match(workflow, /sudo setfacl -m "u:dl01proof:--x" "\$dir"/);
+  assert.match(workflow, /for dir in "\$\{acl_dirs\[@\]\}"/);
+  assert.match(workflow, /sudo setfacl -x "u:dl01proof" "\$dir"/);
+  assert.match(workflow, /proof node --check scripts\/qa\/tenant-dl01-local-adapters\.mjs/);
+  assert.match(workflow, /proof node --check scripts\/qa\/tenant-dl01-network-preload\.mjs/);
+  assert.match(workflow, /proof test -r node_modules\/next\/dist\/bin\/next/);
+  assert.match(workflow, /proof test -r \.next\/BUILD_ID/);
+  const beforeFirewall = workflow.indexOf('proof test -r scripts/qa/tenant-dl01-local-adapters.mjs');
+  const firewall = workflow.indexOf('sudo iptables -I OUTPUT 1 -m owner');
+  assert.ok(beforeFirewall > 0 && firewall > beforeFirewall,
+    "Readability must be demonstrated before the network isolation proof starts");
+});
