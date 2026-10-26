@@ -20,8 +20,11 @@ const audits = (ctx, org) => ctx.db.select().from(ctx.s.auditEvents)
 
 async function mockStats(ctx) {
   const r = await fetch("http://127.0.0.1:3012/__proof");
-  ctx.exact({ status: r.status, text: await r.text() }, 200, "Only loopback test receipt endpoint");
-  return r.json().catch(() => null);
+  const text = await r.text();
+  ctx.exact({ status: r.status, text }, 200, "Only loopback test receipt endpoint");
+  const snapshot = JSON.parse(text);
+  assert.ok(Array.isArray(snapshot.provider), "Mock provider receipt must be a real list");
+  return snapshot;
 }
 
 export async function prepare(ctx) {
