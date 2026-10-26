@@ -163,7 +163,7 @@ export async function victimSnapshot(victim) {
   const id = victim.org.id;
   const scoped = (table) => db.select().from(table).where(eq(table.organizationId, id));
   return {
-    organization: await scoped(s.organizations),
+    organization: await db.select().from(s.organizations).where(eq(s.organizations.id, id)),
     employees: await scoped(s.employees),
     payProfiles: await scoped(s.employeePayProfiles),
     priorEvidence: await scoped(s.yearEndPriorEvidence),
