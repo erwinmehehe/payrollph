@@ -28,6 +28,8 @@ const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
 // Explicit reviewed selection avoids crediting pending/partially exercised rows.
 const selection = process.argv.includes("--reconcile-merged-families") ? reviewedFamilySelection() : null;
+const onlyPathIds = process.argv.includes("--only-path-ids");
+if (onlyPathIds && selection) throw new Error("Path and reviewed-family selections must run separately");
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
 
 const SOURCES = [
@@ -43,7 +45,7 @@ const SOURCES = [
     overviewLabel: "Tenant-table own-marker/victim PG16 proof",
     paragraphMarker: "**Tenant-table organization-selector reads (provisional, NOT ACCEPTED):**",
     paragraph: (n, totals, pageGaps) => "**Tenant-table organization-selector reads (provisional, NOT ACCEPTED):** [one shared table runner](../../scripts/qa/tenant-table-http.mjs) and [one shared workflow](../../.github/workflows/tenant-table-proof.yml) prove " +
-      n + " GET methods whose only employer selector is `?organizationId=`. For each row, two independently signed-in fictional attacker employers receive 200 " +
+      n + " GET methods with verified organization selectors or explicit seeded path-ID bindings. For each row, two independently signed-in fictional attacker employers receive 200 " +
       "whose body carries that employer's own seeded marker, the same session naming a real higher-ID victim employer is denied, no victim marker appears in either response, and the victim's PostgreSQL rows and audit are unchanged. " +
       "Rows whose response is empty for a fresh employer are deliberately not credited: an empty list cannot distinguish own-employer scoping from no data. Combined **" +
       totals + "** plus " + pageGaps + " page/action GAPs. Exact-head CI and independent security review are required; no production, provider, filing or payout system is touched.",
@@ -93,17 +95,19 @@ for (const source of SOURCES) {
     const ownedHere = method.testedBy?.file === source.file;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
+    if (onlyPathIds && !ownedHere && !row.pathIds) continue;
     if (selection && !ownedHere && !selection.methods.has(row.key)) continue;
     const selected = selection?.methods.get(row.key);
-    const retainEvidence = refreshLinks || (selection && !selected);
+    const retainEvidence = refreshLinks || (selection && !selected) || (onlyPathIds && !row.pathIds);
     const was = method.status;
     method.status = "COVERED";
-    if (!retainEvidence) method.reason = source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
+    if (!retainEvidence) method.reason = row.pathIds ? "Provisional explicit seeded-path real HTTP/local PG16 proof (" + (runLabel ?? "check") + "): two independent attackers receive nonempty identity-bound own success, higher-ID real victim paths are denied, proof rejects the other attacker's data and victim DB/audit stays unchanged. Writes additionally require exact persisted own changes. Bounded local proof only; exact-head CI NOT_RUN; not production, tax approval, agency acceptance or payroll release." : source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
     method.testedBy = {
       ...method.testedBy,
       file: source.file, line: ownPositiveLine, rowFile: row.file, rowLine: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
-      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? source.scope),
-      evidence: retainEvidence ? method.testedBy.evidence : source.evidenceName + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
+      ...(row.pathIds ? { pathIds: row.pathIds } : {}),
+      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? (row.pathIds ? "Explicit path-bound Owner/default or flagged-read HTTP proof using genuine higher-ID victim seeds; no payroll release, tax classification approval, agency acceptance or production certification; exact-head CI NOT_RUN." : source.scope)),
+      evidence: retainEvidence ? method.testedBy.evidence : (row.pathIds ? "Local shared path-bound runner; " : source.evidenceName) + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
       ...(selected ? { reviewedHead: selection.receipt.reviewedHead, passedJob: selection.receipt.run + "/job/" + selection.receipt.profiles.default.job } : {}),
     };
     credited.push({ ...row, source, path: hit.path, was });
