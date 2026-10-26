@@ -8,6 +8,7 @@ import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { db } from "../../src/db";
 import { organizations } from "../../src/db/schema";
 import {
@@ -22,6 +23,10 @@ export async function bootstrapDl02Closure(env = process.env) {
   assert.ok(env.GITHUB_ENV);
   assert.equal((await db.select({ id: organizations.id }).from(organizations).limit(1)).length, 0,
     "DL-02 bootstrap refuses to seed anything but the empty disposable app_db");
+  // A real victim employer must itself have an ID >6 and exceed both attackers.
+  await db.execute(sql.raw(
+    "SELECT setval(pg_get_serial_sequence('organizations','id')," +
+    " GREATEST(6, COALESCE((SELECT MAX(id) FROM organizations),0)), true)"));
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
   const a = await seedEmployer("ATTA", nonce, standaloneMakeSession);
   const b = await seedEmployer("ATTB", nonce, standaloneMakeSession);
