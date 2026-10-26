@@ -18,3 +18,13 @@ export function absentPermissionOverlayDecision(hasAssignment: boolean) {
     permissionSet: null,
   };
 }
+
+/**
+ * Validate the entire permission-set allowlist before honoring any known gate.
+ * Filtering malformed/unknown values would let a corrupted overlay broaden
+ * rights by accepting its valid-looking subset.
+ */
+export function permissionOverlayKeysValid(value: unknown, knownKeys: readonly string[]): value is string[] {
+  return Array.isArray(value)
+    && value.every((key: unknown) => typeof key === "string" && knownKeys.includes(key));
+}
