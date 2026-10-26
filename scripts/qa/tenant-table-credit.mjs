@@ -18,6 +18,8 @@
  * overview metric table are recomputed from the manifest, never typed by hand.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { METHODS as developmentMethods } from "./tenant-performance-development-actions.mjs";
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
 
@@ -118,7 +120,7 @@ for (const source of SOURCES) {
     if (!familySelected && !ownedHere) continue;
     if (selection && !ownedHere && !selection.methods.has(row.key)) continue;
     const selected = selection?.methods.get(row.key);
-    const retainEvidence = refreshLinks || !familySelected || (selection && !selected);
+    const retainEvidence = refreshLinks || !familySelected || (selection && !selected) || (selectedKeys.size > 0 && !selectedKeys.has(row.key));
     const was = method.status;
     method.status = "COVERED";
     if (!retainEvidence) method.reason = source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
@@ -129,6 +131,14 @@ for (const source of SOURCES) {
       evidence: retainEvidence ? method.testedBy.evidence : (family ? "Local shared runner " + source.file + "; " : source.evidenceName) + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
       ...(selected ? { reviewedHead: selection.receipt.reviewedHead, passedJob: selection.receipt.run + "/job/" + selection.receipt.profiles.default.job } : {}),
     };
+    if (developmentMethods.includes(row.key) && !retainEvidence) {
+      const file = "scripts/qa/tenant-performance-development-actions.mjs", text = readFileSync(file, "utf8").replaceAll("\r\n", "\n");
+      const pin = fragment => { const hits = text.split("\n").flatMap((line, index) => line.trimStart().startsWith(fragment) ? [index + 1] : []); if (hits.length !== 1) throw new Error("ambiguous additional proof pin: " + fragment); return hits[0]; };
+      method.testedBy.supplementalProof = { file, sha256: createHash("sha256").update(text).digest("hex"),
+        ownPositiveLine: pin("const owned = io.expectStatus"), foreignDenialLine: pin("const victim = io.expectStatus"),
+        forgedSelectorLine: pin("const denied = io.expectStatus"), unchangedDbLine: pin("if (proof) { assert.deepEqual"),
+        scope: "All supported entityType actions: competencies skill/requirement/expectation_default, requirement/template_mapping/expectation_default updates, one_on_one and both feedback visibility modes, plan and milestone creation. Two owner attackers; seven additional discriminating action proofs; no production approval." };
+    }
     credited.push({ ...row, source, path: hit.path, was });
   }
 }

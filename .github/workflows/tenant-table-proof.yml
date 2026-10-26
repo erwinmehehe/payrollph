@@ -11,6 +11,8 @@ on:
       - '.github/workflows/tenant-table-proof.yml'
       - 'scripts/qa/tenant-table-http.mjs'
       - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-performance-development-actions.mjs'
+      - 'tests/tenant-performance-development.test.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
       - 'scripts/qa/tenant-table-allowlist-bootstrap.mjs'
       - 'scripts/qa/tenant-table-allowlist-negative.mjs'
