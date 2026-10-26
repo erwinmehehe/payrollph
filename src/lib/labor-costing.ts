@@ -237,6 +237,7 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
       clientCode: null,
       projectCode: null,
       jobCode: null,
+      verticalDimensions: null,
       amount: round2(amount),
     }];
   }
@@ -256,7 +257,7 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
       clientCode: row.clientCode,
       projectCode: row.projectCode,
       jobCode: row.jobCode,
-      ...(row.verticalDimensions ? { verticalDimensions: row.verticalDimensions } : {}),
+      verticalDimensions: row.verticalDimensions ?? null,
       amount: cents / 100,
     };
   });
