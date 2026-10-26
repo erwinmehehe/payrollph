@@ -52,11 +52,32 @@ test("closure plan schedules every original GAP exactly once in priority order",
   // snapshot of current handler line numbers. Its exact Git blob, including
   // all 406 original source links, is pinned while live source/drift is
   // separately checked by the method coverage inventory guard.
-  const frozenPlanBlob = createHash("sha1")
-    .update("blob " + Buffer.byteLength(plan) + "\0" + plan)
+  // The plan now contains a live reconciliation snapshot alongside its immutable
+  // 2026-10-21 queue. Freeze the actual 12 batch headers, 406 source links and
+  // 20 page slots instead of hashing mutable status commentary.
+  const sourceLines = plan.split("\n");
+  const tick = String.fromCharCode(96);
+  const frozenHeaders = sourceLines.filter(line =>
+    /^### Batch [A-Z0-9-]+ — .+ \([0-9]+ methods; phase [1-6]\)$/.test(line));
+  const frozenMethods = sourceLines.filter(line =>
+    line.startsWith("- " + tick)
+    && line.includes(tick + " — [source](../../src/app/api/")
+    && line.endsWith(")"));
+  const pageSuffix = "/page.tsx" + tick + ";";
+  const frozenPages = sourceLines.filter(line =>
+    line.startsWith("- " + tick + "GET ")
+    && line.includes(tick + " — " + tick + "src/app/")
+    && line.includes(pageSuffix))
+    .map(line => line.slice(0, line.indexOf(pageSuffix) + pageSuffix.length));
+  assert.equal(frozenHeaders.length, 12);
+  assert.equal(frozenMethods.length, 406);
+  assert.equal(frozenPages.length, 20);
+  const frozenQueue = [...frozenHeaders, ...frozenMethods, ...frozenPages].join("\n") + "\n";
+  const frozenQueueBlob = createHash("sha1")
+    .update("blob " + Buffer.byteLength(frozenQueue) + "\0" + frozenQueue)
     .digest("hex");
-  assert.equal(frozenPlanBlob, "bd93253b602f02760ac434a7b387cbc56a8ae351",
-    "The frozen 406-method closure queue and its source links must not change");
+  assert.equal(frozenQueueBlob, "c69946977e56d21cccd59077ec4fe0840b5ff1d7",
+    "The original 406 method links, their order, 12 batches and 20 page slots must not change");
   const current = allMethods();
   const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)];
   assert.equal(headers.length, 12, "12 numbered baseline closure PR batches expected");

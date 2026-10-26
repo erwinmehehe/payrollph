@@ -41,6 +41,10 @@ if (selectedKeys.size !== onlyKeys.length || onlyKeys.some(key => !catalogKeys.h
 
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
+const familyAt = process.argv.indexOf("--family");
+const family = familyAt >= 0 ? process.argv[familyAt + 1] : null;
+if (familyAt >= 0 && (!family || !/^[a-z][a-z0-9-]*$/.test(family))) throw new Error("--family requires a valid family filename");
+if (family && ![...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].some(row => row.file.endsWith("/" + family + ".mjs"))) throw new Error("unknown or empty credit family");
 // Explicit reviewed selection cannot silently promote pending or partially exercised rows.
 const selection = process.argv.includes("--reconcile-merged-families") ? reviewedFamilySelection() : null;
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
@@ -110,17 +114,19 @@ for (const source of SOURCES) {
     if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.
+    const familySelected = !family || row.file.endsWith("/" + family + ".mjs");
+    if (!familySelected && !ownedHere) continue;
     if (selection && !ownedHere && !selection.methods.has(row.key)) continue;
     const selected = selection?.methods.get(row.key);
-    const retainEvidence = refreshLinks || (selection && !selected);
+    const retainEvidence = refreshLinks || !familySelected || (selection && !selected);
     const was = method.status;
     method.status = "COVERED";
     if (!retainEvidence) method.reason = source.reason(selected ? selection.receipt.run : (runLabel ?? method.testedBy?.evidence ?? "check"));
     method.testedBy = {
       ...method.testedBy,
       file: source.file, line: ownPositiveLine, rowFile: row.file, rowLine: row.line, ownPositiveLine, foreignDenialLine, unchangedDbLine,
-      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? source.scope),
-      evidence: retainEvidence ? method.testedBy.evidence : source.evidenceName + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
+      scope: retainEvidence ? method.testedBy.scope : (selected?.scope ?? (family ? source.scope.replace("CI PG16 only", "local disposable PG16; exact-head CI NOT_RUN") : source.scope)),
+      evidence: retainEvidence ? method.testedBy.evidence : (family ? "Local shared runner " + source.file + "; " : source.evidenceName) + (selected ? selection.receipt.run : (runLabel ?? "see prior credit")),
       ...(selected ? { reviewedHead: selection.receipt.reviewedHead, passedJob: selection.receipt.run + "/job/" + selection.receipt.profiles.default.job } : {}),
     };
     credited.push({ ...row, source, path: hit.path, was });
