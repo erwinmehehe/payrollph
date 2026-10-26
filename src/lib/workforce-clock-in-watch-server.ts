@@ -10,6 +10,7 @@ import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { clockInWatchSignals } from "@/lib/workforce-clock-in-watch";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { scanClockWatchAssignments, CLOCK_WATCH_PAGE_SIZE } from "@/lib/workforce-clock-in-watch-paging";
+import { clockWatchLeaseFence } from "@/lib/workforce-clock-watch-lease";
 
 const MAX_ELIGIBLE_ASSIGNMENTS = 200;
 
@@ -19,11 +20,11 @@ const MAX_ELIGIBLE_ASSIGNMENTS = 200;
  * Large cohorts are scanned only when the WFM paging release gate is enabled.
  * Every bounded scan must complete before advisory events can be emitted.
  */
-export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number) {
+export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number, assertLeaseOwnership: () => Promise<void>) {
   // Keep the existing clock-watch paging lane unchanged unless the independent
   // WFM roster-scale feature is explicitly enabled.
   if (criticalReleaseFlagEnabled("wfmRosterScaleRules")) {
-    return emitRosterScaleClockInWatch(now, graceMinutes);
+    return emitRosterScaleClockInWatch(now, graceMinutes, assertLeaseOwnership);
   }
   if (!Number.isFinite(now.getTime())
     || !Number.isSafeInteger(graceMinutes) || graceMinutes < 5 || graceMinutes > 60) {
@@ -36,10 +37,13 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   const previous = new Date(today + "T00:00:00Z");
   previous.setUTCDate(previous.getUTCDate() - 1);
   const yesterday = previous.toISOString().slice(0, 10);
+  const assertActiveLease = clockWatchLeaseFence(assertLeaseOwnership);
 
   // ID keyset paging avoids OFFSET gaps on a changing schedule table. This
   // scanner completes before sending any advisory notification.
-  const loadAssignmentPage = (afterId: number, limit: number) => db.select({
+  const loadAssignmentPage = async (afterId: number, limit: number) => {
+    await assertActiveLease();
+    return db.select({
     id: employeeScheduleAssignments.id,
     organizationId: employeeScheduleAssignments.organizationId,
     employeeId: employeeScheduleAssignments.employeeId,
@@ -49,6 +53,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
       gte(employeeScheduleAssignments.effectiveUntil, yesterday)),
     afterId > 0 ? gt(employeeScheduleAssignments.id, afterId) : undefined,
   )).orderBy(asc(employeeScheduleAssignments.id)).limit(limit);
+  };
 
   const pagingEnabled = criticalReleaseFlagEnabled("wfmClockWatchPaging");
   const scan = pagingEnabled
@@ -66,6 +71,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   const ids = [...new Set(assignmentRows.map(row => row.employeeId))];
   if (ids.length === 0) return { skipped: false as const, checked: 0, emitted: 0, exceptions: 0 };
 
+  await assertActiveLease();
   const [workerRows, punches, leaves, exits] = await Promise.all([
     db.select({
       id: employees.id, organizationId: employees.organizationId,
@@ -97,6 +103,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   let exceptions = 0;
   const outcomes: Array<{ employeeId: number; workDate: string; eventKey: string }> = [];
   for (const employee of workerRows) {
+    await assertActiveLease();
     if (eligibleOrgByEmployee.get(employee.id) !== employee.organizationId
       || employee.status !== "Active" || String(employee.startDate) > today) continue;
     // A current exit with contradictory active HR status needs HR reconciliation,
@@ -147,6 +154,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
       });
       checked += 1;
       for (const signal of signals) {
+        await assertActiveLease();
         await runAutomationEventSafely({
           organizationId: signal.organizationId,
           employeeId: signal.employeeId,
