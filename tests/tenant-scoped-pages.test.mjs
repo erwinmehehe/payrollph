@@ -12,7 +12,7 @@ test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", 
     ["src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx",
       "src/app/hcm/manager-decision-inbox/page.tsx",
       "src/app/hcm/manager-direct-reports/page.tsx"]);
-  assert.equal(covered[1].testedBy?.file, "scripts/hcm-people-home-synthetic-browser.mjs");
+  assert.equal(covered[1].testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
   assert.equal(covered[2].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
   assert.equal(covered[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
   assert.equal(covered[3].testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
@@ -41,7 +41,7 @@ test("HTML recon never converts an enabled/disabled/redirect response to securit
 test("new People Home page credit is pinned to real two-attacker, enabled-victim browser proof", () => {
   const entry = m.scopedPages.find(p => p.path === "src/app/hcm/command-center/page.tsx");
   assert.equal(entry?.status, "COVERED");
-  assert.equal(entry.testedBy?.file, "scripts/hcm-people-home-synthetic-browser.mjs");
+  assert.equal(entry.testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
   const source = readFileSync(entry.testedBy.file, "utf8");
   const lines = source.split("\n");
   const pin = (key) => lines[entry.testedBy[key] - 1];
@@ -53,7 +53,11 @@ test("new People Home page credit is pinned to real two-attacker, enabled-victim
   assert.match(source, /assert\.equal\(foreignPage\?\.status\(\), 404/);
   assert.match(source, /assert\.ok\(ownHtml\.includes\(actor\.workflow\)/);
   assert.match(source, /process\.env\.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3"/);
-  assert.match(source, /new pg\.Client\(/);
+  assert.match(source, /new pg\\.Client\\(/);
+  const browserSuite = readFileSync("scripts/hcm-people-home-synthetic-browser.mjs", "utf8");
+  assert.match(browserSuite, /verifyIndependentPeopleHomeTenantProof\\(\\{ browser, base, login \\}\\)/);
+  assert.match(source, /await page\\.getByText\\(actor\\.employer/);
+  assert.match(source, /await page\\.getByText\\(actor\\.workflow/);
   assert.match(source, /"payroll_runs", "audit_events"/);
 
   const fixture = readFileSync("scripts/hcm-people-home-synthetic-fixture.ts", "utf8");
