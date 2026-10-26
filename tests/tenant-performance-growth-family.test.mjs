@@ -88,7 +88,7 @@ test("new method proofs reject unrelated own-row mutations", () => {
   }
 });
 
-test("new family preserves nine unique GAP methods without granting credits or duplicating prior Performance rows", () => {
+test("family keeps nine unique methods with only reviewed calibration creation credited", () => {
   assert.equal(rows.length, 9); assert.equal(new Set(rows.map(r => r.key)).size, 9);
   const excluded = ["PATCH performance/action-items", "PATCH performance/continuous", "POST performance/action-items", "PATCH performance/development-plans"];
   assert.ok(rows.every(r => !excluded.includes(r.key)));
@@ -96,7 +96,7 @@ test("new family preserves nine unique GAP methods without granting credits or d
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
   for (const row of rows) {
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
-    assert.equal(record.methods.find(m => m.name === method).status, "GAP");
+    assert.equal(record.methods.find(m => m.name === method).status, row.key === "POST performance/calibration" ? "COVERED" : "GAP");
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
