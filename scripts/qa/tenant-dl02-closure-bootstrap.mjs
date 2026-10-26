@@ -5,9 +5,9 @@
  */
 import assert from "node:assert/strict";
 import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { assertPrivateDl02RunnerTemp } from "./tenant-dl02-fixture-reader.mjs";
 import { sql } from "drizzle-orm";
 import { db } from "../../src/db";
 import { organizations } from "../../src/db/schema";
@@ -40,7 +40,7 @@ export async function bootstrapDl02Closure(env = process.env) {
   const ids = [a.org.id, b.org.id, victim.org.id];
   assert.ok(ids.every((id) => Number.isSafeInteger(id) && id > 0));
   assert.ok(ids[2] > ids[0] && ids[2] > ids[1]);
-  const directory = mkdtempSync(join(tmpdir(), "payrollph-dl02-"));
+  const directory = mkdtempSync(join(assertPrivateDl02RunnerTemp(env.RUNNER_TEMP), "payrollph-dl02-"));
   const path = join(directory, "three-employers.json");
   writeFileSync(path, JSON.stringify({
     schema: "tenant-dl02-closure-three-employers-v1",
