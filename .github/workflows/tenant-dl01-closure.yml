@@ -1,0 +1,167 @@
+name: DL-01 whole-batch tenant isolation (zero money, localhost-only PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-dl01-closure.yml'
+      - 'scripts/qa/tenant-dl01-closure-http.mjs'
+      - 'scripts/qa/tenant-dl01-closure-shared.mjs'
+      - 'scripts/qa/tenant-dl01-rows/**'
+      - 'scripts/qa/tenant-dl01-network-preload.mjs'
+      - 'scripts/qa/tenant-dl01-local-adapters.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'docs/engineering/tenant-isolation-closure-plan.md'
+      - 'tests/tenant-dl01-closure-source.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dl01-batch-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  whole-batch:
+    # Forked PRs cannot inherit a trusted local-only proof environment.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      GITHUB_ACTIONS: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DL01_PROOF_URL: http://127.0.0.1:3011
+      APP_BASE_URL: http://127.0.0.1:3011
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3011
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TENANT_DL01_CLOSURE_PROOF: isolated-ci-only
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_SECRET_KEY: ''
+      PAYROLL_PAYOUT_PROVIDER: paymongo
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: 'true'
+      DOCUMENT_UPLOADS_ENABLED: 'true'
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'true'
+      EMPLOYEE_IMPORT_PREVIEW_ENABLED: 'false'
+      MALWARE_SCAN_URL: https://127.0.0.1:8443/scan
+      MALWARE_SCAN_TOKEN: ci-dl01-fake-scanner-token
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: https://127.0.0.1:8444/
+      DOCUMENT_OBJECT_STORAGE_BUCKET: dl01-fixture-bucket
+      DOCUMENT_OBJECT_STORAGE_REGION: ap-southeast-1
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: DL01_FAKE_ACCESS_ONLY
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: DL01_FAKE_STORAGE_ONLY
+      PAYMONGO_WALLET_ID: wallet_synthetic
+      PAYMONGO_WEBHOOK_SECRET: ci-fake-webhook-not-real
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Enforce offline/source proof contract before touching the DB
+        run: |
+          node --check scripts/qa/tenant-dl01-network-preload.mjs
+          node --check scripts/qa/tenant-dl01-local-adapters.mjs
+          node --check scripts/qa/tenant-dl01-closure-shared.mjs
+          node --check scripts/qa/tenant-dl01-closure-http.mjs
+          for file in scripts/qa/tenant-dl01-rows/*.mjs; do node --check "$file"; done
+          node --test tests/tenant-dl01-closure-source.test.mjs
+      - name: Ephemeral PII and bank data keys (no third-party credentials)
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Provision actual disposable PG16 tables
+        run: npm run db:push
+      - name: Apply reviewed audit-chain baseline with all provider payout flags OFF
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Create dedicated blank DL-01 clone of schema, never touch a real database
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_dl01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_dl01_test' >> "$GITHUB_ENV"
+      - name: Typecheck and production build with LIVE payout disabled
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm run build
+      - name: Execute three-employer HTTP/PG16 proof with no non-loopback egress
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Startup is impossible without the explicit GitHub-only proof guard;
+          # these temporary booleans/credentials exist in this single shell
+          # and are NEVER deployed or recorded as repository production settings.
+          export PAYMONGO_DISBURSEMENTS_ENABLED=true
+          export PAYMONGO_SECRET_KEY=sk_test_synthetic_no_network
+          export NODE_EXTRA_CA_CERTS=/tmp/dl01-fixture.crt
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/dl01-fixture.key -out /tmp/dl01-fixture.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          # Block ALL outbound IPv4/IPv6 non-loopback network traffic at kernel
+          # level as well as in the application fetch preload. A DNS failure,
+          # redirect, alternate Node HTTP client or leaked real endpoint cannot
+          # reach any external payment, scanning or object-storage service.
+          sudo iptables -I OUTPUT 1 ! -d 127.0.0.0/8 -j REJECT
+          sudo ip6tables -I OUTPUT 1 ! -d ::1/128 -j REJECT
+          cleanup() {
+            sudo iptables -D OUTPUT ! -d 127.0.0.0/8 -j REJECT || true
+            sudo ip6tables -D OUTPUT ! -d ::1/128 -j REJECT || true
+            kill "$app_pid" "$mock_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ! curl --silent --fail --connect-timeout 1 --max-time 2 https://api.paymongo.com/v2/wallets/wallet_synthetic
+          node scripts/qa/tenant-dl01-local-adapters.mjs > /tmp/dl01-adapters.log 2>&1 &
+          mock_pid=$!
+          ready=false
+          for attempt in {1..20}; do
+            if curl --silent --fail --cacert /tmp/dl01-fixture.crt \
+              https://127.0.0.1:8443/health >/dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          NODE_OPTIONS="--import=$(pwd)/scripts/qa/tenant-dl01-network-preload.mjs" \
+            npm start -- -H 127.0.0.1 -p 3011 > /tmp/dl01-app.log 2>&1 &
+          app_pid=$!
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011 >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/tenant-dl01-closure-http.mjs
+      - name: Show localhost diagnostics on failure (never print fake auth headers)
+        if: failure()
+        run: |
+          tail -n 200 /tmp/dl01-app.log 2>/dev/null || true
+          tail -n 200 /tmp/dl01-adapters.log 2>/dev/null || true
