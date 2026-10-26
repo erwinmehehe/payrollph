@@ -168,15 +168,28 @@ test("labor-costing GET-only source repin does not certify the legacy POST", () 
   assert.equal(current.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
   const oldGet = old.methods.find(method => method.name === "GET");
   const newGet = current.methods.find(method => method.name === "GET");
-  assert.equal(oldGet.line, 78); assert.equal(newGet.line, 79);
-  assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
   const oldPost = old.methods.find(method => method.name === "POST");
   const newPost = current.methods.find(method => method.name === "POST");
-  assert.equal(oldPost.line, 133); assert.equal(newPost.line, 156);
+  assert.equal(newGet.line, 79);
+  assert.equal(newPost.line, 156);
   assert.equal(newPost.status, "GAP");
   assert.equal(newPost.testedBy, null);
   const { reviewedUncertified, ...withoutReview } = newPost;
-  assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
+
+  if (old.gitBlobSha === current.gitBlobSha) {
+    // After the reviewed GET-only fix is merged, the base already includes
+    // its repin. No evidence/status/line changes are permitted from that base.
+    assert.deepEqual(newGet, oldGet);
+    assert.deepEqual(newPost, oldPost);
+  } else {
+    // Before that merge, only the reviewed GET-only line moves are allowed.
+    // Pin the original route so an unrelated baseline cannot silently pass.
+    assert.equal(old.gitBlobSha, "e5e2c007ca41da3c6e2fc1217600f83640f48975");
+    assert.equal(oldGet.line, 78);
+    assert.equal(oldPost.line, 133);
+    assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
+    assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
+  }
   assert.deepEqual(reviewedUncertified, {
     kind: "unchanged-POST-in-GET-only-security-fix",
     originalRouteBlobSha: "e5e2c007ca41da3c6e2fc1217600f83640f48975",
