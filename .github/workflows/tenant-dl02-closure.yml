@@ -124,8 +124,11 @@ jobs:
           exit 1
       - name: Run DL-02 four exact methods with real PG victim before/after and forged selectors
         run: npx tsx scripts/qa/tenant-dl02-closure-http.mjs
-      - name: Run full repository regression after the four-method HTTP proof
-        run: npm test
+      # The required CI/check gate runs the complete regression inventory on
+      # separate clean PG16 runners for this same PR head. Running npm test
+      # here inherits DL-02-only feature flags, synthetic scanner settings,
+      # and a preseeded database, producing unrelated false failures.
+      # Keep this job narrowly responsible for four-method HTTP/PG proof.
       - name: Emit error logs only on a failure
         if: failure()
         run: |
