@@ -45,3 +45,15 @@ export function bindTenantReadRequests(definition, ownId, victimId, extra = "") 
   const base = "/api/" + definition.key.slice(4) + "?organizationId=";
   return Object.freeze({ ...definition, own: base + ownId + extra, foreign: base + victimId + extra });
 }
+
+/** Explicit local family run. Unknown/empty families fail; default still runs every row. */
+export function selectTenantRowsByFamily(kind, rows, family) {
+  if (family === undefined) return rows;
+  assert.ok(typeof family === "string" && /^[a-z][a-z0-9-]*$/.test(family), "invalid tenant family selection");
+  const selected = new Set(tenantFamilyCatalog(kind).filter(row => row.file.endsWith("/" + family + ".mjs")).map(row => row.key));
+  assert.ok(selected.size > 0, "unknown or empty tenant family: " + family);
+  const result = rows.filter(row => selected.has(row.key));
+  assert.equal(result.length, selected.size, "selected family must load every source row exactly once");
+  assert.equal(new Set(result.map(row => row.key)).size, selected.size, "duplicate selected runtime rows");
+  return result;
+}
