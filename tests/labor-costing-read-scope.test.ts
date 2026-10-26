@@ -119,8 +119,8 @@ test("GET-only security hardening keeps unmodified POST source pinned and uncred
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = manifest.allApiRouteFiles["src/app/api/workforce/labor-costing/route.ts"];
   assert.equal(record.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
-  assert.equal(record.methods.find(method => method.name === "GET")?.status, "COVERED");
-  const post = record.methods.find(method => method.name === "POST");
+  assert.equal(record.methods.find((method: { name: string }) => method.name === "GET")?.status, "COVERED");
+  const post = record.methods.find((method: { name: string }) => method.name === "POST");
   assert.equal(post?.status, "GAP");
   assert.equal(post?.testedBy, null);
   assert.equal(post?.reviewedUncertified?.kind, "unchanged-POST-in-GET-only-security-fix");
