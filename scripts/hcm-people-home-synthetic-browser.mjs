@@ -189,10 +189,13 @@ async function main() {
     assert.ok(!beta.includes("Transfer") && !beta.toLowerCase().includes("alphaprivate"));
     assert.equal(await visit(page, "invalid"), 404);
     assert.equal(await visit(page, ""), 404);
+    const sharedHrCookies = await authorized.cookies();
+    assert.ok(sharedHrCookies.some(cookie => cookie.name === "__Host-linaw_session"),
+      "Synthetic HR session must be genuinely authenticated before reuse");
     await authorized.close();
 
     const mobile = await browser.newContext({ viewport: { width: 375, height: 780 } });
-    await login(mobile, "hcm-hr@example.test");
+    await mobile.addCookies(sharedHrCookies);
     const small = await mobile.newPage();
     assert.equal(await visit(small, 1), 200);
     const fit = await small.evaluate(() => ({
@@ -220,7 +223,7 @@ async function main() {
 
     // The second isolated local process disables the feature server-side.
     const off = await browser.newContext();
-    await login(off, "hcm-hr@example.test");
+    await off.addCookies(sharedHrCookies);
     const offPage = await off.newPage();
     const disabled = await offPage.goto(
       "http://127.0.0.1:3001/hcm/command-center?organizationId=1",
