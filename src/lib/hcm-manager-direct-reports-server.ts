@@ -119,6 +119,10 @@ export async function loadManagerDirectReports(input: {
       eq(employees.organizationId, organizationId),
       eq(employees.orgUnitId, scopeUnitId),
       ne(employees.id, managerEmployeeId),
+      // A stale primary assignment must not call an ex-worker or a
+      // future-start employee a CURRENT report. Keep leave-eligible workers.
+      inArray(employees.status, ["Active", "On leave"]),
+      lte(employees.startDate, today),
     ))
     .where(and(
       eq(positionAssignments.organizationId, organizationId),
@@ -154,6 +158,6 @@ export async function loadManagerDirectReports(input: {
       hasMore,
       nextCursor: hasMore ? page[page.length - 1]?.assignmentId ?? null : null,
     },
-    warning: "Current source snapshot, not historical supervision or certified headcount. Only direct reports with one unambiguous current primary assignment and matching employer/unit/manager-of-record are shown. Missing or conflicting relationships are omitted, never guessed. No payroll or approval authority is provided.",
+    warning: "Current source snapshot, not historical supervision or certified headcount. Only direct reports with one unambiguous current primary assignment and matching employer/unit/manager-of-record are shown. Not-yet-started, separating/separated or conflicting relationships are omitted, never guessed. No payroll or approval authority is provided.",
   };
 }

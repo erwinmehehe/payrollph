@@ -24,24 +24,38 @@ test("shard selection is stable and invalid arguments fail closed", () => {
   }
 });
 
-test("CI keeps the required check job conditional on all shard results", () => {
+test("CI aggregates all regression shards, audit chain and parallel validation without masking failures", () => {
   const source = readFileSync(".github/workflows/ci.yml", "utf8");
-  assert.match(source, /test-shard:\s*\n/);
-  // The ruleset treats a skipped required job as acceptable. The aggregator
-  // must execute and fail visibly when any matrix shard is not successful.
-  const checkJob = source.split("\n  check:\n")[1];
-  assert.ok(checkJob, "CI aggregate job must exist");
-  assert.ok(checkJob.includes("if: ${{ always() }}"), "CI aggregate cannot be skipped");
-  assert.ok(checkJob.includes("needs: [test-shard, audit-chain-protection]"), "CI aggregate must depend on every shard");
-  // Without the explicit status function, failed ancestors can suppress this guard.
-  assert.ok(checkJob.includes("if: ${{ always() && (needs.test-shard.result != 'success' || needs.audit-chain-protection.result != 'success') }}"),
-    "failed/cancelled/skipped shard must fail the required aggregate job");
-  assert.ok(checkJob.includes("exit 1"), "guard must explicitly fail");
-  assert.ok(checkJob.indexOf("Required CI needs both regression shards and audit-chain-protection") <
-    checkJob.indexOf("actions/checkout@"), "failure gate must be the first step");
-  assert.match(source, /audit-chain-protection:\n/);
-  assert.match(source, /run: node scripts\/run-sharded-tests\.mjs/);
-  assert.match(source, /postgres:\s*\n\s*image: postgres:16/);
+  const regression = source.split("\n  test-shard:\n")[1]?.split("\n  audit-chain-real-logins:\n")[0];
+  const audit = source.split("\n  audit-chain-protection:\n")[1]?.split("\n  validation:\n")[0];
+  const validation = source.split("\n  validation:\n")[1]?.split("\n  check:\n")[0];
+  const gate = source.split("\n  check:\n")[1];
+  assert.ok(regression && audit && validation && gate, "required CI jobs must exist");
+  assert.ok(regression.includes("shard: [0, 1, 2, 3]"));
+  assert.ok(regression.includes("run: node scripts/run-sharded-tests.mjs"));
+  assert.ok(regression.includes("image: postgres:16"));
+  assert.ok(validation.includes("needs: change-scope"), "validation must wait for a valid classifier");
+  assert.ok(!validation.includes("needs: [test-shard"), "validation should run in parallel");
+  assert.ok(audit.includes("needs: [change-scope, audit-chain-real-logins]"));
+  assert.ok(audit.includes('if [ "$MATRIX_RESULT" != "success" ]; then'),
+    "all PG16/PG18 audit cases must succeed");
+  // A failure anywhere in the matrix must never skip the required status.
+  assert.ok(gate.includes("if: ${{ always() }}"), "the required job cannot disappear after a failure");
+  assert.ok(gate.includes("needs: [change-scope, test-shard, audit-chain-protection, validation]"));
+  for (const item of [
+    "SCOPE_RESULT: ${{ needs.change-scope.result }}",
+    "REGRESSION_RESULT: ${{ needs.test-shard.result }}",
+    "AUDIT_RESULT: ${{ needs.audit-chain-protection.result }}",
+    "VALIDATION_RESULT: ${{ needs.validation.result }}",
+  ]) assert.ok(gate.includes(item), "required aggregate missing input " + item);
+  assert.ok(gate.includes('if [ "$SCOPE_RESULT" != "success" ]; then'));
+  assert.ok(gate.includes('if [ "$DOCS_ONLY" = "true" ]; then'));
+  assert.ok(gate.includes('if [ "$REGRESSION_RESULT" != "skipped" ] || [ "$AUDIT_RESULT" != "skipped" ] || [ "$VALIDATION_RESULT" != "skipped" ]; then'),
+    "docs-only exception must confirm every heavy job was actually skipped");
+  assert.ok(gate.includes('for result in "$REGRESSION_RESULT" "$AUDIT_RESULT" "$VALIDATION_RESULT"; do'));
+  assert.ok(gate.includes('if [ "$result" != "success" ]; then'),
+    "a failed, cancelled or unexpected skipped job must fail the aggregate");
+  assert.ok(gate.includes("exit 1"), "required status must fail with a nonzero exit");
 });
 
 test("sharded CI checkout and Node setup remain immutable-action pinned", () => {

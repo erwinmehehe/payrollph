@@ -74,7 +74,10 @@ test("all four protected status workflows remain unconditional for PRs", () => {
   const ci = workflow("ci.yml");
   assert.deepEqual(ci.jobs["test-shard"].strategy.matrix.shard, [0, 1, 2, 3]);
   assert.equal(ci.jobs.check.if, "${{ always() }}");
-  assert.deepEqual(ci.jobs.check.needs, ["test-shard", "audit-chain-protection"]);
+  assert.deepEqual(ci.jobs.check.needs, ["change-scope", "test-shard", "audit-chain-protection", "validation"]);
+  assert.equal(ci.jobs["audit-chain-protection"].needs.includes("audit-chain-real-logins"), true);
+  assert.ok(ci.jobs.check.steps.some(s => s.run?.includes('for result in "$REGRESSION_RESULT" "$AUDIT_RESULT" "$VALIDATION_RESULT"')),
+    "every applicable regression, audit and validation failure must be caught");
 });
 
 test("intake reuses one exact-source build while retaining both independent database acceptance jobs", () => {
@@ -95,4 +98,59 @@ test("intake reuses one exact-source build while retaining both independent data
   assert.ok(matrix.steps.some((s) => s.run?.includes("scripts/public-intake-db-acceptance.ts")));
   assert.ok(matrix.steps.some((s) => s.name === "Create disposable test-only independent secrets"));
   assert.ok(!matrix.steps.some((s) => s.uses?.startsWith("actions/cache@")), "never reuse a cross-run .next build cache");
+});
+
+test("narrowed optional PR jobs still protect common auth and dependency changes", () => {
+  assert.deepEqual(new Set(policy.selectivePrFilters), new Set([
+    "nav-runtime-sweep.yml", "paymongo-export-isolation.yml",
+    "public-intake-db-acceptance.yml", "tenant-money-lifecycle.yml",
+    "treasury-isolation.yml", "underpayment-posting.yml",
+  ]));
+  for (const name of policy.selectivePrFilters) {
+    const w = workflow(name);
+    assert.ok(onPr(w), name + ": relevant PR changes must still run");
+    const patterns = w.on.pull_request?.paths;
+    assert.ok(Array.isArray(patterns) && patterns.length > 0, name + ": missing selective paths");
+    assert.ok(patterns.includes(".github/workflows/" + name), name + ": own workflow edits must trigger");
+    for (const path of ["src/lib/auth.ts", "src/lib/access.ts", "package-lock.json"]) {
+      assert.ok(selected(path, patterns), name + ": shared security or lockfile change must run");
+    }
+    for (const path of ["README.md", "docs/qa/review.md", "docs/security/notes.mdx"]) {
+      assert.equal(selected(path, patterns), false, name + ": pure documentation must not trigger heavy acceptance");
+    }
+    for (const universal of ["**", "src/**", "scripts/**", "tests/**", ".github/**"]) {
+      assert.ok(!patterns.includes(universal), name + ": broad wildcard defeats focused PR acceptance");
+    }
+  }
+  const nav = workflow("nav-runtime-sweep.yml");
+  assert.ok(selected("src/components/workspace/nav.ts", nav.on.pull_request.paths));
+  assert.ok(selected("src/app/app/page.tsx", nav.on.pull_request.paths));
+  assert.ok(Array.isArray(nav.on.schedule) && nav.on.schedule.length > 0,
+    "full navigation sweep must remain nightly");
+  assert.ok(Object.hasOwn(nav.on, "workflow_dispatch"),
+    "full navigation sweep must remain manually available");
+});
+
+test("standalone restore rehearsal is weekly/manual but required CI still runs the exact restore proof", () => {
+  assert.deepEqual(policy.scheduledManualOnly, ["backup-restore-rehearsal.yml"]);
+  const independent = workflow("backup-restore-rehearsal.yml");
+  assert.equal(onPr(independent), false, "avoid duplicate backup PR builds");
+  assert.ok(Array.isArray(independent.on.schedule) && independent.on.schedule.length > 0);
+  assert.ok(Object.hasOwn(independent.on, "workflow_dispatch"));
+  const steps = workflow("ci.yml").jobs.validation.steps;
+  assert.ok(steps.some(step => step.run?.includes("bash scripts/verify-backup-restore.sh")),
+    "the independent CI validation job must keep the actual restore rehearsal");
+  assert.ok(steps.some(step => step.name === "Upload sanitized DR engineering evidence"),
+    "restoration evidence must still be retained");
+});
+
+test("all newly added required scope-classifier checkouts are immutable and refuse credentials", () => {
+  for (const file of ["ci.yml", "codeql.yml", "security-http-smoke.yml"]) {
+    const jobs = workflow(file).jobs;
+    const steps = jobs["change-scope"]?.steps;
+    assert.ok(steps, file + ": a scope classifier is required");
+    const checkout = steps.find(step => step.uses?.startsWith("actions/checkout@"));
+    assert.match(checkout?.uses ?? "", /^actions\/checkout@[a-f0-9]{40}$/, file);
+    assert.equal(checkout?.with?.["persist-credentials"], false, file);
+  }
 });
