@@ -337,6 +337,8 @@ export async function POST(request: Request) {
       projectCode: optionalCode(row.projectCode),
       clientCode: optionalCode(row.clientCode),
       jobCode: optionalCode(row.jobCode),
+      // Unknown JSON is validated by resolveLaborAllocation before any write.
+      verticalDimensions: row.verticalDimensions,
     }));
 
     if (normalized.some((row) => !Number.isInteger(row.costCenterId))) {
@@ -421,6 +423,7 @@ export async function POST(request: Request) {
           projectCode: allocation.projectCode,
           clientCode: allocation.clientCode,
           jobCode: allocation.jobCode,
+          verticalDimensions: resolvedAllocation.verticalDimensions ?? null,
           reason,
           createdBy: user.name,
         }).returning();
@@ -448,6 +451,7 @@ export async function POST(request: Request) {
           clientCode: row.clientCode,
           projectCode: row.projectCode,
           jobCode: row.jobCode,
+          verticalDimensions: row.verticalDimensions,
         })),
       },
     });
