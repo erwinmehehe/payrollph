@@ -1131,6 +1131,64 @@ test("night differential premium fails closed without statutory-floor protection
   }), /taxable must be explicitly true or false/);
 });
 
+test("all four premium rule families fail closed for non-finite time evidence", () => {
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    hourlyRate: 100,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [],
+  };
+  const day = {
+    ...base,
+    holidayType: "ordinary" as const,
+    restDay: false,
+    statutoryMultiplier: 1,
+  };
+  const families = [
+    { label: "Worked-time premium", run: (minutes: number) => resolveWorkedTimePremium({ ...base, minutes }) },
+    { label: "Holiday/rest-day premium", run: (minutes: number) => resolveHolidayRestDayPremium({ ...day, minutes }) },
+    { label: "Overtime premium", run: (minutes: number) => resolveOvertimePremium({ ...day, minutes }) },
+    { label: "Night-differential premium", run: (minutes: number) =>
+      resolveNightDifferentialPremium({ ...day, overtime: false, minutes }) },
+  ];
+
+  for (const family of families) {
+    for (const minutes of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.throws(() => family.run(minutes), /minutes must be finite/, family.label);
+    }
+    // Preserve existing finite-input behavior: a negative time bucket is zero.
+    assert.equal(family.run(-30).amount, 0, family.label);
+  }
+});
+
+test("worked-time premium refuses an unrepresentable computed centavo amount", () => {
+  const qualifyingRule = rule({
+    eventType: WORKED_TIME_PREMIUM_EVENT,
+    outcome: {
+      premiumPercent: 100,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+
+  assert.throws(() => resolveWorkedTimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: Number.MAX_VALUE,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [qualifyingRule],
+  }), /safe centavo precision/);
+});
+
 test("payroll engine executes NSD overlays and carries classifications through month-end reconciliation", () => {
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("applyNightDifferentialPremium"));
