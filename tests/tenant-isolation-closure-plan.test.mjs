@@ -48,19 +48,32 @@ test("current overview headline equals complete live method manifest (frozen bas
 });
 
 test("closure plan schedules every original GAP exactly once in priority order", () => {
-  // Freeze the exact historical 406 ordered METHOD/ROUTE/SOURCE-LINK lines,
-  // not the entire Markdown blob: status/owner/CI evidence prose legitimately
-  // evolves as approved closure batches are tested. Every frozen identity,
-  // source filename, line link and order remain hash-pinned. Live handler
-  // drift is still independently checked by the method inventory guard.
-  const frozenLines = [...plan.matchAll(
-    /^- `(?:GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/[^\`]+\` — \[source\]\(\.\.\/\.\.\/src\/app\/api\/[^)]+#L[0-9]+\)$/gm,
-  )].map(match => match[0]);
-  assert.equal(frozenLines.length, 406,
-    "The historical closure queue must have 406 distinct method/source declarations");
-  const frozenQueueHash = createHash("sha1").update(frozenLines.join("\n")).digest("hex");
-  assert.equal(frozenQueueHash, "71c9d37afdbeecd53bfa4876fd17970fbad240c5",
-    "The frozen 406-method closure queue and its source links must not change");
+  // The 2026-10-21 closure queue is immutable, but live status annotations
+  // in this document are updated as proofs arrive. Pin the original batch
+  // names, order and exact 406 method/20 page source links, not the moving
+  // status prose. Do not weaken the separate current-manifest guards.
+  const frozenBatchHeadings = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)]
+    .map((match) => match[0]);
+  const frozenMethodLinks = [...plan.matchAll(/^- `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — \[source\]\(\.\.\/\.\.\/(src\/app\/api\/[^)]+)#L([0-9]+)\)$/gm)]
+    .map((match) => match[0]);
+  const frozenPageLinks = [...plan.matchAll(/^- `GET [^`]+` — `(src\/app\/[^`]+\/page\.tsx)`;/gm)]
+    .map((match) => match[0]);
+  assert.equal(frozenBatchHeadings.length, 12, "Frozen batch count changed");
+  assert.equal(frozenMethodLinks.length, 406, "Frozen method source links changed");
+  assert.equal(frozenPageLinks.length, 20, "Frozen page source links changed");
+  const frozenQueue = [
+    "FROZEN_2026_10_21_CLOSURE_QUEUE_V1",
+    "BATCH HEADINGS", ...frozenBatchHeadings,
+    "METHOD SOURCE LINKS", ...frozenMethodLinks,
+    "PAGE SOURCE LINKS", ...frozenPageLinks,
+    "",
+  ].join("\n");
+  const frozenQueueBlob = createHash("sha1")
+    .update("blob " + Buffer.byteLength(frozenQueue) + "\0" + frozenQueue)
+    .digest("hex");
+  assert.equal(frozenQueueBlob, "c30b018658cf19da7ce649efe606ba4b43f0612b",
+    "The frozen 406-method closure queue and its exact source links must not change");
+
   const current = allMethods();
   const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)];
   assert.equal(headers.length, 12, "12 numbered baseline closure PR batches expected");

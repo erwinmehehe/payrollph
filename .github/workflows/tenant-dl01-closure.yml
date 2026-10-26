@@ -135,8 +135,22 @@ jobs:
           # block all non-loopback IPv4/IPv6 traffic for THAT UID at the kernel.
           # The GitHub runner remains connected; all proof subprocesses inherit
           # the same egress restriction (not just native fetch interception).
-          sudo useradd --system --create-home --shell /usr/sbin/nologin dl01proof
-          proof_uid="$(id -u dl01proof)"
+          # Docker Postgres commonly runs as numeric UID 999. The host's
+          # process table and iptables owner match see that same UID, so
+          # allocating a system UID for this test user would let cleanup
+          # terminate the database container after a successful proof.
+          # Reserve a high UID only after checking both account and processes.
+          proof_uid=61001
+          if getent passwd "$proof_uid" >/dev/null; then
+            echo "::error::DL01 reserved proof UID belongs to an existing account"
+            exit 1
+          fi
+          if ps -eo uid= | awk -v uid="$proof_uid" '$1 == uid { used=1 } END { exit !used }'; then
+            echo "::error::DL01 reserved proof UID is already running a process"
+            exit 1
+          fi
+          sudo useradd --uid "$proof_uid" --create-home --shell /usr/sbin/nologin dl01proof
+          test "$(id -u dl01proof)" = "$proof_uid"
           proof_home="/home/dl01proof"
           # Local synthetic TLS key and read/write production-build cache
           # belong to the test UID only while this disposable proof runs.
@@ -226,6 +240,29 @@ jobs:
           echo "DL01 application ready; starting bounded three-employer proof"
           proof timeout --signal=TERM --kill-after=10s 300s \
             npx tsx scripts/qa/tenant-dl01-closure-http.mjs
+      - name: Verify disposable PG16 survived proof cleanup before full regression
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          const client = new pg.Client({
+            connectionString: process.env.DATABASE_URL,
+            connectionTimeoutMillis: 5000,
+          });
+          await client.connect();
+          try {
+            const { rows } = await client.query(
+              "SELECT current_database() AS db, current_setting('server_version_num')::integer AS version"
+            );
+            assert.equal(rows[0]?.db, 'app_db');
+            assert.ok(rows[0].version >= 160000 && rows[0].version < 170000,
+              'isolated service must still be PostgreSQL 16');
+          } finally {
+            await client.end();
+          }
+          NODE
       - name: Full repository Node test suite against the separate throwaway app_db
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
