@@ -832,6 +832,8 @@ export const employeeLaborAllocations = pgTable(
     projectCode: varchar("project_code", { length: 64 }),
     clientCode: varchar("client_code", { length: 64 }),
     jobCode: varchar("job_code", { length: 64 }),
+    // Optional accounting labels, additive migration 0138; NEVER payroll rate inputs.
+    verticalDimensions: jsonb("vertical_dimensions"),
     reason: varchar("reason", { length: 240 }).notNull().default("Labor costing allocation"),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
