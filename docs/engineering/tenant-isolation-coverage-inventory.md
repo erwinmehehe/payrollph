@@ -2,9 +2,11 @@
 
 > **PR #1423 merged-family reconciliation (provisional, NOT ACCEPTED):** Three source-pinned method proofs from #1406/#1410 are added to the three distinct Workforce policy proofs already in main from #1409: **263 COVERED / 222 GAP / 10 PUBLIC-BY-DESIGN** across 495 API methods, with 18 page/action GAPs. Eleven partially exercised #1423 methods remain GAP. [Reviewed receipts and scope decisions](../qa/tenant-merged-family-reconciliation.md). No production or independent security approval is implied.
 
-> **RELEASE BLOCKER:** 220 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L46) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **This is only the `set_employee_allocations` POST action; `create_cost_center` and `set_gl_mapping` are not separately re-proven here.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
-> **NOT ACCEPTED**: 220 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **RELEASE BLOCKER:** 219 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+
+> **NOT ACCEPTED**: 219 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
 
@@ -103,9 +105,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 292 |
 | methods | 495 |
 | coveredBefore | 20 |
-| coveredAfter | 265 |
+| coveredAfter | 266 |
 | publicByDesign | 10 |
-| gap | 220 |
+| gap | 219 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -695,7 +697,7 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`workforce/demand-staffing/policies` PATCH](../../src/app/api/workforce/demand-staffing/policies/route.ts#L125) | session, query | getSessionUser L4, getAccess L5, enforceSameOriginMutation L8, getSessionUser L40 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`workforce/greedy-roster` GET](../../src/app/api/workforce/greedy-roster/route.ts#L17) | session, query | getAccess L1, assertOrganizationRole L1, getSessionUser L2, getSessionUser L22 | searchParams.get("organizationId") L25 | NO VALID METHOD PROOF | **GAP** |
 | [`workforce/labor-costing` GET](../../src/app/api/workforce/labor-costing/route.ts#L78) | session, query, body | assertOrganizationRole L11, assertScope L12, getAccess L13, getSessionUser L18 | searchParams.get("organizationId") L83, body.organizationId L141, body.legalEntityId L216 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/workforce.mjs#L19) | **COVERED** |
-| [`workforce/labor-costing` POST](../../src/app/api/workforce/labor-costing/route.ts#L133) | session, query, body | assertOrganizationRole L11, assertScope L12, getAccess L13, getSessionUser L18 | searchParams.get("organizationId") L83, body.organizationId L141, body.legalEntityId L216 | NO VALID METHOD PROOF | **GAP** |
+| [`workforce/labor-costing` POST](../../src/app/api/workforce/labor-costing/route.ts#L133) | session, query, body | assertOrganizationRole L11, assertScope L12, getAccess L13, getSessionUser L18 | searchParams.get("organizationId") L83, body.organizationId L141, body.legalEntityId L216 | [Provisional own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [vertical allocation family row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L46) | **COVERED** |
 | [`workforce/live-floor` GET](../../src/app/api/workforce/live-floor/route.ts#L34) | session, query | assertOrganizationRole L8, getAccess L8, getSessionUser L9, getSessionUser L35 | searchParams.get("organizationId") L38 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/workforce.mjs#L47) | **COVERED** |
 | [`workforce/overtime` GET](../../src/app/api/workforce/overtime/route.ts#L230) | session, query, body | assertOrganizationRole L12, assertScope L13, getAccess L14, getSessionUser L17 | input.organizationId L112, input.organizationId L120, input.organizationId L122 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/workforce.mjs#L20) | **COVERED** |
 | [`workforce/overtime` POST](../../src/app/api/workforce/overtime/route.ts#L319) | session, query, body | assertOrganizationRole L12, assertScope L13, getAccess L14, getSessionUser L17 | input.organizationId L112, input.organizationId L120, input.organizationId L122 | NO VALID METHOD PROOF | **GAP** |
