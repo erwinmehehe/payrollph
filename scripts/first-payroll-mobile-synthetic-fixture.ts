@@ -18,6 +18,7 @@ async function main() {
   assert.deepEqual(orgs.sort((a, b) => a.id - b.id), [
     { id: 1, name: "Synthetic Alpha Employer" },
     { id: 2, name: "Synthetic Beta Employer" },
+    { id: 3, name: "Synthetic Victim Only Employer" },
   ], "Only the disposable HRIS fixture is permitted");
   const [owner] = await db.insert(users).values({
     email: "first-payroll-owner@example.test", name: "Synthetic Onboarding Owner", role: "owner",
@@ -33,12 +34,15 @@ async function main() {
     expiresAt: new Date(Date.now() + 86400000), verifiedAt: new Date(),
   });
   await db.insert(subscriptions).values({ organizationId: 1, status: "active", plan: "Core" });
-  // A truly empty self-serve third tenant is added ONLY after earlier HRIS
-  // legacy-tenant browser tests, so those regression snapshots stay unchanged.
+  // A truly empty self-serve fourth tenant is added ONLY after earlier HRIS
+  // browser tests. Employer #3 remains a populated, unauthorized victim for
+  // cross-tenant proof; the self-serve tenant must never reuse that identity.
   const [gamma] = await db.insert(organizations).values({
     name: "Synthetic Gamma First Payroll", legalName: "Synthetic Gamma First Payroll",
     plan: "Core", payrollCalendarMode: "flexible",
   }).returning({ id: organizations.id });
+  assert.equal(gamma.id, 4,
+    "Self-serve setup must use a new employer, not victim-only employer #3");
   const colleagues = await db.select({ id: users.id, email: users.email, role: users.role })
     .from(users).where(inArray(users.email, [
       "hcm-hr@example.test", "hcm-payroll@example.test", "hcm-checker@example.test",

@@ -108,7 +108,10 @@ jobs:
       HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
       HCM_PEOPLE_HOME_ENABLED: "true"
       NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "true"
-      HCM_PEOPLE_HOME_ORG_IDS: "1,2"
+      # The shared People Home fixture seeds two attacker employers and a third,
+      # populated victim-only employer. All three must be allowlisted so 404
+      # denials come from tenant isolation, not a feature-disabled shortcut.
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"
       HCM_MY_TEAM_ENABLED: "true"
       EMPLOYEE_HR_CASES_ENABLED: "true"
       EMPLOYEE_DOCUMENT_VAULT_ENABLED: "false"
@@ -147,6 +150,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Guard shared three-employer synthetic fixtures before touching PG16
+        run: node --test tests/hris-three-employer-fixtures.test.mjs
       - name: Ephemeral independent bank and PII keys for synthetic database only
         shell: bash
         run: |
@@ -171,10 +176,12 @@ jobs:
         run: npx tsx --test tests/first-payroll-tenant-resume-postgres.test.ts
       - name: Build local app with tenant-scoped synthetic flags
         run: npm run build
-      - name: Install pinned Chromium
+      # Follow the reviewed HCM browser workflow: the runner already has the
+      # headless Chromium libraries. Avoid an unbounded apt mirror update.
+      - name: Install pinned headless Chromium without Ubuntu apt mirrors
         run: |
           npm install --no-save --ignore-scripts playwright@1.55.0
-          npx playwright install --with-deps chromium
+          timeout 240s npx playwright install --only-shell chromium
       - name: Launch app bound to localhost only
         shell: bash
         run: |
