@@ -72,6 +72,7 @@ export async function GET(request: Request) {
   const requisitionId = Number(query.get("requisitionId") ?? "0");
   if (!query.has("employeeId") && !query.has("requisitionId")) {
     return privateJson({
+      organizationId,
       employees: visibleEmployees.map((worker) => ({
         id: worker.id, label: `${worker.firstName} ${worker.lastName}`,
       })),
@@ -180,6 +181,7 @@ export async function GET(request: Request) {
     },
   });
   return privateJson({
+    organizationId,
     employee: { id: employee.id, label: `${employee.firstName} ${employee.lastName}` },
     requisition: { id: requisition.id, title: requisition.title, positionId: position.id },
     comparison,

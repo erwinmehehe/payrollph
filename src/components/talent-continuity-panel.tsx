@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { readTalentComparison, readTalentDirectory } from "@/lib/hcm-talent-continuity-read";
 import { ClipboardCheck, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 
 type Option = { id: number; label?: string; title?: string; roleCriteriaRecorded?: boolean };
@@ -45,71 +46,130 @@ function TalentContinuityContent({ organizationId }: { organizationId: number })
   const [employeeId, setEmployeeId] = useState("");
   const [requisitionId, setRequisitionId] = useState("");
   const [result, setResult] = useState<EvidenceResponse | null>(null);
+  const [directoryReady, setDirectoryReady] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState("");
+  const directoryController = useRef<AbortController | null>(null);
+  const comparisonController = useRef<AbortController | null>(null);
+  const directoryRevision = useRef(0);
+  const comparisonRevision = useRef(0);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (): Promise<boolean> => {
+    // Revoke the previous private snapshot immediately; a failed refresh is not
+    // proof that old worker/role selections remain authorized.
+    directoryController.current?.abort();
+    comparisonController.current?.abort();
+    comparisonRevision.current += 1;
+    const controller = new AbortController();
+    directoryController.current = controller;
+    const revision = ++directoryRevision.current;
+    const current = () => !controller.signal.aborted &&
+      directoryController.current === controller && directoryRevision.current === revision;
+    setLoading(true);
+    setReviewing(false);
+    setDirectoryReady(false);
+    setEmployees([]);
+    setRequisitions([]);
+    setEmployeeId("");
+    setRequisitionId("");
+    setResult(null);
+    setHidden(false);
+    setError("");
     try {
-      const response = await fetch(`/api/performance/talent-continuity?organizationId=${organizationId}`, {
-        cache: "no-store", signal,
-      });
-      if (signal?.aborted) return;
-      if (response.status === 403) {
+      const outcome = await readTalentDirectory(organizationId, fetch, controller.signal);
+      if (!current()) return false;
+      if (outcome.status === "forbidden") {
         setHidden(true);
-        return;
+        return false;
       }
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Talent evidence is unavailable.");
-      if (signal?.aborted) return;
-      setEmployees(data.employees ?? []);
-      setRequisitions(data.requisitions ?? []);
-      setResult(null);
-      setHidden(false);
-      setError("");
+      setEmployees(outcome.data.employees);
+      setRequisitions(outcome.data.requisitions);
+      setDirectoryReady(true);
+      return true;
     } catch (cause) {
-      if (!signal?.aborted) setError(cause instanceof Error ? cause.message : "Could not load talent role evidence.");
+      if (current()) setError(cause instanceof Error ? cause.message : "Could not load talent role evidence.");
+      return false;
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (current()) {
+        setLoading(false);
+        directoryController.current = null;
+      }
     }
   }, [organizationId]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    // The request runs after effect setup, never in its synchronous phase.
-    // Strict Mode cleanup can cancel this scheduled read before it starts.
+    // Strict Mode cleanup must also abort a scheduled but not yet started read.
+    let active = true;
     queueMicrotask(() => {
-      if (!controller.signal.aborted) void load(controller.signal);
+      if (active) void load();
     });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      directoryRevision.current += 1;
+      comparisonRevision.current += 1;
+      directoryController.current?.abort();
+      comparisonController.current?.abort();
+    };
   }, [load]);
 
+  function invalidateComparison() {
+    comparisonRevision.current += 1;
+    comparisonController.current?.abort();
+    comparisonController.current = null;
+    setReviewing(false);
+    setResult(null);
+    setError("");
+  }
+
   async function compare() {
-    if (!employeeId || !requisitionId) return;
+    const selectedEmployee = Number(employeeId);
+    const selectedRequisition = Number(requisitionId);
+    if (!directoryReady || loading || reviewing ||
+        !employees.some(item => item.id === selectedEmployee) ||
+        !requisitions.some(item => item.id === selectedRequisition)) return;
+
+    comparisonController.current?.abort();
+    const controller = new AbortController();
+    comparisonController.current = controller;
+    const revision = ++comparisonRevision.current;
+    const directoryAtStart = directoryRevision.current;
+    const current = () => !controller.signal.aborted &&
+      comparisonController.current === controller &&
+      comparisonRevision.current === revision &&
+      directoryRevision.current === directoryAtStart;
     setReviewing(true);
     setError("");
     setResult(null);
     try {
-      const query = new URLSearchParams({
-        organizationId: String(organizationId),
-        employeeId,
-        requisitionId,
-      });
-      const response = await fetch(`/api/performance/talent-continuity?${query.toString()}`, { cache: "no-store" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Cannot verify the selected role evidence.");
-      setResult(data as EvidenceResponse);
+      const outcome = await readTalentComparison(
+        organizationId, selectedEmployee, selectedRequisition, fetch, controller.signal,
+      );
+      if (!current()) return;
+      if (outcome.status === "forbidden") {
+        setHidden(true);
+        setDirectoryReady(false);
+        setEmployees([]);
+        setRequisitions([]);
+        setEmployeeId("");
+        setRequisitionId("");
+        return;
+      }
+      setResult(outcome.data);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not compare evidence.");
+      if (current()) setError(cause instanceof Error ? cause.message : "Could not compare evidence.");
     } finally {
-      setReviewing(false);
+      if (current()) {
+        setReviewing(false);
+        comparisonController.current = null;
+      }
     }
   }
 
   if (hidden) return null;
   return (
-    <article className="card" style={{ padding: 18, marginBottom: 16 }}>
+    <article className="card" aria-busy={loading || reviewing} style={{ padding: 18, marginBottom: 16 }}>
       <div className="card-header">
         <div>
           <div className="card-kicker">Private internal development</div>
@@ -117,19 +177,19 @@ function TalentContinuityContent({ organizationId }: { organizationId: number })
           <p>Compare verified employee skill records and completed review evidence with the role criteria frozen when an approved position opened for recruitment. This does not rank people or initiate a hire.</p>
         </div>
         <button type="button" className="secondary-button" disabled={loading || reviewing}
-          onClick={() => { setLoading(true); setError(""); setResult(null); void load(); }}><RefreshCw size={14} /> Refresh roles</button>
+          onClick={() => { void load(); }}><RefreshCw size={14} /> Refresh roles</button>
       </div>
       <div className="setting-form">
         <label>Employee
           <select aria-label="Employee for private role comparison" value={employeeId}
-            onChange={(event) => { setEmployeeId(event.target.value); setResult(null); }}>
+            onChange={(event) => { invalidateComparison(); setEmployeeId(event.target.value); }}>
             <option value="">Choose an employee in your authorized scope</option>
             {employees.map((worker) => <option key={worker.id} value={worker.id}>{worker.label}</option>)}
           </select>
         </label>
         <label>Approved-position requisition
           <select aria-label="Target governed requisition" value={requisitionId}
-            onChange={(event) => { setRequisitionId(event.target.value); setResult(null); }}>
+            onChange={(event) => { invalidateComparison(); setRequisitionId(event.target.value); }}>
             <option value="">Choose an open role</option>
             {requisitions.map((req) =>
               <option key={req.id} value={req.id}>{req.title} (#{req.id}){req.roleCriteriaRecorded ? "" : " · legacy criteria unavailable"}</option>
@@ -138,13 +198,13 @@ function TalentContinuityContent({ organizationId }: { organizationId: number })
         </label>
       </div>
       <div className="run-actions">
-        <button type="button" className="primary-button" disabled={!employeeId || !requisitionId || reviewing || loading}
+        <button type="button" className="primary-button" disabled={!directoryReady || !employeeId || !requisitionId || reviewing || loading}
           onClick={() => void compare()}>
           <ClipboardCheck size={15} /> {reviewing ? "Checking evidence…" : "Review skill and development evidence"}
         </button>
       </div>
-      {loading && <p>Loading authorized employees and approved positions…</p>}
-      {!loading && !requisitions.length && <p>No open approved-position requisitions are visible in your authorized scope.</p>}
+      {loading && <p role="status">Loading authorized employees and approved positions…</p>}
+      {directoryReady && !loading && !requisitions.length && <p>No open approved-position requisitions are visible in your authorized scope.</p>}
       {error && <p role="alert" style={{ color: "var(--danger, #b91c1c)" }}><TriangleAlert size={14} /> {error}</p>}
       {result && (
         <div style={{ marginTop: 18 }}>
