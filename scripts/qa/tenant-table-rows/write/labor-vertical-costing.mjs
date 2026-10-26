@@ -50,7 +50,7 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
   return [
     { key: "POST workforce/labor-costing", status: 201, state: state,
       seed: async e => {
-        const { costCenters, employeeLaborAllocations } = await tables();
+        const { employeeLaborAllocations } = await tables();
         actorCookies.set(e.org.id, e.cookie);
         // Exercise both independent administrative POST branches with a real
         // authenticated same-employer success before the victim snapshot.
