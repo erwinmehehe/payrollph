@@ -58,8 +58,9 @@ const localHost = (req, port) =>
 
 const money = http(async (req, res) => {
   try {
-    if (!localHost(req, 3012) ||
-      /paymongo\.com/i.test(req.headers.host ?? "")) {
+    if (!localHost(req, 3012) || !req.url?.startsWith("/") ||
+      /paymongo\.com/i.test(req.headers.host ?? "") ||
+      /paymongo\.com/i.test(req.url ?? "")) {
       respond(res, 403, { error: "DL01_MOCK_REJECTS_REAL_PROVIDER_HOST" }); return;
     }
     if (req.method === "GET" && req.url === "/__proof") {
