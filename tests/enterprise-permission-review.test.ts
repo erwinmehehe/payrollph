@@ -62,6 +62,23 @@ test("live dynamic-group eligibility remains unproven in read-only review", () =
   assert.deepEqual(row.listedByOverlay, ["payroll.check"]);
   assert.equal(row.dynamicGroupId, 5);
 });
+test("read-only review and live gate agree on malformed group ID/version pairing", () => {
+  const input = base();
+  for (const fields of [
+    { dynamicGroupId: null, dynamicGroupVersion: 2 },
+    { dynamicGroupId: 5, dynamicGroupVersion: null },
+    { dynamicGroupId: 5, dynamicGroupVersion: 0 },
+    { dynamicGroupId: -5, dynamicGroupVersion: 1 },
+  ]) {
+    const reviewed = projectEnterprisePermissionReview({
+      ...input,
+      assignments: [{ ...input.assignments[0]!, ...fields }, ...input.assignments.slice(1)],
+    })[0]!;
+    assert.equal(reviewed.state, "invalid-dynamic-group");
+    assert.deepEqual(reviewed.listedByOverlay, []);
+    assert.deepEqual(reviewed.deniedByOverlay, [...permissions]);
+  }
+});
 test("invalid permissions and duplicate assignments fail closed in the review projection", () => {
   const malformed = base();
   assert.equal(projectEnterprisePermissionReview({
