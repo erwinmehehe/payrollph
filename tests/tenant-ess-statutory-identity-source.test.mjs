@@ -57,6 +57,12 @@ test("four ESS methods execute in real guarded HTTP/PG16 with populated own and 
   assert.match(harness, /for \(const index of \[1, 2\]\)/);
   assert.match(harness, /f\.victimEmployee\.id > 6/);
   assert.match(harness, /await readOwn\(http, attacker/);
+  assert.match(harness, /statutoryRemittanceBatches/);
+  assert.match(harness, /statutoryRemittanceMembers/);
+  assert.match(harness, /victimMember\.organizationId === victim\.org\.id/);
+  assert.match(harness, /victimCase\.remittanceMemberId, victimMember\.id/);
+  assert.match(harness, /memberId: victimMember\.id/);
+  assert.match(harness, /404, "real other-employer remittance member ID must be denied"/);
   assert.match(harness, /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/);
   assert.match(harness, /id === row\.id && r\.kind === row\.kind && r\.proposedMasked/);
   assert.match(harness, /r\.id === row\.id && r\.description === row\.description/);
