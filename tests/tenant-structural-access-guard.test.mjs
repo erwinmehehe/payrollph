@@ -163,8 +163,8 @@ test("all scoped pages stay source-pinned; only four exact independently probed 
       assert.match(suite, /for \(const actor of expected\)/);
       assert.match(suite, /assert\.equal\(ownPage\?\.status\(\), 200/);
       assert.match(suite, /assert\.equal\(foreignPage\?\.status\(\), 404/);
-      assert.match(suite, /await page\.getByText\(actor\.employer/);
-      assert.match(suite, /await page\.getByText\(actor\.workflow/);
+      assert.match(suite, /await home\.getByText\(actor\.employer/);
+      assert.match(suite, /await home\.getByText\(actor\.workflow/);
       assert.match(suite, /new pg\.Client\(/);
       assert.match(suite, /process\.env\.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3"/);
       assert.match(suite, /"payroll_runs", "audit_events"/);
