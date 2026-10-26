@@ -12,6 +12,8 @@ on:
       - 'scripts/qa/tenant-table-http.mjs'
       - 'scripts/qa/tenant-write-table-http.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-table-allowlist-bootstrap.mjs'
+      - 'scripts/qa/tenant-table-allowlist-negative.mjs'
       - 'scripts/qa/tenant-table-invariants.mjs'
       - 'scripts/qa/tenant-table-loader.mjs'
       - 'scripts/qa/tenant-table-catalog.mjs'
@@ -20,6 +22,7 @@ on:
       - 'drizzle/0104_hcm_work_item_sla.sql'
       - 'tests/tenant-table-families.test.mjs'
       - 'tests/tenant-table-invariants.test.mjs'
+      - 'tests/tenant-allowlist-reads.test.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/**'
       - 'src/lib/**'
@@ -40,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [default, multi-entity, flagged-reads]
+        profile: [default, multi-entity, flagged-reads, allowlisted-reads]
     services:
       postgres:
         image: postgres:16
@@ -83,6 +86,12 @@ jobs:
       - name: Prepare existing SQL-only HCM work-item events in the empty disposable database
         run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - run: npm run build
+      - name: Preseed two attackers, the higher-ID victim and an excluded employer before server startup
+        if: matrix.profile == 'allowlisted-reads'
+        run: npx tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Validate allowlist source contracts without database or service requests
+        if: matrix.profile == 'allowlisted-reads'
+        run: node --test tests/tenant-allowlist-reads.test.mjs
       - name: Start isolated production-mode localhost server
         shell: bash
         run: |
@@ -96,6 +105,9 @@ jobs:
           done
           cat /tmp/tenant-table-server.log
           exit 1
+      - name: Prove a real signed-in non-allowlisted fourth employer receives only 404
+        if: matrix.profile == 'allowlisted-reads'
+        run: npx tsx scripts/qa/tenant-table-allowlist-negative.mjs
       - name: Every table row, two attacker employers, own data proven and victim denied
         run: npx tsx scripts/qa/tenant-table-http.mjs
       - name: Every write row, two attacker employers, own write read back and victim denied
