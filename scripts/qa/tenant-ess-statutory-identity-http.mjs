@@ -10,7 +10,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   auditEvents, complianceActionTasks, outbox, statutoryContributionIssueCases,
-  statutoryContributionIssueEvents, userOrganizations, users,
+  statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers,
+  userOrganizations, users,
 } from "../../src/db/schema";
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 
@@ -138,8 +139,28 @@ export async function verifyEssStatutoryIdentityIsolation(f, { request, expectSt
   for (const index of [1, 2]) attackers.push(await employeeActor(
     f.orgs[index], f.ownedEmployees[index - 1].id, makeSession, "attacker-" + index));
 
+  // Real foreign remittance member, not an invented ID. Its employer and
+  // employee FK are separately verified before attackers can reference it.
+  const [victimBatch] = await db.insert(statutoryRemittanceBatches).values({
+    organizationId: victim.org.id, legalEntityId: f.entities[0].id,
+    agency: "SSS", applicableMonth: "2026-02", dueDate: "2026-03-15",
+    snapshotHash: "0".repeat(64), createdBy: "Fictional ESS isolation",
+  }).returning({ id: statutoryRemittanceBatches.id });
+  const [victimMember] = await db.insert(statutoryRemittanceMembers).values({
+    batchId: victimBatch.id, organizationId: victim.org.id,
+    legalEntityId: f.entities[0].id, employeeId: victim.employeeId,
+    employeeNo: f.victimEmployee.employeeNo,
+    employeeShare: "100.00", employerShare: "150.00", totalContribution: "250.00",
+  }).returning({ id: statutoryRemittanceMembers.id, organizationId: statutoryRemittanceMembers.organizationId,
+    employeeId: statutoryRemittanceMembers.employeeId });
+  assert.ok(victimMember.id > 0 && victimMember.organizationId === victim.org.id &&
+    victimMember.employeeId === victim.employeeId, "genuine victim remittance member required");
   const victimId = await submitIdentifier(http, victim, "passportNo", "FICTIONAL9001");
-  const victimCase = await submitCase(http, victim, sentinel, "2026-08");
+  const victimCase = await submitCase(http, victim, sentinel, "2026-02", {
+    memberId: victimMember.id,
+  });
+  assert.equal(victimCase.remittanceMemberId, victimMember.id,
+    "the victim's own linked contribution issue must persist its genuine remittance member");
   await readOwn(http, victim, [victimId], [victimCase],
     victim.employeeId, victim.org.id, "NOT-USED-IN-VICTIM-POSITIVE");
   const victimBefore = await snapshot(victim.org.id);
@@ -166,6 +187,18 @@ export async function verifyEssStatutoryIdentityIsolation(f, { request, expectSt
     assert.equal(forgedCase.organizationId, attacker.org.id);
     await readOwn(http, attacker, [ownId, forgedId], [ownCase, forgedCase],
       victim.employeeId, victim.org.id, sentinel);
+
+    const forbiddenMember = expectStatus(await request("/api/self/contribution-issues", {
+      method: "POST", cookie: attacker.cookie,
+      body: {
+        agency: "SSS", applicableMonth: "2026-02",
+        issueType: "unexpected_deduction",
+        description: marker + " forged real victim remittance member is forbidden.",
+        memberId: victimMember.id,
+        organizationId: attacker.org.id, employeeId: attacker.employeeId,
+      },
+    }), 404, "real other-employer remittance member ID must be denied");
+    noLeak(forbiddenMember, sentinel);
     assert.deepEqual(await snapshot(victim.org.id), victimBefore,
       "attacker identity/case reads and forged writes must not alter victim DB");
   }
