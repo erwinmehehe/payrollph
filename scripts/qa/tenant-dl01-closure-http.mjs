@@ -16,16 +16,21 @@ assert.deepEqual([...described].sort(), [...METHODS].sort(),
   "All five exact closure-plan methods must be in this ONE batch proof");
 
 export async function verifyDl01WholeBatch() {
+  console.log(JSON.stringify({ kind: "DL01_FIXTURE_START", productionTested: false }));
   const ctx = await fixture();
+  console.log(JSON.stringify({ kind: "DL01_FIXTURE_READY", attackerEmployers: 2, realVictim: true }));
   try {
     // Seed real row-level victim evidence AFTER the equivalent attacker
     // fixtures, so every method has an actual high-ID exclusive victim.
     for (const family of [prior, documents, imports, payout]) {
+      console.log(JSON.stringify({ kind: "DL01_PREPARE_START", methods: family.METHODS }));
       await family.prepare(ctx);
+      console.log(JSON.stringify({ kind: "DL01_PREPARE_PASS", methods: family.METHODS }));
     }
     const untouched = await victimSnapshot(ctx.victim);
     const passed = [];
     for (const family of [prior, documents, imports, payout]) {
+      console.log(JSON.stringify({ kind: "DL01_VERIFY_START", methods: family.METHODS }));
       await family.verify(ctx);
       assert.deepEqual(await victimSnapshot(ctx.victim), untouched,
         family.METHODS.join(", ") + ": victim business, PII and audit unchanged");

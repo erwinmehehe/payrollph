@@ -92,3 +92,17 @@ test("DL-01 local adapter returns only fixed error codes and requires loopback",
     "DL01_MOCK_INVALID_REQUEST", "DL01_SCANNER_INVALID_REQUEST", "DL01_STORE_INVALID_REQUEST"
   ]) assert.ok(adapter.includes(code));
 });
+
+test("DL-01 egress is kernel-scoped to the unprivileged proof UID, never the runner", () => {
+  const workflow = file(".github/workflows/tenant-dl01-closure.yml");
+  assert.match(workflow, /useradd --system --create-home --shell \/usr\/sbin\/nologin dl01proof/);
+  assert.match(workflow, /sudo iptables -I OUTPUT 1 -m owner --uid-owner "\$proof_uid" ! -d 127\.0\.0\.0\/8 -j REJECT/);
+  assert.match(workflow, /sudo ip6tables -I OUTPUT 1 -m owner --uid-owner "\$proof_uid" ! -d ::1\/128 -j REJECT/);
+  assert.doesNotMatch(workflow, /sudo ip6?tables -I OUTPUT 1 ! -d/,
+    "Global outbound blocking would disconnect GitHub Actions control traffic");
+  assert.match(workflow, /proof node scripts\/qa\/tenant-dl01-local-adapters\.mjs/);
+  assert.match(workflow, /proof env NODE_OPTIONS=.*tenant-dl01-network-preload\.mjs/);
+  assert.match(workflow, /proof timeout --signal=TERM --kill-after=10s 300s/);
+  assert.match(workflow, /sudo pkill -TERM -u dl01proof/);
+  assert.match(workflow, /sudo chown -R "\$\(id -un\)":"\$\(id -gn\)" \.next/);
+});
