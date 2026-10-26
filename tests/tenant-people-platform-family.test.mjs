@@ -92,3 +92,20 @@ test("executed People/platform credits stay pinned, selected refresh does not ad
   const pending = Object.values(manifest.allApiRouteFiles).find(r => r.route === "account/email").methods.find(m => m.name === "POST");
   assert.equal(pending.status, "GAP", "unrelated untested routes must remain GAP");
 });
+
+test("POST delegations seeds an MFA-ready fictional member for shared enterprise policy tests", async () => {
+  const usersTable = Symbol("users"), membershipTable = Symbol("userOrganizations");
+  const inserted = [];
+  const db = { insert(table) { return { values(value) {
+    inserted.push({ table, value });
+    return { returning: async () => [{ id: 501, ...value }] };
+  } }; } };
+  const fixture = platform({ assert, db, users: usersTable, userOrganizations: membershipTable })
+    .find(row => row.key === "POST delegations");
+  const member = await fixture.seed({ org: { id: 11 }, marker: "OWN-MARK" });
+  assert.deepEqual(inserted.map(row => row.table), [usersTable, membershipTable]);
+  assert.equal(inserted[0].value.totpEnabled, true, "active fictional local-password members must be TOTP-ready");
+  assert.equal(inserted[1].value.active, true);
+  assert.equal(inserted[1].value.userId, member.id);
+  assert.equal(inserted[1].value.organizationId, 11);
+});
