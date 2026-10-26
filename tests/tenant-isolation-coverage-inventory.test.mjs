@@ -1321,7 +1321,10 @@ test("all credited proof links point to the claimed route and every recertified 
           "Unmerged CI evidence is not independently accepted");
         const src = readFileSync(proof.file, "utf8");
         const lines = src.split("\n");
-        const from = line => lines.slice(line - 1, line + 8).join("\n");
+        // Long synthetic POST bodies can place their explicit HTTP status
+        // more than eight lines after the request start (e.g. foreign member
+        // denial at lines 197-206). Keep the request and 404 in one proof span.
+        const from = line => lines.slice(line - 1, line + 12).join("\n");
         const positive = evidenceLine(proof.file, pins.own, path + " own");
         const denied = evidenceLine(proof.file, pins.denied, path + " revoked");
         const ownSpan = from(pins.own);
