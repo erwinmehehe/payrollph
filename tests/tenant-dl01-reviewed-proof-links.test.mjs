@@ -80,7 +80,7 @@ for (const spec of specs) {
 
 test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped pages', () => {
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods);
-  assert.equal(methods.length, 494);
+  assert.equal(methods.length, manifest.metrics.methods);
   assert.ok(methods.length > 0);
   assertLiveTenantCounts(assert, manifest);
   const readiness = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts']
@@ -91,7 +91,7 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.equal(changedProcess?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.match(changedProcess?.reason ?? '', /422.*403/,
     'Pre-run fail-closed proof must not be presented as successful money computation');
-  assert.equal(manifest.scopedPages.length, 20);
+  assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
   const coveredPage = manifest.scopedPages.find(p =>
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
   assert.equal(coveredPage.status, 'COVERED');

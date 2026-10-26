@@ -17,6 +17,7 @@ import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
+import { managerDirectReportsEnabledForEmployer } from "@/lib/hcm-manager-direct-reports";
 import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { WorkflowUiProvider } from "@/components/workspace/workflow-ui-context";
@@ -124,6 +125,10 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       ["owner", "admin", "hr"].includes(access.role) ||
       (access.role === "manager" && !access.companyWide && access.orgUnitId !== null)
     );
+  const canSeeManagerDirectReports = !pilotFocusEnabled &&
+    managerDirectReportsEnabledForEmployer(companyOrganizationId) &&
+    process.env.NEXT_PUBLIC_HCM_MANAGER_TEAM_ENABLED === "true" &&
+    access?.role === "manager" && !access.companyWide && access.orgUnitId !== null;
   return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
       {canSeeHrCases && (
@@ -144,6 +149,15 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
           className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
         >
           My Team
+        </Link>
+      )}
+      {canSeeMyTeam && access?.role === "manager" && (
+        <span className="self-center text-xs text-slate-600">Assigned unit directory</span>
+      )}
+      {canSeeManagerDirectReports && (
+        <Link href={"/hcm/manager-direct-reports?organizationId=" + data.selectedOrganization.id}
+          className="rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-950">
+          My direct reports
         </Link>
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }

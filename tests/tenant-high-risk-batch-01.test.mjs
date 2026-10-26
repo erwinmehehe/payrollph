@@ -398,7 +398,12 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
       ? /const foreign = expectStatus\(await request\(urlFor\("foreign"\),/ : /const foreign = expectStatus\(await request\(item\.foreign,/);
     assert.match(lines[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
   }
-  assert.equal(manifest.metrics.coveredAfter - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+  // This newly added route is outside the historical API pool below. Its
+  // distinct verifier is checked separately; it must not inflate old credits.
+  const managerDirectReportCredits = manifest.allApiRouteFiles["src/app/api/hcm/manager-direct-reports/route.ts"].methods
+    .filter(method => method.name === "GET" && method.status === "COVERED" && method.testedBy?.file === "scripts/qa/hcm-manager-direct-reports-http.mjs").length;
+  assert.equal(managerDirectReportCredits, 1);
+  assert.equal(manifest.metrics.coveredAfter - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - 7, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");

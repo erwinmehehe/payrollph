@@ -2,15 +2,15 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-22",
-  "acceptanceStatus": "NOT ACCEPTED: 225 API methods and 18 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. PR #1409 adds three narrowly scoped, source-pinned provisional Workforce policy proofs (configured roster GET; inactive advisory roster POST and guardrail POST) on fictional disposable PG16. Five other Workforce POST routes retain GAP because their request-only or single-action scenarios cannot attest to all mutation branches. The three new entries do not waive independent security review, production validation or remaining GAPs.",
+  "acceptanceStatus": "NOT ACCEPTED: 225 API methods and 18 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 228 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1409 adds three narrowly scoped, source-pinned provisional Workforce policy HTTP proofs (configured roster GET; inactive advisory roster POST and guardrail POST) on fictional disposable PG16. Five other Workforce POST routes retain GAP because one bounded creation/request branch cannot prove their other mutation branches. No production certification, launch acceptance or reviewer sign-off is implied.",
   "metrics": {
-    "routeFiles": 291,
-    "methods": 494,
+    "routeFiles": 292,
+    "methods": 495,
     "coveredBefore": 20,
-    "coveredAfter": 259,
+    "coveredAfter": 260,
     "publicByDesign": 10,
     "gap": 225,
-    "scopedPagesAndActions": 20,
+    "scopedPagesAndActions": 21,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
     "leaksUnverified": true,
@@ -35492,6 +35492,76 @@
           "token": "readiness"
         }
       ]
+    },
+    "src/app/api/hcm/manager-direct-reports/route.ts": {
+      "gitBlobSha": "fddca10a07084bc6c3849835b4cb546d57ecfd0e",
+      "route": "hcm/manager-direct-reports",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 18,
+          "status": "COVERED",
+          "reason": "PROVISIONAL #1405. Independently signed-in manager GET on a disposable PostgreSQL 16 / localhost Next server: two real owned nonempty current primary reports, the same users denied 403 for the real third employer's populated manager-only roster (victim IDs beyond attacker-owned IDs); feature-OFF 404, owner without manager-of-record 403, custom permission-deny 403, and unchanged victim employee/payroll snapshots. Read-only, NO blanket tenant, production or release approval. Exact-head security CI and independent review required.",
+          "testedBy": {
+            "file": "scripts/qa/hcm-manager-direct-reports-http.mjs",
+            "line": 170,
+            "ownPositiveLine": 170,
+            "foreignDenialLine": 188,
+            "unchangedDbLine": 224,
+            "scope": "Two authenticated exact-unit managers with employer-bound worker ID links. Feature-ON three-employer allowlist in disposable Next/PG16, own GET populated 200; real third-employer GET 403; unchanged victim rows. No live data.",
+            "evidence": "Provisional #1405 isolated Security HTTP Smoke verifier; exact PR-head CI run and human review required."
+          }
+        }
+      ],
+      "employerSources": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": false
+      },
+      "guards": [
+        {
+          "line": 1,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 24,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 30,
+          "token": "loadManagerDirectReports (independent role/member/worker/unit enforcement)"
+        }
+      ],
+      "callerSuppliedIds": [
+        {
+          "line": 19,
+          "token": "params.get(\"organizationId\")"
+        },
+        {
+          "line": 30,
+          "token": "params.get(\"cursor\")"
+        }
+      ],
+      "businessIds": [
+        {
+          "line": 19,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 30,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        }
+      ]
     }
   },
   "scopedPages": [
@@ -35757,7 +35827,7 @@
     },
     {
       "path": "src/app/app/page.tsx",
-      "blob": "37f26be259327ad986b7929bedec3cc6437b61c5",
+      "blob": "c08e9772f90d8a6680577eb169f4a7ba02bc52e0",
       "ids": [
         {
           "line": 33,
@@ -37014,6 +37084,65 @@
         "foreignDenialLine": 106,
         "unchangedDbLine": 130,
         "scope": "Actual feature-ON SSR and client GET over localhost Next.js/PG16; two owners with own-worker fixtures, real victim employer denial, unchanged victim DB. Flag is on only in a separately spawned disposable localhost server."
+      }
+    },
+    {
+      "path": "src/app/hcm/manager-direct-reports/page.tsx",
+      "blob": "928c8f03a420b311c9ab71376c3abf57719d1ff5",
+      "ids": [
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 3,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 40,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 50,
+          "token": "loadManagerDirectReports"
+        }
+      ],
+      "business": [
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 51,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "COVERED",
+      "reason": "PROVISIONAL #1405 signed-in SSR page: two bound manager users render populated current primary reports for their exact employer/unit, both denied 404 for a real different employer, and victim PostgreSQL rows unchanged; feature OFF 404, custom deny enforcement. No general unit-roster authority, no live-data or production certification; exact-head CI and independent reviewer required.",
+      "testedBy": {
+        "file": "scripts/qa/hcm-manager-direct-reports-http.mjs",
+        "line": 52,
+        "ownPositiveLine": 182,
+        "foreignDenialLine": 191,
+        "unchangedDbLine": 224,
+        "scope": "Feature-ON localhost SSR on separately spawned port 3002 with precise fictional three-employer allowlist, two independent manager sessions and real-owned/direct-worker records. False-positive 200/error pages excluded; victim 404 and unchanged DB.",
+        "evidence": "Provisional #1405 isolated Security HTTP Smoke; pending exact PR-head execution."
       }
     },
     {

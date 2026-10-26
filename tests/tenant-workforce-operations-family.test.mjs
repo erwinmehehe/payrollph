@@ -98,12 +98,29 @@ test("roster feature remains isolated to the synthetic flagged profile", () => {
   assert.deepEqual(roster.flags, ["WFM_ROSTER_SCALE_RULES_ENABLED"]);
 });
 
-test("eight unique Workforce methods remain GAP; source-link refresh adds no coverage", () => {
-  const keys = [...rows.map(r => r.key), "GET workforce/roster-rules"]; assert.equal(keys.length, 8); assert.equal(new Set(keys).size, 8);
+test("eight Workforce scenarios preserve three provisional policy credits and five uncovered action families", () => {
+  const keys = [...rows.map(r => r.key), "GET workforce/roster-rules"];
+  assert.equal(keys.length, 8);
+  assert.equal(new Set(keys).size, 8);
+  const credited = new Set([
+    "GET workforce/roster-rules", "POST workforce/roster-rules", "POST workforce/schedule-guardrails",
+  ]);
   const catalog = [...tenantFamilyCatalog("write"), ...tenantFamilyCatalog("read")];
   for (const key of keys) assert.equal(catalog.filter(r => r.key === key).length, 1);
-  const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
-  for (const key of keys) { const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route); assert.equal(record.methods.find(m => m.name === method).status, "GAP"); }
-  const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
-  assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
+  const file = "scripts/qa/tenant-isolation-coverage-manifest.json";
+  const text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
+  for (const key of keys) {
+    const [method, route] = key.split(" ");
+    const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
+    const entry = record.methods.find(m => m.name === method);
+    assert.equal(entry.status, credited.has(key) ? "COVERED" : "GAP", key);
+    if (credited.has(key)) assert.ok(entry.testedBy?.rowFile, key + " requires a source-pinned executable proof");
+    else assert.equal(entry.testedBy, null, key + " remains unresolved outside the single tested action");
+  }
+  assert.equal(keys.filter(key => credited.has(key)).length, 3);
+  const report = JSON.parse(execFileSync(process.execPath,
+    ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
+  assert.equal(report.newlyCredited, 0);
+  assert.deepEqual(report.before, report.after);
+  assert.equal(readFileSync(file, "utf8"), text, "proof-link dry runs must not modify the inventory");
 });

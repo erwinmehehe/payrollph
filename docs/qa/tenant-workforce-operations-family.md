@@ -54,7 +54,7 @@ inactive and advisory. The default profile remains flag-off for the other six
 methods. No production configuration, live personnel data, payout, payroll
 calculation, scheduling approval, roster publication or provider call occurs.
 
-The provisional inventory now counts **259 COVERED / 225 GAP** API methods,
+The provisional inventory now counts **260 COVERED / 225 GAP** API methods,
 plus 10 PUBLIC-BY-DESIGN. Five Workforce mutation routes remain GAP pending
 separate executable scenarios for each meaningful action. The three new
 policy credits are narrowly scoped and do not certify update-existing-policy
