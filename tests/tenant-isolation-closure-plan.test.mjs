@@ -4,7 +4,7 @@
  * The earlier inventory guard continues to pin all route blobs/method exports.
  */
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import test from "node:test";
 
@@ -49,13 +49,13 @@ test("current overview headline equals complete live method manifest (frozen bas
 
 test("closure plan schedules every original GAP exactly once in priority order", () => {
   // The closure plan is a historical 2026-10-21 queue, not a moving
-  // snapshot of current handler line numbers. Its exact Git blob, including
-  // all 406 original source links, is pinned while live source/drift is
-  // separately checked by the method coverage inventory guard.
-  const frozenPlanBlob = createHash("sha1")
-    .update("blob " + Buffer.byteLength(plan) + "\0" + plan)
-    .digest("hex");
-  assert.equal(frozenPlanBlob, "bd93253b602f02760ac434a7b387cbc56a8ae351",
+  // snapshot of current handler line numbers. Pin every original batch heading
+  // and method/source link; live status prose may be reconciled independently.
+  const historicalPlan = execFileSync("git", ["show",
+    "bd93253b602f02760ac434a7b387cbc56a8ae351"], { encoding: "utf8" });
+  const frozenQueue = text => text.split(/\r?\n/).filter(line =>
+    line.startsWith("### Batch ") || /^- `(?:GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\//.test(line));
+  assert.deepEqual(frozenQueue(plan), frozenQueue(historicalPlan),
     "The frozen 406-method closure queue and its source links must not change");
   const current = allMethods();
   const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)];
