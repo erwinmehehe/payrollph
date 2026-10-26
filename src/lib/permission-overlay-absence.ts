@@ -28,3 +28,20 @@ export function permissionOverlayKeysValid(value: unknown, knownKeys: readonly s
   return Array.isArray(value)
     && value.every((key: unknown) => typeof key === "string" && knownKeys.includes(key));
 }
+
+/**
+ * A Dynamic Group restriction is an atomic (id, frozen-version) binding.
+ * If either side is missing or invalid, never interpret it as no guard:
+ * that would silently broaden an assigned deny-only permission overlay.
+ */
+export function permissionOverlayGroupBindingValid(binding: {
+  dynamicGroupId: number | null;
+  dynamicGroupVersion: number | null;
+}): boolean {
+  if (binding.dynamicGroupId == null) return binding.dynamicGroupVersion == null;
+  return Number.isSafeInteger(binding.dynamicGroupId)
+    && binding.dynamicGroupId > 0
+    && Number.isSafeInteger(binding.dynamicGroupVersion)
+    && binding.dynamicGroupVersion !== null
+    && binding.dynamicGroupVersion >= 1;
+}
