@@ -1,0 +1,126 @@
+name: Tenant DL-02 whole-batch proof (fictional PG16 HTTP, no provider)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-dl02-closure.yml'
+      - 'docs/engineering/tenant-isolation-closure-plan.md'
+      - 'scripts/qa/tenant-dl02-closure-bootstrap.mjs'
+      - 'scripts/qa/tenant-dl02-closure-http.mjs'
+      - 'scripts/qa/tenant-dl02-rows/**'
+      - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'src/app/api/self/photo/**'
+      - 'src/app/api/web-bundy/evidence/**'
+      - 'src/app/api/workforce/demand-observations/import/**'
+      - 'src/lib/workforce-**'
+      - 'src/lib/ess-**'
+      - 'src/lib/storage.ts'
+      - 'src/db/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-dl02-closure-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dl02:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export common disposable tenant profile
+        run: node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+      - name: Generate synthetic-only keys and enable test-process-only guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          echo 'TENANT_DL02_CLOSURE_PROOF=isolated-ci-only' >> "$GITHUB_ENV"
+          echo 'TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only' >> "$GITHUB_ENV"
+          echo 'DOCUMENT_UPLOADS_ENABLED=true' >> "$GITHUB_ENV"
+          echo 'WFM_PUNCH_EVIDENCE_ENABLED=true' >> "$GITHUB_ENV"
+          echo 'PUNCH_DEVICE_HASH_KEY=ci-fictional-punch-device-hash-key-000000' >> "$GITHUB_ENV"
+          echo 'MALWARE_SCAN_URL=https://127.0.0.1:8443/scan' >> "$GITHUB_ENV"
+          echo 'MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only' >> "$GITHUB_ENV"
+          echo 'NODE_EXTRA_CA_CERTS=/tmp/tenant-dl02-scanner.crt' >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Apply disposable baseline SQL only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Preseed exactly three fictional employers and derive explicit dynamic allowlists
+        run: npx tsx scripts/qa/tenant-dl02-closure-bootstrap.mjs
+      - name: Static source and manifest checks
+        run: |
+          node --check scripts/qa/tenant-dl02-closure-bootstrap.mjs
+          node --check scripts/qa/tenant-dl02-closure-http.mjs
+          node --check scripts/qa/tenant-dl02-rows/self-photo.mjs
+          node --check scripts/qa/tenant-dl02-rows/web-bundy.mjs
+          node --check scripts/qa/tenant-dl02-rows/demand-import.mjs
+          node --test tests/tenant-isolation-coverage-inventory.test.mjs
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Start local HTTPS synthetic scanner and production-mode Next.js
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-dl02-scanner.key \
+            -out /tmp/tenant-dl02-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          cp /tmp/tenant-dl02-scanner.key /tmp/tenant-ci-scanner.key
+          cp /tmp/tenant-dl02-scanner.crt /tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs \
+            > /tmp/dl02-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-dl02-scanner.crt \
+              https://127.0.0.1:8443/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-dl02-scanner.crt https://127.0.0.1:8443/health
+          nohup npm start -- -H 127.0.0.1 > /tmp/dl02-app.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/dl02-app.log
+          exit 1
+      - name: Run DL-02 four exact methods with real PG victim before/after and forged selectors
+        run: npx tsx scripts/qa/tenant-dl02-closure-http.mjs
+      - name: Emit error logs only on a failure
+        if: failure()
+        run: |
+          cat /tmp/dl02-app.log 2>/dev/null || true
+          cat /tmp/dl02-scanner.log 2>/dev/null || true
