@@ -56,8 +56,8 @@ test("new People Home page credit is pinned to real two-attacker, enabled-victim
   assert.match(source, /new pg\.Client\(/);
   const browserSuite = readFileSync("scripts/hcm-people-home-synthetic-browser.mjs", "utf8");
   assert.match(browserSuite, /verifyIndependentPeopleHomeTenantProof\(\{ browser, base, login \}\)/);
-  assert.match(source, /await page\.getByText\(actor\.employer/);
-  assert.match(source, /await page\.getByText\(actor\.workflow/);
+  assert.match(source, /await home\.getByText\(actor\.employer/);
+  assert.match(source, /await home\.getByText\(actor\.workflow/);
   assert.match(source, /"payroll_runs", "audit_events"/);
 
   const fixture = readFileSync("scripts/hcm-people-home-synthetic-fixture.ts", "utf8");
