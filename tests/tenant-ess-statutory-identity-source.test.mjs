@@ -146,7 +146,17 @@ test("changed contribution route is source-pinned with two provisional proofs an
   assert.deepEqual(manifest.allApiRouteFiles["src/app/api/self/identifiers/route.ts"].methods
     .map(m => [m.name, m.status]), [["GET", "GAP"], ["POST", "GAP"]],
     "unchanged ESS identifiers must not receive accidental credits");
-  assert.equal(manifest.metrics.coveredAfter, 259);
-  assert.equal(manifest.metrics.gap, 226);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 226 API methods/);
+  // Derive current counts; unrelated merged tenant batches must not break
+  // these two ESS proof assertions or silently rewrite the security ledger.
+  const tallies = Object.values(manifest.allApiRouteFiles)
+    .flatMap(route => route.methods)
+    .reduce((totals, method) => {
+      totals[method.status] = (totals[method.status] ?? 0) + 1;
+      return totals;
+    }, {});
+  assert.equal(manifest.metrics.coveredAfter, tallies.COVERED);
+  assert.equal(manifest.metrics.gap, tallies.GAP);
+  assert.equal(manifest.metrics.publicByDesign, tallies["PUBLIC-BY-DESIGN"]);
+  assert.equal(tallies.COVERED + tallies.GAP + tallies["PUBLIC-BY-DESIGN"], manifest.metrics.methods);
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: " + tallies.GAP + " API methods"));
 });

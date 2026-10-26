@@ -1,20 +1,10 @@
 name: Isolated Backup and Restore Rehearsal
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    # Ordinary prose skips this optional integration; executable fixtures/config still run.
-    paths:
-      - '**'
-      - '!**/*.md'
-      - '!**/*.mdx'
-      - '!LICENSE*'
-      - 'src/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'public/**'
-      - '.github/**'
+  # CI/validation already runs this same restore proof for every executable PR
+  # and main push. Keep an independent weekly proof without duplicating PR jobs.
+  schedule:
+    - cron: "31 4 * * 1"
   workflow_dispatch:
 
 concurrency:

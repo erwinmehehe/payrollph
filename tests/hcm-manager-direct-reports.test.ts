@@ -63,6 +63,11 @@ test("manager loader does not infer identity, scope or direct reports from unit 
   assert.match(source, /lte\(employees\.startDate, today\)/);
   assert.match(source, /eq\(positions\.organizationId, organizationId\)/);
   assert.match(source, /eq\(positions\.managerEmployeeId, managerEmployeeId\)/);
+  // The report join must check each worker's current employment, not only
+  // that the manager's own identity is active.
+  const reportQuery = source.split("const source = await db.select({")[1] ?? "";
+  assert.match(reportQuery, /inArray\(employees\.status, \["Active", "On leave"\]\)/);
+  assert.match(reportQuery, /lte\(employees\.startDate, today\)/);
   assert.match(source, /eq\(positionAssignments\.organizationId, organizationId\)/);
   assert.match(source, /eq\(positionAssignments\.assignmentType, "primary"\)/);
   assert.match(source, /exactlyOneCurrentPrimary/);
