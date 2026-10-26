@@ -59,14 +59,14 @@ export function createRows({ assert, db }) {
           organizationId: e.org.id, code: (e.marker + "-HIS").slice(0, 32),
           name: e.marker + " historical shift", startTime: "09:00", endTime: "17:00",
         }).returning();
-        for (const daysAgo of [7, 14, 21, 28]) {
+        for (const daysAgo of [7, 14, 21, 28, 35, 42, 49, 56, 63]) {
           await db.insert(staffingRequirements).values({
             organizationId: e.org.id, worksiteId: site.id, shiftDefinitionId: shift.id,
             workDate: dateBack(daysAgo), requiredHeadcount: 3 + e.rank,
             createdBy: e.marker + " fictional staffing",
           });
         }
-        return { id: site.id, name: site.name };
+        return { id: site.id, name: site.name, headcount: 3 + e.rank, historyCount: 9 };
       },
       query: c => "worksiteId=" + c.seeded.id + "&horizonDays=7",
       prove: (response, c) => {
@@ -74,8 +74,12 @@ export function createRows({ assert, db }) {
         assert.equal(response.json?.scope?.organizationId, c.orgId);
         assert.equal(response.json?.scope?.worksiteId, c.seeded.id);
         assert.equal(response.json?.scope?.worksiteName, c.seeded.name);
-        assert.ok(response.json?.outlook && typeof response.json.outlook === "object",
-          "owned historical staffing forecast response required");
+        assert.equal(response.json?.outlook?.status, "ready", "an empty/default outlook is not a proof");
+        assert.equal(response.json.outlook.historicalRows, c.seeded.historyCount);
+        assert.ok(Array.isArray(response.json.outlook.forecasts) && response.json.outlook.forecasts.length > 0);
+        assert.ok(response.json.outlook.forecasts.some(p => p.worksiteId === c.seeded.id &&
+          p.estimatedHeadcount === c.seeded.headcount && p.trainingObservations >= 9),
+          "actual own historical staffing cohort must affect the prediction");
       } },
     { key: "GET workforce/demand-observations/outlook", profile: "allowlisted-reads",
       flags: ["WFM_OPERATIONAL_DEMAND_ENABLED"],
@@ -87,17 +91,17 @@ export function createRows({ assert, db }) {
           organizationId: e.org.id, worksiteId: site.id,
           sourceKey, metricKind: "transactions", intervalMinutes: 60,
           idempotencyKey: e.marker + "-batch", requestSha256: "a".repeat(64),
-          rowCount: 12, createdByUserId: e.owner.id,
+          rowCount: 9, createdByUserId: e.owner.id,
         }).returning();
-        for (let daysAgo = 1; daysAgo <= 12; daysAgo++) {
+        for (let weeksAgo = 1; weeksAgo <= 9; weeksAgo++) {
           await db.insert(workforceDemandObservationRevisions).values({
             organizationId: e.org.id, worksiteId: site.id, importBatchId: batch.id,
             sourceKey, metricKind: "transactions", intervalMinutes: 60,
-            intervalStart: new Date(Date.parse(dateBack(daysAgo) + "T02:00:00Z")),
+            intervalStart: new Date(Date.parse(dateBack(weeksAgo * 7) + "T02:00:00Z")),
             revision: 1, observedCount: 8 + e.rank, quality: "complete",
           });
         }
-        return { id: site.id, sourceKey, batchId: batch.id };
+        return { id: site.id, sourceKey, batchId: batch.id, historicalCount: 9, observedCount: 8 + e.rank };
       },
       query: c => "worksiteId=" + c.seeded.id + "&sourceKey=" + encodeURIComponent(c.seeded.sourceKey)
         + "&metricKind=transactions&intervalMinutes=60&horizonDays=7",
@@ -108,8 +112,11 @@ export function createRows({ assert, db }) {
         assert.equal(response.json?.scope?.sourceKey, c.seeded.sourceKey);
         assert.equal(response.json?.scope?.metricKind, "transactions");
         assert.equal(response.json?.scope?.intervalMinutes, 60);
-        assert.ok(response.json?.forecast && typeof response.json.forecast === "object",
-          "owned operational demand source must produce a forecast envelope");
+        assert.equal(response.json?.forecast?.status, "ready", "an empty/default forecast is not a proof");
+        assert.equal(response.json.forecast.historicalVersions, c.seeded.historicalCount);
+        assert.ok(Array.isArray(response.json.forecast.points) && response.json.forecast.points.length > 0);
+        assert.ok(response.json.forecast.points.some(p => p.predictedCount === c.seeded.observedCount &&
+          p.evidenceCount >= 9), "actual own operational observations must determine the prediction");
       } },
   ];
 }
