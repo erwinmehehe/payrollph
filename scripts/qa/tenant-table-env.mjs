@@ -19,6 +19,8 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     HCM_MY_TEAM_ENABLED: "true",
     HCM_WORKER_360_ENABLED: "true",
     APPLICANT_PRIVACY_CONTROLS_ENABLED: "true",
+    // Synthetic configured-policy GET/POST only; published rosters are not exercised.
+    WFM_ROSTER_SCALE_RULES_ENABLED: "true",
   },
   // Multi-entity changes other workflows (entity holds), so its rows run in their own server.
   "multi-entity": {
