@@ -83,7 +83,8 @@ test("synthetic proof refuses remote services, production databases and provider
   assert.match(harness, /pg\.hostname, "127\.0\.0\.1"/);
   assert.match(harness, /pg\.pathname, "\/app_db"/);
   assert.match(harness, /process\.env\.PII_ENCRYPTION_KEY/);
-  assert.match(harness, /process\.env\.RESEND_API_KEY && !process\.env\.SMTP_HOST/);
+  assert.match(harness, /process\.env\.RESEND_API_KEY &&/);
+  assert.match(harness, /!process\.env\.POSTMARK_SERVER_TOKEN && !process\.env\.SMTP_URL/);
   assert.match(harness, /process\.env\.PAYMONGO_SECRET_KEY && !process\.env\.XENDIT_SECRET_KEY/);
   assert.doesNotMatch(harness, /fetch\(["']https:|submitXendit|submitPaymongo|releasePayroll/);
 });
