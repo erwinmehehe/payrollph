@@ -14,6 +14,7 @@ import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { emitContributionDiscrepancyAutomation } from "@/lib/statutory-contribution-automation";
 import { getSessionUser } from "@/lib/auth";
+import { assertMembership } from "@/lib/access";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -46,6 +47,11 @@ async function employeeContext() {
   if (!employee) {
     return { user, employee: null, denied: Response.json({ error: "Employee record not found." }, { status: 404 }) };
   }
+  // A valid session with a stale employeeId does not authorize a former employer.
+  // Check the employee record's real organization before reading or writing any
+  // contribution case, event, notification, automation or audit evidence.
+  const membershipDenied = await assertMembership(user.id, employee.organizationId);
+  if (membershipDenied) return { user, employee: null, denied: membershipDenied };
   return { user, employee, denied: null };
 }
 
