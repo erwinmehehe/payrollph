@@ -58,9 +58,8 @@ const localHost = (req, port) =>
 
 const money = http(async (req, res) => {
   try {
-    if (!localHost(req, 3012) || !req.url?.startsWith("/") ||
-      /paymongo\.com/i.test(req.headers.host ?? "") ||
-      /paymongo\.com/i.test(req.url ?? "")) {
+    if (!localHost(req, 3012) || typeof req.url !== "string" ||
+      !req.url.startsWith("/") || req.url.startsWith("//")) {
       respond(res, 403, { error: "DL01_MOCK_REJECTS_REAL_PROVIDER_HOST" }); return;
     }
     if (req.method === "GET" && req.url === "/__proof") {
@@ -105,8 +104,8 @@ const money = http(async (req, res) => {
       }] } }); return;
     }
     respond(res, 403, { error: "DL01_UNREGISTERED_PAYMONGO_REQUEST" });
-  } catch (error) {
-    respond(res, 422, { error: String(error?.message ?? error).slice(0, 180) });
+  } catch {
+    respond(res, 422, { error: "DL01_MOCK_INVALID_REQUEST" });
   }
 });
 
@@ -126,8 +125,8 @@ const scanner = https(tls, async (req, res) => {
     stats.scans.push({ clean, byteSize: content.length,
       hash: createHash("sha256").update(content).digest("hex") });
     respond(res, 200, { clean, engine: "CI-only synthetic signature guard (NOT antivirus)" });
-  } catch (error) {
-    respond(res, 422, { error: String(error?.message ?? error).slice(0, 160) });
+  } catch {
+    respond(res, 422, { error: "DL01_SCANNER_INVALID_REQUEST" });
   }
 });
 
@@ -161,8 +160,8 @@ const store = https(tls, async (req, res) => {
       res.end(content); return;
     }
     respond(res, 405, { error: "Unsupported fixture storage operation" });
-  } catch (error) {
-    respond(res, 422, { error: String(error?.message ?? error).slice(0, 160) });
+  } catch {
+    respond(res, 422, { error: "DL01_STORE_INVALID_REQUEST" });
   }
 });
 for (const [server, port] of [[money, 3012], [scanner, 8443], [store, 8444]]) {

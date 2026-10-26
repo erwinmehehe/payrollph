@@ -78,3 +78,17 @@ test("All four independent security clauses are present in shared runner and fam
     assert.match(content, /forged|selector|victim/i);
   }
 });
+
+test("DL-01 local adapter returns only fixed error codes and requires loopback", () => {
+  const adapter = file("scripts/qa/tenant-dl01-local-adapters.mjs");
+  assert.ok(adapter.includes('req.headers.host === "127.0.0.1:" + port'));
+  assert.ok(adapter.includes('req.socket.localAddress === "127.0.0.1"'));
+  assert.ok(adapter.includes('req.socket.remoteAddress === "127.0.0.1"'));
+  assert.ok(adapter.includes('req.url.startsWith("//")'));
+  assert.ok(!adapter.includes("/paymongo\\.com/i.test"), "substring URL matching is not a host guard");
+  assert.ok(!adapter.includes("String(error?.message"), "never return exception text over HTTP");
+  assert.equal(adapter.split("} catch {").length - 1, 3);
+  for (const code of [
+    "DL01_MOCK_INVALID_REQUEST", "DL01_SCANNER_INVALID_REQUEST", "DL01_STORE_INVALID_REQUEST"
+  ]) assert.ok(adapter.includes(code));
+});
