@@ -10,7 +10,10 @@ const c = { orgId: 11, workerId: 21, owner: { id: 31, name: "Fictional owner" },
 function evidence(key) {
   const existing = { id: 41, organizationId: 11, employeeId: 21, loanType: "Company Emergency Loan", referenceNo: c.marker + "-PAUSE",
     status: "active", principal: "1500.00", remainingBalance: "1000.00", totalPaid: "500.00", requestedByUserId: 31,
-    deductionAuthorizationReference: "Fictional historical authority" };
+    deductionAuthorizationReference: "Fictional historical authority",
+    reviewedByUserId: 32, reviewedAt: "2026-01-05T00:00:00.000Z",
+    reviewEvidenceReference: c.marker + " fictional independent review evidence",
+    reviewReason: c.marker + " fictitious historical reviewer acceptance" };
   const before = { loans: [existing], payments: [{ payment: { id: 51, loanId: 41, amount: "500.00" } }],
     runs: [{ id: 61 }], entries: [{ entry: { id: 62, payrollRunId: 61, netPay: "20000.00" } }], workers: [{ id: 21 }],
     profiles: [{ id: 71, organizationId: 11, employeeId: 21, rateAmount: "20000.00" }], revisions: [{ id: 81 }],
@@ -80,7 +83,8 @@ test("pending request proof refuses activation, approval, reduced balances and c
 
 test("pause changes only status and cannot invent payment evidence or alter loan amounts", () => {
   const row = rows[1];
-  for (const field of ["principal", "remainingBalance", "totalPaid", "requestedByUserId", "deductionAuthorizationReference"]) {
+  for (const field of ["principal", "remainingBalance", "totalPaid", "requestedByUserId", "deductionAuthorizationReference",
+    "reviewedByUserId", "reviewedAt", "reviewEvidenceReference", "reviewReason"]) {
     const e = evidence(row.key); e.after.loans[0][field] = "tampered"; assert.throws(() => row.expect(e.before, e.after, c, e.response));
   }
   const e = evidence(row.key); e.before.payments = []; e.after.payments = [];
@@ -88,16 +92,27 @@ test("pause changes only status and cannot invent payment evidence or alter loan
 });
 
 test("pause seed binds real returned loan/payment IDs to the employer/worker without activating through HTTP", async () => {
-  const employeeLoans = Symbol("loans"), loanPayments = Symbol("payments"), inserts = [];
+  const employeeLoans = Symbol("loans"), loanPayments = Symbol("payments");
+  const users = Symbol("users"), userOrganizations = Symbol("memberships"), inserts = [];
+  const ids = new Map([[users, 32], [userOrganizations, 33], [employeeLoans, 41], [loanPayments, 51]]);
   const db = { insert: table => ({ values: value => {
     inserts.push({ table, value });
-    return { returning: async () => [{ ...value, id: 41 }] };
+    return { returning: async () => [{ ...value, id: ids.get(table) }] };
   } }) };
-  const row = createRows({ assert, db, employeeLoans, loanPayments })[1];
+  const row = createRows({ assert, db, employeeLoans, loanPayments, users, userOrganizations })[1];
   const seed = await row.seed({ org: { id: 11 }, worker: { id: 21 }, owner: c.owner, marker: c.marker });
   assert.equal(seed.id, 41); assert.equal(seed.organizationId, 11); assert.equal(seed.employeeId, 21);
   assert.equal(seed.status, "active"); assert.equal(seed.remainingBalance, "1000.00"); assert.equal(seed.totalPaid, "500.00");
-  assert.equal(inserts[1].table, loanPayments); assert.equal(inserts[1].value.loanId, 41); assert.equal(inserts[1].value.amount, "500.00");
+  assert.equal(inserts.length, 4);
+  assert.equal(inserts[0].table, users); assert.equal(inserts[0].value.role, "checker");
+  assert.equal(inserts[1].table, userOrganizations);
+  assert.equal(inserts[1].value.organizationId, 11); assert.equal(inserts[1].value.userId, 32);
+  assert.equal(inserts[1].value.active, true);
+  assert.equal(seed.requestedByUserId, c.owner.id); assert.equal(seed.reviewedByUserId, 32);
+  assert.notEqual(seed.reviewedByUserId, seed.requestedByUserId);
+  assert.ok(seed.reviewEvidenceReference.includes(c.marker)); assert.ok(seed.reviewedAt instanceof Date);
+  assert.equal(inserts[2].table, employeeLoans);
+  assert.equal(inserts[3].table, loanPayments); assert.equal(inserts[3].value.loanId, 41); assert.equal(inserts[3].value.amount, "500.00");
   assert.equal(row.ownBody(c).action, "pause");
 });
 
