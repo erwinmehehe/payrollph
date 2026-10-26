@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { verifyIndependentPeopleHomeTenantProof } from "./qa/hcm-people-home-page-http.mjs";
 
 const base = process.env.HCM_PEOPLE_HOME_ACCEPTANCE_URL ?? "";
 const password = "Synthetic-HCM-QA-Password-Only-2026!";
@@ -11,6 +12,12 @@ function localOnly() {
   const url = new URL(process.env.DATABASE_URL ?? "");
   assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) && url.pathname === "/app_db");
   assert.equal(process.env.OPENAI_API_KEY ?? "", "");
+  assert.equal(process.env.GITHUB_ACTIONS, "true", "Disposable GitHub Actions only");
+  assert.equal(process.env.DATABASE_URL, "postgresql://postgres:postgres@127.0.0.1:5432/app_db");
+  assert.equal(process.env.HCM_PEOPLE_HOME_ENABLED, "true");
+  assert.equal(process.env.NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED, "true");
+  assert.equal(process.env.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3",
+    "The real victim must be enabled; a disabled 404 is not tenant authorization");
 }
 
 async function login(context, email) {
@@ -44,10 +51,14 @@ async function countEmployees(page) {
   return Number((await card.locator("p").nth(1).innerText()).trim());
 }
 
+
+
 async function main() {
   localOnly();
   const browser = await chromium.launch({ headless: true });
   try {
+    await verifyIndependentPeopleHomeTenantProof({ browser, base, login });
+
     const guest = await browser.newContext();
     const guestPage = await guest.newPage();
     await visit(guestPage, 1);
@@ -94,10 +105,13 @@ async function main() {
     assert.ok(!beta.includes("Transfer") && !beta.toLowerCase().includes("alphaprivate"));
     assert.equal(await visit(page, "invalid"), 404);
     assert.equal(await visit(page, ""), 404);
+    const sharedHrCookies = await authorized.cookies();
+    assert.ok(sharedHrCookies.some(cookie => cookie.name === "__Host-linaw_session"),
+      "Synthetic HR session must be genuinely authenticated before reuse");
     await authorized.close();
 
     const mobile = await browser.newContext({ viewport: { width: 375, height: 780 } });
-    await login(mobile, "hcm-hr@example.test");
+    await mobile.addCookies(sharedHrCookies);
     const small = await mobile.newPage();
     assert.equal(await visit(small, 1), 200);
     const fit = await small.evaluate(() => ({
@@ -125,7 +139,7 @@ async function main() {
 
     // The second isolated local process disables the feature server-side.
     const off = await browser.newContext();
-    await login(off, "hcm-hr@example.test");
+    await off.addCookies(sharedHrCookies);
     const offPage = await off.newPage();
     const disabled = await offPage.goto(
       "http://127.0.0.1:3001/hcm/command-center?organizationId=1",
