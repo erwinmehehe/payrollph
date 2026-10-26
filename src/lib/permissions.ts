@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { permissionSets, userOrganizations, userPermissionAssignments } from "@/db/schema";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
-import { absentPermissionOverlayDecision, permissionOverlayKeysValid } from "@/lib/permission-overlay-absence";
+import { absentPermissionOverlayDecision, permissionOverlayGroupBindingValid, permissionOverlayKeysValid } from "@/lib/permission-overlay-absence";
 
 export const ROLE_GATE_PERMISSIONS = [
   "org.admin",
@@ -70,6 +70,12 @@ export async function roleGateAllowed(userId: number, organizationId: number, pe
   const permissions = permissionSet.permissions;
   if (!permissions.includes(permission)) {
     return { allowed: false as const, restricted: true as const, permissionSet };
+  }
+  // Mismatched Dynamic Group ID/version pairs must never become unrestricted
+  // permission-set overlays, even if a legacy row bypassed the DB constraint.
+  if (assignment && !permissionOverlayGroupBindingValid(assignment)) {
+    return { allowed: false as const, restricted: true as const,
+      permissionSet, reason: "invalid-dynamic-group-binding" as const };
   }
   // A Dynamic Group may further restrict an existing permission assignment;
   // it cannot grant a role gate outside the member's base role or permission set.
