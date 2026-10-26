@@ -10,6 +10,7 @@ const c = {
   orgId: 11, workerId: 21, unitId: 31, marker: "TTBL-ATTA-synthetic",
   seeded: { id: 41, month: "2026-10", assignmentId: 51, code: "TTBL-POS",
     name: "TTBL-ATTA-synthetic mapped unit", taskId: 61,
+    headcount: 4, historyCount: 9, historicalCount: 9, observedCount: 9,
     sourceKey: "ttbl_ttbl-atta-synthetic" },
 };
 function proof(key) {
@@ -41,10 +42,10 @@ function proof(key) {
       summary: { acknowledged: 0, pending: 0, changed: 0, unavailable: 7 },
     }; break;
     case "GET workforce/demand-outlook": basic.json = { readOnly: true,
-      scope: { organizationId: 11, worksiteId: 41, worksiteName: c.seeded.name }, outlook: { status: "insufficient_history" } }; break;
+      scope: { organizationId: 11, worksiteId: 41, worksiteName: c.seeded.name }, outlook: { status: "ready", historicalRows: 9, forecasts: [{ worksiteId: 41, estimatedHeadcount: 4, trainingObservations: 9 }] } }; break;
     case "GET workforce/demand-observations/outlook": basic.json = { readOnly: true,
       scope: { organizationId: 11, worksiteId: 41, sourceKey: c.seeded.sourceKey,
-        metricKind: "transactions", intervalMinutes: 60 }, forecast: { status: "insufficient_history" } }; break;
+        metricKind: "transactions", intervalMinutes: 60 }, forecast: { status: "ready", historicalVersions: 9, points: [{ predictedCount: 9, evidenceCount: 9 }] } }; break;
     default: throw new Error("Missing synthetic proof for " + key);
   }
   return basic;
