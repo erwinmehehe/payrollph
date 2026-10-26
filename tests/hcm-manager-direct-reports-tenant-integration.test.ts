@@ -103,6 +103,19 @@ test("a bound manager sees only unambiguous current primary direct reports in th
         title: "Private Beta title", avatarInitials: "PB", basicRate: "99000.00",
         startDate: "2024-01-01",
       },
+      // A stale still-current assignment is NOT an employed direct report.
+      ...[
+        { key: "FORMER", firstName: "FormerDirect", status: "Separated", startDate: "2024-01-01" },
+        { key: "FUTURE", firstName: "FutureStartDirect", status: "Active", startDate: "9999-01-01" },
+        { key: "EXIT", firstName: "SeparatingDirect", status: "Separating", startDate: "2024-01-01" },
+      ].map((worker) => ({
+        organizationId: alpha.id, orgUnitId: alphaUnit.id,
+        employeeNo: "STALE-" + worker.key + "-" + code,
+        firstName: worker.firstName, lastName: "Fictional",
+        title: "Stale current-position evidence", status: worker.status,
+        avatarInitials: "SD", basicRate: "15000.00",
+        startDate: worker.startDate,
+      })),
     ]).returning();
     const directs = people.slice(0, 22);
     const peer = people[22];
@@ -148,6 +161,12 @@ test("a bound manager sees only unambiguous current primary direct reports in th
         jobProfileId: betaProfile.id, orgUnitId: betaUnit.id,
         supervisoryOrgUnitId: betaUnit.id, managerEmployeeId: managerB.id, status: "filled",
       },
+      ...["FORMER", "FUTURE", "EXIT"].map((kind) => ({
+        organizationId: alpha.id, code: "STALE-" + kind + "-" + code,
+        jobProfileId: alphaProfile.id,
+        orgUnitId: alphaUnit.id, supervisoryOrgUnitId: alphaUnit.id,
+        managerEmployeeId: managerA.id, status: "filled",
+      })),
     ]).returning();
     await db.insert(positionAssignments).values([
       ...directs.map((employee, index) => ({
@@ -182,6 +201,13 @@ test("a bound manager sees only unambiguous current primary direct reports in th
         organizationId: beta.id, employeeId: betaWorker.id,
         positionId: pos[27].id, effectiveFrom: "2024-01-01",
       },
+      // All three assignments look current, but the underlying employee
+      // state is not current. The manager must see none of these identities.
+      ...people.slice(27, 30).map((employee, index) => ({
+        organizationId: alpha.id, employeeId: employee.id,
+        positionId: pos[28 + index].id, assignmentType: "primary",
+        effectiveFrom: "2024-01-01",
+      })),
     ]);
 
     const createdUsers = await db.insert(users).values([
@@ -235,7 +261,8 @@ test("a bound manager sees only unambiguous current primary direct reports in th
     const serialized = JSON.stringify([first, second]);
     for (const forbidden of [
       "PrivateBetaOnly", "99000.00", "PeerOnly", "OutsideUnit",
-      "AmbiguousWorker", "FutureOnly", "not-a-password", "basicRate",
+      "AmbiguousWorker", "FutureOnly", "FormerDirect", "FutureStartDirect",
+      "SeparatingDirect", "not-a-password", "basicRate",
       "bankAccount", "approvalNote", "performanceRating",
     ]) assert.ok(!serialized.includes(forbidden), "Unexpected scope or private field: " + forbidden);
     assert.equal(Object.hasOwn(first, "totalHeadcount"), false);
