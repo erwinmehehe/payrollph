@@ -1,10 +1,19 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **RELEASE BLOCKER:** 228 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 226 API methods and 18 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 228 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 226 method gaps and 18 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **Security triage:** 34 caller-supplied ID candidates below require source tracing. Static matching does not establish an exploitable vulnerability; no confirmed live leak is claimed. If a real-HTTP exploit is found, immediately notify the owner and stop.
+
+## ESS statutory contribution and identity isolation — PR #1421 (provisional)
+
+Source-fix: `src/app/api/self/contribution-issues/route.ts` now requires an active membership in the **employee record's own organization** before any GET/POST case access, notification or audit work. This is a source-identified stale-membership authorization gap, **not a confirmed live exploit**. `self/identifiers` already had the guard and its route remains unchanged.
+
+The new synthetic `scripts/qa/tenant-ess-statutory-identity-http.mjs` suite runs inside the guarded disposable PG16/localhost Security HTTP Smoke runner. The contribution case **GET and POST** have two source-linked, provisionally `COVERED` manifest records with actual own 200/201, persisted case/member proof, separate attacker employers using forged tenant IDs, and the exact same former-employee session receiving 403 after membership revocation while retaining a second active employer grant. A real high-ID foreign remittance member is denied 404. The victim's cases, evidence, remittance rows, audit log, compliance tasks and outbox are snapshotted unchanged. ID review GET/POST are tested alongside them but **remain GAP** in the method inventory pending distinct review and accepted proof; do not count four method credits.
+
+Current branch-only ledger: **259 COVERED / 10 PUBLIC-BY-DESIGN / 226 GAP** out of 495 methods; **18 page/action GAPs remain**. The two new entries are **not independently accepted** until exact-final-head PG16 HTTP evidence passes and independent security review approves source, scopes and line pins. No production database, provider, real employee, filing, payments or deployed feature flags are changed; **whole-system tenant isolation remains NOT ACCEPTED**.
+
 
 ## Merged security fix — former-employer payslip PDF authorization (#1283)
 
@@ -91,9 +100,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 292 |
 | methods | 495 |
 | coveredBefore | 20 |
-| coveredAfter | 257 |
+| coveredAfter | 259 |
 | publicByDesign | 10 |
-| gap | 228 |
+| gap | 226 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
