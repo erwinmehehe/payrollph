@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { projectEnterprisePermissionReview, type EnterprisePermissionReviewInput } from "../src/lib/enterprise-permission-review";
 
@@ -73,4 +74,12 @@ test("invalid permissions and duplicate assignments fail closed in the review pr
   assert.equal(projectEnterprisePermissionReview({
     ...duplicate, assignments: [...duplicate.assignments, duplicate.assignments[0]!],
   })[0]?.state, "invalid-assignment");
+});
+
+test("the enterprise admin screen displays review restrictions, not effective grants", () => {
+  const source = readFileSync("src/components/enterprise-controls-panel.tsx", "utf8");
+  assert.match(source, /READ-ONLY OVERLAY AUDIT/);
+  assert.match(source, /Denied by overlay/);
+  assert.match(source, /Listed gates are not effective grants/);
+  assert.match(source, /review-unavailable/);
 });
