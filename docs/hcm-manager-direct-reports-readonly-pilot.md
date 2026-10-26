@@ -1,6 +1,6 @@
 # Current Manager Direct Reports — source-only read-only pilot (#725)
 
-**State: proposed branch; default OFF. Not approved for live employer activation.**
+**Source state: PR [#1405](https://github.com/erwinmehehe/payrollph/pull/1405) merged to `main` on 2026-10-26 (`e46a9ecf`); default OFF. Independent employer activation is NOT approved.**
 This is a **separate manager-only feature** from the existing `/hcm/my-team`
 authorized-unit directory. The latter's personnel listing and request counts
 are **not** proof of manager/direct-report relationships.
@@ -10,6 +10,10 @@ are **not** proof of manager/direct-report relationships.
 - `user_organizations.worker_employee_id`, on the **active** manager's
   membership for the explicitly selected employer. The worker record must
   itself belong to that employer and the manager's active assigned unit.
+  The linked manager worker must have status `Active` or `On leave` and a
+  start date effective by the current Asia/Manila business date. A
+  `Separating`, `Separated`, unknown-status or future-start worker link fails
+  closed even if the account's manager membership has not been revoked yet.
   No name/email matching, `users.employee_id` fallback, or company-wide
   manager fallback is permitted.
 - Current effective-dated **primary** `position_assignments`, joined to
@@ -65,10 +69,15 @@ Added:
   deny overlay, 20+2 pagination, ambiguous overlap and future assignment
   rejection. Fixture data is fictional and cleaned up.
 
-This document **does not assert the new tests have passed** until exact PR-head
-CI reports the results. Request full TypeScript/Next build, all regression
-shards, PostgreSQL integration, CodeQL/security, tenant isolation, payroll
-golden and payout protections before source merge.
+**#1405 source-merge evidence:** its exact PR-head full CI, Security HTTP
+Smoke, HRIS synthetic browser, and feature-flag registry checks passed before
+merge. These are fictional engineering checks, not production or human HR,
+security, accessibility or DBA acceptance.
+
+The follow-up worker-status/start-date guard is a **new source-only review
+candidate**. Its targeted synthetic PostgreSQL regression, TypeScript/Next
+build and exact-head security/payroll checks must pass separately before merge.
+No live employer or existing employee record is changed by this work.
 
 ## Separate human/activation NO-GO gates
 
