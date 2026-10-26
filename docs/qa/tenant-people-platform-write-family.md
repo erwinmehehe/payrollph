@@ -1,0 +1,70 @@
+# People/platform write-family isolation batch
+
+This batch adds 12 exact-method scenarios to the existing disposable PostgreSQL
+and localhost HTTP runner. The exact-head disposable PG16 HTTP write job
+passed all 12 new default-profile scenarios. Eleven methods are provisionally
+credited; `POST workforce/worksites` remains GAP because only its `create_worksite`
+action was tested. Local fixture tests alone do not count as HTTP evidence.
+
+| Method | Bounded own operation |
+| --- | --- |
+| PATCH discipline | Submit a fictional employee explanation |
+| PATCH provisioning | Complete a fictional onboarding task |
+| POST dynamic-worker-groups | Rename an inactive draft group |
+| POST recruitment | Create a fictional applicant for an existing requisition |
+| PATCH recruitment | Change applicant notes only |
+| POST delegations | Create a delegation between same-employer fictional members |
+| POST it-operations | Request an application grant; no remote grant |
+| PATCH it-operations | Record a requested revocation as revoked; no provider call |
+| POST workforce/worksites | Create a worksite linked to the own organization unit (action-level evidence only; method remains GAP) |
+| PATCH compliance/data-requests | Record triage notes and in-progress status |
+| POST approval-chains | Revise an inactive draft policy |
+| POST integration-connectors | Disable an existing fictional connector record |
+
+Each row verifies the persisted own identity, employer and domain values, not
+just HTTP 2xx. The shared runner exercises two independent attackers, real victim
+IDs, forged references where applicable, discrimination, unchanged victim target
+rows and the shared victim/audit snapshot. Connector responses deliberately omit
+employer and credential fields; that row binds response ID to the verified own
+database row and checks employer on both before/after snapshots instead.
+
+Recruitment covers the existing default-profile privacy-flag-OFF path, not hiring
+or privacy-flag-ON branches. Group and approval-policy updates remain inactive.
+Connector disabling touches only synthetic stored configuration and makes no
+provider request. These scenarios do not certify every branch of a method. In particular, the
+worksite POST also contains other actions (such as `update_worksite`, geofence
+configuration and employee assignment). `create_worksite` alone cannot certify
+the entire handler. The existing merged-proof security guard explicitly requires
+`POST workforce/worksites` to remain GAP until its other actions receive reviewed
+own/victim/forged-selector and unchanged-database evidence.
+
+The branch separately reconciles three already executed Performance credits from
+PR #1393, with its exact-head HTTP run receipt in
+[the Performance evidence note](tenant-performance-write-family.md). Those three
+are not part of the 12 new target methods. `tenant-table-credit.mjs --only-key`
+restricts new credits to explicitly selected catalog methods; unknown/duplicate
+keys fail. Existing proof provenance and source pins are refreshed as usual.
+
+**Exact-head HTTP receipt:** [tenant-table run 40200060037](https://github.com/erwinmehehe/payrollph/actions/runs/40200060037)
+executed on `1fd16ee304a896072560fd86ff06915e7bce159c` (the previous PR head).
+The [default write job 121189150538](https://github.com/erwinmehehe/payrollph/actions/runs/40200060037/job/121189150538)
+passed with 28 total write rows, 56 own/foreign pairs, 28 discriminating proofs,
+30 forged-reference proofs and `victimDatabaseUnchanged: true`. Twelve of those
+28 write rows are the new People/platform methods; the other sixteen belong to
+previously present families. The multi-entity and flagged-reads table jobs also
+passed, but **ran zero write rows** under their explicitly permitted empty-profile
+configuration; they do not prove these twelve methods in other flag profiles.
+
+**Post-credit state:** Eleven methods are provisionally `COVERED` with individual
+row-source links and the executed-head receipt; `POST workforce/worksites` is GAP
+with an explicitly documented passing `create_worksite` action-level scenario.
+Manifest totals: **270 COVERED / 214 GAP / 10 PUBLIC-BY-DESIGN** out of 494 API
+methods, plus 18 page/action GAPs. The three Performance-method credits from #1393
+are separate; there is no double counting. These credits are limited to tested
+operations and the default profile, not alternative business branches.
+
+**Still required before merge:** fresh CI on the updated final PR head (including
+source/manifest guards and the three table profiles), review of all credit links,
+and independent security/owner acceptance. This is not systemwide tenant-isolation
+certification or production approval. No production SQL, real employer data,
+external services, money flags or authorization/audit guards are changed.
