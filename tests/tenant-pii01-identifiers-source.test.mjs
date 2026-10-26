@@ -67,7 +67,8 @@ test("GET and POST are distinct review-only tenant proofs with exact source pins
   }
   assert.match(lines[122], /persistedVictimRequest\[0\]\?\.employeeId, f\.victimEmployee\.id/);
   assert.match(lines[195], /assert\.deepEqual\(await victimSnapshot\(victim\.id\), baseline/);
-  assert.equal(manifest.scopedPages.filter(p => p.status === "GAP").length, 18);
+  // Page/action coverage is independently checked by the full-surface inventory test.
+  // Do not pin unrelated page GAP counts in a PII-01 method evidence test.
 });
 
 test("synced method inventory retains live counts and base coverage", () => { assertLiveTenantCounts(assert, manifest); });

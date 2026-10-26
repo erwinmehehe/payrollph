@@ -112,17 +112,19 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
     reminder: "HTTP proof required; no historical GAP is certified" }));
 });
 
-test("all scoped pages stay source-pinned; only three exact independently probed pages may be provisional", () => {
+test("all scoped pages stay source-pinned; only four exact independently probed pages may be provisional", () => {
   assert.equal(manifest.scopedPages.length, 21);
   const approvedPath = "src/app/hcm/manager-decision-inbox/page.tsx";
   const evidenceFile = "scripts/qa/hcm-manager-inbox-page-http.mjs";
+  const peopleHomePath = "src/app/hcm/command-center/page.tsx";
+  const peopleHomeProofFile = "scripts/qa/hcm-people-home-page-http.mjs";
   const directPath = "src/app/hcm/manager-direct-reports/page.tsx";
   const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", approvedPath, directPath],
+  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath],
     "Static route analysis cannot silently certify any additional page");
-  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 18,
-    "Other 18 employer-scoped page/action entries remain uncertified");
+  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 17,
+    "Other 17 employer-scoped page/action entries remain uncertified");
   for (const page of manifest.scopedPages) {
     const bytes = readFileSync(page.path);
     assert.equal(blobSha(bytes), page.blob,
@@ -149,6 +151,34 @@ test("all scoped pages stay source-pinned; only three exact independently probed
       assert.match(suite, /assert\.deepEqual\(await db\.select\(\)\.from\(employees\)/);
       assert.match(suite, /assert\.deepEqual\(await db\.select\(\)\.from\(payrollRuns\)/);
       assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"), /probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\)/);
+      continue;
+    }
+    if (page.path === peopleHomePath) {
+      const proof = page.testedBy;
+      assert.equal(proof?.file, peopleHomeProofFile, "People Home needs its own QA HTTP/browser proof");
+      const lines = readFileSync(peopleHomeProofFile, "utf8").split("\n");
+      const suite = lines.join("\n");
+      assert.match(lines[proof.line - 1] ?? "",
+        /export async function verifyIndependentPeopleHomeTenantProof/);
+      assert.match(lines[proof.ownPositiveLine - 1] ?? "",
+        /const ownPage = await page\.goto\(/);
+      assert.match(lines[proof.foreignDenialLine - 1] ?? "",
+        /const foreignPage = await page\.goto\(/);
+      assert.match(lines[proof.unchangedDbLine - 1] ?? "",
+        /assert\.deepEqual\(await victimSnapshot\(\), before/);
+      assert.match(suite, /for \(const actor of expected\)/);
+      assert.match(suite, /assert\.equal\(ownPage\?\.status\(\), 200/);
+      assert.match(suite, /assert\.equal\(foreignPage\?\.status\(\), 404/);
+      assert.match(suite, /await home\.getByText\(actor\.employer/);
+      assert.match(suite, /await home\.getByText\(actor\.workflow/);
+      assert.match(suite, /new pg\.Client\(/);
+      assert.match(suite, /process\.env\.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3"/);
+      assert.match(suite, /"payroll_runs", "audit_events"/);
+      const runner = readFileSync("scripts/hcm-people-home-synthetic-browser.mjs", "utf8");
+      assert.match(runner, /verifyIndependentPeopleHomeTenantProof\(\{ browser, base, login \}\)/);
+      const workflow = readFileSync(".github/workflows/hcm-people-home-browser-qa.yml", "utf8");
+      assert.match(workflow, /HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"/);
+      assert.match(workflow, /node scripts\/hcm-people-home-synthetic-browser\.mjs/);
       continue;
     }
     if (page.path === directPath) {
