@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 const contribution = readFileSync("src/app/api/self/contribution-issues/route.ts", "utf8");
@@ -93,4 +94,59 @@ test("synthetic proof refuses remote services, production databases and provider
   assert.match(harness, /!process\.env\.POSTMARK_SERVER_TOKEN && !process\.env\.SMTP_URL/);
   assert.match(harness, /process\.env\.PAYMONGO_SECRET_KEY && !process\.env\.XENDIT_SECRET_KEY/);
   assert.doesNotMatch(harness, /fetch\(["']https:|submitXendit|submitPaymongo|releasePayroll/);
+});
+
+
+test("changed contribution route is source-pinned with two provisional proofs and no inflated ESS credits", () => {
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const contributionPath = "src/app/api/self/contribution-issues/route.ts";
+  const entry = manifest.allApiRouteFiles[contributionPath];
+  const sha = createHash("sha1")
+    .update(Buffer.from("blob " + Buffer.byteLength(contribution) + "\0"))
+    .update(Buffer.from(contribution)).digest("hex");
+  assert.equal(entry.gitBlobSha, sha, "route inventory must match the exact current source");
+  const proofLines = harness.split("\n");
+  assert.deepEqual(entry.methods.map(method => method.name), ["GET", "POST"]);
+  for (const method of entry.methods) {
+    assert.equal(method.status, "COVERED", method.name + " requires documented provisional evidence");
+    assert.match(method.reason, /PROVISIONAL/);
+    const proof = method.testedBy;
+    assert.equal(proof?.file, "scripts/qa/tenant-ess-statutory-identity-http.mjs");
+    assert.equal(proof.denialKind, "same-session-revoked-membership");
+    assert.equal(proof.foreignStatus, 403);
+    assert.equal(proof.ownStatus, method.name === "GET" ? 200 : 201);
+    for (const field of ["line", "ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "victimIdOrderingLine"]) {
+      assert.ok(Number.isInteger(proof[field]) && proof[field] >= 1 &&
+        proof[field] <= proofLines.length, method.name + ": invalid " + field + " evidence pin");
+    }
+    assert.equal(proof.line, proof.ownPositiveLine);
+    const own = proofLines[proof.ownPositiveLine - 1];
+    const denied = proofLines[proof.foreignDenialLine - 1];
+    const ownSpan = proofLines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 7).join("\n");
+    const deniedSpan = proofLines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 7).join("\n");
+    if (method.name === "GET") {
+      assert.match(own, /const caseResponse = expectStatus\(await request\(/);
+      assert.match(ownSpan, /\/api\/self\/contribution-issues/);
+      assert.match(ownSpan, /\), 200,/);
+      assert.match(denied, /const revokedContributionGet = expectStatus\(await request\("\/api\/self\/contribution-issues"/);
+      assert.match(deniedSpan, /\), 403,/);
+    } else {
+      assert.match(own, /const result = expectStatus\(await request\("\/api\/self\/contribution-issues"/);
+      assert.match(ownSpan, /method: "POST"/);
+      assert.match(ownSpan, /\), 201,/);
+      assert.match(denied, /const caseDenied = expectStatus\(await request\("\/api\/self\/contribution-issues"/);
+      assert.match(deniedSpan, /method: "POST"/);
+      assert.match(deniedSpan, /\), 403,/);
+      assert.match(proofLines[proof.forgedForeignMemberDenialLine - 1], /const forbiddenMember = expectStatus/);
+      assert.match(proofLines[proof.victimMemberHighIdLine - 1], /victimMember\?\.id > 6/);
+    }
+    assert.match(proofLines[proof.unchangedDbLine - 1], /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/);
+    assert.match(proofLines[proof.victimIdOrderingLine - 1], /f\.victimEmployee\.id > 6/);
+  }
+  assert.deepEqual(manifest.allApiRouteFiles["src/app/api/self/identifiers/route.ts"].methods
+    .map(m => [m.name, m.status]), [["GET", "GAP"], ["POST", "GAP"]],
+    "unchanged ESS identifiers must not receive accidental credits");
+  assert.equal(manifest.metrics.coveredAfter, 259);
+  assert.equal(manifest.metrics.gap, 226);
+  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 226 API methods/);
 });
