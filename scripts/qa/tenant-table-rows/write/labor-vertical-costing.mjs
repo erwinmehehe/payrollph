@@ -132,6 +132,21 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
         const cookie = actorCookies.get(c.orgId);
         assert.ok(cookie && cookie.startsWith("__Host-linaw_session="),
           "foreign attack must use the still-authenticated attacker session");
+        // The modified GET must actually return this tenant's stored vertical
+        // labels to the same signed-in user, without returning victim records.
+        const ownRead = await request(api + "?organizationId=" + c.orgId, { cookie });
+        assert.equal(ownRead.status, 200, "own GET must return its persisted costing labels");
+        assert.ok(Array.isArray(ownRead.json?.allocations));
+        for (const row of added) {
+          const returned = ownRead.json.allocations.find(item => item.id === row.id);
+          assert.ok(returned && returned.employeeId === c.workerId && returned.organizationId === c.orgId);
+          assert.deepEqual(returned.verticalDimensions, row.verticalDimensions,
+            "GET must return the actual own normalized vertical tags");
+        }
+        assert.ok(!ownRead.text.includes(c.victim.marker), "GET must not reveal victim labels");
+        const foreignRead = await request(api + "?organizationId=" + c.victim.org.id, { cookie });
+        assert.equal(foreignRead.status, 403, "foreign GET must deny the real victim employer");
+        assert.ok(!foreignRead.text.includes(c.victim.marker), "foreign GET must not reveal victim labels");
         // The real higher-ID victim is explicitly targeted for each other POST
         // action. Every denial is checked against the full own SQL snapshot.
         for (const action of ["create_cost_center", "set_gl_mapping"]) {
