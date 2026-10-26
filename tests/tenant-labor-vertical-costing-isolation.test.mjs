@@ -23,6 +23,9 @@ test("new vertical allocation POST is a real single-row tenant write contract, n
   assert.match(matches[0].text, /after\.audits/);
   assert.match(matches[0].text, /for \(const action of \["create_cost_center", "set_gl_mapping"\]\)/);
   assert.match(matches[0].text, /forgedMapping\.status, 422/);
+  assert.match(matches[0].text, /ownRead\.status, 200/);
+  assert.match(matches[0].text, /foreignRead\.status, 403/);
+  assert.match(matches[0].text, /returned\.verticalDimensions, row\.verticalDimensions/);
   assert.match(matches[0].text, /before\.profiles/);
 });
 test("actor, victim and forged worker IDs bind independently to genuine source IDs", () => {
