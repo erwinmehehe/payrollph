@@ -33,7 +33,6 @@ import {
   validateSamlSsoUrl,
 } from "@/lib/saml";
 import { ROLE_GATE_PERMISSIONS } from "@/lib/permissions";
-import { projectEnterprisePermissionReview } from "@/lib/enterprise-permission-review";
 import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-groups";
 import { mintScimToken } from "@/lib/scim";
 import { LIFECYCLE_TRIGGERS, normalizeLifecycleActions, validLifecycleConditions } from "@/lib/automation";
@@ -182,15 +181,6 @@ export async function GET(request: Request) {
     })),
     permissionSets: sets,
     permissionAssignments: assignments,
-    // Informational, company-wide-admin-only review; never an effective grant.
-    permissionReview: projectEnterprisePermissionReview({
-      organizationId,
-      availablePermissions: ROLE_GATE_PERMISSIONS,
-      members,
-      permissionSets: sets,
-      assignments,
-      groups,
-    }),
     dynamicGroups: groups,
     workerIdentities: workers.map((worker) => ({
       id: worker.id,
