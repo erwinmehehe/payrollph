@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { emitWorkforceClockInWatch } from "@/lib/workforce-clock-in-watch-server";
+import { ClockWatchLeaseLostError } from "@/lib/workforce-clock-watch-lease";
 import { emitWorkforceScheduleReviewReminders } from "@/lib/workforce-schedule-review-reminders-server";
 
 const SCHEDULE_JOB = "automation-temporal-sla-events";
@@ -279,7 +280,8 @@ async function emitCoverageDeadlineEvents(today: string) {
 export async function runScheduledAutomationTemporalEvents(options: {
   now?: Date;
   force?: boolean;
-} = {}) {
+  assertLeaseOwnership: () => Promise<void>;
+}) {
   const now = options.now ?? new Date();
   const force = options.force === true;
 
@@ -305,11 +307,16 @@ export async function runScheduledAutomationTemporalEvents(options: {
   const clockInWatch = process.env.WFM_CLOCK_IN_WATCH_ENABLED === "true"
     ? await emitWorkforceClockInWatch(
         now, Number(process.env.WFM_CLOCK_IN_WATCH_GRACE_MINUTES ?? "20"),
-      ).catch(() => ({ skipped: true as const, reason: "clock-in-watch-unavailable" }))
+        options.assertLeaseOwnership,
+      ).catch((error: unknown) => {
+        if (error instanceof ClockWatchLeaseLostError) throw error;
+        return { skipped: true as const, reason: "clock-in-watch-unavailable" };
+      })
     : { skipped: true as const, reason: "disabled" };
 
   // This opt-in source scan stays OFF for all employers until an exact
   // pilot allowlist and published Automation Studio rule are authorized.
+  await options.assertLeaseOwnership();
   const scheduleReviewReminders = process.env.WFM_SCHEDULE_REVIEW_REMINDERS_ENABLED === "true"
     ? await emitWorkforceScheduleReviewReminders(now)
         .catch(() => ({ skipped: true as const, reason: "schedule-review-source-unavailable" }))
@@ -334,6 +341,7 @@ export async function runScheduledAutomationTemporalEvents(options: {
     },
   };
 
+  await options.assertLeaseOwnership();
   await db.insert(schedulerState).values({
     jobName: SCHEDULE_JOB,
     lastRunAt: now,
