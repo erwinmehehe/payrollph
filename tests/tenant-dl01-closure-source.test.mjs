@@ -155,3 +155,27 @@ test("DL-01 fixture uses distinct canonical semi-monthly periods for independent
   assert.match(shared, /status: "Released"/,
     "Do not avoid the exclusion constraint by downgrading the payroll state");
 });
+
+test("DL-01 full regression uses a real comparison base and proof-scoped release flags", () => {
+  const workflow = file(".github/workflows/tenant-dl01-closure.yml");
+  assert.match(workflow, /timeout-minutes: 60/);
+  assert.match(workflow, /PR_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
+  assert.match(workflow, /git fetch --no-tags --depth=1 origin "\$PR_BASE_SHA"/);
+  assert.match(workflow, /FAIL_CLOSED_GUARD_BASE_REF=\$base_sha/);
+  assert.match(workflow, /git cat-file -e "\$base_sha:src\/lib\/payroll-engine\.ts"/);
+  assert.match(workflow, /YEAR_END_PRIOR_EVIDENCE_ENABLED: 'false'/);
+  assert.match(workflow, /DOCUMENT_UPLOADS_ENABLED: 'false'/);
+  assert.match(workflow, /EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'false'/);
+  assert.match(workflow, /export YEAR_END_PRIOR_EVIDENCE_ENABLED=true/);
+  assert.match(workflow, /export DOCUMENT_UPLOADS_ENABLED=true/);
+  assert.match(workflow, /export EMPLOYEE_DOCUMENT_VAULT_ENABLED=true/);
+  assert.match(workflow, /Verify disposable PG16 survived proof cleanup before full regression/);
+  assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED: 'false'/);
+  assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED=true/);
+  assert.match(workflow, /npm test/, "full regression must not be dropped for proof-only tests");
+  const proofStart = workflow.indexOf("- name: Execute three-employer HTTP/PG16 proof");
+  const proofGate = workflow.indexOf("export YEAR_END_PRIOR_EVIDENCE_ENABLED=true");
+  const fullSuite = workflow.indexOf("- name: Full repository Node test suite");
+  assert.ok(proofStart >= 0 && proofStart < proofGate && proofGate < fullSuite,
+    "feature gates must be enabled only inside the dedicated proof shell");
+});
