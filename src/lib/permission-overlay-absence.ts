@@ -38,7 +38,7 @@ export function permissionOverlayGroupBindingValid(binding: {
   dynamicGroupId: number | null;
   dynamicGroupVersion: number | null;
 }): boolean {
-  if (binding.dynamicGroupId == null) return binding.dynamicGroupVersion == null;
+  if (binding.dynamicGroupId === null) return binding.dynamicGroupVersion === null;
   return Number.isSafeInteger(binding.dynamicGroupId)
     && binding.dynamicGroupId > 0
     && Number.isSafeInteger(binding.dynamicGroupVersion)
