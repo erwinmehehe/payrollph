@@ -165,40 +165,40 @@ test("labor-costing GET-only source repin does not certify the legacy POST", () 
   }));
   const old = baseline.allApiRouteFiles[file];
   const current = manifest.allApiRouteFiles[file];
-  assert.equal(current.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
-  // Before the scoped GET hardening main contained the original route blob.
-  // After main absorbed that reviewed fix, origin/main contains the *same*
-  // pinned reviewed source as this PR; comparing against the old 78/133
-  // coordinates would incorrectly fail a branch that changed no route code.
-  const reviewedRouteSha = "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd";
-  const originalRouteSha = "e5e2c007ca41da3c6e2fc1217600f83640f48975";
-  assert.ok([originalRouteSha, reviewedRouteSha].includes(old.gitBlobSha),
-    "Baseline must be the source before or after the single GET-only security fix");
-  const baselineAlreadyReviewed = old.gitBlobSha === reviewedRouteSha;
+  const originalSha = "e5e2c007ca41da3c6e2fc1217600f83640f48975";
+  const reviewedSha = "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd";
+  assert.equal(current.gitBlobSha, reviewedSha);
   const oldGet = old.methods.find(method => method.name === "GET");
   const newGet = current.methods.find(method => method.name === "GET");
-  assert.equal(newGet.line, 79);
-  assert.equal(oldGet.line, baselineAlreadyReviewed ? 79 : 78);
-  assert.deepEqual(baselineAlreadyReviewed ? newGet : { ...newGet, line: oldGet.line }, oldGet,
-    "The already-reviewed GET must retain exactly the same method-specific evidence");
   const oldPost = old.methods.find(method => method.name === "POST");
   const newPost = current.methods.find(method => method.name === "POST");
-  assert.equal(oldPost.line, baselineAlreadyReviewed ? 156 : 133);
+  assert.equal(newGet.line, 79);
   assert.equal(newPost.line, 156);
   assert.equal(newPost.status, "GAP");
-  assert.equal(newPost.testedBy, null);
-  if (baselineAlreadyReviewed) {
-    assert.deepEqual(newPost, oldPost, "Main's uncredited POST review must remain byte-for-byte unchanged");
+  assert.equal(newPost.testedBy, null, "the unchanged POST has no independent method proof");
+
+  if (old.gitBlobSha === reviewedSha) {
+    // The GET-only fix has already merged into main. No source metadata,
+    // proof credit, reviewed-uncertified evidence or POST identity may drift.
+    assert.equal(oldGet.line, 79);
+    assert.equal(oldPost.line, 156);
+    assert.deepEqual(newGet, oldGet);
+    assert.deepEqual(newPost, oldPost);
   } else {
-    const { reviewedUncertified: _reviewed, ...withoutReview } = newPost;
-    assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost,
-      "Only the reviewed GET may change; the POST must stay GAP");
+    // Older main: only the frozen GET 78 -> 79 / POST 133 -> 156 source
+    // repin is allowed. Its POST remains uncredited and unchanged.
+    assert.equal(old.gitBlobSha, originalSha);
+    assert.equal(oldGet.line, 78);
+    assert.equal(oldPost.line, 133);
+    assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
+    const { reviewedUncertified, ...withoutReview } = newPost;
+    assert.ok(reviewedUncertified, "the unchanged POST must retain its explicit uncertified review");
+    assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
   }
-  const reviewedUncertified = newPost.reviewedUncertified;
-  assert.deepEqual(reviewedUncertified, {
+  assert.deepEqual(newPost.reviewedUncertified, {
     kind: "unchanged-POST-in-GET-only-security-fix",
-    originalRouteBlobSha: "e5e2c007ca41da3c6e2fc1217600f83640f48975",
-    routeBlobSha: "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd",
+    originalRouteBlobSha: originalSha,
+    routeBlobSha: reviewedSha,
     unchangedPostBlobSha: "91bcb6ee054c538f72d65630cc89deb641cfa7f5",
     reason: "Only GET and an import changed; POST bytes are independently pinned and retain GAP/zero coverage credit. Real HTTP POST proof and independent review are still required.",
   });

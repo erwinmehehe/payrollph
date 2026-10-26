@@ -16,6 +16,7 @@ on:
       - "src/components/workspace/people.tsx"
       - "scripts/hcm-people-home-synthetic-*.ts"
       - "scripts/hcm-people-home-synthetic-*.mjs"
+      - "scripts/qa/hcm-people-home-page-http.mjs"
       - ".github/workflows/hcm-people-home-browser-qa.yml"
   workflow_dispatch:
 
@@ -37,7 +38,7 @@ jobs:
       HCM_PEOPLE_HOME_ACCEPTANCE_URL: http://127.0.0.1:3000
       HCM_PEOPLE_HOME_ENABLED: "true"
       NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "true"
-      HCM_PEOPLE_HOME_ORG_IDS: "1,2"
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
@@ -85,10 +86,15 @@ jobs:
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Build local app with synthetic flags
         run: npm run build
-      - name: Install pinned Chromium
+      # Ubuntu runners already provide the runtime libraries. Running
+      # playwright --with-deps forces an apt update against the Azure mirrors,
+      # which can hang until the 30-minute job timeout without testing the UI.
+      # The harness launches headless Chromium, so install only its version-
+      # pinned headless shell and fail quickly if download is unavailable.
+      - name: Install pinned headless Chromium without Ubuntu apt mirrors
         run: |
           npm install --no-save --ignore-scripts playwright@1.55.0
-          npx playwright install --with-deps chromium
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start local app
         shell: bash
         run: |
