@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectEnterprisePermissionReview } from "../src/lib/enterprise-permission-review";
+import { projectEnterprisePermissionReview, type EnterprisePermissionReviewInput } from "../src/lib/enterprise-permission-review";
 
 const permissions = ["payroll.check", "payroll.release", "payroll.disburse"] as const;
 const member = (membershipId: number, changes = {}) => ({
   membershipId, userId: membershipId + 100, role: "checker", orgUnitId: null,
   membershipActive: true, active: true, ...changes,
 });
-const base = () => ({
+const base = (): EnterprisePermissionReviewInput => ({
   organizationId: 7, availablePermissions: permissions,
   members: [member(11), member(12), member(13, { membershipActive: false })],
   permissionSets: [
@@ -41,8 +41,10 @@ test("stale, disabled or cross-employer overlay references are not shown as perm
     { permissionSetId: 3, dynamicGroupId: 5, dynamicGroupVersion: null },
   ]) {
     const input = base();
-    input.assignments[0] = { ...input.assignments[0]!, ...change };
-    const row = projectEnterprisePermissionReview(input)[0]!;
+    const row = projectEnterprisePermissionReview({
+      ...input,
+      assignments: [{ ...input.assignments[0]!, ...change }, ...input.assignments.slice(1)],
+    })[0]!;
     assert.match(row.state, /invalid/);
     assert.deepEqual(row.listedByOverlay, []);
     assert.deepEqual(row.deniedByOverlay, [...permissions]);
@@ -50,18 +52,25 @@ test("stale, disabled or cross-employer overlay references are not shown as perm
 });
 test("live dynamic-group eligibility remains unproven in read-only review", () => {
   const input = base();
-  input.assignments[0]!.dynamicGroupId = 5;
-  input.assignments[0]!.dynamicGroupVersion = 2;
-  const row = projectEnterprisePermissionReview(input)[0]!;
+  const row = projectEnterprisePermissionReview({
+    ...input,
+    assignments: [{ ...input.assignments[0]!, dynamicGroupId: 5, dynamicGroupVersion: 2 },
+      ...input.assignments.slice(1)],
+  })[0]!;
   assert.equal(row.state, "conditional-dynamic-group-overlay");
   assert.deepEqual(row.listedByOverlay, ["payroll.check"]);
   assert.equal(row.dynamicGroupId, 5);
 });
 test("invalid permissions and duplicate assignments fail closed in the review projection", () => {
   const malformed = base();
-  malformed.permissionSets[0]!.permissions = ["payroll.check", "imaginary.grant"];
-  assert.equal(projectEnterprisePermissionReview(malformed)[0]?.state, "invalid-or-inactive-overlay");
+  assert.equal(projectEnterprisePermissionReview({
+    ...malformed,
+    permissionSets: [{ ...malformed.permissionSets[0]!,
+      permissions: ["payroll.check", "imaginary.grant"] },
+      ...malformed.permissionSets.slice(1)],
+  })[0]?.state, "invalid-or-inactive-overlay");
   const duplicate = base();
-  duplicate.assignments.push({ ...duplicate.assignments[0]! });
-  assert.equal(projectEnterprisePermissionReview(duplicate)[0]?.state, "invalid-assignment");
+  assert.equal(projectEnterprisePermissionReview({
+    ...duplicate, assignments: [...duplicate.assignments, duplicate.assignments[0]!],
+  })[0]?.state, "invalid-assignment");
 });
