@@ -183,9 +183,17 @@ export default async function HcmCommandCenter({
             </p>
           ) : (
             <>
+              {section.data.sourceUnavailable && (
+                <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Some People Ops follow-up sources are unavailable. Showing only verified results
+                  from responding sources. The missing results are unknown, not an all-clear.
+                </p>
+              )}
               {section.data.items.length === 0 && (
                 <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                  No matching items in this preview. The source workspace remains authoritative.
+                  {section.data.sourceUnavailable
+                    ? "No items were confirmed by the available source; other source results are unknown."
+                    : "No matching items in this preview. The source workspace remains authoritative."}
                 </p>
               )}
               <ul className="mt-3 space-y-3">
