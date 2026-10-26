@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { permissionSets, userOrganizations, userPermissionAssignments } from "@/db/schema";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
+import { absentPermissionOverlayDecision } from "@/lib/permission-overlay-absence";
 
 export const ROLE_GATE_PERMISSIONS = [
   "org.admin",
@@ -51,7 +52,9 @@ export async function permissionSetForMembership(userId: number, organizationId:
  */
 export async function roleGateAllowed(userId: number, organizationId: number, permission: RoleGatePermission) {
   const { permissionSet, assignment } = await permissionSetForMembership(userId, organizationId);
-  if (!permissionSet) return { allowed: true as const, restricted: false as const, permissionSet: null };
+  // Dangling assignment or cross-employer permission set cannot silently
+  // fall back to unrestricted base-role gates.
+  if (!permissionSet) return absentPermissionOverlayDecision(assignment !== null);
   if (!permissionSet.active) {
     return { allowed: false as const, restricted: true as const, permissionSet };
   }
