@@ -56,7 +56,9 @@ test("group ID and frozen version must be paired before any role grant", () => {
     { dynamicGroupId: 5, dynamicGroupVersion: 0 },
     { dynamicGroupId: 5, dynamicGroupVersion: -1 },
     { dynamicGroupId: 5, dynamicGroupVersion: 2.5 },
-  ]) assert.equal(permissionOverlayGroupBindingValid(bad), false);
+    { dynamicGroupId: undefined, dynamicGroupVersion: null },
+    { dynamicGroupId: null, dynamicGroupVersion: undefined },
+  ]) assert.equal(permissionOverlayGroupBindingValid(bad as { dynamicGroupId: number | null; dynamicGroupVersion: number | null }), false);
   const source = readFileSync("src/lib/permissions.ts", "utf8");
   const pairCheck = source.indexOf("!permissionOverlayGroupBindingValid(assignment)");
   const groupCall = source.indexOf("authorizedDynamicGroupMember({");
