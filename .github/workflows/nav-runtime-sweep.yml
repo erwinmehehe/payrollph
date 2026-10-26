@@ -2,20 +2,94 @@ name: Navigation runtime error sweep
 
 on:
   pull_request:
-    # Ordinary prose skips this optional integration; executable fixtures/config still run.
-    paths:
-      - '**'
-      - '!**/*.md'
-      - '!**/*.mdx'
-      - '!LICENSE*'
-      - 'src/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'public/**'
-      - '.github/**'
     branches: [main]
+    # Keep PR browser coverage for navigation, protected routes, authorization,
+    # shared shell/layout and the sweep harness. Unrelated changes still receive
+    # the complete navigation sweep after merging to main and on the nightlies.
+    paths:
+      # Protected destinations and authentication entrypoints.
+      - 'src/app/app/**'
+      - 'src/app/workspace/**'
+      - 'src/app/hcm/**'
+      - 'src/app/hris/**'
+      - 'src/app/self/**'
+      - 'src/app/employee-self-service/**'
+      - 'src/app/demo/**'
+      - 'src/app/login/**'
+      - 'src/app/register/**'
+      - 'src/app/signup/**'
+      - 'src/app/setup/**'
+      - 'src/app/invite/**'
+      - 'src/app/reset-password/**'
+      - 'src/app/verify-email/**'
+      - 'src/app/**/layout.tsx'
+      - 'src/app/**/template.tsx'
+      - 'src/app/**/error.tsx'
+      - 'src/app/**/not-found.tsx'
+      - 'src/app/**/loading.tsx'
+      - 'src/proxy.ts'
+      - 'src/middleware.ts'
+      # Routes and shared policy powering role-scoped navigation.
+      - 'src/app/api/auth/**'
+      - 'src/app/api/tenant-modules/**'
+      - 'src/app/api/capabilities/**'
+      - 'src/app/api/provisioning/**'
+      - 'src/app/api/organizations/**'
+      - 'src/app/api/dashboard/**'
+      - 'src/app/api/hcm/my-team/**'
+      - 'src/app/api/self/**'
+      - 'src/lib/*navigation*'
+      - 'src/lib/*auth*'
+      - 'src/lib/*permission*'
+      - 'src/lib/*role*'
+      - 'src/lib/*session*'
+      - 'src/lib/access.ts'
+      - 'src/lib/saas-workspace-access.ts'
+      - 'src/lib/tenant-modules.ts'
+      - 'src/lib/workspace-drawer-focus.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/lib/workflow-ui-flags.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/multi-entity-selector-boundary.ts'
+      - 'src/lib/dashboard-data.ts'
+      # Shared workspace shell, navigation UI and focused role destinations.
+      - 'src/components/linaw-workspace.tsx'
+      - 'src/components/auth-screen.tsx'
+      - 'src/components/hcm-context-navigation.tsx'
+      - 'src/components/employee-home-dashboard.tsx'
+      - 'src/components/linaw-mark.tsx'
+      - 'src/components/demo-sandbox-bar.tsx'
+      - 'src/components/workspace/nav.ts'
+      - 'src/components/workspace/shell.tsx'
+      - 'src/components/workspace/workflow-ui-context.tsx'
+      - 'src/components/workspace/command-palette.tsx'
+      - 'src/components/workspace/ui.tsx'
+      - 'src/components/workspace/overview.tsx'
+      - 'src/components/workspace/people.tsx'
+      - 'src/components/workspace/approvals.tsx'
+      - 'src/components/workspace/role-overview*.tsx'
+      - 'src/components/workspace/*nav*'
+      - 'src/components/workspace/*sidebar*'
+      - 'src/components/workspace/*header*'
+      - 'src/components/workspace/*menu*'
+      - 'src/components/workspace/*layout*'
+      - 'src/components/workspace/*drawer*'
+      - 'src/app/*.css'
+      # Relevant browser fixture/test changes and build-wide dependencies.
+      - 'scripts/nav-sweep-*'
+      - 'scripts/core-modules-synthetic-fixture.ts'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'tests/e2e/nav-sweep*'
+      - 'tests/nav-sweep-*'
+      - '.github/workflows/nav-runtime-sweep.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - 'tsconfig.json'
   push:
     branches: [main]
+  schedule:
+    - cron: "47 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -133,7 +207,8 @@ jobs:
           node -e 'const r=require("./qa-artifacts/nav-sweep/report.json"); if (!r.injectedFailure || r.failed < 1 || !r.results.some(x=>x.findings.some(f=>f.kind==="navigation" && f.detail.includes("HTTP 500 GET /app")))) process.exit(1)'
           cp qa-artifacts/nav-sweep/report.md qa-artifacts/nav-sweep/negative-proof.md
           cp qa-artifacts/nav-sweep/report.json qa-artifacts/nav-sweep/negative-proof.json
-      - name: Run navigation and runtime error sweep
+      - name: Run full navigation and runtime error sweep (main, nightly, manual)
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
           node --test tests/nav-sweep-role-coverage.test.mjs tests/nav-sweep-visual-contract.test.mjs
           node scripts/nav-sweep-run-all-roles.mjs
