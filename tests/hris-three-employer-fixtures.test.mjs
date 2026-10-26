@@ -32,7 +32,16 @@ test("first-payroll self-serve employer never reuses the protected third employe
   const fixture = read("scripts/first-payroll-mobile-synthetic-fixture.ts");
   const browser = read("scripts/first-payroll-zero-tenant-browser.mjs");
   assert.match(fixture, /\{ id: 3, name: "Synthetic Victim Only Employer" \}/);
-  assert.match(fixture, /assert\.equal\(gamma\.id, 4,/);
+  // PostgreSQL sequences can have gaps after rolled-back integration tests.
+  // Preserve strict fixture membership, exact fourth row, and zero employees.
+  assert.match(fixture, /Number\\.isSafeInteger\\(gamma\\?\\.id\\)/);
+  assert.match(fixture, /gamma\\.id > 3/);
+  assert.match(fixture, /!baselineOrgIds\\.has\\(gamma\\.id\\)/);
+  assert.match(fixture, /assert\\.equal\\(afterOrgs\\.length, orgs\\.length \\+ 1/);
+  assert.match(fixture, /afterOrgs\\.filter\\(org => !baselineOrgIds\\.has\\(org\\.id\\)\\)/);
+  assert.match(fixture, /eq\\(employees\\.organizationId, gamma\\.id\\)/);
+  assert.match(fixture, /assert\\.equal\\(gammaEmployees\\.length, 0/);
+  assert.doesNotMatch(fixture, /assert\\.equal\\(gamma\\.id, 4,/);
   assert.match(fixture, /userOrganizations\)\.values\(\[1, 2\]/);
   assert.match(browser, /fixture\.organizationId > 3/);
   assert.match(browser, /fixture\.label,"disposable-synthetic-only"/);
