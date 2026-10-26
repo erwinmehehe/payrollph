@@ -98,14 +98,14 @@ test("DL-01 egress is kernel-scoped to the unprivileged proof UID, never the run
   const workflow = file(".github/workflows/tenant-dl01-closure.yml");
   // The proof UID must not alias the postgres:16 service container's UID 999.
   // Host-visible numeric UID collisions would make cleanup kill PostgreSQL.
-  assert.match(workflow, /proof_uid=61001/);
-  assert.match(workflow, /getent passwd "\\$proof_uid"/);
-  assert.match(workflow, /ps -eo uid= \\| awk -v uid="\\$proof_uid"/);
-  assert.match(workflow, /sudo useradd --uid "\\$proof_uid" --create-home --shell \\/usr\\/sbin\\/nologin dl01proof/);
-  assert.match(workflow, /test "\\$\\(id -u dl01proof\\)" = "\\$proof_uid"/);
+  assert.ok(workflow.includes('proof_uid=61001'));
+  assert.ok(workflow.includes('if getent passwd "$proof_uid" >/dev/null; then'));
+  assert.ok(workflow.includes('if ps -eo uid= | awk -v uid="$proof_uid"'));
+  assert.ok(workflow.includes('sudo useradd --uid "$proof_uid" --create-home --shell /usr/sbin/nologin dl01proof'));
+  assert.ok(workflow.includes('test "$(id -u dl01proof)" = "$proof_uid"'));
   assert.doesNotMatch(workflow, /useradd --system/, "A system UID could collide with postgres:16");
-  assert.match(workflow, /Verify disposable PG16 survived proof cleanup before full regression/);
-  assert.match(workflow, /assert\\.equal\\(rows\\[0\\]\\?\\.db, 'app_db'\\)/);
+  assert.ok(workflow.includes('Verify disposable PG16 survived proof cleanup before full regression'));
+  assert.ok(workflow.includes("assert.equal(rows[0]?.db, 'app_db');"));
   assert.match(workflow, /sudo iptables -I OUTPUT 1 -m owner --uid-owner "\$proof_uid" ! -d 127\.0\.0\.0\/8 -j REJECT/);
   assert.match(workflow, /sudo ip6tables -I OUTPUT 1 -m owner --uid-owner "\$proof_uid" ! -d ::1\/128 -j REJECT/);
   assert.doesNotMatch(workflow, /sudo ip6?tables -I OUTPUT 1 ! -d/,
