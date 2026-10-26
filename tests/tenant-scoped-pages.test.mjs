@@ -68,6 +68,7 @@ test("new People Home page credit is pinned to real two-attacker, enabled-victim
   assert.match(fixture, /victim\.id > beta\.id && victimWorker\.id > betaSecond\.id/);
   const workflow = readFileSync(".github/workflows/hcm-people-home-browser-qa.yml", "utf8");
   assert.match(workflow, /HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"/);
+  assert.match(workflow, /scripts\/qa\/hcm-people-home-page-http\.mjs/);
   assert.match(workflow, /node scripts\/hcm-people-home-synthetic-browser\.mjs/);
   assert.match(workflow, /npm run build/);
 });
