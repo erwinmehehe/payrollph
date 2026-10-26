@@ -842,6 +842,9 @@ export const employeeLaborAllocations = pgTable(
   (table) => [
     index("employee_labor_allocations_employee_date_idx").on(table.employeeId, table.effectiveFrom),
     index("employee_labor_allocations_org_cost_center_idx").on(table.organizationId, table.costCenterId),
+    // Match the reviewed 0138 constraint in disposable Drizzle-first schema.
+    check("employee_labor_allocations_vertical_dims_object_chk",
+      sql`${table.verticalDimensions} is null or jsonb_typeof(${table.verticalDimensions}) = 'object'`),
   ],
 );
 
