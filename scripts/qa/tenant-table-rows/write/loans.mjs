@@ -61,6 +61,9 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
           email: "loan-reviewer-" + e.marker.toLowerCase() + "@example.invalid",
           name: e.marker + " fictional independent reviewer",
           role: "checker", passwordHash: "synthetic-only-no-login",
+          // Historical fictional reviewer never logs in. Keep this account out of
+          // enterprise MFA readiness checks for active local-password members.
+          localPasswordEnabled: false,
         }).returning({ id: users.id });
         await db.insert(userOrganizations).values({
           organizationId: e.org.id, userId: checker.id, role: "checker", active: true,

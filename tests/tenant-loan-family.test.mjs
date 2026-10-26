@@ -105,6 +105,10 @@ test("pause seed binds real returned loan/payment IDs to the employer/worker wit
   assert.equal(seed.status, "active"); assert.equal(seed.remainingBalance, "1000.00"); assert.equal(seed.totalPaid, "500.00");
   assert.equal(inserts.length, 4);
   assert.equal(inserts[0].table, users); assert.equal(inserts[0].value.role, "checker");
+  assert.equal(inserts[0].value.localPasswordEnabled, false,
+    "historical fictional checker must not be an MFA-unready local-password member");
+  assert.equal(inserts[0].value.passwordHash, "synthetic-only-no-login");
+  assert.notEqual(inserts[0].value.totpEnabled, true, "fixture must not fake TOTP enrollment");
   assert.equal(inserts[1].table, userOrganizations);
   assert.equal(inserts[1].value.organizationId, 11); assert.equal(inserts[1].value.userId, 32);
   assert.equal(inserts[1].value.active, true);
