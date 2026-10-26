@@ -6,7 +6,7 @@
  * NOT an acceptance or credit generator: failed/pending CI leaves all GAPs.
  */
 import assert from "node:assert/strict";
-import { readFileSync, statSync } from "node:fs";
+import { readPrivateDl02Fixture } from "./tenant-dl02-fixture-reader.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../../src/db";
@@ -63,10 +63,7 @@ function requireDl02Disposable() {
 }
 
 function loadFixture() {
-  const file = process.env.TENANT_DL02_CLOSURE_FIXTURE;
-  assert.ok(file && file.startsWith("/tmp/payrollph-dl02-"));
-  assert.equal(statSync(file).mode & 0o077, 0, "fixture cookies must stay private");
-  const fixture = JSON.parse(readFileSync(file, "utf8"));
+  const fixture = readPrivateDl02Fixture(process.env.TENANT_DL02_CLOSURE_FIXTURE);
   assert.equal(fixture.schema, "tenant-dl02-closure-three-employers-v1");
   assert.equal(fixture.attackers.length, 2);
   const all = [...fixture.attackers, fixture.victim];

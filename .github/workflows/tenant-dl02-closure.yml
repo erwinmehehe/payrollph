@@ -9,10 +9,12 @@ on:
       - 'docs/engineering/tenant-isolation-closure-plan.md'
       - 'scripts/qa/tenant-dl02-closure-bootstrap.mjs'
       - 'scripts/qa/tenant-dl02-closure-http.mjs'
+      - 'scripts/qa/tenant-dl02-fixture-reader.mjs'
       - 'scripts/qa/tenant-dl02-rows/**'
       - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'tests/tenant-dl02-closure-source.test.mjs'
+      - 'tests/tenant-dl02-fixture-reader.test.mjs'
       - 'src/app/api/self/photo/**'
       - 'src/app/api/web-bundy/evidence/**'
       - 'src/app/api/workforce/demand-observations/import/**'
@@ -84,10 +86,11 @@ jobs:
         run: |
           node --check scripts/qa/tenant-dl02-closure-bootstrap.mjs
           node --check scripts/qa/tenant-dl02-closure-http.mjs
+          node --check scripts/qa/tenant-dl02-fixture-reader.mjs
           node --check scripts/qa/tenant-dl02-rows/self-photo.mjs
           node --check scripts/qa/tenant-dl02-rows/web-bundy.mjs
           node --check scripts/qa/tenant-dl02-rows/demand-import.mjs
-          node --test tests/tenant-isolation-coverage-inventory.test.mjs tests/tenant-dl02-closure-source.test.mjs
+          node --test tests/tenant-isolation-coverage-inventory.test.mjs tests/tenant-dl02-closure-source.test.mjs tests/tenant-dl02-fixture-reader.test.mjs
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test
