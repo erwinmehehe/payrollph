@@ -1,9 +1,11 @@
-# Performance growth: nine pending exact-method proofs
+# Performance growth: one reconciled method, eight partial methods
 
 This is a fresh main-based batch, separate from the three Performance follow-up
-credits in #1402 and the HCM scenarios in #1404. All nine methods remain GAP until
-actual HTTP/PostgreSQL acceptance. Source tests and prepared fixtures are not
-coverage credit.
+credits in #1402 and the HCM scenarios in #1404. Reconciliation credits only
+`POST performance/calibration`; the other eight methods remain GAP because they
+exercise only some handler actions. All nine scenarios executed successfully in
+real HTTP/PostgreSQL CI. See [the reviewed reconciliation](tenant-merged-family-reconciliation.md)
+for exact heads/jobs and the remaining action gaps. Source tests alone are not credit.
 
 | Method | Exact own operation |
 | --- | --- |
@@ -38,7 +40,7 @@ disabled. No scheduler, email, provider, salary decision, production SQL, Neon,
 schema migration, money flag or tenant/audit guard is changed. Coverage is bounded
 to these scenarios, not every action branch, manager role or multi-entity mode.
 
-Acceptance: inspect the exact-head default HTTP/PostgreSQL logs for all nine rows
-and all three table profiles; fix failures; then generate reviewable credits for
-the successful exact methods and require fresh CI on that final head. Link-only
-refresh adds zero credits. This PR is not authorized for automatic merge.
+Acceptance: the merged exact-head default runs and all three profiles passed.
+Only the reviewed single-path creation method is provisionally credited; scoring,
+flag decisions and finalization are separate PATCH actions and remain GAP. Fresh
+CI on the reconciliation head is required. This does not authorize automatic merge.

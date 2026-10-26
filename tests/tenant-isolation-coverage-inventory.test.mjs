@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -24,6 +25,7 @@ const API = "src/app/api";
 const BASE = "8c2a62135fd6e23db4603197822339cc1020ec27";
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 verifyMergedProofCredits(manifest);
+verifyReconciledFamilyCredits(manifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 
 function normalize(value) { return value.split(sep).join("/"); }
