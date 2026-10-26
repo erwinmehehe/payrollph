@@ -21,6 +21,12 @@ are **not** proof of manager/direct-report relationships.
 - Current `positions.manager_employee_id` matches the actual linked manager.
   This pointer is a **current snapshot**, NOT evidence of historical
   reporting relationships.
+- Each **reported worker** must also have current eligible employment
+  status (`Active` or `On leave`) and a start date not later than the
+  observed Manila business date. A stale still-effective primary assignment
+  must not expose a `Separated` / `Separating` worker or a worker whose
+  employment has not yet started. These rows are omitted; nothing is edited,
+  rehired, approved or silently backfilled.
 - The employee must belong to the manager's exact authorized unit.
   A recorded `positions.supervisory_org_unit_id` must equal that unit;
   otherwise `positions.org_unit_id` must equal it.
@@ -67,7 +73,9 @@ Added:
   same-unit peer with another manager, other-unit records, missing worker
   identity, foreign-tenant identity, HR negative role, custom `workforce.manage`
   deny overlay, 20+2 pagination, ambiguous overlap and future assignment
-  rejection. Fixture data is fictional and cleaned up.
+  rejection. The source follow-up also checks `Separated`, `Separating`
+  and future-start worker records that retain otherwise-current assignments.
+  Fixture data is fictional and cleaned up.
 
 **#1405 source-merge evidence:** its exact PR-head full CI, Security HTTP
 Smoke, HRIS synthetic browser, and feature-flag registry checks passed before
