@@ -4,7 +4,7 @@ import test from "node:test";
 import { resolveLaborAllocation, allocateLaborAmount, laborAllocationTrace,
   type LaborAllocationRow } from "../src/lib/labor-costing";
 import { normalizeLaborVerticalDimensions, laborVerticalDimensionValues,
-  LABOR_VERTICAL_DIMENSION_HEADERS } from "../src/lib/labor-vertical-dimensions";
+  journalRequiresVerticalDimensionColumns, LABOR_VERTICAL_DIMENSION_HEADERS } from "../src/lib/labor-vertical-dimensions";
 
 const row = (id: number, allocationPercent: number, extra: Partial<LaborAllocationRow> = {}): LaborAllocationRow => ({
   id, employeeId: 42, costCenterId: 5, effectiveFrom: "2026-01-01", effectiveUntil: null,
@@ -57,6 +57,8 @@ test("journal and API source pass typed dimensions end-to-end without changing a
   for (const source of [exporter, api, schema, sql]) assert.match(source, /verticalDimensions|vertical_dimensions/);
   assert.match(exporter, /allocated.verticalDimensions/);
   assert.match(exporter, /LABOR_VERTICAL_DIMENSION_HEADERS/);
+  assert.match(exporter, /journalRequiresVerticalDimensionColumns/);
+  assert.match(exporter, /journalEmployeeIds/);
   assert.match(exporter, /debitIndex/);
   assert.match(api, /resolvedAllocation.verticalDimensions/);
   const ui = readFileSync("src/components/workspace/labor-costing-panel.tsx", "utf8");
@@ -65,4 +67,29 @@ test("journal and API source pass typed dimensions end-to-end without changing a
   assert.match(ui, /row.verticalDimensions/);
   assert.match(ui, /normalizeLaborVerticalDimensions/);
   assert.match(sql, /ADD COLUMN IF NOT EXISTS vertical_dimensions jsonb/);
+});
+
+test("journal CSV only expands for allocations of employees effective within the exported run", () => {
+  const entries = [
+    { employeeId: 1, effectiveFrom: "2026-01-01", effectiveUntil: "2026-12-31",
+      verticalDimensions: null },
+    { employeeId: 2, effectiveFrom: "2027-01-01", effectiveUntil: null,
+      verticalDimensions: { campaignCode: "FUTURE" } },
+    { employeeId: 3, effectiveFrom: "2026-01-01", effectiveUntil: null,
+      verticalDimensions: { propertyCode: "OTHER-EMPLOYEE" } },
+  ];
+  const selected = new Set([1, 2]);
+  assert.equal(journalRequiresVerticalDimensionColumns({
+    allocations: entries, employeeIds: selected, asOf: "2026-10-31",
+  }), false);
+  assert.equal(journalRequiresVerticalDimensionColumns({
+    allocations: entries, employeeIds: selected, asOf: "2027-02-01",
+  }), true);
+  assert.equal(journalRequiresVerticalDimensionColumns({
+    allocations: entries, employeeIds: new Set([3]), asOf: "2026-10-31",
+  }), true);
+  assert.equal(journalRequiresVerticalDimensionColumns({
+    allocations: [{ ...entries[0]!, verticalDimensions: {} }],
+    employeeIds: new Set([1]), asOf: "2026-10-31",
+  }), false);
 });
