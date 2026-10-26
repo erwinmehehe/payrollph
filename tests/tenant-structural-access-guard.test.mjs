@@ -56,7 +56,7 @@ test("exported GET/POST aliases are resolved to the same scoped handler, not exe
   }
 });
 
-test("all 494 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
+test("all 495 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
   let methods = 0, hitsDb = 0, guarded = 0;
   const legacyGaps = [], explicitPublic = [], evidenced = [], noDbFound = [];
   for (const [file, data] of Object.entries(inventory)) {
@@ -93,7 +93,7 @@ test("all 494 handlers reaching PostgreSQL have a gate or explicit source-pinned
     }
   }
   assert.equal(methods, manifest.metrics.methods, "Structural scan must cover every exported HTTP method");
-  assert.equal(methods, 494, "Whole-route scope regression, including protected pre-run GET");
+  assert.equal(methods, 495, "Whole-route scope regression, including verified manager direct-report GET");
   assert.equal(hitsDb, guarded + legacyGaps.length + explicitPublic.length + evidenced.length);
   // No route is silently omitted or certified because DB code lives in a helper.
   console.log(JSON.stringify({ kind: "source-structural-guard-NOT-security-certification",
@@ -106,12 +106,14 @@ test("all 494 handlers reaching PostgreSQL have a gate or explicit source-pinned
     reminder: "HTTP proof required; no historical GAP is certified" }));
 });
 
-test("all scoped pages stay source-pinned; only the two exact independently probed pages may be provisional", () => {
-  assert.equal(manifest.scopedPages.length, 20);
+test("all scoped pages stay source-pinned; only three exact independently probed pages may be provisional", () => {
+  assert.equal(manifest.scopedPages.length, 21);
   const approvedPath = "src/app/hcm/manager-decision-inbox/page.tsx";
   const evidenceFile = "scripts/qa/hcm-manager-inbox-page-http.mjs";
+  const directPath = "src/app/hcm/manager-direct-reports/page.tsx";
+  const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", approvedPath],
+  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", approvedPath, directPath],
     "Static route analysis cannot silently certify any additional page");
   assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 18,
     "Other 18 employer-scoped page/action entries remain uncertified");
@@ -141,6 +143,31 @@ test("all scoped pages stay source-pinned; only the two exact independently prob
       assert.match(suite, /assert\.deepEqual\(await db\.select\(\)\.from\(employees\)/);
       assert.match(suite, /assert\.deepEqual\(await db\.select\(\)\.from\(payrollRuns\)/);
       assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"), /probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\)/);
+      continue;
+    }
+    if (page.path === directPath) {
+      const proof = page.testedBy;
+      assert.equal(proof?.file, directEvidenceFile);
+      const lines = readFileSync(directEvidenceFile, "utf8").split("\n");
+      assert.match(lines[proof.line - 1] ?? "",
+        /export async function verifyHcmManagerDirectReports/);
+      assert.match(lines[proof.ownPositiveLine - 1] ?? "",
+        /const ownPage = await requestOn\(PAGE \+ "\?organizationId=" \+ own\.id, cookie\)/);
+      assert.match(lines[proof.foreignDenialLine - 1] ?? "",
+        /const foreignPage = await requestOn\(PAGE \+ "\?organizationId=" \+ victim\.id, cookie\)/);
+      assert.match(lines[proof.unchangedDbLine - 1] ?? "",
+        /victimWorkersBefore, "Denied manager reads must not modify victim employees"/);
+      const suite = lines.join("\n");
+      assert.match(suite, /HCM_MANAGER_TEAM_ENABLED: "true"/);
+      assert.match(suite, /HCM_MANAGER_TEAM_ORG_IDS: f\.orgs\.map/);
+      assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+      assert.match(suite, /assert\.equal\(ownPage\.status, 200/);
+      assert.match(suite, /assert\.equal\(foreignPage\.status, 404/);
+      assert.match(suite, /assert\.equal\(foreignApi\.status, 403/);
+      assert.match(suite, /assert\.equal\(offApi\.status, 404/);
+      assert.match(suite, /makeSession\(manager\.id, \{ privileged: true \}\)/);
+      const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+      assert.match(runner, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
       continue;
     }
     assert.equal(page.path, approvedPath, "No blanket exception for changed pages");
