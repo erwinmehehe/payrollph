@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, KeyRound, LockKeyhole, RefreshCw, ShieldCheck, UserCog, Workflow, X } from "lucide-react";
 import { TreasuryControlsPanel } from "@/components/treasury-controls-panel";
+import { projectEnterprisePermissionReview } from "@/lib/enterprise-permission-review";
 
 type SecurityPolicy = {
   sessionIdleMinutes: number;
@@ -34,17 +35,8 @@ type Provider = {
 };
 type Domain = { id: number; providerId: number; domain: string; verified: boolean; verifiedAt: string | null };
 type ScimToken = { id: number; name: string; prefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
-type PermissionSet = { id: number; name: string; description: string | null; permissions: unknown; active: boolean };
-type PermissionAssignment = { id: number; userOrganizationId: number; permissionSetId: number; dynamicGroupId: number | null; dynamicGroupVersion: number | null };
-type PermissionReviewRow = {
-  membershipId: number;
-  role: string;
-  state: string;
-  listedByOverlay: string[];
-  deniedByOverlay: string[];
-  permissionSetId: number | null;
-  dynamicGroupId: number | null;
-};
+type PermissionSet = { id: number; organizationId: number; name: string; description: string | null; permissions: unknown; active: boolean };
+type PermissionAssignment = { id: number; organizationId: number; userOrganizationId: number; permissionSetId: number; dynamicGroupId: number | null; dynamicGroupVersion: number | null };
 type WorkerIdentity = { id: number; employeeNo: string; name: string; orgUnitId: number | null; status: string };
 type DynamicGroupOption = { id: number; code: string; name: string; active: boolean; version: number };
 type Member = {
@@ -78,7 +70,6 @@ type EnterpriseData = {
   scimTokens: ScimToken[];
   permissionSets: PermissionSet[];
   permissionAssignments: PermissionAssignment[];
-  permissionReview: PermissionReviewRow[];
   dynamicGroups: DynamicGroupOption[];
   workerIdentities: WorkerIdentity[];
   members: Member[];
@@ -191,7 +182,21 @@ function EnterpriseControlsPanelForOrganization({ organizationId, setNotice }: E
   const providerById = useMemo(() => new Map((data?.identityProviders ?? []).map((row) => [row.id, row])), [data]);
   const permissionById = useMemo(() => new Map((data?.permissionSets ?? []).map((row) => [row.id, row])), [data]);
   const assignmentByMembership = useMemo(() => new Map((data?.permissionAssignments ?? []).map((row) => [row.userOrganizationId, row])), [data]);
-  const reviewByMembership = useMemo(() => new Map((data?.permissionReview ?? []).map((row) => [row.membershipId, row])), [data]);
+  // Derive this informational view from the already company-wide-admin-scoped
+  // enterprise GET. Do not modify or repin its independently reviewed API route.
+  // This is NOT a grants calculation or live group-eligibility decision.
+  const reviewByMembership = useMemo(() => {
+    if (!data) return new Map<number, ReturnType<typeof projectEnterprisePermissionReview>[number]>();
+    const rows = projectEnterprisePermissionReview({
+      organizationId,
+      availablePermissions: data.availablePermissions,
+      members: data.members,
+      permissionSets: data.permissionSets,
+      assignments: data.permissionAssignments,
+      groups: data.dynamicGroups,
+    });
+    return new Map(rows.map((row) => [row.membershipId, row]));
+  }, [data, organizationId]);
   const ruleById = useMemo(() => new Map((data?.automationRules ?? []).map((row) => [row.id, row])), [data]);
 
   async function mutate(body: Record<string, unknown>) {
