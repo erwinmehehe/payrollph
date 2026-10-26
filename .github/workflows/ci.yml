@@ -197,7 +197,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Test fail-closed CI change classification
-        run: node --test tests/ci-change-scope.test.mjs
+        run: node --test tests/ci-change-scope.test.mjs tests/ci-optional-workflow-paths.test.mjs
       - name: Guard client read fail-closed regressions (no database)
         run: npx tsx --test tests/fail-closed-client-read-guard.test.ts
       - name: Lint with the pinned compatible ESLint toolchain
