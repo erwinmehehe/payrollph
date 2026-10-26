@@ -1,21 +1,35 @@
 import { eq, asc } from "drizzle-orm";
-import { db } from "../../../../src/db";
-import { auditEvents, users, userOrganizations, employees, workerEffectiveChanges, workerEmploymentEvents,
-  hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, approvalTasks, employeePayProfiles } from "../../../../src/db/schema";
-import { startHcmBusinessProcessTx } from "../../../../src/lib/hcm-business-process";
-import { returnEffectiveChangeForCorrection } from "../../../../src/lib/hcm-effective-corrections";
 
+// Factory import must remain source-only under plain Node test discovery.
+// Application/DB modules are loaded only when the disposable PG16 proof actually
+// executes a fixture, never when catalog tests inspect the row contract.
+let runtimePromise;
+function runtime() {
+  return runtimePromise ??= Promise.all([
+    import("../../../../src/db/index.ts"),
+    import("../../../../src/db/schema.ts"),
+    import("../../../../src/lib/hcm-business-process.ts"),
+    import("../../../../src/lib/hcm-effective-corrections.ts"),
+  ]).then(([database, schema, process, corrections]) => ({
+    db: database.db, schema,
+    startHcmBusinessProcessTx: process.startHcmBusinessProcessTx,
+    returnEffectiveChangeForCorrection: corrections.returnEffectiveChangeForCorrection,
+  }));
+}
 export const fixtureOrder = {};
-const tables = { changes: workerEffectiveChanges, processes: hcmBusinessProcessInstances,
-  steps: hcmBusinessProcessInstanceSteps, tasks: approvalTasks, workers: employees,
-  events: workerEmploymentEvents, profiles: employeePayProfiles, audits: auditEvents };
 export function createRows({ assert, auditBusinessSnapshot, addWorker }) {
   const state = async orgId => {
+    const { db, schema: t } = await runtime();
+    const tables = { changes: t.workerEffectiveChanges, processes: t.hcmBusinessProcessInstances,
+      steps: t.hcmBusinessProcessInstanceSteps, tasks: t.approvalTasks, workers: t.employees,
+      events: t.workerEmploymentEvents, profiles: t.employeePayProfiles, audits: t.auditEvents };
     const out = {};
     for (const [name, table] of Object.entries(tables)) out[name] = await db.select().from(table).where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
     out.audits = auditBusinessSnapshot(out.audits); return out;
   };
   const seed = async (e, returned) => {
+    const { db, schema, startHcmBusinessProcessTx, returnEffectiveChangeForCorrection } = await runtime();
+    const { users, userOrganizations, workerEffectiveChanges, hcmBusinessProcessDefinitions } = schema;
     const worker = await addWorker(e, returned ? "cres" : "cret");
     const [other] = await db.insert(users).values({ email: (e.marker + (returned ? "-checker" : "-maker")).toLowerCase() + "@example.invalid",
       name: e.marker + " independent", passwordHash: "fictional-no-login", role: "owner", totpEnabled: true }).returning();
@@ -26,6 +40,18 @@ export function createRows({ assert, auditBusinessSnapshot, addWorker }) {
       movementType: "employment_type_change", changeType: "employment_change", effectiveDate: "2099-01-01",
       reason: e.marker, requestedByUserId: maker.id, requestedBy: maker.name,
       targetEmploymentType: "Probationary", fromSnapshot, toSnapshot: { changes: { employmentType: "Probationary" }, targetPosition: null } }).returning();
+    // An unrelated read-table fixture intentionally seeds an unvalidated 2026
+    // definition (steps=[]). Do not change that historical frozen fixture.
+    // Instead use a later, explicit fictional policy for this 2099 scenario.
+    // The real process engine validates all step fields before creating a task.
+    await db.insert(hcmBusinessProcessDefinitions).values({
+      organizationId: e.org.id,
+      code: (e.marker + (returned ? "-corr-resubmit" : "-corr-return")).slice(0, 64),
+      name: e.marker + " fictional independent correction approval",
+      processType: "change_job", effectiveFrom: "2098-01-01", active: true,
+      steps: [{ type: "approval", label: "Independent correction review",
+        assignee: "role:owner", dueDays: 1, priority: "High" }],
+    });
     const process = await db.transaction(tx => startHcmBusinessProcessTx(tx, { organizationId: e.org.id, sourceType: "worker_effective_change",
       sourceKey: String(change.id), processType: "change_job", employeeId: worker.id, employeeLabel: e.marker,
       effectiveDate: change.effectiveDate, initiatedByUserId: maker.id, initiatedByName: maker.name }));

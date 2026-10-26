@@ -54,3 +54,21 @@ test("selected credit writes preserve every unrelated method's proof provenance"
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("correction family does not eagerly import app DB and seeds valid, independently reviewed synthetic steps", () => {
+  const source = readFileSync("scripts/qa/tenant-table-rows/write/hcm-corrections.mjs", "utf8");
+  assert.doesNotMatch(source, /^import.*from "\.\.\/\.\.\/\.\.\/\.\.\/src\/db"/m);
+  assert.match(source, /import\("\.\.\/\.\.\/\.\.\/\.\.\/src\/db\/index\.ts"\)/);
+  assert.match(source, /processType: "change_job", effectiveFrom: "2098-01-01", active: true/);
+  assert.match(source, /steps: \[\{ type: "approval", label: "Independent correction review"/);
+  const ledger = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  for (const [route, line] of [
+    ["hcm/effective-change-corrections/return", 63],
+    ["hcm/effective-change-corrections/resubmit", 90]
+  ]) {
+    const method = ledger.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(m => m.name === "POST");
+    assert.equal(method?.status, "COVERED");
+    assert.equal(method?.testedBy?.rowLine, line);
+    assert.match(source.split(String.fromCharCode(10))[line - 1], /key: "POST hcm\/effective-change-corrections\//);
+  }
+});
