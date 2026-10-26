@@ -32,7 +32,7 @@ export function createRows({ assert, db }) {
         const found = response.json?.cases?.find(r => r.requestId === c.seeded.id);
         assert.ok(found, "actual own request span required");
         assert.equal(found.employeeId, c.workerId);
-        assert.equal(found.employeeNo, c.worker.employeeNo ?? c.marker);
+        assert.equal(found.employeeNo, c.worker?.employeeNo ?? c.marker);
         assert.equal(found.status, "Pending");
         assert.ok(response.json.summary.pendingRequestRecords >= 1);
       } },
