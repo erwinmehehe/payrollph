@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { evaluateWfmTapResult } from "../scripts/lib/wfm-tap-summary.mjs";
 
 const tap = ({ tests = 2, pass = tests, fail = 0, skipped = 0, cancelled = 0, todo = 0 } = {}) =>
   ["TAP version 13", "# tests " + tests, "# pass " + pass, "# fail " + fail,
     "# cancelled " + cancelled, "# skipped " + skipped, "# todo " + todo, ""].join("\n");
+
+test("WFM-12 retains the live lease takeover stress regression without claiming provider delivery", () => {
+  const source = readFileSync("scripts/wfm-pilot-synthetic-evidence.mjs", "utf8");
+  const scenario = source.slice(source.indexOf('["WFM-12"'), source.indexOf('["WFM-13"'));
+  for (const file of ["wfm-clock-watch-lease.test.ts", "wfm-clock-watch-lease-postgres.test.ts"]) assert.ok(scenario.includes(file));
+  assert.match(scenario, /stubbed advisory delivery/);
+  assert.match(scenario, /provider delivery.*NOT_RUN/);
+});
 
 test("a normal non-skipped TAP subprocess can pass only as synthetic coverage", () => {
   const report = evaluateWfmTapResult({ exitCode: 0, output: tap() });

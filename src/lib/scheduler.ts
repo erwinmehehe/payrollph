@@ -26,6 +26,7 @@ import { runScheduledPerformanceActionReminders } from "@/lib/hcm-performance-ac
 import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-evidence-sealing";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
+import { ClockWatchLeaseLostError } from "@/lib/workforce-clock-watch-lease";
 import { sealAuditEvents } from "@/lib/audit-chain";
 import { runDueApprovalChainEscalations } from "@/lib/approval-chain-escalation-server";
 import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
@@ -122,6 +123,7 @@ async function runScheduledJobs(
   const failures: SchedulerJobFailure[] = [];
   const isolate = (job: string) => (error: unknown): null => {
     if (error instanceof SchedulerLeaseLostError) throw error;
+    if (error instanceof ClockWatchLeaseLostError) throw error;
     // Database errors surface the driver message and SQLSTATE, never the SQL text.
     const { code, message } = describeFailure(job, error);
     failures.push({ job, message: code ? code + ": " + message : message });
@@ -203,7 +205,7 @@ async function runScheduledJobs(
   await assertLeaseOwnership();
   const automationResumes = await resumeDueAutomationExecutions(now, 25).catch(isolate("automationResumes"));
   await assertLeaseOwnership();
-  const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now }).catch(isolate("automationTemporalEvents"));
+  const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now, assertLeaseOwnership }).catch(isolate("automationTemporalEvents"));
 
   const [hcmDocumentState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-document-expiry"))

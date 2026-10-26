@@ -10,6 +10,7 @@ import { loadClockInWatchScheduleBatch } from "@/lib/workforce-clock-in-watch-ba
 import { clockInWatchSignals, type ClockInWatchSignal } from "@/lib/workforce-clock-in-watch";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { scanActiveRosterAssignments, ROSTER_SCAN_PAGE_SIZE } from "@/lib/workforce-roster-scale";
+import { clockWatchLeaseFence } from "@/lib/workforce-clock-watch-lease";
 
 const MAX_LEGACY_ASSIGNMENTS = 200;
 const WORKER_BATCH_SIZE = 100;
@@ -20,7 +21,7 @@ const WORKER_BATCH_SIZE = 100;
  * No notification is emitted for a partial/failed scan. The caller's central
  * scheduler still owns the fenced lease for the whole tick.
  */
-export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number) {
+export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number, assertLeaseOwnership: () => Promise<void>) {
   if (!Number.isFinite(now.getTime())
     || !Number.isSafeInteger(graceMinutes) || graceMinutes < 5 || graceMinutes > 60) {
     return { skipped: true as const, reason: "invalid-clock-in-watch-config" };
@@ -33,9 +34,11 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   previous.setUTCDate(previous.getUTCDate() - 1);
   const yesterday = previous.toISOString().slice(0, 10);
   const enhanced = criticalReleaseFlagEnabled("wfmRosterScaleRules");
+  const assertActiveLease = clockWatchLeaseFence(assertLeaseOwnership);
 
-  const rowsForPage = (afterId: number, limit: number) =>
-    db.select({
+  const rowsForPage = async (afterId: number, limit: number) => {
+    await assertActiveLease();
+    return db.select({
       id: employeeScheduleAssignments.id,
       organizationId: employeeScheduleAssignments.organizationId,
       employeeId: employeeScheduleAssignments.employeeId,
@@ -45,6 +48,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
       or(isNull(employeeScheduleAssignments.effectiveUntil),
         gte(employeeScheduleAssignments.effectiveUntil, yesterday)),
     )).orderBy(asc(employeeScheduleAssignments.id)).limit(limit);
+  };
 
   const cohort = await scanActiveRosterAssignments({
     fetchPage: rowsForPage,
@@ -74,6 +78,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   const pendingSignals: ClockInWatchSignal[] = [];
   for (const [organizationId, employeeIds] of byOrganization) {
     for (let index = 0; index < employeeIds.length; index += WORKER_BATCH_SIZE) {
+      await assertActiveLease();
       const ids = employeeIds.slice(index, index + WORKER_BATCH_SIZE);
       const [workerRows, punches, leaves, exits] = await Promise.all([
         db.select({
@@ -169,6 +174,7 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   // page read cannot silently create a partial set of manager alerts.
   let emitted = 0;
   for (const signal of pendingSignals) {
+    await assertActiveLease();
     await runAutomationEventSafely({
       organizationId: signal.organizationId,
       employeeId: signal.employeeId,
