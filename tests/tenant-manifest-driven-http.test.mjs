@@ -73,7 +73,7 @@ test("single table-driven test reads every manifest method without claiming prec
   assert.match(harness, /await verifyGovernanceTenantRead\(f\)/);
 
   assert.equal(manifest.sourceTraceCandidates.length, 34);
-  assert.equal(manifest.scopedPages.length, 20);
+  assert.equal(manifest.scopedPages.length, 21);
   const registry = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, info]) =>
     info.methods.map((m) => [m.name + " " + info.route, { path, ...m }])));
   assert.equal(specs.length, 7);

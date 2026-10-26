@@ -320,6 +320,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P2 optional goals and review cycle landing page",
     approval: "Existing performance authorization and read-only journey acceptance",
   },
+  hcmManagerDirectReportsNavigation: {
+    env: "NEXT_PUBLIC_HCM_MANAGER_TEAM_ENABLED",
+    owner: "HCM Operations / Security / Privacy",
+    risk: "P1 opt-in navigation to current manager-of-record personnel data; the client-visible flag is never an authorization grant",
+    approval: "Separate default-OFF server gate and employer allowlist, independently reviewed manager identity, same-unit and cross-employer PostgreSQL/HTTP proof, browser/SSO and custom-deny checks; no automatic employer or production activation",
+  },
   engagementSurvey: {
     env: "ENGAGEMENT_SURVEY_ENABLED",
     owner: "People Operations",
