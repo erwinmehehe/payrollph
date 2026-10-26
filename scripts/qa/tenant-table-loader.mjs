@@ -40,8 +40,22 @@ export async function loadTenantRows(kind, context, root = FAMILY_ROOT) {
 }
 
 /** Bind one attacker attempt without mutating the shared, frozen definition. */
-export function bindTenantReadRequests(definition, ownId, victimId, extra = "") {
+export function bindTenantReadRequests(definition, ownId, victimId, extra = "", ctx) {
   assert.ok(definition.key.startsWith("GET "), "read requests require a GET definition");
   const base = "/api/" + definition.key.slice(4) + "?organizationId=";
-  return Object.freeze({ ...definition, own: base + ownId + extra, foreign: base + victimId + extra });
+  const foreignExtra = definition.foreignQuery ? definition.foreignQuery(ctx) : null;
+  if (definition.foreignQuery) assert.ok(typeof foreignExtra === "string" && foreignExtra.length > 0, "foreign query must bind a real seeded resource");
+  return Object.freeze({ ...definition, own: base + ownId + extra, foreign: base + victimId + (foreignExtra === null ? extra : "&" + foreignExtra) });
+}
+
+/** Explicit local family run. Unknown/empty families fail; default still runs every row. */
+export function selectTenantRowsByFamily(kind, rows, family) {
+  if (family === undefined) return rows;
+  assert.ok(typeof family === "string" && /^[a-z][a-z0-9-]*$/.test(family), "invalid tenant family selection");
+  const selected = new Set(tenantFamilyCatalog(kind).filter(row => row.file.endsWith("/" + family + ".mjs")).map(row => row.key));
+  assert.ok(selected.size > 0, "unknown or empty tenant family: " + family);
+  const result = rows.filter(row => selected.has(row.key));
+  assert.equal(result.length, selected.size, "selected family must load every source row exactly once");
+  assert.equal(new Set(result.map(row => row.key)).size, selected.size, "duplicate selected runtime rows");
+  return result;
 }

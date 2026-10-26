@@ -12,7 +12,7 @@
  * Profiles: TENANT_TABLE_PROFILE=default|multi-entity selects rows whose server flags are compatible.
  */
 import assert from "node:assert/strict";
-import { bindTenantReadRequests, loadTenantRows } from "./tenant-table-loader.mjs";
+import { bindTenantReadRequests, loadTenantRows, selectTenantRowsByFamily } from "./tenant-table-loader.mjs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
@@ -179,7 +179,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = (discover && process.env.TENANT_TABLE_DISCOVER_KEYS
     ? process.env.TENANT_TABLE_DISCOVER_KEYS.split(",").map((key) => TENANT_TABLE.find((row) => row.key === key.trim()) ?? { key: key.trim(), profile })
-    : TENANT_TABLE).filter((row) => (row.profile ?? "default") === profile);
+    : selectTenantRowsByFamily("read", TENANT_TABLE, process.env.TENANT_TABLE_FAMILY)).filter((row) => (row.profile ?? "default") === profile);
   assert.ok(rows.length > 0, "tenant table profile " + profile + " has no rows; an empty job proves nothing");
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
   // Attackers first, victim last: every victim ID is larger than any attacker-owned ID, so a
@@ -224,7 +224,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
       // Discovery only: TENANT_TABLE_DISCOVER_QUERIES='{"GET route":"a=1&b=2"}' tries a query before a row exists.
       const tried = discover ? JSON.parse(process.env.TENANT_TABLE_DISCOVER_QUERIES ?? "{}")[definition.key] : undefined;
       const extra = definition.query ? "&" + definition.query(ctx) : tried ? "&" + tried.replace(/\{(\w+)\}/g, (_, name) => ctx[name]) : "";
-      const item = bindTenantReadRequests(definition, own.org.id, victim.org.id, extra);
+      const item = bindTenantReadRequests(definition, own.org.id, victim.org.id, extra, ctx);
       if (!discover) {
         for (const flag of item.flags ?? []) assert.equal(process.env[flag], "true", item.key + ": server flag " + flag + " must be on in this job");
         assert.equal(typeof item.prove, "function", item.key + ": a row without an own-data proof cannot be credited");

@@ -19,7 +19,7 @@
  * Developer aid: TENANT_TABLE_TRY=1 reports every failing row (never credits).
  */
 import assert from "node:assert/strict";
-import { loadTenantRows } from "./tenant-table-loader.mjs";
+import { loadTenantRows, selectTenantRowsByFamily } from "./tenant-table-loader.mjs";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
@@ -56,7 +56,7 @@ export async function verifyTenantWriteTable(_f, {
   requireTenantTableDisposable();
   const TENANT_WRITE_TABLE = await loadTenantRows("write", { addWorker, approvalDelegations, asc, assert, benefitEnrollments, benefitPlans, dataRequests, db, disciplinaryCases, earnedWageRequests, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, organizationModuleSettings, performanceSkillDevelopmentPlans, workerEffectiveChanges, performanceOneOnOnes, performanceOneOnOneActionItems, performanceOneOnOneActionItemEvents, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, jobProfiles, automationOperationalCases, orgUnits, pool, apiKeys, organizations, organizationSecurityPolicies, automationExecutions, employees, shiftDefinitions, timePunches, attendanceCorrectionRequests, overtimeRequests, employeeAvailabilityRules, scheduleSwapRequests, schedulePatterns, schedulePatternDays, schedulePatternSegments, employeeScheduleAssignments, scheduleOverrides, workforceScheduleGuardrailPolicies, workforceRosterRulePolicies, auditEvents, auditBusinessSnapshot, performanceGoals, performanceCycles, performanceReviews, performanceCalibrationSessions, performanceCalibrationEntries, performanceCalibrationFlags, performanceCalibrationPolicies, performanceCalibrationPolicyEvents, performanceSkillDevelopmentMilestones, performanceSkillDevelopmentPlanEvents, performanceActionReminderPolicies, performanceActionReminderPolicyEvents, compensationComponents, compensationProposals, compensationBands, compensationCycles, employeeCompensationComponents, compensationEvents, employeePayProfiles, employeePayRevisions, payrollRuns, employeeLoans, loanPayments, payrollEntries, users, userOrganizations, provisioningTasks, dynamicWorkerGroups, jobRequisitions, jobApplicants, itApplications, itAccessGrants, worksites, approvalChainPolicies, integrationConnectors });
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
-  const rows = TENANT_WRITE_TABLE.filter((row) => (row.profile ?? "default") === profile);
+  const rows = selectTenantRowsByFamily("write", TENANT_WRITE_TABLE, process.env.TENANT_TABLE_FAMILY).filter((row) => (row.profile ?? "default") === profile);
   if (rows.length === 0 && process.env.TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE === "1") {
     // The shared workflow runs this step in every profile job; a profile with no write rows says so and proves nothing.
     console.log(JSON.stringify({ kind: "tenant-write-table-skip", profile, rows: 0, credited: 0 }));
