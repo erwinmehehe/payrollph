@@ -1,0 +1,115 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { projectEnterprisePermissionReview, type EnterprisePermissionReviewInput } from "../src/lib/enterprise-permission-review";
+
+const permissions = ["payroll.check", "payroll.release", "payroll.disburse"] as const;
+const member = (membershipId: number, changes = {}) => ({
+  membershipId, userId: membershipId + 100, role: "checker", orgUnitId: null,
+  membershipActive: true, active: true, ...changes,
+});
+const base = (): EnterprisePermissionReviewInput => ({
+  organizationId: 7, availablePermissions: permissions,
+  members: [member(11), member(12), member(13, { membershipActive: false })],
+  permissionSets: [
+    { id: 3, organizationId: 7, name: "Restricted checker", active: true,
+      permissions: ["payroll.check"] },
+    { id: 4, organizationId: 8, name: "Foreign", active: true,
+      permissions: [...permissions] },
+  ],
+  assignments: [
+    { organizationId: 7, userOrganizationId: 11, permissionSetId: 3,
+      dynamicGroupId: null, dynamicGroupVersion: null },
+    { organizationId: 8, userOrganizationId: 12, permissionSetId: 4,
+      dynamicGroupId: null, dynamicGroupVersion: null },
+  ],
+  groups: [{ id: 5, code: "finance", version: 2, active: true }],
+});
+test("review reports deny-only sets, never infers a grant from an unassigned base role", () => {
+  const rows = projectEnterprisePermissionReview(base());
+  assert.deepEqual(rows.map(row => row.state),
+    ["deny-only-overlay", "base-role-only", "inactive-member"]);
+  assert.deepEqual(rows[0]?.listedByOverlay, ["payroll.check"]);
+  assert.deepEqual(rows[0]?.deniedByOverlay, ["payroll.release", "payroll.disburse"]);
+  assert.deepEqual(rows[1]?.listedByOverlay, []);
+  assert.deepEqual(rows[1]?.deniedByOverlay, []);
+  assert.deepEqual(rows[2]?.listedByOverlay, []);
+});
+test("stale, disabled or cross-employer overlay references are not shown as permissions", () => {
+  for (const change of [
+    { permissionSetId: 4 }, { permissionSetId: 99 },
+    { permissionSetId: 3, dynamicGroupId: 5, dynamicGroupVersion: 1 },
+    { permissionSetId: 3, dynamicGroupId: 5, dynamicGroupVersion: null },
+  ]) {
+    const input = base();
+    const row = projectEnterprisePermissionReview({
+      ...input,
+      assignments: [{ ...input.assignments[0]!, ...change }, ...input.assignments.slice(1)],
+    })[0]!;
+    assert.match(row.state, /invalid/);
+    assert.deepEqual(row.listedByOverlay, []);
+    assert.deepEqual(row.deniedByOverlay, [...permissions]);
+  }
+});
+test("live dynamic-group eligibility remains unproven in read-only review", () => {
+  const input = base();
+  const row = projectEnterprisePermissionReview({
+    ...input,
+    assignments: [{ ...input.assignments[0]!, dynamicGroupId: 5, dynamicGroupVersion: 2 },
+      ...input.assignments.slice(1)],
+  })[0]!;
+  assert.equal(row.state, "conditional-dynamic-group-overlay");
+  assert.deepEqual(row.listedByOverlay, ["payroll.check"]);
+  assert.equal(row.dynamicGroupId, 5);
+});
+test("read-only review and live gate agree on malformed group ID/version pairing", () => {
+  const input = base();
+  for (const fields of [
+    { dynamicGroupId: null, dynamicGroupVersion: 2 },
+    { dynamicGroupId: 5, dynamicGroupVersion: null },
+    { dynamicGroupId: 5, dynamicGroupVersion: 0 },
+    { dynamicGroupId: -5, dynamicGroupVersion: 1 },
+  ]) {
+    const reviewed = projectEnterprisePermissionReview({
+      ...input,
+      assignments: [{ ...input.assignments[0]!, ...fields }, ...input.assignments.slice(1)],
+    })[0]!;
+    assert.equal(reviewed.state, "invalid-dynamic-group");
+    assert.deepEqual(reviewed.listedByOverlay, []);
+    assert.deepEqual(reviewed.deniedByOverlay, [...permissions]);
+  }
+});
+test("invalid permissions and duplicate assignments fail closed in the review projection", () => {
+  const malformed = base();
+  assert.equal(projectEnterprisePermissionReview({
+    ...malformed,
+    permissionSets: [{ ...malformed.permissionSets[0]!,
+      permissions: ["payroll.check", "imaginary.grant"] },
+      ...malformed.permissionSets.slice(1)],
+  })[0]?.state, "invalid-or-inactive-overlay");
+  const duplicate = base();
+  assert.equal(projectEnterprisePermissionReview({
+    ...duplicate, assignments: [...duplicate.assignments, duplicate.assignments[0]!],
+  })[0]?.state, "invalid-assignment");
+});
+
+test("the admin UI derives a deny-only review from its existing company-wide-scoped payload", () => {
+  const source = readFileSync("src/components/enterprise-controls-panel.tsx", "utf8");
+  assert.match(source, /projectEnterprisePermissionReview\(\{/);
+  assert.match(source, /availablePermissions: data\.availablePermissions/);
+  assert.match(source, /permissionSets: data\.permissionSets/);
+  assert.match(source, /assignments: data\.permissionAssignments/);
+  assert.match(source, /groups: data\.dynamicGroups/);
+  assert.match(source, /READ-ONLY OVERLAY AUDIT/);
+  assert.match(source, /Denied by overlay/);
+  assert.match(source, /Listed gates are not effective grants/);
+  assert.match(source, /review-unavailable/);
+});
+test("admin-only enterprise route remains unmodified and does not repin sensitive tenant evidence", () => {
+  const route = readFileSync("src/app/api/enterprise/route.ts", "utf8");
+  assert.doesNotMatch(route, /projectEnterprisePermissionReview|permissionReview:/);
+  assert.match(route, /ORG_ADMIN_ROLES/);
+  assert.match(route, /!access\?\.companyWide/);
+  assert.match(route, /permissionAssignments: assignments/);
+  assert.match(route, /availablePermissions: ROLE_GATE_PERMISSIONS/);
+});
