@@ -43,7 +43,7 @@ export function createRows({ assert, db, eq, asc, auditEvents, auditBusinessSnap
     ],
   });
   return [
-    { key: "POST workforce/labor-costing", status: 201, state,
+    { key: "POST workforce/labor-costing", status: 201, state: state,
       seed: async e => {
         const { costCenters, employeeLaborAllocations } = await tables();
         const [first, second] = await db.insert(costCenters).values([
