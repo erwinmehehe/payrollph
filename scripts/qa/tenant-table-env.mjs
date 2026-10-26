@@ -34,7 +34,9 @@ export const TENANT_TABLE_BASE_ENV = Object.freeze({
   TZ: "Asia/Manila",
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
-  APP_BASE_URL: "http://127.0.0.1:3000",
+  // Canonical metadata must satisfy production HTTPS validation. All HTTP
+  // probes still use SECURITY_SMOKE_URL below; this reserved host is not fetched.
+  APP_BASE_URL: "https://payroll.example.test",
   SECURITY_SMOKE_URL: "http://127.0.0.1:3000",
   TENANT_SECOND_PASS_MODE: "isolated-ci-only",
   DEMO_MODE: "false",
