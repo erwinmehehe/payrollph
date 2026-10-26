@@ -97,25 +97,42 @@ export type PeopleIntelligenceSummary = {
   warnings: string[];
 };
 
-const MAX_RECORDED_PESOS = Number.MAX_SAFE_INTEGER / 100;
+const MAX_RECORDED_CENTS = Number.MAX_SAFE_INTEGER;
 
-function money(value: string) {
-  // Database decimal evidence must be present; Number("") and Number(null)
-  // manufacture zero, while hexadecimal/exponent forms are not ledger decimals.
-  if (typeof value !== "string" || !/^[0-9]+(?:\.[0-9]+)?$/.test(value)) return null;
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0 || numeric > MAX_RECORDED_PESOS) return null;
-  return numeric;
+/** Accept only recorded peso decimals with at most two explicit centavo digits. */
+function moneyCents(value: string): number | null {
+  // Number("") and Number(null) manufacture zero; floating-point addition can
+  // also change a centavo without overflowing a JavaScript number.
+  if (typeof value !== "string" || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.split(".");
+  const pesos = Number(whole);
+  if (!Number.isSafeInteger(pesos) || pesos < 0
+    || pesos > Math.floor(MAX_RECORDED_CENTS / 100)) return null;
+  const cents = pesos * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/** Withhold results when the number-returning report cannot preserve a cent. */
+function reportMoney(cents: number): number | null {
+  if (!Number.isSafeInteger(cents)) return null;
+  const amount = cents / 100;
+  return Number.isSafeInteger(Math.round(amount * 100))
+    && Math.round(amount * 100) === cents ? amount : null;
+}
+
+function recordedMoneyCents(values: string[]): number | null {
+  let total = 0;
+  for (const value of values) {
+    const cents = moneyCents(value);
+    if (cents == null || cents > MAX_RECORDED_CENTS - total) return null;
+    total += cents;
+  }
+  return total;
 }
 
 function recordedMoneyTotal(values: string[]): number | null {
-  let total = 0;
-  for (const value of values) {
-    const amount = money(value);
-    if (amount == null || total + amount > MAX_RECORDED_PESOS) return null;
-    total += amount;
-  }
-  return Number(total.toFixed(2));
+  const cents = recordedMoneyCents(values);
+  return cents == null ? null : reportMoney(cents);
 }
 
 /**
@@ -329,10 +346,10 @@ export function summarizeHcmPeopleIntelligence(input: {
     cycleIds.has(row.cycleId) && ["approved", "scheduled", "applied"].includes(row.status));
   // Bound both sides before subtraction: cancellation must not hide unsafe
   // salary evidence. Legitimate negative annual movement remains supported.
-  const priorAnnual = recordedMoneyTotal(acceptedProposals.map((row) => row.currentAnnual));
-  const proposedAnnual = recordedMoneyTotal(acceptedProposals.map((row) => row.proposedAnnual));
-  const approvedCompensationDeltaAnnual = historical || priorAnnual == null || proposedAnnual == null
-    ? null : Number((proposedAnnual - priorAnnual).toFixed(2));
+  const priorAnnualCents = recordedMoneyCents(acceptedProposals.map((row) => row.currentAnnual));
+  const proposedAnnualCents = recordedMoneyCents(acceptedProposals.map((row) => row.proposedAnnual));
+  const approvedCompensationDeltaAnnual = historical || priorAnnualCents == null || proposedAnnualCents == null
+    ? null : reportMoney(proposedAnnualCents - priorAnnualCents);
 
   const trends = monthSnapshots(asOf).map((date) => {
     const point = snapshot({ workers: input.workers, events: input.events, asOf: date, today: input.today });

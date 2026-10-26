@@ -84,3 +84,39 @@ test("out-of-scope records do not poison verified totals and historical current-
   assert.equal(historical.approvedCompensationDeltaAnnual, null);
   assert.equal(historical.recordedAnnualVacancyBudget, null);
 });
+
+test("integer-centavo aggregation never introduces or erases a penny near the safe range", () => {
+  const expected = 90071992547400.02;
+  const report = summarizeHcmPeopleIntelligence({ ...base,
+    payrollRuns: [payroll("90071992547400.01", "90071992547400.01"), payroll("0.01", "0.01")],
+    positions: [position(1, "90071992547400.01"), position(2, "0.01")],
+    cycles: [cycle(1, "90071992547400.01"), cycle(2, "0.01")],
+    proposals: [proposal("90071992547400.01", "90071992547400.02")],
+  });
+  assert.equal(report.releasedPayrollGross, expected);
+  assert.equal(report.releasedPayrollNet, expected);
+  assert.equal(report.recordedAnnualVacancyBudget, expected);
+  assert.equal(report.activeCycleBudget, expected);
+  assert.equal(report.approvedCompensationDeltaAnnual, 0.01);
+});
+
+test("nonrepresentable centavos and sub-centavo input fail closed instead of reporting rounded money", () => {
+  for (const bad of ["90071992547400.01", "0.001", "100.005"]) {
+    const report = summarizeHcmPeopleIntelligence({ ...base,
+      payrollRuns: [payroll(bad)], positions: [position(1, bad)],
+      cycles: [cycle(1, bad)],
+    });
+    for (const key of ["releasedPayrollGross", "recordedAnnualVacancyBudget", "activeCycleBudget"] as const)
+      assert.equal(report[key], null, key + " / " + bad);
+    assert.ok(report.warnings.some(warning => warning.includes("withheld")));
+  }
+});
+
+test("exact-centavo salaries never lose a one-cent change between two large approved amounts", () => {
+  const report = summarizeHcmPeopleIntelligence({ ...base,
+    cycles: [cycle(1, "0.00")],
+    proposals: [proposal("90071992547400.01", "90071992547400.02")],
+  });
+  assert.equal(report.approvedCompensationDeltaAnnual, 0.01);
+  assert.equal(report.activeCycleBudget, 0);
+});
