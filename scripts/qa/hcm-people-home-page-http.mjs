@@ -72,7 +72,7 @@ export async function verifyIndependentPeopleHomeTenantProof({ browser, base, lo
         const home = page.locator("main").filter({ has: page.getByRole("heading", { name: "People Home", exact: true }) }).last();
         await home.getByText(actor.employer, { exact: false }).first().waitFor({ timeout: 30000 });
         await home.getByText(actor.workflow, { exact: false }).first().waitFor({ timeout: 30000 });
-        const ownHtml = await home.innerText();
+        const ownHtml = (await home.textContent()) ?? ""; // Preserve persisted case; CSS text-transform affects innerText.
         assert.ok(ownHtml.includes(actor.employer), "Persisted own employer name must render");
         assert.ok(ownHtml.includes(actor.workflow), "Nonempty own HCM source row must render");
         assert.ok(ownHtml.includes("People Ops follow-ups"),

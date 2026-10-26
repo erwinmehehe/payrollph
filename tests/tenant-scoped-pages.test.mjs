@@ -52,6 +52,8 @@ test("new People Home page credit is pinned to real two-attacker, enabled-victim
   assert.match(source, /assert\.equal\(ownPage\?\.status\(\), 200/);
   assert.match(source, /assert\.equal\(foreignPage\?\.status\(\), 404/);
   assert.match(source, /assert\.ok\(ownHtml\.includes\(actor\.workflow\)/);
+  assert.match(source, /const ownHtml = \(await home\.textContent\(\)\) \?\? "";/,
+    "CSS uppercase styling must not change persisted employer-name proof");
   assert.match(source, /process\.env\.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3"/);
   assert.match(source, /new pg\.Client\(/);
   const browserSuite = readFileSync("scripts/hcm-people-home-synthetic-browser.mjs", "utf8");
