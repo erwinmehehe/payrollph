@@ -33,7 +33,8 @@ function requireDisposable() {
   assert.notEqual(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "true");
   assert.notEqual(process.env.XENDIT_PAYOUTS_ENABLED, "true");
   assert.ok(!process.env.PAYMONGO_SECRET_KEY && !process.env.XENDIT_SECRET_KEY);
-  assert.ok(!process.env.RESEND_API_KEY && !process.env.SMTP_HOST,
+  assert.ok(!process.env.RESEND_API_KEY &&
+    !process.env.POSTMARK_SERVER_TOKEN && !process.env.SMTP_URL,
     "this proof must not contact an external email provider");
 }
 
