@@ -1,7 +1,7 @@
 // Disposable fictional loan evidence only. Never activate a deduction or record a real payment.
 export const fixtureOrder = {};
 export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, payrollRuns, payrollEntries,
-  employees, employeePayProfiles, employeePayRevisions, auditEvents, auditBusinessSnapshot }) {
+  employees, employeePayProfiles, employeePayRevisions, auditEvents, auditBusinessSnapshot, users, userOrganizations }) {
   const read = (table, orgId) => db.select().from(table).where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
   const state = async orgId => ({
     loans: await read(employeeLoans, orgId),
@@ -54,9 +54,24 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
       } },
     { key: "PATCH loans", state,
       seed: async e => {
+        // This is an already-approved *fictional* historical source record,
+        // not a live approval endpoint. A distinct checker with an actual
+        // same-employer membership satisfies the independent-deduction CHECK.
+        const [checker] = await db.insert(users).values({
+          email: "loan-reviewer-" + e.marker.toLowerCase() + "@example.invalid",
+          name: e.marker + " fictional independent reviewer",
+          role: "checker", passwordHash: "synthetic-only-no-login",
+        }).returning({ id: users.id });
+        await db.insert(userOrganizations).values({
+          organizationId: e.org.id, userId: checker.id, role: "checker", active: true,
+        });
+        assert.notEqual(checker.id, e.owner.id, "historical reviewer must not be the loan maker");
         const [loan] = await db.insert(employeeLoans).values({ organizationId: e.org.id, employeeId: e.worker.id, loanType: "Company Emergency Loan",
           referenceNo: e.marker + "-PAUSE", principal: "1500.00", monthlyAmortization: "200.00", cutoffDeduction: "100.00",
           remainingBalance: "1000.00", totalPaid: "500.00", status: "active", requestedByUserId: e.owner.id,
+          reviewedByUserId: checker.id, reviewedAt: new Date("2026-01-05T00:00:00.000Z"),
+          reviewEvidenceReference: e.marker + " fictional independent review evidence",
+          reviewReason: e.marker + " fictitious historical reviewer acceptance",
           deductionAuthorizationReference: e.marker + " fictional historical authority", startDate: "2026-01-05", notes: e.marker + " pause fixture" }).returning();
         await db.insert(loanPayments).values({ loanId: loan.id, amount: "500.00", paymentDate: "2026-01-05", reference: e.marker + " fictional historical receipt" });
         return loan;
@@ -68,6 +83,11 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
         const old = before.loans.find(row => row.id === c.seeded.id), row = after.loans.find(row => row.id === c.seeded.id);
         assert.ok(old && row); assert.equal(old.organizationId, c.orgId); assert.equal(row.organizationId, c.orgId); assert.equal(row.employeeId, c.workerId);
         assert.equal(old.status, "active"); assert.equal(row.status, "paused"); assert.equal(row.referenceNo, c.marker + "-PAUSE");
+        assert.equal(old.requestedByUserId, c.owner.id);
+        assert.ok(Number.isSafeInteger(old.reviewedByUserId) && old.reviewedByUserId > 0 && old.reviewedByUserId !== c.owner.id,
+          "historical active loan must have a distinct recorded fictional reviewer");
+        assert.ok(old.reviewedAt && old.reviewEvidenceReference?.includes(c.marker),
+          "fictional reviewer timestamp and source reference must be retained");
         const withoutStatus = ({ status: _status, ...fields }) => fields;
         assert.deepEqual(withoutStatus(row), withoutStatus(old)); assert.deepEqual(after.loans.filter(item => item.id !== row.id), before.loans.filter(item => item.id !== row.id));
         assert.ok(before.payments.some(item => item.payment.loanId === row.id && item.payment.amount === "500.00"), "existing fictional repayment evidence must be retained");
