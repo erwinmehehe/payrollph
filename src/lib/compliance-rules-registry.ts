@@ -33,7 +33,7 @@ function normalizedRegion(region: string | null | undefined) {
 /** Never let an impossible date select (or hide) a statutory rule by string ordering. */
 function validIsoCalendarDate(value: unknown): value is string {
   if (typeof value !== "string") return false;
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
   const year = Number(match[1]);
   const month = Number(match[2]);
