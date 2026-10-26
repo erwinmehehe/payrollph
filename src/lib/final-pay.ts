@@ -1,6 +1,6 @@
 import { annualize } from "@/lib/annualization";
 import { round2 } from "@/lib/round";
-import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
+import { storedMoneyCentavos, verifiedPesosFromCentavos } from "@/lib/stored-money-centavos";
 import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { finalPaySignedBalance } from "./final-pay-signed-balance";
@@ -273,5 +273,5 @@ export function unresolvedFinalPayMandatoryShortfall(input: {
   // Use exact centavo integers; also reject overflow in intermediate sums.
   const shortfallCents = statutoryCents - grossCents - taxCents;
   if (!Number.isSafeInteger(shortfallCents)) return null;
-  return Math.max(0, shortfallCents) / 100;
+  return verifiedPesosFromCentavos(Math.max(0, shortfallCents));
 }
