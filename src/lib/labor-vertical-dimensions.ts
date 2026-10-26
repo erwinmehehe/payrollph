@@ -42,3 +42,29 @@ export function normalizeLaborVerticalDimensions(raw: unknown): LaborVerticalDim
 export function laborVerticalDimensionValues(raw: LaborVerticalDimensions | null | undefined): string[] {
   return LABOR_VERTICAL_DIMENSION_KEYS.map(key => raw?.[key] ?? "");
 }
+
+/**
+ * Only employee allocations effective at this run's costing date may change
+ * its journal CSV contract. A future, expired, or unrelated employee's tag must
+ * never add columns to an older export that was still legacy-shaped.
+ */
+export function journalRequiresVerticalDimensionColumns(input: {
+  allocations: ReadonlyArray<{
+    employeeId: number;
+    effectiveFrom: string;
+    effectiveUntil: string | null;
+    verticalDimensions: unknown;
+  }>;
+  employeeIds: ReadonlySet<number>;
+  asOf: string;
+}): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.asOf)) {
+    throw new Error("Journal costing date must be an ISO date.");
+  }
+  return input.allocations.some((row) =>
+    input.employeeIds.has(row.employeeId)
+    && row.effectiveFrom <= input.asOf
+    && (!row.effectiveUntil || input.asOf <= row.effectiveUntil)
+    && normalizeLaborVerticalDimensions(row.verticalDimensions) !== null,
+  );
+}
