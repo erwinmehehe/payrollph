@@ -49,7 +49,7 @@ export function createRows({ approvalDelegations, asc, assert, db, eq, organizat
       assert.deepEqual([...after[0].enabledModules].sort(), [...c.seeded, "spend"].sort(), "the own module list gains exactly spend");
     } },
   { key: "POST delegations", status: 201,
-    seed: async (e) => { const [member] = await db.insert(users).values({ name: e.marker + " delegate", email: e.marker.toLowerCase() + "-delegate@example.invalid", passwordHash: "fictional-no-password-login", role: "owner" }).returning(); await db.insert(userOrganizations).values({ userId: member.id, organizationId: e.org.id, role: "owner", active: true }); return member; },
+    seed: async (e) => { const [member] = await db.insert(users).values({ name: e.marker + " delegate", email: e.marker.toLowerCase() + "-delegate@example.invalid", passwordHash: "fictional-no-password-login", role: "owner", totpEnabled: true }).returning(); await db.insert(userOrganizations).values({ userId: member.id, organizationId: e.org.id, role: "owner", active: true }); return member; },
     state: (orgId) => db.select().from(approvalDelegations).where(eq(approvalDelegations.organizationId, orgId)).orderBy(asc(approvalDelegations.id)),
     ownBody: (c) => ({ organizationId: c.orgId, fromApprover: c.owner.name, toApprover: c.seeded.name, startsOn: "2026-01-01", endsOn: "2026-12-31", reason: c.marker }),
     foreignBody: (c) => ({ organizationId: c.victim.org.id, fromApprover: c.victim.owner.name, toApprover: c.victimSeeded.name, startsOn: "2026-01-01", endsOn: "2026-12-31", reason: c.marker }),
