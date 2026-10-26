@@ -9,6 +9,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import * as s from "../../src/db/schema";
 import { encryptBankAccount } from "../../src/lib/bank-account-crypto";
+import { releasedFixturePeriod } from "./tenant-dl01-fixture-periods.mjs";
 
 export const BASE = process.env.DL01_PROOF_URL ?? "";
 export const METHODS = Object.freeze([
@@ -87,7 +88,9 @@ async function run(e, suffix) {
   const [record] = await db.insert(s.payrollRuns).values({
     organizationId: e.org.id, legalEntityId: e.entity.id,
     periodLabel: "DL01 " + e.label + " " + suffix,
-    periodStart: "2026-05-01", periodEnd: "2026-05-15", payDate: "2026-05-16",
+    // Two separately released runs must not overlap within the same employer
+    // and legal entity: PostgreSQL exclusion constraint is intentionally live.
+    ...releasedFixturePeriod(suffix),
     status: "Released", employeeCount: 1, grossPay: "30000.00", netPay: "28000.00",
   }).returning();
   await db.insert(s.payrollEntries).values({

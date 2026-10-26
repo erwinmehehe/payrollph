@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { releasedFixturePeriod } from "../scripts/qa/tenant-dl01-fixture-periods.mjs";
 
 const file = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 const keys = [
@@ -122,4 +123,26 @@ test("DL-01 isolated proof user has narrow, verified checkout permissions", () =
   const firewall = workflow.indexOf('sudo iptables -I OUTPUT 1 -m owner');
   assert.ok(beforeFirewall > 0 && firewall > beforeFirewall,
     "Readability must be demonstrated before the network isolation proof starts");
+});
+
+test("DL-01 fixture uses distinct canonical semi-monthly periods for independently released payout modes", () => {
+  const first = releasedFixturePeriod("PROVIDER");
+  const second = releasedFixturePeriod("MANUAL");
+  assert.deepEqual(first, {
+    periodStart: "2026-05-01", periodEnd: "2026-05-15", payDate: "2026-05-16",
+  });
+  assert.deepEqual(second, {
+    periodStart: "2026-05-16", periodEnd: "2026-05-31", payDate: "2026-06-01",
+  });
+  assert.ok(first.periodEnd < second.periodStart,
+    "The PostgreSQL Released-run exclusion constraint must remain enforced");
+  assert.ok(first.periodStart <= first.periodEnd && second.periodStart <= second.periodEnd);
+  assert.ok(first.payDate > first.periodEnd && second.payDate > second.periodEnd);
+  assert.throws(() => releasedFixturePeriod("VICTIM"), /DL01_UNEXPECTED_RELEASED_FIXTURE_KIND/);
+  assert.throws(() => releasedFixturePeriod(""), /DL01_UNEXPECTED_RELEASED_FIXTURE_KIND/);
+  const shared = file("scripts/qa/tenant-dl01-closure-shared.mjs");
+  assert.match(shared, /\.\.\.releasedFixturePeriod\(suffix\)/,
+    "The real three-employer database fixture must use the tested disjoint periods");
+  assert.match(shared, /status: "Released"/,
+    "Do not avoid the exclusion constraint by downgrading the payroll state");
 });
