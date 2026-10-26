@@ -3,7 +3,7 @@ export const fixtureOrder = {};
 
 export function createRows({ assert, db }) {
   let schema;
-  const tables = async () => (schema ??= await import("../../../../src/db/schema"));
+  const tables = async () => (schema ??= await import("../../../../src/db/schema.ts"));
   const manilaToday = () => {
     const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila",
       year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
