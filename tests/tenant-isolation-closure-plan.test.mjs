@@ -48,15 +48,19 @@ test("current overview headline equals complete live method manifest (frozen bas
 });
 
 test("closure plan schedules every original GAP exactly once in priority order", () => {
-  // The closure plan is a historical 2026-10-21 queue, not a moving
-  // snapshot of current handler line numbers. Its exact Git blob, including
-  // all 406 original source links, is pinned while live source/drift is
-  // separately checked by the method coverage inventory guard.
-  const frozenPlanBlob = createHash("sha1")
-    .update("blob " + Buffer.byteLength(plan) + "\0" + plan)
+  // Freeze the original 12 batch headings and 406 method/source links,
+  // including their order and historical coordinates. Status commentary and
+  // a separately labeled live reconciliation may evolve without modifying
+  // the method-level 2026-10-21 security closure contract.
+  const frozenQueue = plan.split("\n").filter((line) =>
+    /^### Batch [A-Z0-9-]+ — .+ \(\d+ methods; phase [1-6]\)$/.test(line) ||
+    /^- `(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) \/api\/[^`]+` — \[source\]\(\.\.\/\.\.\/src\/app\/api\/[^)]+#L\d+\)$/.test(line),
+  ).join("\n") + "\n";
+  const frozenQueueBlob = createHash("sha1")
+    .update("blob " + Buffer.byteLength(frozenQueue) + "\0" + frozenQueue)
     .digest("hex");
-  assert.equal(frozenPlanBlob, "bd93253b602f02760ac434a7b387cbc56a8ae351",
-    "The frozen 406-method closure queue and its source links must not change");
+  assert.equal(frozenQueueBlob, "f6c62dd9d155677d2a920140d0a28093ebb18976",
+    "The frozen 12-batch, 406-method/source-link queue must not change");
   const current = allMethods();
   const headers = [...plan.matchAll(/^### Batch ([A-Z0-9-]+) — .+ \(([0-9]+) methods; phase ([1-6])\)$/gm)];
   assert.equal(headers.length, 12, "12 numbered baseline closure PR batches expected");
