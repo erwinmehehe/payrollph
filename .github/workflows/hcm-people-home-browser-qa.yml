@@ -16,6 +16,7 @@ on:
       - "src/components/workspace/people.tsx"
       - "scripts/hcm-people-home-synthetic-*.ts"
       - "scripts/hcm-people-home-synthetic-*.mjs"
+      - "scripts/qa/hcm-people-home-page-http.mjs"
       - ".github/workflows/hcm-people-home-browser-qa.yml"
   workflow_dispatch:
 
