@@ -7,6 +7,7 @@ This source candidate extends the **existing** percentage/hour-based employee la
 - The same validated labels flow to the resolved allocation, centavo-conserving expense splits, audit metadata and ledger CSV. Debit and credit/payable lines carry empty labels if not attributable; expense splits preserve the source dimensions.
 - Existing journal headers remain unchanged for old data. Additional nine CSV columns appear **only if at least one stored allocation has new vertical labels**, because downstream Xero/QBO import mapping requires explicit review.
 - No existing release/payroll/job mutation is performed by the code-writing action in this PR.
+- The separate fictional two-attacker PG16 tenant-table test exercises all three POST actions (create cost center, GL mapping, effective-dated allocation) and the modified GET's actual returned tags. It requires own success, real higher-ID victim denial, forged worker/cost-center denial, and unchanged victim payroll/audit data; **only an exact-head passing run can substantiate its provisional manifest entry**.
 
 ## Review and go-live gates
 
