@@ -1,8 +1,8 @@
 # Merged family evidence reconciliation — 2026-10-26
 
-Recorded baseline: **257 COVERED / 228 GAP / 10 PUBLIC-BY-DESIGN**, 495 API methods.
+Current main baseline (including merged #1409): **260 COVERED / 225 GAP / 10 PUBLIC-BY-DESIGN**, 495 API methods.
 This review adds **three distinct provisional method credits**, producing
-**260 COVERED / 225 GAP / 10 PUBLIC-BY-DESIGN**. The 18 page/action GAPs are unchanged.
+**263 COVERED / 222 GAP / 10 PUBLIC-BY-DESIGN**. The 18 page/action GAPs are unchanged.
 This is source-pinned synthetic evidence, not blanket tenant-isolation acceptance.
 Until this reconciliation PR merges, main still records the baseline counts.
 
@@ -47,9 +47,10 @@ point at actual own/foreign HTTP calls and unchanged-victim DB assertions.
 | POST developer | GAP: revoke key only; issuance/webhook/other actions missing. |
 | POST automation-studio | GAP: acknowledge only; other configuration/execution actions missing. |
 
-There are **14 tested methods across these two merged PRs**, but **only 3 new
-method credits**. #1409 is still open and its three provisional policy credits are
-not included; #1402, #1418 and #1419 are also excluded. No test count, open-PR
+There are **14 tested methods across the two reviewed families**, but **only 3 new
+method credits** in this PR. The three distinct #1409 Workforce credits are already
+present in main and are preserved without double-counting. Other independently
+scoped batches and unfinished PR evidence are not included. No test count, open-PR
 receipt, duplicate row or successful partial action increases these totals.
 
 ## Reproduce and review
