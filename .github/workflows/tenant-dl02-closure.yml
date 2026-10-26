@@ -74,7 +74,6 @@ jobs:
           echo 'PUNCH_DEVICE_HASH_KEY=ci-fictional-punch-device-hash-key-000000' >> "$GITHUB_ENV"
           echo 'MALWARE_SCAN_URL=https://127.0.0.1:8443/scan' >> "$GITHUB_ENV"
           echo 'MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only' >> "$GITHUB_ENV"
-          echo 'NODE_EXTRA_CA_CERTS=/tmp/tenant-dl02-scanner.crt' >> "$GITHUB_ENV"
       - run: npm run db:push
       - name: Apply disposable baseline SQL only
         run: node scripts/qa/apply-isolated-baseline.mjs
@@ -87,7 +86,7 @@ jobs:
           node --check scripts/qa/tenant-dl02-rows/self-photo.mjs
           node --check scripts/qa/tenant-dl02-rows/web-bundy.mjs
           node --check scripts/qa/tenant-dl02-rows/demand-import.mjs
-          node --test tests/tenant-isolation-coverage-inventory.test.mjs
+          node --test tests/tenant-isolation-coverage-inventory.test.mjs tests/tenant-dl02-closure-source.test.mjs
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test
@@ -102,6 +101,7 @@ jobs:
             -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
           cp /tmp/tenant-dl02-scanner.key /tmp/tenant-ci-scanner.key
           cp /tmp/tenant-dl02-scanner.crt /tmp/tenant-ci-scanner.crt
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-dl02-scanner.crt
           nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs \
             > /tmp/dl02-scanner.log 2>&1 &
           for attempt in {1..15}; do
