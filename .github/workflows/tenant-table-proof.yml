@@ -85,13 +85,13 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Prepare existing SQL-only HCM work-item events in the empty disposable database
         run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
-      - run: npm run build
       - name: Preseed two attackers, the higher-ID victim and an excluded employer before server startup
         if: matrix.profile == 'allowlisted-reads'
         run: npx tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
       - name: Validate allowlist source contracts without database or service requests
         if: matrix.profile == 'allowlisted-reads'
         run: node --test tests/tenant-allowlist-reads.test.mjs
+      - run: npm run build
       - name: Start isolated production-mode localhost server
         shell: bash
         run: |
