@@ -97,11 +97,14 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  // A scoped payroll operator cannot inherit company-wide finance data from
-  // an invalid/missing organizational unit.
+  // Reject contradictory or invalid access scopes before any labor-costing
+  // database reads, including company-wide scopes with a non-null unit.
   const scopedUnitId = access.orgUnitId;
-  if (!access.companyWide && (typeof scopedUnitId !== "number"
-    || !Number.isSafeInteger(scopedUnitId) || scopedUnitId <= 0)) {
+  const validCompanyWide = access.companyWide === true && scopedUnitId === null;
+  const validUnitScope = access.companyWide === false
+    && typeof scopedUnitId === "number"
+    && Number.isSafeInteger(scopedUnitId) && scopedUnitId > 0;
+  if (!validCompanyWide && !validUnitScope) {
     return Response.json({ error: "A verified organizational unit is required." },
       { status: 403, headers: { "Cache-Control": "private, no-store" } });
   }
