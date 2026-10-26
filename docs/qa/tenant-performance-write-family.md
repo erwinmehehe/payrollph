@@ -22,14 +22,17 @@ The user subsequently requested starting the first family now. This family uses
 the already-working shared runner's explicit pay-profile fixtures; its branch
 is directly based on main and does not depend on #1392's code.
 
-Current Performance rows remain GAP. Link-only refresh skips pending rows and
-cannot credit them; a regression proves counts/statuses are unchanged. This lets
-real CI execute uncredited rows before the full credit command is used. Refresh
-only updates existing proof links, including the moved original development-plan
-row. Curated proof ownership is retained.
+PR #1393 merged after real HTTP/PostgreSQL acceptance on exact head
+`296ca9582d34f44b088f759d1506eccb5f60773e`, but its three manifest rows were
+still GAP. [Run 40192690047](https://github.com/erwinmehehe/payrollph/actions/runs/40192690047)
+passed default, multi-entity and flagged-reads profiles. The default write job
+121166880853 recorded 16 rows, 32 own/foreign pairs, 16 discriminating proofs,
+14 forged-reference proofs and unchanged victim database state. These include
+the three Performance methods, not 16 newly recovered methods.
 
-Before credit or merge: all three real HTTP/PostgreSQL profiles must pass on the
-current source. Then generate/review these three credits and their executed run
-receipt in this same PR, update this evidence state and the pending-status test,
-and require fresh CI on the final head. No global tenant-isolation certification,
-production payroll, provider execution or statutory approval is implied.
+The People/platform follow-up reconciles exactly these three executed credits
+using repeated `--only-key` selectors. Its 12 new methods remain GAP until their
+own HTTP proof passes. Link refresh preserves curated proof ownership and cannot
+credit pending rows. Fresh acceptance is required after source or credit changes.
+No global tenant-isolation certification, production payroll, provider execution
+or statutory approval is implied.
