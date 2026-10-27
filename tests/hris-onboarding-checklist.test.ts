@@ -189,6 +189,7 @@ test("onboarding directory search recognizes unaccented names without changing t
       .map(group => group.employee.id), [77], query);
   }
   assert.deepEqual(filterOnboardingChecklistGroups(groups, "foreign", "all"), []);
-  assert.equal(groups[0]?.employee.firstName, "José", "displayed name is never rewritten");
+  assert.equal(groups.find((group) => group.employee.id === 77)?.employee.firstName, "José",
+    "displayed name is never rewritten");
   assert.equal(JSON.stringify({ authorized, source }), before, "search is read-only");
 });
