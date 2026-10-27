@@ -105,3 +105,25 @@ test("page, API and workspace preserve selected employer and have no mutation au
   assert.ok(app.includes('"/hcm/manager-direct-reports?organizationId=" + data.selectedOrganization.id'));
   assert.ok(app.includes("Assigned unit directory"));
 });
+
+test("Manager My Team return, retry and pagination links have 44px touch targets and keyboard focus", () => {
+  const page = readFileSync("src/app/hcm/manager-direct-reports/page.tsx", "utf8");
+  const links = [
+    ["employer-return", /<Link\s+href=\{"\/app\?organizationId=" \+ organizationId\}\s+className="([^"]+)"/],
+    ["source-retry", /<Link href=\{href\(organizationId\)\} className="([^"]+)"/],
+    ["first-page", /<Link href=\{href\(organizationId\)\}\s+className="([^"]+)"/],
+    ["next-page", /<Link href=\{href\(organizationId, data\.page\.nextCursor\)\}\s+className="([^"]+)"/],
+  ] as const;
+  for (const [label, expression] of links) {
+    const classes = page.match(expression)?.[1];
+    assert.ok(classes, label + " must remain an actual source link");
+    assert.match(classes, /\bmin-h-11\b/, label + " must offer a 44px minimum touch target");
+    assert.match(classes, /\binline-flex\b/, label + " must size its clickable surface");
+    assert.match(classes, /\bfocus-visible:outline-2\b/, label + " must show visible keyboard focus");
+    assert.match(classes, /\bfocus-visible:outline-offset-2\b/, label + " focus must not blend into its border");
+  }
+  assert.match(page, /<nav aria-label="Direct-report pages"/,
+    "Pagination keeps its accessible landmark");
+  assert.match(page, /data\.page\.hasMore && data\.page\.nextCursor/,
+    "Never weaken source-verified pagination eligibility");
+});
