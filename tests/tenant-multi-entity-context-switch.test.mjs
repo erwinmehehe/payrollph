@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createRows } from "../scripts/qa/tenant-table-rows/write/multi-entity-context-switch.mjs";
+import { verifyReceipt } from "../scripts/qa/tenant-legal-employer-admin-receipt.mjs";
 
 const [row] = createRows({ assert, pool: {}, db: {}, eq: () => {}, asc: () => {}, auditEvents: {}, auditBusinessSnapshot: x => x });
 const own = {
@@ -99,11 +100,14 @@ test("production PATCH still uses membership/grant selector reconciliation and a
   assert.match(policy, /decideEntityAccess\(/);
 });
 
-test("PATCH context is an inventoried GAP; this proof cannot silently grant credit", () => {
+test("PATCH context credit is bound to the executed five-method receipt", () => {
+  const receipt = verifyReceipt();
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const methods = manifest.allApiRouteFiles["src/app/api/multi-entity/context/route.ts"].methods;
   const patch = methods.find(x => x.name === "PATCH");
   assert.ok(patch, "PATCH method must exist in source inventory");
-  assert.equal(patch.status, "GAP");
-  assert.equal(patch.testedBy ?? null, null, "prior accepted method-level evidence remains absent");
+  assert.equal(patch.status, "COVERED");
+  assert.equal(patch.testedBy.postgresMajor, receipt.postgresMajor);
+  assert.ok(patch.testedBy.evidence.includes(receipt.runLabel));
+  assert.equal(patch.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/multi-entity-context-switch.mjs");
 });
