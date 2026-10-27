@@ -91,6 +91,10 @@ jobs:
         run: |
           node --check scripts/qa/tenant-dl01-vault-http.mjs
           node --test tests/tenant-dl01-vault-source.test.mjs
+      - name: Pin WRK-01 self-availability GET/POST fictional tenant proof contract
+        run: |
+          node --check scripts/qa/tenant-self-availability-http.mjs
+          node --test tests/tenant-self-availability-source.test.mjs
       - name: Trace 34 client-ID routes; guard all 489 methods; pin 20 pages
         run: |
           node --check scripts/qa/tenant-delegated-trace.mjs
@@ -130,6 +134,8 @@ jobs:
           PAYROLL_CALCULATION_HISTORY_ENABLED: "true"
           # Only the disposable localhost three-employer HTTP fixture; never deployed.
           HCM_GOVERNANCE_READINESS_ENABLED: "true"
+          # Isolated PG16 localhost server only; deployed availability stays OFF.
+          WFM_EMPLOYEE_AVAILABILITY_ENABLED: "true"
           BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
           PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
           XENDIT_PAYOUT_CALLBACK_TOKEN: "ci-fake-xendit-payout-callback"
@@ -182,6 +188,9 @@ jobs:
         env:
           CI: "true"
           TENANT_SECOND_PASS_MODE: isolated-ci-only
+          TENANT_SELF_AVAILABILITY_PROOF: isolated-ci-only
+          # Explicit proof witness; only the test step sees this assertion flag.
+          WFM_EMPLOYEE_AVAILABILITY_ENABLED: "true"
           # Match the isolated server flag for positive seeded F-04 SQL evidence.
           PAYROLL_CALCULATION_HISTORY_ENABLED: "true"
           TENANT_DL01_VAULT_PROOF: isolated-ci-only
