@@ -365,7 +365,8 @@ export async function verifyHolidayCalendarTenantIsolation() {
           probe.status, forbidden, actor.label + ": " + probe.label);
       }
       const ownCreatedId = await exerciseOwnCycle(request, db, s, actors, national, i);
-      assert.ok(ownCreatedId < victim.org.id + 1000000000, "own positive must return valid numeric ID");
+      assert.ok(Number.isSafeInteger(ownCreatedId) && ownCreatedId > actor.busy.id,
+        "own positive must create a new persisted holiday after fixture rows");
       const after = await makeSnapshots(db, s, actors, national);
       assertHolidayUnchanged(baselineVictim, after.actors[2],
         actor.label + ": independent attacker operations must never change victim DB");
