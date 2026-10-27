@@ -10,6 +10,8 @@ on:
     paths:
       - '.github/workflows/tenant-table-proof.yml'
       - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-offline-claims-*.mjs'
+      - 'tests/tenant-offline-claims-*.test.mjs'
       - 'scripts/qa/tenant-read-recovery-*.mjs'
       - 'scripts/qa/tenant-legal-employer-*.mjs'
       - 'tests/tenant-legal-employer-*.test.mjs'
@@ -74,6 +76,12 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Validate offline-claim response contracts and negative controls
+        if: matrix.profile == 'flagged-reads'
+        run: |
+          node --check scripts/qa/tenant-offline-claims-contract.mjs
+          node --check scripts/qa/tenant-offline-claims-http.mjs
+          node --test tests/tenant-offline-claims-contract.test.mjs
       - name: Export the disposable profile environment (single source shared with the local runner)
         run: node scripts/qa/tenant-table-env.mjs "${{ matrix.profile }}" >> "$GITHUB_ENV"
       - name: Ephemeral encryption keys for disposable CI only
