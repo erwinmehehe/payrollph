@@ -119,6 +119,7 @@ async function seed() {
         )).returning();
         const peerSelf = await createEmployeeLogin(e.org.id, peer.id, e.marker, "peer");
         employers[0].peer = {
+          label: "ATTA-PEER", marker: e.marker + "-PEER",
           orgId: e.org.id, workerId: peer.id, profileId: peerProfile.id,
           payBasis: "monthly", monthlyBasic: 97300, mwe: false, ...peerSelf,
         };
@@ -183,7 +184,8 @@ async function prove() {
     const rows = table => db.select().from(table)
       .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
     const [orgs, staff, payProfiles, payroll, entries, audit, memberships] = await Promise.all([
-      rows(s.organizations), rows(s.employees), rows(s.employeePayProfiles),
+      db.select().from(s.organizations).where(eq(s.organizations.id, orgId)),
+      rows(s.employees), rows(s.employeePayProfiles),
       rows(s.payrollRuns), rows(s.payrollEntries), rows(s.auditEvents),
       rows(s.userOrganizations),
     ]);
