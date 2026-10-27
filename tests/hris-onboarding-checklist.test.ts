@@ -175,3 +175,21 @@ test("onboarding refresh errors and stale-state warnings remain visible without 
   assert.equal((board.match(/role="alert"/g) ?? []).length, 1);
   assert.ok(board.includes("Could not reload the onboarding snapshot. Try again."));
 });
+
+test("onboarding directory search recognizes unaccented names without changing task scope", () => {
+  const authorized = [
+    { id: 77, employeeNo: "PH-Á77", firstName: "José", lastName: "Peña", status: "Active" },
+    { id: 78, employeeNo: "PH-078", firstName: "Ana", lastName: "Cruz", status: "Active" },
+  ];
+  const source = [task(770, 77), task(780, 78), task(999, 999)];
+  const groups = buildOnboardingChecklistGroups(authorized, source);
+  const before = JSON.stringify({ authorized, source });
+  for (const query of ["jose", "PENA, JOSE", "pena jose", "PH-A77", "José Peña"]) {
+    assert.deepEqual(filterOnboardingChecklistGroups(groups, query, "open")
+      .map(group => group.employee.id), [77], query);
+  }
+  assert.deepEqual(filterOnboardingChecklistGroups(groups, "foreign", "all"), []);
+  assert.equal(groups.find((group) => group.employee.id === 77)?.employee.firstName, "José",
+    "displayed name is never rewritten");
+  assert.equal(JSON.stringify({ authorized, source }), before, "search is read-only");
+});

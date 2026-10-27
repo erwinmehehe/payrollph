@@ -86,8 +86,8 @@ jobs:
         run: npm run build
       - name: Install disposable Chromium tooling
         run: |
-          npm install --no-save --package-lock=false playwright
-          npx playwright install --with-deps chromium
+          npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
       - name: Run localhost-only scanner and dev app (no deployed target)
         run: |
           NODE_ENV=development node scripts/ess-profile-synthetic-scanner.mjs > /tmp/ess-profile-scanner.log 2>&1 &

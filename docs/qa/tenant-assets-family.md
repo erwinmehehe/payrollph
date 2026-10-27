@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-This independent, new-file-only regression batch targets `src/app/api/assets/route.ts`,
+This focused, independent regression batch targets `src/app/api/assets/route.ts`,
 which had no open PR for its asset-custody family at authoring time. **The live
 coverage manifest already marked all four methods COVERED before this PR.**
 The earlier GAP claim came from an outdated source-inventory snapshot, not
@@ -23,6 +23,17 @@ unchanged victim business rows and audit trail. The write runner additionally
 snapshots the victim's **entire asset table state**, not just the requested ID.
 No `404` on invented IDs, feature-disabled `404`, empty response or anonymous
 `401` is accepted as a successful isolation proof.
+
+## Post-merge queue reconciliation (not asset credits)
+
+PR #1456 has merged and the authoritative manifest already marks
+`GET attendance/offline-claims` **COVERED**. The new GAP batch factory,
+merged separately as #1457, still carried #1456 as an `open-proof`
+reservation and correctly failed closed. This PR removes only that obsolete
+ledger entry, retaining the two uncredited `self/availability` methods
+reserved for #1455. The planner's strict rejection of non-GAP reservations
+remains unchanged. **This cleanup creates no coverage credit, modifies no
+manifest entry and does not expand the assets-specific isolation proof.**
 
 ## Execution and acceptance
 

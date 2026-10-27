@@ -147,7 +147,7 @@ jobs:
       - name: Install pinned Chromium for end-to-end verification
         run: |
           npm install --no-save --ignore-scripts playwright@1.55.0
-          npx playwright install --with-deps chromium
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start synthetic-only HTTPS loopback transport
         shell: bash
         run: |

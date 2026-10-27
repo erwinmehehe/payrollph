@@ -2,7 +2,44 @@ name: Reimbursement Component Acceptance (No Money)
 on:
   pull_request:
     paths:
-      - 'src/**'
+      - 'src/components/wallet-panel.tsx'
+      - 'src/components/spend-operations-panel.tsx'
+      - 'src/components/linaw-workspace.tsx'
+      - 'src/components/workspace/**'
+      - 'src/components/*.css'
+      - 'src/components/**/*.css'
+      - 'src/lib/expense-*.ts'
+      - 'src/lib/spend-*.ts'
+      - 'src/lib/scoped-employee-directory.ts'
+      - 'src/lib/*receipt*.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/api-auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/roles.ts'
+      - 'src/lib/organization-auth-policy.ts'
+      - 'src/lib/enterprise-session.ts'
+      - 'src/lib/tenant-*.ts'
+      - 'src/lib/multi-entity-*.ts'
+      - 'src/lib/security-*.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'src/proxy.ts'
+      - 'src/middleware.ts'
+      - 'src/app/api/expenses/**'
+      - 'src/app/api/spend/**'
+      - 'src/app/api/employees/**'
+      - 'src/app/api/auth/**'
+      - 'src/app/app/**'
+      - 'src/app/workspace/**'
+      - 'src/app/login/**'
+      - 'src/app/**/layout.tsx'
+      - 'src/app/*.css'
+      - 'src/app/**/*.css'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - 'tsconfig.json'
       - 'tests/spend*'
       - 'tests/fixtures/spend-reimbursement-browser.jsx'
       - 'scripts/qa/spend*'
@@ -38,8 +75,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/qa/spend-flag-off-parity.mjs
-      - run: npm install --no-save --package-lock=false playwright@1.62.1
-      - run: npx playwright install --with-deps chromium
+      - run: npm install --no-save --ignore-scripts --package-lock=false playwright@1.62.1
+      - run: timeout 240s npx playwright install --only-shell chromium
       - run: node scripts/qa/spend-browser.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

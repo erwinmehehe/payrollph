@@ -125,3 +125,135 @@ test("public intake routes and the proposal SQL only run the intake suite", () =
     "docs/engineering/migration-proposals/careers-published.sql",
   ]) assert.deepEqual(workflowsForFile(path), intake, path);
 });
+
+test("browser acceptance installs version-pinned headless Chromium without Ubuntu apt updates", () => {
+  const browserWorkflows = [
+      "employee-import-browser-acceptance.yml",
+      "core-modules-browser-acceptance.yml",
+      "ess-profile-browser-acceptance.yml",
+      "spend-reimbursement-ui.yml",
+      "nav-runtime-sweep.yml",
+      "preview-browser-qa.yml",
+      "multi-entity-browser-qa.yml",
+      "hcm-process-monitor-browser-qa.yml",
+      "employee-vault-profile-browser-acceptance.yml"
+  ];
+  for (const filename of browserWorkflows) {
+    const source = readWorkflow(filename);
+    const installLine = source.split("\n").find(line => line.includes("npm install --no-save") && line.includes("playwright@"));
+    assert.ok(installLine, filename + ": missing pinned Playwright installation");
+    assert.ok(installLine.includes("--ignore-scripts"), filename + ": lifecycle scripts must remain disabled");
+    assert.match(installLine, /playwright@[0-9]+[.][0-9]+[.][0-9]+/, filename + ": Playwright version must be pinned");
+    assert.match(source, /timeout 240s npx playwright install --only-shell chromium/, filename + ": cap Chromium-only download");
+    assert.doesNotMatch(source, /playwright install --with-deps/, filename + ": avoid apt mirrors on stock GitHub runners");
+  }
+});
+
+test("Spend component browser runs for its real dependencies, not every source edit", () => {
+  const source = readWorkflow("spend-reimbursement-ui.yml");
+  const from = source.indexOf("\n  pull_request:\n");
+  const to = source.indexOf("\n  workflow_dispatch:\n", from);
+  assert.ok(from >= 0 && to > from, "Spend PR event and manual dispatch must remain present");
+  const eventBlock = source.slice(from, to);
+  const paths = [...eventBlock.matchAll(/^      - '([^']+)'$/gm)].map(match => match[1]);
+  assert.ok(paths.length > 0 && !paths.includes("src/**"), "Spend needs narrower PR paths");
+  const runsFor = path => paths.some(pattern => matchGlob(pattern, path));
+  for (const path of [
+    "src/components/wallet-panel.tsx",
+    "src/lib/expense-claim-communication.ts",
+    "src/lib/scoped-employee-directory.ts",
+    "src/app/api/expenses/route.ts",
+    "src/app/api/employees/import/route.ts",
+    "src/app/globals.css",
+    "src/lib/auth.ts",
+    "src/db/schema.ts",
+    "package-lock.json",
+    "src/components/linaw-workspace.tsx",
+    ".github/workflows/spend-reimbursement-ui.yml",
+    "tests/fixtures/spend-reimbursement-browser.jsx",
+  ]) assert.ok(runsFor(path), "missing Spend trigger for " + path);
+  for (const path of [
+    "README.md",
+    "docs/qa/unrelated.md",
+    "src/app/hcm/business-processes/page.tsx",
+    "src/app/api/wfm/schedules/route.ts",
+    "src/lib/hcm-business-process-read.ts",
+    ".github/workflows/ci.yml",
+    "tests/other.test.ts",
+  ]) assert.equal(runsFor(path), false, "irrelevant Spend trigger " + path);
+});
+
+test("Employee Vault synthetic browser includes the higher-ID victim employer required by the shared fixture", () => {
+  const workflow = readWorkflow("employee-vault-profile-browser-acceptance.yml");
+  const fixture = readFileSync(new URL("../scripts/hcm-people-home-synthetic-fixture.ts", import.meta.url), "utf8");
+  assert.match(workflow, /^      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"$/m,
+    "The fixture seeds three distinct employers; the vault QA must enable the real victim too");
+  assert.match(workflow, /npx tsx scripts\/hcm-people-home-synthetic-fixture\.ts/,
+    "Vault job must keep running the shared synthetic tenant fixture");
+  assert.match(fixture, /assert\.equal\(process\.env\.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3"\)/,
+    "Keep the declared allowlist consistent with the fixture's fail-closed scope");
+  assert.match(fixture, /assert\.ok\(victim\.id > beta\.id && victimWorker\.id > betaSecond\.id/,
+    "The foreign employer and its worker must remain independently seeded higher-ID victims");
+});
+
+test("Core Modules browser authenticates each flag server independently before asserting role denial", () => {
+  const browser = readFileSync(new URL("../scripts/core-modules-synthetic-browser.mjs", import.meta.url), "utf8");
+  const source = readWorkflow("core-modules-browser-acceptance.yml");
+  assert.match(browser, /const authKey = `\$\{role\}:\$\{state\}`/,
+    "A saved session must belong to one role and one local flag server");
+  assert.match(browser, /roleAuthState\.get\(authKey\)/);
+  assert.match(browser, /roleAuthState\.set\(authKey, await context\.storageState\(\)\)/);
+  assert.doesNotMatch(browser, /roleAuthState\.(?:get|set|has)\(role(?:,|\))/,
+    "Never reuse the flag-OFF server's role-only cookie as proof on flag-ON");
+  assert.match(browser, /totpCode: generateTotp\(/,
+    "Both local servers must use the real MFA login path");
+  assert.match(browser, /const session = await page\.evaluate\(/,
+    "The signed-in principal must be verified using the real browser cookie");
+  assert.match(browser, /fetch\("\/api\/auth\/me"/,
+    "Check the authenticated principal on the current browser origin");
+  assert.match(browser, /assert\.equal\(session\.body\.user\?\.role, role/,
+    "A 401 cannot be mistaken for a valid 403 role denial");
+  assert.match(browser, /const deniedStatus = await page\.evaluate\(/);
+  assert.match(browser, /assert\.equal\(deniedStatus, 403/,
+    "Keep the exact unauthorized-role denial requirement");
+  assert.doesNotMatch(browser, /context\.request\.patch\(base \+ "\/api\/tenant-modules"/,
+    "Never use a separate Node request cookie jar for this browser-denial check");
+  assert.match(browser, /credentials: "same-origin"/,
+    "Browser requests must carry the session cookie for this exact origin");
+  const auth = readFileSync(new URL("../src/lib/auth.ts", import.meta.url), "utf8");
+  assert.match(auth, /secure: process\.env\.NODE_ENV === "production"/,
+    "Test must preserve the production Secure-cookie behavior");
+  assert.match(source, /REQUIRE_PRIVILEGED_MFA: 'true'/);
+  assert.match(source, /CORE_MODULE_NAVIGATION_ENABLED=false npm run start/,
+    "The browser must continue comparing independently configured flag-on and flag-off servers");
+});
+
+test("Employee Import browser checks a real per-server MFA principal before strict role denial", () => {
+  const browser = readFileSync(new URL("../scripts/employee-import-synthetic-browser.mjs", import.meta.url), "utf8");
+  const workflow = readWorkflow("employee-import-browser-acceptance.yml");
+  const route = readFileSync(new URL("../src/app/api/employees/import/route.ts", import.meta.url), "utf8");
+  assert.match(browser, /const authKey = `\$\{role\}:\$\{state\}`/,
+    "Flag-on/off sessions must remain distinct for each fictional role");
+  assert.match(browser, /authenticatedStates\.get\(authKey\)/);
+  assert.match(browser, /authenticatedStates\.set\(authKey, signedInState\)/);
+  assert.doesNotMatch(browser, /authenticatedStates\.(?:get|set)\(role(?:,|\))/,
+    "Never reuse the flag-off cookie for the flag-on role-denial proof");
+  assert.match(browser, /totpCode: generateTotp\(/, "Retain real MFA login");
+  assert.match(browser, /assert\.equal\(login\.status\(\), 200/,
+    "Do not accept failed or throttled authentication");
+  assert.match(browser, /const session = await page\.evaluate\(/);
+  assert.match(browser, /fetch\("\/api\/auth\/me"/);
+  assert.match(browser, /assert\.equal\(session\.body\.user\?\.role, role/);
+  assert.match(browser, /assert\.equal\(session\.body\.user\?\.email, role/);
+  assert.match(browser, /const deniedStatus = await page\.evaluate\(/);
+  assert.match(browser, /fetch\("\/api\/employees\/import"/);
+  assert.match(browser, /credentials: "same-origin"/,
+    "Use the authenticated browser's cookies rather than the Node request jar");
+  assert.match(browser, /assert\.equal\(deniedStatus, 403/,
+    "A missing-authentication 401 must never count as role isolation");
+  assert.doesNotMatch(browser, /context\.request\.post\(base \+ "\/api\/employees\/import"/);
+  assert.match(workflow, /REQUIRE_PRIVILEGED_MFA: 'true'/);
+  assert.match(workflow, /EMPLOYEE_IMPORT_PREVIEW_ENABLED=false npm run start/);
+  assert.match(route, /assertOrganizationRole\(/);
+  assert.match(route, /PEOPLE_ADMIN_ROLES/);
+});

@@ -12,16 +12,17 @@ const fixture = JSON.parse(await readFile("/tmp/build-block-fixture.json", "utf8
 await mkdir("qa-artifacts/employee-import", { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const checkpoints = [];
-// The two local servers share the same disposable Postgres sessions. Authenticate
-// each fictional role once, then reuse the in-memory browser cookie state for
-// the before/after and desktop/phone assertions. Do not change login rate limits.
+// Each role has its own genuine MFA session for each flag-on/flag-off server.
+// Keep those authenticated cookies isolated by role and server, then reuse them
+// only for desktop/phone views. Eight sign-ins stay below the real IP rate limit.
 const authenticatedStates = new Map();
 let page;
 try {
   for (const role of ["owner", "hr", "manager", "employee"]) {
     for (const width of [1280, 390]) {
       for (const [state, port] of [["before", 3001], ["after", 3000]]) {
-        const priorState = authenticatedStates.get(role);
+        const authKey = `${role}:${state}`;
+        const priorState = authenticatedStates.get(authKey);
         const context = await browser.newContext({
           viewport: { width, height: 844 },
           ...(priorState ? { storageState: priorState } : {}),
@@ -29,16 +30,44 @@ try {
         page = await context.newPage();
         const base = `http://127.0.0.1:${port}`;
         if (!priorState) {
-          const login = await context.request.post(base + "/api/auth/login", {
-            headers: { origin: base, "sec-fetch-site": "same-origin" },
-            data: { email: role + "@build-block.example.test", password: "Synthetic-Build-Block-Only-2026!", totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
-          });
-          assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
+          // Preserve the actual login limiter: retry only once for a bounded
+          // server-advertised 429 window, never for credentials or MFA failures.
+          let login;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            login = await context.request.post(base + "/api/auth/login", {
+              headers: { origin: base, "sec-fetch-site": "same-origin" },
+              data: {
+                email: role + "@build-block.example.test",
+                password: "Synthetic-Build-Block-Only-2026!",
+                totpCode: generateTotp("JBSWY3DPEHPK3PXP"),
+              },
+            });
+            if (login.status() !== 429 || attempt === 1) break;
+            const limited = await login.json().catch(() => ({}));
+            const waitMs = Number(limited.retryAfterMs);
+            if (!Number.isFinite(waitMs) || waitMs < 0 || waitMs > 60_000) break;
+            await new Promise(resolve => setTimeout(resolve, Math.max(250, Math.ceil(waitMs) + 250)));
+          }
+          assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass for " + authKey);
           const signedInState = await context.storageState();
           assert.ok(signedInState.cookies.some(cookie => cookie.name.includes("session")), "MFA session cookie must exist");
-          authenticatedStates.set(role, signedInState);
+          authenticatedStates.set(authKey, signedInState);
         }
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
+        // The employee-import denial must be a genuine role-denial, not an
+        // unauthenticated 401 caused by a separate Node API cookie jar.
+        // Confirm the precise signed-in principal on the active browser origin.
+        assert.equal(new URL(page.url()).origin, base, "Browser must remain on the selected flag server");
+        const session = await page.evaluate(async () => {
+          const response = await fetch("/api/auth/me", {
+            credentials: "same-origin", cache: "no-store",
+          });
+          return { status: response.status, body: await response.json() };
+        });
+        assert.equal(session.status, 200, role + " session probe must respond");
+        assert.equal(session.body.user?.role, role, role + " must be signed in on " + state + " server");
+        assert.equal(session.body.user?.email, role + "@build-block.example.test",
+          role + " must be the exact fictional principal on " + state + " server");
         if (["owner", "hr"].includes(role)) {
           // On phone layouts the sidebar remains in the DOM but is translated off-screen.
           // Playwright :visible still matches it, so open the actual mobile drawer first.
@@ -91,8 +120,18 @@ try {
         } else {
           assert.equal(await page.getByRole("region", { name: "Employee CSV import preview" }).count(), 0);
           if (state === "after") {
-            const denied = await context.request.post(base + "/api/employees/import", { headers: { origin: base }, data: { organizationId: fixture.organizationId, action: "preview", csv: importFixtureCsv() } });
-            assert.equal(denied.status(), 403, role + " cannot import");
+            // Use the real browser's same-origin session for the POST, never
+            // the separate Playwright Node request client with Secure cookies.
+            const deniedStatus = await page.evaluate(async ({ organizationId, csv }) => {
+              const response = await fetch("/api/employees/import", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ organizationId, action: "preview", csv }),
+              });
+              return response.status;
+            }, { organizationId: fixture.organizationId, csv: importFixtureCsv() });
+            assert.equal(deniedStatus, 403, role + " cannot import");
           }
         }
         await page.screenshot({ path: `qa-artifacts/employee-import/${role}-${width}-${state}.png`, fullPage: true });

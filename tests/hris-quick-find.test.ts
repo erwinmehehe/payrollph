@@ -82,3 +82,16 @@ test("HR Home quick find uses the selected employer key and existing employee dr
   assert.ok(home.includes("onOpenEmployee?.(employee.id)"));
   assert.ok(!home.includes("fetch("));
 });
+
+test("quick find matches unaccented searches without changing the authorized roster", () => {
+  const authorized: HrisQuickFindEmployee[] = [{
+    id: 31, employeeNo: "PH-Á31", firstName: "José", lastName: "Peña",
+    title: "Crédit Analyst", status: "Active",
+  }];
+  const before = JSON.stringify(authorized);
+  for (const query of ["jose", "PENA JOSE", "PH-A31", "credit analyst", "jose peña"]) {
+    assert.deepEqual(findAuthorizedHrisEmployees(authorized, query).map(row => row.id), [31], query);
+  }
+  assert.deepEqual(findAuthorizedHrisEmployees(employerA, "jose"), []);
+  assert.equal(JSON.stringify(authorized), before, "search must not rewrite employee records");
+});

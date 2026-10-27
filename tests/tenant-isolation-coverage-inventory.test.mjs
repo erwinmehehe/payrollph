@@ -546,8 +546,11 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   assert.ok(bundy.methods.length === 2 && bundy.methods.every((method) => method.status === "GAP"),
     "Web Bundy photo/review response-scoping changes do not prove authorization for GET or POST");
   const offline = manifest.allApiRouteFiles["src/app/api/attendance/offline-claims/route.ts"];
-  assert.ok(offline.methods.every((method) => method.status === "GAP"),
-    "Newly merged offline-attendance scope metadata does not replace own/victim/role HTTP proof");
+  const offlineRead = offline.methods.find((method) => method.name === "GET");
+  assert.equal(offlineRead?.status, "COVERED", "Offline read requires the executed employer-scoped proof");
+  assert.equal(offlineRead?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/read/offline-claims.mjs");
+  assert.ok(offline.methods.filter((method) => method.name !== "GET").every((method) => method.status === "GAP"),
+    "A read proof does not prove submission or review writes");
 });
 
 test("extended three-employer reads and asset writes have checkable method-specific proof", () => {

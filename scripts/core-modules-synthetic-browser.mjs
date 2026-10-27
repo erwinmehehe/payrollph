@@ -11,22 +11,25 @@ const fixture = JSON.parse(await readFile("/tmp/build-block-fixture.json", "utf8
 await mkdir("qa-artifacts/core-modules", { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const checkpoints = [];
-// One real MFA login per synthetic role. Reuse only that role's authenticated
-// cookie in fresh isolated browser contexts: this avoids repeated sign-ins
-// tripping production-equivalent IP rate limits during viewport screenshots.
+// One real MFA login per role AND per flag-on/flag-off server, then reuse it
+// across viewports. Different local origins are independently authenticated;
+// a cookie issued on :3001 must not be relied upon for :3000's role-denial proof.
+// Two sign-ins per role (8 total) stay below the real 10/minute IP limit.
 const roleAuthState = new Map();
 let page;
 try {
   for (const role of ["owner", "hr", "manager", "employee"]) {
     for (const width of [1280, 390]) {
       for (const [state, port] of [["before", 3001], ["after", 3000]]) {
+        const authKey = `${role}:${state}`;
+        const savedAuthState = roleAuthState.get(authKey);
         const context = await browser.newContext({
           viewport: { width, height: 844 },
-          ...(roleAuthState.has(role) ? { storageState: roleAuthState.get(role) } : {}),
+          ...(savedAuthState ? { storageState: savedAuthState } : {}),
         });
         page = await context.newPage();
         const base = `http://127.0.0.1:${port}`;
-        if (!roleAuthState.has(role)) {
+        if (!savedAuthState) {
           // Exercise the actual rate limiter, never disable it. Two Next.js
           // instances share this fixture's PostgreSQL/IP login counter, so
           // a previous screenshot may temporarily exhaust the 60s window.
@@ -49,9 +52,26 @@ try {
             await new Promise(resolve => setTimeout(resolve, Math.max(250, Math.ceil(waitMs) + 250)));
           }
           assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass for role: " + role);
-          roleAuthState.set(role, await context.storageState());
+          roleAuthState.set(authKey, await context.storageState());
         }
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
+        // A 401 is not evidence of authorization denial. Confirm that the
+        // actual session belongs to this role on this exact origin, even
+        // after the app page has rendered, before testing role-based 403.
+        // The production-mode test app sets a Secure, HttpOnly session cookie.
+        // Use the real browser's same-origin fetch (not Playwright's separate
+        // Node API client) for authenticated HTTP checks on loopback HTTP.
+        assert.equal(new URL(page.url()).origin, base, "Browser must remain on the expected local server");
+        const session = await page.evaluate(async () => {
+          const response = await fetch("/api/auth/me", {
+            credentials: "same-origin", cache: "no-store",
+          });
+          return { status: response.status, body: await response.json() };
+        });
+        assert.equal(session.status, 200, role + " session probe must respond");
+        assert.equal(session.body.user?.role, role, role + " must remain signed in on " + state + " server");
+        assert.equal(session.body.user?.email, role + "@build-block.example.test",
+          role + " must be the exact seeded principal on " + state + " server");
         if (role === "owner" && state === "after") {
           const more = page.locator('[data-nav-name="More modules"]:visible').first();
           // CSS keeps the sidebar present in the DOM while translated offscreen on phones.
@@ -87,8 +107,18 @@ try {
         } else {
           assert.equal(await page.locator('[data-nav-name="More modules"]').count(), 0);
           if (state === "after") {
-            const denied = await context.request.patch(base + "/api/tenant-modules", { headers: { origin: base }, data: { organizationId: fixture.organizationId, moduleId: "spend", enabled: true } });
-            assert.equal(denied.status(), 403, role + " cannot enable modules");
+            // Browser fetch carries the real production-mode Secure session,
+            // so an unauthenticated 401 can never satisfy this 403 role check.
+            const deniedStatus = await page.evaluate(async organizationId => {
+              const response = await fetch("/api/tenant-modules", {
+                method: "PATCH",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ organizationId, moduleId: "spend", enabled: true }),
+              });
+              return response.status;
+            }, fixture.organizationId);
+            assert.equal(deniedStatus, 403, role + " cannot enable modules");
           }
         }
         await page.screenshot({ path: `qa-artifacts/core-modules/${role}-${width}-${state}.png`, fullPage: true });

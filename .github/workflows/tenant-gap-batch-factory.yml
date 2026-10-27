@@ -1,0 +1,41 @@
+name: Tenant GAP batch factory (source-only, no DB or money)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-gap-batch-factory.yml"
+      - "scripts/qa/tenant-gap-factory.mjs"
+      - "scripts/qa/tenant-gap-reservations.json"
+      - "tests/tenant-gap-factory.test.mjs"
+      - "scripts/qa/tenant-table-catalog.mjs"
+      - "scripts/qa/tenant-table-loader.mjs"
+      - "scripts/qa/tenant-table-rows/**"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-gap-batch-factory-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  source-only-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Guard deterministic batches and no automatic credits
+        run: |
+          node --check scripts/qa/tenant-gap-factory.mjs
+          node --test tests/tenant-gap-factory.test.mjs
+          node scripts/qa/tenant-gap-factory.mjs --summary
