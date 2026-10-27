@@ -85,3 +85,32 @@ test("effective dates reject rolled-over days while preserving real leap days", 
     assert.deepEqual(readVerifiedHcmBusinessProcessResponse(true, verified, 51), verified);
   }
 });
+
+test("timestamp fields require real calendar days and explicit timezone offsets", () => {
+  const valid = { ...empty, myWork: [work], submitted: [history], recent: [history] };
+  for (const invalid of [
+    "2026-02-30T08:30:00.000Z", "2025-02-29T08:30:00Z",
+    "2026-04-31T08:30:00+08:00", "2026-10-27T24:00:00Z",
+    "2026-10-27T12:60:00Z", "2026-10-27T12:00:60Z",
+    "2026-10-27T12:00:00", "2026-10-27", "1",
+  ]) {
+    assert.equal(readVerifiedHcmBusinessProcessResponse(true, {
+      ...valid, myWork: [{ ...work, dueAt: invalid }],
+    }, 51), null, "dueAt " + invalid);
+    assert.equal(readVerifiedHcmBusinessProcessResponse(true, {
+      ...valid, submitted: [{ ...history, initiatedAt: invalid }],
+    }, 51), null, "initiatedAt " + invalid);
+    assert.equal(readVerifiedHcmBusinessProcessResponse(true, {
+      ...valid, recent: [{ ...history, completedAt: invalid }],
+    }, 51), null, "completedAt " + invalid);
+  }
+  for (const instant of ["2026-10-27T10:15:00.000Z", "2024-02-29T12:00:00+08:00"]) {
+    const read = {
+      ...valid,
+      myWork: [{ ...work, dueAt: instant }],
+      submitted: [{ ...history, initiatedAt: instant }],
+      recent: [{ ...history, completedAt: instant }],
+    };
+    assert.deepEqual(readVerifiedHcmBusinessProcessResponse(true, read, 51), read);
+  }
+});
