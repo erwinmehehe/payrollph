@@ -29,7 +29,7 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
     referenceNo: c.marker + "-REQUEST", deductionAuthorizationReference: c.marker + " fictional source authority",
     principal: "1200.00", monthlyAmortization: "200.00", cutoffDeduction: "100.00", startDate: "2099-01-01", endDate: "2099-12-31", notes: c.marker + " pending only" });
   return [
-    { key: "POST loans", status: 201, state,
+    { key: "POST loans", status: 201, state: state,
       ownBody: c => requestBody(c, c.orgId, c.workerId),
       foreignBody: c => requestBody(c, c.victim.org.id, c.victim.worker.id),
       forged: { status: 409, body: c => requestBody(c, c.orgId, c.victim.worker.id) },
