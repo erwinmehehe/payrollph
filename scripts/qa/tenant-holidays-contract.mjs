@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 
 const sortIds = (xs) => [...xs].sort((a, b) => a - b);
 const protectedTables = Object.freeze([
-  "organization", "employees", "units", "worksites", "payrollRuns",
+  "organization", "employees", "memberships", "units", "worksites", "payrollRuns",
   "payrollEntries", "approvalTasks",
 ]);
 const actionNames = Object.freeze({
