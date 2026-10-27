@@ -4,6 +4,7 @@ import { relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { TENANT_TABLE_PROFILES } from "./tenant-table-env.mjs";
+import { validateTenantPathBinding } from "./tenant-table-path.mjs";
 
 export const FAMILY_ROOT = new URL("./tenant-table-rows/", import.meta.url);
 const nameOf = (property) => property.name?.text ?? property.name?.getText();
@@ -44,7 +45,16 @@ export function tenantFamilyCatalog(kind, root = FAMILY_ROOT) {
       const keyNode = prop(node, "key");
       assert.ok(keyNode && ts.isStringLiteral(keyNode), file + ": method key must be literal");
       const key = keyNode.text;
-      assert.match(key, kind === "read" ? /^GET [a-z0-9/-]+$/ : /^(POST|PATCH|PUT|DELETE) [a-z0-9/-]+$/, file + ": incorrect method identity");
+      assert.match(key, kind === "read" ? /^GET (?:[a-z0-9-]+|\[[A-Za-z][A-Za-z0-9]*\])(?:\/(?:[a-z0-9-]+|\[[A-Za-z][A-Za-z0-9]*\]))*$/ : /^(POST|PATCH|PUT|DELETE) (?:[a-z0-9-]+|\[[A-Za-z][A-Za-z0-9]*\])(?:\/(?:[a-z0-9-]+|\[[A-Za-z][A-Za-z0-9]*\]))*$/, file + ": incorrect method identity");
+      const pathNode = prop(node, "pathIds"); let pathIds;
+      if (pathNode) {
+        assert.ok(ts.isObjectLiteralExpression(pathNode), key + ": path binding must be literal"); pathIds = {};
+        for (const field of pathNode.properties) {
+          assert.ok(ts.isPropertyAssignment(field) && ts.isStringLiteral(field.initializer), key + ": path field must be literal");
+          const name = nameOf(field); assert.ok(!Object.hasOwn(pathIds, name), key + ": duplicate path field"); pathIds[name] = field.initializer.text;
+        }
+      }
+      validateTenantPathBinding(key, pathIds);
       const profileNode = prop(node, "profile");
       assert.ok(!profileNode || ts.isStringLiteral(profileNode), key + ": profile must be literal");
       const profile = profileNode?.text ?? "default";
@@ -57,7 +67,7 @@ export function tenantFamilyCatalog(kind, root = FAMILY_ROOT) {
         return flag.text;
       });
       const line = ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1;
-      records.push({ key, kind, profile, flags, file, url, line, text: node.getText(ast), order: order.get(key) ?? Number.MAX_SAFE_INTEGER });
+      records.push({ key, kind, profile, flags, pathIds, file, url, line, text: node.getText(ast), order: order.get(key) ?? Number.MAX_SAFE_INTEGER });
     }
     for (const key of order.keys()) assert.ok(records.some((r) => r.file === file && r.key === key), file + ": stale fixture order key " + key);
   }
