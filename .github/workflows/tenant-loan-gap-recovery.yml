@@ -23,6 +23,12 @@ on:
 permissions:
   contents: read
 
+# Supersede only earlier attempts for this same PR. Distinct PRs and
+# protected/main runs must never cancel each other's test evidence.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   fictional-pg16-http:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
