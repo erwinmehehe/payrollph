@@ -58,11 +58,19 @@ try {
         // A 401 is not evidence of authorization denial. Confirm that the
         // actual session belongs to this role on this exact origin, even
         // after the app page has rendered, before testing role-based 403.
-        const sessionResponse = await context.request.get(base + "/api/auth/me");
-        assert.equal(sessionResponse.status(), 200, role + " session probe must respond");
-        const session = await sessionResponse.json();
-        assert.equal(session.user?.role, role, role + " must remain signed in on " + state + " server");
-        assert.equal(session.user?.email, role + "@build-block.example.test",
+        // The production-mode test app sets a Secure, HttpOnly session cookie.
+        // Use the real browser's same-origin fetch (not Playwright's separate
+        // Node API client) for authenticated HTTP checks on loopback HTTP.
+        assert.equal(new URL(page.url()).origin, base, "Browser must remain on the expected local server");
+        const session = await page.evaluate(async () => {
+          const response = await fetch("/api/auth/me", {
+            credentials: "same-origin", cache: "no-store",
+          });
+          return { status: response.status, body: await response.json() };
+        });
+        assert.equal(session.status, 200, role + " session probe must respond");
+        assert.equal(session.body.user?.role, role, role + " must remain signed in on " + state + " server");
+        assert.equal(session.body.user?.email, role + "@build-block.example.test",
           role + " must be the exact seeded principal on " + state + " server");
         if (role === "owner" && state === "after") {
           const more = page.locator('[data-nav-name="More modules"]:visible').first();
@@ -99,8 +107,18 @@ try {
         } else {
           assert.equal(await page.locator('[data-nav-name="More modules"]').count(), 0);
           if (state === "after") {
-            const denied = await context.request.patch(base + "/api/tenant-modules", { headers: { origin: base }, data: { organizationId: fixture.organizationId, moduleId: "spend", enabled: true } });
-            assert.equal(denied.status(), 403, role + " cannot enable modules");
+            // Browser fetch carries the real production-mode Secure session,
+            // so an unauthenticated 401 can never satisfy this 403 role check.
+            const deniedStatus = await page.evaluate(async organizationId => {
+              const response = await fetch("/api/tenant-modules", {
+                method: "PATCH",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ organizationId, moduleId: "spend", enabled: true }),
+              });
+              return response.status;
+            }, fixture.organizationId);
+            assert.equal(deniedStatus, 403, role + " cannot enable modules");
           }
         }
         await page.screenshot({ path: `qa-artifacts/core-modules/${role}-${width}-${state}.png`, fullPage: true });
