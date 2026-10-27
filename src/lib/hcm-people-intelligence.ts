@@ -97,10 +97,42 @@ export type PeopleIntelligenceSummary = {
   warnings: string[];
 };
 
-function money(value: string) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0) return null;
-  return numeric;
+const MAX_RECORDED_CENTS = Number.MAX_SAFE_INTEGER;
+
+/** Accept only recorded peso decimals with at most two explicit centavo digits. */
+function moneyCents(value: string): number | null {
+  // Number("") and Number(null) manufacture zero; floating-point addition can
+  // also change a centavo without overflowing a JavaScript number.
+  if (typeof value !== "string" || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.split(".");
+  const pesos = Number(whole);
+  if (!Number.isSafeInteger(pesos) || pesos < 0
+    || pesos > Math.floor(MAX_RECORDED_CENTS / 100)) return null;
+  const cents = pesos * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/** Withhold results when the number-returning report cannot preserve a cent. */
+function reportMoney(cents: number): number | null {
+  if (!Number.isSafeInteger(cents)) return null;
+  const amount = cents / 100;
+  return Number.isSafeInteger(Math.round(amount * 100))
+    && Math.round(amount * 100) === cents ? amount : null;
+}
+
+function recordedMoneyCents(values: string[]): number | null {
+  let total = 0;
+  for (const value of values) {
+    const cents = moneyCents(value);
+    if (cents == null || cents > MAX_RECORDED_CENTS - total) return null;
+    total += cents;
+  }
+  return total;
+}
+
+function recordedMoneyTotal(values: string[]): number | null {
+  const cents = recordedMoneyCents(values);
+  return cents == null ? null : reportMoney(cents);
 }
 
 /**
@@ -284,9 +316,7 @@ export function summarizeHcmPeopleIntelligence(input: {
   const eligibleVacancies = historical ? [] : input.positions.filter((row) =>
     (row.status === "approved" || row.status === "open") && !occupiedPositionIds.has(row.id));
   const recordedAnnualVacancyBudget = historical ? null
-    : eligibleVacancies.every((row) => money(row.annualBudget) != null)
-      ? Number(eligibleVacancies.reduce((sum, row) => sum + Number(row.annualBudget), 0).toFixed(2))
-      : null;
+    : recordedMoneyTotal(eligibleVacancies.map((row) => row.annualBudget));
   const activeRequisitions = historical ? null
     : input.requisitions.filter((row) => ["open", "interviewing"].includes(row.status)).length;
 
@@ -305,27 +335,21 @@ export function summarizeHcmPeopleIntelligence(input: {
 
   const releasedRuns = input.payrollRuns.filter((row) =>
     row.status.toLowerCase() === "released" && row.payDate >= windowStart && row.payDate <= asOf);
-  const releasedPayrollGross = releasedRuns.reduce((sum, row) => sum + Number(row.grossPay), 0);
-  const releasedPayrollNet = releasedRuns.reduce((sum, row) => sum + Number(row.netPay), 0);
-  const safeGross = Number.isFinite(releasedPayrollGross) && releasedPayrollGross >= 0
-    && releasedRuns.every((row) => money(row.grossPay) != null)
-    ? Number(releasedPayrollGross.toFixed(2)) : null;
-  const safeNet = Number.isFinite(releasedPayrollNet) && releasedPayrollNet >= 0
-    && releasedRuns.every((row) => money(row.netPay) != null)
-    ? Number(releasedPayrollNet.toFixed(2)) : null;
+  const safeGross = recordedMoneyTotal(releasedRuns.map((row) => row.grossPay));
+  const safeNet = recordedMoneyTotal(releasedRuns.map((row) => row.netPay));
 
   const activeCycles = input.cycles.filter((row) => row.status === "active");
   const cycleIds = new Set(activeCycles.map((row) => row.id));
-  const cycleBudgetsValid = activeCycles.every((row) => money(row.budgetPool) != null);
-  const activeCycleBudget = historical || !cycleBudgetsValid ? null
-    : Number(activeCycles.reduce((sum, row) => sum + Number(row.budgetPool), 0).toFixed(2));
+  const activeCycleBudget = historical ? null
+    : recordedMoneyTotal(activeCycles.map((row) => row.budgetPool));
   const acceptedProposals = input.proposals.filter((row) =>
     cycleIds.has(row.cycleId) && ["approved", "scheduled", "applied"].includes(row.status));
-  const approvedCompensationDeltaAnnual = historical
-    || acceptedProposals.some((row) => money(row.currentAnnual) == null || money(row.proposedAnnual) == null)
-    ? null
-    : Number(acceptedProposals.reduce((sum, row) =>
-        sum + Number(row.proposedAnnual) - Number(row.currentAnnual), 0).toFixed(2));
+  // Bound both sides before subtraction: cancellation must not hide unsafe
+  // salary evidence. Legitimate negative annual movement remains supported.
+  const priorAnnualCents = recordedMoneyCents(acceptedProposals.map((row) => row.currentAnnual));
+  const proposedAnnualCents = recordedMoneyCents(acceptedProposals.map((row) => row.proposedAnnual));
+  const approvedCompensationDeltaAnnual = historical || priorAnnualCents == null || proposedAnnualCents == null
+    ? null : reportMoney(proposedAnnualCents - priorAnnualCents);
 
   const trends = monthSnapshots(asOf).map((date) => {
     const point = snapshot({ workers: input.workers, events: input.events, asOf: date, today: input.today });
@@ -361,11 +385,15 @@ export function summarizeHcmPeopleIntelligence(input: {
     "Overlapping primary position assignments or invalid FTE prevent a trustworthy staffing FTE total.");
   if (!historical && units == null && current.headcount != null) warnings.push(
     "Unit-level headcounts are suppressed because at least one unit has fewer than five people; totals remain available.");
-  if (releasedRuns.some((row) => money(row.grossPay) == null || money(row.netPay) == null)) warnings.push(
-    "A released payroll run contains invalid recorded amounts; verify the payroll ledger before using cost totals.");
+  if (safeGross == null || safeNet == null) warnings.push(
+    "Released payroll has missing or invalid recorded amounts, or exceeds the safe reporting range; affected cost totals are withheld.");
   if (avgHeadcount === 0) warnings.push("Turnover is unavailable where average verified headcount is zero.");
-  if (activeCycles.some((row) => money(row.budgetPool) == null)) warnings.push(
-    "A compensation cycle has invalid budget evidence; active review budgets are withheld.");
+  if (!historical && activeCycleBudget == null) warnings.push(
+    "Compensation cycle budget evidence is missing, invalid or exceeds the safe reporting range; active review budgets are withheld.");
+  if (!historical && recordedAnnualVacancyBudget == null) warnings.push(
+    "Vacancy budget evidence is missing, invalid or exceeds the safe reporting range; recorded annual vacancy budget is withheld.");
+  if (!historical && approvedCompensationDeltaAnnual == null) warnings.push(
+    "Approved compensation evidence is missing, invalid or exceeds the safe reporting range; annual salary movement is withheld.");
 
   return {
     asOf, windowStart, windowDays: input.windowDays, historical,

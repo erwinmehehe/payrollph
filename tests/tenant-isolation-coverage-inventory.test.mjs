@@ -18,6 +18,7 @@ import { join, sep } from "node:path";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
+import { validateTenantPathBinding } from "../scripts/qa/tenant-table-path.mjs";
 import { TENANT_TABLE_PROFILES } from "../scripts/qa/tenant-table-env.mjs";
 
 const ROOT = "src/app";
@@ -1674,10 +1675,16 @@ test("all credited proof links point to the claimed route and every recertified 
         // under a profile that really turns on every flag the row needs.
         const key = method.name + " " + entry.route;
         assert.equal(method.name, "GET", key + ": the table runner never certifies a mutation");
-        assert.ok(!entry.route.includes("["), key + ": path-id routes need a cross-id proof, not a table row");
+
         const suite = readFileSync(proof.file, "utf8");
         const spec = tenantFamilyCatalog("read").find((entry) => entry.key === key);
         assert.ok(spec, key + ": method must be loaded from an exact family row");
+        validateTenantPathBinding(key, spec.pathIds);
+        if (entry.route.includes("[")) {
+          assert.ok(spec.pathIds, key + ": path-id reads require explicit seeded cross-id binding");
+          assert.deepEqual(proof.pathIds, spec.pathIds);
+          assert.match(suite, /bindTenantReadRequests\(definition, own\.org\.id, victim\.org\.id, extra, ctx\)/);
+        }
         assert.equal(proof.rowFile, spec.file, key + ": family source pin must match");
         assert.equal(proof.rowLine, spec.line, key + ": family row pin must match");
         assert.equal(proof.line, proof.ownPositiveLine, key + ": shared execution pin must match");
@@ -1721,10 +1728,16 @@ test("all credited proof links point to the claimed route and every recertified 
         // 403/404, and whose expectation must reject the other attacker's genuine data.
         const key = method.name + " " + entry.route;
         assert.ok(["POST", "PATCH", "PUT", "DELETE"].includes(method.name), key + ": the write table certifies mutations only");
-        assert.ok(!entry.route.includes("["), key + ": path-id routes need a cross-id proof, not a table row");
+
         const suite = readFileSync(proof.file, "utf8");
         const spec = tenantFamilyCatalog("write").find((entry) => entry.key === key);
         assert.ok(spec, key + ": method must be loaded from an exact family row");
+        validateTenantPathBinding(key, spec.pathIds);
+        if (entry.route.includes("[")) {
+          assert.ok(spec.pathIds, key + ": path-id writes require explicit seeded cross-id binding");
+          assert.deepEqual(proof.pathIds, spec.pathIds);
+          assert.match(suite, /bindTenantPath\(item, ctx, target\)/);
+        }
         assert.equal(proof.rowFile, spec.file, key + ": family source pin must match");
         assert.equal(proof.rowLine, spec.line, key + ": family row pin must match");
         assert.equal(proof.line, proof.ownPositiveLine, key + ": shared execution pin must match");

@@ -1,0 +1,320 @@
+name: DL-01 whole-batch tenant isolation (zero money, localhost-only PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-dl01-closure.yml'
+      - 'scripts/qa/tenant-dl01-closure-http.mjs'
+      - 'scripts/qa/tenant-dl01-closure-shared.mjs'
+      - 'scripts/qa/tenant-dl01-rows/**'
+      - 'scripts/qa/tenant-dl01-network-preload.mjs'
+      - 'scripts/qa/tenant-dl01-local-adapters.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'docs/engineering/tenant-isolation-closure-plan.md'
+      - 'tests/tenant-dl01-closure-source.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dl01-batch-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  whole-batch:
+    # Forked PRs cannot inherit a trusted local-only proof environment.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      GITHUB_ACTIONS: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DL01_PROOF_URL: http://127.0.0.1:3011
+      APP_BASE_URL: http://127.0.0.1:3011
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3011
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TENANT_DL01_CLOSURE_PROOF: isolated-ci-only
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_SECRET_KEY: ''
+      PAYROLL_PAYOUT_PROVIDER: paymongo
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+      # Keep feature gates OFF for the complete regression; only the isolated
+      # proof subprocess may enable them, never the build/normal test suite.
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: 'false'
+      DOCUMENT_UPLOADS_ENABLED: 'false'
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'false'
+      EMPLOYEE_IMPORT_PREVIEW_ENABLED: 'false'
+      MALWARE_SCAN_URL: https://127.0.0.1:8443/scan
+      MALWARE_SCAN_TOKEN: ci-dl01-fake-scanner-token
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: https://127.0.0.1:8444/
+      DOCUMENT_OBJECT_STORAGE_BUCKET: dl01-fixture-bucket
+      DOCUMENT_OBJECT_STORAGE_REGION: ap-southeast-1
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: DL01_FAKE_ACCESS_ONLY
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: DL01_FAKE_STORAGE_ONLY
+      PAYMONGO_WALLET_ID: wallet_synthetic
+      PAYMONGO_WEBHOOK_SECRET: ci-fake-webhook-not-real
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Fetch exact comparison base for fail-closed regression guards
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_BASE_SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+          else
+            # Manual runs compare against current main; never silently compare
+            # a shallow HEAD against itself or fall back to a missing HEAD^.
+            git fetch --no-tags --depth=1 origin main
+          fi
+          base_sha="$(git rev-parse FETCH_HEAD)"
+          if ! [[ "$base_sha" =~ ^[a-f0-9]{40}$ ]] || [ "$base_sha" = "$(git rev-parse HEAD)" ]; then
+            echo "::error::DL01 full regression lacks an independent exact comparison base"
+            exit 1
+          fi
+          git cat-file -e "$base_sha:src/lib/payroll-engine.ts"
+          git cat-file -e "$base_sha:src/components"
+          git cat-file -e "$base_sha:src/app"
+          echo "FAIL_CLOSED_GUARD_BASE_REF=$base_sha" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Enforce offline/source proof contract before touching the DB
+        run: |
+          node --check scripts/qa/tenant-dl01-network-preload.mjs
+          node --check scripts/qa/tenant-dl01-local-adapters.mjs
+          node --check scripts/qa/tenant-dl01-closure-shared.mjs
+          node --check scripts/qa/tenant-dl01-closure-http.mjs
+          for file in scripts/qa/tenant-dl01-rows/*.mjs; do node --check "$file"; done
+          node --test tests/tenant-dl01-closure-source.test.mjs
+      - name: Ephemeral PII and bank data keys (no third-party credentials)
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Provision actual disposable PG16 tables
+        run: npm run db:push
+      - name: Apply reviewed audit-chain baseline with all provider payout flags OFF
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Create dedicated blank DL-01 clone of schema, never touch a real database
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_dl01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_dl01_test' >> "$GITHUB_ENV"
+      - name: Typecheck, repin guard and production build with live payout disabled
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm run tenant:repin:check
+          npm run build
+      - name: Execute three-employer HTTP/PG16 proof with no non-loopback egress
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Startup is impossible without the explicit GitHub-only proof guard;
+          # these temporary booleans/credentials exist in this single shell
+          # and are NEVER deployed or recorded as repository production settings.
+          # These release-critical gates are confined to this disposable,
+          # owner-firewalled proof shell, not the checkout, build or npm test.
+          export YEAR_END_PRIOR_EVIDENCE_ENABLED=true
+          export DOCUMENT_UPLOADS_ENABLED=true
+          export EMPLOYEE_DOCUMENT_VAULT_ENABLED=true
+          export PAYMONGO_DISBURSEMENTS_ENABLED=true
+          export PAYMONGO_SECRET_KEY=sk_test_synthetic_no_network
+          export NODE_EXTRA_CA_CERTS=/tmp/dl01-fixture.crt
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/dl01-fixture.key -out /tmp/dl01-fixture.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          # A global OUTPUT firewall would also cut off the GitHub Actions
+          # runner's heartbeat/log transport. Run ONLY the application, test
+          # adapters and proof client under a dedicated unprivileged UID, and
+          # block all non-loopback IPv4/IPv6 traffic for THAT UID at the kernel.
+          # The GitHub runner remains connected; all proof subprocesses inherit
+          # the same egress restriction (not just native fetch interception).
+          # Docker Postgres commonly runs as numeric UID 999. The host's
+          # process table and iptables owner match see that same UID, so
+          # allocating a system UID for this test user would let cleanup
+          # terminate the database container after a successful proof.
+          # Reserve a high UID only after checking both account and processes.
+          proof_uid=61001
+          if getent passwd "$proof_uid" >/dev/null; then
+            echo "::error::DL01 reserved proof UID belongs to an existing account"
+            exit 1
+          fi
+          if ps -eo uid= | awk -v uid="$proof_uid" '$1 == uid { used=1 } END { exit !used }'; then
+            echo "::error::DL01 reserved proof UID is already running a process"
+            exit 1
+          fi
+          sudo useradd --uid "$proof_uid" --create-home --shell /usr/sbin/nologin dl01proof
+          test "$(id -u dl01proof)" = "$proof_uid"
+          proof_home="/home/dl01proof"
+          # Local synthetic TLS key and read/write production-build cache
+          # belong to the test UID only while this disposable proof runs.
+          sudo chown dl01proof:dl01proof /tmp/dl01-fixture.key
+          sudo chmod 600 /tmp/dl01-fixture.key
+          sudo chown -R dl01proof:dl01proof .next
+          proof() {
+            sudo -E -u dl01proof env HOME="$proof_home" PATH="$PATH" \
+              NPM_CONFIG_CACHE="$proof_home/.npm" "$@"
+          }
+          cleanup() {
+            sudo pkill -TERM -u dl01proof 2>/dev/null || true
+            sudo iptables -D OUTPUT -m owner --uid-owner "$proof_uid" ! -d 127.0.0.0/8 -j REJECT || true
+            sudo ip6tables -D OUTPUT -m owner --uid-owner "$proof_uid" ! -d ::1/128 -j REJECT || true
+            sudo chown -R "$(id -un)":"$(id -gn)" .next || true
+            # Remove only temporary ACLs for this throwaway GitHub runner.
+            for dir in "${acl_dirs[@]}"; do
+              sudo setfacl -x "u:dl01proof" "$dir" || true
+            done
+          }
+          trap cleanup EXIT
+          # The isolated UID must traverse the runner-owned checkout path.
+          # Give it execute-only ACL on parent directories, and read/search
+          # access only to this checked-out repository. No ACL for other files
+          # in the runner's home or sibling checkout directories.
+          if ! command -v setfacl >/dev/null 2>&1; then
+            echo "::error::DL01 cannot grant isolated-user repository access: setfacl is unavailable"
+            exit 1
+          fi
+          acl_dirs=()
+          workspace="$(pwd -P)"
+          dir="$workspace"
+          while [ "$dir" != "/" ]; do
+            if [ "$dir" = "$workspace" ]; then
+              sudo setfacl -m "u:dl01proof:r-x" "$dir"
+            else
+              sudo setfacl -m "u:dl01proof:--x" "$dir"
+            fi
+            acl_dirs+=("$dir")
+            dir="$(dirname "$dir")"
+          done
+          # Confirm the exact files the app and adapters must read under
+          # the restricted identity before installing the network firewall.
+          proof test -r scripts/qa/tenant-dl01-local-adapters.mjs
+          proof node --check scripts/qa/tenant-dl01-local-adapters.mjs
+          proof node --check scripts/qa/tenant-dl01-network-preload.mjs
+          proof test -r node_modules/next/dist/bin/next
+          proof test -r .next/BUILD_ID
+          echo "DL01 isolated UID can load repo scripts, Next build and dependencies"
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner "$proof_uid" ! -d 127.0.0.0/8 -j REJECT
+          sudo ip6tables -I OUTPUT 1 -m owner --uid-owner "$proof_uid" ! -d ::1/128 -j REJECT
+          sudo iptables -C OUTPUT -m owner --uid-owner "$proof_uid" ! -d 127.0.0.0/8 -j REJECT
+          sudo ip6tables -C OUTPUT -m owner --uid-owner "$proof_uid" ! -d ::1/128 -j REJECT
+          # Probe a numeric public IP without touching any payment provider;
+          # if firewall installation fails, abort before starting the app.
+          if proof curl --noproxy '*' --silent --output /dev/null \
+            --connect-timeout 1 --max-time 3 https://1.1.1.1; then
+            echo "::error::DL-01 test user unexpectedly reached the public network"
+            exit 1
+          fi
+          echo "DL01 proof egress blocked for UID $proof_uid; runner network unaffected"
+          proof node scripts/qa/tenant-dl01-local-adapters.mjs > /tmp/dl01-adapters.log 2>&1 &
+          mock_pid=$!
+          ready=false
+          for attempt in {1..20}; do
+            if curl --silent --fail --cacert /tmp/dl01-fixture.crt \
+              https://127.0.0.1:8443/health >/dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::DL01 local adapters not ready"
+            exit 1
+          fi
+          echo "DL01 local HTTPS scanner and object-store adapters ready"
+          proof env NODE_OPTIONS="--import=$(pwd)/scripts/qa/tenant-dl01-network-preload.mjs" \
+            npm start -- -H 127.0.0.1 -p 3011 > /tmp/dl01-app.log 2>&1 &
+          app_pid=$!
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011 >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::DL01 local application not ready"
+            exit 1
+          fi
+          echo "DL01 application ready; starting bounded three-employer proof"
+          proof timeout --signal=TERM --kill-after=10s 300s \
+            npx tsx scripts/qa/tenant-dl01-closure-http.mjs
+      - name: Verify disposable PG16 survived proof cleanup before full regression
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          const client = new pg.Client({
+            connectionString: process.env.DATABASE_URL,
+            connectionTimeoutMillis: 5000,
+          });
+          await client.connect();
+          try {
+            const { rows } = await client.query(
+              "SELECT current_database() AS db, current_setting('server_version_num')::integer AS version"
+            );
+            assert.equal(rows[0]?.db, 'app_db');
+            assert.ok(rows[0].version >= 160000 && rows[0].version < 170000,
+              'isolated service must still be PostgreSQL 16');
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Full repository Node test suite against the separate throwaway app_db
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+          # The three flags above must never leak from the isolated proof shell.
+          YEAR_END_PRIOR_EVIDENCE_ENABLED: 'false'
+          DOCUMENT_UPLOADS_ENABLED: 'false'
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'false'
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+          XENDIT_PAYOUTS_ENABLED: 'false'
+          # The full suite includes real PG16 scheduler fault-injection tests.
+          # Authorize ONLY this disposable app_db regression step; never enable
+          # the actual scheduler, worker, dispatch, or payment integrations.
+          SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+          WORKER_ENABLED: 'false'
+          PAYROLL_SCHEDULER_DISPATCH_ENABLED: 'false'
+        run: |
+          set -euo pipefail
+          test -n "$FAIL_CLOSED_GUARD_BASE_REF"
+          git cat-file -e "$FAIL_CLOSED_GUARD_BASE_REF:src/lib/payroll-engine.ts"
+          npm test
+      - name: Show localhost diagnostics on failure (never print fake auth headers)
+        if: failure()
+        run: |
+          tail -n 200 /tmp/dl01-app.log 2>/dev/null || true
+          tail -n 200 /tmp/dl01-adapters.log 2>/dev/null || true
