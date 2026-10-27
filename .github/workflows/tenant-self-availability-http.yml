@@ -18,8 +18,6 @@ on:
       - 'scripts/qa/tenant-table-http.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
       - 'scripts/qa/apply-isolated-baseline.mjs'
-  workflow_dispatch:
-
 permissions:
   contents: read
 
