@@ -83,6 +83,8 @@ jobs:
         run: npm run db:push
       - name: Apply reviewed local-only source baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work-item event snapshot fixture (disposable empty PG16 only)
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build actual production-mode Next server
         run: npm run build
       - name: Two bearer-key attackers, higher-ID real victim, exact legal employer & CSV money controls
