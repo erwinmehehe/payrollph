@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import {
-  employeeWorksiteAssignments, employees, orgUnits, organizations, payrollRuns,
+  employeeScheduleAssignments, employeeWorksiteAssignments, employees, orgUnits, organizations, payrollRuns,
   separationRecords, timePunches, userOrganizations, users, worksites,
 } from "../../src/db/schema";
 import { hashPassword } from "../../src/lib/crypto";
@@ -463,6 +463,22 @@ async function run() {
     reason: "Synthetic Live Floor schema read proof only", createdBy: "CI fictional fixture",
   }).returning();
   assert.equal(assignment.decision, "allow", "the repaired decision column must persist");
+  // The earlier payroll fixture used a historical pay period. Add one
+  // *current* fictional shift only now, after all payroll assertions, so
+  // Live Floor must present a nonempty signed-in worker row.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (name: string) => parts.find(item => item.type === name)?.value ?? "";
+  const floorWorkDate = part("year") + "-" + part("month") + "-" + part("day");
+  const anchorDate = new Date(floorWorkDate + "T00:00:00Z");
+  anchorDate.setUTCDate(anchorDate.getUTCDate() - 1);
+  await db.insert(employeeScheduleAssignments).values({
+    organizationId, employeeId: staff[0].id, patternId: dayPattern,
+    effectiveFrom: floorWorkDate, anchorDate: anchorDate.toISOString().slice(0, 10),
+    worksiteId: ownWorksite.id,
+    reason: "Current-day fictional Live Floor read only", createdBy: "CI fictional fixture",
+  });
 
   const [victimEmployee] = await db.select({
     id: employees.id, employeeNo: employees.employeeNo,
@@ -489,12 +505,16 @@ async function run() {
   assert.equal(ownFloor.page, 1);
   assert.equal(ownFloor.pageSize, 25);
   assert.equal(ownFloor.hasMore, false);
+  assert.ok(ownFloor.rows.some((row: any) => Number(row.employeeId) === staff[0].id),
+    "owner must see a real, currently scheduled fictional Live Floor worker row");
   assert.equal(JSON.stringify(ownFloor).includes(victimEmployee.employeeNo), false,
     "employer B worker must not leak into A Live Floor");
   const managerFloor = await ok(actors.manager, floorPath(organizationId));
   assert.equal(managerFloor.scope, "organization_unit",
     "manager Live Floor must stay scoped to their own unit");
   assert.equal(managerFloor.totalEmployees, 5);
+  assert.ok(managerFloor.rows.some((row: any) => Number(row.employeeId) === staff[0].id),
+    "scoped manager must see their own scheduled worker, not just a synthetic count");
   const ownFloorB = await ok(actors.tenantB, floorPath(tenantB.id));
   assert.equal(ownFloorB.totalEmployees, 1);
   assert.equal(ownFloorB.scope, "company");
