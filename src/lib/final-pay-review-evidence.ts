@@ -1,4 +1,4 @@
-import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
+import { storedMoneyCentavos, verifiedPesosFromCentavos } from "@/lib/stored-money-centavos";
 import { finalPaySignedBalance } from "./final-pay-signed-balance";
 
 /** Reconciliation-only display/export of immutable separation financial evidence. */
@@ -31,15 +31,16 @@ export function finalPayReviewShortfall(record: FinalPayReviewRecord) {
   const snapshot = record.computationSnapshot ?? {};
   const sourceTax = storedMoneyCentavos(snapshot.unpaidTaxWithholding);
   const sourceStatutory = storedMoneyCentavos(snapshot.unpaidStatutoryDeductions);
-  const splitIsValid = totalCents !== null && sourceTax !== null && sourceStatutory !== null
+  const verifiedTotal = totalCents === null ? null : verifiedPesosFromCentavos(totalCents);
+  const splitIsValid = verifiedTotal !== null && sourceTax !== null && sourceStatutory !== null
     && sourceTax >= 0 && sourceStatutory >= 0
     && Number.isSafeInteger(sourceTax + sourceStatutory)
     && sourceTax + sourceStatutory === totalCents;
   return {
-    total: totalCents === null ? null : totalCents / 100,
+    total: verifiedTotal,
     tax: splitIsValid ? sourceTax! / 100 : null,
     statutory: splitIsValid ? sourceStatutory! / 100 : null,
-    reconciliationRequired: totalCents === null || totalCents > 0,
+    reconciliationRequired: verifiedTotal === null || verifiedTotal > 0,
     splitRecorded: splitIsValid,
   };
 }
