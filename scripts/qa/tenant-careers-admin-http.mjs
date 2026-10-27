@@ -17,6 +17,13 @@ import {
   provePublicCareersGet, assertUnchangedCareersTenant, provePublishedTransition,
 } from "./tenant-careers-admin-contract.mjs";
 
+// A parent organization is keyed by id, unlike tenant-owned child tables.
+// A future table without an explicit selector must fail closed.
+export function snapshotScopeColumn(name, table) {
+  const column = name === "organizations" ? table.id : table.organizationId;
+  assert.ok(column, "CAREERS_ADMIN_REFUSED: missing tenant snapshot selector for " + name);
+  return column;
+}
 const BASE = "http://127.0.0.1:3000";
 const ADMIN = "/api/careers/admin";
 const PINNED_PROPOSAL =
@@ -186,7 +193,7 @@ export async function verifyCareersAdminTenantHttp() {
       const out = {};
       for (const [name, table] of Object.entries(tables)) {
         out[name] = await db.select().from(table)
-          .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
+          .where(eq(snapshotScopeColumn(name, table), orgId)).orderBy(asc(table.id));
       }
       out.publication = (await pool.query(
         'select id, organization_id as "organizationId", ' +
