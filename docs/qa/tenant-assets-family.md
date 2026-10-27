@@ -2,9 +2,12 @@
 
 ## Scope and ownership
 
-This independent, new-file-only batch targets `src/app/api/assets/route.ts`,
-which has no open PR for its asset-custody family at authoring time. The four
-method identities were all marked GAP on the inspected `main` baseline:
+This independent, new-file-only regression batch targets `src/app/api/assets/route.ts`,
+which had no open PR for its asset-custody family at authoring time. **The live
+coverage manifest already marked all four methods COVERED before this PR.**
+The earlier GAP claim came from an outdated source-inventory snapshot, not
+from the authoritative current manifest. The new HTTP tests add independent
+regression evidence; **they do not close any GAP or replace prior provenance**:
 
 | Method | Own positive and negative cases |
 | --- | --- |
@@ -39,5 +42,8 @@ from a partial or canceled run.
 
 **DRAFT / NOT ACCEPTED / DO NOT MERGE** pending successful final-head focused
 and shared CI/PG16 proofs, source pin review, and independent maintainer/security
-approval. Only after those checks may a separate reviewed credit reconciliation
-consider the four exact method GAPs.
+approval. Prior-head tenant-table proof passed real disposable HTTP/PG16, but
+its result cannot substitute for verification of the new head. **No credit
+reconciliation, manifest status change or double-counting is proposed:** all
+four methods retain their pre-existing COVERED evidence and existing scope.
+That status is still provisional synthetic evidence, not production acceptance.
