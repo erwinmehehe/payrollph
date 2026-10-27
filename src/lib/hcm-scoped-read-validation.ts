@@ -22,7 +22,12 @@ function optionalId(value: unknown): value is number | null {
   return value === null || id(value);
 }
 function date(value: unknown): value is string {
-  return text(value) && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value);
+  if (!text(value) ||
+      !/^[1-9]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value)) return false;
+  // A formatted-looking date can be impossible (February 30, April 31).
+  // Never render it as a verified employer record after JS normalizes it.
+  const parsed = new Date(value + "T00:00:00Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 function observed(value: unknown): value is string {
   return text(value) && value.length > 0 && Number.isFinite(Date.parse(value));
@@ -129,7 +134,8 @@ export function validPositionHistoryResponse(
     if (!object(item) || !id(item.id) || ids.has(item.id) ||
         !optionalId(item.employeeId) || !text(item.assignmentType) ||
         !date(item.effectiveFrom) ||
-        !(item.effectiveUntil === null || date(item.effectiveUntil))) return false;
+        !(item.effectiveUntil === null ||
+          (date(item.effectiveUntil) && item.effectiveUntil >= item.effectiveFrom))) return false;
     ids.add(item.id);
   }
   return true;

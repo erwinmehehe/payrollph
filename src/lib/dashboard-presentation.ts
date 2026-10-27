@@ -48,11 +48,22 @@ export function dashboardMoney(value: number | string | null | undefined) {
 
 export function dashboardDate(value?: string) {
   if (!value) return "Not scheduled";
+  // Stored payroll dates are calendar days, not timestamps. Reject invalid
+  // dates instead of letting Date normalize (February 30 -> March 2)
+  // or letting Intl throw RangeError and break the dashboard.
+  if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value)) {
+    return "Date unavailable";
+  }
+  const day = new Date(value + "T00:00:00+08:00");
+  if (!Number.isFinite(day.getTime()) ||
+      new Date(day.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) !== value) {
+    return "Date unavailable";
+  }
   return new Intl.DateTimeFormat("en-PH", {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "Asia/Manila",
-  }).format(new Date(value + "T00:00:00+08:00"));
+  }).format(day);
 }
