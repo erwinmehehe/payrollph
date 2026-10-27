@@ -37,7 +37,7 @@ jobs:
       GITHUB_ACTIONS: "true"
       EMPLOYEE_VAULT_BROWSER_ACCEPTANCE_MODE: synthetic-postgres-only
       HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
-      HCM_PEOPLE_HOME_ORG_IDS: "1,2"
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"
       HCM_WORKER_360_ENABLED: "true"
       EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
       DOCUMENT_UPLOADS_ENABLED: "true"
