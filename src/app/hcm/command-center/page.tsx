@@ -216,7 +216,7 @@ export default async function HcmCommandCenter({
                     You initiated this request. A separate reviewer is required.
                   </p>}
                   {canOpenSource(item.sourceUrl) ? (
-                    <Link href={item.sourceUrl} className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline">
+                    <Link href={item.sourceUrl} className="mt-2 inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
                       {item.source === "provisioning" ? "Open worker in People" : "Open source workflow"}
                     </Link>
                   ) : <p className="mt-2 text-xs text-slate-600">People workspace action unavailable to this role.</p>}
@@ -228,14 +228,14 @@ export default async function HcmCommandCenter({
             </>
           )}
           {canOpenSource(section.sourceUrl) ? (
-            <Link className="mt-5 inline-block rounded-lg border border-emerald-800 px-4 py-2 text-sm font-semibold text-emerald-900"
+            <Link className="mt-5 inline-flex min-h-11 items-center rounded-lg border border-emerald-800 px-4 py-2 text-sm font-semibold text-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
               href={section.sourceUrl}>Open {section.sourceName}</Link>
           ) : <p className="mt-5 text-xs text-slate-600">This source requires an authorized People workspace role.</p>}
         </article>)}
       </div>
     </section>
     <div className="mt-8">
-      <Link href={`/app?organizationId=${organizationId}`} className="text-sm font-semibold text-emerald-800 underline">Back to selected employer workspace</Link>
+      <Link href={`/app?organizationId=${organizationId}`} className="inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">Back to selected employer workspace</Link>
     </div>
   </main>;
 }
