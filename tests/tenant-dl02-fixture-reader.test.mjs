@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chmodSync, linkSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readPrivateDl02Fixture } from "../scripts/qa/tenant-dl02-fixture-reader.mjs";
@@ -70,4 +70,18 @@ test("DL-02 fixture refuses hard-linked credential files", () => {
     linkSync(file, join(dir, "linked.json"));
     assert.throws(() => readPrivateDl02Fixture(file, runnerTemp), /hard links/);
   });
+});
+
+test("DL-02 reader cannot create a missing credential-bearing file", () => {
+  withFixture(({ file, runnerTemp }) => {
+    assert.equal(existsSync(file), false);
+    assert.throws(() => readPrivateDl02Fixture(file, runnerTemp), { code: "ENOENT" });
+    assert.equal(existsSync(file), false);
+  });
+});
+
+test("DL-02 reader explicitly declares private mode for the CodeQL tempfile guard", () => {
+  const source = readFileSync(new URL("../scripts/qa/tenant-dl02-fixture-reader.mjs", import.meta.url), "utf8");
+  assert.match(source,
+    /openSync\(file,\s*constants\.O_RDONLY \| constants\.O_NOFOLLOW \| constants\.O_NONBLOCK,\s*0o600\)/);
 });

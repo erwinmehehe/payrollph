@@ -39,7 +39,11 @@ export function readPrivateDl02Fixture(file, runnerTemp = process.env.RUNNER_TEM
   assertProcessOwner(dirStat, "DL-02 fixture directory");
   // O_NOFOLLOW rejects a swapped final symlink; O_NONBLOCK avoids blocking on
   // an unexpected FIFO. Read from the same verified descriptor, never reopen.
-  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  // 0o600 also makes the already enforced private mode explicit to CodeQL's
+  // temporary-file rule (which treats every openSync without a mode as unsafe).
+  // O_RDONLY has no O_CREAT: the mode cannot create or change this file.
+  const fd = openSync(file,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
   try {
     const stat = fstatSync(fd);
     assert.ok(stat.isFile(), "DL-02 fixture must be a regular file");

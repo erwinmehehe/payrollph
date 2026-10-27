@@ -5,6 +5,8 @@ import { Building2, Copy, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { reconcileLaborCostingDraftCenters, selectedLaborCostingEmployeeId } from "../../lib/labor-costing-panel-view";
+import { LABOR_VERTICAL_DIMENSION_KEYS, normalizeLaborVerticalDimensions,
+  type LaborVerticalDimensions } from "../../lib/labor-vertical-dimensions";
 
 type CostCenterRow = {
   id: number;
@@ -26,6 +28,7 @@ type AllocationRow = {
   clientCode: string | null;
   projectCode: string | null;
   jobCode: string | null;
+  verticalDimensions?: LaborVerticalDimensions | null;
   reason: string;
 };
 
@@ -37,6 +40,7 @@ type DraftAllocation = {
   clientCode: string;
   projectCode: string;
   jobCode: string;
+  verticalDimensions: LaborVerticalDimensions;
 };
 
 function localToday() {
@@ -54,6 +58,7 @@ function blankDraft(key: number, costCenterId: number | string = "", allocationP
     clientCode: "",
     projectCode: "",
     jobCode: "",
+    verticalDimensions: {},
   };
 }
 
@@ -62,12 +67,14 @@ function normalizeDimensionCode(value: string) {
 }
 
 function dimensionKey(row: DraftAllocation) {
-  return [
+  return JSON.stringify([
     row.costCenterId,
     normalizeDimensionCode(row.clientCode),
     normalizeDimensionCode(row.projectCode),
     normalizeDimensionCode(row.jobCode),
-  ].join("|");
+    ...LABOR_VERTICAL_DIMENSION_KEYS.map((key) =>
+      normalizeDimensionCode(row.verticalDimensions[key] ?? "")),
+  ]);
 }
 
 function windowStatus(row: AllocationRow, today: string) {
@@ -191,6 +198,10 @@ function LaborCostingPanelContent({
     return !Number.isFinite(value) || value <= 0;
   });
   const inactiveOrMissingCenter = drafts.some((row) => !activeCenterIds.has(row.costCenterId));
+  const invalidVerticalDimensions = drafts.some((row) => {
+    try { normalizeLaborVerticalDimensions(row.verticalDimensions); return false; }
+    catch { return true; }
+  });
   const duplicateDimensions = useMemo(() => {
     const seen = new Set<string>();
     for (const row of drafts) {
@@ -214,6 +225,7 @@ function LaborCostingPanelContent({
     && (allocationBasis === "hours" ? !invalidHours : !invalidPercent)
     && !inactiveOrMissingCenter
     && !duplicateDimensions
+    && !invalidVerticalDimensions
     && !dateRangeInvalid
     && saving === null,
   );
@@ -301,6 +313,7 @@ function LaborCostingPanelContent({
       clientCode: row.clientCode ?? "",
       projectCode: row.projectCode ?? "",
       jobCode: row.jobCode ?? "",
+      verticalDimensions: row.verticalDimensions ?? {},
     })));
     setNextKey(latestRows.length + 1);
     setReason(`Updated from allocation effective ${latestStart}`);
@@ -338,6 +351,10 @@ function LaborCostingPanelContent({
       notify("Duplicate cost center/client/project/job combinations are not allowed in the same allocation set.", "err");
       return;
     }
+    if (invalidVerticalDimensions) {
+      notify("Vertical allocation codes must use letters, digits, underscore, dot or hyphen (1-64 characters).", "err");
+      return;
+    }
 
     await mutate("set_employee_allocations", {
       employeeId,
@@ -352,6 +369,7 @@ function LaborCostingPanelContent({
         clientCode: row.clientCode || null,
         projectCode: row.projectCode || null,
         jobCode: row.jobCode || null,
+        verticalDimensions: normalizeLaborVerticalDimensions(row.verticalDimensions),
       })),
     }, "Effective-dated labor allocation saved.");
   }
@@ -492,6 +510,24 @@ function LaborCostingPanelContent({
                   <label>Client code<input maxLength={64} value={draft.clientCode} onChange={(event) => updateDraft(draft.key, { clientCode: event.target.value })} /></label>
                   <label>Project code<input maxLength={64} value={draft.projectCode} onChange={(event) => updateDraft(draft.key, { projectCode: event.target.value })} /></label>
                   <label>Job code<input maxLength={64} value={draft.jobCode} onChange={(event) => updateDraft(draft.key, { jobCode: event.target.value })} /></label>
+                  <details style={{ gridColumn: "1 / -1" }}>
+                    <summary>Additional industry allocation codes (optional)</summary>
+                    <div className="setting-form" style={{ marginTop: 8 }}>
+                      {LABOR_VERTICAL_DIMENSION_KEYS.map((key) => (
+                        <label key={key}>
+                          {key.replace(/Code$/, "")} code
+                          <input maxLength={64} value={draft.verticalDimensions[key] ?? ""}
+                            onChange={(event) => {
+                              const verticalDimensions = { ...draft.verticalDimensions };
+                              const value = event.target.value;
+                              if (value.trim()) verticalDimensions[key] = value;
+                              else delete verticalDimensions[key];
+                              updateDraft(draft.key, { verticalDimensions });
+                            }} />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                 </div>
                 <button className="tiny-button decline" type="button" disabled={drafts.length === 1} onClick={() => removeDraft(draft.key)}>
                   <Trash2 size={13} /> Remove row
@@ -531,6 +567,7 @@ function LaborCostingPanelContent({
                 <th>Cost center</th>
                 <th>Allocation</th>
                 <th>Client / project / job</th>
+                <th>Industry allocation codes</th>
                 <th>Reason</th>
               </tr>
             </thead>
@@ -548,6 +585,10 @@ function LaborCostingPanelContent({
                         : `${Number(row.allocationPercent).toFixed(3)}%`}
                     </td>
                     <td>{[row.clientCode, row.projectCode, row.jobCode].filter(Boolean).join(" / ") || "—"}</td>
+                    <td>{LABOR_VERTICAL_DIMENSION_KEYS
+                      .filter((key) => Boolean(row.verticalDimensions?.[key]))
+                      .map((key) => `${key.replace(/Code$/, "")}: ${row.verticalDimensions?.[key]}`)
+                      .join(" · ") || "—"}</td>
                     <td>{row.reason || "—"}</td>
                   </tr>
                 );
