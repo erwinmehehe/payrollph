@@ -4,6 +4,22 @@
  */
 import assert from "node:assert/strict";
 
+/**
+ * A compliant no-store response is safe even when Next.js normalizes the
+ * header to "no-store, max-age=0" without a redundant "private" directive.
+ * Reject missing no-store AND conflicting directives that invite storage.
+ * This is shared by real GET and idempotent POST-replay HTTP proofs.
+ */
+export function assertClaimNoStore(headers) {
+  const directives = (headers?.get("cache-control") ?? "").toLowerCase()
+    .split(",").map((part) => part.trim()).filter(Boolean);
+  assert.ok(directives.includes("no-store"),
+    "sensitive attendance claims require Cache-Control: no-store");
+  const allowed = new Set(["no-store", "private", "max-age=0", "no-cache", "must-revalidate"]);
+  assert.ok(directives.every((part) => allowed.has(part)),
+    "sensitive attendance claims must not be shared or cached");
+}
+
 export function assertOwnEmployeeClaimList(response, { organizationId, claimId, forbiddenIds = [] }) {
   assert.equal(response.status, 200, "a genuine employee must read their own claims");
   assert.equal(response.json?.organizationId, organizationId, "GET must bind the current employer");
@@ -16,8 +32,7 @@ export function assertOwnEmployeeClaimList(response, { organizationId, claimId, 
       "employee GET must not expose reviewer-only employee/actor identifiers");
     assert.ok(!forbiddenIds.includes(row.id), "foreign claim ID leaked into employee GET");
   }
-  assert.match(response.headers.get("cache-control") ?? "", /private\s*,\s*no-store/i,
-    "private attendance claims must not be shared or cached");
+  assertClaimNoStore(response.headers);
 }
 
 export function assertClaimDenied(response, { status, forbiddenMarker, forbiddenClaimId }) {

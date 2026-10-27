@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertClaimDenied, assertOwnEmployeeClaimList } from "../scripts/qa/tenant-offline-claims-contract.mjs";
+import { assertClaimDenied, assertOwnEmployeeClaimList, assertClaimNoStore } from "../scripts/qa/tenant-offline-claims-contract.mjs";
 
 function ownResponse(rows, overrides = {}) {
   const json = { organizationId: 11, claims: rows, ...(overrides.json ?? {}) };
@@ -17,6 +17,30 @@ const desired = { organizationId: 11, claimId: 22, forbiddenIds: [55, 77] };
 test("valid persisted owned claim and private no-store pass", () => {
   assert.doesNotThrow(() => assertOwnEmployeeClaimList(ownResponse(owned), desired));
 });
+test("real Next.js no-store headers remain acceptable without an explicit private token", () => {
+  for (const value of [
+    "private,no-store", "private, no-store", "no-store, max-age=0",
+    "No-Store, MAX-AGE=0", "no-store", "max-age=0, no-store, private",
+    "no-store, no-cache, must-revalidate",
+  ]) {
+    const response = ownResponse(owned, { cache: value });
+    assert.doesNotThrow(() => assertOwnEmployeeClaimList(response, desired), value);
+    assert.doesNotThrow(() => assertClaimNoStore(response.headers), value);
+  }
+});
+
+test("missing no-store or contradictory cache directives must fail closed", () => {
+  for (const value of [
+    "private", "no-cache", "public, max-age=0", "no-stored",
+    "public, no-store", "no-store, public", "no-store, max-age=120",
+    "no-store, s-maxage=0", "no-store, immutable",
+    "no-store, stale-while-revalidate=0", "no-store, stale-if-error=0",
+  ]) {
+    assert.throws(() => assertClaimNoStore(ownResponse(owned, { cache: value }).headers),
+      /no-store|shared or cached/i, value);
+  }
+});
+
 test("empty 200 response is never a positive tenant proof", () => {
   assert.throws(() => assertOwnEmployeeClaimList(ownResponse([]), desired), /persisted own claim/);
 });

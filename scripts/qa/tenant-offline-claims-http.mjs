@@ -12,7 +12,7 @@ import {
   attendanceCorrectionRequests, auditEvents, employees, offlinePunchClaims, payrollEntries,
   payrollRuns, timePunches, userOrganizations, users,
 } from "../../src/db/schema";
-import { assertClaimDenied, assertOwnEmployeeClaimList } from "./tenant-offline-claims-contract.mjs";
+import { assertClaimDenied, assertOwnEmployeeClaimList, assertClaimNoStore } from "./tenant-offline-claims-contract.mjs";
 
 const PATH = "/api/attendance/offline-claims";
 
@@ -116,11 +116,6 @@ async function submitOwn({ request, expectStatus }, actor, actionType) {
   return { actor, body, id };
 }
 
-function assertPrivate(response) {
-  assert.match(response.headers.get("cache-control") ?? "", /private\s*,\s*no-store/i,
-    "claims and replay receipts must be private and noncacheable");
-}
-
 export async function verifyOfflineClaimsTenantWrites(employers, {
   request, expectStatus, makeSession,
 }) {
@@ -219,7 +214,7 @@ export async function verifyOfflineClaimsTenantWrites(employers, {
     assert.equal(replay.json?.claimId, entry.id);
     assert.equal(replay.json?.replayed, true);
     assert.equal(replay.json?.verified, false);
-    assertPrivate(replay);
+    assertClaimNoStore(replay.headers);
     const alteredReplay = await request(PATH, {
       method: "POST", cookie: actor.cookie,
       body: { ...entry.body, actionType: entry.body.actionType === "clock_in" ? "clock_out" : "clock_in" },
