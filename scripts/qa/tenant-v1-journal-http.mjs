@@ -115,7 +115,10 @@ export async function verifyV1JournalTenantHttp() {
       outsideId: outside.id, periodLabel, keyId: key.id, token: token.key };
   }
 
-  const [attackerA, attackerB, target] = await Promise.all(employers.map(seed));
+  // Force monotonic real payroll-run and key IDs for the higher-ID victim.
+  const seeded = [];
+  for (const employer of employers) seeded.push(await seed(employer));
+  const [attackerA, attackerB, target] = seeded;
   const all = [attackerA, attackerB, target];
   assert.ok(target.keyId > attackerA.keyId && target.keyId > attackerB.keyId,
     "Victim must have a real later bearer-key ID");
