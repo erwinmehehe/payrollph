@@ -10,7 +10,7 @@ const MAX_RESULTS = 6;
 function normalized(value: string): string {
   // Fold diacritics for search only; never rewrite authoritative worker names.
   return value.normalize("NFKD").replace(/\p{M}/gu, "")
-    .trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+    .trim().replace(/\s*,\s*/g, ", ").replace(/\s+/g, " ").toLocaleLowerCase("en");
 }
 
 /**
@@ -31,11 +31,12 @@ export function findAuthorizedHrisEmployees(
       const number = normalized(employee.employeeNo);
       const name = normalized(employee.firstName + " " + employee.lastName);
       const reverse = normalized(employee.lastName + " " + employee.firstName);
+      const lastFirstComma = normalized(employee.lastName + ", " + employee.firstName);
       const title = normalized(employee.title);
       const rank = number === query ? 0
         : number.startsWith(query) ? 1
-        : name.startsWith(query) || reverse.startsWith(query) ? 2
-        : number.includes(query) || name.includes(query) || reverse.includes(query) ? 3
+        : name.startsWith(query) || reverse.startsWith(query) || lastFirstComma.startsWith(query) ? 2
+        : number.includes(query) || name.includes(query) || reverse.includes(query) || lastFirstComma.includes(query) ? 3
         : title.includes(query) ? 4
         : -1;
       return { employee, rank };
