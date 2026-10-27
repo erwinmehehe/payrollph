@@ -23,6 +23,12 @@ import { METHODS as developmentMethods } from "./tenant-performance-development-
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
 
+if (process.argv.includes("--self-development")) {
+  const { credit } = await import("./tenant-self-development-credit.mjs");
+  credit(process.argv.slice(2));
+  process.exit(0);
+}
+
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const OVERVIEW = "docs/engineering/tenant-isolation-coverage-inventory.md";
 const write = !process.argv.includes("--check");

@@ -1,6 +1,14 @@
 # Employee self-service development plans: independent tenant-isolation batch
 
-**State: DRAFT / NOT ACCEPTED / zero coverage credits.**
+**State: original preparation retained; extended local execution and provisional
+credit reconciliation are documented in [the recovery proof](tenant-self-development-proof.md).
+Exact-head PostgreSQL 16 CI and reviewer acceptance remain pending.**
+
+The existing workflow now runs `tenant-self-development-http.mjs`, which retains
+the original own/foreign/peer/stolen-link boundaries and adds private/closed
+plans, exact full-record checks, both milestone transitions, membership
+revocation and real no-op mutation rejection. The older seed/prove script below
+remains available for historical replay; no second workflow/build was added.
 
 ## GAP methods on main at selection
 - GET `self/performance/development-plans`

@@ -6,9 +6,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L11) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 182 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 179 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 182 method gaps and 17 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
+> **NOT ACCEPTED**: 179 method gaps and 17 page/action gaps remain. This current-source snapshot combines main's #1330 four-method DL-01 batch-2 proofs with this PR's separately source-pinned evidence. Overall tenant isolation remains unaccepted; no production approval is implied.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -117,9 +117,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 306 |
+| coveredAfter | 309 |
 | publicByDesign | 10 |
-| gap | 182 |
+| gap | 179 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -610,9 +610,9 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`self/payslips` GET](../../src/app/api/self/payslips/route.ts#L21) | session, body | getSessionUser L5, enforceSameOriginMutation L8, getSessionUser L22, enforceSameOriginMutation L372 | none found | [three-org HTTP L879](../../scripts/qa/tenant-second-pass-http.mjs#L879) | **COVERED** |
 | [`self/payslips` POST](../../src/app/api/self/payslips/route.ts#L371) | session, body | getSessionUser L5, enforceSameOriginMutation L8, getSessionUser L22, enforceSameOriginMutation L372 | none found | [DL-02 own L318 / denied L316 / unchanged L326](../../scripts/qa/tenant-dl02-http.mjs#L318) | **COVERED** |
 | [`self/performance/action-items` PATCH](../../src/app/api/self/performance/action-items/route.ts#L48) | session, body | getSessionUser L10, enforceSameOriginMutation L12, getSessionUser L33, enforceSameOriginMutation L49 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`self/performance/development-plans` GET](../../src/app/api/self/performance/development-plans/route.ts#L36) | session, body | getSessionUser L12, enforceSameOriginMutation L14, getSessionUser L21, enforceSameOriginMutation L78 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`self/performance/development-plans` POST](../../src/app/api/self/performance/development-plans/route.ts#L77) | session, body | getSessionUser L12, enforceSameOriginMutation L14, getSessionUser L21, enforceSameOriginMutation L78 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`self/performance/development-plans` PATCH](../../src/app/api/self/performance/development-plans/route.ts#L139) | session, body | getSessionUser L12, enforceSameOriginMutation L14, getSessionUser L21, enforceSameOriginMutation L78 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`self/performance/development-plans` GET](../../src/app/api/self/performance/development-plans/route.ts#L36) | session, body | getSessionUser L12, enforceSameOriginMutation L14, getSessionUser L21, enforceSameOriginMutation L78 | none found | [Executed self-development HTTP proof](../../scripts/qa/tenant-self-development-http.mjs#L57) — [local receipt](../qa/tenant-self-development-receipt.json) | **COVERED** |
+| [`self/performance/development-plans` POST](../../src/app/api/self/performance/development-plans/route.ts#L77) | session, body | getSessionUser L12, enforceSameOriginMutation L14, getSessionUser L21, enforceSameOriginMutation L78 | none found | [Executed self-development HTTP proof](../../scripts/qa/tenant-self-development-http.mjs#L66) — [local receipt](../qa/tenant-self-development-receipt.json) | **COVERED** |
+| [`self/performance/development-plans` PATCH](../../src/app/api/self/performance/development-plans/route.ts#L139) | session, body | getSessionUser L12, enforceSameOriginMutation L14, getSessionUser L21, enforceSameOriginMutation L78 | none found | [Executed self-development HTTP proof](../../scripts/qa/tenant-self-development-http.mjs#L73) — [local receipt](../qa/tenant-self-development-receipt.json) | **COVERED** |
 | [`self/performance` GET](../../src/app/api/self/performance/route.ts#L47) | session, body | getSessionUser L18, enforceSameOriginMutation L19, getSessionUser L29, enforceSameOriginMutation L168 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/performance` POST](../../src/app/api/self/performance/route.ts#L167) | session, body | getSessionUser L18, enforceSameOriginMutation L19, getSessionUser L29, enforceSameOriginMutation L168 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`self/performance` PATCH](../../src/app/api/self/performance/route.ts#L226) | session, body | getSessionUser L18, enforceSameOriginMutation L19, getSessionUser L29, enforceSameOriginMutation L168 | none found | NO VALID METHOD PROOF | **GAP** |
