@@ -1,0 +1,91 @@
+name: Legal-entity context switch tenant isolation (fictional PG16 and HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-entity-context-switch.yml'
+      - 'scripts/qa/tenant-table-rows/write/multi-entity-context-switch.mjs'
+      - 'tests/tenant-multi-entity-context-switch.test.mjs'
+      - 'src/app/api/multi-entity/context/route.ts'
+      - 'src/lib/multi-entity-server.ts'
+      - 'src/lib/multi-entity-policy.ts'
+      - 'src/db/schema.ts'
+      - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-entity-context-switch-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  entity-context-switch:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_TABLE_FAMILY: multi-entity-context-switch
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export disposable multi-entity environment (no providers)
+        run: node scripts/qa/tenant-table-env.mjs multi-entity >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys for fictional database only
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Source and negative-control regressions
+        run: node --test tests/tenant-multi-entity-context-switch.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Start production-mode localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-entity-switch-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-entity-switch-server.log
+          exit 1
+      - name: Prove signed-in own preference, real victim denials and unchanged database
+        run: npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Isolated diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-entity-switch-server.log || true

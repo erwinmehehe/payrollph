@@ -1,0 +1,113 @@
+name: Governed roster batches tenant isolation (fictional PG16/HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-roster-batches-http.yml'
+      - 'scripts/qa/tenant-batches/roster-batches-*.mjs'
+      - 'tests/tenant-batches/roster-batches.test.mjs'
+      - 'src/app/api/workforce/roster-batches/**'
+      - 'src/lib/workforce-bulk-publish.ts'
+      - 'src/lib/workforce-manager-actions.ts'
+      - 'src/lib/workforce-roster-rules-server.ts'
+      - 'src/lib/workforce-scheduling.ts'
+      - 'src/lib/hcm-work-period-guard.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roster-batches-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  governed-roster-batches:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      WFM_BULK_ROSTER_PUBLISH_ENABLED: 'true'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Export reviewed disposable localhost configuration
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Test refusal guards and own-object proof contracts
+        run: node --test tests/tenant-batches/roster-batches.test.mjs
+      - name: Generate fictional encryption material without provider secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply isolated reviewed schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Seed three separate real batch rows and private test sessions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/qa/tenant-batches/roster-batches-http.mjs seed >> "$GITHUB_ENV"
+      - name: Build production-mode app against fictional-only scope
+        run: npm run build
+      - name: Start localhost Next server with disposable three-employer allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-roster-batches-server.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-roster-batches-server.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-roster-batches-server.log
+          exit 1
+      - name: Prove populated GET + reject-only POST and cross-employer denials
+        run: node --import tsx scripts/qa/tenant-batches/roster-batches-http.mjs prove
+      - name: Show disposable server diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-roster-batches-server.log || true
