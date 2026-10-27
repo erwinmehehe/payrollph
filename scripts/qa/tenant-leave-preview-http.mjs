@@ -179,6 +179,7 @@ export async function verifyLeavePreviewTenantHttp() {
       await denied(own.cookie, fullDayPreviewBody(own.org.id, other.worker.id), 404);
     }
 
+    await denied(b.cookie, fullDayPreviewBody(b.org.id, peer.worker.id), 404);
     await positive(a.cookie, fullDayPreviewBody(a.org.id, peer.worker.id), peer);
     await positive(employeeA.cookie, fullDayPreviewBody(a.org.id, a.worker.id), attackerA);
     await positive(employeePeer.cookie, fullDayPreviewBody(a.org.id, peer.worker.id), peer);
