@@ -169,7 +169,7 @@ export async function victimSnapshot(orgId) {
     db.select().from(legalEntities).where(eq(legalEntities.organizationId, orgId)).orderBy(legalEntities.id),
     db.select().from(auditEvents).where(eq(auditEvents.organizationId, orgId)).orderBy(auditEvents.id).then(auditBusinessSnapshot),
   ]);
-  return { org, staff, units, entities, audit, offlineClaims: await db.select().from((await import("../../src/db/schema.ts")).offlinePunchClaims).where(eq((await import("../../src/db/schema.ts")).offlinePunchClaims.organizationId, orgId)).orderBy((await import("../../src/db/schema.ts")).offlinePunchClaims.id) };
+  return { org, staff, units, entities, audit, offlineClaims: await db.select().from((await import("../../src/db/schema.ts")).offlinePunchClaims).where(eq((await import("../../src/db/schema.ts")).offlinePunchClaims.organizationId, orgId)).orderBy((await import("../../src/db/schema.ts")).offlinePunchClaims.id), recoveredReadSources: await (await import("./tenant-read-recovery-snapshot.mjs")).readRecoverySnapshot(db, pool, orgId) };
 }
 
 export async function verifyTenantTable(_f, { request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession } = {}) {

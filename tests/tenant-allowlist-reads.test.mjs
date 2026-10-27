@@ -4,6 +4,7 @@ import test from "node:test";
 import { createRows as hcm } from "../scripts/qa/tenant-table-rows/read/hcm-allowlisted.mjs";
 import { createRows as workforce } from "../scripts/qa/tenant-table-rows/read/workforce-allowlisted.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
+import { verifyRecoveryReceipt } from "../scripts/qa/tenant-read-gap-recovery.mjs";
 
 const rows = [...hcm({ assert }), ...workforce({ assert })];
 const c = {
@@ -50,7 +51,8 @@ function proof(key) {
   }
   return basic;
 }
-test("eight distinct GAP GET methods, each with real seed, exact profile, true flag and discriminatory proof", () => {
+test("eight executed GET credits require the bound receipt, actual seed, exact profile and discriminatory proof", () => {
+  const receipt = verifyRecoveryReceipt();
   assert.equal(rows.length, 8);
   assert.equal(new Set(rows.map(row => row.key)).size, 8);
   assert.ok(rows.every(row => row.profile === "allowlisted-reads" && row.flags?.length === 1));
@@ -62,8 +64,10 @@ test("eight distinct GAP GET methods, each with real seed, exact profile, true f
     assert.equal(verb, "GET");
     const found = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
     assert.ok(found, "route must be inventoried: " + row.key);
-    assert.equal(found.methods.find(method => method.name === verb)?.status, "GAP",
-      "No source-only credits: " + row.key);
+    const method = found.methods.find(method => method.name === verb);
+    assert.equal(method?.status, "COVERED", "Executed receipt required: " + row.key);
+    assert.ok(method.testedBy.evidence.includes(receipt.runLabel));
+    assert.equal(method.testedBy.postgresMajor, receipt.postgresMajor);
     assert.equal(catalog.filter(item => item.key === row.key).length, 1);
   }
 });

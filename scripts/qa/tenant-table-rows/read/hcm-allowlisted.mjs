@@ -75,6 +75,7 @@ export function createRows({ assert, db }) {
         return { id: position.id, assignmentId: assignment.id, code: position.code };
       },
       query: c => "positionId=" + c.seeded.id,
+      foreignQuery: c => "positionId=" + c.victimSeeded.id,
       prove: (response, c) => {
         ownTenant(response, c, "tenantId");
         assert.equal(response.json?.positionId, c.seeded.id);
