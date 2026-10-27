@@ -89,6 +89,11 @@ export function createRows({ assert, db, rowTables }) {
         assert.ok(Array.isArray(body.issued) && body.issued.length === 1,
           "must return exactly one persisted and employer-specific issued record");
         const issue = body.issued[0];
+        assert.deepEqual(Object.keys(issue).sort(), [
+          "id", "organizationId", "worksiteId", "sourceKey", "metricKind",
+          "intervalMinutes", "horizonDays", "issuedAt", "snapshotSha256",
+          "pointsCount", "snapshot", "integrity", "score",
+        ].sort(), "issued GET may expose only its reviewed source projection");
         assert.equal(issue.id, c.seeded.id);
         assert.equal(issue.organizationId, c.orgId);
         assert.equal(issue.worksiteId, c.seeded.siteId);
@@ -155,6 +160,13 @@ export function createRows({ assert, db, rowTables }) {
         assert.ok(Array.isArray(body.policies) && body.policies.length === 1,
           "must show one genuine employer-specific draft policy, not an empty default");
         const policy = body.policies[0];
+        assert.deepEqual(Object.keys(policy).sort(), [
+          "organizationId", "worksiteId", "jobProfileId", "metricKind",
+          "intervalMinutes", "effectiveFrom", "effectiveUntil",
+          "productiveUnitsPerWorkerHour", "serviceTargetCoveragePercent", "rationale",
+          "id", "version", "status", "createdAt", "submittedAt",
+          "approvedAt", "contentSha256", "approvalReceiptSha256", "approvalIntegrity",
+        ].sort(), "draft policy GET may not expose unrelated staffing/employee data");
         assert.equal(policy.id, c.seeded.id);
         assert.equal(policy.version, 1);
         assert.equal(policy.status, "draft", "an unapproved policy must not become active");
