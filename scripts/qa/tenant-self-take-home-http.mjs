@@ -29,6 +29,7 @@ export async function proveSelfTakeHomeHttp() {
     standaloneRequest, standaloneExpectStatus, victimSnapshot,
     requireTenantTableDisposable } = table;
   const { auditBusinessSnapshot } = invariants;
+  const randomNonce = randomUUID().replaceAll("-", "").slice(0, 10);
 
   const rows = (source, orgId) => db.select().from(source)
     .where(eq(source.organizationId, orgId)).orderBy(asc(source.id));
@@ -84,8 +85,6 @@ export async function proveSelfTakeHomeHttp() {
     requireTenantTableDisposable();
     assert.equal((await db.select({ id: organizations.id }).from(organizations).limit(1)).length,
       0, "TAKE_HOME_REFUSED: only an empty disposable PG16 employer database");
-    const randomNonce = randomUUID().replaceAll("-", "").slice(0, 10);
-    // Keep this binding inside the scope of seed() by declaring it above.
     const first = await seed("ATTA");
     const second = await seed("ATTB");
     const victim = await seed("VICTIM");
@@ -108,6 +107,8 @@ export async function proveSelfTakeHomeHttp() {
       role: "employee", active: true,
     });
     const unlinkedSession = await standaloneMakeSession(unlinked.id);
+    await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(sessions.id, unlinkedSession.id));
 
     // Invalid legacy identity: an A-only account points to C's *real*
     // employee row. The actual membership check must deny C's private pay.
@@ -122,6 +123,8 @@ export async function proveSelfTakeHomeHttp() {
       role: "employee", active: true,
     });
     const forgedSession = await standaloneMakeSession(forged.id);
+    await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(sessions.id, forgedSession.id));
 
     const before = new Map();
     for (const e of [first, second, victim]) before.set(e.org.id, await state(e.org.id));
