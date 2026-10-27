@@ -25,6 +25,7 @@ on:
       - 'tests/tenant-table-families.test.mjs'
       - 'tests/tenant-table-invariants.test.mjs'
       - 'tests/tenant-allowlist-reads.test.mjs'
+      - 'tests/hcm-effective-correction*'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/**'
       - 'src/lib/**'
@@ -116,6 +117,11 @@ jobs:
         env:
           TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE: "1"
         run: npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Correction rollback, source binding and concurrent approval regressions
+        if: matrix.profile == 'default'
+        env:
+          HCM_CORRECTION_PG: "1"
+        run: npx tsx --test tests/hcm-effective-corrections-pg.test.mjs
       - name: Show isolated server log on failure
         if: failure()
         run: cat /tmp/tenant-table-server.log || true

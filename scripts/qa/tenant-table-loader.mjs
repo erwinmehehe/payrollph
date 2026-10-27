@@ -49,7 +49,9 @@ export function bindTenantReadRequests(definition, ownId, victimId, extra = "", 
     own: bindTenantPath(definition, ctx, "own") + "?organizationId=" + ownId + extra,
     foreign: bindTenantPath(definition, ctx, "foreign") + "?organizationId=" + victimId + extra });
   const base = "/api/" + definition.key.slice(4) + "?organizationId=";
-  return Object.freeze({ ...definition, own: base + ownId + extra, foreign: base + victimId + extra });
+  const foreignExtra = definition.foreignQuery ? definition.foreignQuery(ctx) : null;
+  if (definition.foreignQuery) assert.ok(typeof foreignExtra === "string" && foreignExtra.length > 0, "foreign query must bind a real seeded resource");
+  return Object.freeze({ ...definition, own: base + ownId + extra, foreign: base + victimId + (foreignExtra === null ? extra : "&" + foreignExtra) });
 }
 
 /** Explicit local family run. Unknown/empty families fail; default still runs every row. */

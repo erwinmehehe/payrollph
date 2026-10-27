@@ -21,7 +21,8 @@ async function main() {
   assert.equal(address.pathname, "/app_db");
 
   const orgs = await db.select({ id: organizations.id }).from(organizations);
-  assert.deepEqual(orgs.map(row => row.id).sort((a, b) => a - b), [1, 2]);
+  assert.deepEqual(orgs.map(row => row.id).sort((a, b) => a - b), [1, 2, 3],
+    "Expected exactly two authorized employers and a seeded, victim-only third employer");
 
   const [unit] = await db.select().from(orgUnits).where(and(
     eq(orgUnits.organizationId, 1), eq(orgUnits.code, "HCM-QA-BRANCH"),
@@ -89,7 +90,7 @@ async function main() {
   assert.equal(tasks.length, 6);
   console.log(JSON.stringify({
     result: "SEEDED", mode: "synthetic-postgres-only",
-    organizations: [1, 2], activeManagerUnit: unit.id,
+    organizations: [1, 2, 3], victimEmployerOnly: 3, activeManagerUnit: unit.id,
     managerDecisionTaskId: tasks[0].id,
     liveEmployerDataAccessed: false, fundsAffected: false,
   }));

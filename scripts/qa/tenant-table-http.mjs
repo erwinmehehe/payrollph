@@ -12,7 +12,7 @@
  * Profiles: TENANT_TABLE_PROFILE=default|multi-entity selects rows whose server flags are compatible.
  */
 import assert from "node:assert/strict";
-import { bindTenantReadRequests, loadTenantRows } from "./tenant-table-loader.mjs"; import { selectTenantPathRows } from "./tenant-table-path.mjs";
+import { bindTenantReadRequests, loadTenantRows, selectTenantRowsByFamily } from "./tenant-table-loader.mjs"; import { selectTenantPathRows } from "./tenant-table-path.mjs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
@@ -179,7 +179,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
   const rows = selectTenantPathRows((discover && process.env.TENANT_TABLE_DISCOVER_KEYS
     ? process.env.TENANT_TABLE_DISCOVER_KEYS.split(",").map((key) => TENANT_TABLE.find((row) => row.key === key.trim()) ?? { key: key.trim(), profile })
-    : TENANT_TABLE).filter((row) => (row.profile ?? "default") === profile), process.env.TENANT_TABLE_PATH_ONLY);
+    : selectTenantRowsByFamily("read", TENANT_TABLE, process.env.TENANT_TABLE_FAMILY)).filter((row) => (row.profile ?? "default") === profile), process.env.TENANT_TABLE_PATH_ONLY);
   assert.ok(rows.length > 0, "tenant table profile " + profile + " has no rows; an empty job proves nothing");
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
   // Attackers first, victim last: every victim ID is larger than any attacker-owned ID, so a

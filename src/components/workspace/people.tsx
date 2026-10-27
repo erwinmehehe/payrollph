@@ -23,6 +23,8 @@ import { EmployeeIdentifierReviewPanel } from "@/components/employee-identifier-
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmBusinessProcessAdmin } from "@/components/hcm-business-process-admin";
 import { HcmBusinessProcessInbox } from "@/components/hcm-business-process-inbox";
+import { HcmEffectiveChangeCorrection } from "@/components/hcm-effective-change-correction";
+import { correctionPredecessorId } from "@/lib/hcm-correction-action-read";
 import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-lifecycle-action-center";
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
 import { HcmLifecycleNotificationInbox } from "@/components/hcm-lifecycle-notification-inbox";
@@ -1638,6 +1640,11 @@ function PersonDrawer({
                                 <button type="button" className="secondary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "cancel")}>Cancel</button>
                                 <button type="button" className="primary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "retry")}>Retry</button>
                               </>
+                            )}
+                            {connectedProfile.changeOptions.canManage && data.user?.id && (
+                              <HcmEffectiveChangeCorrection organizationId={data.selectedOrganization.id} employeeId={employee.id}
+                                userId={data.user.id} change={change} onChanged={refreshConnectedProfile}
+                                replacementId={connectedProfile.effectiveChanges.find(candidate => correctionPredecessorId(candidate.toSnapshot) === change.id)?.id} />
                             )}
                           </div>
                         </div>

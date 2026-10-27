@@ -19,8 +19,8 @@ async function main() {
   assert.equal(url.pathname, "/app_db");
 
   const orgs = await db.select({ id: organizations.id }).from(organizations);
-  assert.deepEqual(orgs.map(row => row.id).sort((a, b) => a - b), [1, 2],
-    "Refuse to bind an ESS user outside the two-employer disposable fixture");
+  assert.deepEqual(orgs.map(row => row.id).sort((a, b) => a - b), [1, 2, 3],
+    "Refuse any other source DB: third synthetic employer is a populated, unauthorized victim");
 
   const [worker] = await db.select({ id: employees.id }).from(employees).where(and(
     eq(employees.organizationId, 1),
@@ -42,6 +42,12 @@ async function main() {
       eq(userOrganizations.role, "employee"),
     )).limit(1);
   assert.ok(membership, "Employee login must have active membership only for the fixture employer");
+  const [victimMembership] = await db.select({ id: userOrganizations.id })
+    .from(userOrganizations).where(and(
+      eq(userOrganizations.userId, user.id), eq(userOrganizations.organizationId, 3),
+    )).limit(1);
+  assert.equal(victimMembership, undefined,
+    "The ESS actor must never acquire a membership for the seeded victim-only employer");
 
   await db.update(users).set({ employeeId: worker.id }).where(and(
     eq(users.id, user.id), eq(users.role, "employee"),

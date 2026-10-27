@@ -150,6 +150,8 @@ for (const source of SOURCES) {
 const all = Object.values(manifest.allApiRouteFiles).flatMap((record) => record.methods);
 const tally = (status) => all.filter((method) => method.status === status).length;
 const before = { coveredAfter: manifest.metrics.coveredAfter, gap: manifest.metrics.gap };
+manifest.metrics.routeFiles = Object.keys(manifest.allApiRouteFiles).length;
+manifest.metrics.methods = all.length;
 manifest.metrics.coveredAfter = tally("COVERED");
 manifest.metrics.publicByDesign = tally("PUBLIC-BY-DESIGN");
 manifest.metrics.gap = tally("GAP");
@@ -171,7 +173,7 @@ replaceOnce(/\*\*RELEASE BLOCKER:\*\* \d+ API methods and \d+ business-ID page e
   "**RELEASE BLOCKER:** " + manifest.metrics.gap + " API methods and " + pageGaps + " business-ID page entries", "release blocker headline");
 replaceOnce(/\*\*NOT ACCEPTED\*\*: \d+ method gaps and \d+ page\/action gaps/,
   "**NOT ACCEPTED**: " + manifest.metrics.gap + " method gaps and " + pageGaps + " page/action gaps", "not accepted headline");
-for (const key of ["coveredAfter", "publicByDesign", "gap"]) {
+for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "gap"]) {
   replaceOnce(new RegExp("^\\| " + key + " \\| \\d+ \\|$", "m"), "| " + key + " | " + manifest.metrics[key] + " |", key + " metric row");
 }
 for (const row of credited) {

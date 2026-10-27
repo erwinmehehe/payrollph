@@ -16,7 +16,9 @@ const baseUrl = new URL(base);
 assert.ok(["127.0.0.1","localhost"].includes(baseUrl.hostname));
 const fixture = JSON.parse(await readFile("qa-artifacts/first-payroll-zero-tenant.json","utf8"));
 assert.equal(fixture.label,"disposable-synthetic-only");
-assert.ok(Number.isSafeInteger(fixture.organizationId) && fixture.organizationId > 2);
+// Employer #3 is the populated victim of the earlier three-tenant proof;
+// only the newly added fourth employer may be treated as zero-employee.
+assert.ok(Number.isSafeInteger(fixture.organizationId) && fixture.organizationId > 3);
 const report = { mode:"synthetic-local-browser-only", employerId:fixture.organizationId,
   roles:["owner","hr","payroll","checker"],steps:[], result:"FAIL",
   verifiedNoPayments:true, realDevice:false, realEmployer:false, production:false };
