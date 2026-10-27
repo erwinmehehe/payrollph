@@ -32,3 +32,24 @@ export function requireDisposableSelfAvailability(env = process.env) {
   }
   return true;
 }
+
+/**
+ * Verify real HTTP caching semantics, not an exact header serialization.
+ * Next.js may normalize "private, no-store" into "no-store, max-age=0".
+ * Both prevent any shared or browser cache from storing the employee's data.
+ * Explicitly reject cacheable/conflicting directives to fail closed.
+ */
+export function requireSensitiveNoStoreCache(headers) {
+  const raw = headers?.get?.("cache-control");
+  const directives = typeof raw === "string"
+    ? raw.toLowerCase().split(",").map(value => value.trim()).filter(Boolean)
+    : [];
+  const unsafe = directives.some(value =>
+    value === "public" || value === "immutable" ||
+    /^s-maxage(?:\s*=|$)/.test(value) ||
+    (/^max-age(?:\s*=|$)/.test(value) && !/^max-age\s*=\s*0$/.test(value)));
+  if (!directives.includes("no-store") || unsafe) {
+    throw new Error("SELF_AVAILABILITY_CACHE_UNSAFE: authenticated availability must be non-cacheable");
+  }
+  return true;
+}

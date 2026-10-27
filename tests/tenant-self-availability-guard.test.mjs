@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { requireDisposableSelfAvailability } from "../scripts/qa/tenant-self-availability-guard.mjs";
+import { requireDisposableSelfAvailability, requireSensitiveNoStoreCache } from "../scripts/qa/tenant-self-availability-guard.mjs";
 
 const safe = Object.freeze({
   CI: "true",
@@ -69,4 +69,29 @@ test("standalone workflow runs real signed-in HTTP against fictional PG16 only",
   assert.match(proof, /await expect\(ENDPOINT \+ "\?organizationId="/);
   assert.match(proof, /victimRowsAfter, victimRowsBefore/);
   assert.doesNotMatch(proof, /https:\/\//);
+});
+
+test("authenticated availability GET must be non-cacheable even after Next.js header normalization", () => {
+  for (const value of [
+    "private, no-store",
+    "no-store, max-age=0",
+    "NO-STORE, MAX-AGE=0",
+    "no-store, private, max-age=0",
+  ]) {
+    assert.equal(requireSensitiveNoStoreCache(new Headers({ "cache-control": value })), true, value);
+  }
+  for (const value of [
+    undefined,
+    "private, max-age=0",
+    "no-cache",
+    "public, no-store",
+    "no-store, max-age=60",
+    "no-store, s-maxage=0",
+    "no-store, immutable",
+    "no-store-but-actually-cacheable",
+    "no-store, max-age",
+  ]) {
+    const headers = new Headers(value === undefined ? undefined : { "cache-control": value });
+    assert.throws(() => requireSensitiveNoStoreCache(headers), /SELF_AVAILABILITY_CACHE_UNSAFE/, String(value));
+  }
 });

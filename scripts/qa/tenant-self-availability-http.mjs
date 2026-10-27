@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { requireDisposableSelfAvailability } from "./tenant-self-availability-guard.mjs";
+import { requireDisposableSelfAvailability, requireSensitiveNoStoreCache } from "./tenant-self-availability-guard.mjs";
 
 const ENDPOINT = "/api/self/availability";
 
@@ -141,6 +141,11 @@ export async function verifySelfAvailabilityTenantHttp() {
     async function expect(path, options, status, label) {
       const response = await request(path, options);
       assert.equal(response.status, status, label + ": " + response.status + " " + response.text.slice(0, 190));
+      // Examine actual HTTP response directives on every authenticated GET:
+      // Next may rewrite private/no-store to no-store/max-age=0.
+      if (status === 200 && path === ENDPOINT && (options?.method ?? "GET") === "GET") {
+        requireSensitiveNoStoreCache(response.headers);
+      }
       assert.ok(!response.text.includes(victim.marker) || options?.cookie === victim.selfCookie,
         label + ": unrelated victim marker appeared");
       return response;
@@ -160,7 +165,7 @@ export async function verifySelfAvailabilityTenantHttp() {
       const peer = peers[idx];
       const owner = { cookie: own.selfCookie };
       const start = await expect(ENDPOINT, owner, 200, "attacker own GET");
-      assert.equal(start.headers.get("cache-control"), "private, no-store");
+
       assert.ok(start.json?.rules?.some(row => row.id === own.rule.id &&
         row.notes === own.marker + " private weekly rule"));
       assert.ok(!start.text.includes(peer.rule.notes), "same-employer second worker must remain private");
