@@ -12,7 +12,7 @@ import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 
 export const DEFAULT_BATCH_SIZE = 16;
 const STATUSES = new Set(["COVERED", "GAP", "PUBLIC-BY-DESIGN"]);
-const KINDS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+const KINDS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
 
 const PEOPLE = new Set(["hcm", "self", "employees", "performance", "recruitment",
   "leave", "benefits", "compensation", "careers", "invitations"]);
@@ -24,7 +24,7 @@ const PLATFORM = new Set(["auth", "account", "jobs", "readiness", "setup",
   "webhooks", "multi-entity", "v1", "signup"]);
 
 export function inspectMethod(key) {
-  assert.match(key, /^(GET|POST|PUT|PATCH|DELETE) [A-Za-z0-9_\-/\[\].]+$/,
+  assert.match(key, /^(GET|HEAD|POST|PUT|PATCH|DELETE) [A-Za-z0-9_\-/\[\].]+$/,
     "invalid canonical manifest method key: " + key);
   const [method, route] = key.split(" ");
   assert.ok(route.split("/").every(segment => segment.length && segment !== "." && segment !== ".."),
