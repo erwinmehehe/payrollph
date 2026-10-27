@@ -92,7 +92,7 @@ export async function verifyTenantWriteTable(_f, {
   const passed = new Set();
   const firstAttacker = new Map();
   let discriminatingProofs = 0;
-  let forgedProofs = 0;
+  let forgedProofs = 0; const additionalActionProofs = [];
 
   for (const idx of [1, 2]) {
     const own = employers[idx];
@@ -131,7 +131,7 @@ export async function verifyTenantWriteTable(_f, {
           assert.deepEqual(plain(await item.state(own.org.id)), ownAfter, item.key + ": a forged victim reference must write nothing");
           forgedProofs++;
         }
-        await supplemental.exercise(item.key, ctx, { request, expectStatus, cookie: own.cookie }); passed.add(item.key + "#" + idx);
+        await supplemental.exercise(item.key, ctx, { request, expectStatus, cookie: own.cookie }); const more = await item.exercise?.(ctx, { request, expectStatus, cookie: own.cookie }); if (more) additionalActionProofs.push({ key: item.key, attacker: idx, ...more }); passed.add(item.key + "#" + idx);
       } catch (error) {
         if (!tryMode) throw error;
         tryFailures.push(item.key + " (attacker " + idx + "): " + String(error.message ?? error).split("\n")[0].slice(0, 230));
@@ -154,7 +154,7 @@ export async function verifyTenantWriteTable(_f, {
   assert.equal(discriminatingProofs, rows.length, "every row's expect rejected the other attacker's genuine before/after");
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
   console.log(JSON.stringify({ kind: "tenant-write-table-proof", profile, family: process.env.TENANT_TABLE_FAMILY ?? null, pathOnly: process.env.TENANT_TABLE_PATH_ONLY === "1", rows: rows.length, ownAndForeignPairs: passed.size,
-    discriminatingProofs, forgedReferenceProofs: forgedProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false }));
+    discriminatingProofs, forgedReferenceProofs: forgedProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false, ...(additionalActionProofs.length ? { additionalActionProofs } : {}) }));
   return { rows: rows.length, pairs: passed.size };
 }
 

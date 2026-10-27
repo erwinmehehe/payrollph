@@ -1,0 +1,146 @@
+{
+  "schema": "local-legal-employer-admin-proof-v1",
+  "runLabel": "local WSL PostgreSQL 18.6 multi-entity 2026-10-27; docs/qa/tenant-legal-employer-admin-receipt.json",
+  "base": "318d6446ed371649982f76bb7c4ec9f57ff874fb",
+  "postgresMajor": 18,
+  "serverVersionNum": 180006,
+  "productionTested": false,
+  "ci": "NOT_RUN",
+  "methods": [
+    "PATCH multi-entity/context",
+    "PATCH multi-entity/settings",
+    "GET multi-entity/registration-changes",
+    "POST multi-entity/registration-changes",
+    "PATCH multi-entity/registration-changes"
+  ],
+  "mutation": {
+    "method": "PATCH multi-entity/settings",
+    "rejected": true,
+    "message": "Missing expected rejection: PATCH multi-entity/settings: expect accepts another employer's data"
+  },
+  "runs": {
+    "read": {
+      "kind": "tenant-table-proof",
+      "profile": "multi-entity",
+      "pathOnly": false,
+      "rows": 4,
+      "ownAndForeignPairs": 8,
+      "discriminatingProofs": 4,
+      "victimDatabaseUnchanged": true,
+      "productionTested": false,
+      "certified": false
+    },
+    "write": {
+      "kind": "tenant-write-table-proof",
+      "profile": "multi-entity",
+      "family": null,
+      "pathOnly": false,
+      "rows": 4,
+      "ownAndForeignPairs": 8,
+      "discriminatingProofs": 4,
+      "forgedReferenceProofs": 8,
+      "victimDatabaseUnchanged": true,
+      "productionTested": false,
+      "certified": false,
+      "additionalActionProofs": [
+        {
+          "key": "PATCH multi-entity/settings",
+          "attacker": 1,
+          "controls": [
+            "idempotent-no-write",
+            "unversioned-identity-denied"
+          ]
+        },
+        {
+          "key": "PATCH multi-entity/registration-changes",
+          "attacker": 1,
+          "ownAndForeignPairs": 1,
+          "approvalDiscrimination": 0,
+          "controls": [
+            "approve",
+            "foreign-request-denied",
+            "self-approval-denied",
+            "replay-denied"
+          ]
+        },
+        {
+          "key": "PATCH multi-entity/context",
+          "attacker": 1,
+          "controls": [
+            "owner-all-entities-denied"
+          ]
+        },
+        {
+          "key": "PATCH multi-entity/settings",
+          "attacker": 2,
+          "controls": [
+            "idempotent-no-write",
+            "unversioned-identity-denied"
+          ]
+        },
+        {
+          "key": "PATCH multi-entity/registration-changes",
+          "attacker": 2,
+          "ownAndForeignPairs": 1,
+          "approvalDiscrimination": 1,
+          "controls": [
+            "approve",
+            "foreign-request-denied",
+            "self-approval-denied",
+            "replay-denied"
+          ]
+        },
+        {
+          "key": "PATCH multi-entity/context",
+          "attacker": 2,
+          "controls": [
+            "owner-all-entities-denied"
+          ]
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "key": "PATCH multi-entity/context",
+      "file": "scripts/qa/tenant-table-rows/write/multi-entity-context-switch.mjs",
+      "sha256": "d33f2b0813f7b2adaa5d4213e7ad071e32bd20f6304f4f54495963bd5ac42c7a"
+    },
+    {
+      "key": "PATCH multi-entity/settings",
+      "file": "scripts/qa/tenant-table-rows/write/legal-employer-admin.mjs",
+      "sha256": "11d22bbc0e73c9e17f69bf12db8293b6727c2b8a598cb75e045c8b2778912b36"
+    },
+    {
+      "key": "GET multi-entity/registration-changes",
+      "file": "scripts/qa/tenant-table-rows/read/registration-changes.mjs",
+      "sha256": "788dc84934f33527c19fd786bfc7b46fdc6dddb1eb75a14e31aec39bc987ba65"
+    },
+    {
+      "key": "POST multi-entity/registration-changes",
+      "file": "scripts/qa/tenant-table-rows/write/legal-employer-admin.mjs",
+      "sha256": "11d22bbc0e73c9e17f69bf12db8293b6727c2b8a598cb75e045c8b2778912b36"
+    },
+    {
+      "key": "PATCH multi-entity/registration-changes",
+      "file": "scripts/qa/tenant-table-rows/write/legal-employer-admin.mjs",
+      "sha256": "11d22bbc0e73c9e17f69bf12db8293b6727c2b8a598cb75e045c8b2778912b36"
+    },
+    {
+      "file": "scripts/qa/tenant-legal-employer-admin-proof.mjs",
+      "sha256": "a8695af0ee0d6e261b929fe56d92a3f5e08133ecfd48b37da469f5a31eaaff5b"
+    },
+    {
+      "file": "scripts/qa/tenant-table-loader.mjs",
+      "sha256": "06a88e19debb3664f678f5ac03ccdee761f5c11989c34d526729176eb3c64d3d"
+    },
+    {
+      "file": "scripts/qa/tenant-table-http.mjs",
+      "sha256": "27f005f33791cb8f80f2d1a4f0cf82d625d6a0c490ef0cc4baa59b8dce3a291b"
+    },
+    {
+      "file": "scripts/qa/tenant-write-table-http.mjs",
+      "sha256": "a8c9736a454a2425c67899a7ee188417ba83771478e431e728fa4bae01aa9b80"
+    }
+  ]
+}
