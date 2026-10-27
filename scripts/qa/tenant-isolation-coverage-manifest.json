@@ -11905,7 +11905,7 @@
       ]
     },
     "src/app/api/hcm/capabilities/route.ts": {
-      "gitBlobSha": "5e8e1d0ac7fd7592a9da34091933ae9f0b6910fd",
+      "gitBlobSha": "675118ce830de4525797288b9b3581f294c35c46",
       "route": "hcm/capabilities",
       "methods": [
         {
@@ -11929,8 +11929,25 @@
           "name": "POST",
           "line": 103,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Only the declared set_employee_skill action has provisional two-attacker synthetic PG16/HTTP proof; create_skill, set_job_skill, link_credential and verification transitions remain unreviewed for this changed source. This is not method-level coverage or production acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "iso-date-regex-only-action-limited-employee-skill-proof",
+            "originalRouteBlobSha": "5e8e1d0ac7fd7592a9da34091933ae9f0b6910fd",
+            "routeBlobSha": "675118ce830de4525797288b9b3581f294c35c46",
+            "action": "set_employee_skill",
+            "status": "declared",
+            "remainingPostActions": "GAP",
+            "file": "scripts/qa/tenant-hcm-employee-skills-http.mjs",
+            "ownPositiveLine": 97,
+            "foreignDenialLine": 115,
+            "forgedDenialLine": 125,
+            "unchangedDbLine": 121,
+            "testFile": "tests/tenant-hcm-employee-skills.test.mjs",
+            "scope": "One-line ISO_DATE validation correction only; unchanged GET and other POST action bodies proved by original route blob reconstruction. Two separate owner attackers, real higher-ID victim, persisted own declared employee skill, 403 real foreign employer, 404 forged victim employee, unchanged victim rows and audit. Unverified declared status only.",
+            "evidence": "Focused synthetic PostgreSQL 16/production-mode localhost HTTP workflow run 40510938938 (success), exact head 6f559916af5da6a012281ce5011018ca3cf98768; new head requires independent rerun.",
+            "creditStatus": "ZERO_NEW_CREDITS"
+          }
         }
       ],
       "employerSources": {

@@ -175,6 +175,75 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // HCM capability POST has four distinct actions. A one-line date-regex fix
+  // makes only set_employee_skill/declared executable with positive and
+  // foreign-denial HTTP evidence. It is NOT blanket proof of the other POST
+  // actions, especially verified/revoked transitions. Require the exact
+  // reviewed source blob AND a byte-for-byte reconstruction of the original
+  // route after undoing that one regex change. Any other change re-blocks CI.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/hcm/capabilities/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    const originalBlob = "5e8e1d0ac7fd7592a9da34091933ae9f0b6910fd";
+    const scopedBlob = "675118ce830de4525797288b9b3581f294c35c46";
+    assert.equal(currentBlob, scopedBlob, "HCM capability source changed; require renewed method review");
+    assert.equal(reviewed?.kind, "iso-date-regex-only-action-limited-employee-skill-proof");
+    assert.equal(reviewed?.originalRouteBlobSha, originalBlob);
+    assert.equal(reviewed?.routeBlobSha, scopedBlob);
+    assert.equal(reviewed?.action, "set_employee_skill");
+    assert.equal(reviewed?.status, "declared");
+    assert.equal(reviewed?.remainingPostActions, "GAP");
+    assert.equal(method.testedBy, null, "Partial action evidence is NOT full POST coverage");
+    const route = readFileSync("src/app/api/hcm/capabilities/route.ts", "utf8");
+    const fixed = "const ISO_DATE = /^\\d{4}-\\d{2}-\\d{2}$/;";
+    const original = "const ISO_DATE = /^\\\\d{4}-\\\\d{2}-\\\\d{2}$/;";
+    assert.equal(route.split(fixed).length, 2, "Exactly one fixed ISO_DATE validator required");
+    assert.equal(gitBlobSha(Buffer.from(route.replace(fixed, original))), originalBlob,
+      "No additional code change or unreviewed POST/GET action may ride with the regex fix");
+    assert.match(route, /eq\(employees\.organizationId, organizationId\)/);
+    assert.match(route, /eq\(hcmSkills\.organizationId, organizationId\)/);
+    assert.match(route, /assertScope\(access, employee\.orgUnitId\)/);
+    const get = manifest.allApiRouteFiles["src/app/api/hcm/capabilities/route.ts"].methods
+      .find((entry) => entry.name === "GET");
+    assert.equal(get?.status, "COVERED", "Previously evidenced GET remains separately covered");
+    assert.equal(get?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    const evidenceFile = "scripts/qa/tenant-hcm-employee-skills-http.mjs";
+    assert.equal(reviewed?.file, evidenceFile);
+    const evidenceLines = readableLines(evidenceFile);
+    const evidenceSource = evidenceLines.join("\n");
+    const proofCases = [
+      [reviewed.ownPositiveLine, /const ownResponse = standaloneExpectStatus\(await standaloneRequest\(endpoint/, /\), 200,/],
+      [reviewed.foreignDenialLine, /const foreign = standaloneExpectStatus\(await standaloneRequest\(endpoint/, /\), 403,/],
+      [reviewed.forgedDenialLine, /const forged = standaloneExpectStatus\(await standaloneRequest\(endpoint/, /\), 404,/],
+    ];
+    for (const [line, call, status] of proofCases) {
+      const hit = evidenceLine(evidenceFile, line, key);
+      assert.match(hit, call, "Must use actual authenticated HTTP, not fabricated result");
+      const span = evidenceLines.slice(line - 1, line + 3).join("\n");
+      assert.match(span, /method: "POST"/);
+      assert.match(span, status);
+    }
+    assert.match(evidenceLine(evidenceFile, reviewed.unchangedDbLine, key),
+      /assert\.deepEqual\(plain\(await row\.state\(victim\.org\.id\)\), victimBefore/);
+    assert.match(evidenceSource, /for \(const own of \[attackerA, attackerB\]\)/);
+    assert.match(evidenceSource, /await seedTableRow\(row, employers\)/);
+    assert.match(evidenceSource, /victimSnapshot\(victim\.org\.id\)/);
+    assert.match(evidenceSource, /requireDisposableHcmSkills\(\)/);
+    const contract = readFileSync("scripts/qa/tenant-hcm-employee-skills-contract.mjs", "utf8");
+    assert.match(contract, /action: "set_employee_skill"/);
+    assert.match(contract, /status: "declared"/);
+    assert.match(contract, /assert\.equal\(row\.verified_at, null/);
+    const workflow = readFileSync(".github/workflows/tenant-hcm-employee-skills.yml", "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-employee-skills-http\.mjs/);
+    assert.ok(!workflow.includes("TENANT_TABLE_FAMILY:"),
+      "Action-only proof must not duplicate the shared POST method row");
+    assert.equal(reviewed?.testFile, "tests/tenant-hcm-employee-skills.test.mjs");
+    const negativeTests = readFileSync(reviewed.testFile, "utf8");
+    assert.match(negativeTests, /reject no-op, wrong worker\/skill\/tenant/);
+    assert.match(negativeTests, /audit must identify the actual session actor/);
+    return;
+  }
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

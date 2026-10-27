@@ -1,0 +1,91 @@
+name: API v1 journal tenant isolation (fictional PG16 and bearer HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-v1-journal-http.yml'
+      - 'scripts/qa/tenant-v1-journal-*.mjs'
+      - 'tests/tenant-v1-journal-*.test.mjs'
+      - 'src/app/api/v1/journal-entries/**'
+      - 'src/lib/api-v1-extended.ts'
+      - 'src/lib/public-api-v1-extended.ts'
+      - 'src/lib/api-auth.ts'
+      - 'src/lib/api-keys.ts'
+      - 'src/lib/payroll-journal-export.ts'
+      - 'src/lib/csv.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  journal-isolation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Only this disposable PG16/localhost workflow enables either gate.
+      PUBLIC_API_V1_EXTENDED_ENABLED: "true"
+      API_V1_EXTENDED_READS_ENABLED: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export disposable production-mode localhost environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Validate exact-head source and adversarial CSV contracts
+        run: |
+          node --check scripts/qa/tenant-v1-journal-contract.mjs
+          node --check scripts/qa/tenant-v1-journal-http.mjs
+          node --check tests/tenant-v1-journal-contract.test.mjs
+          node --test tests/tenant-v1-journal-contract.test.mjs
+      - name: Reject unsafe providers and generate ephemeral crypto inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed local-only source baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work-item event snapshot fixture (disposable empty PG16 only)
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build actual production-mode Next server
+        run: npm run build
+      - name: Two bearer-key attackers, higher-ID real victim, exact legal employer & CSV money controls
+        run: node --import tsx scripts/qa/tenant-v1-journal-http.mjs
