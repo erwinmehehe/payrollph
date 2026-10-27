@@ -237,13 +237,13 @@ export function HrisHomeShortcuts({
       )}
       {additionalActions.length > 0 && (
         <details className="mt-5 rounded-xl border border-slate-200 px-4 py-3">
-          <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-slate-800">
+          <summary className="min-h-11 cursor-pointer rounded-lg py-2 text-sm font-semibold text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
             More HR tools
           </summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {additionalActions.map((action) => (
               <button key={action.id} type="button" onClick={() => onPage(action.page)}
-                className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 text-left text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700">
+                className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 text-left text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
                 <span><strong className="block">{action.title}</strong><span className="text-xs text-slate-600">{action.description}</span></span>
                 <ArrowRight size={16} aria-hidden="true" />
               </button>
