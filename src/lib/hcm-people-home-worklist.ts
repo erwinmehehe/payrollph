@@ -33,6 +33,28 @@ export type PeopleHomeItem = {
   blockedByMakerChecker?: boolean;
 };
 
+
+/**
+ * Screen-reader link lists need a record-specific name when the visible
+ * action text repeats. Titles here are controlled labels from this minimized
+ * read model; the source-specific numeric reference distinguishes siblings
+ * without exposing employee names, notes, or other private source details.
+ */
+const PEOPLE_HOME_SOURCE_REF: Record<PeopleHomeItem["source"], string> = {
+  hcm_business_process: "HCM step",
+  lifecycle_notification: "Lifecycle notification",
+  provisioning: "Provisioning task",
+  operational_case: "Operational case",
+};
+
+export function peopleHomeSourceLinkAccessibleName(
+  item: Pick<PeopleHomeItem, "source" | "sourceId" | "title">,
+): string {
+  const action = item.source === "provisioning"
+    ? "Open worker in People" : "Open source workflow";
+  return `${action}: ${item.title} (${PEOPLE_HOME_SOURCE_REF[item.source]} ${item.sourceId})`;
+}
+
 export type PeopleHomeSection = {
   state: "ready" | "unavailable";
   items: PeopleHomeItem[];
