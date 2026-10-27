@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/tenant-leave-preview-http.yml'
       - 'scripts/qa/tenant-leave-preview-*.mjs'
+      - 'scripts/qa/prepare-hcm-work-item-fixture.mjs'
+      - 'scripts/qa/tenant-read-recovery-snapshot.mjs'
+      - 'drizzle/0104_hcm_work_item_sla.sql'
       - 'tests/tenant-leave-preview-*.test.mjs'
       - 'src/app/api/leave/preview/**'
       - 'src/lib/hcm-leave-employment.ts'
@@ -84,6 +87,8 @@ jobs:
         run: npm run db:push
       - name: Apply isolated reviewed baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare reviewed SQL-only HCM fixture in empty disposable database
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build fictional local app
         run: npm run build
       - name: Prove own, foreign, forged worker and unchanged state

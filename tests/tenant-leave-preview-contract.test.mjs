@@ -94,6 +94,22 @@ test("four genuinely distinct shift schedules have exact paid/wall minutes", () 
   assert.throws(() => shiftFor(5));
 });
 
+test("workflow prepares the SQL-only victim snapshot dependency before build and real HTTP", () => {
+  const workflow = readFileSync(".github/workflows/tenant-leave-preview-http.yml", "utf8");
+  const baseline = workflow.indexOf("run: node scripts/qa/apply-isolated-baseline.mjs");
+  const fixture = workflow.indexOf("run: node scripts/qa/prepare-hcm-work-item-fixture.mjs");
+  const build = workflow.indexOf("run: npm run build");
+  const http = workflow.indexOf("node --import tsx scripts/qa/tenant-leave-preview-http.mjs");
+  assert.ok(baseline >= 0 && fixture > baseline && build > fixture && http > build,
+    "empty-db fixture preparation must precede application build and employer seeding/HTTP");
+  const helper = readFileSync("scripts/qa/prepare-hcm-work-item-fixture.mjs", "utf8");
+  assert.ok(helper.includes('assert.equal(env.GITHUB_ACTIONS, "true"'));
+  assert.ok(helper.includes('assert.equal(target.employers, 0'));
+  assert.ok(helper.includes('assert.equal(target.audits, 0'));
+  assert.ok(readFileSync("drizzle/0104_hcm_work_item_sla.sql", "utf8").includes("hcm_work_item_events"));
+  assert.ok(readFileSync("scripts/qa/tenant-read-recovery-snapshot.mjs", "utf8").includes("hcm_work_item_events"));
+});
+
 test("preview always uses one bounded full-day Philippine work-date interval", () => {
   const body = fullDayPreviewBody(11, 41);
   assert.deepEqual(body, { organizationId: 11, employeeId: 41, intervals: [{

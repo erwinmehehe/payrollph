@@ -44,6 +44,15 @@ The proof compares all three employers' actual PostgreSQL **employee, shift-defi
 
 ## Acceptance conditions
 
+The prior exact-head CI run `40513383154` reached the real HTTP test but failed
+before preview assertions: the shared victim snapshot queries the SQL-only
+`hcm_work_item_events` table, which `db:push` does not create. The workflow now
+runs the existing guarded, checksum-pinned 0104 fixture helper after the isolated
+baseline and before build/seeding. A regression test checks this ordering and
+the helper's GitHub Actions/empty-employer/empty-audit restrictions. No snapshot
+is skipped, no application guard is changed, and no production SQL is run.
+Fresh exact-head PG16 HTTP CI is still required; the failed run is not a proof pass.
+
 - [ ] Exact-head `node --check` on both scripts/test and `node --test` on both the old guard and eight new adversarial contract tests; do not assume pass without a CI receipt.
 - [ ] Existing **Leave preview tenant HTTP** workflow executes against real local PostgreSQL 16 and Next, with all scheduled own/foreign/forged source assertions.
 - [ ] Full CI, CodeQL, security smoke, GAP batch factory and independent security review accept the **exact head** evidence.
