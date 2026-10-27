@@ -8,7 +8,9 @@ export type HrisQuickFindEmployee = Pick<
 const MAX_RESULTS = 6;
 
 function normalized(value: string): string {
-  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+  // Fold diacritics for search only; never rewrite authoritative worker names.
+  return value.normalize("NFKD").replace(/\p{M}/gu, "")
+    .trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
 }
 
 /**
