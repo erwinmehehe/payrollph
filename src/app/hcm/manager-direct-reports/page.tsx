@@ -57,7 +57,7 @@ export default async function ManagerDirectReportsPage({
     <main className="mx-auto max-w-6xl px-4 py-8 text-slate-900 sm:px-8">
       <Link
         href={"/app?organizationId=" + organizationId}
-        className="text-sm font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
+        className="inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
       >Return to selected employer</Link>
       <header className="mt-7 border-b border-slate-200 pb-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Read-only manager view</p>
@@ -75,7 +75,7 @@ export default async function ManagerDirectReportsPage({
           <p className="mt-2 text-sm">
             The source could not be verified. This is not an empty team or an all-clear status.
           </p>
-          <Link href={href(organizationId)} className="mt-4 inline-block underline">
+          <Link href={href(organizationId)} className="mt-4 inline-flex min-h-11 items-center rounded-md font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
             Retry current records
           </Link>
         </section>
@@ -119,13 +119,13 @@ export default async function ManagerDirectReportsPage({
           <nav aria-label="Direct-report pages" className="mt-7 flex flex-wrap items-center gap-4">
             {cursor > 0 && (
               <Link href={href(organizationId)}
-                className="rounded-lg border border-slate-400 px-4 py-2 text-sm font-semibold">
+                className="inline-flex min-h-11 items-center rounded-lg border border-slate-400 px-4 py-2 text-sm font-semibold hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
                 Back to first page
               </Link>
             )}
             {data.page.hasMore && data.page.nextCursor && (
               <Link href={href(organizationId, data.page.nextCursor)}
-                className="rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white">
+                className="inline-flex min-h-11 items-center rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
                 Next verified records
               </Link>
             )}
