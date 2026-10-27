@@ -92,10 +92,15 @@ test("source still derives employer access from a real membership and scopes ass
   assert.match(source, /enforceSameOriginMutation\(request\)/);
 });
 
-test("all four asset API methods remain GAP until the actual HTTP evidence is reviewed", () => {
+test("asset custody retains its pre-existing COVERED evidence without claiming new credits", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = manifest.allApiRouteFiles["src/app/api/assets/route.ts"];
   assert.ok(record, "asset custody methods must be inventoried");
   assert.deepEqual(record.methods.map((m) => [m.name, m.status]),
-    [["GET", "GAP"], ["POST", "GAP"], ["PATCH", "GAP"], ["DELETE", "GAP"]]);
+    [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"], ["DELETE", "COVERED"]],
+    "preserve independently existing coverage statuses; this test does not promote GAPs");
+  for (const method of record.methods) {
+    assert.ok(method.testedBy && typeof method.testedBy === "object",
+      method.name + " requires its prior proof provenance, not merely a COVERED label");
+  }
 });
