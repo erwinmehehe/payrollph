@@ -105,6 +105,28 @@ test("actual own CSV response proof requires exactly own released record, amount
     "attacker B's own CSV must never count as A's proof");
 });
 
+test("normalized no-store journal headers are accepted, cacheable headers fail closed", () => {
+  for (const safe of [
+    "no-store", "private, no-store", "no-store, max-age=0",
+    "NO-STORE, MAX-AGE=0", "no-store, max-age = 0", "no-cache, no-store",
+  ]) {
+    const r = response(a);
+    r.headers.set("cache-control", safe);
+    assert.doesNotThrow(() => proveJournalResponse(r, a), safe);
+  }
+  for (const unsafe of [
+    "", "private", "no-cache", "public, no-store", "no-store, public",
+    "no-store, max-age=1", "no-store, max-age=60", "no-store, max-age",
+    "no-store, s-maxage=0", "no-store, s-maxage=600",
+    "no-store, stale-while-revalidate=60", "no-store, stale-if-error=60",
+    "no-store, immutable",
+  ]) {
+    const r = response(a);
+    r.headers.set("cache-control", unsafe);
+    assert.throws(() => proveJournalResponse(r, a), unsafe || "missing directives");
+  }
+});
+
 test("forged journal, entity, dates, draft/foreign rows or header omissions are caught", () => {
   const mutations = [
     r => { r.status = 403; },
