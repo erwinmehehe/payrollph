@@ -106,3 +106,20 @@ test("All People Home query workloads are tenant-qualified, capped and private",
   assert.match(projection, /sourceDate: null/);
   assert.match(projection, /total: null/);
 });
+
+test("People Home source links offer visible keyboard focus and large touch targets", () => {
+  const page = read("src/app/hcm/command-center/page.tsx");
+  const sourceItem = page.match(/<Link href=\{item\.sourceUrl\} className="([^"]+)"/)?.[1];
+  const sourceSection = page.match(/<Link className="([^"]+)"\s+href=\{section\.sourceUrl\}/)?.[1];
+  const returnLink = page.match(/<Link href=\{`\/app\?organizationId=\$\{organizationId\}`\} className="([^"]+)">Back to selected employer workspace/)?.[1];
+  for (const [label, classes] of [
+    ["source-item", sourceItem],
+    ["source-section", sourceSection],
+    ["return", returnLink],
+  ] as const) {
+    assert.ok(classes, label + " link is present");
+    assert.match(classes, /\bmin-h-11\b/, label + " is a 44px minimum touch target");
+    assert.match(classes, /\bfocus-visible:outline-2\b/, label + " has visible keyboard focus");
+    assert.match(classes, /\bfocus-visible:outline-offset-2\b/);
+  }
+});
