@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  PAYROLL_PERIOD, requireDisposableOverpaymentEnv,
+  PAYROLL_PERIOD, AMBIGUOUS_PAYROLL_PERIOD, requireDisposableOverpaymentEnv,
   fictionalOverpaymentAmounts, ownOverpaymentBody,
   proveOwnedOverpaymentPreview, proveOverpaymentDenial,
   assertOverpaymentSourcesUnchanged,
@@ -128,6 +128,50 @@ test("three fictional source payrolls use distinct whole-centavo balanced eviden
   }
   assert.throws(() => fictionalOverpaymentAmounts(3));
   assert.throws(() => fictionalOverpaymentAmounts(-1));
+});
+
+test("released ambiguous-entry fixture uses a non-overlapping PostgreSQL period", () => {
+  assert.ok(PAYROLL_PERIOD.start < PAYROLL_PERIOD.end);
+  assert.ok(AMBIGUOUS_PAYROLL_PERIOD.start <= AMBIGUOUS_PAYROLL_PERIOD.end);
+  assert.ok(PAYROLL_PERIOD.end < AMBIGUOUS_PAYROLL_PERIOD.start,
+    "two Released runs sharing organization, entity and scope may never overlap");
+  const script = readFileSync("scripts/qa/tenant-overpayment-preview-http.mjs", "utf8");
+  assert.ok(script.includes("periodStart: AMBIGUOUS_PAYROLL_PERIOD.start"));
+  assert.ok(script.includes("periodEnd: AMBIGUOUS_PAYROLL_PERIOD.end"));
+  assert.ok(script.includes("run.periodEnd < duplicate.periodStart"));
+  const workflow = readFileSync(".github/workflows/tenant-overpayment-preview-http.yml", "utf8");
+  const baseline = workflow.indexOf("run: node scripts/qa/apply-isolated-baseline.mjs");
+  const hcm = workflow.indexOf("run: node scripts/qa/prepare-hcm-work-item-fixture.mjs");
+  const build = workflow.indexOf("run: npm run build");
+  assert.ok(baseline !== -1 && hcm > baseline && build > hcm,
+    "the disposable SQL-only source table is required before the deep victim snapshot");
+});
+
+test("financial no-store proof accepts safe Next normalization but rejects shared caching", () => {
+  const safe = [
+    "private, no-store, max-age=0",
+    "no-store, max-age=0",
+    "No-Store, MAX-AGE=0",
+    "no-store",
+    "max-age=0, no-store, private",
+  ];
+  for (const header of safe) {
+    const reply = response(first);
+    reply.headers.set("cache-control", header);
+    assert.doesNotThrow(() => proveOwnedOverpaymentPreview(reply, first),
+      "valid non-cacheable header: " + header);
+  }
+  const unsafe = [
+    "private", "no-cache", "max-age=0", "public, max-age=0",
+    "no-store, public", "public, no-store", "no-store, max-age=3600",
+    "no-store, s-maxage=0", "no-store, immutable",
+  ];
+  for (const header of unsafe) {
+    const reply = response(first);
+    reply.headers.set("cache-control", header);
+    assert.throws(() => proveOwnedOverpaymentPreview(reply, first),
+      "dangerous or incomplete cache directive: " + header);
+  }
 });
 
 test("requests bind real employer, employee, released run and a distinct evidence marker", () => {

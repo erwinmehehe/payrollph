@@ -8,7 +8,10 @@ This endpoint is an authenticated, MFA-required, company-wide payroll-checker **
 
 The feature flag `HCM_OVERPAYMENT_PREVIEW_ENABLED` stays default-off in production. A new isolated **GitHub Actions job only** enables it against synthetic, fresh PostgreSQL **16** with disabled payment providers, ephemeral cryptographic inputs and a real production-mode **localhost** Next HTTP server. The script refuses to import any application or database code unless all disposable environment guards pass. No real customer data, production API, provider or external money endpoint is touched.
 
-Three fictional employers are seeded in sequence: two independent authenticated owner attackers A and B, followed by a **genuine higher-ID victim** (org/entity/unit/worker/user). For each employer the script writes a real in-range Released payroll run with exactly one real payroll entry and employer-distinct protected line-item/trace markers, an in-range Draft decoy, and an ambiguous Released decoy with **two** entries. The latest real victim run and entry IDs are verified higher than both attacker IDs.
+Three fictional employers are seeded in sequence: two independent authenticated owner attackers A and B, followed by a **genuine higher-ID victim** (org/entity/unit/worker/user). For each employer the script writes a real in-range Released payroll run with exactly one real payroll entry and employer-distinct protected line-item/trace markers, an in-range Draft decoy, and an ambiguous Released decoy with **two**
+entries in a **separate non-overlapping pay period** (September 16–30). This
+preserves the PostgreSQL `payroll_runs_no_overlapping_release` exclusion
+constraint while exercising the duplicate-entry failure path. The latest real victim run and entry IDs are verified higher than both attacker IDs.
 
 Source `Released` rows are **directly inserted fictional historical fixtures**; they do **not** constitute evidence that any legitimate payroll approval/release workflow was executed. The actual source fingerprint is computed over the committed original entry ID, run/worker IDs, centavos, status, `lineItems`, and `trace` and must match the HTTP result. One victim worker is deliberately marked Separated *before* the snapshot, confirming historical review cannot change employment state.
 
@@ -30,13 +33,23 @@ Source `Released` rows are **directly inserted fictional historical fixtures**; 
 | Invalid request, exponential amount notation, verified net greater than gross | **400** or **422** with exact relevant error codes |
 | Any attempted denial returns line items, trace, private employer marker, authorized employee source or amounts | **Fail** |
 
+The dedicated CI workflow also prepares the existing, reviewed SQL-only
+`hcm_work_item_events` table in the **empty disposable PostgreSQL 16 instance**
+before seeding. This is necessary because the shared deep victim snapshot reads
+that migration-only table; it does not apply a production migration.
+
+The positive-response test permits Next.js to normalize
+`private, no-store` into `no-store, max-age=0`, but rejects any missing
+`no-store`, `public`, positive/shared cache lifetime or other caching
+contradiction.
+
 The script snapshots **all three employers** immediately before network traffic: full worker rows, pay profiles, payroll runs, all entries linked to those runs, employee loans, leave requests, payout batches, and business-content audit events. The after-snapshot must be **identical**. In addition, the existing shared deep victim organization/unit/entity/employee/audit/recovery source snapshot must remain identical. Session last-used and distributed rate-limit counters are the only unrelated security bookkeeping outside these source snapshots.
 
 ## Changed artifacts
 
 - `scripts/qa/tenant-overpayment-preview-contract.mjs`: disposable-only guard, distinct fictional exact-centavo inputs, strict own/denied HTTP body validators, and state immutability.
 - `scripts/qa/tenant-overpayment-preview-http.mjs`: real PostgreSQL three-employer fixtures, signed-in HTTP success and 20+ foreign/invalid probes, sworn source-fingerprint checks, before/after invariants.
-- `tests/tenant-overpayment-preview-contract.test.mjs`: **eight adversarial source tests** that reject swapped employers, forged source hashes, wrong centavos, recovery authorizations, private source fields and changed SQL snapshots.
+- `tests/tenant-overpayment-preview-contract.test.mjs`: **ten adversarial source tests** that reject swapped employers, forged source hashes, wrong centavos, recovery authorizations, private source fields and changed SQL snapshots.
 - `.github/workflows/tenant-overpayment-preview-http.yml`: isolated PG16, Node source tests, real production-mode localhost Next and HTTP proof.
 - This document: scope, limitations and no-credit acceptance gates.
 

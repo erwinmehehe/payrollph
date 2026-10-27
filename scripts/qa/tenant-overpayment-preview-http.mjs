@@ -11,7 +11,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   requireDisposableOverpaymentEnv, fictionalOverpaymentAmounts,
   ownOverpaymentBody, proveOwnedOverpaymentPreview, proveOverpaymentDenial,
-  assertOverpaymentSourcesUnchanged, PAYROLL_PERIOD,
+  assertOverpaymentSourcesUnchanged, PAYROLL_PERIOD, AMBIGUOUS_PAYROLL_PERIOD,
 } from "./tenant-overpayment-preview-contract.mjs";
 
 const BASE = "http://127.0.0.1:3000";
@@ -86,12 +86,20 @@ export async function verifyOverpaymentPreviewTenantHttp() {
           organizationId: e.org.id, legalEntityId: e.entity.id,
           scopeOrgUnitId: e.unit.id,
           periodLabel: e.marker + " ambiguous register",
-          periodStart: PAYROLL_PERIOD.start, periodEnd: PAYROLL_PERIOD.end,
-          payDate: PAYROLL_PERIOD.pay, status: "Released",
+          // Independent Released period; keep the real overlap exclusion intact.
+          periodStart: AMBIGUOUS_PAYROLL_PERIOD.start,
+          periodEnd: AMBIGUOUS_PAYROLL_PERIOD.end,
+          payDate: AMBIGUOUS_PAYROLL_PERIOD.pay, status: "Released",
           grossPay: money.grossPay, netPay: money.netPay, employeeCount: 1,
         },
       ]).returning();
       assert.ok(run.id > 0 && draft.id > run.id && duplicate.id > draft.id);
+      assert.equal(run.periodStart, PAYROLL_PERIOD.start);
+      assert.equal(run.periodEnd, PAYROLL_PERIOD.end);
+      assert.equal(duplicate.periodStart, AMBIGUOUS_PAYROLL_PERIOD.start);
+      assert.equal(duplicate.periodEnd, AMBIGUOUS_PAYROLL_PERIOD.end);
+      assert.ok(run.periodEnd < duplicate.periodStart,
+        "independent synthetic Released runs must not overlap in one entity/scope");
       for (const row of [run, draft, duplicate]) {
         assert.equal(row.organizationId, e.org.id);
         assert.equal(row.legalEntityId, e.entity.id);

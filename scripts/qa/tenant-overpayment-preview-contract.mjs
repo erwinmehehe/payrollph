@@ -11,6 +11,13 @@ export const PAYROLL_PERIOD = Object.freeze({
   start: "2026-09-01", end: "2026-09-15", pay: "2026-09-15",
 });
 
+// A second genuine Released run for the same employer/entity/org unit MUST
+// use a non-overlapping period. The database's payroll release exclusion
+// constraint is an integrity gate, not something this QA fixture may bypass.
+export const AMBIGUOUS_PAYROLL_PERIOD = Object.freeze({
+  start: "2026-09-16", end: "2026-09-30", pay: "2026-09-30",
+});
+
 export function requireDisposableOverpaymentEnv(env = process.env) {
   const exact = {
     GITHUB_ACTIONS: "true",
@@ -79,8 +86,18 @@ export function proveOwnedOverpaymentPreview(reply, subject, forbiddenMarkers = 
   assert.equal(reply?.status, 200, "own authenticated preview must succeed");
   assert.match(reply.headers?.get("content-type") ?? "",
     /^application\/json(?:;|$)/i);
-  assert.match(reply.headers?.get("cache-control") ?? "",
-    /\bprivate\b.*\bno-store\b/);
+  // Next's production response layer may normalize an explicit
+  // "private, no-store" header to "no-store, max-age=0". Both prohibit
+  // storage; reject absent no-store or contradictory cache directives.
+  const cacheDirectives = (reply.headers?.get("cache-control") ?? "")
+    .toLowerCase().split(",").map(part => part.trim()).filter(Boolean);
+  assert.ok(cacheDirectives.includes("no-store"),
+    "financial preview response must require Cache-Control: no-store");
+  const permittedDirectives = new Set([
+    "private", "no-store", "no-cache", "max-age=0", "must-revalidate",
+  ]);
+  assert.ok(cacheDirectives.every(part => permittedDirectives.has(part)),
+    "financial preview response must not permit public or shared caching");
   const body = reply.json;
   assert.ok(body && typeof body === "object" && !Array.isArray(body));
   assert.deepEqual(Object.keys(body).sort(), [

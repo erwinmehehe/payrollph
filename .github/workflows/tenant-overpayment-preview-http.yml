@@ -18,6 +18,8 @@ on:
       - 'scripts/qa/tenant-table-invariants.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
       - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'scripts/qa/prepare-hcm-work-item-fixture.mjs'
+      - 'drizzle/0104_hcm_work_item_sla.sql'
 
 permissions:
   contents: read
@@ -84,6 +86,8 @@ jobs:
         run: npm run db:push
       - name: Install approved isolated SQL baseline only
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work-item source for the deep victim snapshot
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build actual production-mode Next server for localhost only
         run: npm run build
       - name: Start isolated Next on localhost
