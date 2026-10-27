@@ -15,6 +15,7 @@ export function validateTenantRow(row, spec) {
   } else {
     assert.ok([200, 201, 202, 204].includes(row.status ?? 200), row.key + ": own write must succeed");
     for (const field of ["state", "expect"]) assert.equal(typeof row[field], "function", row.key + ": " + field + " required");
+    if (row.exercise !== undefined) assert.equal(typeof row.exercise, "function", row.key + ": additional actions must be executable");
     assert.ok((typeof row.ownBody === "function" && typeof row.foreignBody === "function") ||
       (row.key.startsWith("DELETE ") && typeof row.query === "function"), row.key + ": own and foreign requests required");
   }

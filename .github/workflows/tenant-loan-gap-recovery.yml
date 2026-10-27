@@ -1,0 +1,116 @@
+name: Loan family GAP tenant isolation (fictional PostgreSQL 16; no money)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-loan-gap-recovery.yml'
+      - 'scripts/qa/tenant-loan-schedule-tenant-*.mjs'
+      - 'tests/tenant-loan-schedule-tenant.test.mjs'
+      - 'scripts/qa/tenant-table-rows/write/loans.mjs'
+      - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'src/app/api/loans/**'
+      - 'src/lib/payroll-loan-*.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+# Supersede only earlier attempts for this same PR. Distinct PRs and
+# protected/main runs must never cancel each other's test evidence.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fictional-pg16-http:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Disposable CI only: previews ON, payroll deductions/money movement OFF.
+      LOAN_SCHEDULE_PREVIEW_ENABLED: "true"
+      PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false"
+      EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export exact localhost and disposable database context
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Refuse unsafe inputs and verify strict negative test contracts
+        run: node --test tests/tenant-loan-schedule-tenant.test.mjs
+      - name: Generate random disposable encryption and webhook secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Build disposable local database schema
+        run: npm run db:push
+      - name: Apply reviewed disposable schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare existing SQL-only HCM work item fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode Next against fictional flags
+        run: npm run build
+      - name: Start only the localhost Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-loan-gap-next.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-loan-gap-next.log
+          exit 1
+      - name: Prove schedule-preview own positive, higher-ID victim 403 and all loan/payroll DB unchanged
+        run: node --import tsx scripts/qa/tenant-loan-schedule-tenant-http.mjs
+      - name: Reuse existing loans-family table proof for real own PATCH pause and foreign denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          TENANT_TABLE_FAMILY=loans npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Show localhost diagnostics only on failure
+        if: failure()
+        run: cat /tmp/tenant-loan-gap-next.log || true

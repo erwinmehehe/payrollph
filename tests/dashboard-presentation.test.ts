@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dashboardMoney, dashboardPayrollSummary, verifiedDashboardAmount } from "../src/lib/dashboard-presentation";
+import { dashboardDate, dashboardMoney, dashboardPayrollSummary, verifiedDashboardAmount } from "../src/lib/dashboard-presentation";
 import type { PayrollRun } from "../src/components/workspace/types";
 
 const run = {
@@ -96,5 +96,31 @@ test("corrupt stored dashboard figures cannot look calculated or ready for relea
     assert.equal(summary.deductions, null);
     assert.equal(summary.readyForRelease, false);
     assert.equal(summary.released, false);
+  }
+});
+
+test("dashboard dates preserve genuine Philippine payroll calendar days", () => {
+  const expected = (date: string) => new Intl.DateTimeFormat("en-PH", {
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
+    timeZone: "Asia/Manila",
+  }).format(new Date(date + "T00:00:00+08:00"));
+
+  for (const date of ["2026-10-27", "2026-01-01", "2024-02-29", "2026-12-31"]) {
+    assert.equal(dashboardDate(date), expected(date), date);
+  }
+  assert.equal(dashboardDate(), "Not scheduled");
+  assert.equal(dashboardDate(""), "Not scheduled");
+});
+
+test("invalid payroll dates never roll into a different date or crash the dashboard", () => {
+  for (const value of [
+    "2026-02-29", "2026-02-30", "2026-04-31", "2026-06-31",
+    "2026-13-01", "2026-00-01", "2026-10-00", "2026-10-32",
+    "0000-01-01", "2026-1-01", "2026-10-1", "2026/10/27",
+    "2026-10-27T00:00:00Z", " 2026-10-27", "2026-10-27 ",
+    "NaN", "Infinity", "not-a-date", "2026-03-01\n",
+  ]) {
+    assert.doesNotThrow(() => dashboardDate(value), value);
+    assert.equal(dashboardDate(value), "Date unavailable", value);
   }
 });

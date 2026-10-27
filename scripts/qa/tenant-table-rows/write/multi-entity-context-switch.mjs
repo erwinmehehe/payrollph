@@ -17,8 +17,7 @@ export function createRows({ assert, pool, db, eq, asc, auditEvents, auditBusine
   };
 
   return [
-    {
-      key: "PATCH multi-entity/context",
+    { key: "PATCH multi-entity/context",
       profile: "multi-entity", flags: ["MULTI_ENTITY_ENABLED"],
       seed: async (employer) => {
         await pool.query(
@@ -33,7 +32,7 @@ export function createRows({ assert, pool, db, eq, asc, auditEvents, auditBusine
         assert.equal(rows[0].id, employer.entity.id);
         return { id: rows[0].id };
       },
-      state,
+      state: state,
       ownBody: (c) => ({ organizationId: c.orgId, legalEntityId: c.seeded.id }),
       foreignBody: (c) => ({ organizationId: c.victim.org.id, legalEntityId: c.victimSeeded.id }),
       forged: { status: 403, body: (c) => ({ organizationId: c.orgId, legalEntityId: c.victimSeeded.id }) },
@@ -69,6 +68,13 @@ export function createRows({ assert, pool, db, eq, asc, auditEvents, auditBusine
         assert.equal(audit.action, "Entity context changed");
         assert.equal(audit.resource, "Legal entity");
         assert.deepEqual(audit.metadata, { legalEntityId: c.entityId, actorUserId: c.owner.id });
+      },
+      exercise: async (c, io) => {
+        const before = await state(c.orgId);
+        const refused = io.expectStatus(await io.request('/api/multi-entity/context', { method: 'PATCH', cookie: io.cookie,
+          body: { organizationId: c.orgId, legalEntityId: 'all' } }), 403, 'scoped owner cannot widen to all entities');
+        assert.ok(!refused.text.includes(c.victim.marker)); assert.deepEqual(await state(c.orgId), before);
+        return { controls: ['owner-all-entities-denied'] };
       },
     },
   ];
