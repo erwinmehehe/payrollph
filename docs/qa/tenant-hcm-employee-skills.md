@@ -45,7 +45,16 @@ dedicated real-HTTP action runner and a dedicated focused PG16/localhost
 workflow. Test sessions and markers are fictional, no production access,
 external providers, actual payroll records or money actions are involved.
 
-No production source route, authorizations, schema, migration, release flag,
+**Minimal production validation correction:** The prior
+`src/app/api/hcm/capabilities/route.ts` declared its date regex using
+double-escaped backslashes, so legitimate YYYY-MM-DD values were rejected
+with HTTP 400 before employee/skill authorization. This PR corrects that
+one expression to match canonical date format and adds a positive/negative
+source regression. This is an intentional route behavior change and requires
+review; the role, employer, employee, skill and org-unit authorization rules
+remain unmodified. Other validation and business behavior are not claimed.
+
+No other production route, authorization, schema, migration, release flag,
 tenant coverage manifest or planning reservation ledger is modified. This
 proof is intentionally **partial**: it does not certify all capabilities POST
 actions, skill verification authority, other HCM methods or production safety.

@@ -1,0 +1,91 @@
+name: Year-End JSON read tenant isolation (fictional PG16 HTTP)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-year-end-json.yml'
+      - 'scripts/qa/tenant-batches/year-end-json-http.mjs'
+      - 'tests/tenant-batches/year-end-json.test.mjs'
+      - 'docs/qa/tenant-year-end-json.md'
+      - 'src/app/api/year-end/route.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+permissions:
+  contents: read
+concurrency:
+  group: year-end-json-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  year-end-read:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Explicit disposable environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Source and safety contract
+        run: node --test tests/tenant-batches/year-end-json.test.mjs
+      - name: Fictional non-provider encryption and webhook material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start production-mode localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-year-end-json-server.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-year-end-json-server.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-year-end-json-server.log
+          exit 1
+      - name: Real GET report positive and foreign denials
+        run: node --import tsx scripts/qa/tenant-batches/year-end-json-http.mjs
+      - name: Disposable server diagnostics
+        if: failure()
+        run: cat /tmp/tenant-year-end-json-server.log || true
