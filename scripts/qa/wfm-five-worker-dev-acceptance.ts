@@ -11,7 +11,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import {
-  employees, orgUnits, organizations, payrollRuns, timePunches, userOrganizations, users,
+  employeeWorksiteAssignments, employees, orgUnits, organizations, payrollRuns,
+  separationRecords, timePunches, userOrganizations, users, worksites,
 } from "../../src/db/schema";
 import { hashPassword } from "../../src/lib/crypto";
 import { buildEmployeeTimesheetSnapshot } from "../../src/lib/workforce-timesheet-server";
@@ -447,6 +448,114 @@ async function run() {
   assert.equal(Number(liveOut.punch?.id),Number(liveIn.punch?.id));
   assert.equal(liveOut.punch?.status,"Complete");
   evidence("current-day-Web-Bundy-employee-self-binding-and-duplicate-in-denial");
+
+  // Issue #1113: authenticated read acceptance on this EMPTY disposable PG16,
+  // never on the repaired Neon branch or a hosted employer deployment.
+  // Exercise the former missing-column paths with genuine persisted fictional
+  // records. These are reads only: no final-pay computation or release.
+  const [ownWorksite] = await db.insert(worksites).values({
+    organizationId, code: "ISS1113-A", name: "Fictional Test Worksite A",
+    orgUnitId: qaUnit.id,
+  }).returning();
+  const [assignment] = await db.insert(employeeWorksiteAssignments).values({
+    organizationId, employeeId: staff[0].id, worksiteId: ownWorksite.id,
+    decision: "allow", effectiveFrom: "2026-01-01",
+    reason: "Synthetic Live Floor schema read proof only", createdBy: "CI fictional fixture",
+  }).returning();
+  assert.equal(assignment.decision, "allow", "the repaired decision column must persist");
+
+  const [victimEmployee] = await db.select({
+    id: employees.id, employeeNo: employees.employeeNo,
+  }).from(employees).where(eq(employees.organizationId, tenantB.id));
+  assert.ok(victimEmployee?.id, "fictional employer B must have a genuine worker");
+  const [ownSeparation] = await db.insert(separationRecords).values({
+    organizationId, employeeId: staff[4].id,
+    separationType: "resignation", noticeDate: "2026-10-01", lastDay: "2026-12-31",
+  }).returning();
+  const [victimSeparation] = await db.insert(separationRecords).values({
+    organizationId: tenantB.id, employeeId: victimEmployee.id,
+    separationType: "resignation", noticeDate: "2026-10-01", lastDay: "2026-12-31",
+  }).returning();
+  assert.equal(ownSeparation.status, "draft");
+  assert.equal(victimSeparation.status, "draft");
+  const originalSeparationRows = await db.select().from(separationRecords);
+  const originalWorksiteRows = await db.select().from(employeeWorksiteAssignments);
+  const floorPath = (orgId: number) => "/api/workforce/live-floor?organizationId=" + orgId + "&page=1";
+  const separationPath = (orgId: number) => "/api/separation?organizationId=" + orgId;
+
+  const ownFloor = await ok(owner, floorPath(organizationId));
+  assert.equal(ownFloor.totalEmployees, 5);
+  assert.equal(ownFloor.scope, "company");
+  assert.equal(ownFloor.page, 1);
+  assert.equal(ownFloor.pageSize, 25);
+  assert.equal(ownFloor.hasMore, false);
+  assert.equal(JSON.stringify(ownFloor).includes(victimEmployee.employeeNo), false,
+    "employer B worker must not leak into A Live Floor");
+  const managerFloor = await ok(actors.manager, floorPath(organizationId));
+  assert.equal(managerFloor.scope, "organization_unit",
+    "manager Live Floor must stay scoped to their own unit");
+  assert.equal(managerFloor.totalEmployees, 5);
+  const ownFloorB = await ok(actors.tenantB, floorPath(tenantB.id));
+  assert.equal(ownFloorB.totalEmployees, 1);
+  assert.equal(ownFloorB.scope, "company");
+  assert.equal(JSON.stringify(ownFloorB).includes("WFM5-001"), false);
+
+  const ownList = await ok(actors.hr, separationPath(organizationId));
+  assert.ok(Array.isArray(ownList.separations));
+  assert.deepEqual(ownList.separations.map((row: any) => Number(row.id)), [ownSeparation.id],
+    "HR must see the real draft A separation, not B records");
+  assert.equal(ownList.separations[0].status, "draft");
+  assert.equal(ownList.separations[0].releasedAt, null,
+    "an acceptance fixture cannot imply a final-pay release");
+  assert.equal(JSON.stringify(ownList).includes(victimEmployee.employeeNo), false);
+  const ownListB = await ok(actors.tenantB, separationPath(tenantB.id));
+  assert.deepEqual(ownListB.separations.map((row: any) => Number(row.id)),
+    [victimSeparation.id]);
+  const filtered = await ok(owner, separationPath(organizationId) +
+    "&employeeId=" + victimEmployee.id);
+  assert.deepEqual(filtered.separations, [],
+    "foreign employee filter must not reveal another employer's separation");
+
+  // Signed-in tenant switches and out-of-scope roles must fail at the server,
+  // not merely be hidden by a React tab or client-side navigation.
+  for (const [who, actor, target, expected] of [
+    ["A owner to B floor", owner, floorPath(tenantB.id), 403],
+    ["B owner to A floor", actors.tenantB, floorPath(organizationId), 403],
+    ["employee to A floor", actors.employee0, floorPath(organizationId), 403],
+    ["payroll-only role to A floor", actors.payroll, floorPath(organizationId), 403],
+    ["A owner to B separation", owner, separationPath(tenantB.id), 403],
+    ["B owner to A separation", actors.tenantB, separationPath(organizationId), 403],
+    ["employee to A separation", actors.employee0, separationPath(organizationId), 403],
+    ["manager to A separation", actors.manager, separationPath(organizationId), 403],
+  ] as Array<[string, Client, string, number]>) {
+    const refused = await actor.json(target);
+    assert.equal(refused.response.status, expected, who);
+    assert.equal(JSON.stringify(refused.data).includes(victimEmployee.employeeNo), false,
+      who + " must not leak victim worker identifiers");
+  }
+  const visitor = new Client();
+  assert.equal((await visitor.json(floorPath(organizationId))).response.status, 401);
+  assert.equal((await visitor.json(separationPath(organizationId))).response.status, 401);
+  assert.equal((await owner.json("/api/workforce/live-floor?organizationId=" +
+    organizationId + "&page=0")).response.status, 400);
+  // Revoke the existing HR membership while leaving its authenticated session
+  // intact: both read APIs must immediately deny the stale identity.
+  await db.update(userOrganizations).set({ active: false })
+    .where(eq(userOrganizations.userId, roleUsers[1].id));
+  assert.equal((await actors.hr.json(floorPath(organizationId))).response.status, 403);
+  assert.equal((await actors.hr.json(separationPath(organizationId))).response.status, 403);
+  assert.deepEqual(await db.select().from(separationRecords), originalSeparationRows,
+    "all GET attempts must preserve the exact original separation ledger");
+  assert.deepEqual(await db.select().from(employeeWorksiteAssignments), originalWorksiteRows,
+    "all GET attempts must leave worksite assignments unchanged");
+  evidence("issue-1113-real-http-live-floor-decision-column-company-unit-tenant-role-revocation");
+  evidence("issue-1113-real-http-separation-38-column-draft-read-tenant-role-revocation");
+  report.issue1113 = {
+    kind: "synthetic-localhost-read-only", committedHead: process.env.GITHUB_SHA ?? null,
+    liveFloor: "checked", separation: "checked", signedInRoles: true,
+    releaseOrPayout: "NOT_PERFORMED", deployedAppUat: "NOT_RUN",
+    independentHumanUat: "NOT_RUN", productionSchemaAuthorization: "NOT_GRANTED",
+  };
 
   report.result="PASS_SYNTHETIC_DEV_ONLY";
   report.employeeCount=5;
