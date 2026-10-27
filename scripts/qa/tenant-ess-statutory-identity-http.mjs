@@ -116,28 +116,10 @@ async function readOwn({ request, expectStatus }, actor, ownIds, ownCases, victi
     "/api/self/identifiers?organizationId=" + victimOrgId + "&employeeId=" + victimEmployeeId,
     { cookie: actor.cookie },
   ), 200, "ID GET binds to session employee, not forged query selectors");
-  const actualIds = idResponse.json?.requests;
-  assert.ok(Array.isArray(actualIds), "identifier GET must return a request array");
-  assert.deepEqual(
-    actualIds.map((row) => row.id).sort((a, b) => a - b),
-    ownIds.map((row) => row.id).sort((a, b) => a - b),
-    "identifier GET must return exactly this employee's persisted requests, no foreign or missing rows",
-  );
-  for (const row of ownIds) {
-    const actual = actualIds.find((r) => r.id === row.id);
-    assert.equal(actual?.kind, row.kind, "identifier kind must match the persisted own request");
-    assert.equal(actual?.status, row.status, "identifier review status must not be substituted");
-    assert.ok(actual?.proposedMasked, "persisted identifier must be masked in GET");
-    assert.ok(!Object.hasOwn(actual, "proposedEncrypted"),
-      "encrypted identifier ciphertext must not be exposed in GET");
-  }
-  assert.equal(idResponse.headers.get("cache-control"), "private, no-store",
-    "sensitive identifier response must not be shared or cached");
-  assert.ok(!idResponse.text.includes("FICTIONAL9001") &&
-    !idResponse.text.includes("FICTATTACK") &&
-    !idResponse.text.includes("FICTDRIVER"),
-    "no fictional raw identifier from any tenant may appear in GET");
-  noLeak(idResponse, sentinel);
+  for (const row of ownIds) assert.ok(idResponse.json?.requests?.some((r) =>
+    r.id === row.id && r.kind === row.kind && r.proposedMasked),
+  "populated own masked identifier must be returned");
+  assertExactMaskedIdentifierGet(idResponse, ownIds, sentinel);
   const caseResponse = expectStatus(await request(
     "/api/self/contribution-issues?organizationId=" + victimOrgId + "&employeeId=" + victimEmployeeId,
     { cookie: actor.cookie },
@@ -270,4 +252,32 @@ export async function verifyEssStatutoryIdentityIsolation(f, { request, expectSt
   assert.deepEqual(await snapshot(victim.org.id), victimBefore,
     "all denied old-employer requests leave cases, events, identities, audits, tasks and outbox unchanged");
   console.log("ESS TENANT PASS: 4 methods; 2 attackers; own HTTP/SQL success; forged selectors; revoked-session denial; victim unchanged; fictional PG16 only");
+}
+
+// Keep the originally reviewed source-pinned contribution-case requests at
+// their exact lines. Additional ESS identifier GET checks live separately so
+// unrelated credited HTTP evidence cannot drift when this GAP proof grows.
+function assertExactMaskedIdentifierGet(idResponse, ownIds, sentinel) {
+  const actualIds = idResponse.json?.requests;
+  assert.ok(Array.isArray(actualIds), "identifier GET must return a request array");
+  assert.deepEqual(
+    actualIds.map((row) => row.id).sort((a, b) => a - b),
+    ownIds.map((row) => row.id).sort((a, b) => a - b),
+    "identifier GET must return exactly this employee's persisted requests, no foreign or missing rows",
+  );
+  for (const row of ownIds) {
+    const actual = actualIds.find((r) => r.id === row.id);
+    assert.equal(actual?.kind, row.kind, "identifier kind must match the persisted own request");
+    assert.equal(actual?.status, row.status, "identifier review status must not be substituted");
+    assert.ok(actual?.proposedMasked, "persisted identifier must be masked in GET");
+    assert.ok(!Object.hasOwn(actual, "proposedEncrypted"),
+      "encrypted identifier ciphertext must not be exposed in GET");
+  }
+  assert.equal(idResponse.headers.get("cache-control"), "private, no-store",
+    "sensitive identifier response must not be shared or cached");
+  assert.ok(!idResponse.text.includes("FICTIONAL9001") &&
+    !idResponse.text.includes("FICTATTACK") &&
+    !idResponse.text.includes("FICTDRIVER"),
+    "no fictional raw identifier from any tenant may appear in GET");
+  noLeak(idResponse, sentinel);
 }
