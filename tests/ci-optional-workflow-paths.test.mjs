@@ -140,7 +140,10 @@ test("browser acceptance installs version-pinned headless Chromium without Ubunt
   ];
   for (const filename of browserWorkflows) {
     const source = readWorkflow(filename);
-    assert.match(source, /npm install --no-save [^\\n]*--ignore-scripts[^\\n]*playwright@\\d+\\.\\d+\\.\\d+/, filename + ": pin Playwright and disable lifecycle scripts");
+    const installLine = source.split("\n").find(line => line.includes("npm install --no-save") && line.includes("playwright@"));
+    assert.ok(installLine, filename + ": missing pinned Playwright installation");
+    assert.ok(installLine.includes("--ignore-scripts"), filename + ": lifecycle scripts must remain disabled");
+    assert.match(installLine, /playwright@[0-9]+[.][0-9]+[.][0-9]+/, filename + ": Playwright version must be pinned");
     assert.match(source, /timeout 240s npx playwright install --only-shell chromium/, filename + ": cap Chromium-only download");
     assert.doesNotMatch(source, /playwright install --with-deps/, filename + ": avoid apt mirrors on stock GitHub runners");
   }
