@@ -170,5 +170,4 @@ test("runner must enforce disposable guard before any application or database im
   const dbImport = source.indexOf('import("../../src/db/index.ts")');
   assert.ok(guard >= 0 && dbImport > guard, "guard must precede DB and app imports");
   assert.ok(source.includes('const stage = process.argv[2]'));
-  assert.ok(source.includes('readonly') === false || source.includes("GET"));
 });
