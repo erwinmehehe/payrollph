@@ -22,6 +22,10 @@ export function unlistedGateRequests(unlisted) {
     "/api/workforce/demand-observations/outlook?" + q(["organizationId", String(org)],
       ["worksiteId", "1"], ["sourceKey", "ttbl_fictional_source"], ["metricKind", "transactions"],
       ["intervalMinutes", "60"], ["horizonDays", "7"]),
+    "/api/workforce/demand-observations/issued?" + q(["organizationId", String(org)], ["worksiteId", "1"]),
+    "/api/workforce/demand-staffing/policies?" + q(["organizationId", String(org)],
+      ["worksiteId", "1"], ["jobProfileId", "any"], ["metricKind", "transactions"],
+      ["intervalMinutes", "60"], ["mode", "manage"]),
   ];
 }
 export async function verifyUnlistedGateDenials({
@@ -40,7 +44,7 @@ export async function verifyUnlistedGateDenials({
     for (const employer of data.employers) assert.ok(!result.text.includes(employer.marker));
   }
   console.log(JSON.stringify({ kind: "tenant-allowlist-negative",
-    unavailableEmployer: true, gateRoutes: 8, statuses: "404", credits: 0, productionTested: false }));
+    unavailableEmployer: true, gateRoutes: 10, statuses: "404", credits: 0, productionTested: false }));
 }
 if (process.argv[1]?.replaceAll("\\", "/").endsWith("/tenant-table-allowlist-negative.mjs")) {
   verifyUnlistedGateDenials().then(() => process.exit(0), error => { console.error(error); process.exit(1); });
