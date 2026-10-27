@@ -27,6 +27,8 @@ export function inspectMethod(key) {
   assert.match(key, /^(GET|POST|PUT|PATCH|DELETE) [A-Za-z0-9_\-/\[\].]+$/,
     "invalid canonical manifest method key: " + key);
   const [method, route] = key.split(" ");
+  assert.ok(route.split("/").every(segment => segment.length && segment !== "." && segment !== ".."),
+    "invalid canonical method path: " + key);
   const family = route.split("/")[0];
   const domain = PEOPLE.has(family) ? "people" : WORKFORCE.has(family)
     ? "workforce" : FINANCIAL.has(family) ? "finance"
