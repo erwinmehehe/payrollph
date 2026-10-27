@@ -17,6 +17,13 @@ on:
       - 'src/db/**'
 permissions:
   contents: read
+
+# Only cancel superseded attempts on the same PR. Distinct PRs and future
+# non-PR runs must not invalidate each other's isolation evidence.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   performance-governance:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
