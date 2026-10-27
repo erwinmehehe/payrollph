@@ -1,6 +1,6 @@
 # Governed roster batch tenant isolation — independent provisional HTTP batch
 
-**Methods still GAP:** GET and POST \`/api/workforce/roster-batches\`.
+**Methods still GAP:** GET and POST `/api/workforce/roster-batches`.
 **Evidence status:** NOT ACCEPTED / zero coverage credits / draft PR. Not a whole-route or production certification.
 
 ## Independence and scope
@@ -15,7 +15,7 @@ The real localhost PG16 proof is intentionally bounded:
 - GET: three independently signed-in fictional employer owners each see a real
   populated, own-only pending batch and employee marker. Two attackers cannot
   read the populated higher-ID victim employer (403).
-- POST: only the \`action=reject\` path is exercised. Each of the two attackers
+- POST: only the `action=reject` path is exercised. Each of the two attackers
   independently rejects an existing, *other-maker* batch in its own employer
   (real 200, persisted pending-to-rejected transition, correct checker, reason
   and one actor-bound audit). The victim has an independent positive rejection.
@@ -29,7 +29,7 @@ The real localhost PG16 proof is intentionally bounded:
 
 ## Safe CI execution
 The dedicated PR-only workflow uses a fresh disposable PostgreSQL 16
-\`127.0.0.1:5432/app_db\` and production-mode Next on \`127.0.0.1:3000\`,
+`127.0.0.1:5432/app_db` and production-mode Next on `127.0.0.1:3000`,
 with two-stage private 0600 fictional session fixture, dynamically constructed
 explicit three-employer allowlist, scheduler/workers disabled, provider
 credentials absent and disbursement flags OFF. The preflight rejects
@@ -37,8 +37,8 @@ non-local hostnames, enabled providers, non-disposable mode and malformed
 allowlists **before importing any database/application module**.
 
 The reject path does not create or publish shifts. The seeded pending rows
-are testing fixtures, not successful \`stage\` API operations. POST \`stage\`
-and \`approve\` (including scheduling/guardrail/payroll implications),
+are testing fixtures, not successful `stage` API operations. POST `stage`
+and `approve` (including scheduling/guardrail/payroll implications),
 independent MFA and role permutations, employee sessions and production
 feature activation remain NOT PROVEN. The broader method and global
 tenant-isolation inventory remain GAP; do not add credits automatically.
