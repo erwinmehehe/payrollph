@@ -111,21 +111,59 @@ test("GET keeps tenant-bounded SQL, skips finance queries for unit actors and fo
   assert.ok(!read.includes("glMappings: glMappingRows"), "raw GL configuration must not bypass projection");
 });
 
-test("GET-only security hardening keeps unmodified POST source pinned and uncredited", () => {
+test("GET finance scope remains guarded while changed POST uses independently pinned tenant proof", () => {
   const route = readFileSync("src/app/api/workforce/labor-costing/route.ts", "utf8");
   const start = "export async function POST(request: Request) {";
-  const body = route.slice(route.indexOf(start));
+  assert.equal(route.indexOf(start), route.lastIndexOf(start), "POST must not be duplicated");
   assert.ok(route.includes(start), "POST must remain present");
+  const body = route.slice(route.indexOf(start));
+  assert.equal(body.includes("scopeLaborCostingRead("), false,
+    "GET-only finance projection must not be reused as POST authorization");
+
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = manifest.allApiRouteFiles["src/app/api/workforce/labor-costing/route.ts"];
-  assert.equal(record.gitBlobSha, "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd");
-  assert.equal(record.methods.find((method: { name: string }) => method.name === "GET")?.status, "COVERED");
+  // The reviewed PR changes the POST handler. Enforce its exact current source
+  // fingerprint instead of pretending the original untouched-POST SHA is valid.
+  assert.equal(record.gitBlobSha, "1f2c024c5cf2a99e7feb2dc41aeacf076a600170");
+  const get = record.methods.find((method: { name: string }) => method.name === "GET");
+  assert.equal(get?.line, 79);
+  assert.equal(get?.status, "COVERED");
+  assert.equal(get?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+  assert.equal(get?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/read/workforce.mjs");
+  assert.ok(route.includes("scopeLaborCostingRead({"), "GET finance scope remains enforced");
+  assert.ok(route.includes('"Cache-Control": "private, no-store"'),
+    "GET must not disclose financial data through shared caching");
+
   const post = record.methods.find((method: { name: string }) => method.name === "POST");
-  assert.equal(post?.status, "GAP");
-  assert.equal(post?.testedBy, null);
-  assert.equal(post?.reviewedUncertified?.kind, "unchanged-POST-in-GET-only-security-fix");
-  assert.equal(post?.reviewedUncertified?.unchangedPostBlobSha,
-    "91bcb6ee054c538f72d65630cc89deb641cfa7f5");
-  assert.equal(body.includes("scopeLaborCostingRead("), false,
-    "GET-only read projection must never modify POST behavior");
+  assert.equal(post?.line, 156);
+  assert.equal(post?.status, "COVERED", "changed POST needs independent method-specific evidence");
+  assert.equal(post?.reviewedUncertified, undefined,
+    "the obsolete unchanged-POST review must not silently certify changed source");
+  assert.equal(post?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(post?.testedBy?.rowFile,
+    "scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs");
+  assert.match(post?.testedBy?.scope ?? "", /create_cost_center, set_gl_mapping, set_employee_allocations/);
+  assert.notEqual(post?.testedBy?.file, get?.testedBy?.file,
+    "GET evidence alone must never grant POST credit");
+
+  for (const guard of [
+    "enforceSameOriginMutation(request)", "getSessionUser()",
+    "assertOrganizationRole(", "getAccess(user.id, organizationId)",
+    "requireSensitiveActionMfa(user)", "enforceSensitiveActionRateLimit(request",
+    "scopedEmployee(user.id, organizationId, employeeId)",
+  ]) {
+    assert.ok(body.includes(guard), "POST lost required scope/security guard: " + guard);
+  }
+  const family = readFileSync(post.testedBy.rowFile, "utf8").split("\n");
+  assert.match(family[post.testedBy.rowLine - 1], /key: "POST workforce\/labor-costing"/);
+  const proof = readFileSync(post.testedBy.file, "utf8").split("\n");
+  assert.match(proof[post.testedBy.ownPositiveLine - 1], /const owned = expectStatus/);
+  assert.match(proof[post.testedBy.foreignDenialLine - 1], /const foreign = expectStatus/);
+  assert.match(proof[post.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(victimAfter, victimBefore/);
+  const familySource = family.join("\n");
+  assert.match(familySource, /for \(const action of \["create_cost_center", "set_gl_mapping"\]\)/);
+  assert.match(familySource, /action: "set_employee_allocations"/);
+  assert.match(familySource, /forgedMapping\.status, 422/);
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED:"),
+    "provisional method evidence cannot certify production or global tenant isolation");
 });
