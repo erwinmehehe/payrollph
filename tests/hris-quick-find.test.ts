@@ -95,3 +95,21 @@ test("quick find matches unaccented searches without changing the authorized ros
   assert.deepEqual(findAuthorizedHrisEmployees(employerA, "jose"), []);
   assert.equal(JSON.stringify(authorized), before, "search must not rewrite employee records");
 });
+
+test("quick find supports pasted surname-comma-first-name with varied spacing and accents", () => {
+  const authorized: HrisQuickFindEmployee[] = [
+    ...employerA,
+    { id: 31, employeeNo: "PH-Á31", firstName: "José", lastName: "Peña",
+      title: "Crédit Analyst", status: "Active" },
+  ];
+  const before = JSON.stringify(authorized);
+  for (const query of ["Peña, José", "PENA,JOSE", "  Peña  ,   José ", "Peña, Jos"]) {
+    assert.deepEqual(findAuthorizedHrisEmployees(authorized, query).map(row => row.id), [31], query);
+  }
+  assert.deepEqual(findAuthorizedHrisEmployees(authorized, "Cruz, Maria").map(row => row.id), [7]);
+  assert.deepEqual(findAuthorizedHrisEmployees(authorized, "Foreign, Maria"), [],
+    "a comma-formatted name cannot bring in another employer's record");
+  assert.deepEqual(findAuthorizedHrisEmployees(authorized, "QA-007").map(row => row.id), [7],
+    "existing employee number matching must remain exact and ranked");
+  assert.equal(JSON.stringify(authorized), before, "search cannot mutate the authorized roster");
+});
