@@ -39,6 +39,8 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
   "multi-entity": {
     MULTI_ENTITY_ENABLED: "true",
     MULTI_ENTITY_TRANSFERS_ENABLED: "true",
+    // Disposable read-only registration history; no proposals/approvals or production flags.
+    MULTI_ENTITY_REGISTRATIONS_ENABLED: "true",
   },
 });
 
