@@ -12,9 +12,13 @@ export function createRows({
     .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
   const state = async (organizationId) => ({
     skills: await read(hcmSkills, organizationId),
+    // PostgreSQL DATE columns may deserialize differently across adapters.
+    // to_jsonb retains every current/future business field while returning
+    // canonical YYYY-MM-DD dates for exact immutable before/after checks.
     assignments: (await pool.query(
-      "SELECT * FROM hcm_employee_skills WHERE organization_id=$1 ORDER BY id", [organizationId],
-    )).rows,
+      "SELECT to_jsonb(s) AS row FROM hcm_employee_skills s " +
+      "WHERE s.organization_id=$1 ORDER BY s.id", [organizationId],
+    )).rows.map(({ row }) => row),
     workers: await read(employees, organizationId),
     payProfiles: await read(employeePayProfiles, organizationId),
     payroll: await read(payrollRuns, organizationId),
