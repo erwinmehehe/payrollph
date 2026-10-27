@@ -195,3 +195,25 @@ test("Employee Vault synthetic browser includes the higher-ID victim employer re
   assert.match(fixture, /assert\.ok\(victim\.id > beta\.id && victimWorker\.id > betaSecond\.id/,
     "The foreign employer and its worker must remain independently seeded higher-ID victims");
 });
+
+test("Core Modules browser authenticates each flag server independently before asserting role denial", () => {
+  const browser = readFileSync(new URL("../scripts/core-modules-synthetic-browser.mjs", import.meta.url), "utf8");
+  const source = readWorkflow("core-modules-browser-acceptance.yml");
+  assert.match(browser, /const authKey = `\$\{role\}:\$\{state\}`/,
+    "A saved session must belong to one role and one local flag server");
+  assert.match(browser, /roleAuthState\.get\(authKey\)/);
+  assert.match(browser, /roleAuthState\.set\(authKey, await context\.storageState\(\)\)/);
+  assert.doesNotMatch(browser, /roleAuthState\.(?:get|set|has)\(role(?:,|\))/,
+    "Never reuse the flag-OFF server's role-only cookie as proof on flag-ON");
+  assert.match(browser, /totpCode: generateTotp\(/,
+    "Both local servers must use the real MFA login path");
+  assert.match(browser, /context\.request\.get\(base \+ "\/api\/auth\/me"\)/,
+    "Check the signed-in principal on the current server");
+  assert.match(browser, /assert\.equal\(session\.user\?\.role, role/,
+    "A 401 cannot be mistaken for a valid 403 role denial");
+  assert.match(browser, /assert\.equal\(denied\.status\(\), 403/,
+    "Keep the exact unauthorized-role denial requirement");
+  assert.match(source, /REQUIRE_PRIVILEGED_MFA: 'true'/);
+  assert.match(source, /CORE_MODULE_NAVIGATION_ENABLED=false npm run start/,
+    "The browser must continue comparing independently configured flag-on and flag-off servers");
+});
