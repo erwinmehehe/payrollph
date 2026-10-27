@@ -125,3 +125,23 @@ test("public intake routes and the proposal SQL only run the intake suite", () =
     "docs/engineering/migration-proposals/careers-published.sql",
   ]) assert.deepEqual(workflowsForFile(path), intake, path);
 });
+
+test("browser acceptance installs version-pinned headless Chromium without Ubuntu apt updates", () => {
+  const browserWorkflows = [
+      "employee-import-browser-acceptance.yml",
+      "core-modules-browser-acceptance.yml",
+      "ess-profile-browser-acceptance.yml",
+      "spend-reimbursement-ui.yml",
+      "nav-runtime-sweep.yml",
+      "preview-browser-qa.yml",
+      "multi-entity-browser-qa.yml",
+      "hcm-process-monitor-browser-qa.yml",
+      "employee-vault-profile-browser-acceptance.yml"
+  ];
+  for (const filename of browserWorkflows) {
+    const source = readWorkflow(filename);
+    assert.match(source, /npm install --no-save [^\\n]*--ignore-scripts[^\\n]*playwright@\\d+\\.\\d+\\.\\d+/, filename + ": pin Playwright and disable lifecycle scripts");
+    assert.match(source, /timeout 240s npx playwright install --only-shell chromium/, filename + ": cap Chromium-only download");
+    assert.doesNotMatch(source, /playwright install --with-deps/, filename + ": avoid apt mirrors on stock GitHub runners");
+  }
+});

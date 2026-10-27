@@ -128,8 +128,8 @@ jobs:
             --bucket "$DOCUMENT_OBJECT_STORAGE_BUCKET" --region us-east-1
       - name: Install Chromium for local browser acceptance
         run: |
-          npm install --no-save --package-lock=false playwright@1.55.0
-          npx playwright install --with-deps chromium
+          npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start local scanner contract and Next app
         shell: bash
         run: |
