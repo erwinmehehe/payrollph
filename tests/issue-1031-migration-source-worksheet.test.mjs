@@ -11,9 +11,9 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("source-only worksheet covers every drizzle file with current byte SHA and no populated receipts", () => {
   const result = generateSourceWorksheet();
-  assert.equal(result.summary.totalDrizzleFiles, 153);
-  assert.equal(result.summary.numberedSqlFiles, 151);
-  assert.equal(result.summary.sqlFiles, 152);
+  assert.equal(result.summary.totalDrizzleFiles, 154);
+  assert.equal(result.summary.numberedSqlFiles, 152);
+  assert.equal(result.summary.sqlFiles, 153);
   assert.equal(result.summary.sourceSchemaTables, 274);
   assert.equal(result.summary.duplicatePrefixGroups, 13);
   // P0-4 step 3: no request-time schema creator remains in the source inventory.
@@ -116,6 +116,22 @@ test("source-only worksheet covers every drizzle file with current byte SHA and 
   assert.ok(result.tableRows.some(row => row.schema_table === "payroll_calculation_history" &&
     row.numbered_files_creating_table.includes("drizzle/0137_immutable_payroll_calculation_history.sql")));
   for (const field of RECEIPT_FIELDS) assert.equal(calculationHistory[field], "");
+  // #188 vertical costing is an additive forward-only SOURCE candidate:
+  // the reviewed nullable JSONB column and constraint do not prove live apply.
+  const verticalCosting = result.migrationRows.find(row =>
+    row.file_path === "drizzle/0138_labor_vertical_dimensions.sql");
+  assert.ok(verticalCosting, "0138 must be recorded with its exact-byte checksum");
+  assert.equal(verticalCosting.numeric_prefix, "0138");
+  assert.match(verticalCosting.sha256_exact_committed_bytes, /^[a-f0-9]{64}$/);
+  assert.equal(verticalCosting.statement_count, 2);
+  assert.equal(verticalCosting.statement_types, "ALTER | PROCEDURAL");
+  assert.equal(verticalCosting.source_schema_objects, "employee_labor_allocations");
+  assert.equal(verticalCosting.requires_tables, "employee_labor_allocations");
+  assert.match(verticalCosting.candidate_prior_source_files_not_receipts,
+    /drizzle\/0020_enterprise_labor_costing.sql/);
+  assert.match(verticalCosting.manual_review_flags, /DOLLAR_BODY_MANUAL_REVIEW/);
+  for (const field of RECEIPT_FIELDS) assert.equal(verticalCosting[field], "");
+
 
   const paths = readdirSync(resolve(root, "drizzle")).map(name => "drizzle/" + name).sort();
   assert.deepEqual(result.migrationRows.map(row => row.file_path).sort(), paths);

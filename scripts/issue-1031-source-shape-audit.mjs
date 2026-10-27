@@ -15,6 +15,13 @@ const read = path => readFileSync(resolve(ROOT, path), "utf8");
 const PINNED_MAIN = "0921b02ad73475e4eaf76ea6b45f65efc046ce5d";
 // Actual SHA-256 of src/db/schema.ts at the pinned 0921b02a commit.
 export const HISTORICAL_SCHEMA_SHA256 = "72c465c62e99aa9ce0271d700cc526f408216b068c6d8b0fd1864c84201bd3cf";
+// #188/0138 additive accounting labels are NOT part of the frozen #1031
+// October 17 schema snapshot. Match both exact reviewed byte sequences;
+// otherwise the historical SHA-256 comparison must reject the new source.
+const REVIEWED_0138_LABOR_SOURCE_BLOCKS = [
+  "    // Optional accounting labels, additive migration 0138; NEVER payroll rate inputs.\n    verticalDimensions: jsonb(\"vertical_dimensions\"),\n",
+  "    // Match the reviewed 0138 constraint in disposable Drizzle-first schema.\n    check(\"employee_labor_allocations_vertical_dims_object_chk\",\n      sql`${table.verticalDimensions} is null or jsonb_typeof(${table.verticalDimensions}) = 'object'`),\n",
+];
 
 /**
  * Keep the historical 0132-era SQL shape analysis immutable across #1210.
@@ -39,6 +46,16 @@ export function reconstructPinnedSchemaText(currentSource) {
     ["    uniqueIndex(\"statutory_remittance_payment_evidence_one_active_unique\").on(table.batchId)\n      .where(sql`${table.status} = 'active'`),\n", ""],
   ];
   let historical = currentSource;
+  // Reject partial, duplicated or edited 0138 definitions rather than
+  // allowing a new schema change to contaminate the pinned historical audit.
+  const verticalCounts = REVIEWED_0138_LABOR_SOURCE_BLOCKS.map(block =>
+    historical.split(block).length - 1);
+  if (verticalCounts.some(count => count !== 0) && verticalCounts.some(count => count !== 1))
+    throw Error("HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE");
+  if (verticalCounts.every(count => count === 1)) {
+    for (const block of REVIEWED_0138_LABOR_SOURCE_BLOCKS)
+      historical = historical.replace(block, "");
+  }
   // Reviewed purely additive source blocks added after the pin. Each is removed
   // only if it appears once and its exact bytes match the reviewed SHA-256, so
   // any later edit to the block stops this analysis instead of being absorbed.
@@ -195,6 +212,25 @@ function getManifest(projectHistoricalMarketingIndexes = false) {
   // two proven #1210 differences back to their 0921b02a index semantics,
   // after exact source-byte verification by reconstructPinnedSchemaText().
   if (projectHistoricalMarketingIndexes) {
+    // Project only the exact 0138 Drizzle column/check out of the
+    // in-memory historical model, after the source-byte projection passed
+    // HISTORICAL_SCHEMA_SHA256. The live schema and forward proposal stay intact.
+    const laborModels = value.tables.filter(table => table.name === "employee_labor_allocations");
+    if (laborModels.length !== 1) throw Error("HISTORICAL_1031_LABOR_MODEL_MISSING");
+    const labor = laborModels[0];
+    const columns0138 = labor.columns.filter(column => column.name === "vertical_dimensions");
+    const checks0138 = labor.checks.filter(check => check.name === "employee_labor_allocations_vertical_dims_object_chk");
+    if (columns0138.length || checks0138.length) {
+      if (columns0138.length !== 1 || checks0138.length !== 1 ||
+          columns0138[0].type.toLowerCase() !== "jsonb" ||
+          columns0138[0].nullable !== true || columns0138[0].default !== null ||
+          columns0138[0].identity !== null ||
+          canonical(checks0138[0].expression, "employee_labor_allocations") !==
+            "vertical_dimensions is null or jsonb_typeof(vertical_dimensions) = 'object'")
+        throw Error("HISTORICAL_1031_UNREVIEWED_SCHEMA_DIFFERENCE");
+      labor.columns = labor.columns.filter(column => column.name !== "vertical_dimensions");
+      labor.checks = labor.checks.filter(check => check.name !== "employee_labor_allocations_vertical_dims_object_chk");
+    }
     const marketing = value.tables.find(x => x.name === "marketing_leads");
     if (!marketing) throw Error("HISTORICAL_1031_MARKETING_MODEL_MISSING");
     for (const [name, firstKey] of [
