@@ -1,0 +1,98 @@
+name: Holiday calendar tenant isolation (fictional PG16 real HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-holidays-http.yml'
+      - 'scripts/qa/tenant-holidays-*.mjs'
+      - 'tests/tenant-holidays-*.test.mjs'
+      - 'docs/qa/tenant-holidays-http.md'
+      - 'src/app/api/holidays/**'
+      - 'src/lib/access.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/db/schema.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-holidays-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  holiday-isolation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TENANT_HOLIDAYS_MODE: isolated-ci-only
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export exact fictional CI-only environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Validate source syntax and 20 fail-closed negative controls
+        run: |
+          node --check scripts/qa/tenant-holidays-contract.mjs
+          node --check scripts/qa/tenant-holidays-http.mjs
+          node --test tests/tenant-holidays-contract.test.mjs
+      - name: Ephemeral encryption and fictional mail signing keys only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Prepare fresh disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply pre-reviewed isolated baseline including audit chain
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build real production-mode app against fictional empty database
+        run: npm run build
+      - name: Start isolated Next server on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/holiday-tenant-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/holiday-tenant-server.log
+          exit 1
+      - name: Four holiday methods real signed-in HTTP and PostgreSQL 16 proof
+        run: npx tsx scripts/qa/tenant-holidays-http.mjs
+      - name: Show isolated server log if any acceptance gate failed
+        if: failure()
+        run: cat /tmp/holiday-tenant-server.log || true
