@@ -300,6 +300,14 @@ jobs:
           DOCUMENT_UPLOADS_ENABLED: 'false'
           EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'false'
           PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+          XENDIT_PAYOUTS_ENABLED: 'false'
+          # The full suite includes real PG16 scheduler fault-injection tests.
+          # Authorize ONLY this disposable app_db regression step; never enable
+          # the actual scheduler, worker, dispatch, or payment integrations.
+          SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+          WORKER_ENABLED: 'false'
+          PAYROLL_SCHEDULER_DISPATCH_ENABLED: 'false'
         run: |
           set -euo pipefail
           test -n "$FAIL_CLOSED_GUARD_BASE_REF"
