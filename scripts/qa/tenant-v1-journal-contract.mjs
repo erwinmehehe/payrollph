@@ -93,7 +93,21 @@ export function proveJournalResponse(response, expected) {
   assert.match(response.headers.get("content-type") ?? "", /^text\/csv(?:;|$)/i);
   assert.match(response.headers.get("content-disposition") ?? "",
     /^attachment; filename=linaw-payroll-journal\.csv$/);
-  assert.equal(response.headers.get("cache-control"), "no-store");
+  // Next may normalize "no-store" to "no-store, max-age=0" in production.
+  // Require the actual no-store directive and refuse any cacheable or shared-
+  // cache allowance instead of relying on byte-for-byte header equality.
+  const cacheDirectives = (response.headers.get("cache-control") ?? "")
+    .toLowerCase().split(",").map(value => value.trim());
+  assert.ok(cacheDirectives.includes("no-store"), "journal response must be no-store");
+  for (const directive of cacheDirectives) {
+    assert.ok(!/^(public|immutable)$/.test(directive) &&
+      !/^(s-maxage|stale-while-revalidate|stale-if-error)(?:\\s*=|$)/.test(directive),
+    "journal response cannot allow shared or stale caching");
+    if (/^max-age(?:\\s*=|$)/.test(directive)) {
+      assert.match(directive, /^max-age\\s*=\\s*0$/,
+        "journal max-age must be precisely zero");
+    }
+  }
   for (const forbidden of expected.forbiddenMarkers ?? []) {
     assert.ok(forbidden && !response.text.includes(forbidden),
       "journal must not return another employer or an excluded run");
