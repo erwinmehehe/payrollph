@@ -65,6 +65,14 @@ if (process.argv.includes("--read-gap-recovery")) {
   }
 }
 const onlyPathIds = process.argv.includes("--only-path-ids");
+if (process.argv.includes("--legal-employer-admin")) {
+  const { METHODS, verifyReceipt } = await import("./tenant-legal-employer-admin-receipt.mjs");
+  const receipt = verifyReceipt();
+  if (JSON.stringify([...selectedKeys].sort()) !== JSON.stringify([...METHODS].sort()) ||
+      localPostgresMajor !== receipt.postgresMajor || runLabel !== receipt.runLabel) {
+    throw new Error("legal employer admin requires all five exact methods and matching executed receipt/engine");
+  }
+}
 if (onlyPathIds && selection) throw new Error("Path and reviewed-family selections must run separately");
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
 
@@ -163,6 +171,16 @@ for (const source of SOURCES) {
       method.testedBy.scope = source.scope.replace("CI PG16 only", "local disposable PostgreSQL " + localPostgresMajor + "; exact-head PG16 CI NOT_RUN");
       method.testedBy.evidence = "Local shared runner " + source.file + "; " + runLabel;
       method.testedBy.postgresMajor = localPostgresMajor;
+    }
+    if (!retainEvidence && process.argv.includes("--legal-employer-admin")) {
+      method.testedBy.localReceipt = "docs/qa/tenant-legal-employer-admin-receipt.json";
+      if (row.key === "PATCH multi-entity/registration-changes") {
+        method.testedBy.additionalActionProof = {
+          file: "scripts/qa/tenant-table-rows/write/legal-employer-admin.mjs",
+          sha256: createHash("sha256").update(readFileSync(row.file, "utf8").replaceAll("\r\n", "\n")).digest("hex"),
+          scope: "Reject and approve for both attackers, foreign and forged requests, self-approval and replay refusal; exact persisted employer/version/audit and unchanged victim, source-bound local receipt.",
+        };
+      }
     }
     credited.push({ ...row, source, path: hit.path, was });
   }

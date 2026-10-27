@@ -12,12 +12,16 @@ const context = (rank) => ({
     legalEntityId: 100 + rank,
     reason: "TTBL-ATT" + rank + " fictional statutory registration request",
     envelope: "NONDECRYPTABLE_PRIVATE_FIXTURE_TTBL-ATT" + rank,
+    historyId: 20000 + rank, makerId: 3000 + rank, versionId: 30000 + rank, revision: rank,
+    historyReason: 'TTBL-ATT' + rank + ' fictional historical approval',
   },
 });
 
 function response(contextValue = context(1)) {
   const data = {
-    requests: [{
+    requests: [{ id: contextValue.seeded.historyId, effectiveDate: '2026-10-26', changedFields: ['legalName'], status: 'approved',
+      reason: contextValue.seeded.historyReason, requestedByUserId: contextValue.seeded.makerId, decidedByUserId: contextValue.owner.id,
+      createdAt: '2026-10-26T10:00:00Z', decidedAt: '2026-10-26T11:00:00Z', canReview: false }, {
       id: contextValue.seeded.id, effectiveDate: "2026-10-27",
       changedFields: ["displayName"], status: "pending_approval",
       reason: contextValue.seeded.reason,
@@ -25,7 +29,8 @@ function response(contextValue = context(1)) {
       createdAt: "2026-10-27T10:00:00.000Z", decidedAt: null,
       canReview: false,
     }],
-    versions: [], today: "2026-10-27",
+    versions: [{ id: contextValue.seeded.versionId, revision: contextValue.seeded.revision, effectiveDate: '2026-10-26',
+      approvedByUserId: contextValue.owner.id, createdAt: '2026-10-26T11:00:00Z' }], today: "2026-10-27",
   };
   return { json: data, text: JSON.stringify(data) };
 }
@@ -57,7 +62,7 @@ test("disposable fixture writes one pending record to the actual employer and ow
   const [fixture] = createRows({ assert, pool: db, grantOwnEntity: async e => { granted.push(e); } });
   const seeded = await fixture.seed(employer);
   assert.deepEqual(granted, [employer]);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 4);
   assert.match(calls[0].sql, /INSERT INTO legal_entity_profile_change_requests/);
   assert.match(calls[0].sql, /RETURNING id/);
   assert.equal(calls[0].values.length, 9);
@@ -69,6 +74,10 @@ test("disposable fixture writes one pending record to the actual employer and ow
   assert.equal(seeded.id, 811);
   assert.equal(seeded.legalEntityId, 88);
   assert.equal(seeded.envelope, calls[0].values[5]);
+  assert.match(calls[1].sql, /local_password_enabled/);
+  assert.deepEqual(calls[2].values.slice(0, 4), [77, 88, '2026-10-26', '["legalName"]']);
+  assert.deepEqual(calls[2].values.slice(6), ['approved', 811, 99]);
+  assert.deepEqual(calls[3].values, [77, 88, 1, '2026-10-26', seeded.envelope, 99, 811]);
 });
 
 test("own-positive evidence is employer discriminating and rejects forged or empty data", () => {
@@ -80,13 +89,17 @@ test("own-positive evidence is employer discriminating and rejects forged or emp
   const cases = [
     d => { d.requests = []; },
     d => { d.requests[0].id += 1; },
-    d => { d.requests[0].reason = second.seeded.reason; },
+    d => { d.requests[0].reason = second.seeded.historyReason; },
     d => { d.requests[0].requestedByUserId = second.owner.id; },
     d => { d.requests[0].changedFields = []; },
-    d => { d.requests[0].status = "approved"; },
+    d => { d.requests[0].status = "pending_approval"; },
     d => { d.requests[0].canReview = true; },
     d => { d.requests[0].effectiveDate = "2026-01-01"; },
     d => { d.versions.push({ id: 1 }); },
+    d => { d.versions = []; },
+    d => { d.versions[0].id = second.seeded.versionId; },
+    d => { d.versions[0].approvedByUserId = second.owner.id; },
+    d => { d.versions[0].profileEnvelope = 'PRIVATE'; },
   ];
   for (const mutate of cases) {
     const altered = response(first);
@@ -103,8 +116,8 @@ test("rejects leaked sealed values, victim marker, PII and unexpected scope meta
     d => { d.requests[0].tin = "123456789"; },
     d => { d.requests[0].organizationId = 555; },
     d => { d.requests[0].legalEntityId = 999; },
-    d => { d.requests[0].decidedByUserId = 42; },
-    d => { d.requests[0].decidedAt = "2026-10-27T10:00:00Z"; },
+    d => { d.requests[1].decidedByUserId = 42; },
+    d => { d.requests[1].decidedAt = "2026-10-27T10:00:00Z"; },
     d => { d.extra = first.victim.marker; },
     d => { d.requests[0].reason = first.victim.marker; },
   ]) {

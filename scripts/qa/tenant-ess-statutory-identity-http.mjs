@@ -119,7 +119,7 @@ async function readOwn({ request, expectStatus }, actor, ownIds, ownCases, victi
   for (const row of ownIds) assert.ok(idResponse.json?.requests?.some((r) =>
     r.id === row.id && r.kind === row.kind && r.proposedMasked),
   "populated own masked identifier must be returned");
-  assertExactMaskedIdentifierGet(idResponse, ownIds, sentinel);
+  await assertExactMaskedIdentifierGet(idResponse, actor, ownIds, sentinel);
   const caseResponse = expectStatus(await request(
     "/api/self/contribution-issues?organizationId=" + victimOrgId + "&employeeId=" + victimEmployeeId,
     { cookie: actor.cookie },
@@ -257,19 +257,44 @@ export async function verifyEssStatutoryIdentityIsolation(f, { request, expectSt
 // Keep the originally reviewed source-pinned contribution-case requests at
 // their exact lines. Additional ESS identifier GET checks live separately so
 // unrelated credited HTTP evidence cannot drift when this GAP proof grows.
-function assertExactMaskedIdentifierGet(idResponse, ownIds, sentinel) {
+async function assertExactMaskedIdentifierGet(idResponse, actor, ownIds, sentinel) {
+  // Earlier suites may already have placed legitimate requests for the same
+  // fictional employee in this shared database. The expected set must be
+  // independently read from PostgreSQL, not inferred from writes by this step.
+  // This still fails if GET leaks even one foreign employee's request ID.
+  const persisted = await db.select({
+    id: essIdentifierRequests.id,
+    kind: essIdentifierRequests.kind,
+    status: essIdentifierRequests.status,
+    proposedEncrypted: essIdentifierRequests.proposedEncrypted,
+  }).from(essIdentifierRequests).where(and(
+    eq(essIdentifierRequests.organizationId, actor.org.id),
+    eq(essIdentifierRequests.employeeId, actor.employeeId),
+  )).orderBy(essIdentifierRequests.id);
+  assert.ok(persisted.length >= ownIds.length,
+    "every newly created owned identifier must still exist in the same employee's DB scope");
+  assert.ok(persisted.length <= 40,
+    "this finite synthetic fixture must fit the GET route's explicit 40-row limit");
+  for (const own of ownIds) assert.ok(persisted.some((row) =>
+    row.id === own.id && row.kind === own.kind && row.status === own.status),
+  "newly submitted own request must match persisted employee, kind and status");
+
   const actualIds = idResponse.json?.requests;
   assert.ok(Array.isArray(actualIds), "identifier GET must return a request array");
+  assert.equal(new Set(actualIds.map((row) => row.id)).size, actualIds.length,
+    "GET cannot duplicate a request ID");
   assert.deepEqual(
     actualIds.map((row) => row.id).sort((a, b) => a - b),
-    ownIds.map((row) => row.id).sort((a, b) => a - b),
-    "identifier GET must return exactly this employee's persisted requests, no foreign or missing rows",
+    persisted.map((row) => row.id).sort((a, b) => a - b),
+    "identifier GET must return exactly the employee's PostgreSQL-scoped requests; never foreign, missing or invented IDs",
   );
-  for (const row of ownIds) {
+  for (const row of persisted) {
     const actual = actualIds.find((r) => r.id === row.id);
-    assert.equal(actual?.kind, row.kind, "identifier kind must match the persisted own request");
+    assert.equal(actual?.kind, row.kind, "identifier kind must match persisted own evidence");
     assert.equal(actual?.status, row.status, "identifier review status must not be substituted");
     assert.ok(actual?.proposedMasked, "persisted identifier must be masked in GET");
+    assert.notEqual(actual?.proposedMasked, row.proposedEncrypted,
+      "response must not expose the actual encrypted identifier as its mask");
     assert.ok(!Object.hasOwn(actual, "proposedEncrypted"),
       "encrypted identifier ciphertext must not be exposed in GET");
   }

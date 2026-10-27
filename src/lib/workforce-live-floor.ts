@@ -112,15 +112,23 @@ export function classifyFloorSegment(input: FloorInput): FloorRow {
     // Punches can be clocked early. Never credit one unrelated punch to every split segment.
     // Bound punch attribution to each segment. A punch for an earlier split
     // shift must not automatically make a later shift look attended.
-    if (!Number.isFinite(inAt) || inAt < start - 2 * 3600000 || inAt > end) continue;
+    // An invalid recorded clock-in is unresolved evidence, not a missing punch.
+    if (!Number.isFinite(inAt)) {
+      malformed = true;
+      continue;
+    }
+    if (inAt < start - 2 * 3600000 || inAt > end) continue;
     if (outAt !== null && Number.isFinite(outAt) && outAt <= start) continue;
     if (
       [outAt, breakAt, breakEndAt].some(value => value !== null && !Number.isFinite(value))
       || inAt > nowMs + 5 * 60000
       || (outAt !== null && (outAt < inAt || outAt > nowMs + 5 * 60000))
       || (breakAt !== null && (breakAt < inAt || breakAt > nowMs + 5 * 60000))
-      || (breakEndAt !== null && (breakAt === null || breakEndAt < breakAt))
-      || (outAt !== null && breakAt !== null && breakEndAt === null)
+      || (breakEndAt !== null && (
+        breakAt === null || breakEndAt < breakAt || breakEndAt > nowMs + 5 * 60000
+      ))
+      || (outAt !== null && breakAt !== null && (breakAt > outAt || breakEndAt === null))
+      || (outAt !== null && breakEndAt !== null && breakEndAt > outAt)
     ) {
       malformed = true;
       continue;

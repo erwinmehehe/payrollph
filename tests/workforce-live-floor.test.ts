@@ -74,6 +74,44 @@ test("malformed, future and duplicate open punches fail closed", () => {
   }).status, "punch_evidence_review");
 });
 
+test("invalid clock-in evidence must be reviewed instead of disappearing as a missing punch", () => {
+  for (const invalidIn of ["not-a-timestamp", new Date(Number.NaN)]) {
+    const row = sample("2026-10-09T04:00:00Z", {
+      punches: [{ id: 41, timeIn: invalidIn, timeOut: null }],
+    });
+    assert.equal(row.status, "punch_evidence_review");
+    assert.equal(row.punchCount, 0, "unparseable punch cannot count as verified attendance");
+    assert.ok(floorNeedsReview(row.status));
+    assert.doesNotMatch(row.explanation, /absence finding/i);
+  }
+});
+
+test("future and out-of-order breaks fail closed without turning into clocked-out evidence", () => {
+  const validIn = "2026-10-09T01:00:00Z";
+  const invalidPunches = [
+    // Future break end on an otherwise open clock-in.
+    { id: 52, timeIn: validIn, timeOut: null,
+      breakStart: "2026-10-09T02:00:00Z", breakEnd: "2026-10-09T06:00:00Z" },
+    // A break cannot start after a recorded clock-out.
+    { id: 53, timeIn: validIn, timeOut: "2026-10-09T02:30:00Z",
+      breakStart: "2026-10-09T02:45:00Z", breakEnd: "2026-10-09T02:55:00Z" },
+    // A break cannot finish after a recorded clock-out.
+    { id: 54, timeIn: validIn, timeOut: "2026-10-09T03:00:00Z",
+      breakStart: "2026-10-09T02:00:00Z", breakEnd: "2026-10-09T03:10:00Z" },
+  ];
+  for (const punch of invalidPunches) {
+    const row = sample("2026-10-09T04:00:00Z", { punches: [punch] });
+    assert.equal(row.status, "punch_evidence_review", "bad chronology in punch #" + punch.id);
+    assert.equal(row.punchCount, 0);
+  }
+  const valid = sample("2026-10-09T04:00:00Z", { punches: [{
+    id: 55, timeIn: validIn, timeOut: "2026-10-09T03:00:00Z",
+    breakStart: "2026-10-09T02:00:00Z", breakEnd: "2026-10-09T02:30:00Z",
+  }] });
+  assert.equal(valid.status, "clocked_out", "a valid closed break remains valid");
+  assert.equal(valid.punchCount, 1);
+});
+
 test("old open time-in is evidence review, not proof of current onsite status", () => {
   assert.equal(sample("2026-10-09T15:00:00Z", {
     punches: [{ id: 1, timeIn: "2026-10-09T01:00:00Z", timeOut: null }],
