@@ -1,0 +1,85 @@
+name: Employee self-availability tenant HTTP (fictional PostgreSQL, no payroll)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-availability-http.yml'
+      - 'scripts/qa/tenant-self-availability-*.mjs'
+      - 'tests/tenant-self-availability-*.test.mjs'
+      - 'src/app/api/self/availability/**'
+      - 'src/lib/workforce-employee-availability-preferences.ts'
+      - 'src/lib/workforce-employee-upcoming-week.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-self-availability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-availability:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      # Synthetic job flag only; never changes deployed environment or UI rollout.
+      WFM_EMPLOYEE_AVAILABILITY_ENABLED: "true"
+      NEXT_PUBLIC_WFM_EMPLOYEE_AVAILABILITY_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export exact disposable server and DB scope
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Refuse non-disposable inputs before any database access
+        run: node --test tests/tenant-self-availability-guard.test.mjs
+      - name: Generate throwaway encryption and local-only webhook keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply the disposable reviewed-schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build source against fictional local configuration
+        run: npm run build
+      - name: Two independent ESS attackers versus real victim and peer (GET + POST)
+        run: node --import tsx scripts/qa/tenant-self-availability-http.mjs
