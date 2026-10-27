@@ -43,9 +43,10 @@ export function validMyTeamResponse(
       !Array.isArray(value.items) || value.items.length > 25 ||
       !object(value.summary) || !object(value.page) ||
       value.page.size !== 25 || typeof value.page.hasMore !== "boolean" ||
-      (value.page.hasMore && (!id(value.page.nextCursor) || value.page.nextCursor <= cursor)) ||
-      (!value.page.hasMore && value.page.nextCursor !== null &&
-        !id(value.page.nextCursor)) ||
+      // A continuation requires a full page and a real server-issued cursor.
+      // A terminal page (including an empty one) must not advertise a cursor.
+      (value.page.hasMore && (value.items.length !== 25 || !id(value.page.nextCursor))) ||
+      (!value.page.hasMore && value.page.nextCursor !== null) ||
       value.summary.employeeRecordsThisPage !== value.items.length ||
       !count(value.summary.pendingLeaveRecordsThisPage) ||
       !count(value.summary.pendingOvertimeRecordsThisPage) ||
@@ -53,9 +54,11 @@ export function validMyTeamResponse(
       !count(value.summary.incompletePunchRecordsThisPage)) return false;
 
   const unique = new Set<number>();
+  let previousId = cursor;
   let leave = 0, overtime = 0, corrections = 0, incomplete = 0;
   for (const item of value.items as unknown[]) {
-    if (!object(item) || !id(item.id) || item.id <= cursor || unique.has(item.id) ||
+    // Server keyset ordering is strictly ascending, not merely unique.
+    if (!object(item) || !id(item.id) || item.id <= previousId || unique.has(item.id) ||
         !text(item.employeeNo) || !text(item.name) || !text(item.jobTitle) ||
         !text(item.employmentType) || !text(item.status) ||
         !optionalText(item.orgUnitName) ||
@@ -63,12 +66,16 @@ export function validMyTeamResponse(
         !count(item.pendingLeaveRecords) || !count(item.pendingOvertimeRecords) ||
         !count(item.pendingAttendanceCorrections) || !count(item.incompletePunchRecords)) return false;
     unique.add(item.id);
+    previousId = item.id;
     leave += item.pendingLeaveRecords;
     overtime += item.pendingOvertimeRecords;
     corrections += item.pendingAttendanceCorrections;
     incomplete += item.incompletePunchRecords;
   }
-  return value.summary.pendingLeaveRecordsThisPage === leave &&
+  // A cursor ahead of the actual last displayed row would silently skip
+  // records on the next request. Never accept it as a verified page.
+  return (!value.page.hasMore || value.page.nextCursor === previousId) &&
+    value.summary.pendingLeaveRecordsThisPage === leave &&
     value.summary.pendingOvertimeRecordsThisPage === overtime &&
     value.summary.pendingAttendanceCorrectionsThisPage === corrections &&
     value.summary.incompletePunchRecordsThisPage === incomplete;
