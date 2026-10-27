@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { FAMILY_ROOT, tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
+import { bindTenantPath, validateTenantPathBinding } from "./tenant-table-path.mjs";
 
 export function validateTenantRow(row, spec) {
   assert.equal(row?.key, spec.key, "runtime/source method identity mismatch");
   assert.equal(row.profile ?? "default", spec.profile, row.key + ": runtime/source profile mismatch");
   assert.deepEqual(row.flags ?? [], spec.flags, row.key + ": runtime/source flags mismatch");
+  validateTenantPathBinding(row.key, row.pathIds);
+  assert.deepEqual(row.pathIds, spec.pathIds, row.key + ": runtime/source path binding mismatch");
   assert.ok([403, 404].includes(row.deny ?? 403), row.key + ": foreign request must be denied");
   if (spec.kind === "read") {
     assert.equal(row.status ?? 200, 200, row.key + ": own read must succeed");
@@ -42,6 +45,9 @@ export async function loadTenantRows(kind, context, root = FAMILY_ROOT) {
 /** Bind one attacker attempt without mutating the shared, frozen definition. */
 export function bindTenantReadRequests(definition, ownId, victimId, extra = "", ctx) {
   assert.ok(definition.key.startsWith("GET "), "read requests require a GET definition");
+  if (definition.pathIds) return Object.freeze({ ...definition,
+    own: bindTenantPath(definition, ctx, "own") + "?organizationId=" + ownId + extra,
+    foreign: bindTenantPath(definition, ctx, "foreign") + "?organizationId=" + victimId + extra });
   const base = "/api/" + definition.key.slice(4) + "?organizationId=";
   const foreignExtra = definition.foreignQuery ? definition.foreignQuery(ctx) : null;
   if (definition.foreignQuery) assert.ok(typeof foreignExtra === "string" && foreignExtra.length > 0, "foreign query must bind a real seeded resource");
