@@ -72,7 +72,7 @@ export function provePublicCareersGet(response, employer, published, otherEmploy
 }
 
 const PROTECTED = Object.freeze([
-  "organizations", "employees", "profiles", "positions", "requisitions",
+  "organizations", "employees", "memberships", "profiles", "positions", "requisitions",
   "applicants", "privacyEvidence", "payroll",
 ]);
 export function assertUnchangedCareersTenant(before, after, label) {
