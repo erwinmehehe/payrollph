@@ -46,7 +46,7 @@ export async function verifySelfAvailabilityTenantHttp() {
   ]);
   const {
     organizations, users, userOrganizations, employeeAvailabilityRules, employees,
-    auditEvents, payrollRuns,
+    auditEvents, payrollRuns, sessions,
   } = schema;
   const { eq, and } = await import("drizzle-orm");
   const { seedEmployer, standaloneMakeSession, standaloneRequest, addWorker } = table;
@@ -80,6 +80,8 @@ export async function verifySelfAvailabilityTenantHttp() {
       workerEmployeeId: e.worker.id, active: true,
     });
     const session = await standaloneMakeSession(self.id);
+    // Satisfy any privileged-session policy in this fictional-only authenticated proof.
+    await db.update(sessions).set({ mfaVerifiedAt: new Date() }).where(eq(sessions.id, session.id));
     const [rule] = await db.insert(employeeAvailabilityRules).values({
       organizationId: e.org.id, employeeId: e.worker.id, weekday: 1,
       startTime: "13:00", endTime: "15:00", availabilityType: "unavailable",
