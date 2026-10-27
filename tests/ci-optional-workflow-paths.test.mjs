@@ -207,12 +207,22 @@ test("Core Modules browser authenticates each flag server independently before a
     "Never reuse the flag-OFF server's role-only cookie as proof on flag-ON");
   assert.match(browser, /totpCode: generateTotp\(/,
     "Both local servers must use the real MFA login path");
-  assert.match(browser, /context\.request\.get\(base \+ "\/api\/auth\/me"\)/,
-    "Check the signed-in principal on the current server");
-  assert.match(browser, /assert\.equal\(session\.user\?\.role, role/,
+  assert.match(browser, /const session = await page\.evaluate\(/,
+    "The signed-in principal must be verified using the real browser cookie");
+  assert.match(browser, /fetch\("\/api\/auth\/me"/,
+    "Check the authenticated principal on the current browser origin");
+  assert.match(browser, /assert\.equal\(session\.body\.user\?\.role, role/,
     "A 401 cannot be mistaken for a valid 403 role denial");
-  assert.match(browser, /assert\.equal\(denied\.status\(\), 403/,
+  assert.match(browser, /const deniedStatus = await page\.evaluate\(/);
+  assert.match(browser, /assert\.equal\(deniedStatus, 403/,
     "Keep the exact unauthorized-role denial requirement");
+  assert.doesNotMatch(browser, /context\.request\.patch\(base \+ "\/api\/tenant-modules"/,
+    "Never use a separate Node request cookie jar for this browser-denial check");
+  assert.match(browser, /credentials: "same-origin"/,
+    "Browser requests must carry the session cookie for this exact origin");
+  const auth = readFileSync(new URL("../src/lib/auth.ts", import.meta.url), "utf8");
+  assert.match(auth, /secure: process\.env\.NODE_ENV === "production"/,
+    "Test must preserve the production Secure-cookie behavior");
   assert.match(source, /REQUIRE_PRIVILEGED_MFA: 'true'/);
   assert.match(source, /CORE_MODULE_NAVIGATION_ENABLED=false npm run start/,
     "The browser must continue comparing independently configured flag-on and flag-off servers");
