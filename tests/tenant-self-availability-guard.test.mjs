@@ -65,8 +65,8 @@ test("standalone workflow runs real signed-in HTTP against fictional PG16 only",
   assert.match(wf, /npm run build/);
   assert.match(wf, /node --import tsx scripts\/qa\/tenant-self-availability-http\.mjs/);
   assert.match(proof, /requireDisposableSelfAvailability\(\)/);
-  assert.match(proof, /seedEmployer\("VICTIM"/);
-  assert.match(proof, /await request\(.*?organizationId=/s);
+  assert.match(proof, /seedEmployeeEmployer\("VICTIM"/);
+  assert.match(proof, /await expect\(ENDPOINT \+ "\?organizationId="/);
   assert.match(proof, /victimRowsAfter, victimRowsBefore/);
   assert.doesNotMatch(proof, /https:\/\//);
 });
