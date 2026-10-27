@@ -11,6 +11,7 @@ import { loadPeopleHomeAssigneePermissions } from "@/lib/delegation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { peopleEmployeeFocusHref } from "@/lib/hcm-people-employee-focus";
+import { recordedPeopleHomeInstant as recordedInstant } from "@/lib/hcm-people-home-instant";
 
 /**
  * Source-minimized, server-only People Home projection. It provides previews,
@@ -65,12 +66,6 @@ const PROCESS_LABELS: Record<string, string> = {
 
 function missing(): PeopleHomeSection {
   return { state: "unavailable", items: [], hasMore: false, partial: true, total: null };
-}
-
-function recordedInstant(value: Date | string | null | undefined): string | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
 function recordedSourceDate(value: string | null | undefined): string | null {
