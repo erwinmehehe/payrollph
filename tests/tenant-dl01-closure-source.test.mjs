@@ -178,4 +178,25 @@ test("DL-01 full regression uses a real comparison base and proof-scoped release
   const fullSuite = workflow.indexOf("- name: Full repository Node test suite");
   assert.ok(proofStart >= 0 && proofStart < proofGate && proofGate < fullSuite,
     "feature gates must be enabled only inside the dedicated proof shell");
+
+  // The full regression exercises scheduler fault-injection on disposable PG16.
+  // A missing explicit CI rehearsal opt-in causes three failures, but expanding
+  // the opt-in to the payment proof or enabling a real worker would be unsafe.
+  const regression = workflow.slice(fullSuite);
+  const beforeRegression = workflow.slice(0, fullSuite);
+  assert.ok(fullSuite > proofGate);
+  assert.match(regression, /SCHEDULER_REHEARSAL_MODE: isolated-ci-only/);
+  assert.doesNotMatch(beforeRegression, /SCHEDULER_REHEARSAL_MODE: isolated-ci-only/,
+    "Scheduler rehearsal authorization must be scoped to full regression only");
+  for (const flag of [
+    "CENTRAL_SCHEDULER_ENABLED", "WORKER_ENABLED",
+    "PAYROLL_SCHEDULER_DISPATCH_ENABLED",
+    "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
+  ]) {
+    assert.ok(regression.includes(flag + ": 'false'"),
+      "Guarded scheduler tests require disabled runtime/payment flag: " + flag);
+  }
+  const guard = file("tests/helpers/scheduler-isolated-guard.ts");
+  assert.match(guard, /env\.SCHEDULER_REHEARSAL_MODE !== "isolated-ci-only"/);
+  assert.match(guard, /url\.pathname !== "\/app_db"/);
 });
