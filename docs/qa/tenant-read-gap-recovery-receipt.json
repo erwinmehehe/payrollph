@@ -1,0 +1,150 @@
+{
+  "schema": "local-tenant-gap-recovery-v1",
+  "observedAt": "2026-10-27T06:41:05.328Z",
+  "baselineCommit": "2b461f234b077618848daa5aba5b3b96ed754d46",
+  "postgresMajor": 18,
+  "serverVersionNum": 180006,
+  "runLabel": "local PostgreSQL 18 WSL docs/qa/tenant-read-gap-recovery-receipt.json",
+  "methods": [
+    "GET hcm/manager-decision-inbox",
+    "GET hcm/org-explorer",
+    "GET hcm/position-history",
+    "GET hcm/process-monitor",
+    "GET hcm/team-leave-calendar",
+    "GET hcm/work-items/events",
+    "GET workforce/demand-observations/outlook",
+    "GET workforce/demand-outlook",
+    "GET workforce/schedule-receipt-review",
+    "PATCH hcm/work-items",
+    "POST hcm/employment-terms",
+    "POST loans"
+  ],
+  "runs": {
+    "allowlisted": {
+      "kind": "tenant-table-proof",
+      "profile": "allowlisted-reads",
+      "pathOnly": false,
+      "rows": 8,
+      "ownAndForeignPairs": 16,
+      "discriminatingProofs": 8,
+      "victimDatabaseUnchanged": true,
+      "productionTested": false,
+      "certified": false
+    },
+    "defaultRead": {
+      "kind": "tenant-table-proof",
+      "profile": "default",
+      "pathOnly": false,
+      "rows": 12,
+      "ownAndForeignPairs": 24,
+      "discriminatingProofs": 12,
+      "victimDatabaseUnchanged": true,
+      "productionTested": false,
+      "certified": false
+    },
+    "hcmWrite": {
+      "kind": "tenant-write-table-proof",
+      "profile": "default",
+      "family": "hcm",
+      "pathOnly": false,
+      "rows": 11,
+      "ownAndForeignPairs": 22,
+      "discriminatingProofs": 11,
+      "forgedReferenceProofs": 16,
+      "victimDatabaseUnchanged": true,
+      "productionTested": false,
+      "certified": false
+    },
+    "loansWrite": {
+      "kind": "tenant-write-table-proof",
+      "profile": "default",
+      "family": "loans",
+      "pathOnly": false,
+      "rows": 2,
+      "ownAndForeignPairs": 4,
+      "discriminatingProofs": 2,
+      "forgedReferenceProofs": 2,
+      "victimDatabaseUnchanged": true,
+      "productionTested": false,
+      "certified": false
+    }
+  },
+  "unlistedGate": {
+    "kind": "tenant-allowlist-negative",
+    "unavailableEmployer": true,
+    "gateRoutes": 8,
+    "statuses": "404",
+    "credits": 0,
+    "productionTested": false
+  },
+  "mutation": {
+    "method": "POST loans",
+    "rejected": true,
+    "error": "expect accepts another employer's data"
+  },
+  "productionTested": false,
+  "githubPg16Ci": "NOT_RUN",
+  "rowSources": [
+    {
+      "key": "GET hcm/manager-decision-inbox",
+      "file": "scripts/qa/tenant-table-rows/read/hcm-allowlisted.mjs",
+      "sha256": "05ad718389a0d44d85995aebf65e5406c3fe8ce5f636fdcebe64b58e19f2a48d"
+    },
+    {
+      "key": "GET hcm/org-explorer",
+      "file": "scripts/qa/tenant-table-rows/read/hcm-allowlisted.mjs",
+      "sha256": "455f4d591abbdc3bbda1d005710d200867180e8f634c122a195c59366c234abd"
+    },
+    {
+      "key": "GET hcm/position-history",
+      "file": "scripts/qa/tenant-table-rows/read/hcm-allowlisted.mjs",
+      "sha256": "dc9b160eb83c5633f92eabe368b8264b6fcfe88df177c475364a4ce11a7aaa7d"
+    },
+    {
+      "key": "GET hcm/process-monitor",
+      "file": "scripts/qa/tenant-table-rows/read/hcm-allowlisted.mjs",
+      "sha256": "30877f6039c7e6350bf841bf452de1b966429c5ac94394f7344730681577a493"
+    },
+    {
+      "key": "GET hcm/team-leave-calendar",
+      "file": "scripts/qa/tenant-table-rows/read/hcm-allowlisted.mjs",
+      "sha256": "77a0ef6d8e2f4ffc9eec7c0ffa097c0fae8e3c3272d00416efb3e4afb186fe26"
+    },
+    {
+      "key": "GET hcm/work-items/events",
+      "file": "scripts/qa/tenant-table-rows/read/hcm.mjs",
+      "sha256": "2b9aa44c4750114af10a4a9cad2241635b53af0086495d2753970bd61ab4edcf"
+    },
+    {
+      "key": "GET workforce/demand-observations/outlook",
+      "file": "scripts/qa/tenant-table-rows/read/workforce-allowlisted.mjs",
+      "sha256": "2a3feee233caea6292fa5ab7390a0190be50b3c0021e30a22a511e98fd2fc244"
+    },
+    {
+      "key": "GET workforce/demand-outlook",
+      "file": "scripts/qa/tenant-table-rows/read/workforce-allowlisted.mjs",
+      "sha256": "84e8a2fc2ea520b5f6297dd15e69ad31b9eec84fbfd5c26a54d020050ec6e91a"
+    },
+    {
+      "key": "GET workforce/schedule-receipt-review",
+      "file": "scripts/qa/tenant-table-rows/read/workforce-allowlisted.mjs",
+      "sha256": "c82f409da61025f0313b165a69690412e2836c37877af51b53d0561757c29583"
+    },
+    {
+      "key": "PATCH hcm/work-items",
+      "file": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+      "sha256": "581564ff9cea0b460d4afc96708c4366be1875a9a37c30009aeb1cd6ca3289e5"
+    },
+    {
+      "key": "POST hcm/employment-terms",
+      "file": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+      "sha256": "54aaddd73153f8c7dcee9b133909be42aabce05a72e4af3b3fc4c9c51254fcbf"
+    },
+    {
+      "key": "POST loans",
+      "file": "scripts/qa/tenant-table-rows/write/loans.mjs",
+      "sha256": "4a0c027901b154187c300b12d4f931e89a7d45a3961528d6dc7182545645358c"
+    }
+  ],
+  "snapshotSha256": "094971dfc4d374e8b7f5fe344dafafb650d900451cf5f18eeefb2ea7d8051e45"
+}
