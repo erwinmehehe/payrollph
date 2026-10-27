@@ -1,0 +1,98 @@
+name: Leave preview tenant HTTP (fictional PostgreSQL)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-leave-preview-http.yml'
+      - 'scripts/qa/tenant-leave-preview-*.mjs'
+      - 'tests/tenant-leave-preview-*.test.mjs'
+      - 'src/app/api/leave/preview/**'
+      - 'src/lib/hcm-leave-employment.ts'
+      - 'src/lib/workforce-absence-intervals.ts'
+      - 'src/lib/workforce-schedule-evidence-server.ts'
+      - 'src/lib/workforce-scheduling.ts'
+      - 'src/lib/hcm-work-period-guard.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-table-loader.mjs'
+      - 'scripts/qa/tenant-table-catalog.mjs'
+      - 'scripts/qa/tenant-table-path.mjs'
+      - 'scripts/qa/tenant-table-rows/**'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+permissions:
+  contents: read
+concurrency:
+  group: tenant-leave-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  leave-preview:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Configure disposable local scope
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Test disposable target guard
+        run: node --test tests/tenant-leave-preview-guard.test.mjs
+      - name: Generate throwaway encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable schema
+        run: npm run db:push
+      - name: Apply isolated reviewed baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build fictional local app
+        run: npm run build
+      - name: Prove own, foreign, forged worker and unchanged state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 > /tmp/leave-preview-server.log 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then break; fi
+            if ! kill -0 "$server" 2>/dev/null; then cat /tmp/leave-preview-server.log; exit 1; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:3000/login > /dev/null
+          node --import tsx scripts/qa/tenant-leave-preview-http.mjs

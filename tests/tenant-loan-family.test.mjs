@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { createRows } from "../scripts/qa/tenant-table-rows/write/loans.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
+import { verifyRecoveryReceipt } from "../scripts/qa/tenant-read-gap-recovery.mjs";
 
 const rows = createRows({ assert });
 const c = { orgId: 11, workerId: 21, owner: { id: 31, name: "Fictional owner" }, marker: "Fictional-own",
@@ -120,12 +121,15 @@ test("pause seed binds real returned loan/payment IDs to the employer/worker wit
   assert.equal(row.ownBody(c).action, "pause");
 });
 
-test("Loan targets are unique, retain GAP and never change activation flags", () => {
+test("loan creation is receipt-bound, loan actions stay GAP, and activation flags remain unchanged", () => {
+  const receipt = verifyRecoveryReceipt();
   const catalog = tenantFamilyCatalog("write"), manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const row of rows) {
     assert.equal(catalog.filter(item => item.key === row.key).length, 1);
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
-    assert.equal(record.methods.find(item => item.name === method).status, "GAP");
+    const proof = record.methods.find(item => item.name === method);
+    assert.equal(proof.status, row.key === "POST loans" ? "COVERED" : "GAP");
+    if (row.key === "POST loans") assert.ok(proof.testedBy.evidence.includes(receipt.runLabel));
     assert.equal(row.flags, undefined);
   }
   assert.doesNotMatch(readFileSync("scripts/qa/tenant-table-rows/write/loans.mjs", "utf8"), /process\.env|action:\s*["'](?:approve|resume|record_payment)["']/);
