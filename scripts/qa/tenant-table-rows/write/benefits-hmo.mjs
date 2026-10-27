@@ -25,12 +25,12 @@ export function createRows({
   // State includes every HMO table and the audit, not just the target plan.
   // The shared runner snapshots it for the genuine higher-ID victim.
   const state = async (orgId) => {
-    const { dependents, events } = await sourceTables();
+    const { dependents: dependentTable, events: eventTable } = await sourceTables();
     const read = (table) => db.select().from(table)
       .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
     const [plans, enrollments, dependents, events, audit] = await Promise.all([
-      read(benefitPlans), read(benefitEnrollments), read(dependents),
-      read(events), read(auditEvents),
+      read(benefitPlans), read(benefitEnrollments), read(dependentTable),
+      read(eventTable), read(auditEvents),
     ]);
     return { plans, enrollments, dependents, events,
       audit: auditBusinessSnapshot(audit) };
