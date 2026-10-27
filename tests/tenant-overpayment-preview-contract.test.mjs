@@ -18,6 +18,25 @@ const first = {
   periodLabel: "TTBL-ATTA-fixture fictional Released register",
   fingerprint: "a".repeat(64),
 };
+
+test("synthetic peer employee numbers fit the real schema for every employer marker", () => {
+  const script = readFileSync("scripts/qa/tenant-overpayment-preview-http.mjs", "utf8");
+  const shared = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const limit = Number(schema.match(/employeeNo: varchar\("employee_no", \{ length: (\d+) \}/)?.[1]);
+  const nonceLength = Number(script.match(/const nonce = .*\.slice\(0, (\d+)\)/)?.[1]);
+  const markerParts = shared.match(/const marker = "([^"]+)" \+ label \+ "([^"]+)" \+ nonce/);
+  const suffixes = [...script.matchAll(/addWorker\([^,]+, "([^"]+)"/g)].map(match => match[1]);
+  assert.ok(limit > 0 && nonceLength > 0 && markerParts && suffixes.length > 0);
+  for (const label of ["ATTA", "ATTB", "VICTIM"]) {
+    const marker = markerParts[1] + label + markerParts[2] + "a".repeat(nonceLength);
+    for (const suffix of suffixes) {
+      const employeeNo = marker + "-" + suffix;
+      assert.ok(employeeNo.length <= limit, employeeNo + " exceeds employee_no varchar(" + limit + ")");
+      assert.notEqual(employeeNo, marker, "peer must retain a distinct worker identity");
+    }
+  }
+});
 const second = {
   rank: 2, marker: "TTBL-ATTB-fixture",
   org: { id: 12 }, worker: {

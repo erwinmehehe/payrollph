@@ -140,7 +140,7 @@ export async function verifyOverpaymentPreviewTenantHttp() {
 
     // A real same-employer peer has no entry in A's original Released run.
     // The worker cannot be paired with A's released entry by forged employeeId.
-    const peer = await addWorker(a, "PREVIEW-PEER", { payProfile: false });
+    const peer = await addWorker(a, "PEER", { payProfile: false });
     assert.equal(peer.organizationId, a.org.id);
     assert.notEqual(peer.id, a.worker.id);
 

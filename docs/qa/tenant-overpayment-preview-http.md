@@ -49,11 +49,19 @@ The script snapshots **all three employers** immediately before network traffic:
 
 - `scripts/qa/tenant-overpayment-preview-contract.mjs`: disposable-only guard, distinct fictional exact-centavo inputs, strict own/denied HTTP body validators, and state immutability.
 - `scripts/qa/tenant-overpayment-preview-http.mjs`: real PostgreSQL three-employer fixtures, signed-in HTTP success and 20+ foreign/invalid probes, sworn source-fingerprint checks, before/after invariants.
-- `tests/tenant-overpayment-preview-contract.test.mjs`: **ten adversarial source tests** that reject swapped employers, forged source hashes, wrong centavos, recovery authorizations, private source fields and changed SQL snapshots.
+- `tests/tenant-overpayment-preview-contract.test.mjs`: **eleven adversarial source tests** that reject oversized fixture identifiers, swapped employers, forged source hashes, wrong centavos, recovery authorizations, private source fields and changed SQL snapshots.
 - `.github/workflows/tenant-overpayment-preview-http.yml`: isolated PG16, Node source tests, real production-mode localhost Next and HTTP proof.
 - This document: scope, limitations and no-credit acceptance gates.
 
 ## Mandatory acceptance gates
+
+The subsequent PG16 run `40534069345` failed before HTTP assertions with
+SQLSTATE `22001`: `PREVIEW-PEER` made the seeded peer's employee number exceed
+the real `varchar(32)` column. The suffix is now `PEER`, preserving distinct
+worker identity without changing the schema or shared fixture helper. A new
+regression derives the actual marker/nonce/suffix and schema limit and checks
+all three employer labels. Eleven focused source tests pass locally; fresh
+exact-head PG16 HTTP CI remains required.
 
 - [ ] `node --check` all three new JS scripts/test files and `node --test tests/tenant-overpayment-preview-contract.test.mjs` **pass at the exact PR head**. No pass assumed before a CI receipt.
 - [ ] Dedicated **Overpayment preview tenant HTTP** workflow passes fresh PostgreSQL 16, three genuine positive sources, foreign/forged/negative requests and full before/after unchanged source checks.
