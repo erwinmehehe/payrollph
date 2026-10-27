@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { createRows } from "../scripts/qa/tenant-table-rows/write/hcm-employee-skills.mjs";
+import { createRows } from "../scripts/qa/tenant-hcm-employee-skills-contract.mjs";
 
 function rowWith(overrides = {}) {
   const [row] = createRows({
@@ -198,4 +198,18 @@ test("POST hcm/capabilities stays GAP; GET remains COVERED and no production cre
   assert.equal(get?.status, "COVERED");
   assert.equal(post?.status, "GAP");
   assert.equal(post?.testedBy ?? null, null);
+});
+
+test("dedicated action runner must not register a second shared-table method key", () => {
+  assert.equal(existsSync("scripts/qa/tenant-table-rows/write/hcm-employee-skills.mjs"), false,
+    "duplicate POST hcm/capabilities method row would invalidate the entire catalog");
+  const runner = readFileSync("scripts/qa/tenant-hcm-employee-skills-http.mjs", "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-hcm-employee-skills.yml", "utf8");
+  assert.match(runner, /requireDisposableHcmSkills\(\)/);
+  assert.match(runner, /await seedTableRow\(row, employers\)/);
+  assert.match(runner, /victimSnapshot\(victim\.org\.id\)/);
+  assert.match(runner, /standaloneRequest\(endpoint/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-employee-skills-http\.mjs/);
+  assert.doesNotMatch(workflow, /TENANT_TABLE_FAMILY:/);
+  assert.match(workflow, /image: postgres:16/);
 });

@@ -6,7 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/tenant-hcm-employee-skills.yml'
-      - 'scripts/qa/tenant-table-rows/write/hcm-employee-skills.mjs'
+      - 'scripts/qa/tenant-hcm-employee-skills-contract.mjs'
+      - 'scripts/qa/tenant-hcm-employee-skills-http.mjs'
       - 'tests/tenant-hcm-employee-skills.test.mjs'
       - 'src/app/api/hcm/capabilities/route.ts'
       - 'src/lib/access.ts'
@@ -28,8 +29,6 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    env:
-      TENANT_TABLE_FAMILY: hcm-employee-skills
     services:
       postgres:
         image: postgres:16
@@ -94,7 +93,7 @@ jobs:
           cat /tmp/tenant-hcm-skills-server.log
           exit 1
       - name: Real signed-in POST isolation, forged victim and persisted audit checks
-        run: npx tsx scripts/qa/tenant-write-table-http.mjs
+        run: node --import tsx scripts/qa/tenant-hcm-employee-skills-http.mjs
       - name: Isolated server diagnostics on failure
         if: failure()
         run: cat /tmp/tenant-hcm-skills-server.log || true

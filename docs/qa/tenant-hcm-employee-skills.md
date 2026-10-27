@@ -9,13 +9,13 @@ remain untested by this family.
 
 ## Synthetic execution and real identifiers
 
-The existing shared write-table runner creates three **genuine fictional employers**
+The dedicated action runner reuses the established shared-table session/seed helpers to create three **genuine fictional employers**
 in a disposable PostgreSQL 16 database: attacker A, attacker B, then a
 higher-ID victim. Each employer gets a genuine authenticated company owner,
 employee, legal entity, org unit and HCM skill catalog record, plus a saved
 *historical, unverified* employee-skill assignment.
 
-The row posts a new dated **unverified** skill declaration for the owner's
+The isolated action contract posts a new dated **unverified** skill declaration for the owner's
 actual employee and seeded skill, and proves via PostgreSQL readback that:
 
 - The real own request succeeds with HTTP 200 and adds exactly one
@@ -31,7 +31,7 @@ actual employee and seeded skill, and proves via PostgreSQL readback that:
 - A request using the actual higher-ID victim organization, employee and skill
   returns 403 to the attacker. A request using the attacker's own organization
   but the victim's actual employee ID returns 404.
-- Each rejected attempt preserves both the attacker and victim state; the shared
+- Each rejected attempt preserves both the attacker and victim state; the dedicated
   runner also checks an unchanged victim organization, workers, org units, legal
   entities and audit ledger.
 - Attacker B's expectations reject attacker A's otherwise valid own result;
@@ -41,7 +41,7 @@ actual employee and seeded skill, and proves via PostgreSQL readback that:
 ## Acceptance and limits
 
 This uses the existing **default** disposable tenant-table profile, the
-existing shared real-write runner and a dedicated focused PG16/localhost
+dedicated real-HTTP action runner and a dedicated focused PG16/localhost
 workflow. Test sessions and markers are fictional, no production access,
 external providers, actual payroll records or money actions are involved.
 

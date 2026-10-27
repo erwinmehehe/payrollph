@@ -1,7 +1,8 @@
 // Synthetic HCM employee skills only: no personnel certification, provider,
 // payment or production data. Shared PG16 HTTP writer supplies two independent
 // owner sessions and a real higher-ID employer/employee/skill victim.
-export const fixtureOrder = {};
+// Standalone action contract: deliberately NOT registered as a second
+// row for the existing POST hcm/capabilities method in tenant-table-catalog.
 
 export function createRows({
   assert, db, eq, asc, hcmSkills, employees, employeePayProfiles,
