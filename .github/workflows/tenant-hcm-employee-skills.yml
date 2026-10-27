@@ -1,0 +1,100 @@
+name: HCM employee skill declaration tenant isolation (fictional PG16 and HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-hcm-employee-skills.yml'
+      - 'scripts/qa/tenant-table-rows/write/hcm-employee-skills.mjs'
+      - 'tests/tenant-hcm-employee-skills.test.mjs'
+      - 'src/app/api/hcm/capabilities/route.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/schema.ts'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-catalog.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-hcm-employee-skills-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  employee-skills:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_TABLE_FAMILY: hcm-employee-skills
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export disposable default profile; disable actual money movement
+        shell: bash
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo "XENDIT_BILLING_ENABLED=false" >> "$GITHUB_ENV"
+      - name: Source contracts and negative controls
+        run: node --test tests/tenant-hcm-employee-skills.test.mjs
+      - name: Disposable encryption and webhook fixture keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create fresh PostgreSQL schema
+        run: npm run db:push
+      - name: Apply isolated baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare HCM SQL-only work item fixture needed for victim snapshots
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build isolated production-mode localhost application
+        run: npm run build
+      - name: Start isolated localhost HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-hcm-skills-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-hcm-skills-server.log
+          exit 1
+      - name: Real signed-in POST isolation, forged victim and persisted audit checks
+        run: npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Isolated server diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-hcm-skills-server.log || true
