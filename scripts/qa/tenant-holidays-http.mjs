@@ -113,10 +113,11 @@ async function makeSnapshots(db, s, actors, national) {
     .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
   const snapshotOne = async (actor) => {
     const orgId = actor.org.id;
-    const [organization, employees, units, worksites, holidays, payrollRuns,
+    const [organization, employees, memberships, units, worksites, holidays, payrollRuns,
       payrollEntries, approvalTasks, audit] = await Promise.all([
       db.select().from(s.organizations).where(eq(s.organizations.id, orgId)),
       inOrg(s.employees, orgId),
+      inOrg(s.userOrganizations, orgId),
       inOrg(s.orgUnits, orgId),
       inOrg(s.worksites, orgId),
       inOrg(s.holidays, orgId),
@@ -128,7 +129,7 @@ async function makeSnapshots(db, s, actors, national) {
       inOrg(s.auditEvents, orgId),
     ]);
     return {
-      organization, employees, units, worksites, holidays, payrollRuns,
+      organization, employees, memberships, units, worksites, holidays, payrollRuns,
       payrollEntries, approvalTasks,
       audit: audit.map(row => Object.fromEntries(Object.entries(row)
         .filter(([key]) => !["chainSeq", "prevHash", "rowHash"].includes(key)))),
