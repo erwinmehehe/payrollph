@@ -159,7 +159,8 @@ async function deniedProbe(request, db, s, actors, national, requestArgs, expect
     method: requestArgs.method, cookie: requestArgs.cookie,
     body: requestArgs.body,
   });
-  assertHolidayDenial(response, expected, [victimMarker]);
+  assertHolidayDenial(response, expected,
+    Array.isArray(victimMarker) ? victimMarker : [victimMarker]);
   const after = await makeSnapshots(db, s, actors, national);
   assert.deepEqual(after, before,
     label + ": foreign, invalid or unauthorized request mutated protected DB rows");
@@ -308,7 +309,8 @@ export async function verifyHolidayCalendarTenantIsolation() {
     assertHolidayDenial(unauth, 401, [victim.marker]);
     for (const [i, actor] of actors.slice(0, 2).entries()) {
       await assertActorReads(request, db, s, actors, national, actor);
-      const forbidden = victim.marker;
+      const otherAttacker = actors[1 - i];
+      const forbidden = [victim.marker, otherAttacker.marker];
       const ownOrgId = actor.org.id;
       const foreignId = victim.local.id;
       const badPost = (extra) => ({
@@ -333,6 +335,9 @@ export async function verifyHolidayCalendarTenantIsolation() {
           body: { id: foreignId, name: "forged " + actor.marker },
           status: 403, label: "cross-org PATCH by genuine victim row ID" },
         { path: PATH, method: "PATCH", cookie: actor.ownerCookie,
+          body: { id: otherAttacker.local.id, name: "stolen peer holiday" },
+          status: 403, label: "cross-org PATCH with other attacker holiday ID" },
+        { path: PATH, method: "PATCH", cookie: actor.ownerCookie,
           body: { id: actor.local.id, orgUnitId: victim.unit.id },
           status: 422, label: "stolen unit in own-tenant PATCH" },
         { path: PATH, method: "PATCH", cookie: actor.ownerCookie,
@@ -340,6 +345,8 @@ export async function verifyHolidayCalendarTenantIsolation() {
           status: 422, label: "stolen worksite in own-tenant PATCH" },
         { path: PATH + "?id=" + foreignId, method: "DELETE",
           cookie: actor.ownerCookie, status: 403, label: "cross-org DELETE by real ID" },
+        { path: PATH + "?id=" + otherAttacker.local.id, method: "DELETE",
+          cookie: actor.ownerCookie, status: 403, label: "cross-org DELETE with other attacker holiday ID" },
         { path: PATH, method: "POST", cookie: actor.hrCookie,
           body: badPost({}), status: 403, label: "scoped HR POST denied" },
         { path: PATH, method: "PATCH", cookie: actor.hrCookie,
