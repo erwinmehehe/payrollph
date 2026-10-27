@@ -83,6 +83,8 @@ jobs:
         run: npm run db:push
       - name: Apply reviewed isolated source baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work-item table in empty disposable PG16
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build production-mode localhost Next source
         run: npm run build
       - name: Start localhost Next only

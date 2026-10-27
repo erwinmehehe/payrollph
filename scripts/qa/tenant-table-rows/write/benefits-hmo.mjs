@@ -9,14 +9,28 @@ export function createRows({
   benefitDependents, benefitEnrollmentEvents, benefitEnrollments,
   benefitPlans, db, eq,
 }) {
+  // The shared write helper is source-pinned by the independent multi-entity
+  // acceptance receipt. Load HMO-only schema tables here instead of changing
+  // that protected helper or manufacturing new receipt evidence.
+  const sourceTables = async () => {
+    if (benefitDependents && benefitEnrollmentEvents)
+      return { dependents: benefitDependents, events: benefitEnrollmentEvents };
+    // Executed only by the real PG16 proof (node --import tsx). The pure unit
+    // harness injects its own fictional tables and never imports app schema.
+    const schema = await import("../../../../src/db/schema.ts");
+    assert.ok(schema.benefitDependents?.id && schema.benefitEnrollmentEvents?.id,
+      "HMO source tables must exist in the actual application schema");
+    return { dependents: schema.benefitDependents, events: schema.benefitEnrollmentEvents };
+  };
   // State includes every HMO table and the audit, not just the target plan.
   // The shared runner snapshots it for the genuine higher-ID victim.
   const state = async (orgId) => {
+    const { dependents, events } = await sourceTables();
     const read = (table) => db.select().from(table)
       .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
     const [plans, enrollments, dependents, events, audit] = await Promise.all([
-      read(benefitPlans), read(benefitEnrollments), read(benefitDependents),
-      read(benefitEnrollmentEvents), read(auditEvents),
+      read(benefitPlans), read(benefitEnrollments), read(dependents),
+      read(events), read(auditEvents),
     ]);
     return { plans, enrollments, dependents, events,
       audit: auditBusinessSnapshot(audit) };
@@ -40,6 +54,7 @@ export function createRows({
       key: "POST benefits/hmo",
       status: 201,
       seed: async (e) => {
+        const { dependents } = await sourceTables();
         const [plan] = await db.insert(benefitPlans).values({
           organizationId: e.org.id, category: "hmo",
           name: e.marker + " existing private HMO plan",
@@ -53,7 +68,7 @@ export function createRows({
           monthlyContribution: "45.00", status: "active",
           providerStatus: "not_sent", startedOn: "2026-01-05",
         }).returning();
-        const [dependent] = await db.insert(benefitDependents).values({
+        const [dependent] = await db.insert(dependents).values({
           organizationId: e.org.id, enrollmentId: enrollment.id,
           employeeId: e.worker.id, name: e.marker + " fictional child",
           relationship: "child", birthDate: "2017-06-01",
