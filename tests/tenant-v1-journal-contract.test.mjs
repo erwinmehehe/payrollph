@@ -54,11 +54,15 @@ test("strict disposable GitHub Actions/PG16/localhost config refuses false or mi
     API_V1_EXTENDED_READS_ENABLED: "true",
   };
   requireDisposableJournalEnv(good);
-  for (const key of Object.keys(good)) {
-    assert.throws(() => requireDisposableJournalEnv({ ...good, [key]: "false" }),
-      /V1_JOURNAL_REFUSED/);
+  for (const [key, expected] of Object.entries(good)) {
+    // For disabled-provider flags "false" is the *required* safe value.
+    // Flip each flag to its opposite instead of accidentally testing
+    // the unchanged valid configuration and expecting it to throw.
+    const unsafe = expected === "false" ? "true" : "false";
+    assert.throws(() => requireDisposableJournalEnv({ ...good, [key]: unsafe }),
+      /V1_JOURNAL_REFUSED/, key + " must fail when changed from " + expected);
     assert.throws(() => requireDisposableJournalEnv({ ...good, [key]: undefined }),
-      /V1_JOURNAL_REFUSED/);
+      /V1_JOURNAL_REFUSED/, key + " must fail when missing");
   }
 });
 
