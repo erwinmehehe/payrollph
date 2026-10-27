@@ -170,7 +170,7 @@ jobs:
       - name: Install pinned local Chromium and automated accessibility rules
         run: |
           npm install --no-save --ignore-scripts playwright@1.55.0 axe-core@4.10.3
-          npx playwright install --with-deps chromium
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start local app
         shell: bash
         run: |

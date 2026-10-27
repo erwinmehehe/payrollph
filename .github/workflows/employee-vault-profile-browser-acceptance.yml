@@ -37,7 +37,7 @@ jobs:
       GITHUB_ACTIONS: "true"
       EMPLOYEE_VAULT_BROWSER_ACCEPTANCE_MODE: synthetic-postgres-only
       HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
-      HCM_PEOPLE_HOME_ORG_IDS: "1,2"
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"
       HCM_WORKER_360_ENABLED: "true"
       EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
       DOCUMENT_UPLOADS_ENABLED: "true"
@@ -128,8 +128,8 @@ jobs:
             --bucket "$DOCUMENT_OBJECT_STORAGE_BUCKET" --region us-east-1
       - name: Install Chromium for local browser acceptance
         run: |
-          npm install --no-save --package-lock=false playwright@1.55.0
-          npx playwright install --with-deps chromium
+          npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start local scanner contract and Next app
         shell: bash
         run: |
