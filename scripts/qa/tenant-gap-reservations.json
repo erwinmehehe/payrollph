@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "note": "Only genuinely GAP methods may be reserved. This file is a planning ledger, never an isolation proof, acceptance or coverage credit. Remove entries after independent manifest credit.",
+  "entries": [
+    {
+      "pr": 1455,
+      "state": "merged-proof-uncredited",
+      "methods": [
+        "GET self/availability",
+        "POST self/availability"
+      ]
+    },
+    {
+      "pr": 1456,
+      "state": "open-proof",
+      "methods": [
+        "GET attendance/offline-claims"
+      ]
+    }
+  ]
+}
