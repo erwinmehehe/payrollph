@@ -1,14 +1,8 @@
 "use client";
 
 import { ArrowUpRight, UsersRound } from "lucide-react";
+import { formatRecentPayrollNetPay } from "@/lib/recent-payroll-display";
 import type { PayrollRun } from "./types";
-
-const peso = (value: string | number) =>
-  new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
 
 function statusTone(status: string) {
   const value = status.toLowerCase();
@@ -45,7 +39,7 @@ export function RecentPayrollRuns({
               <span>{run.scopeLabel || "Regular payroll"}</span>
             </div>
             <span className="dashboard-payroll-people"><UsersRound size={13} aria-hidden /> {run.employeeCount}</span>
-            <strong className="dashboard-payroll-amount">{peso(run.netPay)}</strong>
+            <strong className="dashboard-payroll-amount">{formatRecentPayrollNetPay(run.netPay) ?? "Net unavailable"}</strong>
             <span className="dashboard-run-status" data-tone={statusTone(run.status)}>
               {run.status}
             </span>
