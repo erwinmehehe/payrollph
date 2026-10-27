@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createRows } from "../scripts/qa/tenant-table-rows/read/year-end-report.mjs";
 
@@ -104,4 +105,21 @@ test("rejects unapproved payroll, settlement, extra PII, or leaking victim marke
     const x = evidence(); mutate(x);
     assert.throws(() => row.prove(x, own));
   }
+});
+
+test("shared PG16 runner snapshots the victim's persisted year-end adjustments before and after HTTP attacks", () => {
+  const runner = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8");
+  assert.match(runner, /yearEndAdjustments: await db\.select\(\)\.from\(yearEndAdjustments\)/);
+  assert.match(runner, /eq\(yearEndAdjustments\.organizationId, orgId\)/);
+  assert.match(runner, /orderBy\(yearEndAdjustments\.id\)/);
+  assert.match(runner, /const victimBefore = await victimSnapshot\(victim\.org\.id\)/);
+  assert.match(runner, /const victimAfter = await victimSnapshot\(victim\.org\.id\)/);
+  assert.match(runner, /assert\.deepEqual\(victimAfter, victimBefore,/);
+  assert.ok(
+    runner.indexOf("const victimBefore = await victimSnapshot") <
+    runner.indexOf("const foreign = expectStatus") &&
+    runner.indexOf("const victimAfter = await victimSnapshot") >
+    runner.indexOf("const foreign = expectStatus"),
+    "Year-end rows must be captured on both sides of the genuine foreign HTTP denies",
+  );
 });

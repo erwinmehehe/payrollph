@@ -3,8 +3,8 @@
 **Scope:** Only `GET /api/year-end?organizationId=...&taxYear=2026&format=json`.
 The authoritative `scripts/qa/tenant-isolation-coverage-manifest.json` currently marks
 `GET year-end` **GAP**. This read-only fixture is not an acceptance receipt and
-adds **zero coverage credits**. There are no route, schema, migration, flag, money,
-filing, shared-runner or manifest edits in this PR.
+adds **zero coverage credits**. There are no runtime route, schema, migration, flag, money, filing or manifest edits.
+The shared fictional PG16 proof runner additionally snapshots the victim's exact Year-End adjustment rows.
 
 ## Distinct, non-overlapping family
 
@@ -25,7 +25,7 @@ to each employer, tied to its real worker and returned database ID.
 | Each attacker reads its own employer's 2026 JSON report | HTTP 200, exactly one employer-marked worker and adjustment, exact tax-year, refund total and non-settled state |
 | Attacker A/B reads the real victim employer via `organizationId` | HTTP 403; no victim marker in the response |
 | Other attacker's genuine own response is submitted to the proof | The source assertion must fail, preventing an empty/constant or employer-agnostic positive |
-| Victim integrity | Shared runner compares victim organization, employee, org-unit, legal-entity and audit snapshots before and after requests; this does **not** independently snapshot the `year_end_adjustments` table |
+| Victim integrity | Shared runner compares victim organization, employee, org-unit, legal-entity, audit **and exact `year_end_adjustments` rows** before and after both foreign requests |
 
 The source-level negatives reject wrong worker identifiers, swapped names,
 missing own data, changed tax totals, unexpected JSON keys, an added government
@@ -42,12 +42,13 @@ filing, actual tax calculation, payroll queue or payment is triggered.
 - Local syntax: `node --check` of the new row and test.
 - Local focused source tests:
   `node --test tests/tenant-year-end-report-family.test.mjs`
-  (**4/4 passed** in an isolated Node 22 scratch copy).
+  (the original **4/4 passed** in isolated Node 22; the fifth
+  regression guards the victim-row snapshot and awaits exact-head CI).
 - Required: full exact-head **Tenant table proof** GitHub workflow for the
   `default` profile using disposable PostgreSQL 16, authenticated real
   `127.0.0.1` HTTP, and unchanged other profiles, plus required CI/security.
 - Required: independent security review of actual own/victim response evidence,
-  request denial status, fixture integrity and unchanged victim records.
+  request denial status, fixture integrity and unchanged victim Year-End adjustments.
 - Separate work would be needed to prove `format=preflight`, annualization
   exports, 2316/Alphalist branches, privileged same-employer permissions,
   or any `POST /api/year-end` write.
