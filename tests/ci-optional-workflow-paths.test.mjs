@@ -182,3 +182,16 @@ test("Spend component browser runs for its real dependencies, not every source e
     "tests/other.test.ts",
   ]) assert.equal(runsFor(path), false, "irrelevant Spend trigger " + path);
 });
+
+test("Employee Vault synthetic browser includes the higher-ID victim employer required by the shared fixture", () => {
+  const workflow = readWorkflow("employee-vault-profile-browser-acceptance.yml");
+  const fixture = readFileSync(new URL("../scripts/hcm-people-home-synthetic-fixture.ts", import.meta.url), "utf8");
+  assert.match(workflow, /^      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"$/m,
+    "The fixture seeds three distinct employers; the vault QA must enable the real victim too");
+  assert.match(workflow, /npx tsx scripts\/hcm-people-home-synthetic-fixture\.ts/,
+    "Vault job must keep running the shared synthetic tenant fixture");
+  assert.match(fixture, /assert\.equal\(process\.env\.HCM_PEOPLE_HOME_ORG_IDS, "1,2,3"\)/,
+    "Keep the declared allowlist consistent with the fixture's fail-closed scope");
+  assert.match(fixture, /assert\.ok\(victim\.id > beta\.id && victimWorker\.id > betaSecond\.id/,
+    "The foreign employer and its worker must remain independently seeded higher-ID victims");
+});
