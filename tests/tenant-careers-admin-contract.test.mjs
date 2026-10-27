@@ -1,3 +1,4 @@
+import { snapshotScopeColumn } from "../scripts/qa/tenant-careers-admin-http.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -6,6 +7,16 @@ import {
   provePublicCareersGet, assertUnchangedCareersTenant, provePublishedTransition,
 } from "../scripts/qa/tenant-careers-admin-contract.mjs";
 
+test("snapshot tenant column uses organizations.id and requires child organizationId", () => {
+  const parentId = { column: "id" };
+  const childTenant = { column: "organizationId" };
+  assert.equal(snapshotScopeColumn("organizations", { id: parentId }), parentId);
+  assert.equal(snapshotScopeColumn("requisitions", { id: {}, organizationId: childTenant }), childTenant);
+  assert.throws(() => snapshotScopeColumn("organizations", { organizationId: childTenant }),
+    /missing tenant snapshot selector/);
+  assert.throws(() => snapshotScopeColumn("requisitions", { id: parentId }),
+    /missing tenant snapshot selector/);
+});
 const good = {
   GITHUB_ACTIONS: "true", CI: "true", NODE_ENV: "production",
   TENANT_SECOND_PASS_MODE: "isolated-ci-only",
