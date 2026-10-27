@@ -1,0 +1,105 @@
+name: HMO benefits tenant HTTP (fictional PostgreSQL 16 only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-benefits-hmo-http.yml'
+      - 'scripts/qa/tenant-table-rows/write/benefits-hmo.mjs'
+      - 'tests/tenant-benefits-hmo-*.test.mjs'
+      - 'src/app/api/benefits/hmo/**'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/audit.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-loader.mjs'
+      - 'scripts/qa/tenant-table-catalog.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+# Only supersede previous attempts for the same PR, not main or other PRs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  benefits-hmo:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      TENANT_TABLE_FAMILY: benefits-hmo
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export throwaway default-profile HTTP/PostgreSQL targets
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Check exact-head HMO source syntax and adversarial contracts
+        run: |
+          node --check scripts/qa/tenant-table-rows/write/benefits-hmo.mjs
+          node --check tests/tenant-benefits-hmo-contract.test.mjs
+          node --test tests/tenant-benefits-hmo-contract.test.mjs
+      - name: Prepare disposable cryptographic inputs, never live credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated source baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode localhost Next source
+        run: npm run build
+      - name: Start localhost Next only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/hmo-tenant-next.log 2>&1 &
+          for attempt in {1..50}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/hmo-tenant-next.log
+          exit 1
+      - name: Prove two independent HMO creators, a real higher-ID victim and stolen-ID denials
+        run: node --import tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Show isolated Next server logs on error
+        if: failure()
+        run: cat /tmp/hmo-tenant-next.log || true
