@@ -175,21 +175,31 @@ async function prove() {
           actor.label + " read/foreign/forged requests on " + employers[i].label);
       }
     }
-    // Each attacker can reject ONLY its own persisted, separately-authored pending batch.
+    // Every own reject must leave BOTH other employers untouched, not just the victim.
+    const expected = new Map(employers.map((e, index) => [e.orgId, before[index]]));
     for (const actor of [a, b]) {
       const old = await orgSnapshot(actor.orgId);
+      assertUnchangedState(expected.get(actor.orgId), old, actor.label + " pre-reject state");
       const ownReject = await reject(actor, actor.orgId, actor.batchId);
       const updated = await orgSnapshot(actor.orgId);
       assertRejectedRosterMutation(old, updated, actor, ownReject);
       assertNoVictimMarker(ownReject, "owned rejection");
-      assertUnchangedState(before[2], await orgSnapshot(victim.orgId),
-        "victim must remain unchanged after attacker's legitimate own rejection");
+      expected.set(actor.orgId, updated);
+      for (const other of employers.filter(e => e.orgId !== actor.orgId)) {
+        assertUnchangedState(expected.get(other.orgId), await orgSnapshot(other.orgId),
+          actor.label + " reject must not mutate " + other.label);
+      }
     }
     // The actual victim has its own authenticated, positive reject path.
     const oldVictim = await orgSnapshot(victim.orgId);
+    assertUnchangedState(expected.get(victim.orgId), oldVictim, "victim pre-reject state");
     const victimReject = await reject(victim, victim.orgId, victim.batchId);
     assertRejectedRosterMutation(oldVictim, await orgSnapshot(victim.orgId),
       victim, victimReject);
+    for (const other of [a, b]) {
+      assertUnchangedState(expected.get(other.orgId), await orgSnapshot(other.orgId),
+        "victim's own rejection must not mutate " + other.label);
+    }
     // No marker-free 200 or own-only 403 is counted as a proof.
     console.log(JSON.stringify({
       kind: "tenant-governed-roster-batches-real-http-pg16",
