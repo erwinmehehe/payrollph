@@ -75,6 +75,8 @@ jobs:
         run: npm run db:push
       - name: Apply isolated reviewed-schema baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work item events in fresh disposable PG16
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build production-mode application for localhost only
         run: npm run build
       - name: Start disposable production-mode localhost server
