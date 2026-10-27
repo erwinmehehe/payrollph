@@ -61,6 +61,15 @@ test("supplemental actions cannot replace or shift the original shared own/forei
     ],
   ];
   let original = source;
+  const additionalHooks = [
+    ['let forgedProofs = 0; const additionalActionProofs = [];', 'let forgedProofs = 0;'],
+    ['await supplemental.exercise(item.key, ctx, { request, expectStatus, cookie: own.cookie }); const more = await item.exercise?.(ctx, { request, expectStatus, cookie: own.cookie }); if (more) additionalActionProofs.push({ key: item.key, attacker: idx, ...more }); passed.add(item.key + "#" + idx);', 'await supplemental.exercise(item.key, ctx, { request, expectStatus, cookie: own.cookie }); passed.add(item.key + "#" + idx);'],
+    ['discriminatingProofs, forgedReferenceProofs: forgedProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false, ...(additionalActionProofs.length ? { additionalActionProofs } : {})', 'discriminatingProofs, forgedReferenceProofs: forgedProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false'],
+  ];
+  for (const [extended, baseline] of additionalHooks) {
+    assert.equal(original.split(extended).length - 1, 1, 'exactly one additive action hook, preserving original proof lines');
+    original = original.replace(extended, baseline);
+  }
   for (const [supplemental, baseline] of hooks) {
     assert.equal(original.split(supplemental).length - 1, 1,
       "exactly one reviewed supplemental hook must exist, without shifting shared proof lines");

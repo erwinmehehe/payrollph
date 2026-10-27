@@ -54,8 +54,23 @@ source regression. This is an intentional route behavior change and requires
 review; the role, employer, employee, skill and org-unit authorization rules
 remain unmodified. Other validation and business behavior are not claimed.
 
+The route source change invalidates the strict, source-pinned security inventory.
+The coverage manifest's **HCM capability route blob SHA alone** is refreshed to
+the exact revised route; the POST method receives a SHA-pinned
+`reviewedUncertified` record referencing the dedicated synthetic HTTP
+proof. The security inventory test permits only this exact one-line
+validator correction: it reconstructs the original route byte-for-byte
+by undoing the regex change and verifies the original Git blob SHA.
+It also checks the real own 200, victim-employer 403, higher-ID forged
+employee 404, unchanged database state, production-mode localhost PG16
+workflow, and unverified declaration status. Any additional source change
+invalidates this exception. The existing shared
+`POST hcm/capabilities` job-skill test remains separate. The status of
+POST stays **GAP**, its `testedBy` remains null, and the manifest
+totals reflect already merged main credits rather than new PR credits.
+
 No other production route, authorization, schema, migration, release flag,
-tenant coverage manifest or planning reservation ledger is modified. This
+coverage status, coverage proof credit or planning reservation ledger is modified. This
 proof is intentionally **partial**: it does not certify all capabilities POST
 actions, skill verification authority, other HCM methods or production safety.
 
