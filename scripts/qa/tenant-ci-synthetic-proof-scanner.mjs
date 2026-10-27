@@ -46,10 +46,19 @@ const server = createServer({ cert: certificate, key }, async (req, res) => {
     }
     chunks.push(chunk);
   }
-  const body = Buffer.concat(chunks).toString("utf8");
-  const allowed = body.startsWith("%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:") &&
+  const bytes = Buffer.concat(chunks);
+  const body = bytes.toString("utf8");
+  const allowedPdf = body.startsWith("%PDF-1.4\nSYNTHETIC-PROOF-TENANT-QA:") &&
     body.endsWith("\n%%EOF\n") && body.length < 1024;
-  json(res, 200, allowed
+  // DL-02 CI-only profile-photo test: allow exactly the known fictional 1x1
+  // PNG bytes, not arbitrary PNG signatures, and never bypass the application
+  // scanner or upload feature gate. This service only starts in guarded CI.
+  const fixturePng = Buffer.from(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000" +
+    "1f15c4890000000d49444154789c6300010000000500010d0a2db40000000049454e44ae426082", "hex");
+  const allowedDl02Png = process.env.TENANT_DL02_CLOSURE_PROOF === "isolated-ci-only" &&
+    bytes.equals(fixturePng);
+  json(res, 200, allowedPdf || allowedDl02Png
     ? { clean: true, engine: "CI simulated source isolation fixture (NOT antivirus)" }
     : { clean: false, engine: "CI fixture rejection", threat: "Non-synthetic input" });
 });
