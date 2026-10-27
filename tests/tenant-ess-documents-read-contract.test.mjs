@@ -40,14 +40,14 @@ test("populated session-owned policy and document compliance must pass", () => {
   assert.doesNotThrow(() => assertEssDocumentView(view(), expected));
 });
 test("empty policy 200 cannot masquerade as positive proof", () => {
-  mustReject((d) => { d.policies = []; }, /own policy assignments/);
+  mustReject((d) => { d.policies = []; }, /real policy assignments/);
 });
 test("a wrong employee ID cannot inherit the own positive contract", () => {
   mustReject((d) => { d.employee.id = 99; }, /signed-in worker/);
 });
 test("foreign employee policy row is never accepted even beside own policy", () => {
   mustReject((d) => { d.policies.push({ ...d.policies[0], assignmentId: 150 }); },
-    /own policy assignments/);
+    /real policy assignments/);
 });
 test("substituted foreign policy content is rejected", () => {
   mustReject((d) => { d.policies[0].content = "FOREIGN-TENANT-POLICY"; }, /own persisted content/);
