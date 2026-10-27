@@ -466,11 +466,13 @@ async function run() {
   // The earlier payroll fixture used a historical pay period. Add one
   // *current* fictional shift only now, after all payroll assertions, so
   // Live Floor must present a nonempty signed-in worker row.
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(new Date());
-  const part = (name: string) => parts.find(item => item.type === name)?.value ?? "";
-  const floorWorkDate = part("year") + "-" + part("month") + "-" + part("day");
+  // Use the API's own Philippine work date as the fixture's time anchor;
+  // avoid client/server midnight or timezone discrepancies.
+  const initialFloor = await ok(owner,
+    "/api/workforce/live-floor?organizationId=" + organizationId + "&page=1");
+  const floorWorkDate = String(initialFloor.workDate ?? "");
+  assert.match(floorWorkDate, /^\\d{4}-\\d{2}-\\d{2}$/,
+    "Live Floor must return the server's Philippine calendar date");
   const anchorDate = new Date(floorWorkDate + "T00:00:00Z");
   anchorDate.setUTCDate(anchorDate.getUTCDate() - 1);
   await db.insert(employeeScheduleAssignments).values({
