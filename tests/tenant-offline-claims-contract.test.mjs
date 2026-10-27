@@ -65,7 +65,7 @@ test("employee read must never disclose claimant or coworker identity fields", (
 });
 test("cacheable response missing no-store rejects even correct owned data", () => {
   assert.throws(() => assertOwnEmployeeClaimList(ownResponse(owned,
-    { cache: "public,max-age=3600" }), desired), /requires Cache-Control: no-store/);
+    { cache: "public,max-age=3600" }), desired), /require Cache-Control: no-store/);
 });
 test("denied foreign tenant response accepts 403 without disclosure", () => {
   const response = { status: 403, text: '{"error":"Forbidden."}', json: { error: "Forbidden." },
