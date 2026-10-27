@@ -34,9 +34,14 @@ const count = (v: unknown): v is number =>
   typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 const text = (v: unknown): v is string =>
   typeof v === "string" && v.trim().length > 0;
-const nullableDate = (v: unknown) => v === null ||
-  (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) &&
-    Number.isFinite(Date.parse(v + "T00:00:00.000Z")));
+const nullableDate = (v: unknown) => {
+  if (v === null) return true;
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  // Date.parse normalizes impossible dates (e.g. Feb 30) into the next month.
+  // Effective dates must remain the exact recorded calendar day.
+  const date = new Date(v + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === v;
+};
 const nullableTimestamp = (v: unknown) => v === null ||
   (typeof v === "string" && Number.isFinite(Date.parse(v)));
 const nullableId = (v: unknown) => v === null || positive(v);

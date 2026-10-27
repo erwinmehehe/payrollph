@@ -61,3 +61,27 @@ test("process inbox UI exposes unavailable retry and never substitutes missing w
   assert.doesNotMatch(panel, /setPayload\(data as InboxPayload\)/);
   assert.doesNotMatch(panel, /payload\?\.myWork\s*\?\?\s*\[\]/);
 });
+
+test("effective dates reject rolled-over days while preserving real leap days", () => {
+  const valid = { ...empty, myWork: [work], submitted: [history], recent: [history] };
+  for (const invalid of ["2026-02-30", "2025-02-29", "2026-04-31", "2026-00-10", "2026-13-01"]) {
+    assert.equal(readVerifiedHcmBusinessProcessResponse(true, {
+      ...valid, myWork: [{ ...work, effectiveDate: invalid }],
+    }, 51), null, "work item " + invalid);
+    assert.equal(readVerifiedHcmBusinessProcessResponse(true, {
+      ...valid, submitted: [{ ...history, effectiveDate: invalid }],
+    }, 51), null, "submitted history " + invalid);
+    assert.equal(readVerifiedHcmBusinessProcessResponse(true, {
+      ...valid, recent: [{ ...history, effectiveDate: invalid }],
+    }, 51), null, "recent history " + invalid);
+  }
+  for (const date of ["2024-02-29", "2026-12-31"]) {
+    const verified = {
+      ...valid,
+      myWork: [{ ...work, effectiveDate: date }],
+      submitted: [{ ...history, effectiveDate: date }],
+      recent: [{ ...history, effectiveDate: date }],
+    };
+    assert.deepEqual(readVerifiedHcmBusinessProcessResponse(true, verified, 51), verified);
+  }
+});
