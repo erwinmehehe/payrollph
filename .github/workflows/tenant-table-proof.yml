@@ -10,6 +10,8 @@ on:
     paths:
       - '.github/workflows/tenant-table-proof.yml'
       - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-read-recovery-*.mjs'
+      - 'tests/tenant-read-gap-recovery.test.mjs'
       - 'scripts/qa/tenant-write-table-http.mjs'
       - 'scripts/qa/tenant-performance-development-actions.mjs'
       - 'tests/tenant-performance-development.test.mjs'

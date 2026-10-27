@@ -39,6 +39,7 @@ export function createRows({ assert, db }) {
         return { id: account.id, employeeId: e.worker.id };
       },
       query: c => "employeeId=" + c.workerId,
+      foreignQuery: c => "employeeId=" + c.victim.worker.id,
       prove: (response, c) => {
         assert.equal(response.json?.employee?.employeeNo, c.marker);
         assert.equal(response.json?.employee?.name, "Table " + c.marker);
@@ -69,6 +70,7 @@ export function createRows({ assert, db }) {
         return { id: site.id, name: site.name, headcount: 3 + e.rank, historyCount: 9 };
       },
       query: c => "worksiteId=" + c.seeded.id + "&horizonDays=7",
+      foreignQuery: c => "worksiteId=" + c.victimSeeded.id + "&horizonDays=7",
       prove: (response, c) => {
         assert.equal(response.json?.readOnly, true);
         assert.equal(response.json?.scope?.organizationId, c.orgId);
@@ -104,6 +106,8 @@ export function createRows({ assert, db }) {
         return { id: site.id, sourceKey, batchId: batch.id, historicalCount: 9, observedCount: 8 + e.rank };
       },
       query: c => "worksiteId=" + c.seeded.id + "&sourceKey=" + encodeURIComponent(c.seeded.sourceKey)
+        + "&metricKind=transactions&intervalMinutes=60&horizonDays=7",
+      foreignQuery: c => "worksiteId=" + c.victimSeeded.id + "&sourceKey=" + encodeURIComponent(c.victimSeeded.sourceKey)
         + "&metricKind=transactions&intervalMinutes=60&horizonDays=7",
       prove: (response, c) => {
         assert.equal(response.json?.readOnly, true);
