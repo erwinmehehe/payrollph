@@ -17,7 +17,7 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
-const ISO_DATE = /^\\d{4}-\\d{2}-\\d{2}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function bool(value: unknown, fallback: boolean) {
   return typeof value === "boolean" ? value : fallback;

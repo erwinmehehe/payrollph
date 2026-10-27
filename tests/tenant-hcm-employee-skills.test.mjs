@@ -213,3 +213,19 @@ test("dedicated action runner must not register a second shared-table method key
   assert.doesNotMatch(workflow, /TENANT_TABLE_FAMILY:/);
   assert.match(workflow, /image: postgres:16/);
 });
+
+test("effective date validator accepts valid YYYY-MM-DD and refuses malformed dates", () => {
+  const route = readFileSync("src/app/api/hcm/capabilities/route.ts", "utf8");
+  const literal = route.match(/^const ISO_DATE = \/([^\r\n/]+)\/;$/m);
+  assert.ok(literal, "route must contain the actual anchored date validator");
+  const date = new RegExp(literal[1]);
+  for (const valid of ["2026-10-27", "2026-01-05", "2025-12-31"]) {
+    assert.equal(date.test(valid), true, "valid YYYY-MM-DD must reach scoped employee and skill authorization: " + valid);
+  }
+  for (const invalid of ["", "invalid", "2026/10/27", "2026-1-27", "2026-10-2", "2026-10-270", "x2026-10-27", "\\d{4}-\\d{2}-\\d{2}"]) {
+    assert.equal(date.test(invalid), false, "malformed ISO date must stay rejected: " + invalid);
+  }
+  assert.match(route, /if \(action === "set_employee_skill"\)/);
+  assert.match(route, /!ISO_DATE\.test\(effectiveFrom\)/);
+  assert.match(route, /effectiveUntil < effectiveFrom/);
+});
