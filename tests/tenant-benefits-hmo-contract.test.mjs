@@ -282,10 +282,10 @@ test("HMO route source keeps real organization and resource ID guards before wri
   const source = readFileSync(
     "scripts/qa/tenant-table-rows/write/benefits-hmo.mjs", "utf8");
   assert.equal((source.match(/key: "POST benefits\/hmo"/g) ?? []).length, 1);
-  assert.match(source, /import\\("\\.\\.\\/\\.\\.\\/\\.\\.\\/\\.\\.\\/src\\/db\\/schema\\.ts"\\)/,
+  assert.ok(source.includes('import("../../../../src/db/schema.ts")'),
     "HMO-only schema access must not change the shared source-pinned test runner");
   const workflow = readFileSync(".github/workflows/tenant-benefits-hmo-http.yml", "utf8");
-  assert.match(workflow, /node scripts\\/qa\\/prepare-hcm-work-item-fixture\\.mjs/,
+  assert.ok(workflow.includes("run: node scripts/qa/prepare-hcm-work-item-fixture.mjs"),
     "SQL-only HCM event table must exist before victim state snapshot");
   for (const clause of ["victimSeeded.enrollmentId", "victimSeeded.dependentId",
     "auditBusinessSnapshot", "forgedAdditionalIdsDenied", "await state(c.victim.org.id)",
