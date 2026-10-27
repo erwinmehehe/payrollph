@@ -50,14 +50,14 @@ function readFixture() {
   } finally { closeSync(fd); }
 }
 async function deps() {
-  const [{ db, pool }, s, t, { and, eq, asc },
+  const [{ db, pool }, s, t, { and, eq, asc, inArray },
     { auditBusinessSnapshot }, { estimateMonthlyTakeHome }] = await Promise.all([
     import("../../src/db/index.ts"), import("../../src/db/schema.ts"),
     import("./tenant-table-http.mjs"), import("drizzle-orm"),
     import("./tenant-table-invariants.mjs"),
     import("../../src/lib/take-home-estimate.ts"),
   ]);
-  return { db, pool, s, t, and, eq, asc, auditBusinessSnapshot, estimateMonthlyTakeHome };
+  return { db, pool, s, t, and, eq, asc, inArray, auditBusinessSnapshot, estimateMonthlyTakeHome };
 }
 const specs = {
   ATTA: { payBasis: "daily", rateAmount: "720.00", monthlyBasic: 15840, mwe: true },
@@ -177,18 +177,22 @@ async function seed() {
 async function prove() {
   const fixture = readFixture();
   const [a, b, victim] = fixture.employers;
-  const { db, pool, s, t, and, eq, asc, auditBusinessSnapshot, estimateMonthlyTakeHome } = await deps();
+  const { db, pool, s, t, and, eq, asc, inArray, auditBusinessSnapshot, estimateMonthlyTakeHome } = await deps();
   const request = (cookie, query = "") =>
     t.standaloneRequest(ENDPOINT + query, { method: "GET", cookie });
   const snapshot = async orgId => {
     const rows = table => db.select().from(table)
       .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
-    const [orgs, staff, payProfiles, payroll, entries, audit, memberships] = await Promise.all([
+    const [orgs, staff, payProfiles, payroll, audit, memberships] = await Promise.all([
       db.select().from(s.organizations).where(eq(s.organizations.id, orgId)),
       rows(s.employees), rows(s.employeePayProfiles),
-      rows(s.payrollRuns), rows(s.payrollEntries), rows(s.auditEvents),
-      rows(s.userOrganizations),
+      rows(s.payrollRuns), rows(s.auditEvents), rows(s.userOrganizations),
     ]);
+    // Payroll entries have no organizationId column. Resolve only through
+    // the actual scoped payroll-run IDs, never from a global table scan.
+    const entries = payroll.length ? await db.select().from(s.payrollEntries)
+      .where(inArray(s.payrollEntries.payrollRunId, payroll.map(row => row.id)))
+      .orderBy(asc(s.payrollEntries.id)) : [];
     return JSONcopy({
       orgs, staff, payProfiles, payroll, entries,
       audit: auditBusinessSnapshot(audit), memberships,
