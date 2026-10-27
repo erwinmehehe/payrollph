@@ -173,3 +173,58 @@ test("three HCM components preserve abort guards, scoped loading, error announce
   assert.match(readFileSync("src/components/hcm-my-team.tsx", "utf8"), /stored\?\.scopeKey === scopeKey/);
   assert.match(readFileSync("src/components/hcm-team-leave-calendar.tsx", "utf8"), /loaded\?\.requestKey === requestKey/);
 });
+
+test("HCM scoped reads reject impossible calendar dates instead of presenting rolled records", async () => {
+  const invalidDays = [
+    "2026-02-29", "2026-02-30", "2026-04-31", "2026-06-31",
+    "2026-13-01", "2026-00-01", "2026-10-00", "2026-10-32",
+    "0000-01-01", "2026-10-1", "2026/10/20",
+  ];
+  for (const day of invalidDays) {
+    assert.equal(validOrg({ ...org(), currentBusinessDate: day }), false,
+      "org explorer accepted impossible date " + day);
+    const badHistory = history();
+    assert.equal(validHistory({
+      ...badHistory,
+      history: { ...badHistory.history, preview: { ...badHistory.history.preview,
+        items: [{ ...badHistory.history.preview.items[0], effectiveFrom: day }],
+      } },
+    }), false, "position history accepted impossible date " + day);
+    const badCalendar = calendar();
+    assert.equal(validCalendar({
+      ...badCalendar,
+      cases: [{ ...badCalendar.cases[0], startDate: day, endDate: "2026-10-22" }],
+    }), false, "team leave accepted impossible date " + day);
+  }
+
+  // Valid leap dates remain readable and cannot be confused with false dates.
+  assert.equal(validOrg({ ...org(), currentBusinessDate: "2024-02-29" }), true);
+  const h = history();
+  assert.equal(validHistory({
+    ...h, history: { ...h.history, preview: { ...h.history.preview,
+      items: [{ ...h.history.preview.items[0],
+        effectiveFrom: "2024-02-29", effectiveUntil: "2024-03-01" }],
+    } },
+  }), true);
+
+  assert.deepEqual(await readScopedResponse(
+    () => Promise.resolve(json({ ...org(), currentBusinessDate: "2026-02-30" })),
+    validOrg,
+  ), { status: "unavailable", failure: "invalid" },
+  "bad 200 JSON must be unavailable, never shown as a verified HR record");
+});
+
+test("position history rejects end dates before their effective start", () => {
+  const h = history();
+  const withInterval = (start: string, end: string | null) => ({
+    ...h,
+    history: { ...h.history, preview: { ...h.history.preview,
+      items: [{ ...h.history.preview.items[0],
+        effectiveFrom: start, effectiveUntil: end }],
+    } },
+  });
+  assert.equal(validHistory(withInterval("2026-10-15", "2026-10-14")), false);
+  assert.equal(validHistory(withInterval("2026-10-15", "2026-10-15")), true);
+  assert.equal(validHistory(withInterval("2026-10-15", "2026-10-16")), true);
+  assert.equal(validHistory(withInterval("2026-10-15", null)), true);
+});
