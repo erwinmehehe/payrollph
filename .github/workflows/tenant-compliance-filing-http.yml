@@ -1,0 +1,108 @@
+name: Filing validation tenant PATCH (fictional PG16, rejected only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-compliance-filing-http.yml'
+      - 'scripts/qa/tenant-compliance-filing-*.mjs'
+      - 'scripts/qa/tenant-table-rows/write/compliance-filing.mjs'
+      - 'tests/tenant-compliance-filing-contract.test.mjs'
+      - 'src/app/api/compliance/filing-validations/**'
+      - 'src/lib/filing-evidence*.ts'
+      - 'src/lib/multi-entity-server.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-table-loader.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compliance-filing:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export disposable-only default profile
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Validate exact-head source syntax and eight negative contracts
+        run: |
+          node --check scripts/qa/tenant-compliance-filing-contract.mjs
+          node --check scripts/qa/tenant-compliance-filing-run.mjs
+          node --check scripts/qa/tenant-table-rows/write/compliance-filing.mjs
+          node --check tests/tenant-compliance-filing-contract.test.mjs
+          node --test tests/tenant-compliance-filing-contract.test.mjs
+      - name: Generate synthetic, short-lived encryption inputs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build real production-mode Next server for localhost only
+        run: npm run build
+      - name: Start isolated Next HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-compliance-filing-next.log 2>&1 &
+          for attempt in {1..50}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-compliance-filing-next.log
+          exit 1
+      - name: Prove two employers, higher-ID victim, forged filing ID and immutable rejection
+        run: node --import tsx scripts/qa/tenant-compliance-filing-run.mjs
+      - name: Show local server logs only on failure
+        if: failure()
+        run: cat /tmp/tenant-compliance-filing-next.log || true
