@@ -16,6 +16,7 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
   // Reads that are 404 unless their own plain release flag is on; kept off the default server so the
   // default rows are proven in the same shape as production.
   "flagged-reads": {
+    FACE_OFFLINE_PUNCH_UI_ENABLED: "true",
     PAYROLL_CONNECTED_IMPACT_ENABLED: "true",
     HCM_MY_TEAM_ENABLED: "true",
     HCM_WORKER_360_ENABLED: "true",
