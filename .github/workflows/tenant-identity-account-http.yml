@@ -22,6 +22,12 @@ on:
 permissions:
   contents: read
 
+# Only supersede earlier attempts for this same PR. Never share a cancellation
+# group with main or manual runs if the trigger set expands in the future.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   identity-account:
     runs-on: ubuntu-latest
