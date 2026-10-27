@@ -1,3 +1,5 @@
+import { laborVerticalDimensionValues, normalizeLaborVerticalDimensions, type LaborVerticalDimensions } from "./labor-vertical-dimensions";
+
 export type LaborAllocationBasis = "percentage" | "hours";
 
 export type LaborAllocationRow = {
@@ -12,6 +14,7 @@ export type LaborAllocationRow = {
   projectCode?: string | null;
   clientCode?: string | null;
   jobCode?: string | null;
+  verticalDimensions?: unknown;
 };
 
 export type ResolvedLaborAllocation = {
@@ -28,6 +31,7 @@ export type ResolvedLaborAllocation = {
     projectCode: string | null;
     clientCode: string | null;
     jobCode: string | null;
+    verticalDimensions?: LaborVerticalDimensions | null;
   }>;
 };
 
@@ -68,11 +72,14 @@ export type LaborGlMappingRow = {
 };
 
 function dimensionKey(row: LaborAllocationRow) {
+  // Preserve the collision-safe tuple key landed on main; extend with the
+  // normalized optional industry labels, never a pipe-delimited composite.
   return JSON.stringify([
     row.costCenterId,
     row.projectCode ?? "",
     row.clientCode ?? "",
     row.jobCode ?? "",
+    ...laborVerticalDimensionValues(normalizeLaborVerticalDimensions(row.verticalDimensions)),
   ]);
 }
 
@@ -163,6 +170,7 @@ export function resolveLaborAllocation(input: {
 
   if (basis === "percentage") {
     const allocations = active.map((row) => {
+      const verticalDimensions = normalizeLaborVerticalDimensions(row.verticalDimensions);
       const percent = Number(row.allocationPercent);
       if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
         throw new Error(`Invalid labor allocation percent for allocation #${row.id}.`);
@@ -175,6 +183,7 @@ export function resolveLaborAllocation(input: {
         projectCode: row.projectCode ?? null,
         clientCode: row.clientCode ?? null,
         jobCode: row.jobCode ?? null,
+        ...(verticalDimensions ? { verticalDimensions } : {}),
       };
     });
 
@@ -207,15 +216,19 @@ export function resolveLaborAllocation(input: {
     throw new Error(`Labor allocation hours for employee #${input.employeeId} must be greater than zero.`);
   }
 
-  const allocations = active.map((row, index) => ({
-    id: row.id,
-    costCenterId: row.costCenterId,
-    percent: round3((hours[index]! / totalHours) * 100),
-    hours: hours[index]!,
-    projectCode: row.projectCode ?? null,
-    clientCode: row.clientCode ?? null,
-    jobCode: row.jobCode ?? null,
-  }));
+  const allocations = active.map((row, index) => {
+    const verticalDimensions = normalizeLaborVerticalDimensions(row.verticalDimensions);
+    return {
+      id: row.id,
+      costCenterId: row.costCenterId,
+      percent: round3((hours[index]! / totalHours) * 100),
+      hours: hours[index]!,
+      projectCode: row.projectCode ?? null,
+      clientCode: row.clientCode ?? null,
+      jobCode: row.jobCode ?? null,
+      ...(verticalDimensions ? { verticalDimensions } : {}),
+    };
+  });
   const roundedTotal = round3(allocations.reduce((sum, row) => sum + row.percent, 0));
   if (allocations.length > 0 && roundedTotal !== 100) {
     allocations[allocations.length - 1]!.percent = round3(
@@ -244,6 +257,7 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
       clientCode: null,
       projectCode: null,
       jobCode: null,
+      verticalDimensions: null,
       amount: round2(amount),
     }];
   }
@@ -263,6 +277,7 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
       clientCode: row.clientCode,
       projectCode: row.projectCode,
       jobCode: row.jobCode,
+      verticalDimensions: row.verticalDimensions ?? null,
       amount: cents / 100,
     };
   });
@@ -313,6 +328,7 @@ export function laborAllocationTrace(resolved: ResolvedLaborAllocation) {
       clientCode: row.clientCode,
       projectCode: row.projectCode,
       jobCode: row.jobCode,
+      ...(row.verticalDimensions ? { verticalDimensions: row.verticalDimensions } : {}),
     })),
   };
 }

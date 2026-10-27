@@ -832,6 +832,8 @@ export const employeeLaborAllocations = pgTable(
     projectCode: varchar("project_code", { length: 64 }),
     clientCode: varchar("client_code", { length: 64 }),
     jobCode: varchar("job_code", { length: 64 }),
+    // Optional accounting labels, additive migration 0138; NEVER payroll rate inputs.
+    verticalDimensions: jsonb("vertical_dimensions"),
     reason: varchar("reason", { length: 240 }).notNull().default("Labor costing allocation"),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -840,6 +842,9 @@ export const employeeLaborAllocations = pgTable(
   (table) => [
     index("employee_labor_allocations_employee_date_idx").on(table.employeeId, table.effectiveFrom),
     index("employee_labor_allocations_org_cost_center_idx").on(table.organizationId, table.costCenterId),
+    // Match the reviewed 0138 constraint in disposable Drizzle-first schema.
+    check("employee_labor_allocations_vertical_dims_object_chk",
+      sql`${table.verticalDimensions} is null or jsonb_typeof(${table.verticalDimensions}) = 'object'`),
   ],
 );
 
