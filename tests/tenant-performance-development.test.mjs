@@ -43,3 +43,16 @@ test("supplemental actions cannot replace or shift the original shared own/forei
   assert.ok(source.indexOf("await supplemental.exercise") > source.indexOf("a forged victim reference must write nothing"));
   assert.ok(source.indexOf("await supplemental.finish") < source.indexOf("assert.deepEqual(victimAfter, victimBefore"));
 });
+
+test("WRK-02 supplementary job profile avoids existing primary-row titles", () => {
+  const supplemental = readFileSync("scripts/qa/tenant-performance-development-actions.mjs", "utf8");
+  const primary = readFileSync("scripts/qa/tenant-table-rows/write/performance-growth.mjs", "utf8");
+  assert.match(supplemental, /title: e\.marker \+ "-WRK02-DEVELOPMENT", familyId: family\.id/);
+  assert.match(primary, /title: e\.marker \+ suffix/);
+  const marker = "TTBL-ATTA-fictional";
+  for (const title of [marker, marker + "-CGNEW", marker + "-CGEDIT"]) {
+    assert.notEqual(marker + "-WRK02-DEVELOPMENT", title);
+  }
+  assert.doesNotMatch(supplemental, /onConflictDoNothing\(\)/,
+    "a fixture collision must be prevented, not silently ignored");
+});

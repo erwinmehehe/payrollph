@@ -26,7 +26,7 @@ function engine() {
     const skill = await insert("hcmSkills", { code: e.marker, name: e.marker + " skill" });
     const family = await insert("jobFamilies", { code: e.marker, name: e.marker });
     const level = await insert("jobLevels", { code: e.marker, name: e.marker, rank: 1 });
-    const profile = await insert("jobProfiles", { title: e.marker, familyId: family.id });
+    const profile = await insert("jobProfiles", { title: e.marker + "-WRK02-DEVELOPMENT", familyId: family.id });
     const requirement = await insert("hcmJobProfileSkillRequirements", { jobProfileId: profile.id, skillId: skill.id, minimumProficiency: 4 });
     const expectation = await insert("hcmSkillExpectationDefaults", { jobFamilyId: family.id, skillId: skill.id, minimumProficiency: 4 });
     const template = await insert("performanceTemplates", { code: e.marker, name: e.marker, type: "competency" });
