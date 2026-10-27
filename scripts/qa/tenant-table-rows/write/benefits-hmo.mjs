@@ -161,7 +161,8 @@ export function createRows({
         const payload = ownGet.json;
         assert.ok(payload && typeof payload === "object");
         const plans = payload.plans ?? [];
-        assert.ok(Array.isArray(plans) && plans.length === ownBefore.plans.length);
+        assert.ok(Array.isArray(plans) && plans.length === ownBefore.plans.filter(p => p.category === "hmo").length,
+          "the HMO readback must filter unrelated benefit-plan categories");
         assert.ok(plans.some((p) => p.id === c.seeded.id));
         assert.ok(plans.some((p) => p.name === planBody(c, c.orgId).name));
         assert.ok(Array.isArray(payload.enrollments));
