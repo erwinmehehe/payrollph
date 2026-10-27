@@ -39,6 +39,25 @@ test("batch factory reads manifest methods exactly, excluding both non-GAP statu
   assert.throws(() => inspectMethod("GET ../../prod"), /invalid canonical/);
 });
 
+test("real HEAD methods are counted but never mistaken for GAP or auto-queued", () => {
+  const manifest = {
+    metrics: { methods: 1, coveredAfter: 1, gap: 0, publicByDesign: 0 },
+    allApiRouteFiles: Object.fromEntries([
+      one("self/photo", [["HEAD", "COVERED"]]),
+    ]),
+  };
+  const result = readMethodInventory(manifest);
+  assert.equal(result.methods.length, 1);
+  assert.equal(result.methods[0].key, "HEAD self/photo");
+  assert.equal(result.totals.covered, 1);
+  const plan = buildTenantGapPlan({
+    manifest, readRows: [], writeRows: [],
+    reservations: { schemaVersion: 1, entries: [] }, maxMethods: 10,
+  });
+  assert.equal(plan.batches.length, 0);
+  assert.equal(plan.counts.methodsNeedingNewProof, 0);
+});
+
 test("existing proof is only a review candidate, and merged evidence does not auto-credit", () => {
   const plan = buildTenantGapPlan({
     manifest: sample(), readRows: rows, writeRows: [],
