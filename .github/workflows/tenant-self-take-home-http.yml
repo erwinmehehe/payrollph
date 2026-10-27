@@ -1,0 +1,105 @@
+name: ESS take-home salary tenant isolation (fictional PG16 read-only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-take-home-http.yml'
+      - 'scripts/qa/tenant-self-take-home-contract.mjs'
+      - 'scripts/qa/tenant-self-take-home-http.mjs'
+      - 'tests/tenant-self-take-home.test.mjs'
+      - 'src/app/api/self/take-home-estimate/route.ts'
+      - 'src/lib/take-home-estimate.ts'
+      - 'src/lib/pay-basis.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/schema.ts'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+# Supersede PR attempts only for the same PR; never cancel main or a manual run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  take-home:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export only disposable localhost Next, PG16 and no-money settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo "XENDIT_BILLING_ENABLED=false" >> "$GITHUB_ENV"
+          echo "CENTRAL_SCHEDULER_ENABLED=false" >> "$GITHUB_ENV"
+      - name: Reject production connections, salary leakage and false method credits
+        run: node --test tests/tenant-self-take-home.test.mjs
+      - name: Generate throwaway CI-only encryption and webhook test keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Build clean disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply only reviewed localhost baseline to empty PG16
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work-item snapshot table in disposable PG16
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build actual Next server with payout/provider flags disabled
+        run: npm run build
+      - name: Start production-mode Next on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-self-take-home.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-self-take-home.log
+          exit 1
+      - name: Real signed-in worker versus higher-ID victim, peer and revoked membership
+        run: node --import tsx scripts/qa/tenant-self-take-home-http.mjs
+      - name: Isolated server diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-self-take-home.log || true
