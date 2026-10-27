@@ -110,6 +110,6 @@ test("two attacker attempts bind independent URLs while frozen definitions retai
   assert.equal(Object.hasOwn(definition, "foreign"), false);
   assert.ok(Object.isFrozen(definition) && Object.isFrozen(first) && Object.isFrozen(second));
   const runner = readFileSync("scripts/qa/tenant-table-http.mjs", "utf8");
-  assert.match(runner, /const item = bindTenantReadRequests\(definition, own\.org\.id, victim\.org\.id, extra\)/);
+  assert.match(runner, /const item = bindTenantReadRequests\(definition, own\.org\.id, victim\.org\.id, extra, ctx\)/);
   assert.doesNotMatch(runner, /item\.(?:own|foreign) =/);
 });

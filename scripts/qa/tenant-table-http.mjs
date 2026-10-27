@@ -12,7 +12,7 @@
  * Profiles: TENANT_TABLE_PROFILE=default|multi-entity selects rows whose server flags are compatible.
  */
 import assert from "node:assert/strict";
-import { bindTenantReadRequests, loadTenantRows } from "./tenant-table-loader.mjs";
+import { bindTenantReadRequests, loadTenantRows } from "./tenant-table-loader.mjs"; import { selectTenantPathRows } from "./tenant-table-path.mjs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
@@ -25,7 +25,7 @@ import {
   performanceCycles, scheduleSwapRequests, sessions, userLegalEntityGrants, userOrganizations, users, workforcePlanAllocations,
   workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforcePlans,
   workforceScheduleGuardrailPolicies, worksites, automationOperationalCases, workforceRosterRulePolicies, permissionSets,
-} from "../../src/db/schema";
+employeeMweClassifications, payrollRuns } from "../../src/db/schema";
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
 import { auditBusinessSnapshot, seedTableRow, readAllowlistPreseed } from "./tenant-table-invariants.mjs";
@@ -174,12 +174,12 @@ export async function victimSnapshot(orgId) {
 
 export async function verifyTenantTable(_f, { request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession } = {}) {
   requireTenantTableDisposable();
-  const TENANT_TABLE = await loadTenantRows("read", { activeWorkers, addWorker, apiKeys, applicantPrivacyEvidence, approvalChainPolicies, approvalDelegations, assert, attendanceCorrectionRequests, auditCount, auditEvents, biometricDevices, count, dataRequests, db, disciplinaryCases, dynamicWorkerGroups, earnedWageRequests, employeeLoans, employeePayoutChangeRequests, employees, engagementSurveys, eq, essIdentifierRequests, grantOwnEntity, hcmBusinessProcessDefinitions, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, hex64, importBatches, integrationConnectors, invoices, jobApplicants, jobRequisitions, laborInspectionDrills, leaveConversions, leaveRequests, organizationModuleSettings, outbox, performanceCycles, proofs, scheduleSwapRequests, seedPlan, shiftDefinitions, timePunches, workerEffectiveChanges, workforcePlanAllocations, workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforceScheduleGuardrailPolicies, worksites, automationOperationalCases, pool, workforceRosterRulePolicies, permissionSets });
+  const TENANT_TABLE = await loadTenantRows("read", { activeWorkers, addWorker, apiKeys, applicantPrivacyEvidence, approvalChainPolicies, approvalDelegations, assert, attendanceCorrectionRequests, auditCount, auditEvents, biometricDevices, count, dataRequests, db, disciplinaryCases, dynamicWorkerGroups, earnedWageRequests, employeeLoans, employeePayoutChangeRequests, employees, engagementSurveys, eq, essIdentifierRequests, grantOwnEntity, hcmBusinessProcessDefinitions, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, hcmSkills, hex64, importBatches, integrationConnectors, invoices, jobApplicants, jobRequisitions, laborInspectionDrills, leaveConversions, leaveRequests, organizationModuleSettings, outbox, performanceCycles, proofs, scheduleSwapRequests, seedPlan, shiftDefinitions, timePunches, workerEffectiveChanges, workforcePlanAllocations, workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforceScheduleGuardrailPolicies, worksites, automationOperationalCases, pool, workforceRosterRulePolicies, permissionSets, employeeMweClassifications, payrollRuns });
   const discover = process.env.TENANT_TABLE_DISCOVER === "1";
   const profile = process.env.TENANT_TABLE_PROFILE ?? "default";
-  const rows = (discover && process.env.TENANT_TABLE_DISCOVER_KEYS
+  const rows = selectTenantPathRows((discover && process.env.TENANT_TABLE_DISCOVER_KEYS
     ? process.env.TENANT_TABLE_DISCOVER_KEYS.split(",").map((key) => TENANT_TABLE.find((row) => row.key === key.trim()) ?? { key: key.trim(), profile })
-    : TENANT_TABLE).filter((row) => (row.profile ?? "default") === profile);
+    : TENANT_TABLE).filter((row) => (row.profile ?? "default") === profile), process.env.TENANT_TABLE_PATH_ONLY);
   assert.ok(rows.length > 0, "tenant table profile " + profile + " has no rows; an empty job proves nothing");
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
   // Attackers first, victim last: every victim ID is larger than any attacker-owned ID, so a
@@ -224,7 +224,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
       // Discovery only: TENANT_TABLE_DISCOVER_QUERIES='{"GET route":"a=1&b=2"}' tries a query before a row exists.
       const tried = discover ? JSON.parse(process.env.TENANT_TABLE_DISCOVER_QUERIES ?? "{}")[definition.key] : undefined;
       const extra = definition.query ? "&" + definition.query(ctx) : tried ? "&" + tried.replace(/\{(\w+)\}/g, (_, name) => ctx[name]) : "";
-      const item = bindTenantReadRequests(definition, own.org.id, victim.org.id, extra);
+      const item = bindTenantReadRequests(definition, own.org.id, victim.org.id, extra, ctx);
       if (!discover) {
         for (const flag of item.flags ?? []) assert.equal(process.env[flag], "true", item.key + ": server flag " + flag + " must be on in this job");
         assert.equal(typeof item.prove, "function", item.key + ": a row without an own-data proof cannot be credited");
@@ -281,7 +281,7 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   assert.equal(passed.size, rows.length * 2, "every row passed for both independent attacker employers");
   assert.equal(discriminatingProofs, rows.length, "every row's proof rejected the other attacker's genuine response");
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
-  console.log(JSON.stringify({ kind: "tenant-table-proof", profile, rows: rows.length, ownAndForeignPairs: passed.size,
+  console.log(JSON.stringify({ kind: "tenant-table-proof", profile, pathOnly: process.env.TENANT_TABLE_PATH_ONLY === "1", rows: rows.length, ownAndForeignPairs: passed.size,
     discriminatingProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false }));
   return { rows: rows.length, pairs: passed.size };
 }
