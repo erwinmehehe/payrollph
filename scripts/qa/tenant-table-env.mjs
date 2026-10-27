@@ -34,6 +34,9 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     WFM_SCHEDULE_RECEIPTS_ENABLED: "true",
     WFM_HISTORICAL_OUTLOOK_ENABLED: "true",
     WFM_OPERATIONAL_DEMAND_ENABLED: "true",
+    // Read-only fictional demand governance; only in disposable allowlisted CI.
+    WFM_ISSUED_DEMAND_FORECASTS_ENABLED: "true",
+    WFM_DEMAND_STAFFING_POLICIES_ENABLED: "true",
   },
   // Multi-entity changes other workflows (entity holds), so its rows run in their own server.
   "multi-entity": {

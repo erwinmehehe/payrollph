@@ -71,12 +71,27 @@ test("preseed loader validates real synthetic IDs, signed-in cookies, allowlist 
     "HCM_ORG_EXPLORER_ORG_IDS", "HCM_MANAGER_DECISION_INBOX_ORG_IDS",
     "WFM_SCHEDULE_RECEIPTS_ALLOWED_ORGANIZATION_IDS",
     "WFM_HISTORICAL_OUTLOOK_ALLOWED_ORGANIZATION_IDS",
-    "WFM_OPERATIONAL_DEMAND_ALLOWED_ORGANIZATION_IDS"]) env[key] = "10,20,30";
+    "WFM_OPERATIONAL_DEMAND_ALLOWED_ORGANIZATION_IDS",
+    "WFM_ISSUED_DEMAND_FORECASTS_ALLOWED_ORGANIZATION_IDS",
+    "WFM_DEMAND_STAFFING_POLICIES_ALLOWED_ORGANIZATION_IDS"]) env[key] = "10,20,30";
   try {
     writeFileSync(file, JSON.stringify(data), { mode: 0o600, flag: "wx" });
     assert.deepEqual(readAllowlistPreseed(file, env).map(e => e.org.id), [30, 10, 20]);
     assert.throws(() => readAllowlistPreseed(file, { ...env, HCM_PROCESS_MONITOR_ORG_IDS: "10,20" }),
       /must include victim/);
+    // New demand-governance gates must stay fail-closed too: never relax the
+    // production-shaped preseed validator to accommodate older test fixtures.
+    for (const key of [
+      "WFM_ISSUED_DEMAND_FORECASTS_ALLOWED_ORGANIZATION_IDS",
+      "WFM_DEMAND_STAFFING_POLICIES_ALLOWED_ORGANIZATION_IDS",
+    ]) {
+      assert.throws(() => readAllowlistPreseed(file, { ...env, [key]: "10,20" }),
+        /must include victim/, key + ": omitting the real victim must fail");
+      const absent = { ...env };
+      delete absent[key];
+      assert.throws(() => readAllowlistPreseed(file, absent),
+        /must include victim/, key + ": missing allowlist must fail");
+    }
     const altered = { ...data, allowlistedIds: [10, 20] };
     writeFileSync(file, JSON.stringify(altered));
     assert.throws(() => readAllowlistPreseed(file, env));

@@ -85,6 +85,8 @@ export function readAllowlistPreseed(file, env = process.env) {
     "WFM_SCHEDULE_RECEIPTS_ALLOWED_ORGANIZATION_IDS",
     "WFM_HISTORICAL_OUTLOOK_ALLOWED_ORGANIZATION_IDS",
     "WFM_OPERATIONAL_DEMAND_ALLOWED_ORGANIZATION_IDS",
+    "WFM_ISSUED_DEMAND_FORECASTS_ALLOWED_ORGANIZATION_IDS",
+    "WFM_DEMAND_STAFFING_POLICIES_ALLOWED_ORGANIZATION_IDS",
   ];
   for (const key of names) assert.equal(env[key], ids.join(","), key + " must include victim to prove authorization");
   return data.employers;
