@@ -8,10 +8,15 @@ credited a second time.
 
 ## Execution surface
 
-The standalone `tenant-table-proof` GitHub Actions job runs the added module after
-existing read-row assertions, **only** under profile `flagged-reads`. Its actual
-localhost Next production build uses disposable PostgreSQL **16**, and the shared
-profile enables `FACE_OFFLINE_PUNCH_UI_ENABLED=true` for this job only.
+The existing `tenant-table-proof` GitHub Actions job first runs its unchanged
+source-pinned shared GET/read and write acceptance. **Only** after both pass,
+the `flagged-reads` profile runs an **independent** offline-claim POST/PATCH
+module with fresh fictional attacker and higher-ID victim employers. It reuses
+the same reviewed `GET attendance/offline-claims` row's real PostgreSQL seed
+source, but does **not** reuse the shared proof's session IDs or count its GET
+a second time. This keeps the existing five-method legal-entity receipt valid.
+The localhost production-mode Next build uses disposable PostgreSQL **16**,
+and `FACE_OFFLINE_PUNCH_UI_ENABLED=true` only in the isolated profile.
 The module refuses execution without exact CI/isolated profile flags, local
 127.0.0.1 HTTP and `app_db` database, and disabled payout providers.
 These are synthetic actor accounts and timestamps, not customer attendance,
@@ -24,7 +29,9 @@ changed by this branch.
 
 1. Seed two independently authenticated fictional attacker employers and their
    employee and owner roles, plus an already populated, **higher-ID victim**
-   employer. The shared GET row must first prove a real persisted victim claim.
+   employer. The existing shared GET proof must pass first; the separate
+   runner then reuses its original PostgreSQL source-seeding row to insert a
+   fresh populated, higher-ID victim claim for this write-specific proof.
 2. Perform real POST via each employee session, **including the victim's own
    positive control**. Each must return 201, one persisted employer+employee+
    actor-bound `pending_review` claim, one matching audit, and `verified=false`.

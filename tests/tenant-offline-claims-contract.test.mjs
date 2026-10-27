@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { assertClaimDenied, assertOwnEmployeeClaimList, assertClaimNoStore } from "../scripts/qa/tenant-offline-claims-contract.mjs";
 
 function ownResponse(rows, overrides = {}) {
@@ -93,4 +95,30 @@ test("victim claim ID returned by denial fails", () => {
   assert.throws(() => assertClaimDenied(response, {
     status: 404, forbiddenMarker: "VICTIM-ONLY", forbiddenClaimId: 77,
   }), /victim claim ID/);
+});
+
+test("isolated offline-claim proof runs after shared receipts without modifying the source-pinned helper", () => {
+  const workflow = readFileSync(".github/workflows/tenant-table-proof.yml", "utf8");
+  const read = workflow.indexOf("run: npx tsx scripts/qa/tenant-table-http.mjs");
+  const write = workflow.indexOf("run: npx tsx scripts/qa/tenant-write-table-http.mjs");
+  const standalone = workflow.indexOf("run: npx tsx scripts/qa/tenant-offline-claims-standalone.mjs");
+  assert.ok(read >= 0 && write > read && standalone > write,
+    "real GET, shared write, and separate offline-claim write proofs must run in that order");
+  assert.match(workflow, /if: matrix\.profile == 'flagged-reads'\n        run: npx tsx scripts\/qa\/tenant-offline-claims-standalone\.mjs/);
+  const source = readFileSync("scripts/qa/tenant-offline-claims-standalone.mjs", "utf8");
+  for (const required of [
+    'GITHUB_ACTIONS: "true"', 'FACE_OFFLINE_PUNCH_UI_ENABLED: "true"',
+    'createOfflineClaimReadRows({ assert, db })',
+    'seedEmployer("VICTIM", nonce, standaloneMakeSession)',
+    "await verifyOfflineClaimsTenantWrites([victim, attackerA, attackerB]",
+  ]) {
+    assert.ok(source.includes(required), "missing isolated source/evidence guard: " + required);
+  }
+  const receipt = JSON.parse(readFileSync("docs/qa/tenant-legal-employer-admin-receipt.json", "utf8"));
+  const path = "scripts/qa/tenant-table-http.mjs";
+  const pin = receipt.sources.find(item => item.file === path);
+  assert.ok(pin && pin.sha256, "shared read helper must remain part of the receipt");
+  const content = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
+  assert.equal(createHash("sha256").update(content).digest("hex"), pin.sha256,
+    "offline-claim proof must not invalidate independent legal-entity HTTP evidence");
 });
