@@ -1,0 +1,99 @@
+name: ESS workforce tenant isolation (fictional PG16 and HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-workforce-http.yml'
+      - 'scripts/qa/tenant-self-workforce-contract.mjs'
+      - 'scripts/qa/tenant-self-workforce-http.mjs'
+      - 'tests/tenant-self-workforce-contract.test.mjs'
+      - 'src/app/api/self/workforce/route.ts'
+      - 'src/lib/workforce-schedule-window.ts'
+      - 'src/lib/workforce-attendance-correction.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/schema.ts'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-self-workforce-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ess-workforce:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export fictional localhost PG16 scope (all external money features disabled)
+        shell: bash
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo "XENDIT_BILLING_ENABLED=false" >> "$GITHUB_ENV"
+      - name: Source contracts, fail-closed environment and negative controls
+        run: node --test tests/tenant-self-workforce-contract.test.mjs
+      - name: Disposable encryption and webhook test material only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create empty disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply isolated reviewed-schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work item events in fresh disposable PG16
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode application for localhost only
+        run: npm run build
+      - name: Start disposable production-mode localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-self-workforce.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-self-workforce.log
+          exit 1
+      - name: Real employee sessions, victim/peer isolation and pending-only corrections
+        run: node --import tsx scripts/qa/tenant-self-workforce-http.mjs
+      - name: Isolated server diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-self-workforce.log || true
