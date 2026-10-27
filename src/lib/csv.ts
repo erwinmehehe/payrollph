@@ -2,9 +2,13 @@ function neutralizeSpreadsheetFormula(value: unknown) {
   const text = String(value ?? "");
   if (!text) return text;
 
-  const first = text[0];
-  const formulaPrefix = first === "=" || first === "+" || first === "@" || first === "\t" || first === "\r" || first === "\n";
-  const negativeFormula = first === "-" && !/^-\d+(?:\.\d+)?$/.test(text);
+  // Spreadsheet importers may evaluate formula prefixes hidden behind leading
+  // whitespace or invisible format characters. Inspect without trimming data.
+  const inspected = text.replace(/^[\s\u200B-\u200D\u2060]+/u, "");
+  const first = inspected[0];
+  const formulaPrefix = first === "=" || first === "+" || first === "@" ||
+    text[0] === "\t" || text[0] === "\r" || text[0] === "\n";
+  const negativeFormula = first === "-" && !/^-\d+(?:\.\d+)?$/.test(inspected);
 
   return formulaPrefix || negativeFormula ? `'${text}` : text;
 }
