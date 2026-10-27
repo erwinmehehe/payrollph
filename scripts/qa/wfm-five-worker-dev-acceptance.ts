@@ -471,7 +471,7 @@ async function run() {
   const initialFloor = await ok(owner,
     "/api/workforce/live-floor?organizationId=" + organizationId + "&page=1");
   const floorWorkDate = String(initialFloor.workDate ?? "");
-  assert.match(floorWorkDate, /^\\d{4}-\\d{2}-\\d{2}$/,
+  assert.match(floorWorkDate, /^\d{4}-\d{2}-\d{2}$/,
     "Live Floor must return the server's Philippine calendar date");
   const anchorDate = new Date(floorWorkDate + "T00:00:00Z");
   anchorDate.setUTCDate(anchorDate.getUTCDate() - 1);
