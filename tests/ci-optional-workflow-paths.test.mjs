@@ -148,3 +148,37 @@ test("browser acceptance installs version-pinned headless Chromium without Ubunt
     assert.doesNotMatch(source, /playwright install --with-deps/, filename + ": avoid apt mirrors on stock GitHub runners");
   }
 });
+
+test("Spend component browser runs for its real dependencies, not every source edit", () => {
+  const source = readWorkflow("spend-reimbursement-ui.yml");
+  const from = source.indexOf("\n  pull_request:\n");
+  const to = source.indexOf("\n  workflow_dispatch:\n", from);
+  assert.ok(from >= 0 && to > from, "Spend PR event and manual dispatch must remain present");
+  const eventBlock = source.slice(from, to);
+  const paths = [...eventBlock.matchAll(/^      - '([^']+)'$/gm)].map(match => match[1]);
+  assert.ok(paths.length > 0 && !paths.includes("src/**"), "Spend needs narrower PR paths");
+  const runsFor = path => paths.some(pattern => matchGlob(pattern, path));
+  for (const path of [
+    "src/components/wallet-panel.tsx",
+    "src/lib/expense-claim-communication.ts",
+    "src/lib/scoped-employee-directory.ts",
+    "src/app/api/expenses/route.ts",
+    "src/app/api/employees/import/route.ts",
+    "src/app/globals.css",
+    "src/lib/auth.ts",
+    "src/db/schema.ts",
+    "package-lock.json",
+    "src/components/linaw-workspace.tsx",
+    ".github/workflows/spend-reimbursement-ui.yml",
+    "tests/fixtures/spend-reimbursement-browser.jsx",
+  ]) assert.ok(runsFor(path), "missing Spend trigger for " + path);
+  for (const path of [
+    "README.md",
+    "docs/qa/unrelated.md",
+    "src/app/hcm/business-processes/page.tsx",
+    "src/app/api/wfm/schedules/route.ts",
+    "src/lib/hcm-business-process-read.ts",
+    ".github/workflows/ci.yml",
+    "tests/other.test.ts",
+  ]) assert.equal(runsFor(path), false, "irrelevant Spend trigger " + path);
+});
