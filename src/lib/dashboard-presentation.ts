@@ -1,12 +1,14 @@
 import type { PayrollRun } from "@/components/workspace/types";
+import { storedMoneyCentavos, verifiedPesosFromCentavos } from "./stored-money-centavos";
 
-/** Only a recorded numeric amount is money. Never coerce null, blanks or NaN to zero. */
+/**
+ * Read-only presentation of stored payroll figures. Match the strict centavo
+ * contract used by Recent Payrolls: no coercion, rounding of sub-centavo
+ * values, or plausible-looking money from unsafe numeric inputs.
+ */
 export function verifiedDashboardAmount(value: unknown): number | null {
-  if (typeof value !== "number" && !(typeof value === "string" && /^[-+]?\d+(?:\.\d+)?$/.test(value))) {
-    return null;
-  }
-  const amount = Number(value);
-  return Number.isFinite(amount) ? amount : null;
+  const centavos = storedMoneyCentavos(value);
+  return centavos === null ? null : verifiedPesosFromCentavos(centavos);
 }
 
 export function dashboardPayrollSummary(
@@ -39,6 +41,7 @@ export function dashboardMoney(value: number | string | null | undefined) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
 }
