@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readScopedResponse } from "../src/lib/hcm-scoped-read-failure";
 import { validMyTeamResponse } from "../src/lib/hcm-scoped-read-validation";
 
 /**
@@ -91,7 +92,26 @@ test("tenant identity and page counters remain fail-closed", () => {
   assert.equal(validate({ ...accepted, summary: {
     ...accepted.summary, pendingLeaveRecordsThisPage: 1,
   } }), false);
-  assert.equal(validate({ ...accepted, items: [...accepted.items,
-    ...Array.from({ length: 24 }, (_, n) => accepted.items[0] && { ...accepted.items[0], id: n + 3 })],
-  }), false, "A 26-item page must be rejected even if its summary is present");
+  const oversized = teamPage(Array.from({ length: 26 }, (_, n) => n + 1), false, null);
+  assert.equal(oversized.items.length, oversized.summary.employeeRecordsThisPage);
+  assert.equal(oversized.summary.pendingLeaveRecordsThisPage, 26);
+  assert.equal(validate(oversized), false,
+    "A 26-item page must be rejected even with valid matching summary counters");
+});
+
+test("malformed successful HTTP responses are unavailable, never verified My Team data", async () => {
+  const good = teamPage([1, 2], false, null);
+  const bad = teamPage([1, 2], false, 2);
+
+  const read = (payload: unknown) => readScopedResponse(
+    async () => new Response(JSON.stringify(payload), {
+      status: 200, headers: { "content-type": "application/json" },
+    }),
+    (value): value is ReturnType<typeof teamPage> => validate(value),
+  );
+  assert.deepEqual(await read(bad), { status: "unavailable", failure: "invalid" });
+
+  const successful = await read(good);
+  assert.equal(successful.status, "ready");
+  if (successful.status === "ready") assert.deepEqual(successful.data.items, good.items);
 });
