@@ -101,10 +101,10 @@ export function proveJournalResponse(response, expected) {
   assert.ok(cacheDirectives.includes("no-store"), "journal response must be no-store");
   for (const directive of cacheDirectives) {
     assert.ok(!/^(public|immutable)$/.test(directive) &&
-      !/^(s-maxage|stale-while-revalidate|stale-if-error)(?:\\s*=|$)/.test(directive),
+      !/^(s-maxage|stale-while-revalidate|stale-if-error)(?:\s*=|$)/.test(directive),
     "journal response cannot allow shared or stale caching");
-    if (/^max-age(?:\\s*=|$)/.test(directive)) {
-      assert.match(directive, /^max-age\\s*=\\s*0$/,
+    if (/^max-age(?:\s*=|$)/.test(directive)) {
+      assert.match(directive, /^max-age\s*=\s*0$/,
         "journal max-age must be precisely zero");
     }
   }
