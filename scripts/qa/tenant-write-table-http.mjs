@@ -84,7 +84,7 @@ export async function verifyTenantWriteTable(_f, {
       seedFailures.set(item.key, String(error.cause?.message ?? error.message).split("\n")[0].slice(0, 200));
     }
   }
-  const victimBefore = await victimSnapshot(victim.org.id);
+  const supplemental = await import("./tenant-performance-development-actions.mjs"); await supplemental.prepare(rows, employers); const victimBefore = await victimSnapshot(victim.org.id);
   const victimStatesBefore = new Map();
   for (const item of rows) {
     if (!seedFailures.has(item.key)) victimStatesBefore.set(item.key, plain(await item.state(victim.org.id)));
@@ -131,7 +131,7 @@ export async function verifyTenantWriteTable(_f, {
           assert.deepEqual(plain(await item.state(own.org.id)), ownAfter, item.key + ": a forged victim reference must write nothing");
           forgedProofs++;
         }
-        passed.add(item.key + "#" + idx);
+        await supplemental.exercise(item.key, ctx, { request, expectStatus, cookie: own.cookie }); passed.add(item.key + "#" + idx);
       } catch (error) {
         if (!tryMode) throw error;
         tryFailures.push(item.key + " (attacker " + idx + "): " + String(error.message ?? error).split("\n")[0].slice(0, 230));
@@ -145,7 +145,7 @@ export async function verifyTenantWriteTable(_f, {
       passingRows: rows.filter((row) => !failedKeys.has(row.key)).map((row) => row.key), failures: tryFailures }, null, 1));
     return { tried: rows.length };
   }
-  const victimAfter = await victimSnapshot(victim.org.id);
+  await supplemental.finish(); const victimAfter = await victimSnapshot(victim.org.id);
   assert.deepEqual(victimAfter, victimBefore, "denied writes leave the victim employer's rows and audit trail unchanged");
   for (const item of rows) {
     assert.deepEqual(plain(await item.state(victim.org.id)), victimStatesBefore.get(item.key), item.key + ": the victim's target rows are unchanged");

@@ -88,7 +88,7 @@ test("new method proofs reject unrelated own-row mutations", () => {
   }
 });
 
-test("family keeps nine unique methods with only reviewed calibration creation credited", () => {
+test("family keeps nine unique methods with reviewed calibration and complete development action proofs", () => {
   assert.equal(rows.length, 9); assert.equal(new Set(rows.map(r => r.key)).size, 9);
   const excluded = ["PATCH performance/action-items", "PATCH performance/continuous", "POST performance/action-items", "PATCH performance/development-plans"];
   assert.ok(rows.every(r => !excluded.includes(r.key)));
@@ -96,7 +96,10 @@ test("family keeps nine unique methods with only reviewed calibration creation c
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
   for (const row of rows) {
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
-    assert.equal(record.methods.find(m => m.name === method).status, row.key === "POST performance/calibration" ? "COVERED" : "GAP");
+    const developed = ["POST performance/competencies", "PATCH performance/competencies", "POST performance/continuous", "POST performance/development-plans"].includes(row.key);
+    const entry = record.methods.find(m => m.name === method);
+    assert.equal(entry.status, row.key === "POST performance/calibration" || developed ? "COVERED" : "GAP");
+    if (developed) assert.equal(entry.testedBy.supplementalProof.file, "scripts/qa/tenant-performance-development-actions.mjs");
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
