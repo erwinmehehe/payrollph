@@ -157,49 +157,39 @@ test("ESS overview records match the merged, source-pinned method-level manifest
   assert.ok(overview.includes("| coveredAfter | " + manifest.metrics.coveredAfter + " |"));
 });
 
-test("labor-costing GET-only source repin does not certify the legacy POST", () => {
+// #1425's GET-only finance-scope guard remains mandatory even after #1433
+// separately exercises all three POST actions on disposable PG16/real HTTP.
+test("labor-costing GET finance scope remains guarded and POST has independent write proof", () => {
   const file = "src/app/api/workforce/labor-costing/route.ts";
-  const baseRef = process.env.FAIL_CLOSED_GUARD_BASE_REF || "origin/main";
-  const baseline = JSON.parse(execFileSync("git", ["show", baseRef + ":" + manifestFile], {
-    encoding: "utf8", maxBuffer: 32 << 20,
-  }));
-  const old = baseline.allApiRouteFiles[file];
+  const source = readFileSync(file, "utf8");
   const current = manifest.allApiRouteFiles[file];
-  const originalSha = "e5e2c007ca41da3c6e2fc1217600f83640f48975";
-  const reviewedSha = "4b98d27a02ccd6fbfb76ad08cb501410a8fd67bd";
-  assert.equal(current.gitBlobSha, reviewedSha);
-  const oldGet = old.methods.find(method => method.name === "GET");
-  const newGet = current.methods.find(method => method.name === "GET");
-  const oldPost = old.methods.find(method => method.name === "POST");
-  const newPost = current.methods.find(method => method.name === "POST");
-  assert.equal(newGet.line, 79);
-  assert.equal(newPost.line, 156);
-  assert.equal(newPost.status, "GAP");
-  assert.equal(newPost.testedBy, null, "the unchanged POST has no independent method proof");
-
-  if (old.gitBlobSha === reviewedSha) {
-    // The GET-only fix has already merged into main. No source metadata,
-    // proof credit, reviewed-uncertified evidence or POST identity may drift.
-    assert.equal(oldGet.line, 79);
-    assert.equal(oldPost.line, 156);
-    assert.deepEqual(newGet, oldGet);
-    assert.deepEqual(newPost, oldPost);
-  } else {
-    // Older main: only the frozen GET 78 -> 79 / POST 133 -> 156 source
-    // repin is allowed. Its POST remains uncredited and unchanged.
-    assert.equal(old.gitBlobSha, originalSha);
-    assert.equal(oldGet.line, 78);
-    assert.equal(oldPost.line, 133);
-    assert.deepEqual({ ...newGet, line: oldGet.line }, oldGet);
-    const { reviewedUncertified, ...withoutReview } = newPost;
-    assert.ok(reviewedUncertified, "the unchanged POST must retain its explicit uncertified review");
-    assert.deepEqual({ ...withoutReview, line: oldPost.line, reason: oldPost.reason }, oldPost);
-  }
-  assert.deepEqual(newPost.reviewedUncertified, {
-    kind: "unchanged-POST-in-GET-only-security-fix",
-    originalRouteBlobSha: originalSha,
-    routeBlobSha: reviewedSha,
-    unchangedPostBlobSha: "91bcb6ee054c538f72d65630cc89deb641cfa7f5",
-    reason: "Only GET and an import changed; POST bytes are independently pinned and retain GAP/zero coverage credit. Real HTTP POST proof and independent review are still required.",
-  });
+  assert.equal(current.gitBlobSha, "1f2c024c5cf2a99e7feb2dc41aeacf076a600170");
+  const get = current.methods.find(method => method.name === "GET");
+  const post = current.methods.find(method => method.name === "POST");
+  assert.equal(get.line, 79);
+  assert.equal(get.status, "COVERED");
+  assert.equal(get.testedBy?.rowFile, "scripts/qa/tenant-table-rows/read/workforce.mjs");
+  assert.match(source, /Number\.isSafeInteger\(organizationId\)/);
+  assert.match(source, /validCompanyWide && !validUnitScope/);
+  assert.match(source, /scopeLaborCostingRead\(\{/);
+  assert.match(source, /access\.companyWide\s*\?\s*db\.select\(\)\.from\(laborGlMappings\)/);
+  assert.match(source, /"Cache-Control": "private, no-store"/);
+  assert.equal(post.line, 156);
+  assert.equal(post.status, "COVERED", "POST requires its own executed evidence, not the GET's proof");
+  assert.equal(post.reviewedUncertified, undefined,
+    "the obsolete GET-only/unchanged-POST review cannot describe changed POST code");
+  assert.equal(post.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(post.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs");
+  assert.notEqual(post.testedBy?.file, get.testedBy?.file);
+  const rows = readFileSync(post.testedBy.rowFile, "utf8").split("\n");
+  const http = readFileSync(post.testedBy.file, "utf8").split("\n");
+  assert.match(rows[post.testedBy.rowLine - 1], /key: "POST workforce\/labor-costing"/);
+  assert.match(http[post.testedBy.ownPositiveLine - 1], /const owned = expectStatus/);
+  assert.match(http[post.testedBy.foreignDenialLine - 1], /const foreign = expectStatus/);
+  assert.match(http[post.testedBy.unchangedDbLine - 1], /assert\.deepEqual\(victimAfter, victimBefore/);
+  assert.match(source, /verticalDimensions: resolvedAllocation\.verticalDimensions \?\? null/);
+  assert.match(source, /verticalDimensions: row\.verticalDimensions/);
+  assert.match(post.testedBy.scope, /create_cost_center, set_gl_mapping, set_employee_allocations/);
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED:"),
+    "a provisionally credited POST never grants full tenant-isolation certification");
 });
