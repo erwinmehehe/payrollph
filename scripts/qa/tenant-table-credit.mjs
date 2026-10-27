@@ -43,12 +43,27 @@ if (selectedKeys.size !== onlyKeys.length || onlyKeys.some(key => !catalogKeys.h
 
 const labelAt = process.argv.indexOf("--run-label");
 const runLabel = labelAt > 0 ? process.argv[labelAt + 1] : null;
+const localMajorAt = process.argv.indexOf("--local-postgres-major");
+const localPostgresMajor = localMajorAt < 0 ? null : Number(process.argv[localMajorAt + 1]);
+if (localMajorAt >= 0 && (![16, 18].includes(localPostgresMajor) || !runLabel ||
+    process.argv.includes("--reconcile-merged-families") || process.argv.includes("--refresh-links"))) {
+  throw new Error("--local-postgres-major requires 16 or 18, an executed run label, and an explicit fresh selection");
+}
+if (localMajorAt >= 0 && !selectedKeys.size) throw new Error("local engine evidence requires --only-key selections");
 const familyAt = process.argv.indexOf("--family");
 const family = familyAt >= 0 ? process.argv[familyAt + 1] : null;
 if (familyAt >= 0 && (!family || !/^[a-z][a-z0-9-]*$/.test(family))) throw new Error("--family requires a valid family filename");
 if (family && ![...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].some(row => row.file.endsWith("/" + family + ".mjs"))) throw new Error("unknown or empty credit family");
 // Explicit reviewed selection cannot silently promote pending or partially exercised rows.
 const selection = process.argv.includes("--reconcile-merged-families") ? reviewedFamilySelection() : null;
+if (process.argv.includes("--read-gap-recovery")) {
+  const { RECOVERY_METHODS, verifyRecoveryReceipt } = await import("./tenant-read-gap-recovery.mjs");
+  const receipt = verifyRecoveryReceipt();
+  if (JSON.stringify([...selectedKeys].sort()) !== JSON.stringify([...RECOVERY_METHODS].sort()) ||
+      localPostgresMajor !== receipt.postgresMajor || runLabel !== receipt.runLabel) {
+    throw new Error("read-gap recovery requires the exact executed receipt, twelve selected methods and matching engine");
+  }
+}
 const onlyPathIds = process.argv.includes("--only-path-ids");
 if (onlyPathIds && selection) throw new Error("Path and reviewed-family selections must run separately");
 if (write && !refreshLinks && !runLabel) throw new Error("--run-label <where the table proof passed> is required to credit");
@@ -142,6 +157,12 @@ for (const source of SOURCES) {
         ownPositiveLine: pin("const owned = io.expectStatus"), foreignDenialLine: pin("const victim = io.expectStatus"),
         forgedSelectorLine: pin("const denied = io.expectStatus"), unchangedDbLine: pin("if (proof) { assert.deepEqual"),
         scope: "All supported entityType actions: competencies skill/requirement/expectation_default, requirement/template_mapping/expectation_default updates, one_on_one and both feedback visibility modes, plan and milestone creation. Two owner attackers; seven additional discriminating action proofs; no production approval." };
+    }
+    if (!retainEvidence && localPostgresMajor) {
+      method.reason = method.reason.replaceAll("PG16", "PostgreSQL " + localPostgresMajor);
+      method.testedBy.scope = source.scope.replace("CI PG16 only", "local disposable PostgreSQL " + localPostgresMajor + "; exact-head PG16 CI NOT_RUN");
+      method.testedBy.evidence = "Local shared runner " + source.file + "; " + runLabel;
+      method.testedBy.postgresMajor = localPostgresMajor;
     }
     credited.push({ ...row, source, path: hit.path, was });
   }

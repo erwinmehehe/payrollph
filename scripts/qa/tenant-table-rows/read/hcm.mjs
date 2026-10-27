@@ -70,6 +70,7 @@ export function createRows({ addWorker, db, engagementSurveys, hcmBusinessProces
       return { id: item.id, eventId: event.id };
     },
     query: (c) => "caseId=" + c.seeded.id,
+    foreignQuery: (c) => "caseId=" + c.victimSeeded.id,
     prove: (response, c) => {
       assert.ok(Array.isArray(response.json?.events)); assert.equal(response.json.events.length, 1);
       const event = response.json.events[0]; assert.equal(String(event.id), String(c.seeded.eventId));

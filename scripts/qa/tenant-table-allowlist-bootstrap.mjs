@@ -69,7 +69,7 @@ export async function bootstrapAllowlistedReads({
   appendFileSync(env.GITHUB_ENV, "TENANT_TABLE_ALLOWLIST_FIXTURE=" + file + "\n");
   console.log(JSON.stringify({ kind: "tenant-allowlist-bootstrap", profile: env.TENANT_TABLE_PROFILE,
     allowedEmployers: ids.length, excludedEmployers: 1, sessionCookiesLogged: false,
-    database: "disposable localhost PG16", productionTested: false, credited: 0 }));
+    database: "disposable localhost PostgreSQL", productionTested: false, credited: 0 }));
   return data;
 }
 
