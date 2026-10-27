@@ -116,9 +116,27 @@ async function readOwn({ request, expectStatus }, actor, ownIds, ownCases, victi
     "/api/self/identifiers?organizationId=" + victimOrgId + "&employeeId=" + victimEmployeeId,
     { cookie: actor.cookie },
   ), 200, "ID GET binds to session employee, not forged query selectors");
-  for (const row of ownIds) assert.ok(idResponse.json?.requests?.some((r) =>
-    r.id === row.id && r.kind === row.kind && r.proposedMasked),
-  "populated own masked identifier must be returned");
+  const actualIds = idResponse.json?.requests;
+  assert.ok(Array.isArray(actualIds), "identifier GET must return a request array");
+  assert.deepEqual(
+    actualIds.map((row) => row.id).sort((a, b) => a - b),
+    ownIds.map((row) => row.id).sort((a, b) => a - b),
+    "identifier GET must return exactly this employee's persisted requests, no foreign or missing rows",
+  );
+  for (const row of ownIds) {
+    const actual = actualIds.find((r) => r.id === row.id);
+    assert.equal(actual?.kind, row.kind, "identifier kind must match the persisted own request");
+    assert.equal(actual?.status, row.status, "identifier review status must not be substituted");
+    assert.ok(actual?.proposedMasked, "persisted identifier must be masked in GET");
+    assert.ok(!Object.hasOwn(actual, "proposedEncrypted"),
+      "encrypted identifier ciphertext must not be exposed in GET");
+  }
+  assert.equal(idResponse.headers.get("cache-control"), "private, no-store",
+    "sensitive identifier response must not be shared or cached");
+  assert.ok(!idResponse.text.includes("FICTIONAL9001") &&
+    !idResponse.text.includes("FICTATTACK") &&
+    !idResponse.text.includes("FICTDRIVER"),
+    "no fictional raw identifier from any tenant may appear in GET");
   noLeak(idResponse, sentinel);
   const caseResponse = expectStatus(await request(
     "/api/self/contribution-issues?organizationId=" + victimOrgId + "&employeeId=" + victimEmployeeId,
