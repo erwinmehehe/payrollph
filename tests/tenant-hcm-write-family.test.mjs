@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { load } from "js-yaml";
+import { RECOVERY_METHODS, verifyRecoveryReceipt } from "../scripts/qa/tenant-read-gap-recovery.mjs";
 import { createRows } from "../scripts/qa/tenant-table-rows/write/hcm.mjs";
 import { createRows as readRows } from "../scripts/qa/tenant-table-rows/read/hcm.mjs";
 import { assertHcmWorkItemFixtureTarget, hcmWorkItemFixtureSql } from "../scripts/qa/prepare-hcm-work-item-fixture.mjs";
@@ -95,11 +96,14 @@ test("HCM fixture is installed after baseline and before build/server or employe
   assert.match(source, /ROLLBACK/);
 });
 
-test("all seven HCM targets remain GAP and a link-only refresh cannot credit them", () => {
+test("executed selected HCM methods are receipt-bound while partial methods stay GAP and refresh adds nothing", () => {
+  const receipt = verifyRecoveryReceipt();
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", source = readFileSync(file, "utf8"), manifest = JSON.parse(source);
   for (const key of [...keys, "GET hcm/work-items/events"]) {
     const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
-    assert.equal(record.methods.find(m => m.name === method).status, "GAP");
+    const proof = record.methods.find(m => m.name === method);
+    assert.equal(proof.status, RECOVERY_METHODS.includes(key) ? "COVERED" : "GAP");
+    if (RECOVERY_METHODS.includes(key)) assert.ok(proof.testedBy.evidence.includes(receipt.runLabel));
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), source);
