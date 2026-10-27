@@ -25,7 +25,7 @@ import {
   performanceCycles, scheduleSwapRequests, sessions, userLegalEntityGrants, userOrganizations, users, workforcePlanAllocations,
   workforcePlanBaselines, workforcePlanPositionExecutions, workforcePlanningScenarios, workforcePlans,
   workforceScheduleGuardrailPolicies, worksites, automationOperationalCases, workforceRosterRulePolicies, permissionSets,
-employeeMweClassifications, payrollRuns } from "../../src/db/schema";
+employeeMweClassifications, payrollRuns, yearEndAdjustments } from "../../src/db/schema";
 import { essIdentifierRequests } from "../../src/lib/ess-profile-schema";
 import { organizationModuleSettings } from "../../src/lib/tenant-module-storage";
 import { auditBusinessSnapshot, seedTableRow, readAllowlistPreseed } from "./tenant-table-invariants.mjs";
@@ -169,7 +169,7 @@ export async function victimSnapshot(orgId) {
     db.select().from(legalEntities).where(eq(legalEntities.organizationId, orgId)).orderBy(legalEntities.id),
     db.select().from(auditEvents).where(eq(auditEvents.organizationId, orgId)).orderBy(auditEvents.id).then(auditBusinessSnapshot),
   ]);
-  return { org, staff, units, entities, audit, offlineClaims: await db.select().from((await import("../../src/db/schema.ts")).offlinePunchClaims).where(eq((await import("../../src/db/schema.ts")).offlinePunchClaims.organizationId, orgId)).orderBy((await import("../../src/db/schema.ts")).offlinePunchClaims.id), recoveredReadSources: await (await import("./tenant-read-recovery-snapshot.mjs")).readRecoverySnapshot(db, pool, orgId) };
+  return { org, staff, units, entities, audit, offlineClaims: await db.select().from((await import("../../src/db/schema.ts")).offlinePunchClaims).where(eq((await import("../../src/db/schema.ts")).offlinePunchClaims.organizationId, orgId)).orderBy((await import("../../src/db/schema.ts")).offlinePunchClaims.id), yearEndAdjustments: await db.select().from(yearEndAdjustments).where(eq(yearEndAdjustments.organizationId, orgId)).orderBy(yearEndAdjustments.id), recoveredReadSources: await (await import("./tenant-read-recovery-snapshot.mjs")).readRecoverySnapshot(db, pool, orgId) };
 }
 
 export async function verifyTenantTable(_f, { request = standaloneRequest, expectStatus = standaloneExpectStatus, makeSession = standaloneMakeSession } = {}) {
