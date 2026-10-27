@@ -227,3 +227,33 @@ test("Core Modules browser authenticates each flag server independently before a
   assert.match(source, /CORE_MODULE_NAVIGATION_ENABLED=false npm run start/,
     "The browser must continue comparing independently configured flag-on and flag-off servers");
 });
+
+test("Employee Import browser checks a real per-server MFA principal before strict role denial", () => {
+  const browser = readFileSync(new URL("../scripts/employee-import-synthetic-browser.mjs", import.meta.url), "utf8");
+  const workflow = readWorkflow("employee-import-browser-acceptance.yml");
+  const route = readFileSync(new URL("../src/app/api/employees/import/route.ts", import.meta.url), "utf8");
+  assert.match(browser, /const authKey = `\$\{role\}:\$\{state\}`/,
+    "Flag-on/off sessions must remain distinct for each fictional role");
+  assert.match(browser, /authenticatedStates\.get\(authKey\)/);
+  assert.match(browser, /authenticatedStates\.set\(authKey, signedInState\)/);
+  assert.doesNotMatch(browser, /authenticatedStates\.(?:get|set)\(role(?:,|\))/,
+    "Never reuse the flag-off cookie for the flag-on role-denial proof");
+  assert.match(browser, /totpCode: generateTotp\(/, "Retain real MFA login");
+  assert.match(browser, /assert\.equal\(login\.status\(\), 200/,
+    "Do not accept failed or throttled authentication");
+  assert.match(browser, /const session = await page\.evaluate\(/);
+  assert.match(browser, /fetch\("\/api\/auth\/me"/);
+  assert.match(browser, /assert\.equal\(session\.body\.user\?\.role, role/);
+  assert.match(browser, /assert\.equal\(session\.body\.user\?\.email, role/);
+  assert.match(browser, /const deniedStatus = await page\.evaluate\(/);
+  assert.match(browser, /fetch\("\/api\/employees\/import"/);
+  assert.match(browser, /credentials: "same-origin"/,
+    "Use the authenticated browser's cookies rather than the Node request jar");
+  assert.match(browser, /assert\.equal\(deniedStatus, 403/,
+    "A missing-authentication 401 must never count as role isolation");
+  assert.doesNotMatch(browser, /context\.request\.post\(base \+ "\/api\/employees\/import"/);
+  assert.match(workflow, /REQUIRE_PRIVILEGED_MFA: 'true'/);
+  assert.match(workflow, /EMPLOYEE_IMPORT_PREVIEW_ENABLED=false npm run start/);
+  assert.match(route, /assertOrganizationRole\(/);
+  assert.match(route, /PEOPLE_ADMIN_ROLES/);
+});
