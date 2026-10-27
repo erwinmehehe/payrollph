@@ -9,6 +9,13 @@
         "GET self/availability",
         "POST self/availability"
       ]
+    },
+    {
+      "pr": 1456,
+      "state": "open-proof",
+      "methods": [
+        "GET attendance/offline-claims"
+      ]
     }
   ]
 }
