@@ -2,14 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 import { METHODS, verifyCredit } from "../scripts/qa/tenant-performance-development-actions.mjs";
 
 test("WRK-02 supplemental proofs keep four exact identities and all original family bytes", () => {
   assert.deepEqual(METHODS, ["POST performance/competencies", "PATCH performance/competencies", "POST performance/continuous", "POST performance/development-plans"]);
   const file = "scripts/qa/tenant-table-rows/write/performance-growth.mjs";
-  assert.equal(readFileSync(file, "utf8").replaceAll("\r\n", "\n"), execFileSync("git", ["show", "origin/main:" + file], { encoding: "utf8" }).replaceAll("\r\n", "\n"));
+  // This family was frozen by the independently reviewed reconciliation receipt.
+  // Compare its exact SHA-256 rather than a floating origin/main ref: isolated
+  // GitHub Actions checkouts often have no remote-tracking branch at all.
+  const familySha256 = "93b7902cf9058b62a89cbf16d7c5626397eaec96d2d967fff9310ccefd747a83";
+  const receipt = JSON.parse(readFileSync("scripts/qa/tenant-merged-family-reconciliation.json", "utf8"));
+  assert.equal(receipt.sources[file], familySha256, "reviewed family source pin must not drift");
+  assert.equal(createHash("sha256").update(readFileSync(file, "utf8").replaceAll("\r\n", "\n")).digest("hex"),
+    familySha256, "all originally reviewed performance-growth family bytes must remain unchanged");
   for (const key of METHODS) assert.equal(tenantFamilyCatalog("write").filter(row => row.key === key).length, 1);
 });
 test("generated four-method credits pin executable supplemental proof and leave incomplete methods GAP", () => {
@@ -35,10 +41,43 @@ test("generated four-method credits pin executable supplemental proof and leave 
 });
 test("supplemental actions cannot replace or shift the original shared own/foreign/victim proofs", () => {
   const file = "scripts/qa/tenant-write-table-http.mjs";
-  const source = readFileSync(file, "utf8"), old = execFileSync("git", ["show", "origin/main:" + file], { encoding: "utf8" });
-  const a=source.split("\n"), b=old.split("\n");
-  for (const fragment of ["const owned = expectStatus", "const foreign = expectStatus", "assert.deepEqual(victimAfter, victimBefore", "expect accepts another employer's data"]) {
-    const line=b.findIndex(text=>text.includes(fragment)); assert.ok(line>=0); assert.equal(a[line],b[line]);
+  const source = readFileSync(file, "utf8");
+  // Strip only the three intended, one-line supplemental hooks, then compare
+  // every other byte with the SHA-256 of the reviewed main base. This is stricter
+  // than comparing a handful of statements, works with shallow checkouts, and
+  // rejects unrelated edits or moved primary proof assertions.
+  const hooks = [
+    [
+      'const supplemental = await import("./tenant-performance-development-actions.mjs"); await supplemental.prepare(rows, employers); const victimBefore = await victimSnapshot(victim.org.id);',
+      'const victimBefore = await victimSnapshot(victim.org.id);',
+    ],
+    [
+      'await supplemental.exercise(item.key, ctx, { request, expectStatus, cookie: own.cookie }); passed.add(item.key + "#" + idx);',
+      'passed.add(item.key + "#" + idx);',
+    ],
+    [
+      'await supplemental.finish(); const victimAfter = await victimSnapshot(victim.org.id);',
+      'const victimAfter = await victimSnapshot(victim.org.id);',
+    ],
+  ];
+  let original = source;
+  for (const [supplemental, baseline] of hooks) {
+    assert.equal(original.split(supplemental).length - 1, 1,
+      "exactly one reviewed supplemental hook must exist, without shifting shared proof lines");
+    original = original.replace(supplemental, baseline);
+  }
+  assert.equal(
+    createHash("sha256").update(original).digest("hex"),
+    "3caaf33b85e4f7c0417efdf62617a1a1a55b24960b9f8a8c25a168939042fac4",
+    "all original shared HTTP runner bytes must match the reviewed c269df59 base",
+  );
+  const actualLines = source.split("\n"), baselineLines = original.split("\n");
+  for (const fragment of ["const owned = expectStatus", "const foreign = expectStatus",
+    "assert.deepEqual(victimAfter, victimBefore", "expect accepts another employer's data"]) {
+    const line = baselineLines.findIndex(text => text.includes(fragment));
+    assert.ok(line >= 0, "required primary proof missing: " + fragment);
+    assert.equal(actualLines[line], baselineLines[line],
+      "primary own/foreign/victim/discrimination proof must stay on its original line");
   }
   assert.ok(source.indexOf("await supplemental.exercise") > source.indexOf("a forged victim reference must write nothing"));
   assert.ok(source.indexOf("await supplemental.finish") < source.indexOf("assert.deepEqual(victimAfter, victimBefore"));
