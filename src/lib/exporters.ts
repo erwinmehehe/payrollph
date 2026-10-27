@@ -30,6 +30,7 @@ import {
   resolveLaborGlAccount,
   type LaborGlAccountKey,
 } from "@/lib/labor-costing";
+import { LABOR_VERTICAL_DIMENSION_HEADERS, journalRequiresVerticalDimensionColumns, laborVerticalDimensionValues, type LaborVerticalDimensions } from "@/lib/labor-vertical-dimensions";
 
 const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -575,6 +576,19 @@ export async function generateJournalCsv(runId: number) {
     return Number.isFinite(value) ? value : null;
   };
 
+  // Only run-effective tags on journalled employees change the column layout:
+  // unrelated/future employer allocation rows must not affect historical exports.
+  const journalEmployeeIds = new Set(entries.map(({ employee }) => employee.id));
+  const verticalHeaders = journalRequiresVerticalDimensionColumns({
+    allocations: allocationRows.map((row) => ({
+      employeeId: row.employeeId,
+      effectiveFrom: String(row.effectiveFrom),
+      effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+      verticalDimensions: row.verticalDimensions,
+    })),
+    employeeIds: journalEmployeeIds,
+    asOf: String(run.periodEnd),
+  }) ? [...LABOR_VERTICAL_DIMENSION_HEADERS] : [];
   const header = [
     "Date",
     "Journal",
@@ -583,6 +597,7 @@ export async function generateJournalCsv(runId: number) {
     "Client",
     "Project",
     "Job",
+    ...verticalHeaders,
     "Account Code",
     "Account",
     "Debit",
@@ -599,6 +614,7 @@ export async function generateJournalCsv(runId: number) {
     clientCode?: string | null;
     projectCode?: string | null;
     jobCode?: string | null;
+    verticalDimensions?: LaborVerticalDimensions | null;
     accountKey: LaborGlAccountKey;
     fallbackAccountName: string;
     description: string;
@@ -621,6 +637,7 @@ export async function generateJournalCsv(runId: number) {
       input.clientCode ?? "",
       input.projectCode ?? "",
       input.jobCode ?? "",
+      ...(verticalHeaders.length ? laborVerticalDimensionValues(input.verticalDimensions) : []),
       account.accountCode ?? "",
       account.accountName,
       input.side === "debit" ? input.amount.toFixed(2) : "",
@@ -741,6 +758,7 @@ export async function generateJournalCsv(runId: number) {
         projectCode: row.projectCode,
         clientCode: row.clientCode,
         jobCode: row.jobCode,
+        verticalDimensions: row.verticalDimensions,
       })),
     });
 
@@ -776,6 +794,7 @@ export async function generateJournalCsv(runId: number) {
           clientCode: allocated.clientCode,
           projectCode: allocated.projectCode,
           jobCode: allocated.jobCode,
+          verticalDimensions: allocated.verticalDimensions,
           accountKey: expense.accountKey,
           fallbackAccountName: expense.fallbackAccountName,
           description: expense.description,
@@ -818,8 +837,10 @@ export async function generateJournalCsv(runId: number) {
   }
 
   const employerStatutoryExpense = round2(totals.sssEr + totals.ecEr + totals.philHealthEr + totals.pagIbigEr);
-  const debitTotal = rows.reduce((sum, row) => sum + Number(row[9] || 0), 0);
-  const creditTotal = rows.reduce((sum, row) => sum + Number(row[10] || 0), 0);
+  const debitIndex = header.indexOf("Debit");
+  const creditIndex = header.indexOf("Credit");
+  const debitTotal = rows.reduce((sum, row) => sum + Number(row[debitIndex] || 0), 0);
+  const creditTotal = rows.reduce((sum, row) => sum + Number(row[creditIndex] || 0), 0);
   if (Math.abs(debitTotal - creditTotal) > 0.02) {
     throw new Error(
       `Payroll journal does not balance: debit ₱${debitTotal.toFixed(2)} vs credit ₱${creditTotal.toFixed(2)}. Review unclassified payroll lines before export.`,
