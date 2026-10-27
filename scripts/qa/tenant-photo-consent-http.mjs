@@ -264,7 +264,8 @@ async function prove() {
       assert.equal(s.consent.length, 0,
         "the initial consent must be established by real signed-in HTTP, not a seeded fake");
       assert.equal(s.photos.length, 2);
-      assert.deepEqual(s.photos.map(p => p.id), e.photoIds);
+      assert.deepEqual(s.photos.map(p => p.id).sort(), [...e.photoIds].sort(),
+        "photo IDs are checked as a set; PostgreSQL sorts UUID keys, not insert order");
       assert.equal(s.photos.filter(p => p.legalHold).length, 1);
       assert.ok(s.photos.every(p => p.sealedPhoto?.includes(e.marker) && p.purgedAt == null));
     }
@@ -343,6 +344,11 @@ async function prove() {
         "revoking consent must purge existing non-held photo evidence");
       assert.ok(nonheld.purgedAt,
         "purge must write the actual timestamp");
+      assert.deepEqual({
+        ...nonheld,
+        sealedPhoto: beforeNonheld.sealedPhoto,
+        purgedAt: beforeNonheld.purgedAt,
+      }, beforeNonheld, "withdrawal may change only ciphertext and purge time");
       assert.deepEqual(held, beforeHeld,
         "legal-hold photo must stay byte-identical under withdrawal");
       assertOtherSourcesPreserved(before, after,
