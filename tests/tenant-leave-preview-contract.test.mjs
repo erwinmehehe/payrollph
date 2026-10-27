@@ -196,6 +196,6 @@ test("exact manifest GET/POST identities remain uncredited and server source bin
     "seedEmployer", "standaloneMakeSession", "victimSnapshot", "peerWorker",
     "workerEmployeeId", "fullDayPreviewBody", "shiftDefinitions",
     "scheduleOverrides", "assertLeavePreviewSourcesEqual", "ignoredSpoofs",
-    "const separated", "crossSite",
+    "const [separated]", "crossSite",
   ]) assert.ok(integration.includes(proof), "missing actual PG/HTTP test source: " + proof);
 });
