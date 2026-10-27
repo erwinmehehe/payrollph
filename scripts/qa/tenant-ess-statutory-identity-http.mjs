@@ -298,8 +298,16 @@ async function assertExactMaskedIdentifierGet(idResponse, actor, ownIds, sentine
     assert.ok(!Object.hasOwn(actual, "proposedEncrypted"),
       "encrypted identifier ciphertext must not be exposed in GET");
   }
-  assert.equal(idResponse.headers.get("cache-control"), "private, no-store",
-    "sensitive identifier response must not be shared or cached");
+  // The server may normalize "private, no-store" to "no-store, max-age=0".
+  // Enforce the non-storage directive, not a specific header serialization;
+  // reject contradictory shared-cache instructions even alongside no-store.
+  const cacheDirectives = (idResponse.headers.get("cache-control") ?? "")
+    .split(",").map((directive) => directive.trim().toLowerCase());
+  assert.ok(cacheDirectives.includes("no-store"),
+    "sensitive identifier response must explicitly forbid cache storage");
+  assert.ok(!cacheDirectives.includes("public") &&
+    !cacheDirectives.some((directive) => directive.startsWith("s-maxage")),
+    "sensitive identifier response cannot authorize shared-cache storage");
   assert.ok(!idResponse.text.includes("FICTIONAL9001") &&
     !idResponse.text.includes("FICTATTACK") &&
     !idResponse.text.includes("FICTDRIVER"),
