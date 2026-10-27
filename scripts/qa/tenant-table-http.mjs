@@ -280,6 +280,12 @@ export async function verifyTenantTable(_f, { request = standaloneRequest, expec
   assert.deepEqual(victimAfter, victimBefore, "table reads leave the victim employer's rows and audit trail unchanged");
   assert.equal(passed.size, rows.length * 2, "every row passed for both independent attacker employers");
   assert.equal(discriminatingProofs, rows.length, "every row's proof rejected the other attacker's genuine response");
+  // Separate, uncredited POST/PATCH attendance family. The existing GET proof remains byte-identical.
+  // Only run where its genuine flagged-read row and real victim seed were included.
+  if (profile === "flagged-reads" && rows.some(row => row.key === "GET attendance/offline-claims")) {
+    await (await import("./tenant-offline-claims-http.mjs")).verifyOfflineClaimsTenantWrites(
+      employers, { request, expectStatus, makeSession });
+  }
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
   console.log(JSON.stringify({ kind: "tenant-table-proof", profile, pathOnly: process.env.TENANT_TABLE_PATH_ONLY === "1", rows: rows.length, ownAndForeignPairs: passed.size,
     discriminatingProofs, victimDatabaseUnchanged: true, productionTested: false, certified: false }));
