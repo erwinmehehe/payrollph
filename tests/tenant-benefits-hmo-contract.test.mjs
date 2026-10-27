@@ -284,7 +284,7 @@ test("HMO route source keeps real organization and resource ID guards before wri
   assert.equal((source.match(/key: "POST benefits\/hmo"/g) ?? []).length, 1);
   for (const clause of ["victimSeeded.enrollmentId", "victimSeeded.dependentId",
     "auditBusinessSnapshot", "forgedAdditionalIdsDenied", "await state(c.victim.org.id)",
-    "assert.deepEqual(after.enrollments", "providerOrMoneyMovement: false"]) {
+    "assert.deepEqual(after[field]", "providerOrMoneyMovement: false"]) {
     assert.ok(source.includes(clause), "missing source proof: " + clause);
   }
 });
