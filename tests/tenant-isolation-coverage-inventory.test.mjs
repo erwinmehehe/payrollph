@@ -533,6 +533,128 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // WRK-02: the allocation handler now scopes persisted updates and manager
+  // decisions. Its own/foreign HTTP proof passed, but two partial-action
+  // methods must remain GAP, not inherit the unrelated GET credit. Admit
+  // only this reviewed route/blob and exact protected PG16 source receipt.
+  if (isNewOrChanged && method.status === "GAP" &&
+      ["src/app/api/workforce-planning/allocations/route.ts POST",
+        "src/app/api/workforce-planning/allocations/route.ts PATCH"].includes(key)) {
+    const routePath = "src/app/api/workforce-planning/allocations/route.ts";
+    const entry = manifest.allApiRouteFiles[routePath];
+    const reviewed = method.reviewedUncertified;
+    const post = key.endsWith(" POST");
+    const routeSha = "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9";
+    assert.equal(currentBlob, routeSha,
+      "WRK-02 route changed again; obtain a new independent tenant review");
+    assert.equal(entry.gitBlobSha, currentBlob);
+    assert.deepEqual(entry.methods.map(row => [row.name, row.status]),
+      [["GET", "COVERED"], ["POST", "GAP"], ["PATCH", "GAP"]],
+      "No partial WRK-02 method may be credited from action-level proof");
+    assert.equal(entry.methods[0].testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+      "Previously covered GET must retain its separate exact proof");
+    assert.equal(method.testedBy, null, "WRK-02 POST/PATCH still require complete method proof");
+    assert.equal(reviewed?.kind, "wrk02-partial-allocation-and-manager-decision-tenant-hardening");
+    assert.equal(reviewed?.originalRouteBlobSha, "f8477326b6a64f45e554f70d9b297b5f20f9bf84");
+    assert.equal(reviewed?.routeBlobSha, routeSha);
+    assert.equal(reviewed?.file, "scripts/qa/tenant-wfp-allocations-http.mjs");
+    assert.equal(reviewed?.proofBlobSha, "7afbaf74355ebeeab989608a7d3c939b794cabc5");
+    assert.equal(reviewed?.testFile, "tests/tenant-wfp-allocations-contract.test.mjs");
+    assert.equal(reviewed?.testBlobSha, "793cb13ac69febeeb19503ca99bc9eaa6fa100eb");
+    assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-wfp-allocations-http.yml");
+    assert.equal(reviewed?.workflowBlobSha, "3872153dc4233ed10f074ccf90d22a8a2cd6ad16");
+    assert.equal(reviewed?.reviewedHead, "3b548203726254c18f4ad4fb201a609c96f5e25a");
+    assert.equal(reviewed?.passedJob,
+      "https://github.com/erwinmehehe/payrollph/actions/runs/40684903960/job/122804642868");
+    assert.equal(reviewed?.newCredits, 0, "Source-only controls cannot create an inventory credit");
+    const linePins = post
+      ? [301, 314, 260, 264, 291, 136]
+      : [353, 370, 334, 338, 346, 136];
+    assert.deepEqual([
+      reviewed.ownPositiveLine, reviewed.secondaryOwnPositiveLine,
+      reviewed.foreignDenialLine, reviewed.secondaryForeignDenialLine,
+      reviewed.unchangedDbLine, reviewed.higherIdVictimLine,
+    ], linePins, "WRK-02 partial proof line pins changed");
+    assert.deepEqual(reviewed.actions,
+      post ? ["allocation_create", "manager_draft_create"] : ["submit", "accept", "reject"]);
+    assert.deepEqual(reviewed.remainingGaps,
+      post ? ["existing_allocation_update", "budget_race_and_version_conflict"]
+        : ["all_decision_race_and_flag_combinations"]);
+    const route = readFileSync(routePath, "utf8");
+    const script = readFileSync(reviewed.file, "utf8");
+    const scriptLines = script.split("\n");
+    const contract = readFileSync(reviewed.testFile, "utf8");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.equal(gitBlobSha(Buffer.from(route)), routeSha);
+    assert.equal(gitBlobSha(Buffer.from(script)), reviewed.proofBlobSha,
+      "Changing the WRK-02 HTTP proof requires a fresh passing receipt");
+    assert.equal(gitBlobSha(Buffer.from(contract)), reviewed.testBlobSha,
+      "Changing the WRK-02 contract requires a renewed source review");
+    assert.equal(gitBlobSha(Buffer.from(workflow)), reviewed.workflowBlobSha,
+      "Changes to the disposable PG16 workflow require fresh review");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wfp-allocations-http\.mjs/);
+    assert.ok(script.indexOf("requireDisposablePlanningEnv();") <
+      script.indexOf('import("../../src/db/index.ts")'),
+      "Fail-closed PG16-only preflight must precede database imports");
+    assert.match(script, /const \[a, b, victim\] = employers;/);
+    assert.match(script, /for \(const attacker of \[a, b\]\)/);
+    assert.match(evidenceLine(reviewed.file, 136, key + " higher-ID victim"),
+      /assert\.ok\(victim\[key\] > attacker\[key\]/);
+    assert.match(script, /const post = \(actor, payload, nonadmin = false\) =>/);
+    assert.match(script, /http\.standaloneRequest\(PATH, \{ method: "POST"/);
+    assert.match(script, /const patch = \(actor, submissionId, action,/);
+    assert.match(script, /method: "PATCH"/);
+    assert.match(script, /assert\.equal\(response\.status, status,/,
+      "Negative-control HTTP status checks must be executable");
+    assert.match(script, /assert\.equal\(audit\.organizationId, actor\.orgId\)/);
+    assert.match(script, /for \(const actor of \[a, b\]\)/);
+    assert.match(script, /productionCertified: false, wholeMethodAccepted: false, newCredits: 0/);
+    assert.match(contract, /assertNoStateChange/);
+    assert.match(contract, /newCredits: 0/);
+    const at = number => evidenceLine(reviewed.file, number, key);
+    if (post) {
+      assert.match(at(301), /const createAllocation = await post\(actor, allocationBody\(actor\)\)/);
+      assert.match(at(314), /const createDraft = await post\(actor, submissionBody\(actor, allocationId\)\)/);
+      assert.match(at(260), /deny\(await post\(actor, allocationBody\(actor, victim\.orgId,/);
+      assert.match(at(264), /deny\(await post\(actor, submissionBody\(actor,/);
+      assert.match(scriptLines.slice(259, 267).join("\n"),
+        /victim\.planId, victim\.newUnitId\)\), 403,/);
+      assert.match(scriptLines.slice(263, 268).join("\n"),
+        /victim\.existingAllocationId, victim\.orgId\)\), 403,/);
+      assert.match(at(291), /assertNoStateChange\(expected\.get\(e\.orgId\), await snapshot\(e\.orgId\)/);
+      assert.match(script, /assertOwnAllocationCreated\(/);
+      assert.match(script, /assertOwnManagerDraftCreated\(/);
+      assert.match(script, /victim\.existingAllocationId\)\), 404,/);
+      assert.match(route, /eq\(workforcePlanAllocations\.organizationId, organizationId\)/);
+      assert.match(route, /eq\(workforcePlanManagerSubmissions\.organizationId, organizationId\)/);
+    } else {
+      assert.match(at(353), /const submitted = await patch\(actor, actor\.draftId, "submit"\)/);
+      assert.match(at(370), /const decision = await patch\(actor, actor\.draftId, action, \{ checker: true \}\)/);
+      assert.match(at(334), /deny\(await patch\(actor, victim\.draftId, action, \{ orgId: actor\.orgId \}\)/);
+      assert.match(at(338), /deny\(await patch\(actor, victim\.draftId, "accept",/);
+      assert.match(scriptLines.slice(333, 341).join("\n"),
+        /403, actor\.label \+ " foreign manager PATCH " \+ action/);
+      assert.match(scriptLines.slice(337, 341).join("\n"),
+        /403, actor\.label \+ " foreign independent-checker PATCH"/);
+      assert.match(at(346), /assertNoStateChange\(expected\.get\(e\.orgId\), await snapshot\(e\.orgId\)/);
+      assert.match(script, /for \(const action of \["submit", "accept", "reject"\]\)/);
+      assert.match(script, /assertDecisionTransition\(beforeSubmit, afterSubmit/);
+      assert.match(script, /assertDecisionTransition\(beforeDecide, afterDecide/);
+      assert.match(script, /deny\(await patch\(actor, actor\.draftId, "accept"\), 409/);
+      assert.match(script, /foreignPatches: 8, nonadminPatches: 2, makerDecisionDenials: 3/);
+      assert.match(script, /ownSubmissions: 3, ownDecisions: 3/);
+      assert.match(route, /eq\(workforcePlanManagerSubmissions\.organizationId, submission\.organizationId\)/);
+      assert.match(route, /eq\(workforcePlanManagerSubmissions\.allocationId, submission\.allocationId\)/);
+      assert.match(route, /\.for\("update"\)\.limit\(1\)/);
+      const patchSrc = route.slice(route.indexOf("export async function PATCH"));
+      assert.ok(patchSrc.indexOf('denyOptInEnterpriseAdvancedPlan(submission.organizationId, "planning")') <
+        patchSrc.indexOf('if (action === "submit")'),
+        "All decision actions must execute the same advanced-planning access gate");
+    }
+    return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

@@ -30585,7 +30585,7 @@
       ]
     },
     "src/app/api/workforce-planning/allocations/route.ts": {
-      "gitBlobSha": "f8477326b6a64f45e554f70d9b297b5f20f9bf84",
+      "gitBlobSha": "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9",
       "route": "workforce-planning/allocations",
       "methods": [
         {
@@ -30609,15 +30609,71 @@
           "name": "POST",
           "line": 145,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Provisional WRK-02 fictional PG16/real HTTP proof covers owned allocation creation and owned manager-draft creation plus two-attacker real victim denials. Existing-allocation update, budget races and complete method proof remain outstanding. Explicit GAP; no coverage credit or production acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-partial-allocation-and-manager-decision-tenant-hardening",
+            "originalRouteBlobSha": "f8477326b6a64f45e554f70d9b297b5f20f9bf84",
+            "routeBlobSha": "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9",
+            "file": "scripts/qa/tenant-wfp-allocations-http.mjs",
+            "proofBlobSha": "7afbaf74355ebeeab989608a7d3c939b794cabc5",
+            "testFile": "tests/tenant-wfp-allocations-contract.test.mjs",
+            "testBlobSha": "793cb13ac69febeeb19503ca99bc9eaa6fa100eb",
+            "workflowFile": ".github/workflows/tenant-wfp-allocations-http.yml",
+            "workflowBlobSha": "3872153dc4233ed10f074ccf90d22a8a2cd6ad16",
+            "reviewedHead": "3b548203726254c18f4ad4fb201a609c96f5e25a",
+            "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40684903960/job/122804642868",
+            "ownPositiveLine": 301,
+            "secondaryOwnPositiveLine": 314,
+            "foreignDenialLine": 260,
+            "secondaryForeignDenialLine": 264,
+            "unchangedDbLine": 291,
+            "higherIdVictimLine": 136,
+            "actions": [
+              "allocation_create",
+              "manager_draft_create"
+            ],
+            "remainingGaps": [
+              "existing_allocation_update",
+              "budget_race_and_version_conflict"
+            ],
+            "newCredits": 0
+          }
         },
         {
           "name": "PATCH",
-          "line": 418,
+          "line": 436,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Provisional WRK-02 fictional PG16/real HTTP proof covers own submit, independent checker accept/reject, two-attacker foreign-denial and unchanged victim DB. Full branch/race and independent security acceptance remain outstanding. Explicit GAP; no coverage credit or production acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-partial-allocation-and-manager-decision-tenant-hardening",
+            "originalRouteBlobSha": "f8477326b6a64f45e554f70d9b297b5f20f9bf84",
+            "routeBlobSha": "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9",
+            "file": "scripts/qa/tenant-wfp-allocations-http.mjs",
+            "proofBlobSha": "7afbaf74355ebeeab989608a7d3c939b794cabc5",
+            "testFile": "tests/tenant-wfp-allocations-contract.test.mjs",
+            "testBlobSha": "793cb13ac69febeeb19503ca99bc9eaa6fa100eb",
+            "workflowFile": ".github/workflows/tenant-wfp-allocations-http.yml",
+            "workflowBlobSha": "3872153dc4233ed10f074ccf90d22a8a2cd6ad16",
+            "reviewedHead": "3b548203726254c18f4ad4fb201a609c96f5e25a",
+            "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40684903960/job/122804642868",
+            "ownPositiveLine": 353,
+            "secondaryOwnPositiveLine": 370,
+            "foreignDenialLine": 334,
+            "secondaryForeignDenialLine": 338,
+            "unchangedDbLine": 346,
+            "higherIdVictimLine": 136,
+            "actions": [
+              "submit",
+              "accept",
+              "reject"
+            ],
+            "remainingGaps": [
+              "all_decision_race_and_flag_combinations"
+            ],
+            "newCredits": 0
+          }
         }
       ],
       "employerSources": {
@@ -30673,19 +30729,19 @@
           "token": "assertOrganizationRole"
         },
         {
-          "line": 419,
+          "line": 437,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 422,
+          "line": 440,
           "token": "getSessionUser"
         },
         {
-          "line": 444,
+          "line": 462,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 513,
+          "line": 543,
           "token": "assertOrganizationRole"
         }
       ],
