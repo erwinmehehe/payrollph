@@ -234,10 +234,12 @@ export async function proveStaffingWrites() {
       assert.ok(e.org.id > 0);
       assert.ok(e.cookie?.startsWith("__Host-linaw_session="));
     }
-    for (const e of [a, b, victim]) await seedEmployerEvidence(e);
+    for (const e of subjects) await seedEmployerEvidence(e);
     assert.ok(victim.site.id > a.site.id && victim.site.id > b.site.id);
     assert.ok(victim.job.id > a.job.id && victim.job.id > b.job.id);
     assert.ok(victim.worker.id > a.worker.id && victim.worker.id > b.worker.id);
+    assert.ok(excluded.org.id > victim.org.id && excluded.site.id > victim.site.id,
+      "excluded employer must be a distinct persisted, non-allowlisted company");
     assert.notEqual(a.cookie, b.cookie);
     assert.notEqual(a.checker.cookie, b.checker.cookie);
 
@@ -267,6 +269,24 @@ export async function proveStaffingWrites() {
     assert.ok(victim.approve.row.id > a.reject.row.id &&
       victim.approve.row.id > b.reject.row.id,
     "genuine victim policy target must exceed both attacker policy IDs");
+
+    // A fourth real employer exists, but its ID is deliberately absent from
+    // every WFM pilot allowlist. Feature-off 404s are NEGATIVE controls only.
+    // Never confuse them with successful tenant coverage for the two methods.
+    await denied("POST", bodyFor(excluded, "approve"), excluded.cookie, 404,
+      "genuine non-allowlisted employer POST");
+    await denied("PATCH", transition(excluded, victim.approve.row.id, "submit"),
+      excluded.cookie, 404, "genuine non-allowlisted employer PATCH");
+    const excludedBefore = await freezeAll();
+    const excludedGet = await request(STAFFING_ENDPOINT + "?" +
+      new URLSearchParams({
+        organizationId: String(excluded.org.id),
+        worksiteId: String(excluded.site.id),
+        jobProfileId: String(excluded.job.id),
+        metricKind: "transactions", intervalMinutes: "60", mode: "manage",
+      }), { cookie: excluded.cookie });
+    assertStaffingDenied(excludedGet, 404, subjects.map(e => e.marker));
+    await unchangedEverywhere(excludedBefore, "non-allowlisted employer GET");
 
     for (const actor of [a, b]) {
       const other = actor === a ? b : a;
