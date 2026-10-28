@@ -1,3 +1,4 @@
+import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 /**
@@ -451,8 +452,8 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   }
   assert.equal(essContributionCredits, 2);
   assert.deepEqual(manifest.allApiRouteFiles["src/app/api/self/identifiers/route.ts"].methods
-    .map(method => [method.name, method.status]), [["GET", "GAP"], ["POST", "GAP"]],
-    "The other two ESS HTTP methods remain GAP with zero new credits");
+    .map(method => [method.name, method.status]), [["GET", "COVERED"], ["POST", "COVERED"]],
+    "ESS identifier promotions retain their separately verified proof");
   assert.equal(managerDirectReportCredits, 1);
   // These three source-specific APIs are NEW methods, not recoveries from the
   // historical GAP pool. Require their actual family HTTP proofs, and retain
@@ -466,13 +467,15 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     assert.equal(method.testedBy.rowFile, "scripts/qa/tenant-table-rows/" + (verb === "GET" ? "read" : "write") + "/hcm-corrections.mjs");
     assert.ok(method.testedBy.ownPositiveLine && method.testedBy.foreignDenialLine && method.testedBy.unchangedDbLine);
   }
+  const promotionCredits = verifyPromotionCredits(manifest);
+  assert.equal(promotionCredits, 16);
   const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
-  assert.equal(manifest.metrics.coveredAfter - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+  assert.equal(manifest.metrics.coveredAfter - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
-  assert.equal(manifest.metrics.gap + selfDevelopmentCredits + additionalSourcePinnedMethods +
+  assert.equal(manifest.metrics.gap + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
     tableMethods.length + mergedProofCredits + essContributionCredits + 7 - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");

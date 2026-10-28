@@ -199,11 +199,18 @@ test("source keeps worker identity session-bound, membership checked and pending
   assert.doesNotMatch(source, /db\.update\(timePunches\)/);
 });
 
-test("both methods stay GAP with no invented evidence or manifest edits", () => {
+test("both GET and the sole pending-correction POST have separate executed own/victim credits", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const methods = manifest.allApiRouteFiles["src/app/api/self/workforce/route.ts"].methods;
-  assert.deepEqual(methods.map(x => [x.name, x.status, x.testedBy ?? null]),
-    [["GET", "GAP", null], ["POST", "GAP", null]]);
+  assert.deepEqual(methods.map(x => [x.name, x.status]),
+    [["GET", "COVERED"], ["POST", "COVERED"]]);
+  for (const method of methods) {
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-self-workforce-http.mjs");
+    assert.equal(method.testedBy?.prNumber, 1478);
+    for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
+      assert.ok(Number.isSafeInteger(method.testedBy[field]) && method.testedBy[field] > 0, field);
+    }
+  }
 });
 
 test("focused workflow is executable PG16/HTTP, not a source-only or live-provider proof", () => {

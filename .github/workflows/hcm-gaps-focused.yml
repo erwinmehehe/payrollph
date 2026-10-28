@@ -161,6 +161,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Prepare isolated golden certification schema
         run: npm run db:push
+      - name: Apply cutover baseline objects in disposable PostgreSQL
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Certify statutory payroll golden cases
         run: npm run payroll:golden
       - name: Reconcile employee-level Phase 2A

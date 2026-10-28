@@ -1,3 +1,4 @@
+import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -194,12 +195,13 @@ test("read-only source snapshot rejects any changed worker, shift, leave, payrol
   }
 });
 
-test("exact manifest GET/POST identities remain uncredited and server source binds employee access", () => {
+test("exact promoted POST identity retains verified evidence and server source binds employee access", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles).find(
     row => row.route === "leave/preview");
-  assert.equal(record?.methods?.find(method => method.name === "POST")?.status, "GAP");
+  assert.equal(verifyPromotionCredits(manifest), 16);
+  assert.equal(record?.methods?.find(method => method.name === "POST")?.status, "COVERED");
   const source = readFileSync("src/app/api/leave/preview/route.ts", "utf8");
   for (const condition of [
     "enforceSameOriginMutation", "getAccess(user.id, organizationId)",
