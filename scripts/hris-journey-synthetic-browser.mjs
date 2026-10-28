@@ -201,6 +201,15 @@ try {
     await hire.getByLabel("Job title").fill("Synthetic HR");
     await hire.getByLabel("Monthly rate").fill("24000");
     await hire.getByLabel("Start date").fill("2026-10-15");
+    // #1521 requires an actual HR choice. Do not restore an NCR UI/API default:
+    // assert the blank required control first, then explicitly select the
+    // fictional employee's own region before the real HTTP create.
+    const wageRegion = hire.getByLabel("Wage region");
+    assert.equal(await wageRegion.inputValue(), "", "new hires must start without a wage-region selection");
+    assert.equal(await wageRegion.evaluate(input => input.validity.valueMissing), true,
+      "native required validation must reject a blank wage region");
+    await hire.getByLabel("Wage region").selectOption("NCR");
+    assert.equal(await wageRegion.inputValue(), "NCR");
 
     // A transient error must preserve editable input and not claim success.
     await page.route("**/api/employees", route => route.fulfill({
@@ -211,6 +220,8 @@ try {
     await hire.getByText("Synthetic retryable hire failure", { exact: true }).waitFor();
     assert.equal(await hire.getByLabel("Start date").inputValue(), "2026-10-15");
     assert.equal(await hire.getByLabel("First name").inputValue(), "Journey");
+    assert.equal(await wageRegion.inputValue(), "NCR",
+      "a retryable server error must preserve the explicitly selected wage region");
 
     // This is the real protected UI/API, not a seeded fake completed hire.
     const [create] = await Promise.all([
@@ -219,12 +230,16 @@ try {
       hire.getByRole("button", { name: "Create & onboard" }).click(),
     ]);
     assert.equal(create.status(), 201, "Source employee creation must succeed from Everyday HR");
+    assert.equal(create.request().postDataJSON()?.region, "NCR",
+      "real employee-create HTTP must receive the explicitly selected wage region");
     const created = await create.json();
     const id = created?.employee?.id;
     assert.ok(Number.isSafeInteger(id) && id > 0);
     assert.equal(created.employee.organizationId, 1);
     assert.equal(created.employee.firstName, "Journey");
     assert.equal(created.employee.lastName, "Newhire");
+    assert.equal(created.employee.region, "NCR",
+      "the actual created employee must persist the selected region");
     assert.ok(Array.isArray(created.onboarding) && created.onboarding.length > 0,
       "The owning employee-create API must persist real provisioning tasks");
 

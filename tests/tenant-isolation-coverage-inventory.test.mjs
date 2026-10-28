@@ -322,6 +322,102 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // #1521 changes POST employee creation only to require an explicit NWPC
+  // wage-region value and return INVALID_WAGE_REGION / 422 before any write.
+  // The reconstructed pre-change route must match its original Git blob byte
+  // for byte. The original GET and PATCH handlers remain untouched; no new
+  // tenant-isolation method credit is earned for POST or PATCH by this review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      ["src/app/api/employees/route.ts POST",
+       "src/app/api/employees/route.ts PATCH"].includes(key)) {
+    const path = "src/app/api/employees/route.ts";
+    const routeSha = "55714fa2eb6bc4efa4ba6b01c91864e417ef99a3";
+    const originalSha = "5032fb958c435f3332af408ca6c3217e764cbb7e";
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, routeSha,
+      "Employee route changed: repeat wage validation and tenant gate review");
+    assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, routeSha);
+    assert.equal(reviewed?.kind, "employee-explicit-wage-region-validation-only");
+    assert.equal(reviewed?.routeBlobSha, routeSha);
+    assert.equal(reviewed?.originalRouteBlobSha, originalSha);
+    assert.equal(reviewed?.onlyChangedMethod, "POST");
+    assert.equal(reviewed?.validationStatus, 422);
+    assert.equal(reviewed?.validationErrorCode, "INVALID_WAGE_REGION");
+    assert.equal(reviewed?.reconstructedOriginalRouteSource, true);
+    assert.equal(reviewed?.coverageCredits, 0);
+    assert.equal(reviewed?.testFile, "tests/wage-orders.test.ts");
+    assert.equal(reviewed?.browserProofFile, "scripts/hris-journey-synthetic-browser.mjs");
+    assert.equal(method.testedBy, null, "No standalone cross-tenant method proof: remain GAP");
+
+    const route = readFileSync(path, "utf8");
+    const undoExactlyOnce = (source, changed, prior) => {
+      assert.equal(source.split(changed).length, 2,
+        "Only one reviewed wage region source change may exist");
+      return source.replace(changed, prior);
+    };
+    let restored = undoExactlyOnce(route,
+      'import { WAGE_ORDERS, requireExplicitWageRegion } from "@/lib/wage-orders";',
+      'import { WAGE_ORDERS, wageOrderFor } from "@/lib/wage-orders";');
+    restored = undoExactlyOnce(restored,
+      "// Require an explicit NWPC region on new records, never a silent NCR default.",
+      "// Use a canonical NWPC region on new records: an unsupported value would\n" +
+        "  // otherwise surface as an opaque error during the employee's first payroll.");
+    restored = undoExactlyOnce(restored,
+      "wageRegion = requireExplicitWageRegion(body.region);",
+      'wageRegion = wageOrderFor(String(body.region ?? "NCR")).region;');
+    assert.equal(gitBlobSha(Buffer.from(restored)), originalSha,
+      "Only the three reviewed validator/import/comment edits may be present");
+
+    const getStart = "export async function GET(request: Request) {";
+    const postStart = "export async function POST(request: Request) {";
+    const patchStart = "export async function PATCH(request: Request) {";
+    for (const methodSource of [getStart, postStart, patchStart]) {
+      assert.ok(route.includes(methodSource) &&
+        route.indexOf(methodSource) === route.lastIndexOf(methodSource),
+        "Employee route's original separate method must not be duplicated");
+    }
+    assert.equal(route.slice(route.indexOf(getStart), route.indexOf(postStart)),
+      restored.slice(restored.indexOf(getStart), restored.indexOf(postStart)),
+      "Existing GET proof cannot be inherited if GET handler changed");
+    assert.equal(route.slice(route.indexOf(patchStart)),
+      restored.slice(restored.indexOf(patchStart)),
+      "Untested employee PATCH must remain byte-for-byte unchanged");
+
+    assert.match(route, /wageRegion = requireExplicitWageRegion\(body\.region\)/);
+    assert.doesNotMatch(route, /body\.region \?\? "NCR"/,
+      "A missing employee region must not silently become NCR");
+    assert.match(route, /code: "INVALID_WAGE_REGION"/);
+    assert.match(route, /supportedRegions: WAGE_ORDERS\.map/);
+    assert.match(route, /status: 422/);
+    assert.match(route, /region: wageRegion/);
+    assert.match(route, /assertOrganizationRole\(/);
+    assert.match(route, /getAccess\(user\.id, organizationId\)/);
+
+    const ui = readFileSync("src/components/new-hire-modal.tsx", "utf8");
+    assert.match(ui, /region: ""/);
+    assert.match(ui, /<label>Wage region/);
+    assert.match(ui, /<select required value=\{form\.region\}/);
+    assert.match(ui, /<option value="" disabled>Choose wage region<\/option>/);
+    const sourceTest = readFileSync(reviewed.testFile, "utf8");
+    assert.match(sourceTest, /requireExplicitWageRegion\(invalid\)/);
+    assert.match(sourceTest, /source\.includes\('wageRegion = requireExplicitWageRegion\(body\.region\);'\)/);
+    const realBrowser = readFileSync(reviewed.browserProofFile, "utf8");
+    assert.match(realBrowser, /hire\.getByLabel\("Wage region"\)\.selectOption\("NCR"\)/,
+      "The real-hire browser acceptance must explicitly pick a wage region");
+    assert.match(realBrowser, /created\.employee\.region, "NCR"/);
+    const get = manifest.allApiRouteFiles[path].methods.find(item => item.name === "GET");
+    const post = manifest.allApiRouteFiles[path].methods.find(item => item.name === "POST");
+    const patch = manifest.allApiRouteFiles[path].methods.find(item => item.name === "PATCH");
+    assert.equal(get?.status, "COVERED",
+      "Preserve prior real-tenant GET evidence");
+    assert.equal(get?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+    assert.equal(post?.status, "GAP");
+    assert.equal(post?.testedBy, null);
+    assert.equal(patch?.status, "GAP");
+    assert.equal(patch?.testedBy, null);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

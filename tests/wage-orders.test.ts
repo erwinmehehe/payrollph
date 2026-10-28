@@ -93,6 +93,13 @@ test("new-hire form requires explicit wage region selection rather than defaulti
   assert.ok(source.includes('<select required value={form.region}'), "region select blocks blank submission");
   assert.ok(source.includes('<option value="" disabled>Choose wage region</option>'));
   assert.ok(!source.includes('region: "NCR"'), "new hires must select their own region");
+  const realBrowser = readFileSync("scripts/hris-journey-synthetic-browser.mjs", "utf8");
+  assert.ok(realBrowser.includes('hire.getByLabel("Wage region").selectOption("NCR")'),
+    "fictional HR operator must select a wage region before the real POST");
+  assert.ok(realBrowser.includes('create.request().postDataJSON()?.region, "NCR"'),
+    "browser must prove the explicit region was sent through the actual API request");
+  assert.ok(realBrowser.includes('created.employee.region, "NCR"'),
+    "browser must verify the selected region was persisted, not inferred");
 });
 
 test("employee creation validates wage regions at the API boundary before payroll", () => {
