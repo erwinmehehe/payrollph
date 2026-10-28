@@ -44,18 +44,30 @@ function simpleScopeMatches(
   field: "location" | "department",
   value: string,
 ): boolean {
-  const conditions = [...(draft.conditions.all ?? []), ...(draft.conditions.any ?? [])];
-  return conditions.some((condition) => (
-    condition.field === field
-    && (condition.operator === "eq" || condition.operator === "in")
-    && (
-      typeof condition.value === "string"
-        ? condition.value.trim().toLowerCase() === value.toLowerCase()
-        : Array.isArray(condition.value) && condition.value.some((item) =>
-          typeof item === "string" && item.trim().toLowerCase() === value.toLowerCase()
-        )
-    )
-  ));
+  const expected = value.trim().toLowerCase();
+  const exactlyWithinScope = (condition: NonNullable<TypedAutomationLanguageDraft["conditions"]["all"]>[number]): boolean => {
+    if (condition.field !== field) return false;
+    if (condition.operator === "eq") {
+      return typeof condition.value === "string"
+        && condition.value.trim().toLowerCase() === expected;
+    }
+    if (condition.operator === "in") {
+      // An IN list containing the requested value plus a different value
+      // would silently expand an explicit "only in/for" restriction.
+      return Array.isArray(condition.value) && condition.value.length > 0
+        && condition.value.every((item) =>
+          typeof item === "string" && item.trim().toLowerCase() === expected
+        );
+    }
+    return false;
+  };
+
+  const all = draft.conditions.all ?? [];
+  const any = draft.conditions.any ?? [];
+  // ALL clauses constrain every match. For ANY, EVERY alternative must
+  // independently preserve the explicitly requested "only" scope.
+  return all.some(exactlyWithinScope)
+    || (any.length > 0 && any.every(exactlyWithinScope));
 }
 
 export function validateRequestedLanguageIntent(
