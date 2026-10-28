@@ -74,12 +74,20 @@ test("only GitHub Actions / isolated PG16 localhost / no provider secrets may ru
     APP_BASE_URL: "https://payroll.example.test",
     DEMO_MODE: "false", REQUIRE_PRIVILEGED_MFA: "true",
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
-    XENDIT_PAYOUTS_ENABLED: "false",
+    XENDIT_PAYOUTS_ENABLED: "false", XENDIT_BILLING_ENABLED: "false",
+    WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
+    HCM_OVERPAYMENT_PREVIEW_ENABLED: "false",
+    PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
     PAYMONGO_SECRET_KEY: "", XENDIT_SECRET_KEY: "", RESEND_API_KEY: "",
+    XENDIT_PAYOUT_SECRET_KEY: "", POSTMARK_SERVER_TOKEN: "", SMTP_URL: "",
+    STRIPE_SECRET_KEY: "",
   };
   requireDisposableFilingEnvironment(safe);
-  const required = Object.keys(safe).filter(n =>
-    !["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY"].includes(n));
+  const providerSecrets = [
+    "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY",
+    "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "SMTP_URL", "STRIPE_SECRET_KEY",
+  ];
+  const required = Object.keys(safe).filter(n => !providerSecrets.includes(n));
   for (const name of required) {
     assert.throws(() => requireDisposableFilingEnvironment({
       ...safe, [name]: "other",
@@ -88,7 +96,7 @@ test("only GitHub Actions / isolated PG16 localhost / no provider secrets may ru
       ...safe, [name]: undefined,
     }), /COMPLIANCE_FILING_REFUSED/, name);
   }
-  for (const name of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY"]) {
+  for (const name of providerSecrets) {
     assert.throws(() => requireDisposableFilingEnvironment({
       ...safe, [name]: "live-secret",
     }), /COMPLIANCE_FILING_REFUSED/, name);
@@ -116,6 +124,23 @@ test("one exact path-bound GAP method, with genuine victim-path and own-org sele
   assert.equal(row.foreignBody(first).organizationId, 14);
   assert.equal(row.forged.body(first).organizationId, 11);
   assert.ok(!row.ownBody(first).note.includes(first.victim.marker));
+
+  // Shared write-table seeding happens before EVERY method's request. A
+  // fictional Released run in the BIR worksheet's pay month changes its
+  // monthly SHA, and a same-tax-year run can alter year-end export evidence.
+  const legacy = readFileSync(
+    "scripts/qa/tenant-table-rows/write/compliance-evidence.mjs", "utf8");
+  const start = legacy.indexOf('key: "POST compliance/filing-validations"');
+  const end = legacy.indexOf('key: "POST compliance/labor-inspection/drills"', start);
+  assert.ok(start >= 0 && end > start, "shared BIR fixture must be grounded in source");
+  const birPayDate = legacy.slice(start, end).match(/payDate:\\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"/)?.[1];
+  assert.ok(birPayDate, "shared BIR fixture must have an exact pay date");
+  assert.equal(FILING_PERIOD.applicableMonth, FILING_PERIOD.payDate.slice(0, 7));
+  assert.equal(FILING_PERIOD.periodEnd.slice(0, 7), FILING_PERIOD.applicableMonth);
+  assert.notEqual(FILING_PERIOD.payDate.slice(0, 7), birPayDate.slice(0, 7),
+    "SSS rejection fixture must not contaminate BIR 1601-C monthly SHA");
+  assert.notEqual(FILING_PERIOD.payDate.slice(0, 4), birPayDate.slice(0, 4),
+    "SSS rejection fixture must not contaminate BIR annual source evidence");
 });
 
 test("positive own filing decision checks genuine persisted ID, SHA, employer and exact audit", () => {
