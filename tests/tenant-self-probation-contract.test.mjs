@@ -8,7 +8,7 @@ import {
 } from "../scripts/qa/tenant-self-probation-contract.mjs";
 
 const safe = {
-  CI: "true", NODE_ENV: "production", DEMO_MODE: "false",
+  GITHUB_ACTIONS: "true", CI: "true", NODE_ENV: "production", DEMO_MODE: "false",
   TENANT_SECOND_PASS_MODE: "isolated-ci-only",
   TENANT_PROBATION_MODE: "fictional-only",
   DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
@@ -61,7 +61,7 @@ const change = (source, mutate) => { const copy = structuredClone(source); mutat
 test("refuse all hosted, unguarded, payout or provider-enabled environments before imports", () => {
   assert.doesNotThrow(() => requireDisposableProbation(safe));
   for (const mutation of [
-    { CI: "false" }, { NODE_ENV: "development" }, { DEMO_MODE: "true" },
+    { GITHUB_ACTIONS: "false" }, { CI: "false" }, { NODE_ENV: "development" }, { DEMO_MODE: "true" },
     { TENANT_SECOND_PASS_MODE: "" }, { TENANT_PROBATION_MODE: "" },
     { DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/app_db" },
     { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/prod_db" },

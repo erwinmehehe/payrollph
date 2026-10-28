@@ -22,7 +22,7 @@ export function requireDisposableProbation(env = process.env) {
     "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY",
     "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "SMTP_URL", "STRIPE_SECRET_KEY",
   ];
-  const safe = env.CI === "true" &&
+  const safe = env.GITHUB_ACTIONS === "true" && env.CI === "true" &&
     env.NODE_ENV === "production" &&
     env.DEMO_MODE === "false" &&
     env.TENANT_SECOND_PASS_MODE === "isolated-ci-only" &&
