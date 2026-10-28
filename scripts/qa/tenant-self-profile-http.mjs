@@ -208,7 +208,7 @@ export async function proveSelfProfileHttp() {
       organizationId: second.org.id,
       userId: first.ess.id,
       role: "employee",
-      workerEmployeeId: second.worker.id,
+      workerEmployeeId: second.peer.id,
       active: true,
     });
     await db.update(userOrganizations).set({ active: false }).where(and(
