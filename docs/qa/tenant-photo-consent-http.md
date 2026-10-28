@@ -70,16 +70,26 @@ file. Cookies and private fixture contents never appear in logs or artifacts.
    payroll entries and payout batches must be byte-identical before
    and after all consent calls. No real payroll, attendance, payout
    or provider action may occur.
-9. Ten source-contract tests check environment guards, tenant IDs,
-   minimal receipts, cache directives, private denied responses, route
-   authorization checks, workflow ordering and still-GAP manifest status.
+9. A and B each have a separate genuine same-employer employee who has
+   **never accepted** photo capture and has no stored photographs. A freshly
+   minted in-memory synthetic session (not a fixture-file cookie) must first
+   POST `declined` and persist one employee-bound versioned consent and
+   audit event, with no employee, payroll, photo, or punch mutation. A second
+   `declined` is an unchanged/no-audit replay, and attempted reacceptance
+   returns 409 without any write. This exercises the initial-decline action
+   separately from accepted-to-declined withdrawal; it does **not** establish
+   what should happen to legacy photos if they exist before consent.
+10. Thirteen focused source-contract tests check environment guards, tenant
+    IDs, minimal receipts, cache directives, private denied responses, route
+    authorization checks, workflow ordering, first-decline source assertions,
+    and still-GAP manifest status.
 
 No existing tenant-table helper, receipt, application route, schema, feature
 registry, migration, live provider or payroll method is edited by this PR.
 
 ## Independent acceptance gates
 
-- [ ] All ten source-contract tests and syntax checks pass at the exact head.
+- [ ] All thirteen source-contract tests and syntax checks pass at the **new final head**.
 - [ ] Actual PostgreSQL 16 and authenticated localhost HTTP proof passes
       for both independent attackers and genuinely higher-ID victim.
 - [ ] Legal hold, audit, no-leak, employee mismatch and full source
@@ -88,6 +98,10 @@ registry, migration, live provider or payroll method is edited by this PR.
       review pass.
 - [ ] Independent coverage-manifest method reconciliation after acceptance,
       with no automatic GAP to COVERED change in this source PR.
+
+## Verified predecessor and outstanding independent review
+
+Before the new first-refusal scenario, [exact-head focused run 40612407574](https://github.com/erwinmehehe/payrollph/actions/runs/40612407574) passed all 12 existing source tests and real fictional PG16/localhost HTTP acceptance. **That predecessor run is not proof for the new commit.** Rerun the dedicated job after this change, then verify current-head CI and CodeQL. Two previously raised CodeQL file-to-network threads are outdated but unresolved; the underlying security alert status requires authorized security-team disposition, not an inferred dismissal. An independent privacy reviewer must decide the legal-hold, legacy-photo-before-first-refusal and consent-notice requirements. No production consent behavior or release flag is changed in this proof PR.
 
 **DRAFT / NOT ACCEPTED / DO NOT MERGE / ZERO METHOD CREDITS.**
 Synthetic data is not real employer UAT, legally sufficient consent or DPO

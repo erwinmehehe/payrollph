@@ -250,3 +250,23 @@ test("the exact POST remains a manifest GAP without synthetic coverage credits",
     .find(row => row.route === "web-bundy/consent");
   assert.equal(entry?.methods.find(m => m.name === "POST")?.status, "GAP");
 });
+
+test("first refusal is a distinct owned POST with no photos or fixture-file network cookie", () => {
+  const script = readFileSync("scripts/qa/tenant-photo-consent-http.mjs", "utf8");
+  for (const source of [
+    'const firstDeclines = [];',
+    'await addWorker(e, "FIRST-DECLINE", { payProfile: false })',
+    'firstDeclines.push({',
+    'const session = await shared.standaloneMakeSession(peer.userId);',
+    '"declined", "recorded"',
+    '"declined", "unchanged"',
+    'await denied(session.cookie, peer.organizationId, "accepted", 409)',
+    'firstTimeRefusalsProven: initialRefusals',
+  ]) {
+    assert.ok(script.includes(source), "missing real first-refusal proof: " + source);
+  }
+  assert.ok(script.includes('assert.equal(before.photos.filter(photo => photo.employeeId === peer.employeeId).length, 0'),
+    "first-time refusal must have never-captured own photos");
+  assert.ok(script.includes('assertOtherSourcesPreserved(before, after, "first-time consent refusal " + e.marker)'),
+    "must compare real employer staff, photos, payroll and audit sources");
+});

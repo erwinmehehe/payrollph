@@ -90,7 +90,7 @@ async function bootstrap() {
   const { eq } = orm;
   const { organizations, auditEvents, users, userOrganizations,
     workforcePunchPhotoEvidence } = schema;
-  const { seedEmployer, standaloneMakeSession, requireTenantTableDisposable } = shared;
+  const { seedEmployer, addWorker, standaloneMakeSession, requireTenantTableDisposable } = shared;
   requireTenantTableDisposable();
 
   try {
@@ -138,6 +138,30 @@ async function bootstrap() {
       serialized.push(safeEmployer(e, { id: user.id, cookie: actorSession.cookie }, pictures));
     }
 
+    // A first-time refusal is a distinct supported consent action from
+    // ACCEPTED -> DECLINED withdrawal. Create actual independently linked
+    // employee accounts for A and B, but seed NO photo evidence for them:
+    // a first-time decline cannot retroactively authorize photo capture.
+    // These actors will mint fresh sessions in --prove, not store cookies in
+    // the private fixture or transmit fixture-derived cookies via raw fetch.
+    const firstDeclines = [];
+    for (const e of [a, b]) {
+      const peer = await addWorker(e, "FIRST-DECLINE", { payProfile: false });
+      const [actor] = await db.insert(users).values({
+        name: "Fictional initial photo refusal " + e.marker,
+        email: "initial-photo-refusal-" + randomUUID() + "@example.invalid",
+        passwordHash: "synthetic-no-password-login",
+        role: "employee", employeeId: peer.id, active: true,
+      }).returning({ id: users.id });
+      await db.insert(userOrganizations).values({
+        userId: actor.id, organizationId: e.org.id,
+        role: "employee", active: true, workerEmployeeId: peer.id,
+      });
+      firstDeclines.push({
+        organizationId: e.org.id, employeeId: peer.id, userId: actor.id,
+      });
+    }
+
     // Malformed-identity control: a signed-in employee has actual membership
     // in A, but the user.employeeId points to the victim's real worker. The
     // employee/org binding MUST independently reject this as 404, not record
@@ -163,6 +187,7 @@ async function bootstrap() {
       schema: CONSENT_FIXTURE_SCHEMA,
       employers: serialized,
       allowlistedIds: enabledIds,
+      firstDeclines,
       mismatch: { userId: misbound.id, cookie: mismatchedSession.cookie },
     };
     const directory = mkdtempSync(join(tmpdir(), "payrollph-photo-consent-"));
@@ -177,6 +202,7 @@ async function bootstrap() {
       kind: "tenant-photo-consent-bootstrap", seededEmployers: 4,
       explicitlyAllowlisted: 3, realHigherIdVictim: true,
       nonallowlistedEmployer: 1, syntheticPhotoEvidence: 8,
+      initialRefusalActors: firstDeclines.length,
       cookieValuesLogged: false, productionTested: false, credits: 0,
     }));
   } finally {
@@ -190,6 +216,8 @@ async function prove() {
   assert.equal(fixture.schema, CONSENT_FIXTURE_SCHEMA);
   assert.equal(fixture.employers?.length, 4);
   const [a, b, victim, excluded] = fixture.employers;
+  assert.deepEqual(fixture.firstDeclines?.map(p => p.organizationId),
+    [a.org.id, b.org.id], "first-refusal employees must belong to separate real employers");
   assert.deepEqual(fixture.allowlistedIds,
     [a.org.id, b.org.id, victim.org.id]);
   assert.equal(process.env.WFM_PUNCH_EVIDENCE_ORG_IDS,
@@ -312,6 +340,44 @@ async function prove() {
       assertOtherSourcesPreserved(before, after, "own consent recording " + e.marker);
       positive++;
     }
+    // A never-accepted employee may decline immediately. Distinguish this
+    // legitimate 200 + persisted consent/audit from the later withdrawal
+    // branch. No photo was ever captured for these employees.
+    let initialRefusals = 0;
+    for (const peer of fixture.firstDeclines) {
+      const e = [a, b].find(row => row.org.id === peer.organizationId);
+      assert.ok(e);
+      const before = await state(e);
+      assert.ok(before.staff.some(worker => worker.id === peer.employeeId));
+      assert.equal(before.consent.filter(c => c.employeeId === peer.employeeId).length, 0);
+      assert.equal(before.photos.filter(photo => photo.employeeId === peer.employeeId).length, 0,
+        "never-consented peer must have no seeded/captured photographs");
+      const session = await shared.standaloneMakeSession(peer.userId);
+      assertOwnedConsentReceipt(await post(session.cookie, peer.organizationId, "declined"),
+        "declined", "recorded");
+      const after = await state(e);
+      const own = after.consent.filter(c => c.employeeId === peer.employeeId);
+      assert.equal(own.length, 1, "first refusal must persist exactly one own consent");
+      assert.equal(own[0].organizationId, e.org.id);
+      assert.equal(own[0].decidedByUserId, peer.userId);
+      assert.equal(own[0].consentVersion, CONSENT_VERSION);
+      assert.equal(own[0].choice, "declined");
+      assert.equal(after.audits.length, before.audits.length + 1);
+      assert.equal(after.audits.at(-1).metadata.employeeId, peer.employeeId);
+      assert.equal(after.audits.at(-1).metadata.choice, "declined");
+      assertOtherSourcesPreserved(before, after, "first-time consent refusal " + e.marker);
+      assert.equal(after.photos.filter(photo => photo.employeeId === peer.employeeId).length, 0);
+      const unchanged = await state(e);
+      assertOwnedConsentReceipt(await post(session.cookie, peer.organizationId, "declined"),
+        "declined", "unchanged");
+      assert.deepEqual(await state(e), unchanged, "repeat refusal cannot add consent/audit");
+      await denied(session.cookie, peer.organizationId, "accepted", 409);
+      assert.deepEqual(await state(e), unchanged,
+        "refusing then attempting silent reacceptance must not modify employer state");
+      initialRefusals++;
+      positive++;
+    }
+    assert.equal(initialRefusals, 2);
     const ownStates = await Promise.all(fixture.employers.map(state));
 
     // Attacker A and B must not write to the real victim or each other.
@@ -403,7 +469,8 @@ async function prove() {
       kind: "tenant-photo-consent-pg16-http",
       method: "POST web-bundy/consent", independentEmployeeActors: 3,
       realHigherIdVictim: true, excludedEmployer: true,
-      actualOwnRecordingsAndWithdrawals: positive,
+      actualOwnConsentActionsIncludingFirstRefusals: positive,
+      firstTimeRefusalsProven: initialRefusals,
       deniedCrossTenantRoleOriginAndBinding: rejected,
       nonHeldPhotoPurgedOnWithdrawal: true,
       heldPhotoIntact: true,
