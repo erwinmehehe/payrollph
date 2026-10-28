@@ -7,7 +7,7 @@ export function payrollMakerCheckerDecision(input: {
   checkerUserId: number;
   declaredApproverUserId?: number | null;
   namedApproverUsed?: boolean;
-}): {ok:true}|{ok:false;code:"missing_maker"|"same_human"|"different_assignee"} {
+}): {ok:true}|{ok:false;code:"missing_maker"|"same_human"|"missing_assignee"|"different_assignee"} {
   // Audit metadata must contain a real numeric identity. Number(true)=1 and
   // Number("1")=1 are not acceptable maker/checker proofs.
   const maker=input.makerUserId;
@@ -16,9 +16,15 @@ export function payrollMakerCheckerDecision(input: {
     ||!Number.isSafeInteger(checker)||checker<1)
     return {ok:false,code:"missing_maker"};
   if(maker===checker)return {ok:false,code:"same_human"};
-  if(input.namedApproverUsed&&input.declaredApproverUserId!=null&&
-    input.declaredApproverUserId!==checker)
-    return {ok:false,code:"different_assignee"};
+  if(input.namedApproverUsed){
+    // A named checker needs an actual authenticated, audit-bound assignee.
+    // A missing assignment must never mean "any distinct checker is allowed".
+    // Delegates are evaluated separately by the authoritative routing guard.
+    const assignee=input.declaredApproverUserId;
+    if(assignee==null||!Number.isSafeInteger(assignee)||assignee<1)
+      return {ok:false,code:"missing_assignee"};
+    if(assignee!==checker)return {ok:false,code:"different_assignee"};
+  }
   return {ok:true};
 }
 
