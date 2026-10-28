@@ -136,7 +136,7 @@ test("existing profile route derives identity from session and only allows conta
   const source = readFileSync("src/app/api/self/profile/route.ts", "utf8");
   assert.match(source, /session\.role !== "employee" \|\| !session\.employeeId/);
   assert.match(source, /assertMembership\(session\.id, employee\.organizationId\)/);
-  assert.ok(source.indexOf("assertMembership(") < source.indexOf("db.update(employees)"));
+  assert.ok(source.indexOf("assertMembership(") < source.indexOf("tx.update(employees)"));
   assert.match(source, /where\(eq\(employees\.id, session\.employeeId\)\)/);
   assert.match(source, /enforceSameOriginMutation\(request\)/);
   assert.match(source, /publicDemoMutationDenied\(/);
@@ -147,7 +147,21 @@ test("existing profile route derives identity from session and only allows conta
   assert.doesNotMatch(source, /searchParams\.get\("organizationId"\)/);
   assert.doesNotMatch(source, /basicRate: clean\(body\./);
   assert.doesNotMatch(source, /bankAccount: clean\(body\./);
-  assert.match(source, /recordAuditEvent\(/);
+  assert.match(source, /db\.transaction\(async \(tx\) =>/);
+  assert.match(source, /tx\.select\(\{[\s\S]*?id: employees\.id/);
+  assert.match(source, /eq\(employees\.organizationId, employee\.organizationId\)/);
+  assert.match(source, /for\("update"\)\.limit\(1\)/);
+  assert.match(source, /tx\.select\(\{[\s\S]*?id: userOrganizations\.id/);
+  assert.match(source, /eq\(userOrganizations\.userId, session\.id\)/);
+  assert.match(source, /eq\(userOrganizations\.active, true\)/);
+  assert.match(source, /for\("share"\)\.limit\(1\)/);
+  assert.match(source, /membership\.workerEmployeeId !== boundEmployee\.id/);
+  assert.match(source, /eq\(employees\.organizationId, boundEmployee\.organizationId\)/);
+  assert.match(source, /await tx\.insert\(auditEvents\)\.values\(\{/);
+  assert.ok(source.indexOf("tx.update(employees)") <
+    source.indexOf("tx.insert(auditEvents)"),
+    "contact and actor-bound audit must share a SQL transaction");
+  assert.doesNotMatch(source, /recordAuditEvent\(/);
 });
 
 test("focused workflow must execute the real PG16 localhost runner rather than a mocked response", () => {
@@ -166,5 +180,11 @@ test("focused workflow must execute the real PG16 localhost runner rather than a
   assert.match(runner, /seed\("VICTIM"\)/);
   assert.match(runner, /db\.update\(userOrganizations\)\.set\(\{ active: false \}\)/);
   assert.match(runner, /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/);
+  assert.match(runner, /workerEmployeeId: first\.peer\.id/);
+  assert.match(runner, /CREATE FUNCTION ci_self_profile_reject_audit/);
+  assert.match(runner, /CREATE TRIGGER ci_self_profile_reject_audit/);
+  assert.match(runner, /DROP TRIGGER IF EXISTS ci_self_profile_reject_audit/);
+  assert.match(runner, /failed audit transaction cannot commit an unaudited contact change/);
+  assert.match(runner, /profileAuditRollbackProven: true/);
   assert.doesNotMatch(runner, /https:\/\/(?!example\.invalid)/);
 });
