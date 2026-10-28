@@ -278,8 +278,17 @@ test("small centavo splits cannot create opposite-sign cost-center entries", () 
       "Positive labor costs must never create a negative allocation.");
     assert.ok(negativeCentavos.every(value => value <= 0),
       "Reversals must never create a positive allocation.");
-    assert.deepEqual(negativeCentavos, positiveCentavos.map(value => -value),
-      "Every cost center must reverse the exact original centavos.");
+    // Both allocation directions deliberately canonicalize zero to +0.
+    // Arithmetic negation alone would produce -0, which is not a real
+    // opposite-sign centavo and must not be expected in accounting rows.
+    assert.ok(positiveCentavos.every(value => !Object.is(value, -0)),
+      "Debit zero allocations must use canonical zero.");
+    assert.ok(negativeCentavos.every(value => !Object.is(value, -0)),
+      "Reversal zero allocations must use canonical zero.");
+    assert.deepEqual(
+      negativeCentavos,
+      positiveCentavos.map(value => value === 0 ? 0 : -value),
+      "Every nonzero center must reverse exactly, while zero stays canonical.");
   }
 });
 
