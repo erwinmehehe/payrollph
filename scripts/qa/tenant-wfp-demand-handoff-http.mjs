@@ -69,26 +69,32 @@ export async function proveWfpDemandHandoff() {
     const employers = [];
     for (const label of ["ATTA", "ATTB", "VICTIM"]) {
       const e = await http.seedEmployer(label, nonce, http.standaloneMakeSession);
-      const planName = e.marker + " approved fictional workforce plan";
+      const planName = e.marker + " plan";
       const [plan] = await db.insert(s.workforcePlans).values({
         organizationId: e.org.id, name: planName,
         startDate: "2099-01-01", endDate: "2099-12-31",
         budget: "100000.00", status: "approved",
         createdByUserId: e.owner.id, createdBy: e.owner.name,
       }).returning();
-      const jobTitle = e.marker + " approved staffing job";
+      const jobTitle = e.marker + " job";
       const [job] = await db.insert(s.jobProfiles).values({
         organizationId: e.org.id, title: jobTitle,
         family: "General", level: "Individual Contributor", active: true,
       }).returning();
+      const siteName = e.marker + " site";
+      const shiftCode = (e.marker + "-SHIFT").slice(0, 32);
+      // The production route joins these four names into audit_events.resource (varchar 160).
+      // Keep all distinct fictional employer markers while fitting the actual schema.
+      assert.ok([planName, jobTitle, siteName, shiftCode].join(" · ").length <= 160,
+        "HANDOFF_REFUSED: synthetic audit resource exceeds the real PostgreSQL column");
       const [site] = await db.insert(s.worksites).values({
         organizationId: e.org.id, orgUnitId: e.unit.id,
         code: (e.marker + "-SITE").slice(0, 32),
-        name: e.marker + " own operational worksite",
+        name: siteName,
         timezone: "Asia/Manila", active: true,
       }).returning();
       const [shift] = await db.insert(s.shiftDefinitions).values({
-        organizationId: e.org.id, code: (e.marker + "-SHIFT").slice(0, 32),
+        organizationId: e.org.id, code: shiftCode,
         name: e.marker + " own early shift",
         startTime: "08:00", endTime: "17:00", active: true,
       }).returning();
@@ -126,7 +132,7 @@ export async function proveWfpDemandHandoff() {
         orgId: e.org.id, ownerId: e.owner.id, ownerName: e.owner.name,
         ownerCookie: e.cookie, employeeCookie: employeeSession.cookie,
         planId: plan.id, planName, jobId: job.id, jobTitle,
-        siteId: site.id, shiftId: shift.id, positionIds,
+        siteId: site.id, siteName, shiftId: shift.id, shiftCode, positionIds,
         manualRequirementId: manual.id,
       });
     }
