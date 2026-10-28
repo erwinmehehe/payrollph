@@ -129,8 +129,8 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
     assert.equal(evidence.verifiedMainCommit, followOnBase);
     assert.equal(evidence.line, evidence.ownPositiveLine);
     assert.ok(evidence.scope && evidence.scope.length > 50);
-    assert.match(evidence.evidence, new RegExp("/actions/runs/" + run + "(?:\\\\D|$)"));
-    const source = readFileSync(file, "utf8").split("\\n");
+    assert.match(evidence.evidence, new RegExp("/actions/runs/" + run + "(?:\\D|$)"));
+    const source = readFileSync(file, "utf8").split("\n");
     for (const pin of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
       const line = evidence[pin];
       assert.ok(Number.isSafeInteger(line) && line > 0 && line <= source.length, key + ": " + pin);
