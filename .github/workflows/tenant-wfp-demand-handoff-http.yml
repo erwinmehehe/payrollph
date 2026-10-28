@@ -1,0 +1,92 @@
+name: Workforce Planning demand handoff tenant isolation (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-wfp-demand-handoff-http.yml'
+      - 'scripts/qa/tenant-wfp-demand-handoff-*.mjs'
+      - 'tests/tenant-wfp-demand-handoff-*.test.mjs'
+      - 'docs/qa/tenant-wfp-demand-handoff-http.md'
+      - 'src/app/api/workforce-planning/demand-handoff/**'
+      - 'src/lib/workforce-plan-demand.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-wfp-demand-handoff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  wfp-demand-handoff:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export reviewed localhost-only environment, disable all billing and payout
+        shell: bash
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo 'XENDIT_BILLING_ENABLED=false' >> "$GITHUB_ENV"
+      - name: Static syntax, fail-closed, adversarial and source contract
+        run: |
+          node --check scripts/qa/tenant-wfp-demand-handoff-contract.mjs
+          node --check scripts/qa/tenant-wfp-demand-handoff-http.mjs
+          node --check tests/tenant-wfp-demand-handoff-contract.test.mjs
+          node --test tests/tenant-wfp-demand-handoff-contract.test.mjs
+      - name: Ephemeral non-production encryption and synthetic webhook material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable empty PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply source-only isolated database baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next app against fictional PG16 only
+        run: npm run build
+      - name: Real two-attacker own create/update plus high-ID foreign-denial HTTP proof
+        run: node --import tsx scripts/qa/tenant-wfp-demand-handoff-http.mjs
