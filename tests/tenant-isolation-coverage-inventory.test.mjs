@@ -244,6 +244,83 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(negativeTests, /audit must identify the actual session actor/);
     return;
   }
+  // This is an exact-source, action-limited exception, NOT a new POST
+  // tenant-isolation credit. #1511 changes three developer security mutations
+  // solely to commit their audit receipts atomically. The unchanged test-webhook
+  // action and whole-route signed-in cross-tenant HTTP proof remain GAP.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/developer/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    const routePath = "src/app/api/developer/route.ts";
+    const route = readFileSync(routePath, "utf8");
+    const routeSha = "c1b777dc9b290a9980e82549c6523a4811488fba";
+    const originalSha = "d703c535b5f15a57af6069b3248d08853e9fe234";
+    assert.equal(currentBlob, routeSha,
+      "Developer POST changed again: require fresh route, audit and security review");
+    assert.equal(reviewed?.kind, "developer-security-atomic-audit-only");
+    assert.equal(reviewed?.originalRouteBlobSha, originalSha);
+    assert.equal(reviewed?.routeBlobSha, routeSha);
+    assert.equal(reviewed?.helperFile, "src/lib/developer-security-mutations.ts");
+    assert.equal(reviewed?.helperBlobSha,
+      gitBlobSha(readFileSync(reviewed.helperFile)),
+      "Atomic audit helper changed: re-review the real PostgreSQL rollback proof");
+    assert.equal(reviewed?.dbTestFile, "tests/developer-security-atomic-audit-db.test.ts");
+    assert.equal(reviewed?.dbTestBlobSha,
+      gitBlobSha(readFileSync(reviewed.dbTestFile)),
+      "Atomic audit DB proof changed: require fresh test review");
+    assert.equal(reviewed?.evidenceKind, "fictional-pg16-db-only-not-http");
+    assert.deepEqual(reviewed?.boundedActions, ["create-key", "revoke-key", "create-webhook"]);
+    assert.deepEqual(reviewed?.remainingUnprovedActions, ["test-webhook"]);
+    assert.equal(reviewed?.coverageCredits, 0);
+    assert.equal(method.testedBy, null, "Developer POST is NOT tenant-isolation COVERED");
+
+    // The previously reviewed GET and POST authorization controls must still
+    // exist; the exact whole-route SHA above pins all source bytes.
+    for (const guard of [
+      /export async function GET\(request: Request\)/,
+      /export async function POST\(request: Request\)/,
+      /enforceSameOriginMutation\(request\)/,
+      /getSessionUser\(\)/,
+      /publicDemoMutationDenied\(user\.email/,
+      /assertOrganizationRole\(/,
+      /getAccess\(user\.id, organizationId\)/,
+      /access\?\.companyWide/,
+      /requireSensitiveActionMfa\(user\)/,
+      /rateLimitDistributed\(/,
+      /normalizeScopes\(body\.scopes\)/,
+      /validateWebhookTarget\(rawUrl\)/,
+      /dispatchWebhook\(/,
+    ]) assert.match(route, guard, "Developer security guard removed");
+    const helper = readFileSync(reviewed.helperFile, "utf8");
+    for (const name of [
+      "createDeveloperApiKeyWithAudit",
+      "revokeDeveloperApiKeyWithAudit",
+      "createDeveloperWebhookWithAudit",
+    ]) {
+      assert.ok(route.includes(name + "({"), name + ": POST action must invoke atomic helper");
+      assert.ok(helper.includes("export async function " + name + "("),
+        name + ": matching reviewed helper required");
+    }
+    assert.equal((helper.match(/return db\.transaction\(async \(tx\) => \{/g) ?? []).length, 3,
+      "Each security mutation must run in its own PostgreSQL transaction");
+    assert.equal((helper.match(/tx\.insert\(auditEvents\)\.values\(\{/g) ?? []).length, 3,
+      "Each security mutation must persist an in-transaction audit");
+    assert.match(helper, /eq\(apiKeys\.id, input\.keyId\), eq\(apiKeys\.organizationId, input\.organizationId\)/,
+      "Revocation must remain tenant-scoped");
+    const testSource = readFileSync(reviewed.dbTestFile, "utf8");
+    for (const name of [
+      "createDeveloperApiKeyWithAudit",
+      "revokeDeveloperApiKeyWithAudit",
+      "createDeveloperWebhookWithAudit",
+    ]) assert.match(testSource, new RegExp("assert\\.rejects\\(" + name + "\\("),
+      name + ": force an audit failure after attempted mutation");
+    assert.match(testSource, /organizationId: beta\.id, keyId: key\.id/,
+      "Foreign-tenant revoke negative control is required");
+    assert.match(testSource, /!JSON\.stringify\(receipts\)\.includes\(webhookInput\.secret\)/,
+      "A webhook secret must never appear in the audit receipt");
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
