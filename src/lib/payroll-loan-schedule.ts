@@ -1,4 +1,4 @@
-import { parseLoanCents, moneyFromCents, validLoanDate } from "@/lib/payroll-loan-approval";
+import { parseLoanCents, moneyFromCents, validLoanDate, loanApprovalReference } from "@/lib/payroll-loan-approval";
 
 /**
  * A-1 calculation-only preview. This module never activates a deduction,
@@ -20,7 +20,7 @@ export function buildCompanyLoanSchedule(input: {
   installmentsPerMonth: 1 | 2;
   annualFlatInterestBasisPoints: number;
 }): { totalPrincipalCents: number; totalInterestCents: number; totalPayableCents: number; installments: LoanInstallment[] } {
-  const principalCents = parseLoanCents(input.principal);
+  const principalCents = typeof input.principal === "string" ? parseLoanCents(input.principal) : null;
   if (principalCents === null || !Number.isSafeInteger(input.months) || input.months < 1 || input.months > 120 ||
       (input.installmentsPerMonth !== 1 && input.installmentsPerMonth !== 2) ||
       !Number.isSafeInteger(input.annualFlatInterestBasisPoints) ||
@@ -72,12 +72,23 @@ export function validateAgencyAmortizationSchedule(
   agency: "SSS" | "Pag-IBIG",
   loanReference: string,
 ): { agency: "SSS" | "Pag-IBIG"; loanReference: string; rows: Array<AgencyLoanAmortizationRow & { cents: number }>; scheduledTotalCents: number } {
-  if (!["SSS", "Pag-IBIG"].includes(agency) || !/^[A-Za-z0-9][A-Za-z0-9 _./-]{3,63}$/.test(loanReference) ||
-      rows.length < 1 || rows.length > 240) throw new Error("INVALID_AGENCY_LOAN_SCHEDULE");
+  if ((agency !== "SSS" && agency !== "Pag-IBIG") ||
+      typeof loanReference !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9 _./-]{3,63}$/.test(loanReference) ||
+      !Array.isArray(rows) || rows.length < 1 || rows.length > 240) {
+    throw new Error("INVALID_AGENCY_LOAN_SCHEDULE");
+  }
   const seenDates = new Set<string>();
   const seenRows = new Set<string>();
   let total = 0;
   const parsed = rows.map(row => {
+    // A JSON preview must not turn numeric or object-shaped references into
+    // seemingly genuine agency-issued evidence through string coercion.
+    if (!row || typeof row !== "object" ||
+        typeof row.dueDate !== "string" || typeof row.amount !== "string" ||
+        typeof row.sourceRowId !== "string") {
+      throw new Error("INVALID_AGENCY_LOAN_INSTALLMENT");
+    }
     const cents = parseLoanCents(row.amount, 9_999_999_999);
     if (!validLoanDate(row.dueDate) || cents === null || !/^[A-Za-z0-9_-]{4,100}$/.test(row.sourceRowId) ||
         seenDates.has(row.dueDate) || seenRows.has(row.sourceRowId)) {
@@ -122,8 +133,10 @@ export function previewDiscretionaryLoanDeduction(input: {
     Number.isSafeInteger(override.requesterUserId) && override.requesterUserId > 0 &&
     Number.isSafeInteger(override.approverUserId) && override.approverUserId > 0 &&
     override.requesterUserId !== override.approverUserId && override.legalAuthorityReviewed === true &&
-    /^.{8,200}$/.test(override.approvalEvidenceReference) &&
-    /^.{20,500}$/.test(override.reason.trim());
+    loanApprovalReference(override.approvalEvidenceReference) !== null &&
+    typeof override.reason === "string" &&
+    override.reason.trim().length >= 20 && override.reason.trim().length <= 500 &&
+    !/[\u0000-\u001f\u007f]/.test(override.reason);
   if (override && !mayOverride) throw new Error("LOAN_FLOOR_OVERRIDE_NOT_APPROVED");
   const cap = Math.max(0, input.disposablePayCents - (mayOverride ? 0 : input.minimumNetPayCents));
   const deductedCents = Math.min(input.requestedCents, input.remainingLoanCents, cap);
