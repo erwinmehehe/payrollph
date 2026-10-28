@@ -251,6 +251,52 @@ test("centavo allocations round half-cent adjustments symmetrically and reverse 
   assert.throws(() => allocateLaborAmount(Number.MAX_VALUE, resolved), /finite|safe centavo precision/);
 });
 
+test("small centavo splits cannot create opposite-sign cost-center entries", () => {
+  const resolved = resolveLaborAllocation({
+    employeeId: 42,
+    asOf: "2026-10-05",
+    rows: [10, 20, 30, 40].map((costCenterId, index) =>
+      row({ id: index + 1, costCenterId, allocationPercent: 25 })),
+  });
+  const debit = allocateLaborAmount(0.02, resolved);
+  const reversal = allocateLaborAmount(-0.02, resolved);
+  assert.deepEqual(debit.map((entry) => entry.amount), [0.01, 0.01, 0, 0]);
+  assert.deepEqual(reversal.map((entry) => entry.amount), [-0.01, -0.01, 0, 0]);
+  assert.deepEqual(debit.map((entry) => entry.allocationId), [1, 2, 3, 4]);
+  assert.deepEqual(reversal.map((entry) => entry.allocationId), [1, 2, 3, 4]);
+
+  // All debit and reversal entries must preserve their own sign, even when
+  // multiple independent half-cent splits would overrun the tiny total.
+  for (let totalCentavos = 1; totalCentavos <= 50; totalCentavos++) {
+    const positive = allocateLaborAmount(totalCentavos / 100, resolved);
+    const negative = allocateLaborAmount(-totalCentavos / 100, resolved);
+    const positiveCentavos = positive.map(entry => Math.round(entry.amount * 100));
+    const negativeCentavos = negative.map(entry => Math.round(entry.amount * 100));
+    assert.equal(positiveCentavos.reduce((sum, value) => sum + value, 0), totalCentavos);
+    assert.equal(negativeCentavos.reduce((sum, value) => sum + value, 0), -totalCentavos);
+    assert.ok(positiveCentavos.every(value => value >= 0),
+      "Positive labor costs must never create a negative allocation.");
+    assert.ok(negativeCentavos.every(value => value <= 0),
+      "Reversals must never create a positive allocation.");
+    assert.deepEqual(negativeCentavos, positiveCentavos.map(value => -value),
+      "Every cost center must reverse the exact original centavos.");
+  }
+});
+
+test("six rounded half-cent shares cannot turn the final debit into a credit", () => {
+  const resolved = resolveLaborAllocation({
+    employeeId: 42,
+    asOf: "2026-10-05",
+    rows: [10, 20, 30, 40, 50, 60].map((costCenterId, index) =>
+      row({ id: index + 1, costCenterId,
+        allocationPercent: index === 5 ? 16.665 : 16.667 })),
+  });
+  const result = allocateLaborAmount(0.03, resolved);
+  const reversal = allocateLaborAmount(-0.03, resolved);
+  assert.deepEqual(result.map(x => x.amount), [0.01, 0.01, 0.01, 0, 0, 0]);
+  assert.deepEqual(reversal.map(x => x.amount), [-0.01, -0.01, -0.01, 0, 0, 0]);
+});
+
 test("GL mapping resolves most specific legal-entity and cost-center account", () => {
   const mappings = [
     { id: 1, legalEntityId: null, costCenterId: null, accountKey: "salary_expense", accountCode: "5000", accountName: "Payroll expense", active: true },
