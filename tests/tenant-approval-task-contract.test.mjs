@@ -56,7 +56,8 @@ test("guard fails closed for workers, payment switches, or external secrets", ()
     "XENDIT_BILLING_ENABLED", "WORKER_ENABLED", "CENTRAL_SCHEDULER_ENABLED"]) {
     assert.throws(() => requireDisposableApprovalTask({ ...safeEnv, [name]: "true" }), /REFUSED/);
   }
-  for (const name of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY"]) {
+  for (const name of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY",
+    "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "SMTP_URL", "STRIPE_SECRET_KEY"]) {
     assert.throws(() => requireDisposableApprovalTask({ ...safeEnv, [name]: "live-secret" }), /REFUSED/);
   }
 });

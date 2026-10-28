@@ -15,7 +15,10 @@ export function requireDisposableApprovalTask(env = process.env) {
     "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
     "XENDIT_BILLING_ENABLED", "WORKER_ENABLED", "CENTRAL_SCHEDULER_ENABLED",
   ];
-  const absent = ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY"];
+  const absent = [
+    "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY",
+    "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "SMTP_URL", "STRIPE_SECRET_KEY",
+  ];
   const safe = env.GITHUB_ACTIONS === "true" && env.CI === "true" &&
     env.TENANT_APPROVAL_TASK_MODE === "fictional-pg16-http" &&
     env.TENANT_SECOND_PASS_MODE === "isolated-ci-only" &&
