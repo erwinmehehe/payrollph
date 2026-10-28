@@ -1,5 +1,7 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
+> **STA-01 source-hardening lane (2026-10-28; zero credits):** An independent filing-outcome PATCH follow-up binds the conditional result and audit receipt to a single transaction, with a test-only PG16 audit-failure veto and unchanged owned/victim rows. The accepted-outcome positive remains unproved, so `PATCH compliance/filing-validations/[id]` stays **GAP**. All global counts below are unchanged, and neither agency acceptance nor production certification is inferred.
+
 > **FOLLOW-ON PROPOSED SWEEP (2026-10-28, main@dd890dd65f14):** Six additional, distinct provisional method credits are linked to previously successful exact-PR-head fictional PG16/localhost HTTP proofs. The 16 previously source-pinned methods from merged #1509 retain their original evidence and are NOT re-credited. Current proposed 498-method ledger = **336 COVERED / 10 PUBLIC-BY-DESIGN / 152 GAP**, with 17 page/action GAPs. The six-credit reconciliation itself still requires fresh exact-head CI and independent privacy/security/owner review before acceptance. All earlier dated tallies below are historical, not the current ledger; this is NOT tenant-wide or production certification.
 
 
