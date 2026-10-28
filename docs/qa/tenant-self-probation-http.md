@@ -50,6 +50,14 @@ prior source evidence or production methods.
   fake no-op success, wrong audit actors, extra receipts, peer data disclosure,
   mutated payroll or missing evidence fails the tests.
 
+## CI failure triage on October 28, 2026
+
+The prior exact-head focused run [40612803381](https://github.com/erwinmehehe/payrollph/actions/runs/40612803381) **failed before PostgreSQL or live HTTP testing**. Seven of eight source tests passed. The one negative control correctly rejected a foreign employer's genuine review ID (`110 !== 90`), but the test incorrectly required an unrelated error message regex (`/persisted submitted review/`) rather than asserting the identity mismatch. The fix removes **only that incidental error-message expectation** and preserves the actual strict source-ID, employee, employer, and private-marker assertions in `assertOwnReview`; it does not loosen the validator or accept foreign rows.
+
+Fix commit: `85075a8dbd3d736c0f6ce56629dd7b21715e65a5`. Its new [focused PG16/localhost HTTP job](https://github.com/erwinmehehe/payrollph/actions/runs/40616675851) was queued at review. No passing PostgreSQL/HTTP claim is made until that exact-head job actually finishes.
+
+**Independent source concern:** The production POST currently persists the acknowledgment, review event and audit in separate database operations, and converts all exceptions into an already-acknowledged 409. A later event/audit failure can leave a durable receipt without complete evidence. That transactional rollback and its fault-injection regression require a separately reviewed production source change before full method coverage; this test-only candidate must not be used to certify it.
+
 ## Limitations and acceptance gates
 
 The method's happy-path review-acknowledgment and these particular denials are
