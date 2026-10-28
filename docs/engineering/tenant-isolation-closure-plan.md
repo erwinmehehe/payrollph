@@ -30,7 +30,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ## Current live-manifest batch reconciliation — 2026-10-28
 
-This is the **current proposed method-credit sweep** from exact `main@a7dc1f5184f59f3c5ac348e37b4ca88810f10651`, separate from the frozen 2026-10-21 baseline. The authoritative manifest proposes **330 COVERED / 10 PUBLIC-BY-DESIGN / 158 GAP** across **498 API methods**; 17 page/action GAPs remain. Sixteen previously GAP methods have exact-PR-head fictional PG16/localhost HTTP receipts with distinct own-positive, victim isolation, forged-selector and unchanged-victim source evidence. No other method is recredited. These are **provisional method classifications**, not independent owner acceptance, production or payroll release approval. Every batch remains INCOMPLETE; historical text below is retained as frozen closure scope.
+At exact main `fe3ad8901bfa714d59639d9f59a13cf133eeab36`, this separate candidate credits four new GAP method identities while preserving all 16 already merged #1509 credits. Merged #1520, #1518 and #1514 supply distinct exact-PR-final-head successful fictional PG16/localhost HTTP own positives, genuinely seeded higher-ID victim or revoked-member denials, unchanged victim SQL/audit and forged-selector controls. **498 API methods = 334 COVERED / 10 PUBLIC-BY-DESIGN / 154 GAP**, 17 page/action GAPs. All four are provisional and pending fresh branch CI plus independent security/domain approval; no production, money, provider or global isolation acceptance. Frozen queue and all twelve batch IDs stay unchanged.
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
@@ -40,14 +40,25 @@ This is the **current proposed method-credit sweep** from exact `main@a7dc1f5184
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 31 | 0 | 8 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 21 | 0 | 17 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 19 | 0 | 20 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 24 | 0 | 14 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-**Live inventory (proposed sweep):** 295 API route files, **498 HTTP methods = 330 COVERED + 10 PUBLIC-BY-DESIGN + 158 GAP**, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). The frozen 406-method queue above is a historical subset; **do not equate its per-batch GAP subtotal with the live global GAP total**. No batch in this snapshot is fully resolved. Tenant-isolation acceptance stays **NOT ACCEPTED**.
+**Live inventory (proposed sweep):** 295 API route files, **498 HTTP methods = 334 COVERED + 10 PUBLIC-BY-DESIGN + 154 GAP**, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). The frozen 406-method queue above is a historical subset; **do not equate its per-batch GAP subtotal with the live global GAP total**. No batch in this snapshot is fully resolved. Tenant-isolation acceptance stays **NOT ACCEPTED**.
+
+**Four exact, provisional method-proof credits (separate from unmerged six-credit draft #1519):**
+
+| Exact method | Final proof PR and PG16/HTTP run | Executed own, victim, unchanged and forged anchors |
+|---|---|---|
+| `GET self/schedule-receipts` | [#1520](https://github.com/erwinmehehe/payrollph/pull/1520), [run 40631756084](https://github.com/erwinmehehe/payrollph/actions/runs/40631756084) | [own L123](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L123), [victim L222](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L222), [unchanged L253](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L253), [forged L131](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L131) |
+| `POST self/schedule-receipts` | [#1520](https://github.com/erwinmehehe/payrollph/pull/1520), [run 40631756084](https://github.com/erwinmehehe/payrollph/actions/runs/40631756084) | [own L144](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L144), [victim L224](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L224), [unchanged L253](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L253), [forged L197](../../scripts/qa/tenant-self-schedule-receipts-http.mjs#L197) |
+| `PATCH self/profile` | [#1518](https://github.com/erwinmehehe/payrollph/pull/1518), [run 40628293877](https://github.com/erwinmehehe/payrollph/actions/runs/40628293877) | [own L165](../../scripts/qa/tenant-self-profile-http.mjs#L165), [victim L220](../../scripts/qa/tenant-self-profile-http.mjs#L220), [unchanged L124](../../scripts/qa/tenant-self-profile-http.mjs#L124), [forged L177](../../scripts/qa/tenant-self-profile-http.mjs#L177) |
+| `GET workforce/demand-observations/issued` | [#1514](https://github.com/erwinmehehe/payrollph/pull/1514), [run 40624976387](https://github.com/erwinmehehe/payrollph/actions/runs/40624976387) | [own L159](../../scripts/qa/tenant-demand-governance-recovery-http.mjs#L159), [victim L177](../../scripts/qa/tenant-demand-governance-recovery-http.mjs#L177), [unchanged L272](../../scripts/qa/tenant-demand-governance-recovery-http.mjs#L272), [forged L195](../../scripts/qa/tenant-demand-governance-recovery-http.mjs#L195) |
+
+**Held as GAP:** Approved-data `GET /api/workforce/demand-staffing/policies` has only an approved-mode empty list, no nonempty approved positive. `POST /api/web-bundy/consent` lacks a legacy-photo first-refusal privacy case and independent DPO review. `POST /api/workforce/demand-observations/issued` and all other GAPs are not borrowed from read proofs. Pending draft #1519's six candidates are **not** counted here, and any two manifest PRs must be reconciled on integration. All frozen batches remain INCOMPLETE.
 
 **Whole-batch rule:** The next phase-1 target is **DL-01**, not a renamed sub-slice. One new proof PR must account for **all five remaining DL-01 methods**, keep already evidenced methods' proof ownership, and supply own-positive, real-victim denial, unchanged-victim DB and forged-selector evidence on its exact CI head. Do not create a smaller methods-credit PR or claim a method passes from a source-only test. If a remaining handler cannot be positively exercised under the disposable/no-provider boundary, report the per-method owner blocker and **stop** rather than splitting into ad-hoc slices. Future titles must include the exact batch ID.
 

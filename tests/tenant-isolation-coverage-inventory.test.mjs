@@ -1,4 +1,5 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -886,6 +887,12 @@ test("all credited proof links point to the claimed route and every recertified 
       const proof = method.testedBy;
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
         assert.equal(verifyPromotionCredits(manifest), 16);
+        continue;
+      }
+      if (proof?.verifiedMainCommit === "fe3ad8901bfa714d59639d9f59a13cf133eeab36") {
+        // Only the exact four separate merged-proof method keys and final-head
+        // PG16 receipts; no blanket authorization of new source files.
+        assert.equal(verifyMoreCredits(manifest), 4);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
