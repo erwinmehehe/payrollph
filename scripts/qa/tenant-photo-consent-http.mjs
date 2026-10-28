@@ -17,6 +17,7 @@ import { join } from "node:path";
 import {
   CONSENT_FIXTURE_SCHEMA, CONSENT_VERSION, requireDisposableConsentTarget,
   assertOwnedConsentReceipt, assertConsentRefused,
+  assertScopedConsentWithdrawal, assertScopedWithdrawalAudit,
 } from "./tenant-photo-consent-contract.mjs";
 
 const PATH = "/api/web-bundy/consent";
@@ -423,13 +424,27 @@ async function prove() {
       assertOwnedConsentReceipt(await post(e.actor.cookie, e.org.id, "declined"),
         "declined", "recorded");
       const after = await state(e);
-      assert.equal(after.consent.length, 1);
-      assert.equal(after.consent[0].id, before.consent[0].id);
-      assert.equal(after.consent[0].choice, "declined");
-      assert.equal(after.consent[0].decidedByUserId, e.actor.id);
-      assert.equal(after.audits.length, before.audits.length + 1);
-      assert.equal(after.audits.at(-1).action, "WFM selfie consent withdrawn");
-      assert.equal(after.audits.at(-1).metadata.choice, "declined");
+      // A/B now each have TWO legitimate versioned consents: the primary
+      // employee's accepted consent and a separate peer's initial decline.
+      // Prove the original employee was withdrawn without touching the peer.
+      const firstRefusal = fixture.firstDeclines.find(
+        row => row.organizationId === e.org.id);
+      assert.ok(firstRefusal && firstRefusal.employeeId !== e.worker.id,
+        "withdrawal needs a separately persisted peer employee");
+      const peerConsent = before.consent.filter(
+        row => row.employeeId === firstRefusal.employeeId);
+      assert.equal(peerConsent.length, 1,
+        "first-refusal peer must have exactly one persisted consent");
+      assert.equal(peerConsent[0].choice, "declined");
+      assert.equal(peerConsent[0].consentVersion, CONSENT_VERSION);
+      assertScopedConsentWithdrawal(before, after, {
+        organizationId: e.org.id, employeeId: e.worker.id,
+        actorUserId: e.actor.id,
+      });
+      assertScopedWithdrawalAudit(before, after, {
+        organizationId: e.org.id, employeeId: e.worker.id,
+        actorName: "Fictional photo-consent employee " + e.marker,
+      });
       const nonheld = after.photos.find(photo => !photo.legalHold);
       const held = after.photos.find(photo => photo.legalHold);
       const beforeNonheld = before.photos.find(photo => !photo.legalHold);
