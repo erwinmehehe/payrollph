@@ -532,6 +532,104 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // #1543: bounded public-applicant contact validation is NOT positive
+  // three-employer POST evidence and does NOT authorize public careers launch.
+  // Both GET and POST share a new route blob, though GET's actual handler is
+  // unchanged. A new change to the reviewed route/validator/tests fails closed.
+  if (isNewOrChanged && method.status === "GAP" &&
+      (key === "src/app/api/careers/route.ts GET" ||
+       key === "src/app/api/careers/route.ts POST")) {
+    const review = method.reviewedUncertified;
+    const routeFile = "src/app/api/careers/route.ts";
+    const oldSource = "31a02823459f237d182235e2887fe4a7049fe48d";
+    const newSource = "271603f38d44a7be8f16045591e2d22374803187";
+    assert.equal(currentBlob, newSource, "Careers route changed: renew privacy and tenant review");
+    assert.equal(review?.kind, "careers-contact-validation-source-only-zero-tenant-credit");
+    assert.equal(review.oldRouteBlobSha, oldSource);
+    assert.equal(review.routeBlobSha, newSource);
+    assert.equal(review.unchangedGetBodyBlobSha, "27fef370974a235848f93758c70fed754c63fafe");
+    assert.equal(review.helperFile, "src/lib/careers-intake-body.ts");
+    assert.equal(review.helperBlobSha, "66ac8cec8ff17b16ff0069e9db77dbae4c077bca");
+    assert.equal(review.regressionFile, "tests/careers-split.test.ts");
+    assert.equal(review.regressionBlobSha, "cb11df7a4c88be0052de16826417e39506bf12be");
+    for (const [path, sha] of [
+      [review.helperFile, review.helperBlobSha],
+      [review.regressionFile, review.regressionBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(path)), sha,
+        "Careers source/regression changed without independent review: " + path);
+    }
+    assert.equal(review.noPublicApplicantActivation, true);
+    assert.equal(review.fullTenantMethodCoverageProven, false);
+    assert.equal(review.coverageCredits, 0);
+    assert.equal(review.independentPrivacyAndSecurityReview, "PENDING");
+    assert.equal(method.testedBy, null, "No borrowed public applicant HTTP coverage");
+    assert.match(method.reason, /Still GAP/);
+    const route = readFileSync(routeFile, "utf8");
+    const getAt = route.indexOf("export async function GET(request: Request) {");
+    const postCommentAt = route.indexOf("/** Anonymous applicant intake:", getAt);
+    assert.ok(getAt >= 0 && postCommentAt > getAt, "Public GET source boundaries changed");
+    assert.equal(gitBlobSha(Buffer.from(route.slice(getAt, postCommentAt))),
+      review.unchangedGetBodyBlobSha, "Public careers GET must stay byte-for-byte unchanged");
+    if (method.name === "GET") {
+      assert.equal(method.line, 26);
+      for (const guard of [
+        "const hold = workflowEntityHold(); if (hold) return hold;",
+        "const notice = careersNoticeConfig();",
+        "if (!await careersSchemaReady()) return notReady();",
+        ".where(publishedCareersPredicate(organizationId)).limit(60);",
+        'headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }',
+      ]) assert.ok(route.slice(getAt, postCommentAt).includes(guard),
+        "Public GET employer-bound listing guard changed: " + guard);
+    } else {
+      assert.equal(method.name, "POST");
+      assert.equal(method.line, 51);
+      const helper = readFileSync(review.helperFile, "utf8");
+      const tests = readFileSync(review.regressionFile, "utf8");
+      for (const guard of [
+        "export function careersContactFields(",
+        "phone.length > 32 || notes.length > 1000",
+        'typeof body.phone !== "string"',
+        'typeof body.notes !== "string"',
+        "return { phone, notes };",
+      ]) assert.ok(helper.includes(guard), "Applicant validator changed: " + guard);
+      assert.ok(helper.includes("/\\u0000/.test(notes)"),
+        "Embedded NUL in applicant message must be rejected");
+      assert.match(tests, /public careers contact data is accepted intact or rejected, never truncated/);
+      assert.match(tests, /careersContactFields\(invalid\), null/);
+      assert.doesNotMatch(route, /\.slice\(0,\s*(?:32|1000)\)/);
+      for (const guard of [
+        "const hold = workflowEntityHold(); if (hold) return hold;",
+        "const notice = careersNoticeConfig();",
+        "const denied = enforceSameOriginMutation(request);",
+        "const body = await readCareersApplicationBody(request);",
+        "const contact = careersContactFields(body);",
+        "if (!contact) return Response.json({",
+        'status: 422, headers: { "Cache-Control": "no-store" }',
+        "const consent = requireApplicantConsent({",
+        "const proofDenied = await enforceIntakeProof(body, email);",
+        "publishedCareersPredicate(organizationId), eq(jobRequisitions.id, requisitionId)",
+        "await db.transaction(async tx => {",
+        "eq(jobRequisitions.organizationId, organizationId), eq(jobRequisitions.id, requisitionId)",
+        "eq(positions.organizationId, organizationId), eq(positions.status, \"open\")",
+        "eq(jobApplicants.organizationId, organizationId), eq(jobApplicants.requisitionId, requisitionId)",
+        "phone: contact.phone || null,",
+        "notes: contact.notes || null,",
+        "await tx.insert(applicantPrivacyEvidence).values({",
+        "await tx.insert(auditEvents).values({",
+        'status: 202, headers: { "Cache-Control": "no-store" }',
+      ]) assert.ok(route.includes(guard),
+        "Public applicant consent, tenant or source-integrity guard changed: " + guard);
+      const validated = route.indexOf("const contact = careersContactFields(body);");
+      const rateLimit = route.indexOf('const rate = await rateLimitDistributed("careers-application:');
+      const proof = route.indexOf("const proofDenied = await enforceIntakeProof(body, email);");
+      const writes = route.indexOf("await db.transaction(async tx => {");
+      assert.ok(validated > 0 && validated < rateLimit && rateLimit < proof && proof < writes,
+        "Optional applicant contact rejection must occur before rate, proof and writes");
+    }
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
