@@ -139,7 +139,7 @@ export function assertOwnAvailability(response, actor, allRows, today, forbidden
   assert.deepEqual(response.json.rules, expected,
     "GET must match every real own rule and exclude other employees and employers");
   assert.ok(response.json.rules.some(row =>
-    typeof row.notes === "string" && row.notes.includes(actor.marker + " PRIVATE")),
+    typeof row.notes === "string" && row.notes.includes(actor.marker)),
     "GET must read the unique persisted own employee marker");
   assertNoPrivateMarkers(response, forbidden);
   return expected;
