@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -79,8 +80,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "POST workforce/roster-batches", "PATCH loans", "POST hcm/capabilities",
     "PATCH recruitment/privacy", "PATCH performance/follow-through-governance",
     "PATCH careers/admin", "POST workforce-planning/allocations",
-    "GET year-end", "GET workforce/demand-observations/issued",
-    "GET workforce/demand-staffing/policies",
+    "GET year-end", "GET workforce/demand-staffing/policies",
     "GET hcm/employment-term-decisions/[id]/manager-attestation",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
     "POST benefits/hmo", "POST web-bundy/consent",
@@ -90,6 +90,24 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
   }
+  // The issued-demand GET was proven and credited by a separate merged
+  // PG16/localhost workflow, not by the original 16-method sweep.
+  // Independently verify all four newer source/receipt pins and that their
+  // method identities are disjoint from this older promotion catalogue.
+  const newCredits = [
+    "GET self/schedule-receipts", "POST self/schedule-receipts",
+    "PATCH self/profile", "GET workforce/demand-observations/issued",
+  ];
+  assert.equal(verifyMoreCredits(manifest), newCredits.length);
+  assert.ok(newCredits.every(key => !targets.some(([target]) => target === key)),
+    "the existing 16 promotion credits cannot be double-counted");
+  for (const key of newCredits) {
+    assert.equal(methods.get(key)?.status, "COVERED", key);
+    assert.equal(methods.get(key)?.testedBy?.verifiedMainCommit,
+      "fe3ad8901bfa714d59639d9f59a13cf133eeab36", key);
+    assert.notEqual(methods.get(key)?.testedBy?.verifiedMainCommit, base,
+      "historical promotion receipt must remain owned by its original batch");
+  }
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),
@@ -98,13 +116,13 @@ test("already credited and partial-action methods are not double-counted", () =>
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
-  assert.match(doc, /330 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 158 GAP/);
+  assert.match(doc, /334 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 154 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
   const expected = new Map([
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
     ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
     ["STA-01", [27,21,0,6]], ["PII-01", [39,31,0,8]],
-    ["PII-02", [38,21,0,17]], ["WRK-01", [39,19,0,20]],
+    ["PII-02", [38,24,0,14]], ["WRK-01", [39,20,0,19]],
     ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
     ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
   ]);
