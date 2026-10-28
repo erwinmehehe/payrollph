@@ -123,3 +123,16 @@ test("People Home source links offer visible keyboard focus and large touch targ
     assert.match(classes, /\bfocus-visible:outline-offset-2\b/);
   }
 });
+
+test("People Home independent browser proof checks hidden Next HTML/RSC payloads, not just visible text", () => {
+  const script = read("scripts/qa/hcm-people-home-page-http.mjs");
+  assert.match(script, /const ownServerHtml = await ownPage\.text\(\)/);
+  assert.match(script, /const ownSerializedDom = await page\.content\(\)/);
+  assert.match(script, /const foreignServerHtml = await foreignPage\.text\(\)/);
+  assert.match(script, /assertNoPrivateSourceInSerializedHtml\(ownServerHtml,/);
+  assert.match(script, /assertNoPrivateSourceInSerializedHtml\(ownSerializedDom,/);
+  assert.match(script, /assertNoPrivateSourceInSerializedHtml\(foreignServerHtml,/);
+  assert.match(script, /assertNoPrivateSourceInSerializedHtml\(foreignHtml,/);
+  assert.match(script, /"SHARED-001", "VICTIM-ONLY-003"/);
+  assert.match(script, /"AlphaPrivate", "BetaPrivate"/);
+});
