@@ -122,10 +122,15 @@ export function canPreviewHcmAssignment(
 
 const PEOPLE_HOME_DELEGATION_LIMIT = 250;
 
-/** Two tenant-qualified queries for all candidate assignees, not 2 queries per step. */
+/**
+ * Two tenant-qualified, capped snapshot queries, not 2 queries per step.
+ * Passing null asks for possible identity/role/delegated assignees BEFORE
+ * the worklist's SQL LIMIT. This is not wildcard access: every target is
+ * checked against the same canonical preview permission resolver.
+ */
 export async function loadPeopleHomeAssigneePermissions(
   organizationId: number,
-  assignees: readonly string[],
+  assignees: readonly string[] | null,
   actor: { id: number; name: string },
 ): Promise<Map<string, boolean>> {
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
@@ -157,7 +162,15 @@ export async function loadPeopleHomeAssigneePermissions(
     throw new Error("People Home delegation preview requires source review.");
   }
   const actorRole = memberships[0]?.role ?? null;
-  return new Map(assignees.map((assignee) => [
+  // canDecide allows the actor directly, an eligible role, or up to three
+  // active delegation links. Only original delegation sources can name
+  // additional workflow assignees; their reachability is verified below.
+  const candidates = assignees ?? [
+    actor.name,
+    ...Object.keys(ROLE_APPROVER_GROUPS),
+    ...delegations.map((row) => row.fromApprover),
+  ];
+  return new Map(Array.from(new Set(candidates)).map((assignee) => [
     assignee,
     canPreviewHcmAssignment(assignee, actor.name, actorRole, delegations),
   ]));
