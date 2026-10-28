@@ -1,5 +1,6 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
+import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -77,7 +78,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const proof = method.testedBy;
     assert.ok(proof && typeof proof === "object", key + ": COVERED requires a valid proof reference");
     evidenceLine(proof.file, proof.line, key);
-    if (isNewOrChanged) {
+  if (isNewOrChanged) {
       // Newly introduced or changed code cannot borrow a single anonymous/invalid-request
       // status assertion as proof of actual cross-employer isolation.
       evidenceLine(proof.file, proof.ownPositiveLine, key + " attacker-own positive");
@@ -480,6 +481,180 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // STA-01 filing-outcome PATCH: a dedicated real PG16/HTTP suite exercises
+  // only fictional REJECTED outcomes. Moving the conditional update and audit
+  // into one DB transaction is security hardening, NOT an accepted-outcome
+  // positive and not an eligible whole-method COVERED promotion.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/compliance/filing-validations/[id]/route.ts PATCH") {
+    const reviewed = method.reviewedUncertified;
+    const original = "91ad31b9bd663a855c033932f446c604c4ce6a41";
+    const current = "09f642a67035dc9ce22fa502d80518ba18641b0f";
+    assert.equal(currentBlob, current, "Filing PATCH changed: require renewed exact-source review");
+    assert.equal(reviewed?.kind, "sta01-filing-outcome-audit-atomicity-only-no-full-PATCH-credit");
+    assert.equal(reviewed.originalRouteBlobSha, original);
+    assert.equal(reviewed.routeBlobSha, current);
+    assert.equal(reviewed.helperFile, "src/lib/filing-evidence-store.ts");
+    assert.equal(reviewed.proofFile, "scripts/qa/tenant-table-rows/write/compliance-filing.mjs");
+    assert.equal(reviewed.testFile, "tests/tenant-compliance-filing-contract.test.mjs");
+    for (const [file,sha] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.testFile, reviewed.testBlobSha],
+    ]) {
+      assert.match(sha, /^[a-f0-9]{40}$/);
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "Filing atomicity security helper/proof modified without re-review: " + file);
+    }
+    assert.equal(reviewed.atomicAuditRollbackRequired, true);
+    assert.equal(reviewed.acceptedOutcomePositiveProven, false);
+    assert.equal(reviewed.fullMethodCoverageCredits, 0);
+    assert.equal(reviewed.noProviderOrAgencySubmission, true);
+    assert.equal(method.testedBy, null, "Rejected-only proof must stay GAP");
+    assert.match(method.reason, /still GAP|Still GAP/);
+    const route = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
+    const store = readFileSync(reviewed.helperFile, "utf8");
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    for (const guard of [
+      /enforceSameOriginMutation\(request\)/,
+      /getSessionUser\(\)/,
+      /assertOrganizationRole\(/,
+      /requireSensitiveActionMfa\(user\)/,
+      /getFilingValidation\(organizationId, id\)/,
+      /resolveMultiEntityContext\(/,
+      /assertEntityResource\(scope.context, existing.legalEntityId\)/,
+      /assertOrganizationUnitAccess\(/,
+      /record = await db\.transaction\(async \(tx\) => \{/,
+      /await tx\.insert\(auditEvents\)\.values\(\{/,
+    ]) assert.match(route, guard, "Filing PATCH must retain tenant gate + atomic audit");
+    assert.match(store, /await \(transaction \?\? db\)\s*\.update\(governmentFilingValidations\)/);
+    assert.match(proof, /atomicAuditInsertRollbackProven: true/);
+    assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2);
+    return;
+  }
+
+  // WRK-02: the allocation handler now scopes persisted updates and manager
+  // decisions. Its own/foreign HTTP proof passed, but two partial-action
+  // methods must remain GAP, not inherit the unrelated GET credit. Admit
+  // only this reviewed route/blob and exact protected PG16 source receipt.
+  if (isNewOrChanged && method.status === "GAP" &&
+      ["src/app/api/workforce-planning/allocations/route.ts POST",
+        "src/app/api/workforce-planning/allocations/route.ts PATCH"].includes(key)) {
+    const routePath = "src/app/api/workforce-planning/allocations/route.ts";
+    const entry = manifest.allApiRouteFiles[routePath];
+    const reviewed = method.reviewedUncertified;
+    const post = key.endsWith(" POST");
+    const routeSha = "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9";
+    assert.equal(currentBlob, routeSha,
+      "WRK-02 route changed again; obtain a new independent tenant review");
+    assert.equal(entry.gitBlobSha, currentBlob);
+    assert.deepEqual(entry.methods.map(row => [row.name, row.status]),
+      [["GET", "COVERED"], ["POST", "GAP"], ["PATCH", "GAP"]],
+      "No partial WRK-02 method may be credited from action-level proof");
+    assert.equal(entry.methods[0].testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+      "Previously covered GET must retain its separate exact proof");
+    assert.equal(method.testedBy, null, "WRK-02 POST/PATCH still require complete method proof");
+    assert.equal(reviewed?.kind, "wrk02-partial-allocation-and-manager-decision-tenant-hardening");
+    assert.equal(reviewed?.originalRouteBlobSha, "f8477326b6a64f45e554f70d9b297b5f20f9bf84");
+    assert.equal(reviewed?.routeBlobSha, routeSha);
+    assert.equal(reviewed?.file, "scripts/qa/tenant-wfp-allocations-http.mjs");
+    assert.equal(reviewed?.proofBlobSha, "7afbaf74355ebeeab989608a7d3c939b794cabc5");
+    assert.equal(reviewed?.testFile, "tests/tenant-wfp-allocations-contract.test.mjs");
+    assert.equal(reviewed?.testBlobSha, "793cb13ac69febeeb19503ca99bc9eaa6fa100eb");
+    assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-wfp-allocations-http.yml");
+    assert.equal(reviewed?.workflowBlobSha, "3872153dc4233ed10f074ccf90d22a8a2cd6ad16");
+    assert.equal(reviewed?.reviewedHead, "3b548203726254c18f4ad4fb201a609c96f5e25a");
+    assert.equal(reviewed?.passedJob,
+      "https://github.com/erwinmehehe/payrollph/actions/runs/40684903960/job/122804642868");
+    assert.equal(reviewed?.newCredits, 0, "Source-only controls cannot create an inventory credit");
+    const linePins = post
+      ? [301, 314, 260, 264, 291, 136]
+      : [353, 370, 334, 338, 346, 136];
+    assert.deepEqual([
+      reviewed.ownPositiveLine, reviewed.secondaryOwnPositiveLine,
+      reviewed.foreignDenialLine, reviewed.secondaryForeignDenialLine,
+      reviewed.unchangedDbLine, reviewed.higherIdVictimLine,
+    ], linePins, "WRK-02 partial proof line pins changed");
+    assert.deepEqual(reviewed.actions,
+      post ? ["allocation_create", "manager_draft_create"] : ["submit", "accept", "reject"]);
+    assert.deepEqual(reviewed.remainingGaps,
+      post ? ["existing_allocation_update", "budget_race_and_version_conflict"]
+        : ["all_decision_race_and_flag_combinations"]);
+    const route = readFileSync(routePath, "utf8");
+    const script = readFileSync(reviewed.file, "utf8");
+    const scriptLines = script.split("\n");
+    const contract = readFileSync(reviewed.testFile, "utf8");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.equal(gitBlobSha(Buffer.from(route)), routeSha);
+    assert.equal(gitBlobSha(Buffer.from(script)), reviewed.proofBlobSha,
+      "Changing the WRK-02 HTTP proof requires a fresh passing receipt");
+    assert.equal(gitBlobSha(Buffer.from(contract)), reviewed.testBlobSha,
+      "Changing the WRK-02 contract requires a renewed source review");
+    assert.equal(gitBlobSha(Buffer.from(workflow)), reviewed.workflowBlobSha,
+      "Changes to the disposable PG16 workflow require fresh review");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wfp-allocations-http\.mjs/);
+    assert.ok(script.indexOf("requireDisposablePlanningEnv();") <
+      script.indexOf('import("../../src/db/index.ts")'),
+      "Fail-closed PG16-only preflight must precede database imports");
+    assert.match(script, /const \[a, b, victim\] = employers;/);
+    assert.match(script, /for \(const attacker of \[a, b\]\)/);
+    assert.match(evidenceLine(reviewed.file, 136, key + " higher-ID victim"),
+      /assert\.ok\(victim\[key\] > attacker\[key\]/);
+    assert.match(script, /const post = \(actor, payload, nonadmin = false\) =>/);
+    assert.match(script, /http\.standaloneRequest\(PATH, \{ method: "POST"/);
+    assert.match(script, /const patch = \(actor, submissionId, action,/);
+    assert.match(script, /method: "PATCH"/);
+    assert.match(script, /assert\.equal\(response\.status, status,/,
+      "Negative-control HTTP status checks must be executable");
+    assert.match(script, /assert\.equal\(audit\.organizationId, actor\.orgId\)/);
+    assert.match(script, /for \(const actor of \[a, b\]\)/);
+    assert.match(script, /productionCertified: false, wholeMethodAccepted: false, newCredits: 0/);
+    assert.match(contract, /assertNoStateChange/);
+    assert.match(contract, /newCredits: 0/);
+    const at = number => evidenceLine(reviewed.file, number, key);
+    if (post) {
+      assert.match(at(301), /const createAllocation = await post\(actor, allocationBody\(actor\)\)/);
+      assert.match(at(314), /const createDraft = await post\(actor, submissionBody\(actor, allocationId\)\)/);
+      assert.match(at(260), /deny\(await post\(actor, allocationBody\(actor, victim\.orgId,/);
+      assert.match(at(264), /deny\(await post\(actor, submissionBody\(actor,/);
+      assert.match(scriptLines.slice(259, 267).join("\n"),
+        /victim\.planId, victim\.newUnitId\)\), 403,/);
+      assert.match(scriptLines.slice(263, 268).join("\n"),
+        /victim\.existingAllocationId, victim\.orgId\)\), 403,/);
+      assert.match(at(291), /assertNoStateChange\(expected\.get\(e\.orgId\), await snapshot\(e\.orgId\)/);
+      assert.match(script, /assertOwnAllocationCreated\(/);
+      assert.match(script, /assertOwnManagerDraftCreated\(/);
+      assert.match(script, /victim\.existingAllocationId\)\), 404,/);
+      assert.match(route, /eq\(workforcePlanAllocations\.organizationId, organizationId\)/);
+      assert.match(route, /eq\(workforcePlanManagerSubmissions\.organizationId, organizationId\)/);
+    } else {
+      assert.match(at(353), /const submitted = await patch\(actor, actor\.draftId, "submit"\)/);
+      assert.match(at(370), /const decision = await patch\(actor, actor\.draftId, action, \{ checker: true \}\)/);
+      assert.match(at(334), /deny\(await patch\(actor, victim\.draftId, action, \{ orgId: actor\.orgId \}\)/);
+      assert.match(at(338), /deny\(await patch\(actor, victim\.draftId, "accept",/);
+      assert.match(scriptLines.slice(333, 341).join("\n"),
+        /403, actor\.label \+ " foreign manager PATCH " \+ action/);
+      assert.match(scriptLines.slice(337, 341).join("\n"),
+        /403, actor\.label \+ " foreign independent-checker PATCH"/);
+      assert.match(at(346), /assertNoStateChange\(expected\.get\(e\.orgId\), await snapshot\(e\.orgId\)/);
+      assert.match(script, /for \(const action of \["submit", "accept", "reject"\]\)/);
+      assert.match(script, /assertDecisionTransition\(beforeSubmit, afterSubmit/);
+      assert.match(script, /assertDecisionTransition\(beforeDecide, afterDecide/);
+      assert.match(script, /deny\(await patch\(actor, actor\.draftId, "accept"\), 409/);
+      assert.match(script, /foreignPatches: 8, nonadminPatches: 2, makerDecisionDenials: 3/);
+      assert.match(script, /ownSubmissions: 3, ownDecisions: 3/);
+      assert.match(route, /eq\(workforcePlanManagerSubmissions\.organizationId, submission\.organizationId\)/);
+      assert.match(route, /eq\(workforcePlanManagerSubmissions\.allocationId, submission\.allocationId\)/);
+      assert.match(route, /\.for\("update"\)\.limit\(1\)/);
+      const patchSrc = route.slice(route.indexOf("export async function PATCH"));
+      assert.ok(patchSrc.indexOf('denyOptInEnterpriseAdvancedPlan(submission.organizationId, "planning")') <
+        patchSrc.indexOf('if (action === "submit")'),
+        "All decision actions must execute the same advanced-planning access gate");
+    }
+    return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
+  }
+
   // Signup is a public tenant-CREATION method, not an already authenticated
   // own/foreign employer method. Permit only the four reviewed anti-abuse
   // source substitutions, while keeping the entire POST method GAP.
@@ -548,58 +723,6 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "Reject nondecimal/JSON-coerced values as employee seat counts");
     assert.match(pilotTests, /registration refuses per-process rate-limit fallback at all three gates/);
     assert.match(pricingTests, /seat counts accept only real numbers or decimal digit strings/);
-    return;
-  }
-
-  // STA-01 filing-outcome PATCH: a dedicated real PG16/HTTP suite exercises
-  // only fictional REJECTED outcomes. Moving the conditional update and audit
-  // into one DB transaction is security hardening, NOT an accepted-outcome
-  // positive and not an eligible whole-method COVERED promotion.
-  if (isNewOrChanged && method.status === "GAP" &&
-      key === "src/app/api/compliance/filing-validations/[id]/route.ts PATCH") {
-    const reviewed = method.reviewedUncertified;
-    const original = "91ad31b9bd663a855c033932f446c604c4ce6a41";
-    const current = "09f642a67035dc9ce22fa502d80518ba18641b0f";
-    assert.equal(currentBlob, current, "Filing PATCH changed: require renewed exact-source review");
-    assert.equal(reviewed?.kind, "sta01-filing-outcome-audit-atomicity-only-no-full-PATCH-credit");
-    assert.equal(reviewed.originalRouteBlobSha, original);
-    assert.equal(reviewed.routeBlobSha, current);
-    assert.equal(reviewed.helperFile, "src/lib/filing-evidence-store.ts");
-    assert.equal(reviewed.proofFile, "scripts/qa/tenant-table-rows/write/compliance-filing.mjs");
-    assert.equal(reviewed.testFile, "tests/tenant-compliance-filing-contract.test.mjs");
-    for (const [file,sha] of [
-      [reviewed.helperFile, reviewed.helperBlobSha],
-      [reviewed.proofFile, reviewed.proofBlobSha],
-      [reviewed.testFile, reviewed.testBlobSha],
-    ]) {
-      assert.match(sha, /^[a-f0-9]{40}$/);
-      assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "Filing atomicity security helper/proof modified without re-review: " + file);
-    }
-    assert.equal(reviewed.atomicAuditRollbackRequired, true);
-    assert.equal(reviewed.acceptedOutcomePositiveProven, false);
-    assert.equal(reviewed.fullMethodCoverageCredits, 0);
-    assert.equal(reviewed.noProviderOrAgencySubmission, true);
-    assert.equal(method.testedBy, null, "Rejected-only proof must stay GAP");
-    assert.match(method.reason, /still GAP|Still GAP/);
-    const route = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
-    const store = readFileSync(reviewed.helperFile, "utf8");
-    const proof = readFileSync(reviewed.proofFile, "utf8");
-    for (const guard of [
-      /enforceSameOriginMutation\(request\)/,
-      /getSessionUser\(\)/,
-      /assertOrganizationRole\(/,
-      /requireSensitiveActionMfa\(user\)/,
-      /getFilingValidation\(organizationId, id\)/,
-      /resolveMultiEntityContext\(/,
-      /assertEntityResource\(scope.context, existing.legalEntityId\)/,
-      /assertOrganizationUnitAccess\(/,
-      /record = await db\.transaction\(async \(tx\) => \{/,
-      /await tx\.insert\(auditEvents\)\.values\(\{/,
-    ]) assert.match(route, guard, "Filing PATCH must retain tenant gate + atomic audit");
-    assert.match(store, /await \(transaction \?\? db\)\s*\.update\(governmentFilingValidations\)/);
-    assert.match(proof, /atomicAuditInsertRollbackProven: true/);
-    assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2);
     return;
   }
 
@@ -1173,6 +1296,12 @@ test("all credited proof links point to the claimed route and every recertified 
         // Exactly six reviewed routes and source/receipt blobs are pinned by
         // the dedicated validator; this is not an arbitrary new source bypass.
         assert.equal(verifyFollowOnCredits(manifest), 6);
+        continue;
+      }
+      if (proof?.verifiedMainCommit === "fe3ad8901bfa714d59639d9f59a13cf133eeab36") {
+        // Three exact proof-owned methods on unchanged merged source blobs.
+        // The #1524 self-profile route is a source-reviewed GAP; no stale credit.
+        assert.equal(verifyMoreCredits(manifest), 3);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
