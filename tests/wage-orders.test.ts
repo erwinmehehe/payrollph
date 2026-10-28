@@ -100,6 +100,23 @@ test("new-hire form requires explicit wage region selection rather than defaulti
     "browser must prove the explicit region was sent through the actual API request");
   assert.ok(realBrowser.includes('created.employee.region, "NCR"'),
     "browser must verify the selected region was persisted, not inferred");
+
+  // The same required field applies to the disposable zero-employee employer
+  // first-hire acceptance flow. Otherwise native form validation silently
+  // blocks its HTTP POST and a Playwright response wait times out.
+  const firstPayroll = readFileSync("scripts/first-payroll-zero-tenant-browser.mjs", "utf8");
+  assert.ok(firstPayroll.includes('hire.getByLabel("Wage region")'),
+    "zero-tenant inline first hire must use the real required region control");
+  assert.ok(firstPayroll.includes('node.validity.valueMissing'),
+    "zero-tenant browser must assert a blank region cannot be submitted");
+  assert.ok(firstPayroll.includes('await wageRegion.selectOption("NCR")'),
+    "zero-tenant browser must explicitly select a fictional wage region");
+  assert.ok(firstPayroll.includes('created.request().postDataJSON()?.region, "NCR"'),
+    "zero-tenant real HTTP POST must carry the selected region");
+  assert.ok(firstPayroll.includes('hired?.employee?.region, "NCR"'),
+    "zero-tenant real HTTP response must prove the choice was saved");
+  assert.ok(firstPayroll.includes('hired?.employee?.organizationId, fixture.organizationId'),
+    "zero-tenant first hire must belong to its own employer");
 });
 
 test("employee creation validates wage regions at the API boundary before payroll", () => {
