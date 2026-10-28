@@ -17,7 +17,13 @@ function harness() {
   const db = {
     insert: (table) => ({ values: (input) => ({
       returning: async () => {
-        const row = { ...structuredClone(input), id: ++nextId };
+        // PostgreSQL/Drizzle RETURNING includes nullable columns as null,
+        // not omitted properties. Match its enrollment row shape so the
+        // unchanged-field assertion remains strict in this pure harness.
+        const defaults = table.name === "benefitEnrollments"
+          ? { providerMemberId: null, effectiveOn: null, endedOn: null }
+          : {};
+        const row = { ...defaults, ...structuredClone(input), id: ++nextId };
         store[table.name].push(row);
         return [structuredClone(row)];
       },
@@ -129,6 +135,10 @@ test("all three HMO sources persist distinct real plan, enrollment and dependent
     assert.equal(enrollment.planId, plan.id);
     assert.equal(enrollment.employeeId, e.worker.id);
     assert.equal(enrollment.providerStatus, "not_sent");
+    for (const field of ["providerMemberId", "effectiveOn", "endedOn"]) {
+      assert.equal(enrollment[field], null,
+        "fictional SQL-returning enrollment must preserve nullable " + field);
+    }
     assert.equal(dependent.organizationId, e.org.id);
     assert.equal(dependent.enrollmentId, enrollment.id);
     assert.equal(dependent.employeeId, e.worker.id);
