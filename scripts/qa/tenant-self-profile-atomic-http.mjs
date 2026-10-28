@@ -234,14 +234,14 @@ export async function proveSelfProfileHttp() {
     // before/after employee snapshot below fails, proving atomic rollback.
     await pool.query(`
       CREATE FUNCTION ci_self_profile_reject_audit() RETURNS trigger
-      LANGUAGE plpgsql AS $
+      LANGUAGE plpgsql AS $ci_profile_audit$
       BEGIN
         IF NEW.action = 'Employee self-service profile updated' THEN
           RAISE EXCEPTION 'synthetic self-profile audit veto';
         END IF;
         RETURN NEW;
       END;
-      $
+      $ci_profile_audit$;
     `);
     await pool.query(`
       CREATE TRIGGER ci_self_profile_reject_audit
