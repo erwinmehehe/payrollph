@@ -7,7 +7,7 @@ import {
 } from "../scripts/qa/tenant-self-profile-contract.mjs";
 
 const safe = Object.freeze({
-  CI: "true", TENANT_SECOND_PASS_MODE: "isolated-ci-only", NODE_ENV: "production",
+  GITHUB_ACTIONS: "true", CI: "true", TENANT_SECOND_PASS_MODE: "isolated-ci-only", NODE_ENV: "production",
   SECURITY_SMOKE_URL: "http://127.0.0.1:3000",
   DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
   WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
@@ -60,7 +60,7 @@ function evidence() {
 test("profile proof can run only with isolated CI PG16 and disabled workers/providers", () => {
   assert.equal(requireDisposableSelfProfile(safe), true);
   for (const [key, value] of [
-    ["CI", "false"], ["TENANT_SECOND_PASS_MODE", "live"],
+    ["GITHUB_ACTIONS", "false"], ["CI", "false"], ["TENANT_SECOND_PASS_MODE", "live"],
     ["NODE_ENV", "development"], ["SECURITY_SMOKE_URL", "https://payroll.example.invalid"],
     ["SECURITY_SMOKE_URL", "http://localhost:3000"],
     ["SECURITY_SMOKE_URL", "http://127.0.0.1.evil:3000"],
@@ -68,12 +68,14 @@ test("profile proof can run only with isolated CI PG16 and disabled workers/prov
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5433/app_db"],
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/customer"],
     ["DATABASE_URL", "postgresql://other:secret@127.0.0.1:5432/app_db"],
+    ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db?sslmode=require"],
     ["WORKER_ENABLED", "true"], ["CENTRAL_SCHEDULER_ENABLED", "true"],
     ["PAYMONGO_DISBURSEMENTS_ENABLED", "true"], ["XENDIT_PAYOUTS_ENABLED", "true"],
     ["XENDIT_BILLING_ENABLED", "true"], ["DEMO_MODE", "true"],
     ["PAYMONGO_SECRET_KEY", "real"], ["XENDIT_SECRET_KEY", "real"],
     ["XENDIT_PAYOUT_SECRET_KEY", "real"], ["RESEND_API_KEY", "real"],
     ["POSTMARK_SERVER_TOKEN", "real"], ["SMTP_URL", "smtp://mail.example.invalid"],
+    ["NEON_API_KEY", "real"], ["NEON_DATABASE_URL", "postgresql://hosted.invalid/db"],
   ]) {
     assert.throws(() => requireDisposableSelfProfile({ ...safe, [key]: value }),
       /ESS_PROFILE_REFUSED/, key);
