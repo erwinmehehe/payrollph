@@ -276,7 +276,7 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
       : roundWholeCents(absoluteTotalCents * (row.percent / 100));
     const shareCents = Math.min(remainingCents, requestedCents);
     remainingCents -= shareCents;
-    const cents = direction * shareCents;
+    const cents = shareCents === 0 ? 0 : direction * shareCents;
     return {
       allocationId: row.id,
       costCenterId: row.costCenterId,
