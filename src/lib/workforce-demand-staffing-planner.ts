@@ -82,6 +82,10 @@ export function previewDemandToStaffing(slots: readonly DemandStaffingSlot[]): D
       s.paidMinutesPerWorker < 15 || s.paidMinutesPerWorker > 1440 ||
       !Number.isFinite(s.serviceTargetCoveragePercent) ||
       s.serviceTargetCoveragePercent <= 0 || s.serviceTargetCoveragePercent > 100 ||
+      // Never interpret truthy JSON strings/numbers as independently verified
+      // skill or worker rest/availability proof in a scenario result.
+      typeof s.eligibleSkillEvidenceComplete !== "boolean" ||
+      typeof s.restAndAvailabilityEvidenceComplete !== "boolean" ||
       (s.availableEligibleHeadcount !== null &&
         (!Number.isSafeInteger(s.availableEligibleHeadcount) ||
          s.availableEligibleHeadcount < 0 || s.availableEligibleHeadcount > 10000)) ||
