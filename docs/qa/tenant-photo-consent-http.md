@@ -1,5 +1,17 @@
 # Web Bundy employee photo-consent POST: tenant proof candidate
 
+## Cross-origin probe data boundary
+
+The authenticated cross-origin probe uses a literal localhost destination and a
+new in-memory session minted for the first synthetic employee selected directly
+from PostgreSQL. It first verifies `/api/auth/me` and an unchanged same-origin
+consent receipt for that identity. Its cookie and POST body are not read from the
+private fixture file. This removes the two file-to-network flows flagged by
+CodeQL without suppressing alerts or replacing the authenticated origin control
+with an anonymous request. Two new tests verify the network inputs and refusal
+before sending when authentication or the same-origin positive control fails.
+Fresh exact-head CodeQL and disposable PG16 HTTP results remain required.
+
 **Exact method:** POST web-bundy/consent. **Coverage status: GAP.**
 Independent of the open Careers, ESS documents, payroll overpayment, HMO,
 invitations, performance and Automation Studio pull requests.

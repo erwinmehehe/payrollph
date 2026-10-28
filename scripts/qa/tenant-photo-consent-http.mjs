@@ -22,6 +22,38 @@ import {
 const PATH = "/api/web-bundy/consent";
 const jsonCopy = value => JSON.parse(JSON.stringify(value));
 
+// The cross-origin probe must not transmit anything read from the private
+// fixture file. Select its synthetic identity from the guarded database and
+// mint a fresh in-memory session, then use a literal localhost destination.
+export async function crossSiteConsentProbe({ readActor, readWorker, makeSession, request, fetcher = fetch }) {
+  const actor = await readActor();
+  assert.ok(Number.isSafeInteger(actor?.id) && actor.id > 0);
+  assert.ok(Number.isSafeInteger(actor.employeeId) && actor.employeeId > 0);
+  const worker = await readWorker(actor.employeeId);
+  assert.equal(worker?.id, actor.employeeId);
+  assert.ok(Number.isSafeInteger(worker.organizationId) && worker.organizationId > 0);
+  const session = await makeSession(actor.id);
+  assert.match(session.cookie, /^__Host-linaw_session=[a-f0-9]{64}$/);
+  const authenticated = await request("/api/auth/me", { cookie: session.cookie });
+  assert.equal(authenticated.status, 200);
+  assert.equal(authenticated.json?.user?.id, actor.id);
+  assert.equal(authenticated.json.user.role, "employee");
+  assert.equal(authenticated.json.user.employeeId, worker.id);
+  const body = { organizationId: worker.organizationId, choice: "accepted" };
+  const sameOrigin = await request(PATH, { method: "POST", cookie: session.cookie, body });
+  assertOwnedConsentReceipt(sameOrigin, "accepted", "unchanged");
+  const response = await fetcher("http://127.0.0.1:3000/api/web-bundy/consent", {
+    method: "POST", redirect: "manual", cache: "no-store",
+    headers: { cookie: session.cookie, "content-type": "application/json",
+      origin: "https://hostile.example.invalid", "sec-fetch-site": "cross-site" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch {}
+  return { status: response.status, text, json, headers: response.headers };
+}
+
 function readPrivateFixture(path) {
   assert.match(path ?? "", /^\/tmp\/payrollph-photo-consent-[A-Za-z0-9]{6}\/fixture\.json$/);
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -184,7 +216,7 @@ async function prove() {
   const { organizations, employees, employeePayProfiles, auditEvents,
     workforcePunchPhotoConsents, workforcePunchPhotoEvidence,
     workforcePunchSubmissions, timePunches, attendanceCorrectionRequests,
-    payrollRuns, payrollEntries, payoutBatches } = schema;
+    payrollRuns, payrollEntries, payoutBatches, users } = schema;
   const { standaloneRequest, requireTenantTableDisposable } = shared;
   requireTenantTableDisposable();
 
@@ -231,28 +263,16 @@ async function prove() {
       payoutBatches: await db.select().from(payoutBatches).orderBy(payoutBatches.id),
     });
   }
-  async function post(cookie, organizationId, choice, crossSite = false) {
-    if (!crossSite) {
-      return standaloneRequest(PATH, {
-        method: "POST", cookie, body: { organizationId, choice },
-      });
-    }
-    const response = await fetch("http://127.0.0.1:3000" + PATH, {
-      method: "POST", redirect: "manual", cache: "no-store",
-      headers: { cookie, "content-type": "application/json",
-        origin: "https://hostile.example.invalid", "sec-fetch-site": "cross-site" },
-      body: JSON.stringify({ organizationId, choice }),
+  async function post(cookie, organizationId, choice) {
+    return standaloneRequest(PATH, {
+      method: "POST", cookie, body: { organizationId, choice },
     });
-    const text = await response.text();
-    let json = null;
-    try { json = JSON.parse(text); } catch {}
-    return { status: response.status, text, json, headers: response.headers };
   }
   const protectedMarkers = fixture.employers.flatMap(e =>
     [e.marker, e.marker + "-NONHELD-FAKE", e.marker + "-HELD-FAKE"]);
   let positive = 0, rejected = 0;
-  async function denied(cookie, org, choice, status, crossSite = false) {
-    const response = await post(cookie, org, choice, crossSite);
+  async function denied(cookie, org, choice, status) {
+    const response = await post(cookie, org, choice);
     assertConsentRefused(response, status, protectedMarkers);
     rejected++;
     return response;
@@ -303,7 +323,16 @@ async function prove() {
     await denied(undefined, a.org.id, "accepted", 403);
     await denied(a.actor.cookie, a.org.id, "invalid-choice", 400);
     await denied(a.actor.cookie, 0, "declined", 400);
-    await denied(a.actor.cookie, a.org.id, "declined", 403, true);
+    const crossSite = await crossSiteConsentProbe({
+      readActor: async () => (await db.select({ id: users.id, employeeId: users.employeeId })
+        .from(users).where(eq(users.role, "employee")).orderBy(users.id).limit(1))[0],
+      readWorker: async id => (await db.select({ id: employees.id, organizationId: employees.organizationId })
+        .from(employees).where(eq(employees.id, id)).limit(1))[0],
+      makeSession: shared.standaloneMakeSession,
+      request: standaloneRequest,
+    });
+    assertConsentRefused(crossSite, 403, protectedMarkers);
+    rejected++;
     // An employee in A whose actual user.employeeId points to a victim row
     // must NOT create A consent nor access victim via a forged membership.
     await denied(fixture.mismatch.cookie, a.org.id, "declined", 404);

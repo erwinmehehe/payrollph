@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { crossSiteConsentProbe } from "../scripts/qa/tenant-photo-consent-http.mjs";
 import {
   CONSENT_METHOD, CONSENT_VERSION, CONSENT_FIXTURE_SCHEMA,
   requireDisposableConsentTarget, assertNonCacheableConsent,
@@ -18,6 +19,55 @@ const safeEnv = Object.freeze({
   GITHUB_ENV: "/tmp/ci-env-only", WFM_PUNCH_EVIDENCE_ORG_IDS: "",
   PHOTO_CONSENT_FIXTURE: "", PAYMONGO_SECRET_KEY: "",
   XENDIT_SECRET_KEY: "", RESEND_API_KEY: "",
+});
+
+function csrfDependencies(overrides = {}) {
+  const calls = [], freshCookie = "__Host-linaw_session=" + "a".repeat(64);
+  return { calls, freshCookie, dependencies: {
+    readActor: async () => ({ id: 11, employeeId: 21 }),
+    readWorker: async id => { assert.equal(id, 21); return { id: 21, organizationId: 31 }; },
+    makeSession: async id => { assert.equal(id, 11); return { cookie: freshCookie }; },
+    request: async (path, options) => {
+      calls.push({ path, options });
+      if (path === "/api/auth/me") return { status: 200, json: { user: { id: 11, employeeId: 21, role: "employee" } } };
+      return receipt("accepted", "unchanged");
+    },
+    fetcher: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(JSON.stringify({ error: "Cross-site request refused." }), { status: 403 });
+    },
+    ...overrides,
+  } };
+}
+
+test("cross-origin probe uses a fresh authenticated DB identity and literal localhost, never file cookies", async () => {
+  const { calls, freshCookie, dependencies } = csrfDependencies();
+  const result = await crossSiteConsentProbe({ ...dependencies,
+    fixtureCookie: "PRIVATE-FILE-COOKIE", fixtureOrganizationId: 999 });
+  assert.equal(result.status, 403); assert.equal(calls.length, 3);
+  assert.equal(calls[0].path, "/api/auth/me");
+  assert.equal(calls[1].path, "/api/web-bundy/consent");
+  assert.equal(calls[2].url, "http://127.0.0.1:3000/api/web-bundy/consent");
+  assert.equal(calls[2].options.headers.cookie, freshCookie);
+  assert.deepEqual(JSON.parse(calls[2].options.body), { organizationId: 31, choice: "accepted" });
+  assert.equal(calls[2].options.headers["sec-fetch-site"], "cross-site");
+  assert.equal(calls[2].options.redirect, "manual");
+  assert.ok(!JSON.stringify(calls).includes("PRIVATE-FILE-COOKIE"));
+});
+
+test("cross-origin probe refuses invalid worker/session or failed authenticated same-origin control", async () => {
+  for (const overrides of [
+    { readActor: async () => null },
+    { readWorker: async () => ({ id: 999, organizationId: 31 }) },
+    { makeSession: async () => ({ cookie: "not-a-valid-session" }) },
+    { request: async () => ({ status: 200, json: { user: null } }) },
+    { request: async path => path === "/api/auth/me" ? { status: 200, json: { user: { id: 11, employeeId: 21, role: "employee" } } } : { status: 403 } },
+  ]) {
+    let sent = false;
+    const { dependencies } = csrfDependencies({ ...overrides, fetcher: async () => { sent = true; } });
+    await assert.rejects(() => crossSiteConsentProbe(dependencies));
+    assert.equal(sent, false, "cross-site response cannot count without genuine same-origin authenticated control");
+  }
 });
 
 function receipt(choice = "accepted", status = "recorded") {
