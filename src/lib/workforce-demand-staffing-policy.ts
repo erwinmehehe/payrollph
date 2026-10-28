@@ -50,7 +50,10 @@ const plain = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const decimal = (n: unknown, min: number, max: number, precision: number) =>
   typeof n === "number" && Number.isFinite(n) && n >= min && n <= max &&
-  Math.abs(n - Math.round(n * 10 ** precision) / 10 ** precision) < 1e-9;
+  // These figures are hashed before persistence and later read from fixed-scale
+  // decimal DB columns. A tolerance would accept extra fractional digits,
+  // then toFixed() would silently change the value and invalidate its hash.
+  Number(n.toFixed(precision)) === n;
 const isDate = (v: unknown): v is string => {
   if (typeof v !== "string") return false;
   try { return receiptDate(v) === v; } catch { return false; }
