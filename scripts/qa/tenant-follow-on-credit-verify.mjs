@@ -87,6 +87,27 @@ const CASES = [
   ]
 ];
 
+/**
+ * Review the literal network destinations in each proof workflow by parsing
+ * full URLs. A substring check cannot distinguish a provider's hostname from
+ * an attacker-controlled lookalike or a URL embedded inside another URL.
+ * The tested workflows only need disposable loopback HTTP, never providers.
+ */
+export function assertWorkflowUsesOnlyLoopbackUrls(workflowText) {
+  assert.equal(typeof workflowText, "string", "workflow source is required");
+  const literalUrls = workflowText.match(/https?:\\/\\/[^\\s"'<>\\\\]+/gi) ?? [];
+  for (const literal of literalUrls) {
+    let url;
+    try { url = new URL(literal); }
+    catch { assert.fail("invalid literal HTTP endpoint in proof workflow"); }
+    assert.equal(url.protocol, "http:", "proof workflow cannot call an external HTTPS endpoint");
+    assert.equal(url.hostname, "127.0.0.1",
+      "proof workflow literal endpoint must use only the disposable loopback host");
+    assert.equal(url.username, "", "proof workflow endpoint must never carry credentials");
+    assert.equal(url.password, "", "proof workflow endpoint must never carry credentials");
+  }
+}
+
 function blobSha(text) {
   const bytes = Buffer.from(text, "utf8");
   return createHash("sha1").update("blob " + bytes.length + "\0")
@@ -152,9 +173,7 @@ export function verifyFollowOnCredits(manifest, read = path => readFileSync(path
       key + ": workflow must run the exact proof, not only source tests");
     assert.match(suite, /127\.0\.0\.1/,
       key + ": proof must use localhost, never production");
-    assert.ok(!suite.includes("https://api.paymongo.com") &&
-      !suite.includes("https://api.xendit.co"),
-      key + ": no external provider call allowed");
+    assertWorkflowUsesOnlyLoopbackUrls(suite);
     assert.ok(source.includes("VICTIM") && source.includes("ATTA") &&
       source.includes("ATTB"), key + ": real independent employer fixtures required");
     assert.ok(scriptName.endsWith("-http.mjs"), key + ": source must be HTTP proof");
