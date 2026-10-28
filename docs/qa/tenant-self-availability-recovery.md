@@ -1,20 +1,27 @@
-# ESS employee availability GET and POST: tenant-isolation GAP recovery candidate
+# ESS employee availability GET and POST: supplementary tenant-isolation proof
 
 **DRAFT / NO ACCEPTANCE / NO MERGE / ZERO NEW METHOD CREDITS.**
 
 ## Selection and existing work
 
-The authoritative method manifest at main@a7dc1f5184f59f3c5ac348e37b4ca88810f10651 marks
-both **GET /api/self/availability** and **POST /api/self/availability** as **GAP**:
-neither has a linked accepted own-object / real victim-only proof. Both are
-genuine, session-derived employee routes. The open-PR inventory at selection
-did not show another PR targeting this route.
+At the initial selection point (historical `main@a7dc1f5184f59f3c5ac348e37b4ca88810f10651`),
+the manifest listed **GET /api/self/availability** and
+**POST /api/self/availability** as **GAP**. Since then, independently
+integrated `main` has provisionally classified both as **COVERED**
+using exact-source proof from PR #1455 (fictional PG16/localhost HTTP
+run #40444843870). That is an existing, digest-pinned claim, **not** a
+credit from this PR and not global or production acceptance. The canonical
+`scripts/qa/tenant-self-availability-http.mjs` is restored byte-for-byte
+from `main`, and its original `tenant-gap-promotion-pins.json` SHA-256
+must continue to verify. All stronger checks are in the new separate
+`scripts/qa/tenant-self-availability-recovery-http.mjs`; this PR does not
+edit any previously pinned proof line or the coverage manifest.
 
-This repository already has scripts/qa/tenant-self-availability-http.mjs,
-a dedicated fictional PG16/localhost workflow and an environment-guard test
-on main. This candidate **strengthens the existing proof rather than
-manufacturing a duplicate runner or changing the product**. The existing
-script and a newly queued CI job do not themselves confer credit.
+The existing source-pinned canonical proof remains untouched. The dedicated
+PG16 workflow executes the new supplemental file on a fresh disposable
+database. The strengthened test does not replace or invalidate any already
+credited evidence. A source edit alone does not establish additional coverage
+or independent security/privacy acceptance.
 
 ## Real HTTP evidence to collect at the updated head
 
@@ -78,6 +85,9 @@ not a rollout approval.
 - [ ] CI, CodeQL, security smoke, money isolation and other relevant jobs pass.
 - [ ] Independent privacy/security reviewer checks tenant scope, identity,
       minimization, audit evidence, cache and race limits.
-- [ ] A separate reviewed manifest reconciliation is required for any credit.
+- [ ] Original SHA-256 pinned PR #1455 proof remains unchanged; no new manifest
+      credits or silent downgrade of existing provisional COVERED statuses.
+- [ ] A separate reviewed manifest reconciliation is required for any future
+      new credit or status change.
 
 **DRAFT / NOT ACCEPTED / DO NOT MERGE / NO COVERAGE PROMOTION.**
