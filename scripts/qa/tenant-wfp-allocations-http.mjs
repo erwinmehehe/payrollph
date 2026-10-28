@@ -102,13 +102,17 @@ export async function proveWorkforcePlanningAllocations() {
       const [checker] = await db.insert(s.users).values({
         email: e.marker.toLowerCase() + "-checker@example.invalid",
         name: e.marker + " independent fictional checker",
-        role: "owner", passwordHash: "fictional-no-login",
+        role: "owner", passwordHash: "fictional-no-login", totpEnabled: true,
       }).returning();
       await db.insert(s.userOrganizations).values({
         userId: checker.id, organizationId: e.org.id,
         role: "owner", active: true,
       });
       const checkerSession = await http.standaloneMakeSession(checker.id);
+      // The synthetic independent checker has its own verified-MFA session,
+      // never reuses the maker's cookie or bypasses session policy.
+      await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+        .where(eq(s.sessions.id, checkerSession.id));
       employers.push({
         label, marker: e.marker,
         orgId: e.org.id, planId: plan.id, planName,
