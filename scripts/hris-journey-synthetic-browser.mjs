@@ -524,8 +524,15 @@ try {
   const expandedMember = {
     ...sourceMember, name: longName, employeeNo: longNumber, jobTitle: longTitle,
   };
+  // UI-only fictional pagination: continuation must contain 25 ordered rows,
+  // with a cursor at the last visible ID. These are not database proof rows.
+  const firstPageMembers = Array.from({ length: 25 }, (_, index) => index === 0
+    ? expandedMember
+    : { ...sourceMember, id: sourceMember.id + index,
+      employeeNo: "SYNTHETIC-MOBILE-" + index, name: "Synthetic Mobile Worker " + index });
+  const firstPageCursor = firstPageMembers.at(-1).id;
   const olderMember = {
-    ...sourceMember, id: sourceMember.id + 1, name: "Synthetic Older Worker",
+    ...sourceMember, id: firstPageCursor + 1, name: "Synthetic Older Worker",
   };
   for (const width of [320, 375, 430]) {
     const phone = await browser.newContext({
@@ -539,7 +546,7 @@ try {
       const url = new URL(route.request().url());
       if (url.searchParams.get("organizationId") !== "1") return route.continue();
       const olderPage = Number(url.searchParams.get("cursor") ?? "0") > 0;
-      const items = olderPage ? [olderMember] : [expandedMember];
+      const items = olderPage ? [olderMember] : firstPageMembers;
       const sum = field => items.reduce((total, item) => total + item[field], 0);
       await route.fulfill({
         status: 200, contentType: "application/json",
@@ -557,7 +564,7 @@ try {
           },
           page: {
             size: 25, hasMore: !olderPage,
-            nextCursor: olderPage ? null : sourceMember.id,
+            nextCursor: olderPage ? null : firstPageCursor,
           },
         }),
       });
