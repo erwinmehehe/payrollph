@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
+import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -210,8 +211,8 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH approvals/[id]",
     "PATCH recruitment/privacy", "PATCH performance/follow-through-governance",
     "PATCH careers/admin", "POST workforce-planning/allocations",
-    "GET year-end", "GET workforce/demand-observations/issued",
-    "GET workforce/demand-staffing/policies",
+    "GET year-end", "GET workforce/demand-staffing/policies",
+    "PATCH self/profile",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
     "POST web-bundy/consent",
   ];
@@ -236,6 +237,26 @@ test("already credited and partial-action methods are not double-counted", () =>
     "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
   assert.notEqual(hmoPost?.testedBy?.verifiedMainCommit, base,
     "HMO POST must not be double-counted as a historical promotion target");
+  const threeNew = [
+    "GET self/schedule-receipts",
+    "POST self/schedule-receipts",
+    "GET workforce/demand-observations/issued",
+  ];
+  assert.equal(verifyMoreCredits(manifest), 3,
+    "only three new distinct, source-matched, fully exercised methods");
+  assert.ok(threeNew.every(key => !targets.some(([existing]) => existing === key)),
+    "existing #1509 credits must keep their independent proof owners");
+  for (const key of threeNew) {
+    const method = methods.get(key);
+    assert.equal(method?.status, "COVERED", key);
+    assert.equal(method?.testedBy?.verifiedMainCommit,
+      "fe3ad8901bfa714d59639d9f59a13cf133eeab36", key);
+  }
+  const profile = methods.get("PATCH self/profile");
+  assert.equal(profile?.status, "GAP", "merged #1524 route changed after #1518's proof");
+  assert.equal(profile?.testedBy, null);
+  assert.equal(profile?.reviewedUncertified?.coverageCredits, 0);
+  assert.equal(profile?.reviewedUncertified?.independentReview, "PENDING");
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),
@@ -244,13 +265,13 @@ test("already credited and partial-action methods are not double-counted", () =>
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
-  assert.match(doc, /337 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 151 GAP/);
+  assert.match(doc, /340 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 148 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
   const expected = new Map([
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
     ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
     ["STA-01", [27,21,0,6]], ["PII-01", [39,32,0,7]],
-    ["PII-02", [38,26,0,12]], ["WRK-01", [39,19,0,20]],
+    ["PII-02", [38,28,0,10]], ["WRK-01", [39,20,0,19]],
     ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
     ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
   ]);

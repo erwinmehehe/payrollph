@@ -1,5 +1,6 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
+import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 /**
@@ -474,8 +475,8 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // the six exact-source verified follow-on credits from the current ledger.
   const followOnCredits = verifyFollowOnCredits(manifest);
   assert.equal(followOnCredits, 6);
-  const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
-  assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
+  const newDisjointCredits = verifyMoreCredits(manifest);
+  assert.equal(newDisjointCredits, 3, "two receipts plus one issued-demand GET, excluding #1524 profile");
   // #1537 promotes one distinct HMO POST, but never GET or other benefits methods.
   // Keep its source-pinned HTTP credit separate from the historical 124/359 ledger.
   const hmoPostCredit = methodsByKey.get("POST benefits/hmo");
@@ -487,11 +488,13 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   assert.equal(hmoPostCredit?.testedBy?.passedJob,
     "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
   const hmoPostCredits = 1;
-  assert.equal(manifest.metrics.coveredAfter - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+  const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
+  assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
+  assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
-  assert.equal(manifest.metrics.gap + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
+  assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
     tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");

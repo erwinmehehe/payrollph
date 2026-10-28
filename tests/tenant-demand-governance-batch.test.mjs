@@ -215,7 +215,7 @@ test("genuine nonempty own draft policy response discriminates employers and ref
     () => policy.prove(mutate(() => policyResponse(a), change), a));
 });
 
-test("dynamic allowlists, negative-control URLs and flag profile are only synthetic", () => {
+test("synthetic allowlists retain issued GET verified credit without borrowing draft-policy GET", () => {
   const env = readFileSync("scripts/qa/tenant-table-env.mjs", "utf8");
   const bootstrap = readFileSync("scripts/qa/tenant-table-allowlist-bootstrap.mjs", "utf8");
   const invariants = readFileSync("scripts/qa/tenant-table-invariants.mjs", "utf8");
@@ -233,10 +233,22 @@ test("dynamic allowlists, negative-control URLs and flag profile are only synthe
   assert.match(negative, /\/api\/workforce\/demand-staffing\/policies/);
   assert.match(negative, /gateRoutes: 10/);
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  for (const key of [issued.key, policy.key]) {
-    const [verb,route] = key.split(" ");
-    const record = Object.values(manifest.allApiRouteFiles).find(x => x.route === route);
-    assert.equal(record?.methods?.find(x => x.name === verb)?.status, "GAP",
-      key + " must not receive credits from this batch");
-  }
+  const issuedRoute = manifest.allApiRouteFiles[
+    "src/app/api/workforce/demand-observations/issued/route.ts"];
+  const issuedMethod = issuedRoute.methods.find(m => m.name === "GET");
+  assert.equal(issuedMethod.status, "COVERED",
+    "only the separately executed #1514 final-head issued GET is credited");
+  assert.equal(issuedMethod.testedBy?.prNumber, 1514);
+  assert.equal(issuedMethod.testedBy?.workflowRunId, 40624976387);
+  assert.equal(issuedMethod.testedBy?.verifiedMainCommit,
+    "fe3ad8901bfa714d59639d9f59a13cf133eeab36");
+  assert.equal(issuedMethod.testedBy?.routeBlobSha, issuedRoute.gitBlobSha);
+
+  const policyRoute = manifest.allApiRouteFiles[
+    "src/app/api/workforce/demand-staffing/policies/route.ts"];
+  const policyMethod = policyRoute.methods.find(m => m.name === "GET");
+  assert.equal(policyMethod.status, "GAP",
+    "draft-only source proof cannot credit an approved-mode policy GET");
+  assert.equal(policyMethod.testedBy, null,
+    "no unrelated issued-demand proof may be borrowed by policy GET");
 });
