@@ -240,7 +240,8 @@ export function createRows({
         const addAfter = await snapshot(c.orgId);
         assert.deepEqual(addAfter.plans, addBefore.plans);
         assert.deepEqual(addAfter.enrollments, addBefore.enrollments);
-        assert.equal(addAfter.dependents.length, addBefore.dependents.length + 1);
+        assert.equal(addAfter.dependents.length, addBefore.dependents.length + 1,
+          "successful own add_dependent must commit exactly one real dependent row");
         assert.deepEqual(addAfter.dependents.slice(0, -1), addBefore.dependents);
         const added = addAfter.dependents.at(-1);
         assert.ok(Number.isSafeInteger(added.id) && added.id > c.seeded.dependentId);
