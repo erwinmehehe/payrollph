@@ -187,10 +187,10 @@ export async function proveSelfPerformance() {
         assert.ok(victim.profile[field].id>e.peer.profile[field].id,
           "higher-ID victim "+field+" must be real");
       }
-      assert.notEqual(e.self.cookie,b.self.cookie);
       assert.notEqual(e.self.cookie,victim.self.cookie);
       assert.notEqual(e.self.cookie,e.peer.self.cookie);
     }
+    assert.notEqual(a.self.cookie,b.self.cookie,"independent employee logins required");
     const forged=new Map();
     for(const e of [a,b])forged.set(e.org.id,await fakeForeignLink(e,victim));
     const victimBefore=await snapshot(victim.org.id);
