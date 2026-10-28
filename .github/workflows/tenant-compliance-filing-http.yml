@@ -61,8 +61,18 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Export disposable-only default profile
-        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Export disposable-only default profile, with unrelated workers and money gates off
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
+            echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
+          } >> "$GITHUB_ENV"
       - name: Validate exact-head source syntax and eight negative contracts
         run: |
           node --check scripts/qa/tenant-compliance-filing-contract.mjs
