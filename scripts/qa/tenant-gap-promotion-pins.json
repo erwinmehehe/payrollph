@@ -1,0 +1,289 @@
+{
+  "records": [
+    {
+      "key": "GET account",
+      "proof": {
+        "file": "scripts/qa/tenant-identity-account-http.mjs",
+        "line": 119,
+        "ownPositiveLine": 119,
+        "foreignDenialLine": 131,
+        "unchangedDbLine": 137,
+        "forgedSelectorLine": 131,
+        "scope": "Session-principal GET: own nonempty account, actual victim and peer IDs ignored as unauthorized selectors, anonymous 401, no secrets; victim/peer user/session/audit unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40503386113 (PR #1475 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1475,
+        "workflowRunId": 40503386113,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST attendance/offline-claims",
+      "proof": {
+        "file": "scripts/qa/tenant-offline-claims-http.mjs",
+        "line": 138,
+        "ownPositiveLine": 138,
+        "foreignDenialLine": 174,
+        "unchangedDbLine": 227,
+        "forgedSelectorLine": 180,
+        "scope": "Employee POST unverified claim persisted 201 + audit and readback for two attackers; real victim/foreign employee 403 and stolen worker 422; idempotent replay and changed replay refused; victim and attendance/payroll unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40529565588 (PR #1494 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1494,
+        "workflowRunId": 40529565588,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "PATCH attendance/offline-claims",
+      "proof": {
+        "file": "scripts/qa/tenant-offline-claims-http.mjs",
+        "line": 234,
+        "ownPositiveLine": 234,
+        "foreignDenialLine": 202,
+        "unchangedDbLine": 227,
+        "forgedSelectorLine": 199,
+        "scope": "Both supported flag/dismiss reviewer decisions positively persist exact status and audit; real higher-ID victim and other employer claim IDs return 403/404 under foreign and forged own organization selectors; all victim/payroll rows unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40529565588 (PR #1494 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1494,
+        "workflowRunId": 40529565588,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET auth/me",
+      "proof": {
+        "file": "scripts/qa/tenant-identity-account-http.mjs",
+        "line": 117,
+        "ownPositiveLine": 117,
+        "foreignDenialLine": 129,
+        "unchangedDbLine": 137,
+        "forgedSelectorLine": 129,
+        "scope": "Session-principal GET: real own and victim owner positives, authentic victim and same-employer peer IDs forged in query cannot change cookie identity; no leaked session/token data; victim/peer membership and audit unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40503386113 (PR #1475 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1475,
+        "workflowRunId": 40503386113,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST leave/preview",
+      "proof": {
+        "file": "scripts/qa/tenant-leave-preview-http.mjs",
+        "line": 167,
+        "ownPositiveLine": 167,
+        "foreignDenialLine": 177,
+        "unchangedDbLine": 214,
+        "forgedSelectorLine": 178,
+        "scope": "Read-only leave preview, independent owner and employee positives, real higher-ID victim 403, stolen victim worker 404, same-employer peer isolation, persisted shift/leave/payroll/audit unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40515729369 (PR #1488 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1488,
+        "workflowRunId": 40515729369,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST loans/schedule-preview",
+      "proof": {
+        "file": "scripts/qa/tenant-loan-schedule-tenant-http.mjs",
+        "line": 88,
+        "ownPositiveLine": 88,
+        "foreignDenialLine": 107,
+        "unchangedDbLine": 144,
+        "forgedSelectorLine": 131,
+        "scope": "All company, imported-agency and floor preview types positively exercised for both employers; actual victim employer 403, forged approval override has no authority, invalid cents 422, real victim loans/payroll/audit unchanged. PATCH loans remains GAP.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40510286524 (PR #1482 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1482,
+        "workflowRunId": 40510286524,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST payroll-overpayment-preview",
+      "proof": {
+        "file": "scripts/qa/tenant-overpayment-preview-http.mjs",
+        "line": 235,
+        "ownPositiveLine": 235,
+        "foreignDenialLine": 246,
+        "unchangedDbLine": 296,
+        "forgedSelectorLine": 248,
+        "scope": "Read-only review-only preview with exact persisted fictional Released source fingerprint, own positive for two attackers and victim, foreign employer 403, forged victim run/worker 404, SQL source/loans/leave/payroll/audit unchanged. Not payroll release or wage recovery.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40538867815 (PR #1495 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1495,
+        "workflowRunId": 40538867815,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET self/availability",
+      "proof": {
+        "file": "scripts/qa/tenant-self-availability-http.mjs",
+        "line": 167,
+        "ownPositiveLine": 167,
+        "foreignDenialLine": 176,
+        "unchangedDbLine": 223,
+        "forgedSelectorLine": 178,
+        "scope": "Authenticated employee own GET, genuine higher-ID victim and same-employer peer exclusions; explicit foreign employer/worker selectors rejected 400; unchanged victim availability, people, audit and payroll.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40444843870 (PR #1455 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1455,
+        "workflowRunId": 40444843870,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST self/availability",
+      "proof": {
+        "file": "scripts/qa/tenant-self-availability-http.mjs",
+        "line": 199,
+        "ownPositiveLine": 199,
+        "foreignDenialLine": 192,
+        "unchangedDbLine": 223,
+        "forgedSelectorLine": 189,
+        "scope": "Both actual supported create/remove actions: persisted own 201/readback and removal 200, real foreign and peer rule removal 409, forged JSON/URL selectors 400; unchanged victim/peer DB.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40444843870 (PR #1455 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1455,
+        "workflowRunId": 40444843870,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET self/identifiers",
+      "proof": {
+        "file": "scripts/qa/tenant-ess-statutory-identity-http.mjs",
+        "line": 115,
+        "ownPositiveLine": 115,
+        "foreignDenialLine": 232,
+        "unchangedDbLine": 208,
+        "forgedSelectorLine": 116,
+        "scope": "Masked employee-identifier own read matches SQL exact employee scope; forged real victim organization/worker selectors return own bound records only, revoked old employer 403, victim identity/audit/requests unchanged. Executed in Security HTTP Smoke.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40527544388 (PR #1486 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1486,
+        "workflowRunId": 40527544388,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST self/identifiers",
+      "proof": {
+        "file": "scripts/qa/tenant-ess-statutory-identity-http.mjs",
+        "line": 78,
+        "ownPositiveLine": 78,
+        "foreignDenialLine": 240,
+        "unchangedDbLine": 208,
+        "forgedSelectorLine": 183,
+        "scope": "Employee identifier review creates own encrypted pending request in SQL; injected victim organization/employee/user selectors cannot change persisted owner; revoked former-employer session 403; real victim rows/audit unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40527544388 (PR #1486 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1486,
+        "workflowRunId": 40527544388,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET self/take-home-estimate",
+      "proof": {
+        "file": "scripts/qa/tenant-self-take-home-http.mjs",
+        "line": 226,
+        "ownPositiveLine": 226,
+        "foreignDenialLine": 255,
+        "unchangedDbLine": 259,
+        "forgedSelectorLine": 239,
+        "scope": "Employee session-bound own nonempty salary estimate; real higher-ID victim/peer forged query selectors cannot select their pay, forged cross-employer employee-link sessions 403, all pay/payroll/audit source snapshots unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40540826027 (PR #1503 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1503,
+        "workflowRunId": 40540826027,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET self/workforce",
+      "proof": {
+        "file": "scripts/qa/tenant-self-workforce-http.mjs",
+        "line": 161,
+        "ownPositiveLine": 161,
+        "foreignDenialLine": 170,
+        "unchangedDbLine": 214,
+        "forgedSelectorLine": 170,
+        "scope": "Employee own nonempty punch/schedule GET; real higher-ID victim and same-employer peer selectors cannot redirect session-bound response; source and victim payroll/audit unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40497504543 (PR #1478 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1478,
+        "workflowRunId": 40497504543,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "POST self/workforce",
+      "proof": {
+        "file": "scripts/qa/tenant-self-workforce-http.mjs",
+        "line": 192,
+        "ownPositiveLine": 192,
+        "foreignDenialLine": 182,
+        "unchangedDbLine": 214,
+        "forgedSelectorLine": 182,
+        "scope": "Single supported request_correction action: own persisted pending request 201/audit/readback; genuine victim and same-employer peer punch ID 404 despite forged selectors; no punch or payroll mutation.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40497504543 (PR #1478 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1478,
+        "workflowRunId": 40497504543,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET v1/journal-entries",
+      "proof": {
+        "file": "scripts/qa/tenant-v1-journal-http.mjs",
+        "line": 196,
+        "ownPositiveLine": 196,
+        "foreignDenialLine": 210,
+        "unchangedDbLine": 265,
+        "forgedSelectorLine": 217,
+        "scope": "Bearer-key CSV journal own Released-run exact-centavo positives with actor-bound export audit; genuine higher-ID victim legal entity 403 and forged organization selector cannot switch key owner; victim sources and keys unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40514472303 (PR #1484 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1484,
+        "workflowRunId": 40514472303,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "key": "GET workforce/roster-batches",
+      "proof": {
+        "file": "scripts/qa/tenant-batches/roster-batches-http.mjs",
+        "line": 155,
+        "ownPositiveLine": 155,
+        "foreignDenialLine": 163,
+        "unchangedDbLine": 174,
+        "forgedSelectorLine": 164,
+        "scope": "Only organization-selector GET list method: real persisted own batch 200, genuine higher-ID foreign organization selector 403, cross-employer marker rejection, all three employer roster/audit snapshots unchanged. POST stage/approve remains GAP.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40500780327 (PR #1473 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1473,
+        "workflowRunId": 40500780327,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    }
+  ],
+  "hashes": {
+    "scripts/qa/tenant-batches/roster-batches-http.mjs": "836451bcc5c5866a10a93adce09912c7f07f8b1a38f74fe0c0620d96ad0d91dc",
+    "scripts/qa/tenant-ess-statutory-identity-http.mjs": "1cdc67e852ef70388bdb8cbe4a5ea4950407f8f8e2dd4a22ef89e875bbe6f351",
+    "scripts/qa/tenant-identity-account-http.mjs": "d679e0bd5b4c30918ec445e8c268ae4861e4d2a2765a10579cf6bf9b1be199b0",
+    "scripts/qa/tenant-leave-preview-http.mjs": "5395792c1a29f190467f6dbdf7e0ffd65415f6b31f30db72ea3387db5a2f51a0",
+    "scripts/qa/tenant-loan-schedule-tenant-http.mjs": "3f627221b09b73a4d60a02131167673f3dbeb2d4a98587eb2b10941f2c1a8f7a",
+    "scripts/qa/tenant-offline-claims-http.mjs": "cd7ef044d9973b3be39e0c12813cf02963d54be952c5e2cbdc15084b7359dc3b",
+    "scripts/qa/tenant-overpayment-preview-http.mjs": "1cb4aba08f69cda639e0025267af28d8b9bd469aeb69d6ae0f3b209478e137c4",
+    "scripts/qa/tenant-self-availability-http.mjs": "967306191a3370ee4a0e7afcbf1b3b02b4c63f78375a38c9c3755cc25110c26d",
+    "scripts/qa/tenant-self-take-home-http.mjs": "b5e034ad27d520bf9774b7139c11710f2d26e83af849dc52bc92c421fc3a5a0a",
+    "scripts/qa/tenant-self-workforce-http.mjs": "878c45260fee6dd78d12821315e04f1fdfdab5e8abd941719b345f7be1766a09",
+    "scripts/qa/tenant-v1-journal-http.mjs": "10b845ad6b4457ed06aeb64e609f9611843cadefe84907fc7198b579dc976e1d"
+  }
+}

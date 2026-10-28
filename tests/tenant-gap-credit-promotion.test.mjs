@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -33,10 +35,8 @@ const methods = new Map(Object.values(manifest.allApiRouteFiles).flatMap(route =
 test("credit sweep only updates 16 distinct verified GAP methods with four source pins", () => {
   assert.equal(targets.length, 16);
   assert.equal(new Set(targets.map(([key]) => key)).size, targets.length);
-  assert.equal(manifest.metrics.methods, 498);
-  assert.deepEqual([manifest.metrics.coveredAfter,
-    manifest.metrics.publicByDesign, manifest.metrics.gap], [330, 10, 158]);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 158 API methods/);
+  assertLiveTenantCounts(assert, manifest);
+  assert.equal(verifyPromotionCredits(manifest), targets.length);
   const credited = [...methods].filter(([, method]) =>
     method.testedBy?.verifiedMainCommit === base);
   assert.equal(credited.length, targets.length, "no unrelated GAP method gets this credit");
