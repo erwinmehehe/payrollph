@@ -1,0 +1,128 @@
+name: Tenant WRK-01 Staffing Policy Writes HTTP (Fictional PG16 Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-wrk01-staffing-writes-http.yml"
+      - "scripts/qa/tenant-wrk01-staffing-writes-*.mjs"
+      - "tests/tenant-wrk01-staffing-writes-contract.test.mjs"
+      - "src/app/api/workforce/demand-staffing/policies/**"
+      - "src/lib/workforce-demand-staffing-policy*"
+      - "src/lib/workforce-issued-demand-validation.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  staffing-policy-tenant-http:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Enable only disposable read/policy pilot and refuse providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+          {
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Check syntax and reject test false positives before PostgreSQL import
+        run: |
+          node --check scripts/qa/tenant-wrk01-staffing-writes-contract.mjs
+          node --check scripts/qa/tenant-wrk01-staffing-writes-http.mjs
+          node --check tests/tenant-wrk01-staffing-writes-contract.test.mjs
+          node --test tests/tenant-wrk01-staffing-writes-contract.test.mjs
+      - name: Generate isolated synthetic encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Create new disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed offline baseline to disposable app_db only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Install existing test-only HCM fixture schema
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Bootstrap two attackers and real higher-ID victim before app starts
+        run: node --import tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Build production-mode app against disposable localhost PG16
+        run: npm run build
+      - name: Start localhost-only Next.js server, never deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-wrk01-staffing-writes-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 70 /tmp/tenant-wrk01-staffing-writes-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Disposable localhost Next.js did not start"
+          tail -n 70 /tmp/tenant-wrk01-staffing-writes-next.log
+          exit 1
+      - name: Prove own policy POST/PATCH and immutable victim against real HTTP/PG16
+        run: node --import tsx scripts/qa/tenant-wrk01-staffing-writes-http.mjs
+      - name: Show last local test server lines on failure
+        if: failure()
+        run: tail -n 100 /tmp/tenant-wrk01-staffing-writes-next.log || true
