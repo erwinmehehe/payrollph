@@ -185,6 +185,14 @@ function assertOnlyKeys(value: JsonObject, allowed: string[], label: string) {
 
 function positiveFiniteNumber(value: unknown, label: string, max: number) {
   if (value == null) return 0;
+  // Policy JSON may contain real numbers or legacy decimal-text rates.
+  // Number(true), Number([10]), Number("0x10") and exponent strings would
+  // otherwise silently manufacture a financial premium from invalid evidence.
+  const decimalText = typeof value === "string" &&
+    /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value);
+  if (typeof value !== "number" && !decimalText) {
+    throw new Error(`${label} must be a finite numeric rate between 0 and ${max}.`);
+  }
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > max) {
     throw new Error(`${label} must be between 0 and ${max}.`);
