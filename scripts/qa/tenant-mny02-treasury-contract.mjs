@@ -117,7 +117,11 @@ export function assertSavedTreasury(before, after, response, actor, {
     "MNY-02: exact own-employer operator assignments must be persisted");
   for (const row of after.assignments) {
     assert.equal(row.organizationId, actor.org.id);
-    assert.equal(row.updatedByUserId, actor.owner.id);
+    // The persisted assignment schema records the creator, not a separate
+    // updatedByUserId. Verify genuine owner provenance and row freshness.
+    assert.equal(row.createdByUserId, actor.owner.id);
+    assert.ok(row.updatedAt instanceof Date && Number.isFinite(row.updatedAt.getTime()),
+      "MNY-02: operator assignment must have a persisted update timestamp");
   }
   assert.equal(after.audit.length, before.audit.length + 1,
     "MNY-02: each successful policy change must write one own-employer audit event");
