@@ -79,17 +79,18 @@ file. Cookies and private fixture contents never appear in logs or artifacts.
    returns 409 without any write. This exercises the initial-decline action
    separately from accepted-to-declined withdrawal; it does **not** establish
    what should happen to legacy photos if they exist before consent.
-10. Fourteen focused source-contract tests check environment guards, tenant
+10. Sixteen focused source-contract tests check environment guards, tenant
     IDs, minimal receipts, cache directives, private denied responses, route
     authorization checks, workflow ordering, first-decline source assertions,
-    and still-GAP manifest status.
+    **employee-scoped withdrawal when a separate same-employer refusal exists**,
+    exact audit immutability/actor attribution, and still-GAP manifest status.
 
 No existing tenant-table helper, receipt, application route, schema, feature
 registry, migration, live provider or payroll method is edited by this PR.
 
 ## Independent acceptance gates
 
-- [ ] All fourteen source-contract tests and syntax checks pass at the **new final head**.
+- [ ] All sixteen source-contract tests and syntax checks pass at the **new final head**.
 - [ ] Actual PostgreSQL 16 and authenticated localhost HTTP proof passes
       for both independent attackers and genuinely higher-ID victim.
 - [ ] Legal hold, audit, no-leak, employee mismatch and full source
@@ -107,3 +108,35 @@ Before the new first-refusal scenario, [exact-head focused run 40612407574](http
 Synthetic data is not real employer UAT, legally sufficient consent or DPO
 approval. Privacy notice, retention, lawful withdrawal and photo-capture
 rollout require separate governance and independent review.
+
+## Focused PG16 failure repaired on 2026-10-28
+
+The predecessor head `c36c97beb11c20a46c10cec8800306306f82098d`
+completed full CI, CodeQL and Security HTTP Smoke successfully, but its
+[focused PG16+HTTP run 40619413634](https://github.com/erwinmehehe/payrollph/actions/runs/40619413634)
+failed during the primary employee's accepted-to-declined withdrawal. The
+original assertion at `scripts/qa/tenant-photo-consent-http.mjs:426`
+required `after.consent.length === 1`. Earlier in the very same test, a
+second **legitimate** employee belonging to that employer had already
+recorded an initial **declined** consent, so the real database correctly
+contained **two** consent records. The assertion incorrectly counted all
+employees in the organization rather than only the withdrawing employee.
+
+The repair uses independent pure source contracts to verify that the
+targeted actor's exact employee+employer+version consent row transitions
+from accepted to declined, keeps its primary key and all unrelated fields,
+and leaves **all other employee consent rows**, including the previously
+declining same-employer peer, **byte-identical**. The withdrawal must append
+exactly one authenticated actor-bound audit row whose metadata matches the
+actual employee, version, decision and purge status. Negative-control tests
+reject missing/altered peer rows, changed owners, forged audit actors, row
+identity substitution, absent audit and unauthorized source mutations.
+
+The original legal-hold photo byte-equality, real non-held image purge,
+cross-employer denials, whole-company snapshots and ledger immutability
+remain unchanged. The production route, schema, release flags, coverage
+manifest and existing shared test runner were not edited.
+
+**The focused job must be rerun on the new final SHA; the previous 2-versus-1
+failure does not imply a real privacy leak, and no method credit is awarded
+without passing PG16 HTTP and independent security/privacy review.**
