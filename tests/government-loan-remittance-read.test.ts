@@ -216,3 +216,35 @@ test("legacy loan reads reject non-OK, missing arrays and foreign envelopes befo
     assert.equal(parseGovernmentLoanRemittanceRead(true, bad, 4), null);
   }
 });
+
+test("remittance evidence rejects dates that Date.parse silently normalizes", () => {
+  for (const invalid of [
+    "2026-02-31T08:00:00.000Z",
+    "2026-04-31T12:30:00Z",
+    "2026-02-29T00:00:00Z",
+    "2026-12-31T24:00:00Z",
+    "2026-10-20T08:00:00.1234Z",
+  ]) {
+    const invalidBatch = { ...baseRead, batches: [{ ...baseBatch, updatedAt: invalid }] };
+    assert.equal(isVerifiedGovernmentLoanRemittanceRead(invalidBatch, 4), false,
+      "reject invalid batch update timestamp: " + invalid);
+    assert.equal(parseGovernmentLoanRemittanceRead(true, invalidBatch, 4), null,
+      "do not promote malformed JSON to a trusted read");
+    assert.equal(isVerifiedGovernmentLoanRemittanceRead({
+      ...baseRead, members: [{ ...baseMember, updatedAt: invalid }],
+    }, 4), false, "reject invalid member update timestamp");
+    assert.equal(isVerifiedGovernmentLoanRemittanceRead({
+      ...baseRead, batches: [{ ...paidBatch, paidAt: invalid }],
+    }, 4), false, "reject invalid recorded payment timestamp");
+  }
+  for (const valid of [
+    "2028-02-29T08:00:00.000Z",
+    "2026-10-20T08:00:00Z",
+    "2026-10-20T08:00:00.1Z",
+    "2026-10-20T08:00:00.01Z",
+  ]) {
+    assert.equal(isVerifiedGovernmentLoanRemittanceRead({
+      ...baseRead, batches: [{ ...baseBatch, updatedAt: valid }],
+    }, 4), true, "valid UTC timestamp must remain accepted: " + valid);
+  }
+});
