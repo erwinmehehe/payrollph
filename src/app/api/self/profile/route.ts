@@ -23,6 +23,7 @@ export async function PATCH(request: Request) {
   if (session.role !== "employee" || !session.employeeId) {
     return Response.json({ error: "Employee self-service account required." }, { status: 403 });
   }
+  const authenticatedEmployeeId = session.employeeId;
   const demoDenied = publicDemoMutationDenied(session.email, "Updating employee self-service profile");
   if (demoDenied) return demoDenied;
 
@@ -54,7 +55,7 @@ export async function PATCH(request: Request) {
       employeeNo: employees.employeeNo,
       organizationId: employees.organizationId,
     }).from(employees).where(and(
-      eq(employees.id, session.employeeId),
+      eq(employees.id, authenticatedEmployeeId),
       eq(employees.organizationId, employee.organizationId),
     )).for("update").limit(1);
     if (!boundEmployee) return null;
