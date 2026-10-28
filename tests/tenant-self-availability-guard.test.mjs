@@ -58,15 +58,23 @@ test("self-availability API keeps the session authoritative for both reads and w
 
 test("standalone workflow runs real signed-in HTTP against fictional PG16 only", () => {
   const wf = readFileSync(".github/workflows/tenant-self-availability-http.yml", "utf8");
-  const proof = readFileSync("scripts/qa/tenant-self-availability-http.mjs", "utf8");
+  const proof = readFileSync("scripts/qa/tenant-self-availability-recovery-http.mjs", "utf8");
   assert.match(wf, /image: postgres:16/);
   assert.match(wf, /npm run db:push/);
   assert.match(wf, /apply-isolated-baseline\.mjs/);
   assert.match(wf, /npm run build/);
-  assert.match(wf, /node --import tsx scripts\/qa\/tenant-self-availability-http\.mjs/);
+  assert.match(wf, /node --import tsx scripts\/qa\/tenant-self-availability-recovery-http\.mjs/);
   assert.match(proof, /requireDisposableSelfAvailability\(\)/);
   assert.match(proof, /seedEmployeeEmployer\("VICTIM"/);
-  assert.match(proof, /await expect\(ENDPOINT \+ "\?organizationId="/);
+  // The strengthened runner wraps HTTP denials in deniedSource(), which
+  // compares every employer's persisted availability, workforce, audit and
+  // payroll rows before and after each forged selector. Require that wrapper
+  // instead of the older unverified bare expect() call.
+  assert.match(proof, /await deniedSource\(ENDPOINT \+ "\?organizationId="/);
+  assert.match(proof, /await deniedSource\(ENDPOINT \+ "\?employeeId="/);
+  assert.match(proof, /const before = await Promise\.all\(\[attackerA, attackerB, victim\]/);
+  assert.match(proof, /assertUnchanged\(before\[i\], after\[i\]/);
+  assert.match(proof, /assertPrivateDenial\(response, status, forbidden\)/);
   assert.match(proof, /victimRowsAfter, victimRowsBefore/);
   assert.doesNotMatch(proof, /https:\/\//);
 });

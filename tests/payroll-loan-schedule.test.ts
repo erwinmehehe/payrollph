@@ -87,3 +87,61 @@ test("early resignation carries the outstanding balance to existing reviewed fin
   assert.equal(reviewed.unrecoveredBalance, 0);
   assert.equal(schedule.installments.at(-1)?.remainingPrincipalCents, 0);
 });
+
+test("A-1 company preview refuses coercible non-string principals", () => {
+  const valid = { principal: "1000.00", months: 2, installmentsPerMonth: 2 as const, annualFlatInterestBasisPoints: 500 };
+  for (const principal of [1000, true, { toString: () => "1000.00" }, null]) {
+    assert.throws(() => buildCompanyLoanSchedule({
+      ...valid, principal,
+    } as unknown as Parameters<typeof buildCompanyLoanSchedule>[0]), /INVALID_LOAN_SCHEDULE/);
+  }
+  assert.equal(buildCompanyLoanSchedule(valid).totalPrincipalCents, 100000);
+});
+
+test("A-1 agency import rejects forged non-string reference and installment fields", () => {
+  const row = { dueDate: "2026-11-15", amount: "125.00", sourceRowId: "AGENCY-1001" };
+  const invalidRows = [
+    [{ ...row, amount: 125 }],
+    [{ ...row, amount: { toString: () => "125.00" } }],
+    [{ ...row, sourceRowId: 12345 }],
+    [{ ...row, dueDate: null }],
+    [null],
+  ];
+  for (const rows of invalidRows) {
+    assert.throws(() => validateAgencyAmortizationSchedule(
+      rows as unknown as Parameters<typeof validateAgencyAmortizationSchedule>[0],
+      "SSS", "REF-1234",
+    ), /INVALID_AGENCY_LOAN_INSTALLMENT/);
+  }
+  assert.throws(() => validateAgencyAmortizationSchedule(
+    [row], "SSS", 12345 as unknown as string,
+  ), /INVALID_AGENCY_LOAN_SCHEDULE/);
+  assert.throws(() => validateAgencyAmortizationSchedule(
+    { length: 1, map: () => [row] } as unknown as Parameters<typeof validateAgencyAmortizationSchedule>[0],
+    "SSS", "REF-1234",
+  ), /INVALID_AGENCY_LOAN_SCHEDULE/);
+  assert.equal(validateAgencyAmortizationSchedule([row], "SSS", "REF-1234").scheduledTotalCents, 12500);
+});
+
+test("A-1 floor preview denies blank or malformed approval evidence", () => {
+  const valid = {
+    disposablePayCents: 250000, minimumNetPayCents: 180000,
+    remainingLoanCents: 400000, requestedCents: 100000,
+    override: {
+      requesterUserId: 10, approverUserId: 11, legalAuthorityReviewed: true,
+      approvalEvidenceReference: "REVIEW-1234",
+      reason: "Documented separate legal and payroll approval",
+    },
+  };
+  for (const invalidOverride of [
+    { ...valid.override, approvalEvidenceReference: "          " },
+    { ...valid.override, approvalEvidenceReference: "REVIEW-1234" + String.fromCharCode(10) + "FORGED" },
+    { ...valid.override, reason: 12345 },
+    { ...valid.override, reason: "Documented separate" + String.fromCharCode(9) + "legal and payroll approval" },
+  ]) {
+    assert.throws(() => previewDiscretionaryLoanDeduction({
+      ...valid, override: invalidOverride,
+    } as unknown as Parameters<typeof previewDiscretionaryLoanDeduction>[0]), /LOAN_FLOOR_OVERRIDE_NOT_APPROVED/);
+  }
+  assert.equal(previewDiscretionaryLoanDeduction(valid).overrideUsed, true);
+});

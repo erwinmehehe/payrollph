@@ -1,0 +1,109 @@
+name: Web Bundy photo-consent tenant HTTP (fictional PG16 only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-photo-consent-http.yml'
+      - 'scripts/qa/tenant-photo-consent-*.mjs'
+      - 'tests/tenant-photo-consent-*.test.mjs'
+      - 'src/app/api/web-bundy/consent/**'
+      - 'src/lib/workforce-punch-evidence.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+# Supersede only earlier attempts for the same PR, never other PRs/main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  photo-consent:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      # CI-only release flag; no production activation or hard-coded org IDs.
+      WFM_PUNCH_EVIDENCE_ENABLED: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export disposable-only localhost PostgreSQL target
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Source syntax, privacy, no-store, role and negative controls
+        run: |
+          node --check scripts/qa/tenant-photo-consent-contract.mjs
+          node --check scripts/qa/tenant-photo-consent-http.mjs
+          node --check tests/tenant-photo-consent-contract.test.mjs
+          node --test tests/tenant-photo-consent-contract.test.mjs
+      - name: Generate throwaway cryptographic inputs, never live credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create a completely disposable PostgreSQL 16 source schema
+        run: npm run db:push
+      - name: Apply the existing isolated migration-only baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Bootstrap three real allowed employers and a real excluded employer
+        run: node --import tsx scripts/qa/tenant-photo-consent-http.mjs --bootstrap
+      - name: Build production-mode localhost Next with a CI-only feature gate
+        run: npm run build
+      - name: Start only localhost Next for authenticated HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-photo-consent-next.log 2>&1 &
+          for attempt in {1..50}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-photo-consent-next.log
+          exit 1
+      - name: Prove own employee, foreign employer, worker mismatch, privacy and payroll immutability
+        run: node --import tsx scripts/qa/tenant-photo-consent-http.mjs --prove
+      - name: Show local Next logs on failure only
+        if: failure()
+        run: cat /tmp/tenant-photo-consent-next.log || true
