@@ -1,0 +1,99 @@
+name: HCM manager attestation GET gap recovery (fictional PG16 localhost)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-hcm-manager-attestation-recovery.yml'
+      - 'scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs'
+      - 'tests/tenant-hcm-manager-attestation-recovery.test.mjs'
+      - 'scripts/qa/tenant-table-rows/read/hcm-manager-attestation.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'src/app/api/hcm/employment-term-decisions/**'
+      - 'src/lib/hcm-manager-attestation.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hcm-manager-attestation-recovery-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  own-foreign-forged-unchanged:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Source, spoofing, source-integrity, fail-closed negative controls
+        run: |
+          node --check scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs
+          node --check tests/tenant-hcm-manager-attestation-recovery.test.mjs
+          node --test tests/tenant-hcm-manager-attestation-recovery.test.mjs
+      - name: Select only disposable localhost database and server
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Synthetic encryption and mocked webhook secrets only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Prepare fresh synthetic PostgreSQL 16 without providers
+        run: npm run db:push
+      - name: Apply only the pre-existing synthetic baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual server, no production activation
+        run: npm run build
+      - name: Listen only on 127.0.0.1 and prove readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/manager-attestation-recovery-next.log 2>&1 &
+          for attempt in {1..50}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/manager-attestation-recovery-next.log
+          exit 1
+      - name: Execute real own positive, victim 403, stolen-ID 404, unchanged SQL
+        run: node --import tsx scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs
+      - name: Show local server error logs only on failure
+        if: failure()
+        run: cat /tmp/manager-attestation-recovery-next.log || true
