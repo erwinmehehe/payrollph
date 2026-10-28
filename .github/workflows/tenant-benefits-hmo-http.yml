@@ -60,8 +60,18 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Export throwaway default-profile HTTP/PostgreSQL targets
-        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Export disposable default profile with unrelated billing, overpayment and workers off
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
+            echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
+          } >> "$GITHUB_ENV"
       - name: Check exact-head HMO source syntax and adversarial contracts
         run: |
           node --check scripts/qa/tenant-table-rows/write/benefits-hmo.mjs
