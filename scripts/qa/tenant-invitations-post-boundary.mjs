@@ -246,7 +246,9 @@ async function main() {
     // persisted token hash, outbox delivery through localhost SMTP and audit.
     // A denied POST alone is never evidence that the authorized POST works.
     for(const owner of [a,b]){
-      const ownBefore=await snapshot(owner.org.id);
+      const peersBefore=new Map(await Promise.all(employers.map(async e=>
+        [e.org.id,await snapshot(e.org.id)])));
+      const ownBefore=peersBefore.get(owner.org.id);
       const realPost=await call(owner,owner,"POST");
       const [saved]=await db.select().from(s.invitations)
         .where(eq(s.invitations.id,realPost.json?.id)).limit(1);
@@ -266,9 +268,7 @@ async function main() {
       for(const key of ["members","staff","profiles","payroll","entries"])
         assert.deepEqual(ownAfter[key],ownBefore[key],key+" must not move on invitation creation");
       for(const other of employers.filter(e=>e!==owner))
-        proveUnchanged(other===a?before[0]:other===b?
-          (owner===a?before[1]:await snapshot(b.org.id)):before[2],
-          await snapshot(other.org.id),
+        proveUnchanged(peersBefore.get(other.org.id),await snapshot(other.org.id),
           "foreign source must not change after "+owner.label+" authorized POST");
 
       const duplicate=await call(owner,owner,"POST");
