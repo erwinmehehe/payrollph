@@ -202,6 +202,68 @@ export async function proveSelfProfileHttp() {
       ownSuccesses++; forgedSelectors++;
     }
 
+    // An active grant to this employer cannot point at a different employee.
+    // This is a real, same-tenant identity-binding case, not a fabricated ID.
+    const [boundMembership] = await db.select({ id: userOrganizations.id })
+      .from(userOrganizations).where(and(
+        eq(userOrganizations.userId, first.ess.id),
+        eq(userOrganizations.organizationId, first.org.id),
+      )).limit(1);
+    assert.ok(boundMembership?.id);
+    await db.update(userOrganizations).set({ workerEmployeeId: first.peer.id })
+      .where(eq(userOrganizations.id, boundMembership.id));
+    const mismatchBefore = await snapshot(first.org.id);
+    const otherBeforeMismatch = await snapshot(second.org.id);
+    const mismatch = await checked(ENDPOINT, {
+      method: "PATCH", cookie: first.selfCookie, body: contact(first, 8),
+    }, 403, "employee link mismatches same-company active membership", first);
+    assertProfileDenied(mismatch, 403, [victim.marker, first.marker + "-PEER-PRIVATE"]);
+    assert.deepEqual(await snapshot(first.org.id), mismatchBefore,
+      "incorrect worker binding cannot edit own or peer contact or create an audit");
+    assert.deepEqual(await snapshot(second.org.id), otherBeforeMismatch,
+      "mismatched worker grant cannot affect other employer");
+    await unchangedVictim("same-company identity mismatch");
+    blockedWrites++;
+    await db.update(userOrganizations).set({ workerEmployeeId: first.worker.id })
+      .where(eq(userOrganizations.id, boundMembership.id));
+
+    // Deliberately make ONLY the disposable DB reject this audit action.
+    // If the profile UPDATE commits independently of its audit, the protected
+    // before/after employee snapshot below fails, proving atomic rollback.
+    await pool.query(`
+      CREATE FUNCTION ci_self_profile_reject_audit() RETURNS trigger
+      LANGUAGE plpgsql AS $
+      BEGIN
+        IF NEW.action = 'Employee self-service profile updated' THEN
+          RAISE EXCEPTION 'synthetic self-profile audit veto';
+        END IF;
+        RETURN NEW;
+      END;
+      $
+    `);
+    await pool.query(`
+      CREATE TRIGGER ci_self_profile_reject_audit
+      BEFORE INSERT ON audit_events FOR EACH ROW
+      EXECUTE FUNCTION ci_self_profile_reject_audit()
+    `);
+    try {
+      const beforeAuditVeto = await snapshot(first.org.id);
+      const otherBeforeAuditVeto = await snapshot(second.org.id);
+      const auditVeto = await checked(ENDPOINT, {
+        method: "PATCH", cookie: first.selfCookie, body: contact(first, 9),
+      }, 500, "injected audit rejection must roll back the contact write", first);
+      assertNoProfileMarker(auditVeto, victim.marker);
+      assert.deepEqual(await snapshot(first.org.id), beforeAuditVeto,
+        "failed audit transaction cannot commit an unaudited contact change");
+      assert.deepEqual(await snapshot(second.org.id), otherBeforeAuditVeto,
+        "audit veto must not touch any different employer");
+      await unchangedVictim("disposable audit veto");
+      blockedWrites++;
+    } finally {
+      await pool.query("DROP TRIGGER IF EXISTS ci_self_profile_reject_audit ON audit_events");
+      await pool.query("DROP FUNCTION IF EXISTS ci_self_profile_reject_audit()");
+    }
+
     // Revocation is tested with the SAME real session after its owner remains
     // an active employee member in B. The linked employee remains in A.
     await db.insert(userOrganizations).values({
@@ -246,7 +308,7 @@ export async function proveSelfProfileHttp() {
 
     assert.equal(ownSuccesses, 7);
     assert.equal(forgedSelectors, 4);
-    assert.equal(blockedWrites, 3);
+    assert.equal(blockedWrites, 5);
     console.log(JSON.stringify({
       kind: "tenant-self-profile-patch", method: "PATCH /api/self/profile",
       fictionalEmployers: 3, distinctEmployeeAttackers: 2,
@@ -254,6 +316,7 @@ export async function proveSelfProfileHttp() {
       forgedSelectorOwnOnly: forgedSelectors, deniedNoMutation: blockedWrites + 2,
       activeOtherMembershipAfterRevocation: true,
       noVictimPeerPayrollOrAuditLeak: true,
+      workerIdentityMismatchDenied: true, profileAuditRollbackProven: true,
       productionTested: false, deploymentApproved: false,
       certified: false, coverageCreditsAdded: 0,
     }));
