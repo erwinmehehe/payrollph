@@ -1,0 +1,128 @@
+name: ESS take-home tenant isolation (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-take-home-http.yml'
+      - 'scripts/qa/tenant-self-take-home-*.mjs'
+      - 'tests/tenant-self-take-home-contract.test.mjs'
+      - 'docs/qa/tenant-self-take-home-http.md'
+      - 'src/app/api/self/take-home-estimate/**'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/pay-basis.ts'
+      - 'src/lib/take-home-estimate.ts'
+      - 'src/lib/payroll-rules.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-self-take-home-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  self-take-home:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_SELF_TAKE_HOME_MODE: fictional-read-only
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Load isolated localhost configuration with all money providers disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
+            echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
+            echo 'TENANT_SELF_TAKE_HOME_MODE=fictional-read-only'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+          } >> "$GITHUB_ENV"
+      - name: Prove exact contract, negative controls, and localhost-only preflight
+        run: |
+          node --check scripts/qa/tenant-self-take-home-contract.mjs
+          node --check scripts/qa/tenant-self-take-home-http.mjs
+          node --check tests/tenant-self-take-home-contract.test.mjs
+          node --test tests/tenant-self-take-home-contract.test.mjs
+      - name: Generate throwaway synthetic encryption material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply source-pinned synthetic schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Seed two independent fictional employees, peer, and higher-ID victim
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/qa/tenant-self-take-home-http.mjs seed >> "$GITHUB_ENV"
+      - name: Build production-mode app against fictional localhost database
+        run: npm run build
+      - name: Serve production-mode Next only on localhost
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 \
+            > /tmp/tenant-self-take-home-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-self-take-home-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-self-take-home-next.log
+          exit 1
+      - name: Prove employee-only own pay, forged selectors, peer/foreign denial, revocation and unchanged SQL
+        run: node --import tsx scripts/qa/tenant-self-take-home-http.mjs prove
+      - name: Localhost server diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-self-take-home-next.log || true

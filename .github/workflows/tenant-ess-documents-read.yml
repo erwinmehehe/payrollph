@@ -1,0 +1,92 @@
+name: ESS documents read tenant HTTP (fictional PostgreSQL 16)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-ess-documents-read.yml'
+      - 'scripts/qa/tenant-ess-documents-read-*.mjs'
+      - 'tests/tenant-ess-documents-read-*.test.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'src/app/api/self/documents/**'
+      - 'src/lib/document-schema-compat.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ess-documents-read-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ess-document-read:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TENANT_ESS_DOCUMENTS_READ_MODE: isolated-ci-only
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Load disposable-only tenant profile
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Check source syntax and fail-closed negative control contracts
+        run: |
+          node --check scripts/qa/tenant-ess-documents-read-contract.mjs
+          node --check scripts/qa/tenant-ess-documents-read-http.mjs
+          node --test tests/tenant-ess-documents-read-contract.test.mjs
+      - name: Generate ephemeral local encryption keys
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Apply the pre-reviewed isolated PostgreSQL baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start localhost production-mode server only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/ess-documents-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/ess-documents-server.log
+          exit 1
+      - name: Prove three employer document-policy read isolation over actual HTTP/PG16
+        run: npx tsx scripts/qa/tenant-ess-documents-read-http.mjs
+      - name: Expose test server diagnostics on failure only
+        if: failure()
+        run: cat /tmp/ess-documents-server.log || true

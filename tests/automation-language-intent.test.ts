@@ -91,6 +91,65 @@ test("protects precise location/department conditions even when another IF condi
   }), []);
 });
 
+test("explicit only-location and only-department scopes reject broadened ANY and IN choices", () => {
+  const locationPrompt = "When a new employee is hired only in Manila, create an onboarding checklist and send a welcome email.";
+  const departmentPrompt = "When a new employee is hired only for Finance department, create an onboarding checklist and send a welcome email.";
+
+  // ANY(location=Manila, department=Sales) also matches Sales workers
+  // outside Manila: the mere presence of Manila is not sufficient.
+  const broadenedOr: TypedAutomationLanguageDraft = {
+    ...onboarding,
+    conditions: { version: 1, all: [], any: [
+      { field: "location", operator: "eq", value: "Manila" },
+      { field: "department", operator: "eq", value: "Sales" },
+    ] },
+  };
+  assert.match(validateRequestedLanguageIntent(locationPrompt, broadenedOr).join(" "), /limited location/);
+
+  const broadenedIn: TypedAutomationLanguageDraft = {
+    ...onboarding,
+    conditions: { version: 1, all: [
+      { field: "location", operator: "in", value: ["Manila", "Cebu"] },
+    ], any: [] },
+  };
+  assert.match(validateRequestedLanguageIntent(locationPrompt, broadenedIn).join(" "), /limited location/);
+
+  // A single exact location in an IN list remains a valid restriction.
+  assert.deepEqual(validateRequestedLanguageIntent(locationPrompt, {
+    ...onboarding,
+    conditions: { version: 1, all: [
+      { field: "location", operator: "in", value: ["Manila"] },
+      { field: "department", operator: "eq", value: "Sales" },
+    ], any: [] },
+  }), []);
+
+  // ANY with only identical exact location alternatives cannot broaden scope.
+  assert.deepEqual(validateRequestedLanguageIntent(locationPrompt, {
+    ...onboarding,
+    conditions: { version: 1, all: [], any: [
+      { field: "location", operator: "eq", value: "Manila" },
+      { field: "location", operator: "in", value: ["manila"] },
+    ] },
+  }), []);
+
+  const broadenedDepartment: TypedAutomationLanguageDraft = {
+    ...onboarding,
+    conditions: { version: 1, all: [], any: [
+      { field: "department", operator: "eq", value: "Finance" },
+      { field: "location", operator: "eq", value: "Cebu" },
+    ] },
+  };
+  assert.match(validateRequestedLanguageIntent(departmentPrompt, broadenedDepartment).join(" "), /limited department/);
+
+  const broadenedDepartmentIn: TypedAutomationLanguageDraft = {
+    ...onboarding,
+    conditions: { version: 1, all: [
+      { field: "department", operator: "in", value: ["Finance", "Sales"] },
+    ], any: [] },
+  };
+  assert.match(validateRequestedLanguageIntent(departmentPrompt, broadenedDepartmentIn).join(" "), /limited department/);
+});
+
 test("blocking approval gates cannot be replaced by a mere approval request", () => {
   const input = "When an employee is hired, create a task and pause until approval.";
   const taskAndRequest: TypedAutomationLanguageDraft = {

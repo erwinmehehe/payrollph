@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 /**
  * Static proof-integrity gate for the first high-risk tenant audit batch.
  * Does not claim HTTP coverage; live results must pass the original Security
@@ -465,11 +466,13 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     assert.equal(method.testedBy.rowFile, "scripts/qa/tenant-table-rows/" + (verb === "GET" ? "read" : "write") + "/hcm-corrections.mjs");
     assert.ok(method.testedBy.ownPositiveLine && method.testedBy.foreignDenialLine && method.testedBy.unchangedDbLine);
   }
-  assert.equal(manifest.metrics.coveredAfter - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+  const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
+  assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
+  assert.equal(manifest.metrics.coveredAfter - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
-  assert.equal(manifest.metrics.gap + additionalSourcePinnedMethods +
+  assert.equal(manifest.metrics.gap + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
     tableMethods.length + mergedProofCredits + essContributionCredits + 7 - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
