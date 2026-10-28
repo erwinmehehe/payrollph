@@ -81,11 +81,9 @@ export async function proveEdg02OutboxHttp() {
     assert.equal(existingOutbox.length, 0, "Requires a fresh outbox");
 
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
-    const [a, b, victim] = await Promise.all([]).then(async () => [
-      await http.seedEmployer("ATTA", nonce, http.standaloneMakeSession),
-      await http.seedEmployer("ATTB", nonce, http.standaloneMakeSession),
-      await http.seedEmployer("VICTIM", nonce, http.standaloneMakeSession),
-    ]);
+    const a = await http.seedEmployer("ATTA", nonce, http.standaloneMakeSession);
+    const b = await http.seedEmployer("ATTB", nonce, http.standaloneMakeSession);
+    const victim = await http.seedEmployer("VICTIM", nonce, http.standaloneMakeSession);
     assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id);
 
     async function seedNotice(employer, name, purpose) {
