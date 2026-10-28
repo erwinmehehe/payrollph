@@ -6,11 +6,14 @@
 import assert from "node:assert/strict";
 
 export const FILING_METHOD = "PATCH compliance/filing-validations/[id]";
+// Keep this fictional Released source out of the shared BIR 1601-C
+// September 2026 monthly (and 2026 annual) worksheet fixture. Those tests
+// aggregate every Released run paid in the same employer/month or tax year.
 export const FILING_PERIOD = Object.freeze({
-  periodStart: "2026-09-01",
-  periodEnd: "2026-09-15",
-  payDate: "2026-09-15",
-  applicableMonth: "2026-09",
+  periodStart: "2025-07-01",
+  periodEnd: "2025-07-15",
+  payDate: "2025-07-15",
+  applicableMonth: "2025-07",
 });
 
 export function requireDisposableFilingEnvironment(env = process.env) {
@@ -26,12 +29,21 @@ export function requireDisposableFilingEnvironment(env = process.env) {
     REQUIRE_PRIVILEGED_MFA: "true",
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
     XENDIT_PAYOUTS_ENABLED: "false",
+    XENDIT_BILLING_ENABLED: "false",
+    WORKER_ENABLED: "false",
+    CENTRAL_SCHEDULER_ENABLED: "false",
+    HCM_OVERPAYMENT_PREVIEW_ENABLED: "false",
+    PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
   };
   for (const [name, value] of Object.entries(exact)) {
     assert.equal(env[name], value,
       "COMPLIANCE_FILING_REFUSED: disposable " + name + " required");
   }
-  for (const name of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "RESEND_API_KEY"]) {
+  for (const name of [
+    "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY",
+    "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "SMTP_URL",
+    "STRIPE_SECRET_KEY",
+  ]) {
     assert.ok(!env[name],
       "COMPLIANCE_FILING_REFUSED: provider credential not allowed: " + name);
   }
