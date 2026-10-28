@@ -10,6 +10,7 @@ on:
       - "src/app/api/hcm/business-processes/inbox/**"
       - "src/components/hcm-business-process-inbox.tsx"
       - "tests/hcm-action-center-v2.test.ts"
+      - "tests/hcm-people-home-tenant-integration.test.ts"
       - "src/lib/hcm-people-home-*.ts"
       - "src/lib/delegation.ts"
       - "src/components/linaw-workspace.tsx"

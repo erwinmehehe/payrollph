@@ -183,6 +183,24 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
       section.items.every((item) => item.tenantId === beta.id)));
     assert.ok(!JSON.stringify(other).includes("AlphaPrivate"));
 
+    // Membership revocation takes effect for a fresh read even when the
+    // same signed-in actor remains a valid People admin for another employer.
+    // Never reuse Alpha's previously authorized worklist for a revoked tenant.
+    await db.update(userOrganizations).set({ active: false })
+      .where(eq(userOrganizations.id, alphaMembership.id));
+    await assert.rejects(loadPeopleHomeWorklist(alpha.id, context), /not authorized/i,
+      "Revoking Alpha membership must block a formerly successful worklist read");
+    const betaAfterRevocation = await loadPeopleHomeWorklist(beta.id, context);
+    assert.deepEqual(betaAfterRevocation.decisions.items.map((item) => item.sourceId),
+      [betaStep.id], "Revocation in Alpha cannot suppress Beta's authorized worklist");
+    assert.ok(!JSON.stringify(betaAfterRevocation).includes("AlphaPrivate"),
+      "Beta after the Alpha downgrade must not carry stale Alpha records");
+    await db.update(userOrganizations).set({ active: true })
+      .where(eq(userOrganizations.id, alphaMembership.id));
+    const alphaAfterRestoration = await loadPeopleHomeWorklist(alpha.id, context);
+    assert.deepEqual(alphaAfterRestoration.decisions.items.map((item) => item.sourceId),
+      [alphaStep.id], "Active membership restoration must still honor exact employer binding");
+
     process.env.HCM_PEOPLE_HOME_ENABLED = "false";
     await assert.rejects(loadPeopleHomeWorklist(alpha.id, context), /pilot is disabled/);
   } finally {
