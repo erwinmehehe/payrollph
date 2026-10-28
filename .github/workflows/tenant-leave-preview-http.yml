@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/tenant-leave-preview-http.yml'
       - 'scripts/qa/tenant-leave-preview-*.mjs'
+      - 'scripts/qa/prepare-hcm-work-item-fixture.mjs'
+      - 'scripts/qa/tenant-read-recovery-snapshot.mjs'
+      - 'drizzle/0104_hcm_work_item_sla.sql'
       - 'tests/tenant-leave-preview-*.test.mjs'
       - 'src/app/api/leave/preview/**'
       - 'src/lib/hcm-leave-employment.ts'
@@ -62,8 +65,12 @@ jobs:
       - run: npm ci
       - name: Configure disposable local scope
         run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
-      - name: Test disposable target guard
-        run: node --test tests/tenant-leave-preview-guard.test.mjs
+      - name: Validate exact-head localhost guard and adversarial preview contracts
+        run: |
+          node --check scripts/qa/tenant-leave-preview-contract.mjs
+          node --check scripts/qa/tenant-leave-preview-http.mjs
+          node --check tests/tenant-leave-preview-contract.test.mjs
+          node --test tests/tenant-leave-preview-guard.test.mjs tests/tenant-leave-preview-contract.test.mjs
       - name: Generate throwaway encryption keys
         shell: bash
         run: |
@@ -80,6 +87,8 @@ jobs:
         run: npm run db:push
       - name: Apply isolated reviewed baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare reviewed SQL-only HCM fixture in empty disposable database
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build fictional local app
         run: npm run build
       - name: Prove own, foreign, forged worker and unchanged state

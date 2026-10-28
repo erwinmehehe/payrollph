@@ -89,7 +89,17 @@ async function main() {
     for (const forbidden of ["AlphaPrivate", "BetaPrivate", "99000.00", "Private step"]) {
       assert.ok(!alpha.toLowerCase().includes(forbidden.toLowerCase()), "Private source text leaked: " + forbidden);
     }
-    const source = page.getByRole("link", { name: "Open source workflow" }).first();
+    const workflowLinkName = /^Open source workflow: .+ \((?:HCM step|Lifecycle notification|Operational case) [1-9]\d*\)$/;
+    const sourceLinks = page.getByRole("link", { name: workflowLinkName });
+    const sourceNames = await sourceLinks.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("aria-label")));
+    assert.ok(sourceNames.length >= 2, "source actions must be identifiable outside card context");
+    assert.equal(new Set(sourceNames).size, sourceNames.length,
+      "two distinct workflow records must not share a screen-reader link name");
+    assert.equal(await page.getByRole("link", {
+      name: /^Open worker in People: Onboarding checklist \(Provisioning task [1-9]\d*\)$/,
+    }).count(), 1, "worker links must identify the individual provisioning source");
+    const source = sourceLinks.first();
     await source.focus();
     assert.equal(await source.evaluate((el) => el === document.activeElement), true);
     await source.click();
@@ -119,7 +129,7 @@ async function main() {
       scroll: document.documentElement.scrollWidth,
     }));
     assert.ok(fit.scroll <= fit.width + 1, "375px horizontal overflow: " + fit.scroll);
-    const mobileLink = small.getByRole("link", { name: "Open source workflow" }).first();
+    const mobileLink = small.getByRole("link", { name: workflowLinkName }).first();
     await mobileLink.focus();
     assert.equal(await mobileLink.evaluate((el) => el === document.activeElement), true);
     await mobile.close();

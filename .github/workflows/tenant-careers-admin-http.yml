@@ -1,0 +1,97 @@
+name: Careers admin publishing tenant isolation (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-careers-admin-http.yml'
+      - 'scripts/qa/tenant-careers-admin-*.mjs'
+      - 'tests/tenant-careers-admin-*.test.mjs'
+      - 'docs/qa/tenant-careers-admin-http.md'
+      - 'src/app/api/careers/**'
+      - 'src/lib/careers-privacy-gates.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/rate-limit.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'docs/engineering/migration-proposals/careers-published.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: careers-admin-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  careers-admin-isolation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export exact disposable localhost configuration
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Syntax and adversarial fail-closed source contracts
+        run: |
+          node --check scripts/qa/tenant-careers-admin-contract.mjs
+          node --check scripts/qa/tenant-careers-admin-http.mjs
+          node --check tests/tenant-careers-admin-contract.test.mjs
+          node --test tests/tenant-careers-admin-contract.test.mjs
+      - name: Generate fictional per-run crypto material without provider access
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Generate new disposable PostgreSQL 16 baseline
+        run: npm run db:push
+      - name: Apply reviewed isolated source-only baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual production-mode Next server with nonproduction data
+        run: npm run build
+      - name: Real signed-in Careers admin publish/unpublish tenant proof
+        env:
+          RECRUITMENT_JOURNEY_UI_ENABLED: 'true'
+          APPLICANT_PRIVACY_CONTROLS_ENABLED: 'true'
+          PUBLIC_INTAKE_PROOF_ENABLED: 'true'
+          MULTI_ENTITY_ENABLED: 'false'
+          CAREERS_PRIVACY_NOTICE_VERSION: 'fictional-2026'
+          CAREERS_PRIVACY_NOTICE_URL: 'https://careers.example.invalid/privacy'
+        run: node --import tsx scripts/qa/tenant-careers-admin-http.mjs

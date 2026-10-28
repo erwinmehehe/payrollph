@@ -8,6 +8,9 @@ on:
       - '.github/workflows/tenant-ess-development-http.yml'
       - 'scripts/qa/tenant-batches/ess-development-*.mjs'
       - 'tests/tenant-batches/ess-development.test.mjs'
+      - 'scripts/qa/tenant-self-development-*.mjs'
+      - 'tests/tenant-self-development.test.mjs'
+      - 'docs/qa/tenant-self-development-*.json'
       - 'docs/qa/tenant-ess-development-http.md'
       - 'src/app/api/self/performance/development-plans/**'
       - 'src/lib/auth.ts'
@@ -35,6 +38,7 @@ jobs:
     env:
       WORKER_ENABLED: 'false'
       CENTRAL_SCHEDULER_ENABLED: 'false'
+      TENANT_SELF_DEVELOPMENT_MODE: 'fictional-disposable-only'
     services:
       postgres:
         image: postgres:16
@@ -60,9 +64,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Load disposable localhost-only environment
-        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo 'XENDIT_BILLING_ENABLED=false' >> "$GITHUB_ENV"
       - name: Prove fail-closed guard and non-vacuous source contracts
-        run: node --test tests/tenant-batches/ess-development.test.mjs
+        run: node --test tests/tenant-batches/ess-development.test.mjs tests/tenant-self-development.test.mjs
       - name: Generate throwaway encryption material
         shell: bash
         run: |
@@ -79,11 +85,8 @@ jobs:
         run: npm run db:push
       - name: Apply reviewed isolated schema baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
-      - name: Seed two independent employee attackers and higher-ID victim
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --import tsx scripts/qa/tenant-batches/ess-development-http.mjs seed >> "$GITHUB_ENV"
+      - name: Prepare reviewed SQL-only HCM fixture in empty disposable database
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build production-mode app against fictional database
         run: npm run build
       - name: Launch production-mode server exclusively on localhost
@@ -103,7 +106,7 @@ jobs:
           cat /tmp/tenant-ess-development-server.log
           exit 1
       - name: Prove own GET POST PATCH, foreign IDs, peer IDs and unchanged victim
-        run: node --import tsx scripts/qa/tenant-batches/ess-development-http.mjs prove
+        run: node --import tsx scripts/qa/tenant-self-development-http.mjs
       - name: Isolated server diagnostics on failure
         if: failure()
         run: cat /tmp/tenant-ess-development-server.log || true
