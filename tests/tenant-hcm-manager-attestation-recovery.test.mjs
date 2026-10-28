@@ -154,8 +154,11 @@ test("original route is organization/decision bound; only target GET is still GA
   const record = manifest.allApiRouteFiles[key];
   assert.equal(record.gitBlobSha, "5de82dc98b5fa336b7ec4f8051bc7e66bf3c167c");
   assert.equal(record.methods.find(x => x.name === "GET")?.status, "GAP");
-  assert.equal(record.methods.find(x => x.name === "POST")?.status, "GAP");
-  assert.equal(record.methods.find(x => x.name === "POST")?.testedBy, null);
+  const post = record.methods.find(x => x.name === "POST");
+  assert.equal(post?.status, "COVERED", "POST has separately executed persisted manager-attestation evidence");
+  assert.equal(post?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(post?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm-manager-attestation-post.mjs");
+  for (const pin of ["rowLine", "ownPositiveLine", "foreignDenialLine", "unchangedDbLine"]) assert.ok(Number.isSafeInteger(post.testedBy[pin]) && post.testedBy[pin] > 0);
 });
 
 test("dedicated workflow runs independent real localhost PG16 proof with no provider", () => {
