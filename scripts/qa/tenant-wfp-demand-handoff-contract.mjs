@@ -109,6 +109,16 @@ export function assertOwnedHandoffWrite({ before, after, actor, response, action
   assert.equal(audit.organizationId, actor.orgId);
   assert.equal(audit.actor, actor.ownerName);
   assert.equal(audit.action, "HCM workforce plan handed to WFM demand");
+  const expectedResource = [actor.planName, actor.jobTitle, actor.siteName,
+    actor.shiftCode].join(" · ");
+  assert.ok(expectedResource.length <= 160,
+    "Fictional audit resource must fit the actual audit_events.resource varchar(160)");
+  assert.equal(audit.resource, expectedResource,
+    "The persisted audit must identify the exact same owned plan/job/site/shift");
+  for (const marker of foreignMarkers) {
+    assert.ok(!audit.resource.includes(marker),
+      "Own audit resource must not include a foreign employer marker");
+  }
   assert.equal(audit.metadata?.planId, actor.planId);
   assert.equal(audit.metadata?.jobProfileId, actor.jobId);
   assert.equal(audit.metadata?.worksiteId, actor.siteId);
