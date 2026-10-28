@@ -78,3 +78,76 @@ export function assertConsentRefused(reply, expectedStatus, forbidden = []) {
       "refusal leaked a real foreign employee, employer or photograph marker");
   }
 }
+
+/**
+ * A withdrawal updates exactly ONE persisted employee+version consent.
+ * A first-time declining peer in the same employer is a separate valid row:
+ * preserve that row byte-for-byte instead of assuming one consent per employer.
+ * The comparison is over the complete ordered SQL consent snapshot (not a
+ * mocked HTTP response). No other employee/version may be deleted or updated.
+ */
+export function assertScopedConsentWithdrawal(before, after, { organizationId, employeeId, actorUserId }) {
+  for (const id of [organizationId, employeeId, actorUserId]) {
+    assert.ok(Number.isSafeInteger(id) && id > 0,
+      "withdrawal evidence requires real positive organization, employee and actor IDs");
+  }
+  assert.ok(Array.isArray(before?.consent) && Array.isArray(after?.consent),
+    "withdrawal evidence requires real before/after SQL consent arrays");
+  assert.equal(after.consent.length, before.consent.length,
+    "withdrawal must update an existing row, not delete or insert another employee's consent");
+  const own = rows => rows.filter(row => row.organizationId === organizationId &&
+    row.employeeId === employeeId && row.consentVersion === CONSENT_VERSION);
+  const previous = own(before.consent);
+  const current = own(after.consent);
+  assert.equal(previous.length, 1, "withdrawal requires exactly one existing own consent");
+  assert.equal(current.length, 1, "withdrawal must retain exactly one owned consent");
+  const prior = previous[0], changed = current[0];
+  assert.ok(Number.isSafeInteger(prior.id) && prior.id > 0,
+    "existing consent ID must originate from persisted PostgreSQL");
+  assert.equal(prior.choice, "accepted", "withdrawal starts from accepted consent");
+  assert.equal(changed.id, prior.id, "withdrawal must retain the own consent row ID");
+  assert.equal(changed.choice, "declined", "withdrawal must persist the declined choice");
+  assert.equal(changed.decidedByUserId, actorUserId,
+    "withdrawal must record the authenticated employee's user ID");
+  assert.ok(typeof changed.decidedAt === "string" &&
+    Number.isFinite(Date.parse(changed.decidedAt)),
+  "withdrawal must persist a real timestamp");
+  assert.ok(Date.parse(changed.decidedAt) >= Date.parse(prior.decidedAt),
+    "withdrawal timestamp cannot precede its original consent");
+  // Only choice, actor and decision timestamp may change on the OWN row.
+  assert.deepEqual({
+    ...changed,
+    choice: prior.choice,
+    decidedByUserId: prior.decidedByUserId,
+    decidedAt: prior.decidedAt,
+  }, prior, "withdrawal cannot mutate any other consent source field");
+
+  // The other same-employer worker's initial refusal and any other version
+  // must be byte-identical, including choice, actor, date, ID and ordering.
+  assert.deepEqual(
+    after.consent.filter(row => row.id !== prior.id),
+    before.consent.filter(row => row.id !== prior.id),
+    "same-employer peer and unrelated consent records must remain byte-identical");
+  return changed;
+}
+
+/** The withdrawal must add exactly one correct audit, preserving older entries. */
+export function assertScopedWithdrawalAudit(before, after, { organizationId, employeeId, actorName }) {
+  assert.ok(Array.isArray(before?.audits) && Array.isArray(after?.audits),
+    "audit proof requires persisted PostgreSQL audit rows");
+  assert.equal(after.audits.length, before.audits.length + 1,
+    "withdrawal must append exactly one actor-scoped audit event");
+  assert.deepEqual(after.audits.slice(0, -1), before.audits,
+    "older audit business evidence, including peer's prior refusal, must not change");
+  const audit = after.audits.at(-1);
+  assert.ok(Number.isSafeInteger(audit.id) && audit.id > 0,
+    "new audit must have a persisted database ID");
+  assert.equal(audit.organizationId, organizationId);
+  assert.equal(audit.actor, actorName);
+  assert.equal(audit.action, "WFM selfie consent withdrawn");
+  assert.equal(audit.resource, "WFM photo evidence");
+  assert.deepEqual(audit.metadata, {
+    employeeId, consentVersion: CONSENT_VERSION,
+    choice: "declined", nonHeldPhotoBytesPurged: true,
+  }, "withdrawal audit must describe exactly the authorized employee and version");
+}
