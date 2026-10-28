@@ -155,13 +155,16 @@ test("actual authenticated loan previews must be non-cacheable", () => {
   }
 });
 
-test("Loan family owns exactly two targeted GAPs with real focused PG16 HTTP workflow", () => {
+test("Loan family credits complete schedule-preview types but keeps action-incomplete PATCH at GAP", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const values = Object.values(manifest.allApiRouteFiles).flatMap(x =>
-    x.methods.map(m => ({ key: m.name + " " + x.route, status: m.status })));
-  for (const method of ["PATCH loans", "POST loans/schedule-preview"]) {
-    assert.equal(values.find(x => x.key === method)?.status, "GAP", method);
-  }
+    x.methods.map(m => ({ key: m.name + " " + x.route, status: m.status, testedBy: m.testedBy })));
+  assert.equal(values.find(x => x.key === "PATCH loans")?.status, "GAP");
+  assert.equal(values.find(x => x.key === "PATCH loans")?.testedBy, null);
+  const preview = values.find(x => x.key === "POST loans/schedule-preview");
+  assert.equal(preview?.status, "COVERED");
+  assert.equal(preview?.testedBy?.file, "scripts/qa/tenant-loan-schedule-tenant-http.mjs");
+  assert.equal(preview?.testedBy?.prNumber, 1482);
   const writeRow = readFileSync("scripts/qa/tenant-table-rows/write/loans.mjs", "utf8");
   assert.match(writeRow, /key: "PATCH loans"/);
   assert.match(writeRow, /action: "pause"/);
