@@ -19,6 +19,12 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded PR evidence only. Never collide with workflow_dispatch
+# or another PR's disposable database acceptance run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   mny02-treasury-tenant-post:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
