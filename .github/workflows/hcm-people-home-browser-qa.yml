@@ -83,6 +83,8 @@ jobs:
       - run: npm run db:push
       - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
         run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Verify membership revocation against disposable PostgreSQL
+        run: node --import tsx --test tests/hcm-people-home-tenant-integration.test.ts
       - name: Seed disposable test database only
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Build local app with synthetic flags
