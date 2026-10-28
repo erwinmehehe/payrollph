@@ -67,3 +67,19 @@ The exact original local database was restored; fictional evidence databases
 were retained, with no recursive deletion or production operation.
 
 Current-head PostgreSQL 16 CI and security checks remain pending after push.
+
+
+## 2026-10-28 main synchronization — provisional, not production evidence
+
+This draft branch now includes `main@03e5f389d962dec5cd5eb9ab4fcdeaaa9bb976a8`. Its independently source-pinned
+manager-attestation **GET** from #1512 and the six separate follow-on method
+credits remain intact. The new **POST** has its own write-row proof and does
+not borrow a GET or probate review credit.
+
+The proposed merged-branch inventory is **498 methods = 337 COVERED /
+10 PUBLIC-BY-DESIGN / 151 GAP**, plus 17 page/action GAPs. Only the single
+POST candidate is additional to the current main ledger of 336/10/152. The
+local PostgreSQL 18.6 receipt remains historical, not a final-head PG16 or
+independent security sign-off. Exact merged-head real-HTTP/PG16 CI, human
+privacy/security/HR review and a separate approval are required before merge.
+No app/production/provider flags, employment decisions, payroll or money were touched.

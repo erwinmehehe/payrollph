@@ -139,7 +139,7 @@ test("actual authoritative snapshot includes attestations, decision, staff, audi
   ]) assert.ok(code.includes(source), "victim source missing from real SQL snapshot: " + source);
 });
 
-test("original route is organization/decision bound; only target GET is still GAP", () => {
+test("original route retains independently proven GET and distinct POST source receipts", () => {
   const route = readFileSync(
     "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts", "utf8");
   const lib = readFileSync("src/lib/hcm-manager-attestation.ts", "utf8");
@@ -153,7 +153,13 @@ test("original route is organization/decision bound; only target GET is still GA
   const key = "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts";
   const record = manifest.allApiRouteFiles[key];
   assert.equal(record.gitBlobSha, "5de82dc98b5fa336b7ec4f8051bc7e66bf3c167c");
-  assert.equal(record.methods.find(x => x.name === "GET")?.status, "GAP");
+  const get = record.methods.find(x => x.name === "GET");
+  assert.equal(get?.status, "COVERED");
+  assert.equal(get?.testedBy?.prNumber, 1512);
+  assert.equal(get?.testedBy?.workflowRunId, 40624278478);
+  assert.equal(get?.testedBy?.routeBlobSha, record.gitBlobSha);
+  assert.equal(get?.testedBy?.forgedSelectorLine, 212);
+  assert.equal(get?.testedBy?.foreignDenialLine, 199);
   const post = record.methods.find(x => x.name === "POST");
   assert.equal(post?.status, "COVERED", "POST has separately executed persisted manager-attestation evidence");
   assert.equal(post?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");

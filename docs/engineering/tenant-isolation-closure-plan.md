@@ -30,7 +30,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ## Current live-manifest batch reconciliation — 2026-10-28
 
-This is the **current proposed method-credit sweep** from exact `main@a7dc1f5184f59f3c5ac348e37b4ca88810f10651`, separate from the frozen 2026-10-21 baseline. The authoritative manifest proposes **330 COVERED / 10 PUBLIC-BY-DESIGN / 158 GAP** across **498 API methods**; 17 page/action GAPs remain. Sixteen previously GAP methods have exact-PR-head fictional PG16/localhost HTTP receipts with distinct own-positive, victim isolation, forged-selector and unchanged-victim source evidence. No other method is recredited. These are **provisional method classifications**, not independent owner acceptance, production or payroll release approval. Every batch remains INCOMPLETE; historical text below is retained as frozen closure scope.
+This is the **follow-on proposed method-credit sweep** based on exact `main@dd890dd65f14a3a508ef5df7227fd84655c21fcd`, separate from the frozen 2026-10-21 baseline. Prior merged #1509 already credited 16 methods; this follow-on credits only six additional still-GAP methods with source-blob-matched exact-PR-head fictional PG16/localhost HTTP receipts. The authoritative manifest now proposes **337 COVERED / 10 PUBLIC-BY-DESIGN / 151 GAP** across **498 API methods**, adding only #1526's distinct provisional local-PG18 manager-attestation POST candidate (subject to fresh exact-head PG16 CI and independent review); 17 page/action GAPs remain. Existing credits keep their original `testedBy` ownership. These are **provisional method classifications**, not independent owner acceptance, production or payroll release approval. Every batch remains INCOMPLETE; historical text below is retained as frozen closure scope.
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
@@ -39,15 +39,31 @@ This is the **current proposed method-credit sweep** from exact `main@a7dc1f5184
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 31 | 0 | 8 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 21 | 0 | 17 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 26 | 0 | 12 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 19 | 0 | 20 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-**Live inventory (proposed sweep):** 295 API route files, **498 HTTP methods = 330 COVERED + 10 PUBLIC-BY-DESIGN + 158 GAP**, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). The frozen 406-method queue above is a historical subset; **do not equate its per-batch GAP subtotal with the live global GAP total**. No batch in this snapshot is fully resolved. Tenant-isolation acceptance stays **NOT ACCEPTED**.
+**Live inventory (proposed sweep):** 295 API route files, **498 HTTP methods = 337 COVERED + 10 PUBLIC-BY-DESIGN + 151 GAP**, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). The frozen 406-method queue above is a historical subset; **do not equate its per-batch GAP subtotal with the live global GAP total**. No batch in this snapshot is fully resolved. Tenant-isolation acceptance stays **NOT ACCEPTED**.
+
+
+**2026-10-28 independently source-pinned follow-on promotions (still NOT ACCEPTED):** The six methods below were GAP at `main@dd890dd65f14a3a508ef5df7227fd84655c21fcd` and retain the precise four-part `testedBy` source lines and matching PR-final-head PostgreSQL 16/localhost HTTP workflow receipts. No open PR was merged or credited during this sweep. This is method evidence only, not an entire-batch or tenant-wide approval.
+
+| Exact HTTP method | Proof PR | Exact-final-head fictional PG16/HTTP receipt |
+|---|---|---|
+| `GET /api/self/probation-reviews` | [#1507](https://github.com/erwinmehehe/payrollph/pull/1507) | [run 40623884094](https://github.com/erwinmehehe/payrollph/actions/runs/40623884094) |
+| `POST /api/self/probation-reviews` | [#1507](https://github.com/erwinmehehe/payrollph/pull/1507) | [run 40623884094](https://github.com/erwinmehehe/payrollph/actions/runs/40623884094) |
+| `GET /api/hcm/employment-term-decisions/[id]/manager-attestation` | [#1512](https://github.com/erwinmehehe/payrollph/pull/1512) | [run 40624278478](https://github.com/erwinmehehe/payrollph/actions/runs/40624278478) |
+| `GET /api/self/performance` | [#1513](https://github.com/erwinmehehe/payrollph/pull/1513) | [run 40620797757](https://github.com/erwinmehehe/payrollph/actions/runs/40620797757) |
+| `POST /api/self/performance` | [#1513](https://github.com/erwinmehehe/payrollph/pull/1513) | [run 40620797757](https://github.com/erwinmehehe/payrollph/actions/runs/40620797757) |
+| `PATCH /api/self/performance` | [#1513](https://github.com/erwinmehehe/payrollph/pull/1513) | [run 40620797757](https://github.com/erwinmehehe/payrollph/actions/runs/40620797757) |
+
+**Distinct-method audit ledger (42 targets):** **6 newly promoted**, **36 skipped**: **21 already COVERED** (16 previously credited by #1509, four holiday methods #1504, document GET #1497); **8 partial-action proofs** (#1464 recruitment/privacy PATCH, #1473 roster POST, #1481 capabilities POST, #1482 loans PATCH, #1493 governance PATCH, #1496 careers/admin PATCH, #1500 workforce allocation POST, #1508 generic approvals PATCH); **7 incomplete or still-open evidence** (year-end GET #1468/#1480, two demand governance GETs #1474, invitations POST #1499, filing outcome PATCH #1501, HMO POST #1492, consent POST #1505); **0 stale source matches among the six credited methods**. #1514 is open and duplicates the two uncredited workforce-demand GETs; #1515 is open and repeats already-credited ESS availability. #1502 duplicates the covered #1503 take-home GET. Do not count any duplicate twice. Additional older already-credited proof families retain their original source ownership.
+
+**Scope holds:** #1505 consent remains open, with independent privacy/DPO assessment and shared CI/security checks outstanding; no merge or credit. #1492 synthetic HMO `update_enrollment` does not exercise the `coverage_activated`/`coverage_ended` automation branches. #1499's authored receipt explicitly retains `methodFullyCovered:false`; #1501 covers rejected rather than accepted outcome. #1508 only proves unlinked generic approvals. Manager-attestation POST has a separate, provisional #1526 local-PG18 candidate, pending exact-head PG16 CI and independent reviewer acceptance. No Neon, production, real money or provider calls occurred.
 
 **Whole-batch rule:** The next phase-1 target is **DL-01**, not a renamed sub-slice. One new proof PR must account for **all five remaining DL-01 methods**, keep already evidenced methods' proof ownership, and supply own-positive, real-victim denial, unchanged-victim DB and forged-selector evidence on its exact CI head. Do not create a smaller methods-credit PR or claim a method passes from a source-only test. If a remaining handler cannot be positively exercised under the disposable/no-provider boundary, report the per-method owner blocker and **stop** rather than splitting into ad-hoc slices. Future titles must include the exact batch ID.
 
@@ -248,7 +264,7 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 
 ### Batch PII-01 — HCM worker and lifecycle identities (39 methods; phase 4)
 
-**Shared fixture:** worker profile, job, employment-term decision, organization tree, worker-360 and related documents. **Status (live manifest at main@a7dc1f5184f5):** 31 COVERED / 0 PUBLIC-BY-DESIGN / 8 GAP across 39 frozen methods; **BATCH INCOMPLETE**. Remaining listed GAP: `POST /api/hcm/business-processes/definitions`, `POST /api/hcm/capabilities`, `POST /api/hcm/effective-changes`, `POST /api/hcm/employment-term-decisions`, `GET /api/hcm/employment-term-decisions/[id]/manager-attestation`, `POST /api/hcm/employment-term-decisions/[id]/manager-attestation`, `POST /api/hcm/salary-corrections/preview`, `POST /api/hcm/work-items/escalate`.
+**Shared fixture:** worker profile, job, employment-term decision, organization tree, worker-360 and related documents. **Status (proposed from main@dd890dd65f14):** 32 COVERED / 0 PUBLIC-BY-DESIGN / 7 GAP across 39 frozen methods; **BATCH INCOMPLETE**. Remaining listed GAP: `POST /api/hcm/business-processes/definitions`, `POST /api/hcm/capabilities`, `POST /api/hcm/effective-changes`, `POST /api/hcm/employment-term-decisions`, `POST /api/hcm/employment-term-decisions/[id]/manager-attestation`, `POST /api/hcm/salary-corrections/preview`, `POST /api/hcm/work-items/escalate`.
 
 - `GET /api/hcm/business-processes/definitions` — [source](../../src/app/api/hcm/business-processes/definitions/route.ts#L48)
 - `POST /api/hcm/business-processes/definitions` — [source](../../src/app/api/hcm/business-processes/definitions/route.ts#L89)
@@ -292,7 +308,7 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 
 ### Batch PII-02 — Employees, recruitment, discipline and self-service records (38 methods; phase 4)
 
-**Shared fixture:** real employee and applicant, personal identifiers, active worker session, discipline/recruitment case. **Status (live manifest at main@a7dc1f5184f5):** 21 COVERED / 0 PUBLIC-BY-DESIGN / 17 GAP across 38 frozen methods; **BATCH INCOMPLETE**. Remaining listed GAP: `GET /api/careers`, `POST /api/careers`, `PATCH /api/careers/admin`, `PATCH /api/employees`, `POST /api/employees`, `PATCH /api/employees/[id]/mwe-classifications/[classificationId]`, `POST /api/recruitment/hire`, `PATCH /api/recruitment/privacy`, `GET /api/self/performance`, `PATCH /api/self/performance`, `POST /api/self/performance`, `PATCH /api/self/performance/action-items`, `GET /api/self/probation-reviews`, `POST /api/self/probation-reviews`, `PATCH /api/self/profile`, `GET /api/self/schedule-receipts`, `POST /api/self/schedule-receipts`.
+**Shared fixture:** real employee and applicant, personal identifiers, active worker session, discipline/recruitment case. **Status (proposed from main@dd890dd65f14):** 26 COVERED / 0 PUBLIC-BY-DESIGN / 12 GAP across 38 frozen methods; **BATCH INCOMPLETE**. Remaining listed GAP: `GET /api/careers`, `POST /api/careers`, `PATCH /api/careers/admin`, `PATCH /api/employees`, `POST /api/employees`, `PATCH /api/employees/[id]/mwe-classifications/[classificationId]`, `POST /api/recruitment/hire`, `PATCH /api/recruitment/privacy`, `PATCH /api/self/performance/action-items`, `PATCH /api/self/profile`, `GET /api/self/schedule-receipts`, `POST /api/self/schedule-receipts`.
 
 - `GET /api/careers` — [source](../../src/app/api/careers/route.ts#L26)
 - `POST /api/careers` — [source](../../src/app/api/careers/route.ts#L51)
