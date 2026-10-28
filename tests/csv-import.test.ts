@@ -19,6 +19,27 @@ test("csv parser handles quoted fields, doubled quotes and CRLF", () => {
   assert.deepEqual(rows, [["a", "b", "c"], ["1,000", 'say "hi"', "plain"]]);
 });
 
+test("legacy CR-only employee CSV records stay separated", () => {
+  const csv = [
+    "Employee No,First Name,Last Name,Start Date,Monthly Basic,Region",
+    "E1,Ana,Reyes,2025-05-17,20000,NCR",
+    "E2,Ben,Santos,2025-05-18,21500,NCR",
+  ].join("\r") + "\r";
+  const imported = parseEmployeeCsv(csv);
+  assert.equal(imported.errors.length, 0);
+  assert.deepEqual(imported.valid.map((row) => row.employeeNo), ["E1", "E2"]);
+});
+
+test("unquoted bare CR is a record boundary, not silent field rewriting", () => {
+  assert.deepEqual(parseCsv("a,b\nID1\rID2,10\n"), [
+    ["a", "b"], ["ID1"], ["ID2", "10"],
+  ]);
+  // CRLF inside an RFC-4180 quoted field is data, not a record delimiter.
+  assert.deepEqual(parseCsv('a,b\r\n"line 1\r\nline 2",value\r\n'), [
+    ["a", "b"], ["line 1\r\nline 2", "value"],
+  ]);
+});
+
 test("customers can upload aliased column names and order", () => {
   const result = parseEmployeeCsv(
     "Employee No,Last Name,First Name,Hire Date,Basic Pay,Region\nEMP-1,Dela Cruz,Juan,2024-11-15,21500,NCR\n",
