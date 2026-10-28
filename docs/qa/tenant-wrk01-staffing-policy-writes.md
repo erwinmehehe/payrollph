@@ -50,9 +50,20 @@ The focused workflow is .github/workflows/tenant-wrk01-staffing-writes-http.yml.
   second membership. No denial may alter protected victim or payroll data.
 - Every synthetic positive write is permitted to add/change only
   workforce-demand staffing policy rows, their policy events and corresponding
-  audit rows. Employee identities, compensation, attendance, schedules,
-  workforce issues and payroll/entry state must remain unchanged. No roster or
-  pay decision is made by a planning policy draft or approval.
+  audit rows **in the actor's own employer**. Before every positive POST/PATCH,
+  the runner snapshots all four fictional employers. Every non-actor employer
+  (including the real higher-ID victim and the excluded fourth employer) must
+  remain exactly unchanged afterwards. The same four-employer invariant holds
+  for legitimate GET reads. Employee identities, compensation, attendance,
+  schedules, workforce issues and payroll/entry state must remain unchanged.
+  No roster or pay decision is made by a planning policy draft or approval.
+- The excluded employer has real, populated site/job/user data but is absent
+  from the live test-process allowlists. Its own POST, PATCH and GET receive
+  exact 404 with no persisted policy/event/audit changes; these negatives
+  **cannot count as a positive method proof**. The pre-import guard requires
+  the three distinct, valid numeric employer IDs in all operational-demand,
+  issued-demand and staffing-policy allowlists to match exactly, including
+  the real higher-ID victim.
 
 ## Fail-closed behavior and review boundary
 
