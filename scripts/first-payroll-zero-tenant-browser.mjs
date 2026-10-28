@@ -197,11 +197,29 @@ try{
   await hire.getByLabel("Monthly rate").fill("30000");
   await hire.getByLabel("Start date").fill("2026-01-01");
   await hire.getByLabel("Rest day").selectOption({label:"Sunday"});
+  // Employee creation no longer defaults missing regions to NCR. The real
+  // synthetic HR operator must make this explicit choice, including when the
+  // employer has no employees yet. Keep native required validation intact.
+  const wageRegion = hire.getByLabel("Wage region");
+  assert.equal(await wageRegion.inputValue(), "",
+    "zero-tenant first hire must not preselect a wage screening region");
+  assert.equal(await wageRegion.evaluate(node => node.validity.valueMissing), true,
+    "blank wage region must remain invalid in the real inline hire form");
+  await wageRegion.selectOption("NCR");
+  assert.equal(await wageRegion.inputValue(), "NCR",
+    "fictional employee's wage region must be explicitly chosen");
   const [created]=await Promise.all([
     active.waitForResponse(res=>res.url().endsWith("/api/employees") && res.request().method()==="POST",{timeout:45000}),
     hire.getByRole("button",{name:/Create & onboard/}).click(),
   ]);
   assert.equal(created.status(),201,"Inline employee create must succeed; inspect sanitized status only.");
+  assert.equal(created.request().postDataJSON()?.region, "NCR",
+    "actual inline first-hire request must transmit the selected region");
+  const hired = await created.json();
+  assert.equal(hired?.employee?.region, "NCR",
+    "first hire must persist the selected region, not a server-side default");
+  assert.equal(hired?.employee?.organizationId, fixture.organizationId,
+    "synthetic first hire must belong to the selected real employer");
   assert.equal(new URL(active.url()).pathname,"/app","Employee created without page navigation");
   report.steps.push("owner: first employee and pay profile created inline, with fictional payroll inputs");
   await screenshotCompleted("owner","people");
