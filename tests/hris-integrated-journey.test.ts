@@ -75,3 +75,20 @@ test("onboarding mutation remains employer/worker bound and does not certify pay
   assert.ok(board.includes("It is not government-ID verification"));
   assert.ok(board.includes("setSnapshotStale(true)"));
 });
+
+test("synthetic 320px My Team paging fixture respects strict keyset response shape", () => {
+  const browser = readFileSync("scripts/hris-journey-synthetic-browser.mjs", "utf8");
+  // Do not disable the production 25-row/strict cursor validator to make the
+  // mobile screenshot test pass. The fixture must supply one real full first
+  // page, then an ordered later employee with null terminal continuation.
+  assert.match(browser, /const firstPageMembers = \[/);
+  assert.match(browser, /\.\.\.Array\.from\(\{ length: 24 \}/);
+  assert.match(browser, /const firstPageCursor = firstPageMembers\.at\(-1\)\?\.id/);
+  assert.match(browser, /assert\.equal\(firstPageMembers\.length, 25/);
+  assert.match(browser, /const items = olderPage \? \[olderMember\] : firstPageMembers/);
+  assert.match(browser, /nextCursor: olderPage \? null : firstPageCursor/);
+  assert.match(browser, /id: sourceMember\.id \+ 25, name: "Synthetic Older Worker"/);
+  assert.match(browser, /await mobileTeam\.getByRole\("button", \{ name: "Older", exact: true \}\)\.click\(\)/);
+  assert.match(browser, /await mobileTeam\.getByRole\("button", \{ name: "Newer", exact: true \}\)\.click\(\)/);
+  assert.match(browser, /assert\.deepEqual\(phoneErrors, \[\]/);
+});
