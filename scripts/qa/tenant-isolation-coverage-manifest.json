@@ -37840,10 +37840,10 @@
       "reason": "PROVISIONAL #1429: two independently authenticated, single-employer HR accounts render a populated real own People Home 200; both receive 404 for a real, higher-ID, populated victim employer included in the enabled feature allowlist. No victim markers or database mutations. Independent HCM synthetic Chromium+PG16 QA, exact-head required; never a production or global tenant-isolation certification.",
       "testedBy": {
         "file": "scripts/qa/hcm-people-home-page-http.mjs",
-        "line": 11,
-        "ownPositiveLine": 68,
-        "foreignDenialLine": 84,
-        "unchangedDbLine": 94,
+        "line": 35,
+        "ownPositiveLine": 92,
+        "foreignDenialLine": 116,
+        "unchangedDbLine": 131,
         "scope": "Real Chromium+PG16 QA module invoked by scripts/hcm-people-home-synthetic-browser.mjs. Two separate HR logins each render own populated People Home; authorized, allowlisted real victim 404; victim employee, provisioning, payroll and audit rows unchanged.",
         "evidence": "HCM People Home Browser QA (Synthetic Only), .github/workflows/hcm-people-home-browser-qa.yml; exact PR-head success and independent security review required."
       }
