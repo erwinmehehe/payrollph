@@ -250,12 +250,24 @@ try {
       const result = await http("/api/employees", { method: "POST", cookie: state.ownerCookie,
         body: { organizationId: state.a, firstName: "Fictional", lastName: `Worker${index}`,
           startDate: "2026-09-16", employeeNo: `SMOKE-${index}`,
+          // Deliberate fictional NWPC choice: required by the real hire API.
+          // Never replace explicit selection with a silent NCR default.
+          region: "NCR",
           payBasis: "monthly", rateAmount: 22000 + index * 1000,
           bankCode: "BPI", bankAccount: `0000000000${index}`, mobile: "09999999999",
           tin: "000000000", sssNo: "0000000000",
           philHealthNo: "000000000000", pagIbigNo: "000000000000",
           restDay: "Sunday" } });
-      expectStatus(result, 201, `EMPLOYEE_${index}`);
+      const created = expectStatus(result, 201, `EMPLOYEE_${index}`);
+      assert.equal(created?.employee?.region, "NCR",
+        "FIRST_HIRE_MUST_PERSIST_EXPLICIT_WAGE_REGION");
+      assert.equal(created?.employee?.organizationId, state.a,
+        "FIRST_HIRE_MUST_BELONG_TO_ITS_OWN_EMPLOYER");
+      const persisted = (await app.query(
+        "SELECT region FROM public.employees WHERE id=$1 AND organization_id=$2",
+        [created.employee.id, state.a])).rows;
+      assert.equal(persisted.length, 1, "FIRST_HIRE_MUST_EXIST_IN_OWN_SQL_EMPLOYER");
+      assert.equal(persisted[0].region, "NCR", "FIRST_HIRE_REGION_SQL_PERSISTENCE");
       before = await assertAuditIncrement(state.a, before, `EMPLOYEE_${index}`);
     }
     const result = expectStatus(await http(
@@ -274,7 +286,9 @@ try {
     const mutation = await http("/api/employees", { method: "POST",
       cookie: state.bCookie,
       body: { organizationId: state.a, firstName: "Forbidden", lastName: "Foreign",
-        startDate: "2026-01-01", rateAmount: 22000 } });
+        // Valid region ensures the foreign-employer probe reaches the auth
+        // guard and returns 403, not an unrelated region-validation 422.
+        region: "NCR", startDate: "2026-01-01", rateAmount: 22000 } });
     assert.equal(mutation.status, 403, "B_MUST_NOT_WRITE_A_EMPLOYEES");
     const foreignPayroll = await http("/api/payroll-runs", { method: "POST",
       cookie: state.bCookie, body: { organizationId: state.a, periodStart: "2026-09-16",
@@ -283,7 +297,8 @@ try {
     const reverseWrite = await http("/api/employees", { method: "POST",
       cookie: state.ownerCookie,
       body: { organizationId: state.b, firstName: "Forbidden",
-        lastName: "OtherEmployer", startDate: "2026-01-01", rateAmount: 22000 } });
+        lastName: "OtherEmployer", region: "NCR",
+        startDate: "2026-01-01", rateAmount: 22000 } });
     assert.equal(reverseWrite.status, 403, "A_MUST_NOT_WRITE_B_EMPLOYEES");
     return { deniedReads: 2, deniedWrites: 3 };
   });

@@ -181,7 +181,13 @@ export function verifyFollowOnCredits(manifest, read = path => readFileSync(path
   const post = manifest.allApiRouteFiles[
     "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts"
   ].methods.find(method => method.name === "POST");
-  assert.equal(post?.status, "GAP", "unproved manager-attestation POST remains a gap");
-  assert.equal(post?.testedBy, null, "read proof must never certify manager-attestation POST");
+  // Preserve the six-case GET/ESS source catalogue. The #1526 POST has its
+  // own locally proved write-family receipt and cannot borrow the GET credit.
+  assert.equal(post?.status, "COVERED", "distinct POST requires its own source-linked proof");
+  assert.equal(post?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(post?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm-manager-attestation-post.mjs");
+  assert.equal(post?.testedBy?.postgresMajor, 18, "local PG18 source evidence is not final-head PG16 approval");
+  assert.notEqual(post?.testedBy?.verifiedMainCommit, FOLLOW_ON_MAIN,
+    "GET's exact-main six-credit checkpoint cannot be borrowed by POST");
   return CASES.length;
 }

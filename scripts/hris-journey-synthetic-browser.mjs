@@ -201,6 +201,15 @@ try {
     await hire.getByLabel("Job title").fill("Synthetic HR");
     await hire.getByLabel("Monthly rate").fill("24000");
     await hire.getByLabel("Start date").fill("2026-10-15");
+    // #1521 requires an actual HR choice. Do not restore an NCR UI/API default:
+    // assert the blank required control first, then explicitly select the
+    // fictional employee's own region before the real HTTP create.
+    const wageRegion = hire.getByLabel("Wage region");
+    assert.equal(await wageRegion.inputValue(), "", "new hires must start without a wage-region selection");
+    assert.equal(await wageRegion.evaluate(input => input.validity.valueMissing), true,
+      "native required validation must reject a blank wage region");
+    await hire.getByLabel("Wage region").selectOption("NCR");
+    assert.equal(await wageRegion.inputValue(), "NCR");
 
     // A transient error must preserve editable input and not claim success.
     await page.route("**/api/employees", route => route.fulfill({
@@ -211,6 +220,8 @@ try {
     await hire.getByText("Synthetic retryable hire failure", { exact: true }).waitFor();
     assert.equal(await hire.getByLabel("Start date").inputValue(), "2026-10-15");
     assert.equal(await hire.getByLabel("First name").inputValue(), "Journey");
+    assert.equal(await wageRegion.inputValue(), "NCR",
+      "a retryable server error must preserve the explicitly selected wage region");
 
     // This is the real protected UI/API, not a seeded fake completed hire.
     const [create] = await Promise.all([
@@ -219,12 +230,16 @@ try {
       hire.getByRole("button", { name: "Create & onboard" }).click(),
     ]);
     assert.equal(create.status(), 201, "Source employee creation must succeed from Everyday HR");
+    assert.equal(create.request().postDataJSON()?.region, "NCR",
+      "real employee-create HTTP must receive the explicitly selected wage region");
     const created = await create.json();
     const id = created?.employee?.id;
     assert.ok(Number.isSafeInteger(id) && id > 0);
     assert.equal(created.employee.organizationId, 1);
     assert.equal(created.employee.firstName, "Journey");
     assert.equal(created.employee.lastName, "Newhire");
+    assert.equal(created.employee.region, "NCR",
+      "the actual created employee must persist the selected region");
     assert.ok(Array.isArray(created.onboarding) && created.onboarding.length > 0,
       "The owning employee-create API must persist real provisioning tasks");
 
@@ -524,15 +539,25 @@ try {
   const expandedMember = {
     ...sourceMember, name: longName, employeeNo: longNumber, jobTitle: longTitle,
   };
-  // UI-only fictional pagination: continuation must contain 25 ordered rows,
-  // with a cursor at the last visible ID. These are not database proof rows.
-  const firstPageMembers = Array.from({ length: 25 }, (_, index) => index === 0
-    ? expandedMember
-    : { ...sourceMember, id: sourceMember.id + index,
-      employeeNo: "SYNTHETIC-MOBILE-" + index, name: "Synthetic Mobile Worker " + index });
-  const firstPageCursor = firstPageMembers.at(-1).id;
+  // The My Team client rejects a purported continuation unless the first
+  // page really has 25 ordered records and its cursor equals the last ID.
+  // Supply a valid fictional page; never bypass production validation.
+  const firstPageMembers = [
+    expandedMember,
+    ...Array.from({ length: 24 }, (_, offset) => ({
+      ...sourceMember,
+      id: sourceMember.id + offset + 1,
+      employeeNo: "SYNTH-MOBILE-PAGE1-" + String(offset + 2).padStart(2, "0"),
+      name: "Synthetic First Page Worker " + (offset + 2),
+      jobTitle: "Synthetic auxiliary roster record",
+    })),
+  ];
+  const firstPageCursor = firstPageMembers.at(-1)?.id;
+  assert.equal(firstPageMembers.length, 25, "continuation proof requires 25 first-page items");
+  assert.equal(firstPageCursor, sourceMember.id + 24,
+    "next cursor must equal the last displayed employee ID");
   const olderMember = {
-    ...sourceMember, id: firstPageCursor + 1, name: "Synthetic Older Worker",
+    ...sourceMember, id: sourceMember.id + 25, name: "Synthetic Older Worker",
   };
   for (const width of [320, 375, 430]) {
     const phone = await browser.newContext({
@@ -545,7 +570,10 @@ try {
     await mobileTeam.route("**/api/hcm/my-team?*", async route => {
       const url = new URL(route.request().url());
       if (url.searchParams.get("organizationId") !== "1") return route.continue();
-      const olderPage = Number(url.searchParams.get("cursor") ?? "0") > 0;
+      const requestedCursor = Number(url.searchParams.get("cursor") ?? "0");
+      assert.ok(requestedCursor === 0 || requestedCursor === firstPageCursor,
+        "synthetic mobile paging must only use the first-page cursor");
+      const olderPage = requestedCursor > 0;
       const items = olderPage ? [olderMember] : firstPageMembers;
       const sum = field => items.reduce((total, item) => total + item[field], 0);
       await route.fulfill({

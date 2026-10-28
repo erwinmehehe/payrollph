@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, payrollWageScreen, wageOrderFor, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, payrollWageScreen, wageOrderFor, requireExplicitWageRegion, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -75,13 +75,57 @@ test("unknown wage regions cannot silently use the NCR wage reference", () => {
 });
 
 
+test("employee creation requires an explicit valid wage region without JS coercion", () => {
+  for (const invalid of [undefined, null, "", "   ", "UNKNOWN", 0, true, ["NCR"], { region: "NCR" }]) {
+    assert.throws(
+      () => requireExplicitWageRegion(invalid),
+      /supported Philippine wage region|Unknown Philippine wage region/,
+      String(invalid),
+    );
+  }
+  assert.equal(requireExplicitWageRegion(" ncr "), "NCR");
+  assert.equal(requireExplicitWageRegion("iv-b"), "IV-B");
+});
+
+test("new-hire form requires explicit wage region selection rather than defaulting to NCR", () => {
+  const source = readFileSync("src/components/new-hire-modal.tsx", "utf8");
+  assert.ok(source.includes('region: ""'), "no preselected region");
+  assert.ok(source.includes('<select required value={form.region}'), "region select blocks blank submission");
+  assert.ok(source.includes('<option value="" disabled>Choose wage region</option>'));
+  assert.ok(!source.includes('region: "NCR"'), "new hires must select their own region");
+  const realBrowser = readFileSync("scripts/hris-journey-synthetic-browser.mjs", "utf8");
+  assert.ok(realBrowser.includes('hire.getByLabel("Wage region").selectOption("NCR")'),
+    "fictional HR operator must select a wage region before the real POST");
+  assert.ok(realBrowser.includes('create.request().postDataJSON()?.region, "NCR"'),
+    "browser must prove the explicit region was sent through the actual API request");
+  assert.ok(realBrowser.includes('created.employee.region, "NCR"'),
+    "browser must verify the selected region was persisted, not inferred");
+
+  // The same required field applies to the disposable zero-employee employer
+  // first-hire acceptance flow. Otherwise native form validation silently
+  // blocks its HTTP POST and a Playwright response wait times out.
+  const firstPayroll = readFileSync("scripts/first-payroll-zero-tenant-browser.mjs", "utf8");
+  assert.ok(firstPayroll.includes('hire.getByLabel("Wage region")'),
+    "zero-tenant inline first hire must use the real required region control");
+  assert.ok(firstPayroll.includes('node.validity.valueMissing'),
+    "zero-tenant browser must assert a blank region cannot be submitted");
+  assert.ok(firstPayroll.includes('await wageRegion.selectOption("NCR")'),
+    "zero-tenant browser must explicitly select a fictional wage region");
+  assert.ok(firstPayroll.includes('created.request().postDataJSON()?.region, "NCR"'),
+    "zero-tenant real HTTP POST must carry the selected region");
+  assert.ok(firstPayroll.includes('hired?.employee?.region, "NCR"'),
+    "zero-tenant real HTTP response must prove the choice was saved");
+  assert.ok(firstPayroll.includes('hired?.employee?.organizationId, fixture.organizationId'),
+    "zero-tenant first hire must belong to its own employer");
+});
+
 test("employee creation validates wage regions at the API boundary before payroll", () => {
   const source = readFileSync("src/app/api/employees/route.ts", "utf8");
-  assert.ok(source.includes('wageRegion = wageOrderFor(String(body.region ?? "NCR")).region'));
+  assert.ok(source.includes('wageRegion = requireExplicitWageRegion(body.region);'));
   assert.ok(source.includes('code: "INVALID_WAGE_REGION"'));
   assert.ok(source.includes('status: 422'));
   assert.ok(source.includes("region: wageRegion"));
-  assert.ok(!source.includes('region: String(body.region ?? "NCR")'));
+  assert.ok(!source.includes('body.region ?? "NCR"'), "API must not infer NCR for missing input");
   assert.equal(wageOrderFor(" iv-b ").region, "IV-B");
 });
 

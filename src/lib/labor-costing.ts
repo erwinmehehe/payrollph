@@ -263,12 +263,20 @@ export function allocateLaborAmount(amount: number, resolved: ResolvedLaborAlloc
   }
 
   const totalCents = toLaborCents(amount);
-  let allocatedCents = 0;
+  const absoluteTotalCents = Math.abs(totalCents);
+  const direction = totalCents < 0 ? -1 : 1;
+  let remainingCents = absoluteTotalCents;
   return resolved.allocations.map((row, index) => {
-    const cents = index === resolved.allocations.length - 1
-      ? totalCents - allocatedCents
-      : roundWholeCents(totalCents * (row.percent / 100));
-    allocatedCents += cents;
+    // Rounding each small share independently may exceed the entire amount:
+    // 2 centavos / four 25% centers previously yielded +1,+1,+1,-1.
+    // Bound each share by the remaining *magnitude* before applying its sign.
+    // Reversals are therefore exact, and a debit cannot contain a credit row.
+    const requestedCents = index === resolved.allocations.length - 1
+      ? remainingCents
+      : roundWholeCents(absoluteTotalCents * (row.percent / 100));
+    const shareCents = Math.min(remainingCents, requestedCents);
+    remainingCents -= shareCents;
+    const cents = shareCents === 0 ? 0 : direction * shareCents;
     return {
       allocationId: row.id,
       costCenterId: row.costCenterId,

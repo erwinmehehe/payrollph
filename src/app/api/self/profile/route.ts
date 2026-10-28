@@ -1,7 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
+import { auditEvents, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -24,6 +23,7 @@ export async function PATCH(request: Request) {
   if (session.role !== "employee" || !session.employeeId) {
     return Response.json({ error: "Employee self-service account required." }, { status: 403 });
   }
+  const authenticatedEmployeeId = session.employeeId;
   const demoDenied = publicDemoMutationDenied(session.email, "Updating employee self-service profile");
   if (demoDenied) return demoDenied;
 
@@ -45,26 +45,64 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "No editable self-service profile fields were provided." }, { status: 400 });
   }
 
-  const [updated] = await db.update(employees)
-    .set(patch)
-    .where(eq(employees.id, session.employeeId))
-    .returning({
-      mobile: employees.mobile,
-      emergencyContact: employees.emergencyContact,
-      emergencyPhone: employees.emergencyPhone,
+  // The preliminary membership check enforces the ordinary workspace and
+  // session policies. Repeat the employee and active membership binding under
+  // row locks, so a concurrent revocation or reassignment cannot authorize a
+  // late contact write. The audit receipt and contact edit commit together.
+  const updated = await db.transaction(async (tx) => {
+    const [boundEmployee] = await tx.select({
+      id: employees.id,
+      employeeNo: employees.employeeNo,
+      organizationId: employees.organizationId,
+    }).from(employees).where(and(
+      eq(employees.id, authenticatedEmployeeId),
+      eq(employees.organizationId, employee.organizationId),
+    )).for("update").limit(1);
+    if (!boundEmployee) return null;
+
+    // FOR SHARE serializes this write with the membership row's revocation.
+    // A secondary employer grant never authorizes the original employee row.
+    const [membership] = await tx.select({
+      id: userOrganizations.id,
+      role: userOrganizations.role,
+      workerEmployeeId: userOrganizations.workerEmployeeId,
+    }).from(userOrganizations).where(and(
+      eq(userOrganizations.userId, session.id),
+      eq(userOrganizations.organizationId, boundEmployee.organizationId),
+      eq(userOrganizations.active, true),
+    )).for("share").limit(1);
+    if (!membership || membership.role === "group_hr" ||
+        (membership.workerEmployeeId != null &&
+         membership.workerEmployeeId !== boundEmployee.id)) return null;
+
+    const [changed] = await tx.update(employees)
+      .set(patch)
+      .where(and(
+        eq(employees.id, boundEmployee.id),
+        eq(employees.organizationId, boundEmployee.organizationId),
+      ))
+      .returning({
+        mobile: employees.mobile,
+        emergencyContact: employees.emergencyContact,
+        emergencyPhone: employees.emergencyPhone,
+      });
+    if (!changed) return null;
+
+    await tx.insert(auditEvents).values({
+      organizationId: boundEmployee.organizationId,
+      actor: session.name,
+      action: "Employee self-service profile updated",
+      resource: boundEmployee.employeeNo,
+      metadata: {
+        employeeId: boundEmployee.id,
+        fields: Object.keys(patch),
+        payrollSensitiveFieldsChanged: false,
+      },
     });
-
-  await recordAuditEvent({
-    organizationId: employee.organizationId,
-    actor: session.name,
-    action: "Employee self-service profile updated",
-    resource: employee.employeeNo,
-    metadata: {
-      employeeId: employee.id,
-      fields: Object.keys(patch),
-      payrollSensitiveFieldsChanged: false,
-    },
+    return changed;
   });
-
+  if (!updated) {
+    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  }
   return Response.json({ profile: updated });
 }

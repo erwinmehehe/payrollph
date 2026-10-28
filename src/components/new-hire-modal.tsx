@@ -44,7 +44,7 @@ export function NewHireModal({
     standardWorkDaysPerMonth: "22",
     standardHoursPerDay: "8",
     startDate: newHireCalendarDay(new Date(), everydayHrHireEnabled),
-    region: "NCR",
+    region: "",
     restDay: "",
     mwe: false,
     assetType: "Laptop",
@@ -142,8 +142,9 @@ export function NewHireModal({
               <input type="number" min="1" max="24" step="0.25" required value={form.standardHoursPerDay} onChange={(e) => setForm({ ...form, standardHoursPerDay: e.target.value })} />
             </label>
             <label>Start date<input type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></label>
-            <label>Region
-              <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
+            <label>Wage region
+              <select required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
+                <option value="" disabled>Choose wage region</option>
                 {WAGE_ORDERS.map((order) => (
                   <option key={order.region} value={order.region}>
                     {order.region}{order.verified ? "" : " (rate unverified)"}
