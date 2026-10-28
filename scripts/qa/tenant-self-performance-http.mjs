@@ -216,7 +216,8 @@ export async function proveSelfPerformance() {
         "&employeeId="+victim.worker.id+"&reviewId="+victim.profile.review.id+
         "&oneOnOneId="+victim.profile.meeting.id;
       const forgedGet=await get(e,forgedPath);
-      assertOwnRead(forgedGet,e,[victim.marker,e.marker+"-PEER"]);
+      assertOwnRead(forgedGet,e,[e.marker+"-PEER",
+        ...all.filter(other=>other!==e).map(other=>other.marker)]);
       assert.deepEqual(forgedGet.json,own.json,
         "forged URL selectors cannot alter session-bound self-performance GET");
       checks++;
