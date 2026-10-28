@@ -1,4 +1,4 @@
-/** PR-only provisional invitation POST tenant boundary proof. No delivery or credits. */
+/** Invitation POST isolation: localhost SMTP only, no real delivery or method credits. */
 import assert from "node:assert/strict";
 import {createHash,randomUUID} from "node:crypto";
 import {createServer} from "node:net";
@@ -141,7 +141,7 @@ export function proveOwnInvitationPost(response,employer,saved,mail,outbox,audit
 }
 
 export function proveUnchanged(before,after,label) {
-  assert.deepEqual(after,before,label+" must not mutate invitation, membership, payroll or audit");
+  assert.deepEqual(after,before,label+" must not mutate invitation, membership, people, pay, payroll, outbox or audit");
 }
 async function main() {
   requireDisposableInvitations(); // before any dynamic database/app import
@@ -155,7 +155,11 @@ async function main() {
   try {
     assert.equal((await db.select({id:s.organizations.id}).from(s.organizations).limit(1)).length,0,
       "INVITATIONS_PROOF_REFUSED: empty disposable database required");
-    assert.equal((await db.select({id:s.auditEvents.id}).from(s.auditEvents).limit(1)).length,0);
+    for(const [name,table] of [["audits",s.auditEvents],["invitations",s.invitations],
+      ["outbox",s.outbox],["payroll",s.payrollRuns],["membership",s.userOrganizations]]){
+      assert.equal((await db.select().from(table).limit(1)).length,0,
+        "INVITATIONS_PROOF_REFUSED: fresh database required for "+name);
+    }
     const nonce=randomUUID().replaceAll("-","").slice(0,10);
     const employers=[];
     for(const label of ["ATTA","ATTB","VICTIM"]) {
@@ -250,6 +254,9 @@ async function main() {
         [e.org.id,await snapshot(e.org.id)])));
       const ownBefore=peersBefore.get(owner.org.id);
       const realPost=await call(owner,owner,"POST");
+      assert.equal(realPost.status,201,"actual own invitation POST must succeed");
+      assert.ok(Number.isSafeInteger(realPost.json?.id)&&realPost.json.id>0,
+        "own 201 must return the real persisted invitation ID");
       const [saved]=await db.select().from(s.invitations)
         .where(eq(s.invitations.id,realPost.json?.id)).limit(1);
       const email=(owner.marker+"-foreign@example.invalid").toLowerCase();
