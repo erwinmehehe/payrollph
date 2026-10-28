@@ -1,0 +1,133 @@
+name: Approval task PATCH tenant boundary (fictional PG16 HTTP; no money)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-approval-task-http.yml'
+      - 'scripts/qa/tenant-approval-task-*.mjs'
+      - 'tests/tenant-approval-task-contract.test.mjs'
+      - 'docs/qa/tenant-approval-task-http.md'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'src/app/api/approvals/[id]/route.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/delegation.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/webhooks.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-approval-task-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fictional-approval-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export disposable localhost targets and disable all providers and workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-approval-task-contract.mjs
+          node --check scripts/qa/tenant-approval-task-http.mjs
+          node --check tests/tenant-approval-task-contract.test.mjs
+          node --test tests/tenant-approval-task-contract.test.mjs
+      - name: Generate throwaway encryption keys and webhook secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only reviewed fictional baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM baseline fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode app against the disposable database
+        run: npm run build
+      - name: Start production-mode Next on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-approval-task-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-approval-task-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-approval-task-next.log
+          exit 1
+      - name: Verify own PATCH, foreign higher-ID denial, cross-role, CSRF, replay and immutable victim SQL
+        run: node --import tsx scripts/qa/tenant-approval-task-http.mjs
+      - name: Show localhost-only diagnostic log on failure
+        if: failure()
+        run: cat /tmp/tenant-approval-task-next.log || true
