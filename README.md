@@ -75,7 +75,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Setup refuses to run once any user exists (409), so the wizard cannot be used to hijack a live workspace.
 - Weak passwords are rejected server-side with per-rule messages (12+ chars, upper, lower, digit).
 
-**Demo credentials for this sandbox** (set `DEMO_MODE=true`): `celine@linaw.ph` / `LinawDemo2026!`, TOTP from the login response's `demoTotpCode`.
+**Demo credentials for an isolated, non-production sandbox** (set `DEMO_MODE=true`): `celine@linaw.ph` / `LinawDemo2026!`. If TOTP is enabled for this demo account, enter a current code from its enrolled authenticator or an authorized backup code. The login endpoint does **not** return `demoTotpCode` or generate an authenticator code for the client. Do not enable demo mode or use shared demo credentials in production.
 
 ### Password reset no longer leaks tokens
 - Reset and invitation tokens are stored as SHA-256 hashes and sent by email only.
