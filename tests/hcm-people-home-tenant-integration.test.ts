@@ -134,6 +134,49 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
     assert.ok(!JSON.stringify(own).includes("BetaPrivate"), "Foreign employer details must not leak");
     assert.ok(!JSON.stringify(own).includes("99000.00"), "Private payroll data must not appear");
 
+    // Reproduce the bounded-preview starvation bug: other-role assignments
+    // previously filled the first 30 tenant-wide rows before actor filtering.
+    // The final HR and identity-assigned steps must remain visible.
+    const [crowdedFlow] = await db.insert(hcmBusinessProcessInstances).values({
+      organizationId: alpha.id, employeeId: alphaWorker.id,
+      definitionCode: "home-synthetic", definitionVersion: 1,
+      processType: "transfer", sourceType: "home-qa",
+      sourceKey: "crowded-" + code, definitionSnapshot: { code: "home-qa", steps: [] },
+      initiatedByName: "Synthetic Maker", status: "in_progress",
+    }).returning();
+    const crowdedSteps = await db.insert(hcmBusinessProcessInstanceSteps).values([
+      ...Array.from({ length: 31 }, (_, stepIndex) => ({
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex, stepType: "approval" as const,
+        label: "Finance-only decoy " + stepIndex,
+        assignee: "role:finance", status: "pending" as const,
+      })),
+      {
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex: 31, stepType: "approval",
+        label: "Late HR decision", assignee: "ROLE:HR", status: "pending",
+      },
+      {
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex: 32, stepType: "review",
+        label: "Late named decision", assignee: actor.name.toUpperCase(), status: "pending",
+      },
+    ]).returning();
+    const hrTarget = crowdedSteps[31];
+    const namedTarget = crowdedSteps[32];
+    const crowded = await loadPeopleHomeWorklist(alpha.id, context);
+    assert.deepEqual(crowded.decisions.items.map((item) => item.sourceId),
+      [alphaStep.id, hrTarget.id, namedTarget.id],
+      "The role- and name-assigned steps must not be hidden behind 31 other-role steps");
+    assert.equal(crowded.decisions.hasMore, false,
+      "Only eligible rows may contribute to the bounded preview's hasMore flag");
+    assert.equal(crowded.decisions.partial, false);
+    assert.ok(crowded.decisions.items.every((item) => item.tenantId === alpha.id));
+    await db.delete(hcmBusinessProcessInstanceSteps)
+      .where(inArray(hcmBusinessProcessInstanceSteps.id, crowdedSteps.map((item) => item.id)));
+    await db.delete(hcmBusinessProcessInstances)
+      .where(eq(hcmBusinessProcessInstances.id, crowdedFlow.id));
+
     // A deny-only custom permission overlay must override an otherwise
     // valid company-wide HR role. It cannot grant People administration.
     const [restricted] = await db.insert(permissionSets).values({
