@@ -1,75 +1,110 @@
-# Workforce Planning Allocations: independent POST tenant-isolation proof
+# Workforce Planning allocation and manager-decision tenant isolation
 
-**Status:** DRAFT / NOT ACCEPTED / 0 coverage credits / do not auto-merge.
+**Status:** DRAFT / NOT ACCEPTED / 0 new coverage credits / do not auto-merge.
 
-**Exact authoritative GAP:** `POST workforce-planning/allocations` in `scripts/qa/tenant-isolation-coverage-manifest.json`.
+**Coverage:** This is defense-in-depth for the `POST` and `PATCH` methods of
+`/api/workforce-planning/allocations`. The formal WRK-02 batch and the
+authoritative tenant-coverage manifest remain separately review-gated.
+No new `COVERED` classification is claimed in this PR. The updated handler's
+source SHA is now recorded in the inventory with an exact, tested-but-uncertified
+POST/PATCH exception. This is re-inventory, **not** coverage promotion.
 
-## Independence
+## Independence and change boundary
 
-This batch targets Workforce Planning Allocations, not the open Invitations,
-Careers, ESS Documents, Leave, HMO Benefits, Performance Governance, payroll
-overpayment, Automation Studio or Attendance PR families. Only five dedicated
-QA, workflow and documentation files are added. The production handler,
-authorization and billing code, migrations, provider integrations, feature
-flags, global tenant catalog, coverage manifest and reservation ledger remain
-unchanged.
+The work is limited to Workforce Planning allocation and manager-submission
+decisions. It does not touch any open PR's People Home, HCM delegation,
+first-payroll onboarding, treasury, statutory filing or tenant-credit
+reconciliation files. It modifies the existing allocation handler, its dedicated
+PG16/HTTP runner, its contract tests and this QA note. The shared coverage
+manifest and its source-review validator are also updated solely to pin the
+changed handler SHA and zero-credit provisional evidence. Other concurrent PRs
+may modify that manifest and require ordinary merge reconciliation. No
+migrations, payment providers, payouts, deployment flags, global tenant
+catalog, recorded method counts or real worker/payroll data are changed.
 
-## Executable evidence
+## Production handler hardening
 
-A dedicated PR-only GitHub Actions workflow runs fresh empty PostgreSQL 16 on
-`127.0.0.1:5432/app_db` and a real production-mode Next server bound to
-`127.0.0.1:3000`. Fail-closed preflight checks are executed **before
-importing database or application modules**. Workers and scheduler are off,
-disbursements are disabled, provider credentials are absent and Enterprise
-plan gating is not activated. A reserved `*.example.test` origin is metadata,
-not an external network endpoint. All logins, owners, employees, plans,
-allocations and manager requests are fictional and created in the test DB.
+- Require `organizationId` and the authorized plan/unit relationship in
+  workforce-allocation row updates, locked allocation reads and manager-draft
+  version discovery. Return a conflict instead of using a stale or
+  cross-employer allocation.
+- Scope submission `PATCH` linked allocation and plan reads to the
+  submission's authorized employer, plan and unit.
+- Hold employer-scoped allocation and manager-submission row locks inside
+  the approval transaction. Both the accepted-request supersede update
+  and the final decision update retain the employer predicate.
+- Preserve distinct creator/submitter and independent checker identities.
+  Apply the same Enterprise planning opt-in denial to all manager-decision
+  actions, rather than only `submit`.
+- Avoid exposing private row details in rejection responses. A different
+  employer's submission remains a `403` for an unauthorized caller,
+  with no foreign marker in response bytes.
 
-The runner creates two independent owner attackers A/B and a victim C with
-strictly higher *real persisted* organization, workforce-plan, org-unit and
-allocation IDs. Each employer has its own plan, a populated previously saved
-top-down allocation, a second genuine active department and an employee
-without administrator permissions.
+## Disposable PG16 / real HTTP evidence
 
-**Before writes:** Three owner GETs must return populated, exact own plan
-allocations. Employer A's real successful response must *fail* employer B's
-positive assertion, preventing a vacuous 200 from counting as proof.
+The existing PR-only GitHub Actions workflow uses an empty PostgreSQL 16
+database at `127.0.0.1:5432/app_db` and a production-mode Next server on
+`127.0.0.1:3000`. It runs fail-closed preflight **before importing DB or
+application modules**, with workers and scheduler OFF, payout providers
+disabled, no live provider credentials and only fictional records.
 
-**Attacker denials:** Both A/B attempt the victim's actual employer GET (403),
-POST allocation for victim (403), POST manager request for victim (403), a
-victim plan under their own employer (404), a victim unit under their own
-plan (404), a real victim allocation ID under their own employer (404),
-own-employer GET and POST as a non-admin employee (403), and overspending
-their own plan's budget (409). No victim marker may appear. After each
-attacker's attempted operations, all three employers' real business and
-audit state must remain unchanged.
+Three employers are seeded. Two distinct authenticated attacker owners A/B
+have lower actual stored IDs than victim employer C. Every employer has
+a real plan, department, owned allocation, manager draft, non-admin employee
+and a separate authenticated company-wide checker.
 
-**Authorized positive mutations:** Each owner must create its own second
-department's allocation (201) and then a related manager draft (201).
-All six HTTP responses must identify *actually inserted* DB rows and
-correct employer/plan/unit/creator IDs, budgets, request version, saved
-allocation evidence and notes. Each insert must have exactly one
-actor-attributed audit event with the expected action and metadata.
-After every write, protected tables for the other two employers must
-be byte-for-byte semantically unchanged. Employees, pay profiles,
-financial payroll runs, attendance punches, plans and unrelated planning
-records must never change. Audit-chain cryptographic seal columns alone
-are normalized for comparison.
+The existing runner still requires real populated owned `GET` responses,
+foreign `GET`/ `POST` denials, forged plan/unit/allocation ID denials,
+legitimate persisted allocation and draft `POST` writes, exact actor-bound
+audit events and unchanged PostgreSQL snapshots for all other employers.
+
+The new `PATCH` acceptance cases require:
+
+1. Each attacker A/B attempts `submit`, `accept` and `reject` with
+   victim C's **real persisted higher-ID** manager-submission ID while
+   forging their own `organizationId`. All return the actual expected 403,
+   without the victim marker or plan name in the body.
+2. Separate checker identities for A/B are also denied foreign victim
+   submissions (403). Non-admin employees are denied their employer's
+   manager submission mutations (403).
+3. All employer planning, staff, payroll, attendance and audit snapshots
+   remain unchanged following cross-employer and role denials.
+4. Real own-employer manager submit `PATCH` succeeds, persists the submitted
+   status and one actor-scoped audit event. The maker cannot accept their
+   own submitted request (409, unchanged DB).
+5. Independent checkers accept A/B's requests and reject C's request;
+   each action returns 200, mutates only its own persisted submission,
+   writes exactly one employer-scoped audit row, and leaves every other
+   employer's real PostgreSQL rows unchanged.
+
+The contract test pins the tenant predicates, real HTTP invocation,
+snapshot comparisons, independent checker identities and `newCredits: 0`.
+
+**Executed proof:** The PR's original reviewed head
+`3b548203726254c18f4ad4fb201a609c96f5e25a` passed the dedicated
+[PG16 real-HTTP WFP allocations job](https://github.com/erwinmehehe/payrollph/actions/runs/40684903960/job/122804642868).
+The re-inventory source guard pins the identical handler, runner, contract and
+workflow blobs, verifies both method-specific positive and foreign-denial
+lines, and leaves `POST` and `PATCH` at `GAP`. Fresh CI on the new review head
+is needed, as are human security and owner decisions.
 
 ## Limitations and gates
 
-The already-covered GET is a populated positive control only. The POST
-proof currently exercises both `entityType=allocation` (create) and
-`entityType=submission` (draft), but does not cover allocation update,
-revisions, all budget-race scenarios, or PATCH accept/reject/submit actions.
-Therefore **the entire POST method remains GAP** until independent review
-and any remaining coverage conditions are met.
+This is **not** complete WRK-02 coverage. The allocation `POST` method's
+existing-allocation update branch and certain concurrent budget/race
+scenarios are not fully exercised by this runner. The separate batch
+closure contract requires complete method and batch proof and precise
+source/CI line receipts before any coverage promotion. The earlier passing
+job is source-identical, but fresh CI on the final PR head and independent
+review remain necessary. Decision-race and opt-in combinations remain outside
+the presently credited method scope.
 
-- [ ] Exact PR-head source-contract and negative-control tests pass
-- [ ] Exact PR-head disposable PG16 + real HTTP proofs pass
-- [ ] Exact PR-head required CI and security checks pass
-- [ ] Independent maintainer/security review accepts source-specific proof
-- [ ] Separate reviewed method-level credit reconciliation (if warranted)
+- [x] Source-identical original head's dedicated PostgreSQL 16 HTTP proof passed
+- [ ] Updated PR head's source-contract and inventory drift-guard tests pass
+- [ ] Updated PR head's disposable PostgreSQL 16 + real Next HTTP workflow passes
+- [ ] New PR head's required typecheck, CI and security checks pass
+- [ ] Independent maintainer/security review accepts the source changes
+- [ ] Any future method-credit reconciliation is reviewed separately
 
-No production deployment, money movement, schema modification, payroll
-authorization or global coverage increment is requested.
+No production acceptance, external employer activation, bank transfer,
+statutory filing, payout authorization or deployment is requested.

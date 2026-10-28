@@ -181,3 +181,35 @@ test("source and coverage contract leave method GAP without shared catalog chang
   assert.equal(method?.status, "GAP", "evidence is provisional and must not credit the method");
   assert.match(script, /newCredits: 0/);
 });
+
+
+test("manager-decision PATCH retains tenant predicates through locked reads and both writes", () => {
+  const route = readFileSync("src/app/api/workforce-planning/allocations/route.ts", "utf8");
+  const post = route.slice(route.indexOf("export async function POST"),
+    route.indexOf("export async function PATCH"));
+  const patch = route.slice(route.indexOf("export async function PATCH"));
+  assert.match(post, /eq\(workforcePlanManagerSubmissions\.organizationId, organizationId\)/,
+    "manager-draft version lookup cannot cross employers");
+  assert.match(post, /eq\(workforcePlanAllocations\.organizationId, organizationId\)/,
+    "manager draft must lock the own-employer allocation");
+  assert.match(patch, /eq\(workforcePlanAllocations\.organizationId, submission\.organizationId\)/,
+    "linked allocation lookup must remain in the manager request's employer");
+  assert.match(patch, /eq\(workforcePlans\.organizationId, submission\.organizationId\)/,
+    "linked workforce plan lookup must be employer-scoped");
+  assert.ok((patch.match(/eq\(workforcePlanManagerSubmissions\.organizationId, submission\.organizationId\)/g) ?? []).length >= 4,
+    "both decisions, submission and accepted-request supersede must be employer-scoped");
+  assert.match(patch, /eq\(workforcePlanManagerSubmissions\.allocationId, submission\.allocationId\)/,
+    "manager decisions must retain the authorized allocation relationship");
+  assert.match(patch, /\)\)\.for\("update"\)\.limit\(1\)/,
+    "decision/creation locks must be held while scoped rows are checked");
+  const runner = readFileSync("scripts/qa/tenant-wfp-allocations-http.mjs", "utf8");
+  assert.match(runner, /for \(const actor of \[a, b\]\)/);
+  assert.match(runner, /patch\(actor, victim\.draftId, action, \{ orgId: actor\.orgId \}\)/,
+    "the real foreign request must reject a forged own-tenant selector");
+  assert.match(runner, /assertNoStateChange\(expected\.get\(e\.orgId\), await snapshot\(e\.orgId\)/,
+    "real PostgreSQL snapshots must remain unchanged following denials");
+  assert.match(runner, /assertDecisionTransition\(beforeSubmit, afterSubmit/);
+  assert.match(runner, /assertDecisionTransition\(beforeDecide, afterDecide/);
+  assert.match(runner, /independentCheckerRoles: true/);
+  assert.match(runner, /newCredits: 0/);
+});

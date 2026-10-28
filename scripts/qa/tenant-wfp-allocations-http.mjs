@@ -97,11 +97,29 @@ export async function proveWorkforcePlanningAllocations() {
         workerEmployeeId: e.worker.id,
       });
       const nonadmin = await http.standaloneMakeSession(employeeLogin.id);
+      // An independently authenticated company-wide People checker may decide
+      // the maker's request, but may not act on a different employer's request.
+      const [checker] = await db.insert(s.users).values({
+        email: e.marker.toLowerCase() + "-checker@example.invalid",
+        name: e.marker + " independent fictional checker",
+        role: "owner", passwordHash: "fictional-no-login", totpEnabled: true,
+      }).returning();
+      await db.insert(s.userOrganizations).values({
+        userId: checker.id, organizationId: e.org.id,
+        role: "owner", active: true,
+      });
+      const checkerSession = await http.standaloneMakeSession(checker.id);
+      // The synthetic independent checker has its own verified-MFA session,
+      // never reuses the maker's cookie or bypasses session policy.
+      await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+        .where(eq(s.sessions.id, checkerSession.id));
       employers.push({
         label, marker: e.marker,
         orgId: e.org.id, planId: plan.id, planName,
         ownerId: e.owner.id, ownerName: e.owner.name,
         ownerCookie: e.cookie, employeeCookie: nonadmin.cookie,
+        checkerCookie: checkerSession.cookie, checkerId: checker.id,
+        checkerName: checker.name,
         existingAllocationId: existing.id, firstUnitId: e.unit.id,
         newUnitId: secondUnit.id, newUnitName: secondUnit.name,
         headcount: 3 + e.rank, budget: 20000 + e.rank * 1000,
@@ -148,6 +166,17 @@ export async function proveWorkforcePlanningAllocations() {
     const post = (actor, payload, nonadmin = false) =>
       http.standaloneRequest(PATH, { method: "POST",
         cookie: nonadmin ? actor.employeeCookie : actor.ownerCookie, body: payload });
+    const patch = (actor, submissionId, action,
+      { checker = false, nonadmin = false, orgId = actor.orgId } = {}) =>
+      http.standaloneRequest(PATH, {
+        method: "PATCH",
+        cookie: checker ? actor.checkerCookie
+          : nonadmin ? actor.employeeCookie : actor.ownerCookie,
+        body: {
+          organizationId: orgId, submissionId, action,
+          decisionNote: actor.marker + " fictional independent decision note",
+        },
+      });
     const allocationBody = (actor, orgId = actor.orgId, planId = actor.planId,
       orgUnitId = actor.newUnitId, budget = actor.budget) => ({
       organizationId: orgId, entityType: "allocation", planId, orgUnitId,
@@ -164,6 +193,47 @@ export async function proveWorkforcePlanningAllocations() {
         " " + response.text.slice(0, 180));
       assert.ok(!response.text.includes(victim.marker), label + ": victim marker leaked");
       assert.ok(!response.text.includes(victim.planName), label + ": victim plan leaked");
+    };
+    const assertDecisionTransition = (before, after, actor, submissionId, status, response) => {
+      assert.equal(response.status, 200,
+        actor.label + " own " + status + " expected 200: " + response.text.slice(0, 180));
+      const original = before.submissions.find(row => row.id === submissionId);
+      const changed = after.submissions.find(row => row.id === submissionId);
+      assert.ok(original && changed, "real persisted manager request must exist");
+      assert.equal(original.organizationId, actor.orgId);
+      assert.equal(changed.organizationId, actor.orgId);
+      assert.equal(changed.planId, actor.planId);
+      assert.equal(changed.allocationId, actor.newAllocationId);
+      assert.equal(changed.status, status);
+      assert.equal(response.json?.submission?.id, submissionId);
+      assert.equal(response.json?.submission?.organizationId, actor.orgId);
+      assert.equal(response.json?.submission?.status, status);
+      if (status === "submitted") {
+        assert.equal(changed.submittedByUserId, actor.ownerId);
+      } else {
+        assert.equal(changed.decidedByUserId, actor.checkerId);
+        assert.equal(changed.submittedByUserId, actor.ownerId,
+          "maker/checker identities must remain independent");
+      }
+      assert.equal(after.submissions.length, before.submissions.length,
+        "PATCH must never create another submission");
+      assert.deepEqual(after.submissions.filter(row => row.id !== submissionId),
+        before.submissions.filter(row => row.id !== submissionId),
+        "PATCH cannot modify another manager request");
+      for (const key of ["organization", "entities", "units", "staff",
+        "payProfiles", "plans", "allocations", "scenarios", "payroll", "punches"]) {
+        assert.deepEqual(after[key], before[key],
+          "PATCH must not alter unrelated " + key + " state");
+      }
+      assert.equal(after.audits.length, before.audits.length + 1,
+        "successful PATCH must emit one actual scoped audit row");
+      assert.deepEqual(after.audits.slice(0, -1), before.audits);
+      const audit = after.audits.at(-1);
+      assert.equal(audit.organizationId, actor.orgId);
+      assert.equal(audit.actor, status === "submitted" ? actor.ownerName : actor.checkerName);
+      assert.equal(audit.action, "Workforce manager request " + status);
+      assert.equal(audit.metadata?.submissionId, submissionId);
+      assert.equal(audit.metadata?.allocationId, actor.newAllocationId);
     };
     server = await launchServer();
     const expected = new Map();
@@ -232,6 +302,7 @@ export async function proveWorkforcePlanningAllocations() {
       const afterAllocation = await snapshot(actor.orgId);
       const allocationId = assertOwnAllocationCreated(
         beforeAllocation, afterAllocation, actor, createAllocation);
+      actor.newAllocationId = allocationId;
       ownAllocations++;
       expected.set(actor.orgId, afterAllocation);
       for (const other of employers.filter(e => e.orgId !== actor.orgId)) {
@@ -242,7 +313,7 @@ export async function proveWorkforcePlanningAllocations() {
       const beforeDraft = await snapshot(actor.orgId);
       const createDraft = await post(actor, submissionBody(actor, allocationId));
       const afterDraft = await snapshot(actor.orgId);
-      assertOwnManagerDraftCreated(beforeDraft, afterDraft, actor,
+      actor.draftId = assertOwnManagerDraftCreated(beforeDraft, afterDraft, actor,
         allocationId, createDraft);
       ownDrafts++;
       expected.set(actor.orgId, afterDraft);
@@ -254,22 +325,85 @@ export async function proveWorkforcePlanningAllocations() {
       assertOwnedPlanningRead(ownAfter, actor, expected.get(actor.orgId));
       if (actor !== victim) assert.ok(!ownAfter.text.includes(victim.marker));
     }
+    // Real, higher-ID victim PATCH controls must remain unchanged after
+    // *all* actions, even when the attacker forges an own employer selector.
+    let foreignPatches = 0, nonadminPatches = 0, makerDecisionDenials = 0;
+    let ownSubmissions = 0, ownDecisions = 0;
+    for (const actor of [a, b]) {
+      for (const action of ["submit", "accept", "reject"]) {
+        deny(await patch(actor, victim.draftId, action, { orgId: actor.orgId }),
+          403, actor.label + " foreign manager PATCH " + action);
+        foreignPatches++;
+      }
+      deny(await patch(actor, victim.draftId, "accept",
+        { checker: true, orgId: actor.orgId }),
+      403, actor.label + " foreign independent-checker PATCH");
+      foreignPatches++;
+      deny(await patch(actor, actor.draftId, "submit", { nonadmin: true }),
+        403, actor.label + " employee manager PATCH");
+      nonadminPatches++;
+      for (const e of employers) {
+        assertNoStateChange(expected.get(e.orgId), await snapshot(e.orgId),
+          actor.label + " foreign PATCH did not mutate " + e.label);
+      }
+    }
+
+    for (const actor of employers) {
+      const beforeSubmit = await snapshot(actor.orgId);
+      const submitted = await patch(actor, actor.draftId, "submit");
+      const afterSubmit = await snapshot(actor.orgId);
+      assertDecisionTransition(beforeSubmit, afterSubmit, actor,
+        actor.draftId, "submitted", submitted);
+      ownSubmissions++;
+      expected.set(actor.orgId, afterSubmit);
+
+      deny(await patch(actor, actor.draftId, "accept"), 409,
+        actor.label + " maker may not approve their own submission");
+      makerDecisionDenials++;
+      assertNoStateChange(expected.get(actor.orgId), await snapshot(actor.orgId),
+        actor.label + " self-approval denial did not mutate own planning state");
+
+      // Both outcomes must execute: A/B accept, victim C rejects. This
+      // establishes real authorized checker paths, not only denial responses.
+      const action = actor === victim ? "reject" : "accept";
+      const beforeDecide = await snapshot(actor.orgId);
+      const decision = await patch(actor, actor.draftId, action, { checker: true });
+      const afterDecide = await snapshot(actor.orgId);
+      assertDecisionTransition(beforeDecide, afterDecide, actor,
+        actor.draftId, action === "accept" ? "accepted" : "rejected", decision);
+      ownDecisions++;
+      expected.set(actor.orgId, afterDecide);
+      assertOwnedPlanningRead(await get(actor), actor, afterDecide);
+      for (const other of employers.filter(e => e.orgId !== actor.orgId)) {
+        assertNoStateChange(expected.get(other.orgId), await snapshot(other.orgId),
+          actor.label + " legitimate PATCH must not mutate " + other.label);
+      }
+    }
+
     assert.deepEqual({
       foreignGets, foreignPosts, forgedPlanOrUnit, forgedAllocation,
       nonadminDenials, budgetDenials, ownAllocations, ownDrafts,
+      foreignPatches, nonadminPatches, makerDecisionDenials,
+      ownSubmissions, ownDecisions,
     }, {
       foreignGets: 2, foreignPosts: 4, forgedPlanOrUnit: 4,
       forgedAllocation: 2, nonadminDenials: 4, budgetDenials: 2,
       ownAllocations: 3, ownDrafts: 3,
+      foreignPatches: 8, nonadminPatches: 2, makerDecisionDenials: 3,
+      ownSubmissions: 3, ownDecisions: 3,
     });
     console.log(JSON.stringify({
-      proof: "workforce-planning-allocations-real-pg16-http",
+      proof: "workforce-planning-allocations-and-decisions-real-pg16-http",
       gapMethod: "POST workforce-planning/allocations",
+      patchMethod: "PATCH workforce-planning/allocations",
       allowedEntityTypes: ["allocation", "submission"],
       twoIndependentAttackers: true, higherIdVictim: true,
       populatedOwnGETs: 6, foreignGets, foreignPosts,
       forgedPlanOrUnit, forgedAllocation, nonadminDenials, budgetDenials,
       persistedOwnPosts: ownAllocations + ownDrafts,
+      foreignPatches, nonadminPatches, makerDecisionDenials,
+      ownSubmissions, ownDecisions, forgedPatchEmployerSelectors: true,
+      patchVictimDbUnchanged: true, independentCheckerRoles: true,
       crossEmployerAndAuditInvariants: true, workerOrPayrollWrites: false,
       productionCertified: false, wholeMethodAccepted: false, newCredits: 0,
     }));
