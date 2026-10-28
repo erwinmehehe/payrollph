@@ -99,11 +99,14 @@ export async function proveSelfScheduleReceiptIsolation() {
     const victim = await seed("VICTIM");
     assert.deepEqual([a.org.id, b.org.id, victim.org.id], [1, 2, 3],
       "Expected exact disposable 1,2,3 allowlisted fixture, not a live employer");
-    for (const field of ["org", "worker", "shift", "override"]) {
-      assert.ok(victim[field].id > a.peer[field === "worker" ? "worker" : field]?.id ||
-        (field === "org" && victim.org.id > a.org.id));
-      assert.ok(victim[field].id > b.peer[field === "worker" ? "worker" : field]?.id ||
-        (field === "org" && victim.org.id > b.org.id));
+    for (const actor of [a, b]) {
+      assert.ok(victim.org.id > actor.org.id, "victim employer must have a real higher ID");
+      assert.ok(victim.worker.id > actor.peer.worker.id,
+        "victim worker must follow both real attacker/peer workers");
+      assert.ok(victim.shift.id > actor.peer.shift.id,
+        "victim shift must follow both real attacker/peer shifts");
+      assert.ok(victim.override.id > actor.peer.override.id,
+        "victim scheduled row must follow both real attacker/peer overrides");
     }
     assert.notEqual(a.self.cookie, b.self.cookie);
     assert.notEqual(b.self.cookie, victim.self.cookie);
