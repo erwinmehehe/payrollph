@@ -164,7 +164,7 @@ test("focused workflow must execute the real PG16 localhost runner rather than a
   assert.match(runner, /seed\("ATTA"\)/);
   assert.match(runner, /seed\("ATTB"\)/);
   assert.match(runner, /seed\("VICTIM"\)/);
-  assert.match(runner, /userOrganizations\.active, false/);
+  assert.match(runner, /db\.update\(userOrganizations\)\.set\(\{ active: false \}\)/);
   assert.match(runner, /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/);
   assert.doesNotMatch(runner, /https:\/\/(?!example\.invalid)/);
 });
