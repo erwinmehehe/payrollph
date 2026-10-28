@@ -95,7 +95,7 @@ const CASES = [
  */
 export function assertWorkflowUsesOnlyLoopbackUrls(workflowText) {
   assert.equal(typeof workflowText, "string", "workflow source is required");
-  const literalUrls = workflowText.match(/https?:\\/\\/[^\\s"'<>\\\\]+/gi) ?? [];
+  const literalUrls = workflowText.match(/https?:\/\/[^\s"'<>\\]+/gi) ?? [];
   for (const literal of literalUrls) {
     let url;
     try { url = new URL(literal); }
