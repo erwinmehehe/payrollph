@@ -305,6 +305,9 @@ export async function POST(request: Request) {
           error: "This allocation cannot be reduced below a submitted or accepted manager request. Resolve or supersede that request first.",
         }, { status: 409 });
       }
+      if (error instanceof Error && error.message === "ALLOCATION_MISSING") {
+        return Response.json({ error: "The workforce allocation changed or is unavailable." }, { status: 409 });
+      }
       throw error;
     }
   }
