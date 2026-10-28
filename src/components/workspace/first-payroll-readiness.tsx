@@ -132,7 +132,7 @@ export function FirstPayrollReadinessCard({
                 {step.actionLabel} <ArrowRight size={13} />
               </button>
             ) : null}
-            {inlineEnabled&&opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={JSON.stringify([data.selectedOrganization.id,data.user?.id??null,data.access?.role??null,data.access?.companyWide===true,step.key])} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
+            {inlineEnabled&&opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={JSON.stringify([data.selectedOrganization.id,data.user?.id??null,data.access?.role??null,data.access?.companyWide===true,step.key])} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onOpenPeople={allowedPages.includes("People")?()=>onPage("People"):undefined} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
           </li>
         ))}
       </ol>}

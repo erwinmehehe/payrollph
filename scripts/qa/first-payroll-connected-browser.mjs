@@ -16,10 +16,15 @@ import {StatutoryRemittanceActionQueue} from './src/components/workspace/statuto
 const params=new URLSearchParams(location.search),enabled=params.get('mode')!=='off';
 const readiness=buildFirstPayrollReadiness({workspaceName:'Fictional Employer',employees:[{status:'Active',bankCode:'TEST',bankAccount:'fictional'}],memberships:[{role:'payroll'},{role:'checker'}],payrollStatuses:['Draft']});
 const data={...dashboardFixture,firstPayrollConnectedEnabled:enabled,user:{id:1,name:'Fictional payroll',role:'payroll'},payrollRuns:[{...sampleRun,id:43,legalEntityId:7,status:'Draft',employeeCount:1,grossPay:'0',netPay:'0',exceptions:0},{...sampleRun,id:42,legalEntityId:7,status:'Needs review',periodLabel:'Saved fictional payroll',employeeCount:1,grossPay:'15000',netPay:'13500',exceptions:0}],firstPayrollReadiness:readiness,access:{role:'payroll',companyWide:true}};
+function JourneyFixture({kind}){const [destination,setDestination]=useState(null);const role=params.get('viewerRole')??(kind==='time'?'hr':'owner');
+const state=buildFirstPayrollReadiness({workspaceName:'Fictional Employer',employees:[{status:'Active',bankCode:kind==='people'?'':'TEST',bankAccount:kind==='people'?'':'fictional'}],memberships:[{role:'payroll'},{role:'checker'}],payrollStatuses:[]});
+const current={...data,payrollRuns:[],firstPayrollReadiness:state,user:{id:1,name:'Fictional reviewer',role},access:{role,companyWide:true}};
+return destination?<h1>{destination} destination</h1>:<FirstPayrollReadinessCard readiness={state} guided inlineEnabled data={current} onRefresh={async()=>{if(kind==='reviewers')throw Error('Fictional workspace refresh failure');}}
+allowedPages={['Settings','People','Time & attendance','Payroll','Approvals','Exports'].filter(page=>page!=='People'||params.get('denyPeople')!=='1')} onPage={setDestination} onNewRun={()=>{}}/>;}
 const focus=resolveFirstPayrollRunFocus({enabled,demoMode:false,requestedPage:params.get('workspacePage'),requestedOrganizationId:params.get('organizationId'),requestedRunId:params.get('focusPayrollRunId'),organizationId:1,access:data.access,authorizedRuns:data.payrollRuns});
 window.fixtureFocus=focus;
 function LegacyQueue(){const [org,setOrg]=useState(1);return <><button onClick={()=>setOrg(2)}>Switch fixture employer</button><StatutoryRemittanceActionQueue organizationId={org} notify={()=>{}}/></>;}
-createRoot(document.getElementById('root')).render(<main>{params.get('queue')==='legacy'?<LegacyQueue/>:focus!==null?<PayrollRunView data={data} initialRunId={focus} busy={false} onNewRun={()=>{}} onProcess={async()=>{}} onRelease={async()=>({})} onDecide={async()=>{}} onPage={()=>{}} onRefresh={async()=>{}} notify={()=>{}} availablePages={['Payroll','People','Exports']}/>:<FirstPayrollReadinessCard readiness={readiness} guided inlineEnabled data={data} onRefresh={async()=>{}} allowedPages={['Payroll','Settings','People','Exports']} onNewRun={()=>{}} onPage={()=>{}}/>}</main>);`,resolveDir:process.cwd(),sourcefile:'first-payroll-connected.tsx',loader:'tsx'},bundle:true,platform:'browser',jsx:'automatic',define:{'process.env.NODE_ENV':'"development"','process.env':'{}'},outfile:output+'/bundle.js'});
+createRoot(document.getElementById('root')).render(<main>{params.get('journeyCase')?<JourneyFixture kind={params.get('journeyCase')}/>:params.get('queue')==='legacy'?<LegacyQueue/>:focus!==null?<PayrollRunView data={data} initialRunId={focus} busy={false} onNewRun={()=>{}} onProcess={async()=>{}} onRelease={async()=>({})} onDecide={async()=>{}} onPage={()=>{}} onRefresh={async()=>{}} notify={()=>{}} availablePages={['Payroll','People','Exports']}/>:<FirstPayrollReadinessCard readiness={readiness} guided inlineEnabled data={data} onRefresh={async()=>{}} allowedPages={['Payroll','Settings','People','Exports']} onNewRun={()=>{}} onPage={()=>{}}/>}</main>);`,resolveDir:process.cwd(),sourcefile:'first-payroll-connected.tsx',loader:'tsx'},bundle:true,platform:'browser',jsx:'automatic',define:{'process.env.NODE_ENV':'"development"','process.env':'{}'},outfile:output+'/bundle.js'});
 const bundle=await readFile(output+'/bundle.js');
 const postcss=require('postcss'),tailwind=require('@tailwindcss/postcss');
 const cssFiles=['globals.css','workspace-theme.css','dashboard-design.css','workspace-panels.css',
@@ -35,6 +40,7 @@ const results=[];
 try{for(const width of [1280,390]){
  const page=await browser.newPage({viewport:{width,height:900}}),errors=[],writes=[];
  let rejectRegisterOnce=true;
+ let releasePreview;const previewReady=new Promise(resolve=>{releasePreview=resolve;});
  let releaseEmployerB;const employerBReady=new Promise(resolve=>{releaseEmployerB=resolve;});
  page.on('pageerror',e=>{errors.push(e.message);console.error('COMPONENT_ERROR '+e.stack);});
  await page.route('**/api/**',async route=>{
@@ -51,7 +57,13 @@ try{for(const width of [1280,390]){
      await new Promise(resolve=>setTimeout(resolve,300));
      return route.fulfill({status:403,json:{error:'Unavailable in isolated component fixture'}});
    }
-   if(url.pathname==='/api/first-payroll/progress')return route.fulfill({json:{progress:null}});
+   if(url.pathname==='/api/first-payroll/progress')return route.fulfill({json:{organizationId:1,progress:null}});
+   if(url.pathname==='/api/invitations'&&req.method()==='POST')return route.fulfill({json:{invitation:{id:1}}});
+   if(url.pathname==='/api/first-payroll/preview'){
+     await previewReady;
+     return route.fulfill({json:{organizationId:1,periodStart:url.searchParams.get('periodStart'),periodEnd:url.searchParams.get('periodEnd'),payDate:url.searchParams.get('payDate'),
+       dryRun:true,persisted:false,previewReady:true,blockers:[],warnings:[],rows:[{employeeId:1,employeeNo:'EMP-1',name:'Fictional employee',gross:15000,sss:500,philHealth:250,pagIbig:100,withholding:0,net:14150,blockers:[]}]}});
+   }
    if(url.pathname==='/api/payroll-runs'){
      const runId=Number(url.searchParams.get('runId'));
      if(![42,43].includes(runId))return route.fulfill({status:404,json:{error:'Fictional run not found'}});
@@ -66,6 +78,55 @@ try{for(const width of [1280,390]){
    if(url.pathname.endsWith('/release-checklist'))return route.fulfill({json:{ready:false,items:[]}});
    return route.fulfill({status:403,json:{error:'Unavailable in isolated component fixture'}});
  });
+ const journeyFailures=[];
+ for(const kind of ['people','time','preview','reviewers'])try{
+   await page.goto(base+'/?journeyCase='+kind);
+   await page.getByRole('button',{name:kind==='people'?'Open people':kind==='time'?'Review attendance':kind==='reviewers'?'Review team access':'Prepare payroll',exact:true}).click();
+   if(kind==='people'){
+     const openPeople=page.getByRole('button',{name:'Open People to edit payout details',exact:true});
+     assert.equal(await openPeople.count(),1,'Existing employee payout blockers need a route to edit People, not another hire form');
+     const payoutBounds=await openPeople.evaluate(button=>{const region=button.closest('section').getBoundingClientRect(),control=button.getBoundingClientRect();return {regionLeft:region.left,regionRight:region.right,left:control.left,right:control.right};});
+     assert.ok(payoutBounds.left>=payoutBounds.regionLeft&&payoutBounds.right<=payoutBounds.regionRight,'Payout navigation must fit its nested mobile panel: '+JSON.stringify(payoutBounds));
+     await page.screenshot({path:output+'/journey-payout-edit-'+width+'.png',fullPage:true});
+     await openPeople.focus();await openPeople.press('Enter');await page.getByRole('heading',{name:'People destination'}).waitFor();
+     for(const restriction of ['denyPeople=1','viewerRole=payroll']){
+       await page.goto(base+'/?journeyCase=people&'+restriction);await page.getByRole('button',{name:'Open people',exact:true}).click();
+       assert.equal(await page.getByRole('button',{name:'Open People to edit payout details',exact:true}).count(),0,'Payout recovery cannot grant new People permissions');
+     }
+   }else if(kind==='time'){
+     await page.getByLabel('Pay period start',{exact:true}).fill('2026-10-01');await page.getByLabel('Pay period end',{exact:true}).fill('2026-10-15');
+     const acknowledgment=page.getByRole('checkbox');await acknowledgment.check();
+     await page.getByLabel('Pay period end',{exact:true}).fill('2026-10-16');
+     assert.equal(await acknowledgment.isChecked(),false,'Changing the reviewed period must require a fresh human acknowledgment');
+     assert.equal(await page.getByRole('button',{name:'Record authorized human review',exact:true}).isDisabled(),true);
+     await acknowledgment.check();
+     assert.equal(await page.getByRole('button',{name:'Record authorized human review',exact:true}).isEnabled(),true,'The new period is actionable after a fresh explicit acknowledgment');
+   }else if(kind==='reviewers'){
+     const email=page.getByLabel('Work email',{exact:true});await email.fill('fictional-payroll@example.invalid');
+     await page.getByRole('button',{name:'Invite payroll',exact:true}).click();
+     await page.getByRole('alert').filter({hasText:'refresh'}).waitFor();
+     assert.equal(await email.inputValue(),'','A committed invitation must not be presented as failed or left ready to resend when only refresh failed');
+     await page.getByText('Invitation sent for payroll; acceptance still required.',{exact:true}).waitFor();
+     assert.equal(await page.getByRole('button',{name:'Invite payroll',exact:true}).isDisabled(),true,'A refresh failure must not leave the committed invitation ready to resend');
+   }else{
+     await page.getByLabel('Period start',{exact:true}).fill('2026-10-01');await page.getByLabel('Period end',{exact:true}).fill('2026-10-15');await page.getByLabel('Pay date',{exact:true}).fill('2026-10-15');
+     const previewButton=page.getByRole('button',{name:'Preview first payroll (no writes)',exact:true});
+     await Promise.all([page.waitForRequest('**/api/first-payroll/preview?**'),previewButton.click()]);
+     await page.getByLabel('Period end',{exact:true}).fill('2026-10-31');await page.getByLabel('Pay date',{exact:true}).fill('2026-10-31');releasePreview();
+     await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Preview first payroll (no writes)'&&!b.disabled));
+     assert.equal(await page.getByText('Preview ready for reconciliation',{exact:true}).count(),0,'A delayed preview for the old cutoff cannot authorize the newly selected cutoff');
+     assert.equal(await page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true}).count(),0);
+     await page.getByText('Pay-period details changed. Preview this period again before creating a draft.',{exact:true}).waitFor();
+     await previewButton.click();await page.getByText('Preview ready for reconciliation',{exact:true}).waitFor();
+     assert.equal(await page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true}).isEnabled(),true,'A fresh preview of the current cutoff restores the explicit draft action');
+     const table=page.getByRole('region',{name:'First payroll per-employee preview',exact:true});
+     if(width===390)assert.equal(await table.evaluate(e=>e.scrollWidth>e.clientWidth),true,'Wide payroll evidence must scroll inside its own region on mobile');
+   }
+   await page.screenshot({path:output+'/journey-'+kind+'-'+width+'.png',fullPage:true});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,kind+' journey must fit the viewport');
+ }catch(error){journeyFailures.push(kind+': '+error.message);}
+ releasePreview();assert.deepEqual(journeyFailures,[],'First-payroll product journey regressions');
+ assert.deepEqual(writes,['POST /api/invitations'],'Only the explicit invitation button writes during journey repair checks');writes.length=0;
  await page.goto(base+'/?mode=off');
  await page.getByRole('button',{name:'Open payroll',exact:true}).click();
  await page.getByRole('button',{name:'Preview first payroll (no writes)',exact:true}).waitFor();
@@ -124,6 +185,6 @@ try{for(const width of [1280,390]){
  releaseEmployerB();await page.getByText('Private employer 2',{exact:true}).waitFor();
  assert.equal(await page.getByText('Private employer 1',{exact:true}).count(),0);
  assert.deepEqual(errors,[]);results.push({width,pass:true,cases:['flag-off legacy behavior','keyboard resume','exact saved run','foreign register blocks payroll workflow until Retry','failed read is not empty success','GET-only read retry','explicit Sync required','foreign employer denied','unknown run denied','flag-off focus denied'],navigationWrites:0,explicitSyncWrites:1});await page.close();
-}await writeFile(output+'/results.json',JSON.stringify({result:'PASS',sourceHead:process.env.PR_HEAD_SHA??'local',results,
- boundary:'Actual UI components and navigation resolver with fictional authorized snapshot and stubbed GETs; not authenticated API, financial calculation, physical-device or live deployment proof.'},null,2));console.log('PASS first-payroll connected components: desktop + 390px, flag-off and negative navigation cases');}
+}await writeFile(output+'/results.json',JSON.stringify({result:'PASS',sourceHead:process.env.PR_HEAD_SHA??'local',journeyRepairs:['existing employee payout edit navigation','attendance date change resets acknowledgment','late cutoff preview cannot enable draft','committed invitation survives refresh failure','mobile preview table and actions fit their panel'],results,
+ boundary:'Actual UI components and navigation resolver with fictional authorized snapshots and mocked API responses, including invitation POST; not authenticated API, financial calculation, physical-device or live deployment proof.'},null,2));console.log('PASS first-payroll connected components: desktop + 390px, flag-off and negative navigation cases');}
 finally{await browser.close();await new Promise(r=>server.close(r));}

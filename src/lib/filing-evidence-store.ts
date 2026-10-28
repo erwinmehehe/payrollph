@@ -156,7 +156,10 @@ export async function recordFilingOutcome(input: {
   id: number;
   actor: string;
   outcome: FilingOutcomeInput;
-}) {
+}, transaction?: Parameters<Parameters<typeof db.transaction>[0]>[0]) {
+  // The route can supply its outer transaction so the filing state and
+  // audit receipt use one PostgreSQL COMMIT. Direct callers retain the
+  // original store API with no implicit audit or changed validation rules.
   const { outcome } = input;
   if (outcome.outcome === "accepted") {
     const source = await getFilingValidation(input.organizationId, input.id);
@@ -182,7 +185,7 @@ export async function recordFilingOutcome(input: {
     // marking external acceptance. Never certify a superseded worksheet.
     await regenerateRecordedFile(source);
   }
-  const [updated] = await db
+  const [updated] = await (transaction ?? db)
     .update(governmentFilingValidations)
     .set({
       status: outcome.outcome,

@@ -35,6 +35,14 @@ const AUTO_RETRY_DELAYS_MS = [
 
 type OutboxRow = typeof outbox.$inferSelect;
 
+// Preserve the employer boundary at the SQL write as well as at initial lookup.
+// System-generated messages have NULL ownership and must stay NULL-scoped.
+function outboxOrganizationScope(organizationId: number | null) {
+  return organizationId == null
+    ? isNull(outbox.organizationId)
+    : eq(outbox.organizationId, organizationId);
+}
+
 type MailAuditContext = {
   actor: string;
   metadata?: Record<string, unknown>;
@@ -181,7 +189,7 @@ async function finishDeliveryAttempt(input: {
       ? new Date(now.getTime() + retryDelay)
       : null;
 
-  await db.update(outbox).set({
+  const [updated] = await db.update(outbox).set({
     status: input.result.ok ? "sent" : "failed",
     provider: input.providerName,
     providerMessageId: input.result.ok ? input.result.messageId : null,
@@ -194,7 +202,21 @@ async function finishDeliveryAttempt(input: {
     sentAt: input.result.ok ? now : null,
     error: input.result.ok ? null : input.result.error,
     body: storedBodyAfterAttempt(input.row.purpose, input.row.body),
-  }).where(eq(outbox.id, input.row.id));
+  }).where(and(
+    eq(outbox.id, input.row.id),
+    outboxOrganizationScope(input.row.organizationId),
+  )).returning({ id: outbox.id });
+
+  if (!updated) {
+    // Never record a successful delivery/audit against a row that no longer
+    // belongs to the employer which initiated this attempt.
+    return {
+      delivered: false, queued: false, provider: input.providerName,
+      id: input.row.id, status: "failed" as const,
+      reason: "Outbox message ownership changed during delivery; manual review required.",
+      providerMessageId: null,
+    };
+  }
 
   if (input.audit) {
     await writeMailAudit({
@@ -271,7 +293,10 @@ export async function queueMessage(input: {
     const [existing] = await db
       .select()
       .from(outbox)
-      .where(eq(outbox.dedupeKey, input.dedupeKey))
+      .where(and(
+        eq(outbox.dedupeKey, input.dedupeKey),
+        outboxOrganizationScope(input.organizationId ?? null),
+      ))
       .limit(1);
     if (!existing) throw new Error("Outbox idempotency conflict could not be resolved.");
 
@@ -341,13 +366,10 @@ export async function queueMessage(input: {
 
 export async function getOutboxMessage(id: number, organizationId: number | null) {
   await ensureOutboxDeliverySchema();
-  const organizationScope = organizationId == null
-    ? isNull(outbox.organizationId)
-    : eq(outbox.organizationId, organizationId);
   const [row] = await db
     .select()
     .from(outbox)
-    .where(and(eq(outbox.id, id), organizationScope))
+    .where(and(eq(outbox.id, id), outboxOrganizationScope(organizationId)))
     .limit(1);
   return row ?? null;
 }
@@ -409,7 +431,11 @@ export async function retryOutboxMessage(input: {
         status: "failed", deliveryStatus: "blocked", maxAttempts: 0,
         error: "Expired approval escalation recipient, task, or feature gate.",
         nextAttemptAt: null, deliveryUpdatedAt: new Date(),
-      }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status)));
+      }).where(and(
+        eq(outbox.id, row.id),
+        outboxOrganizationScope(input.organizationId),
+        eq(outbox.status, row.status),
+      ));
       return { ok: false as const, httpStatus: 409,
         error: "This advisory escalation is no longer authorized for delivery." };
     }
@@ -425,7 +451,11 @@ export async function retryOutboxMessage(input: {
         deliveryDetail: "Waiting for an email provider before retry.",
         deliveryUpdatedAt: new Date(),
         error: "Waiting for an email provider before retry.",
-      }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status)));
+      }).where(and(
+        eq(outbox.id, row.id),
+        outboxOrganizationScope(input.organizationId),
+        eq(outbox.status, row.status),
+      ));
     }
     return {
       ok: false as const,
@@ -442,7 +472,11 @@ export async function retryOutboxMessage(input: {
     deliveryDetail: null,
     deliveryUpdatedAt: new Date(),
     error: null,
-  }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status))).returning();
+  }).where(and(
+        eq(outbox.id, row.id),
+        outboxOrganizationScope(input.organizationId),
+        eq(outbox.status, row.status),
+      )).returning();
 
   if (!claimed) {
     return {

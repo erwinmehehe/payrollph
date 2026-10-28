@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payrollRuns } from "@/db/schema";
+import { auditEvents, payrollRuns } from "@/db/schema";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
+// The filing outcome and immutable audit receipt must commit together.
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { findFilingForm, parseFilingOutcome } from "@/lib/filing-evidence";
@@ -94,33 +94,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   let record;
   try {
-    record = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value });
+    // The status transition and its actor-bound audit receipt must succeed or
+    // roll back together. A rejected audit insert must not leave a filing
+    // decision committed without the evidence of who recorded it.
+    record = await db.transaction(async (tx) => {
+      const updated = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value }, tx);
+      if (!updated) return null;
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: `${updated.agency} ${updated.form} filing ${updated.status}`,
+        resource: updated.periodLabel,
+        metadata: {
+          recordId: updated.id,
+          runId: updated.payrollRunId,
+          fileSha256: updated.fileSha256,
+          submissionMethod: updated.submissionMethod,
+          agencyReference: updated.agencyReference,
+          submittedAt: updated.submittedAt?.toISOString() ?? null,
+        },
+      });
+      return updated;
+    });
   } catch {
-    // Backend errors may contain SQL, connection or source-file details.
-    // Do not reflect them through an employer-facing filing-evidence route.
+    // Do not reveal SQL or sensitive filing metadata on failed audit or source
+    // validation. Transaction rollback preserves the original filing state.
     return Response.json({
       error: "Filing acceptance could not be verified against the released source. Refresh and regenerate the filing evidence before retrying.",
     }, { status: 409 });
   }
-  // Lost a race with another person recording the same record.
   if (!record) {
     return Response.json({ error: "This record was already resolved by someone else." }, { status: 409 });
   }
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: `${record.agency} ${record.form} filing ${record.status}`,
-    resource: record.periodLabel,
-    metadata: {
-      recordId: record.id,
-      runId: record.payrollRunId,
-      fileSha256: record.fileSha256,
-      submissionMethod: record.submissionMethod,
-      agencyReference: record.agencyReference,
-      submittedAt: record.submittedAt?.toISOString() ?? null,
-    },
-  });
 
   return Response.json({ record });
 }
