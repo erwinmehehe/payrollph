@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  METHODS, ENDPOINT, requireDisposableScheduleReceipt, assertOwnSchedule,
+  METHODS, ENDPOINT, requireDisposableScheduleReceipt, assertPrivateNoStore, assertOwnSchedule,
   assertPrivateDenial, assertUnchanged,
 } from "../scripts/qa/tenant-self-schedule-receipts-contract.mjs";
 
@@ -94,6 +94,32 @@ test("own read must contain exact private, bound current schedule, not an empty 
     assert.throws(() => assertOwnSchedule(variant, actor, "pending", ["TTBL-VICTIM-private"]));
   }
 });
+test("Next.js no-store cache normalization is safe, while shared or stale cache variants fail closed", () => {
+  const accepted = [
+    "private, no-store", "no-store, max-age=0",
+    "NO-STORE, MAX-AGE=0", "private, no-store, max-age=0",
+  ];
+  for (const cache of accepted) {
+    assert.doesNotThrow(() => assertPrivateNoStore(new Headers({ "cache-control": cache })),
+      cache);
+    const response = read();
+    response.headers.set("cache-control", cache);
+    assertOwnSchedule(response, actor, "pending", ["TTBL-VICTIM-private"]);
+  }
+  const rejected = [
+    "public, max-age=3600", "private, max-age=0", "no-cache",
+    "no-storex, max-age=0", "public, no-store", "no-store, max-age=300",
+    "no-store, s-maxage=0", "no-store, s-maxage=300",
+    "no-store, immutable", "no-store, stale-while-revalidate=30",
+    "no-store, stale-if-error=60",
+  ];
+  for (const cache of rejected) {
+    assert.throws(() => assertPrivateNoStore(new Headers({ "cache-control": cache })),
+      undefined, cache);
+  }
+  assert.throws(() => assertPrivateNoStore(new Headers()));
+});
+
 test("denied HTTP cannot return receipt data or another tenant marker", () => {
   const r = { status: 403, text: '{"error":"Access denied."}', json: { error: "Access denied." } };
   assertPrivateDenial(r, 403, ["TTBL-VICTIM-private"]);
