@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
@@ -65,6 +66,129 @@ test("credit sweep only updates 16 distinct verified GAP methods with four sourc
   }
 });
 
+test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP methods", () => {
+  const followOnBase = "dd890dd65f14a3a508ef5df7227fd84655c21fcd";
+  const followOnTargets = [
+    [
+      "GET self/probation-reviews",
+      1507,
+      40623884094,
+      "scripts/qa/tenant-self-probation-http.mjs",
+      "be00791a82412f08e79a1b4f6f9a497eef80729f"
+    ],
+    [
+      "POST self/probation-reviews",
+      1507,
+      40623884094,
+      "scripts/qa/tenant-self-probation-http.mjs",
+      "be00791a82412f08e79a1b4f6f9a497eef80729f"
+    ],
+    [
+      "GET hcm/employment-term-decisions/[id]/manager-attestation",
+      1512,
+      40624278478,
+      "scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs",
+      "5783f860414d0076ce837c46a37fc8e1b10f5907"
+    ],
+    [
+      "GET self/performance",
+      1513,
+      40620797757,
+      "scripts/qa/tenant-self-performance-http.mjs",
+      "328d1a3fd1371bfba9694a3933cdc38aab3f4dee"
+    ],
+    [
+      "POST self/performance",
+      1513,
+      40620797757,
+      "scripts/qa/tenant-self-performance-http.mjs",
+      "328d1a3fd1371bfba9694a3933cdc38aab3f4dee"
+    ],
+    [
+      "PATCH self/performance",
+      1513,
+      40620797757,
+      "scripts/qa/tenant-self-performance-http.mjs",
+      "328d1a3fd1371bfba9694a3933cdc38aab3f4dee"
+    ]
+  ];
+  assertLiveTenantCounts(assert, manifest);
+  assert.equal(verifyFollowOnCredits(manifest), 6);
+  // assertLiveTenantCounts already reconciles every live total with the
+  // complete method inventory and the PR base. Do not re-pin moving totals.
+  const followOnCredited = [...methods].filter(([, method]) =>
+    method.testedBy?.verifiedMainCommit === followOnBase);
+  assert.equal(followOnCredited.length, 6, "only the six newly reviewed methods are credited");
+  for (const [key, pr, run, file, blob] of followOnTargets) {
+    const method = methods.get(key);
+    assert.equal(method?.status, "COVERED", key);
+    const evidence = method.testedBy;
+    assert.ok(evidence, key + " has its own four-part evidence");
+    assert.equal(evidence.file, file);
+    assert.equal(evidence.proofBlobSha, blob);
+    assert.equal(evidence.prNumber, pr);
+    assert.equal(evidence.workflowRunId, run);
+    assert.equal(evidence.postgresMajor, 16);
+    assert.equal(evidence.verifiedMainCommit, followOnBase);
+    assert.equal(evidence.line, evidence.ownPositiveLine);
+    assert.ok(evidence.scope && evidence.scope.length > 50);
+    assert.match(evidence.evidence, new RegExp("/actions/runs/" + run + "(?:\\D|$)"));
+    const source = readFileSync(file, "utf8").split("\n");
+    for (const pin of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
+      const line = evidence[pin];
+      assert.ok(Number.isSafeInteger(line) && line > 0 && line <= source.length, key + ": " + pin);
+      assert.ok(source[line - 1].trim(), key + ": blank source assertion " + pin);
+    }
+  }
+  assert.equal(methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation")?.status, "GAP");
+});
+
+
+test("six-credit proof-source guard fails closed on borrowed, altered or seventh claims", () => {
+  const key = "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts";
+  const alter = change => {
+    const changed = structuredClone(manifest);
+    const method = changed.allApiRouteFiles[key].methods.find(x => x.name === "GET");
+    change(changed, method);
+    assert.throws(() => verifyFollowOnCredits(changed));
+  };
+  alter((_m, method) => { method.testedBy.prNumber = 1479; });
+  alter((_m, method) => { method.testedBy.foreignDenialLine = 193; });
+  alter((_m, method) => { method.testedBy.proofBlobSha = "0".repeat(40); });
+  alter((_m, method) => { method.status = "GAP"; });
+  alter((_m, method) => { method.testedBy.file = "scripts/qa/tenant-table-http.mjs"; });
+  alter((changed) => {
+    changed.allApiRouteFiles["src/app/api/invitations/route.ts"].methods
+      .find(x => x.name === "POST").testedBy = {
+        verifiedMainCommit: "dd890dd65f14a3a508ef5df7227fd84655c21fcd",
+      };
+  });
+  const script = "scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs";
+  assert.throws(() => verifyFollowOnCredits(manifest, file =>
+    file === script ? readFileSync(file, "utf8") + "\n// tampered" :
+      readFileSync(file, "utf8")), /source blob drift/);
+});
+
+test("source-pinned proof workflows reject external and lookalike URL destinations", () => {
+  assert.doesNotThrow(() =>
+    assertWorkflowUsesOnlyLoopbackUrls('curl "http://127.0.0.1:3000/login"'));
+  for (const target of [
+    "https://api.paymongo.com/v1",
+    "https://api.xendit.co/v2",
+    "http://api.paymongo.com/v1",
+    "https://attacker.invalid/path/https://api.paymongo.com",
+    "http://127.0.0.1.attacker.invalid:3000/login",
+    "http://127.0.0.1@attacker.invalid/login",
+    "http://localhost:3000/login",
+    "https://127.0.0.1:3000/login",
+    "http://untrusted.invalid:3000/login",
+  ]) {
+    assert.throws(() => assertWorkflowUsesOnlyLoopbackUrls(
+      "curl " + target), /proof workflow/,
+    "source guard must reject " + target);
+  }
+});
+
 test("already credited and partial-action methods are not double-counted", () => {
   const already = [
     "GET holidays", "POST holidays", "PATCH holidays", "DELETE holidays",
@@ -78,10 +202,11 @@ test("already credited and partial-action methods are not double-counted", () =>
   }
   const excluded = [
     "POST workforce/roster-batches", "PATCH loans", "POST hcm/capabilities",
+    "PATCH approvals/[id]",
     "PATCH recruitment/privacy", "PATCH performance/follow-through-governance",
     "PATCH careers/admin", "POST workforce-planning/allocations",
     "GET year-end", "GET workforce/demand-staffing/policies",
-    "GET hcm/employment-term-decisions/[id]/manager-attestation",
+    "POST hcm/employment-term-decisions/[id]/manager-attestation",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
     "POST benefits/hmo", "POST web-bundy/consent",
   ];
@@ -90,23 +215,18 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
   }
-  // The issued-demand GET was proven and credited by a separate merged
-  // PG16/localhost workflow, not by the original 16-method sweep.
-  // Independently verify all four newer source/receipt pins and that their
-  // method identities are disjoint from this older promotion catalogue.
-  const newCredits = [
+  const newlyProven = [
     "GET self/schedule-receipts", "POST self/schedule-receipts",
     "PATCH self/profile", "GET workforce/demand-observations/issued",
   ];
-  assert.equal(verifyMoreCredits(manifest), newCredits.length);
-  assert.ok(newCredits.every(key => !targets.some(([target]) => target === key)),
-    "the existing 16 promotion credits cannot be double-counted");
-  for (const key of newCredits) {
+  assert.equal(verifyMoreCredits(manifest), 4,
+    "only four distinct merged final-head method proofs may supplement six #1519 credits");
+  assert.ok(newlyProven.every(key => !targets.some(([existing]) => existing === key)),
+    "the 16 older method credits must not be double-counted");
+  for (const key of newlyProven) {
     assert.equal(methods.get(key)?.status, "COVERED", key);
     assert.equal(methods.get(key)?.testedBy?.verifiedMainCommit,
       "fe3ad8901bfa714d59639d9f59a13cf133eeab36", key);
-    assert.notEqual(methods.get(key)?.testedBy?.verifiedMainCommit, base,
-      "historical promotion receipt must remain owned by its original batch");
   }
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
@@ -116,13 +236,13 @@ test("already credited and partial-action methods are not double-counted", () =>
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
-  assert.match(doc, /334 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 154 GAP/);
+  assert.match(doc, /340 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 148 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
   const expected = new Map([
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
     ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
-    ["STA-01", [27,21,0,6]], ["PII-01", [39,31,0,8]],
-    ["PII-02", [38,24,0,14]], ["WRK-01", [39,20,0,19]],
+    ["STA-01", [27,21,0,6]], ["PII-01", [39,32,0,7]],
+    ["PII-02", [38,29,0,9]], ["WRK-01", [39,20,0,19]],
     ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
     ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
   ]);
