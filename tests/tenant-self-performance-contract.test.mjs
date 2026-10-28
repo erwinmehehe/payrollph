@@ -97,7 +97,7 @@ test("refuse all nonlocal, provider-enabled, money-enabled or hosted runner envi
   }
 });
 
-test("three exact GAP methods match the current source SHA and no method credit is silently claimed",()=>{
+test("three exact reviewed methods retain source SHA and earned real-HTTP method proofs",()=>{
   assert.equal(ENDPOINT,"/api/self/performance");
   assert.deepEqual(METHODS,["GET","POST","PATCH"]);
   assert.equal(ROUTE_PATH,"src/app/api/self/performance/route.ts");
@@ -109,8 +109,12 @@ test("three exact GAP methods match the current source SHA and no method credit 
   assert.equal(entry.route,"self/performance");
   assert.deepEqual(entry.methods.map(x=>x.name),METHODS);
   for(const method of entry.methods){
-    assert.equal(method.status,"GAP","draft proof must not silently claim new coverage");
-    assert.equal(method.testedBy,null);
+    assert.equal(method.status,"COVERED","only method-specific reviewed proof may grant credit");
+    assert.equal(method.testedBy?.prNumber,1513);
+    assert.equal(method.testedBy?.workflowRunId,40620797757);
+    assert.equal(method.testedBy?.routeBlobSha,ROUTE_BLOB_SHA);
+    assert.ok(method.testedBy?.forgedSelectorLine>0);
+    assert.ok(method.testedBy?.unchangedDbLine>0);
   }
   const runner=readFileSync(new URL("../scripts/qa/tenant-self-performance-http.mjs",import.meta.url),"utf8");
   assert.ok(runner.indexOf("requireDisposablePerformance();")>=0);

@@ -84,7 +84,7 @@ test("refuse all hosted, unguarded, payout or provider-enabled environments befo
   }
 });
 
-test("targets only two genuinely GAP probation-review methods", () => {
+test("targets only two specifically reviewed probation-review methods", () => {
   assert.deepEqual(METHODS, ["GET self/probation-reviews", "POST self/probation-reviews"]);
   assert.equal(ENDPOINT, "/api/self/probation-reviews");
   const manifest = JSON.parse(readFileSync(new URL(
@@ -93,8 +93,14 @@ test("targets only two genuinely GAP probation-review methods", () => {
   assert.ok(entry, "authoritative route must exist");
   assert.equal(entry.route, "self/probation-reviews");
   for (const method of ["GET", "POST"]) {
-    assert.equal(entry.methods.find(row => row.name === method)?.status, "GAP",
-      "candidate is not a method credit or coverage update");
+    const credited = entry.methods.find(row => row.name === method);
+    assert.equal(credited?.status, "COVERED",
+      "only the separately reviewed real-HTTP probation method receives credit");
+    assert.equal(credited?.testedBy?.prNumber, 1507);
+    assert.equal(credited?.testedBy?.workflowRunId, 40623884094);
+    assert.equal(credited?.testedBy?.routeBlobSha, entry.gitBlobSha);
+    assert.ok(credited?.testedBy?.forgedSelectorLine > 0);
+    assert.ok(credited?.testedBy?.unchangedDbLine > 0);
   }
 });
 

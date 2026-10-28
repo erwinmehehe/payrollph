@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -82,7 +83,8 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
       "be00791a82412f08e79a1b4f6f9a497eef80729f"
     ],
     [
-        1512,
+      "GET hcm/employment-term-decisions/[id]/manager-attestation",
+      1512,
       40624278478,
       "scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs",
       "5783f860414d0076ce837c46a37fc8e1b10f5907"
@@ -110,6 +112,7 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
     ]
   ];
   assertLiveTenantCounts(assert, manifest);
+  assert.equal(verifyFollowOnCredits(manifest), 6);
   assert.equal(manifest.metrics.coveredAfter, 336);
   assert.equal(manifest.metrics.gap, 152);
   assert.equal(manifest.metrics.publicByDesign, 10);
@@ -140,6 +143,32 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
   assert.equal(methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation")?.status, "GAP");
 });
 
+
+test("six-credit proof-source guard fails closed on borrowed, altered or seventh claims", () => {
+  const key = "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts";
+  const alter = change => {
+    const changed = structuredClone(manifest);
+    const method = changed.allApiRouteFiles[key].methods.find(x => x.name === "GET");
+    change(changed, method);
+    assert.throws(() => verifyFollowOnCredits(changed));
+  };
+  alter((_m, method) => { method.testedBy.prNumber = 1479; });
+  alter((_m, method) => { method.testedBy.foreignDenialLine = 193; });
+  alter((_m, method) => { method.testedBy.proofBlobSha = "0".repeat(40); });
+  alter((_m, method) => { method.status = "GAP"; });
+  alter((_m, method) => { method.testedBy.file = "scripts/qa/tenant-table-http.mjs"; });
+  alter((changed) => {
+    changed.allApiRouteFiles["src/app/api/invitations/route.ts"].methods
+      .find(x => x.name === "POST").testedBy = {
+        verifiedMainCommit: "dd890dd65f14a3a508ef5df7227fd84655c21fcd",
+      };
+  });
+  const script = "scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs";
+  assert.throws(() => verifyFollowOnCredits(manifest, file =>
+    file === script ? readFileSync(file, "utf8") + "\n// tampered" :
+      readFileSync(file, "utf8")), /source blob drift/);
+});
+
 test("already credited and partial-action methods are not double-counted", () => {
   const already = [
     "GET holidays", "POST holidays", "PATCH holidays", "DELETE holidays",
@@ -158,7 +187,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH careers/admin", "POST workforce-planning/allocations",
     "GET year-end", "GET workforce/demand-observations/issued",
     "GET workforce/demand-staffing/policies",
-    "GET hcm/employment-term-decisions/[id]/manager-attestation",
+    "POST hcm/employment-term-decisions/[id]/manager-attestation",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
     "POST benefits/hmo", "POST web-bundy/consent",
   ];
