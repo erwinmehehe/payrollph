@@ -44,7 +44,7 @@ function fixture() {
     }],
     assignments: [{
       id: 31, organizationId: 11, userId: 25, active: true,
-      updatedByUserId: 23,
+      createdByUserId: 23, updatedAt: time,
     }],
     audit: [...before.audit, {
       id: 30, organizationId: 11, actor: actor.owner.name,
@@ -133,6 +133,8 @@ test("two own-persistent changes cannot be simulated with fake success or missin
     x => { x.after.policies[0].enabled = false; },
     x => { x.after.policies[0].updatedByUserId = 900; },
     x => { x.after.assignments[0].organizationId = 99; },
+    x => { x.after.assignments[0].createdByUserId = 900; },
+    x => { x.after.assignments[0].updatedAt = null; },
     x => { x.after.assignments[0].active = false; },
     x => { x.after.audit = x.before.audit; },
     x => { x.after.audit[1].organizationId = 99; },
@@ -190,6 +192,11 @@ test("workflow uses real PostgreSQL 16 localhost HTTP, no providers and no manif
   assert.match(script, /forgedOperatorDenials\+\+/);
   assert.match(script, /assertSavedTreasury\(/);
   assert.match(script, /MNY02_TREASURY_PROOF_OK/);
-  assert.ok(!yaml.includes("api.paymongo.com") &&
-    !yaml.includes("api.xendit.co"));
+  // Inspect actual URL hostnames, not arbitrary substrings of a URL. A URL
+  // may contain these strings in the path, userinfo, or an unrelated host.
+  const urls = [...yaml.matchAll(/https?:\/\/[^\s"'<>]+/g)]
+    .map(([text]) => new URL(text));
+  const forbiddenHosts = new Set(["api.paymongo.com", "api.xendit.co"]);
+  assert.ok(urls.every(url => !forbiddenHosts.has(url.hostname.toLowerCase())),
+    "Disposable workflow must not call a provider API host");
 });
