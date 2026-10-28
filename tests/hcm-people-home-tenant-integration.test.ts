@@ -4,6 +4,7 @@ import test from "node:test";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
+  approvalDelegations,
   automationOperationalCases,
   employees,
   hcmBusinessProcessInstances,
@@ -133,6 +134,64 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
     assert.ok(!JSON.stringify(own).includes("AlphaPrivate"), "Personal details must be minimized");
     assert.ok(!JSON.stringify(own).includes("BetaPrivate"), "Foreign employer details must not leak");
     assert.ok(!JSON.stringify(own).includes("99000.00"), "Private payroll data must not appear");
+
+    // Reproduce the bounded-preview starvation bug: other-role assignments
+    // previously filled the first 30 tenant-wide rows before actor filtering.
+    // The final HR and identity-assigned steps must remain visible.
+    const [delegation] = await db.insert(approvalDelegations).values({
+      organizationId: alpha.id,
+      fromApprover: "Synthetic Delegator " + code,
+      toApprover: actor.name,
+      startsOn: "2020-01-01", endsOn: "2099-01-01", active: true,
+    }).returning();
+    const [crowdedFlow] = await db.insert(hcmBusinessProcessInstances).values({
+      organizationId: alpha.id, employeeId: alphaWorker.id,
+      definitionCode: "home-synthetic", definitionVersion: 1,
+      processType: "transfer", sourceType: "home-qa",
+      sourceKey: "crowded-" + code, definitionSnapshot: { code: "home-qa", steps: [] },
+      initiatedByName: "Synthetic Maker", status: "in_progress",
+    }).returning();
+    const crowdedSteps = await db.insert(hcmBusinessProcessInstanceSteps).values([
+      ...Array.from({ length: 31 }, (_, stepIndex) => ({
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex, stepType: "approval" as const,
+        label: "Finance-only decoy " + stepIndex,
+        assignee: "role:finance", status: "pending" as const,
+      })),
+      {
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex: 31, stepType: "approval" as const,
+        label: "Late HR decision", assignee: "ROLE:HR", status: "pending" as const,
+      },
+      {
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex: 32, stepType: "review" as const,
+        label: "Late named decision", assignee: actor.name.toUpperCase(), status: "pending" as const,
+      },
+      {
+        organizationId: alpha.id, instanceId: crowdedFlow.id,
+        stepIndex: 33, stepType: "approval" as const,
+        label: "Late delegated decision", assignee: "Synthetic Delegator " + code,
+        status: "pending" as const,
+      },
+    ]).returning();
+    const hrTarget = crowdedSteps[31];
+    const namedTarget = crowdedSteps[32];
+    const delegatedTarget = crowdedSteps[33];
+    const crowded = await loadPeopleHomeWorklist(alpha.id, context);
+    assert.deepEqual(crowded.decisions.items.map((item) => item.sourceId),
+      [alphaStep.id, hrTarget.id, namedTarget.id, delegatedTarget.id],
+      "Role, named and delegated steps must not be hidden behind 31 other-role steps");
+    assert.equal(crowded.decisions.hasMore, false,
+      "Only eligible rows may contribute to the bounded preview's hasMore flag");
+    assert.equal(crowded.decisions.partial, false);
+    assert.ok(crowded.decisions.items.every((item) => item.tenantId === alpha.id));
+    await db.delete(hcmBusinessProcessInstanceSteps)
+      .where(inArray(hcmBusinessProcessInstanceSteps.id, crowdedSteps.map((item) => item.id)));
+    await db.delete(hcmBusinessProcessInstances)
+      .where(eq(hcmBusinessProcessInstances.id, crowdedFlow.id));
+    await db.delete(approvalDelegations)
+      .where(eq(approvalDelegations.id, delegation.id));
 
     // A deny-only custom permission overlay must override an otherwise
     // valid company-wide HR role. It cannot grant People administration.

@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   hcmBusinessProcessInstances,
@@ -101,7 +101,20 @@ async function assignedHcmDecisions(
   organizationId: number,
   user: { id: number; name: string },
 ): Promise<PeopleHomeSection> {
-  // Bounded candidate scan with no names, private evidence, or snapshots.
+  // Determine the actor's role, identity and active delegated targets first.
+  // Scanning 30 organization-wide tasks and filtering afterwards can hide
+  // legitimate work when other assignees occupy the first 30 positions.
+  const permissions = await loadPeopleHomeAssigneePermissions(organizationId, null, user);
+  const eligibleAssignees = new Set(
+    Array.from(permissions)
+      .filter(([, permitted]) => permitted)
+      .map(([assignee]) => assignee.toLowerCase()),
+  );
+  if (eligibleAssignees.size === 0) {
+    return { state: "ready", items: [], hasMore: false, partial: false, total: null };
+  }
+  // A bounded, employer-qualified scan of only permitted assignee targets.
+  // No source names, private evidence or snapshots are selected.
   const candidates = await db.select({
     id: hcmBusinessProcessInstanceSteps.id,
     stepType: hcmBusinessProcessInstanceSteps.stepType,
@@ -117,17 +130,16 @@ async function assignedHcmDecisions(
       eq(hcmBusinessProcessInstances.organizationId, organizationId),
       eq(hcmBusinessProcessInstanceSteps.status, "pending"),
       eq(hcmBusinessProcessInstances.status, "in_progress"),
+      inArray(sql<string>`lower(${hcmBusinessProcessInstanceSteps.assignee})`,
+        Array.from(eligibleAssignees)),
     ))
     .orderBy(hcmBusinessProcessInstanceSteps.dueAt, hcmBusinessProcessInstanceSteps.id)
     .limit(BP_CANDIDATE_LIMIT + 1);
 
   const scanned = candidates.slice(0, BP_CANDIDATE_LIMIT);
-  const permissions = await loadPeopleHomeAssigneePermissions(
-    organizationId, Array.from(new Set(scanned.map((item) => item.assignee))), user,
-  );
   const items: PeopleHomeItem[] = [];
   for (const item of scanned) {
-    if (!permissions.get(item.assignee)) continue;
+    if (!eligibleAssignees.has(item.assignee.toLowerCase())) continue;
     const makerBlocked = item.initiatedByUserId === user.id &&
       (item.stepType === "approval" || item.stepType === "review");
     items.push({

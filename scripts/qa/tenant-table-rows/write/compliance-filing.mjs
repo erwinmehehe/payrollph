@@ -10,6 +10,7 @@
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { and, sql } from "drizzle-orm";
 import {
   FILING_METHOD, FILING_PERIOD, filingRejectionBody,
   proveOwnRejectedFiling, proveFilingDenied, proveFilingStateUntouched,
@@ -138,10 +139,82 @@ export function createRows({
           proveFilingStateUntouched(victimBefore,
             await state(ctx.victim.org.id));
         }
+        // Synthetic audit-insert veto: if the status transition is not in the
+        // same PostgreSQL transaction as its audit, this real HTTP request
+        // would commit "rejected" even though the audit INSERT fails.
+        // The extra generated source is a disposable local fixture ONLY.
+        const [vetoFiling] = await db.insert(governmentFilingValidations).values({
+          organizationId: ctx.orgId,
+          legalEntityId: ctx.entityId,
+          payrollRunId: ctx.seeded.runId,
+          agency: "SSS", form: "R-3",
+          periodLabel: ctx.marker + " atomic-veto-fixture",
+          applicableMonth: FILING_PERIOD.applicableMonth,
+          fileName: ctx.marker + "-atomic-veto-fixture.csv",
+          fileSha256: createHash("sha256").update(
+            "ci-only-audit-veto:" + ctx.marker + ":" + ctx.seeded.runId,
+          ).digest("hex"),
+          generatorVersion: "sss-r3-worksheet-v2",
+          generatedBy: ctx.marker + " fictional atomicity fixture",
+          status: "generated",
+        }).returning();
+        assert.equal(vetoFiling.organizationId, ctx.orgId);
+        assert.equal(vetoFiling.legalEntityId, ctx.entityId);
+        assert.ok(vetoFiling.id > ctx.seeded.id);
+        const beforeVeto = await state(ctx.orgId);
+        const victimBeforeVeto = await state(ctx.victim.org.id);
+        let vetoFunctionCreated = false;
+        let vetoTriggerCreated = false;
+        try {
+          await db.execute(sql.raw(`
+            CREATE FUNCTION ci_filing_audit_veto() RETURNS trigger
+            LANGUAGE plpgsql AS $ci_filing_audit$
+            BEGIN
+              IF NEW.action = 'SSS R-3 filing rejected'
+                 AND NEW.resource LIKE '%atomic-veto-fixture%' THEN
+                RAISE EXCEPTION 'CI_ONLY_FILING_AUDIT_VETO';
+              END IF;
+              RETURN NEW;
+            END;
+            $ci_filing_audit$;
+          `));
+          vetoFunctionCreated = true;
+          await db.execute(sql.raw(`
+            CREATE TRIGGER ci_filing_audit_veto_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW EXECUTE FUNCTION ci_filing_audit_veto();
+          `));
+          vetoTriggerCreated = true;
+          const response = expectStatus(await request(
+            "/api/compliance/filing-validations/" + vetoFiling.id, {
+              method: "PATCH", cookie, body: filingRejectionBody(ctx),
+            }), 409, "atomic filing decision must roll back on a failed audit insert");
+          proveFilingDenied(response, 409, markerPair);
+          proveFilingStateUntouched(beforeVeto, await state(ctx.orgId));
+          proveFilingStateUntouched(victimBeforeVeto,
+            await state(ctx.victim.org.id));
+        } finally {
+          if (vetoTriggerCreated) {
+            await db.execute(sql.raw(
+              "DROP TRIGGER ci_filing_audit_veto_trigger ON audit_events",
+            ));
+          }
+          if (vetoFunctionCreated) {
+            await db.execute(sql.raw("DROP FUNCTION ci_filing_audit_veto()"));
+          }
+          // Never contaminate another write-table method's fixture with this
+          // extra generated source; direct SQL setup/cleanup is CI-only.
+          const removed = await db.delete(governmentFilingValidations).where(and(
+            eq(governmentFilingValidations.id, vetoFiling.id),
+            eq(governmentFilingValidations.organizationId, ctx.orgId),
+          )).returning({ id: governmentFilingValidations.id });
+          assert.deepEqual(removed.map(row => row.id), [vetoFiling.id]);
+        }
         return {
           repeatedDecisionBlocked: true,
           fabricatedAcceptanceBlocked: true,
           impossibleDateBlocked: true,
+          atomicAuditInsertRollbackProven: true,
           immutableReleasedRun: true,
           realAgencySubmissionOrMoneyMovement: false,
         };
