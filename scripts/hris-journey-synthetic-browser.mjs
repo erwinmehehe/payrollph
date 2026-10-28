@@ -539,8 +539,25 @@ try {
   const expandedMember = {
     ...sourceMember, name: longName, employeeNo: longNumber, jobTitle: longTitle,
   };
+  // The My Team client rejects a purported continuation unless the first
+  // page really has 25 ordered records and its cursor equals the last ID.
+  // Supply a valid fictional page; never bypass production validation.
+  const firstPageMembers = [
+    expandedMember,
+    ...Array.from({ length: 24 }, (_, offset) => ({
+      ...sourceMember,
+      id: sourceMember.id + offset + 1,
+      employeeNo: "SYNTH-MOBILE-PAGE1-" + String(offset + 2).padStart(2, "0"),
+      name: "Synthetic First Page Worker " + (offset + 2),
+      jobTitle: "Synthetic auxiliary roster record",
+    })),
+  ];
+  const firstPageCursor = firstPageMembers.at(-1)?.id;
+  assert.equal(firstPageMembers.length, 25, "continuation proof requires 25 first-page items");
+  assert.equal(firstPageCursor, sourceMember.id + 24,
+    "next cursor must equal the last displayed employee ID");
   const olderMember = {
-    ...sourceMember, id: sourceMember.id + 1, name: "Synthetic Older Worker",
+    ...sourceMember, id: sourceMember.id + 25, name: "Synthetic Older Worker",
   };
   for (const width of [320, 375, 430]) {
     const phone = await browser.newContext({
@@ -553,8 +570,11 @@ try {
     await mobileTeam.route("**/api/hcm/my-team?*", async route => {
       const url = new URL(route.request().url());
       if (url.searchParams.get("organizationId") !== "1") return route.continue();
-      const olderPage = Number(url.searchParams.get("cursor") ?? "0") > 0;
-      const items = olderPage ? [olderMember] : [expandedMember];
+      const requestedCursor = Number(url.searchParams.get("cursor") ?? "0");
+      assert.ok(requestedCursor === 0 || requestedCursor === firstPageCursor,
+        "synthetic mobile paging must only use the first-page cursor");
+      const olderPage = requestedCursor > 0;
+      const items = olderPage ? [olderMember] : firstPageMembers;
       const sum = field => items.reduce((total, item) => total + item[field], 0);
       await route.fulfill({
         status: 200, contentType: "application/json",
@@ -572,7 +592,7 @@ try {
           },
           page: {
             size: 25, hasMore: !olderPage,
-            nextCursor: olderPage ? null : sourceMember.id,
+            nextCursor: olderPage ? null : firstPageCursor,
           },
         }),
       });
