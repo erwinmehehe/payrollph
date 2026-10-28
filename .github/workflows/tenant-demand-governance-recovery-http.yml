@@ -1,0 +1,137 @@
+name: Workforce demand GET GAP recovery (fictional PG16 and localhost HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-demand-governance-recovery-http.yml'
+      - 'scripts/qa/tenant-demand-governance-recovery-*.mjs'
+      - 'tests/tenant-demand-governance-recovery-contract.test.mjs'
+      - 'scripts/qa/tenant-table-rows/read/demand-governance.mjs'
+      - 'scripts/qa/tenant-table-allowlist-bootstrap.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'scripts/qa/prepare-hcm-work-item-fixture.mjs'
+      - 'src/app/api/workforce/demand-observations/issued/**'
+      - 'src/app/api/workforce/demand-staffing/policies/**'
+      - 'src/lib/workforce-issued-demand*'
+      - 'src/lib/workforce-demand-staffing-policy*'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-demand-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  demand-source-recovery:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exactly locked dependencies
+        run: npm ci
+      - name: Export the original allowlisted-reads localhost proof profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+          {
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Check source syntax, fail-closed guard, false receipts, and immutable-source negatives
+        run: |
+          node --check scripts/qa/tenant-demand-governance-recovery-contract.mjs
+          node --check scripts/qa/tenant-demand-governance-recovery-http.mjs
+          node --check tests/tenant-demand-governance-recovery-contract.test.mjs
+          node --test tests/tenant-demand-governance-recovery-contract.test.mjs
+      - name: Create throwaway local encryption and webhook inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 schema, never target Neon
+        run: npm run db:push
+      - name: Apply existing reviewed isolated source baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Install existing SQL-only HCM events in the empty local database
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Preseed two real fake attackers, higher-ID victim and excluded employer
+        run: node --import tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Build production-mode Next only against disposable local PostgreSQL
+        run: npm run build
+      - name: Start localhost Next and refuse an unavailable server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-demand-recovery-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-demand-recovery-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-demand-recovery-next.log
+          exit 1
+      - name: Prove own source GET, foreign and forged scope denial, and unchanged victim SQL
+        run: node --import tsx scripts/qa/tenant-demand-governance-recovery-http.mjs
+      - name: Show only isolated localhost Next logs on failure
+        if: failure()
+        run: cat /tmp/tenant-demand-recovery-next.log || true
