@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   requireDisposableSelfProfile, assertNoProfileMarker,
   assertProfileDenied, assertOwnProfileMutation,
@@ -166,14 +167,23 @@ test("existing profile route derives identity from session and only allows conta
   assert.doesNotMatch(source, /recordAuditEvent\(/);
 });
 
+test("the original #1518 source-pinned HTTP runner remains byte-for-byte intact", () => {
+  const original = readFileSync("scripts/qa/tenant-self-profile-http.mjs", "utf8");
+  const bytes = Buffer.from(original, "utf8");
+  const blob = createHash("sha1").update("blob " + bytes.length + "\0")
+    .update(bytes).digest("hex");
+  assert.equal(blob, "3e7b9502c2ad23b97f20f1ad045703fcd0a97789",
+    "new atomicity proof must not rewrite the earlier successful own/victim receipt");
+});
+
 test("focused workflow must execute the real PG16 localhost runner rather than a mocked response", () => {
   const workflow = readFileSync(".github/workflows/tenant-self-profile-http.yml", "utf8");
-  const runner = readFileSync("scripts/qa/tenant-self-profile-http.mjs", "utf8");
+  const runner = readFileSync("scripts/qa/tenant-self-profile-atomic-http.mjs", "utf8");
   assert.match(workflow, /image: postgres:16/);
   assert.match(workflow, /npm run db:push/);
   assert.match(workflow, /apply-isolated-baseline\.mjs/);
   assert.match(workflow, /npm run build/);
-  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-self-profile-http\.mjs/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-self-profile-atomic-http\.mjs/);
   assert.ok(runner.indexOf("requireDisposableSelfProfile();")
     < runner.indexOf('import("../../src/db/index.ts")'),
     "fail closed before any application or database imports");
