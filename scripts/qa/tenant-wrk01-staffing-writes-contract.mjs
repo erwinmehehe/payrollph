@@ -21,6 +21,25 @@ export function requireDisposableStaffingWrites(env = process.env) {
   assert.equal(env.REQUIRE_PRIVILEGED_MFA, "true");
   assert.equal(env.WFM_DEMAND_STAFFING_POLICIES_ENABLED, "true");
   assert.equal(env.WFM_ISSUED_DEMAND_FORECASTS_ENABLED, "true");
+  // All pilot flags must refer to the same three bootstrap-owned companies.
+  // Merely checking "three comma-separated numbers" permits a silent victim
+  // omission or unrelated employer to reach a live policy mutation.
+  const allowlistKeys = [
+    "WFM_OPERATIONAL_DEMAND_ALLOWED_ORGANIZATION_IDS",
+    "WFM_ISSUED_DEMAND_FORECASTS_ALLOWED_ORGANIZATION_IDS",
+    "WFM_DEMAND_STAFFING_POLICIES_ALLOWED_ORGANIZATION_IDS",
+  ];
+  const expected = env[allowlistKeys[0]] ?? "";
+  assert.match(expected, /^[1-9][0-9]{0,9},[1-9][0-9]{0,9},[1-9][0-9]{0,9}$/,
+    "STAFFING_WRITES_REFUSED: three exact fictional employer IDs required");
+  const ids = expected.split(",").map(Number);
+  assert.ok(ids.every(id => Number.isSafeInteger(id) && id <= 2147483647) &&
+    new Set(ids).size === 3 && ids[2] > ids[0] && ids[2] > ids[1],
+    "STAFFING_WRITES_REFUSED: distinct higher-ID victim employer required");
+  for (const name of allowlistKeys) {
+    assert.equal(env[name], expected,
+      "STAFFING_WRITES_REFUSED: inconsistent demand/issued/staffing allowlists: " + name);
+  }
   for (const name of ["RESEND_WEBHOOK_SECRET", "PAYMONGO_WEBHOOK_SECRET",
     "XENDIT_CALLBACK_TOKEN_LIVE", "XENDIT_BILLING_API_KEY"]) {
     assert.ok(!env[name], "STAFFING_WRITES_REFUSED: no live provider secret " + name);
