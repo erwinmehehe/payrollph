@@ -190,9 +190,182 @@ export function createRows({
           "authorized HMO GET readback must not change HMO source rows");
         assert.deepEqual(await state(c.victim.org.id), victimBefore,
           "authorized HMO GET readback must leave victim unchanged");
+
+        // These three positive cases are real authenticated HTTP mutations, not
+        // fixture inserts. Every response is reconciled to committed HMO rows,
+        // the exact signed-in actor, one event and one audit receipt.
+        const snapshot = async (orgId) => JSON.parse(JSON.stringify(await state(orgId)));
+        const victimBaseline = await snapshot(c.victim.org.id);
+        const workerName = c.worker.firstName + " " + c.worker.lastName;
+        const checkReceipt = (before, after, eventType, status, eventMetadata, action, auditMetadata, enrollmentId) => {
+          assert.equal(after.events.length, before.events.length + 1,
+            "each own HMO action must append exactly one durable enrollment event");
+          assert.deepEqual(after.events.slice(0, -1), before.events);
+          const event = after.events.at(-1);
+          assert.ok(Number.isSafeInteger(event.id) && event.id > 0);
+          assert.equal(event.organizationId, c.orgId);
+          assert.equal(event.enrollmentId, enrollmentId);
+          assert.equal(event.employeeId, c.workerId);
+          assert.equal(event.eventType, eventType);
+          assert.equal(event.status, status);
+          assert.equal(event.actor, c.owner.name);
+          assert.deepEqual(event.metadata, eventMetadata);
+          assert.equal(after.audit.length, before.audit.length + 1,
+            "each own HMO action must append exactly one own audit receipt");
+          assert.deepEqual(after.audit.slice(0, -1), before.audit);
+          const audit = after.audit.at(-1);
+          assert.equal(audit.organizationId, c.orgId);
+          assert.equal(audit.actor, c.owner.name);
+          assert.equal(audit.action, action);
+          assert.equal(audit.resource, workerName);
+          assert.deepEqual(audit.metadata, auditMetadata);
+        };
+        const verifyVictim = async () => assert.deepEqual(
+          await snapshot(c.victim.org.id), victimBaseline,
+          "legitimate HMO actions must never mutate the higher-ID victim");
+
+        const addBefore = await snapshot(c.orgId);
+        const seedPlan = addBefore.plans.find(plan => plan.id === c.seeded.id);
+        assert.ok(seedPlan && seedPlan.category === "hmo");
+        assert.equal(seedPlan.employerPaidDependents, 0,
+          "additional dependent pricing is based on the real seeded own plan");
+        const dependentName = c.marker + " additional fictional child";
+        const addedReply = expectStatus(await request(url, {
+          method: "POST", cookie, body: {
+            action: "add_dependent", organizationId: c.orgId,
+            enrollmentId: c.seeded.enrollmentId,
+            name: dependentName, relationship: "child", birthDate: "2018-04-16",
+          },
+        }), 201, "own HMO dependent creation must persist");
+        const addAfter = await snapshot(c.orgId);
+        assert.deepEqual(addAfter.plans, addBefore.plans);
+        assert.deepEqual(addAfter.enrollments, addBefore.enrollments);
+        assert.equal(addAfter.dependents.length, addBefore.dependents.length + 1);
+        assert.deepEqual(addAfter.dependents.slice(0, -1), addBefore.dependents);
+        const added = addAfter.dependents.at(-1);
+        assert.ok(Number.isSafeInteger(added.id) && added.id > c.seeded.dependentId);
+        assert.equal(added.organizationId, c.orgId);
+        assert.equal(added.employeeId, c.workerId);
+        assert.equal(added.enrollmentId, c.seeded.enrollmentId);
+        assert.equal(added.name, dependentName);
+        assert.equal(added.relationship, "child");
+        assert.equal(added.birthDate, "2018-04-16");
+        assert.equal(added.status, "pending");
+        assert.equal(added.monthlyContribution, seedPlan.dependentShare);
+        assert.deepEqual(addedReply.json, added,
+          "dependent response must equal the actual PostgreSQL INSERT row");
+        assert.ok(!addedReply.text.includes(c.victim.marker));
+        checkReceipt(addBefore, addAfter, "dependent_added", "pending",
+          { dependentId: added.id, relationship: "child",
+            monthlyContribution: Number(seedPlan.dependentShare) },
+          "HMO dependent added",
+          { enrollmentId: c.seeded.enrollmentId, dependentId: added.id, relationship: "child" },
+          c.seeded.enrollmentId);
+        await verifyVictim();
+
+        const updateDependentBefore = await snapshot(c.orgId);
+        const memberId = ("FICTIONAL-" + c.marker).slice(0, 80);
+        const updatedDependentReply = expectStatus(await request(url, {
+          method: "POST", cookie, body: {
+            action: "update_dependent", organizationId: c.orgId,
+            dependentId: added.id, status: "active", providerMemberId: memberId,
+          },
+        }), 200, "own HMO dependent status update must persist");
+        const updateDependentAfter = await snapshot(c.orgId);
+        assert.deepEqual(updateDependentAfter.plans, updateDependentBefore.plans);
+        assert.deepEqual(updateDependentAfter.enrollments, updateDependentBefore.enrollments);
+        assert.equal(updateDependentAfter.dependents.length, updateDependentBefore.dependents.length);
+        const changedDependent = updateDependentAfter.dependents.find(row => row.id === added.id);
+        const originalDependent = updateDependentBefore.dependents.find(row => row.id === added.id);
+        assert.ok(changedDependent && originalDependent);
+        assert.deepEqual(updateDependentAfter.dependents.filter(row => row.id !== added.id),
+          updateDependentBefore.dependents.filter(row => row.id !== added.id));
+        assert.equal(changedDependent.status, "active");
+        assert.equal(changedDependent.providerMemberId, memberId);
+        assert.ok(Number.isFinite(Date.parse(changedDependent.updatedAt)),
+          "dependent update must have a committed timestamp");
+        assert.deepEqual({ ...changedDependent, status: originalDependent.status,
+          providerMemberId: originalDependent.providerMemberId, updatedAt: originalDependent.updatedAt },
+        originalDependent, "other dependent fields cannot change");
+        assert.deepEqual(updatedDependentReply.json, changedDependent);
+        assert.ok(!updatedDependentReply.text.includes(c.victim.marker));
+        checkReceipt(updateDependentBefore, updateDependentAfter, "dependent_updated", "active",
+          { dependentId: added.id, relationship: "child" },
+          "HMO dependent updated",
+          { dependentId: added.id, enrollmentId: c.seeded.enrollmentId, status: "active" },
+          c.seeded.enrollmentId);
+        await verifyVictim();
+
+        // Updating the provider's locally recorded state tests the legitimate
+        // branch without claiming actual provider confirmation or triggering
+        // coverage activation or automated side effects.
+        const updateEnrollmentBefore = await snapshot(c.orgId);
+        const enrollmentMemberId = ("FICTIONAL-ENROLL-" + c.marker).slice(0, 80);
+        const updatedEnrollmentReply = expectStatus(await request(url, {
+          method: "POST", cookie, body: {
+            action: "update_enrollment", organizationId: c.orgId,
+            enrollmentId: c.seeded.enrollmentId, status: "active",
+            providerStatus: "pending_provider",
+            providerMemberId: enrollmentMemberId, effectiveOn: "2026-06-01",
+          },
+        }), 200, "own HMO enrollment provider-state update must persist");
+        const updateEnrollmentAfter = await snapshot(c.orgId);
+        assert.deepEqual(updateEnrollmentAfter.plans, updateEnrollmentBefore.plans);
+        assert.deepEqual(updateEnrollmentAfter.dependents, updateEnrollmentBefore.dependents);
+        assert.equal(updateEnrollmentAfter.enrollments.length, updateEnrollmentBefore.enrollments.length);
+        const changedEnrollment = updateEnrollmentAfter.enrollments.find(
+          row => row.id === c.seeded.enrollmentId);
+        const originalEnrollment = updateEnrollmentBefore.enrollments.find(
+          row => row.id === c.seeded.enrollmentId);
+        assert.ok(changedEnrollment && originalEnrollment);
+        assert.deepEqual(updateEnrollmentAfter.enrollments.filter(row => row.id !== c.seeded.enrollmentId),
+          updateEnrollmentBefore.enrollments.filter(row => row.id !== c.seeded.enrollmentId));
+        assert.equal(changedEnrollment.organizationId, c.orgId);
+        assert.equal(changedEnrollment.employeeId, c.workerId);
+        assert.equal(changedEnrollment.planId, c.seeded.id);
+        assert.equal(changedEnrollment.status, "active");
+        assert.equal(changedEnrollment.providerStatus, "pending_provider");
+        assert.equal(changedEnrollment.providerMemberId, enrollmentMemberId);
+        assert.equal(changedEnrollment.effectiveOn, "2026-06-01");
+        assert.deepEqual({ ...changedEnrollment,
+          providerStatus: originalEnrollment.providerStatus,
+          providerMemberId: originalEnrollment.providerMemberId,
+          effectiveOn: originalEnrollment.effectiveOn },
+        originalEnrollment, "other enrollment fields cannot change");
+        assert.deepEqual(updatedEnrollmentReply.json, changedEnrollment);
+        assert.ok(!updatedEnrollmentReply.text.includes(c.victim.marker));
+        checkReceipt(updateEnrollmentBefore, updateEnrollmentAfter,
+          "enrollment_updated", "active",
+          { providerStatus: "pending_provider", providerMemberId: enrollmentMemberId,
+            effectiveOn: "2026-06-01" },
+          "HMO enrollment updated",
+          { enrollmentId: c.seeded.enrollmentId, status: "active",
+            providerStatus: "pending_provider", eventType: "enrollment_updated" },
+          c.seeded.enrollmentId);
+        await verifyVictim();
+
+        // The final GET must reflect the exact committed own records, not a
+        // successful write response that never became visible to the owner.
+        const finalBefore = await snapshot(c.orgId);
+        const finalGet = expectStatus(await request(
+          url + "?organizationId=" + c.orgId, { method: "GET", cookie },
+        ), 200, "HMO dashboard readback after all three own mutations");
+        assert.ok(finalGet.json?.enrollments?.some(enrollment =>
+          enrollment.id === c.seeded.enrollmentId
+          && enrollment.providerStatus === "pending_provider"
+          && enrollment.providerMemberId === enrollmentMemberId
+          && enrollment.dependents?.some(dependent =>
+            dependent.id === added.id && dependent.status === "active"
+            && dependent.providerMemberId === memberId)));
+        assert.ok(!finalGet.text.includes(c.victim.marker));
+        assert.deepEqual(await snapshot(c.orgId), finalBefore,
+          "post-action HMO GET must not change company source state");
+        await verifyVictim();
+
         return { forgedAdditionalIdsDenied: attempts.length,
-          ownHmoReadback: true, victimHmoUntouched: true,
-          providerOrMoneyMovement: false };
+          ownHmoReadback: true, legitimateHmoActions: [
+            "add_dependent", "update_dependent", "update_enrollment",
+          ], victimHmoUntouched: true, providerOrMoneyMovement: false };
       },
     },
   ];
