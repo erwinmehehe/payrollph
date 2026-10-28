@@ -278,6 +278,8 @@ test("filing outcome and audit share one PostgreSQL commit, including audit-veto
   assert.match(proof, /proveFilingStateUntouched\(victimBeforeVeto,/);
   assert.match(proof, /DROP TRIGGER ci_filing_audit_veto_trigger ON audit_events/);
   assert.match(proof, /DROP FUNCTION ci_filing_audit_veto\(\)/);
+  assert.match(proof, /await db\.delete\(governmentFilingValidations\)\.where\(and\(/,
+    "temporary audit-veto filing fixture must not contaminate later proofs");
   assert.match(proof, /atomicAuditInsertRollbackProven: true/);
 });
 

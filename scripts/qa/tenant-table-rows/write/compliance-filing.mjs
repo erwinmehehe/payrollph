@@ -10,7 +10,7 @@
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
 import {
   FILING_METHOD, FILING_PERIOD, filingRejectionBody,
   proveOwnRejectedFiling, proveFilingDenied, proveFilingStateUntouched,
@@ -202,6 +202,13 @@ export function createRows({
           if (vetoFunctionCreated) {
             await db.execute(sql.raw("DROP FUNCTION ci_filing_audit_veto()"));
           }
+          // Never contaminate another write-table method's fixture with this
+          // extra generated source; direct SQL setup/cleanup is CI-only.
+          const removed = await db.delete(governmentFilingValidations).where(and(
+            eq(governmentFilingValidations.id, vetoFiling.id),
+            eq(governmentFilingValidations.organizationId, ctx.orgId),
+          )).returning({ id: governmentFilingValidations.id });
+          assert.deepEqual(removed.map(row => row.id), [vetoFiling.id]);
         }
         return {
           repeatedDecisionBlocked: true,
