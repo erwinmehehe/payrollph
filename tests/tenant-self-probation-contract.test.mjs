@@ -105,7 +105,8 @@ test("populated own read cannot be replaced by a peer or foreign review", () => 
     ...actor, marker: "TTBL-VICTIM", org: { id: 22 }, worker: { id: 44 },
     term: { id: 77 }, review: { id: 110 },
   };
-  assert.throws(() => assertOwnReview(makeRead(victim), actor), /persisted submitted review/);
+  assert.throws(() => assertOwnReview(makeRead(victim), actor),
+    "the real foreign review must be rejected regardless of which exact own-ID invariant fails");
   for (const mutation of [
     x => { x.status = 204; },
     x => { x.json.reviews = []; },
