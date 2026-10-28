@@ -1,4 +1,5 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -886,6 +887,12 @@ test("all credited proof links point to the claimed route and every recertified 
       const proof = method.testedBy;
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
         assert.equal(verifyPromotionCredits(manifest), 16);
+        continue;
+      }
+      if (proof?.verifiedMainCommit === "dd890dd65f14a3a508ef5df7227fd84655c21fcd") {
+        // Exactly six reviewed routes and source/receipt blobs are pinned by
+        // the dedicated validator; this is not an arbitrary new source bypass.
+        assert.equal(verifyFollowOnCredits(manifest), 6);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
