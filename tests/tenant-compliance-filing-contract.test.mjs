@@ -133,7 +133,7 @@ test("one exact path-bound GAP method, with genuine victim-path and own-org sele
   const start = legacy.indexOf('key: "POST compliance/filing-validations"');
   const end = legacy.indexOf('key: "POST compliance/labor-inspection/drills"', start);
   assert.ok(start >= 0 && end > start, "shared BIR fixture must be grounded in source");
-  const birPayDate = legacy.slice(start, end).match(/payDate:\\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"/)?.[1];
+  const birPayDate = legacy.slice(start, end).match(/payDate:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"/)?.[1];
   assert.ok(birPayDate, "shared BIR fixture must have an exact pay date");
   assert.equal(FILING_PERIOD.applicableMonth, FILING_PERIOD.payDate.slice(0, 7));
   assert.equal(FILING_PERIOD.periodEnd.slice(0, 7), FILING_PERIOD.applicableMonth);
