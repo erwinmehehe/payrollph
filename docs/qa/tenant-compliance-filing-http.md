@@ -2,7 +2,7 @@
 
 **Exact method:** `PATCH /api/compliance/filing-validations/[id]` | **Manifest: GAP** | **No new coverage credits**.
 
-**Base:** `main@6faa4dba1e71c94408f17e3aa4a1881f06f46b6e`. At selection the open PRs were Invitations, Automation Studio language, ESS Documents, Careers Publishing, Payroll Overpayment Preview, Attendance Offline Claims, Performance Governance, HMO Benefits, People Home UI, ESS Development, Leave Preview, and ESS Identifier Review. **None targets Compliance filing validation**. All changes are new standalone proof files; no production source, schema, release flags or manifest records are edited.
+**History:** originally branched from `main@6faa4dba`, then synchronized with `main@a7dc1f5` in commit `a883e92b`. At selection the open PRs were Invitations, Automation Studio language, ESS Documents, Careers Publishing, Payroll Overpayment Preview, Attendance Offline Claims, Performance Governance, HMO Benefits, People Home UI, ESS Development, Leave Preview, and ESS Identifier Review. **None targets Compliance filing validation**. All changes are new standalone proof files; no production source, schema, release flags or manifest records are edited.
 
 ## Evidence boundary
 
@@ -15,6 +15,16 @@ The focused GitHub Action runs a **fresh disposable PostgreSQL 16** on `127.0.0.
 The shared write runner seeds **two independent signed-in attacker owners** (A and B), then a **third genuine higher-ID victim** with its own organization, employee, unit and legal employer. For each employer this row inserts one real synthetic `Released` payroll run and one genuinely persisted `generated` SSS R-3 filing record, with the real run ID, legal employer ID and unique SHA-256 fictional file identity. The victim filing ID is verifiably higher than both attackers and used in attacks by its **actual database ID**, never a guess.
 
 **Released** is seeded directly as fictional historical source. No independent real payroll approval or agency filing workflow is executed. The synthetic hash is deliberately not claimed to be an agency-compatible upload file.
+
+### CI regression fix: prevent fixture-to-fixture contamination
+
+The first full shared tenant-table run failed in `compliance-evidence.mjs` because this new fixture used a **September 2026** Released run. The pre-existing BIR 1601-C test produces a worksheet from **every Released payroll in the pay month**, so the added run changed its expected SHA-256. This is a *fixture isolation issue*, not evidence of a cross-employer leak. The new SSS rejection fixture now uses **July 2025**, separate from the shared BIR **September 2026** month and **2026** annual worksheet. The adversarial source test checks the real existing BIR fixture's pay date and refuses matching pay month or year. Do **not** loosen the BIR byte/hash expectation or the shared runner.
+
+The first dedicated job also failed because its fresh `db:push` schema lacked the repository's SQL-only `hcm_work_item_events` table, which the shared victim snapshot reads. The workflow now runs the reviewed `prepare-hcm-work-item-fixture.mjs` **on an empty disposable PostgreSQL target before build**. This is a source-pinned CI-only setup, not a production migration.
+
+The focused job now explicitly disables workers, the central scheduler, Xendit billing, and both overpayment preview/review flags in addition to payouts. The pre-import guard denies any of those paths if enabled, and rejects payment, email and SMTP/Stripe credential environment variables. Existing global/default release settings remain unchanged.
+
+**These are corrections awaiting exact-new-head CI**, not proof that the live HTTP and shared tenant-table jobs have passed.
 
 ## Exact acceptance matrix
 
