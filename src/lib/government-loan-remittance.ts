@@ -129,12 +129,14 @@ export function canRecordGovernmentLoanRemittance(input: {
       !validRemittanceAmount(input.amountPaid)) {
     return { ok: false as const, error: "Expected and paid amounts must be positive, finite and centavo-exact." };
   }
-  const expected = round2(input.expectedTotal);
-  const paid = round2(input.amountPaid);
-  if (paid + 0.01 < expected) {
+  // Compare integer centavos after the input guard. Binary floats can turn
+  // a lawful one-cent boundary into 0.010000000000005 and falsely reject it.
+  const expectedCents = Math.round(input.expectedTotal * 100);
+  const paidCents = Math.round(input.amountPaid * 100);
+  if (paidCents + 1 < expectedCents) {
     return { ok: false as const, error: "Paid amount cannot be lower than the payroll-deducted government loan total." };
   }
-  if (paid > expected + 0.01 && String(input.paymentVarianceNote ?? "").trim().length < 4) {
+  if (paidCents > expectedCents + 1 && String(input.paymentVarianceNote ?? "").trim().length < 4) {
     return { ok: false as const, error: "Explain any amount above payroll deductions, such as penalties or interest." };
   }
   if (input.paymentReference.trim().length < 4) {
@@ -155,7 +157,9 @@ export function canConfirmGovernmentLoanPosting(input: {
       !validRemittanceAmount(input.postedAmount)) {
     return { ok: false as const, error: "Expected and posted amounts must be positive, finite and centavo-exact." };
   }
-  if (Math.abs(round2(input.expectedAmount) - round2(input.postedAmount)) > 0.01) {
+  const expectedCents = Math.round(input.expectedAmount * 100);
+  const postedCents = Math.round(input.postedAmount * 100);
+  if (Math.abs(expectedCents - postedCents) > 1) {
     return { ok: false as const, error: "Posted amount must match the payroll-deducted loan amount for this employee loan." };
   }
   if (input.postingReference.trim().length < 4) {
