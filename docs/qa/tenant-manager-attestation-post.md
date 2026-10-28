@@ -53,3 +53,17 @@ The credit script generated exactly **one** provisional GAP-to-COVERED credit.
 This is not a second credit for the GET proposed by #1519. No competing probation
 promotion is included; that exploratory evidence was retained locally after
 #1519 appeared and claimed those two method keys.
+
+## Pre-push validation
+
+Synced with `main@fe3ad8901bfa714d59639d9f59a13cf133eeab36`; the attestation
+route, authorization helpers, schema, shared runners and imported fixture remained
+unchanged from the executed local proof. On that synced tree, the full tenant
+suite passed **859 tests**, with **7 intentional skips** and no failures.
+TypeScript passes. Full lint reports zero errors, ten existing warnings and zero
+warning-debt violations. Repin reports zero repinned and zero needing review;
+the exact-key credit dry run is idempotent and proposes zero additional credits.
+The exact original local database was restored; fictional evidence databases
+were retained, with no recursive deletion or production operation.
+
+Current-head PostgreSQL 16 CI and security checks remain pending after push.
