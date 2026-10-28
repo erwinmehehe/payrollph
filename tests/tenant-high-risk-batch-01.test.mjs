@@ -475,15 +475,15 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // the six exact-source verified follow-on credits from the current ledger.
   const followOnCredits = verifyFollowOnCredits(manifest);
   assert.equal(followOnCredits, 6);
-  const fourDistinctCredits = verifyMoreCredits(manifest);
-  assert.equal(fourDistinctCredits, 4);
+  const newDisjointCredits = verifyMoreCredits(manifest);
+  assert.equal(newDisjointCredits, 3, "two receipts plus one issued-demand GET, excluding #1524 profile");
   const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
-  assert.equal(manifest.metrics.coveredAfter - fourDistinctCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+  assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
-  assert.equal(manifest.metrics.gap + fourDistinctCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
+  assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
     tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");

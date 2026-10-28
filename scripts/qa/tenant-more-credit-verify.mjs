@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-// Fail-closed source and receipt links for four exact completed final-head
+// Fail-closed source and receipt links for three exact completed final-head
 // PG16/localhost HTTP proofs. This never replaces empirical testing, nor
 // grants global isolation or independent security acceptance.
 const BASE = "fe3ad8901bfa714d59639d9f59a13cf133eeab36";
@@ -38,21 +38,6 @@ const CASES = [
     "denialKind": "real higher-ID victim employee misbound 403; stolen real victim receipt hash 409; revoked former-employer same session 403"
   },
   {
-    "key": "PATCH self/profile",
-    "pr": 1518,
-    "run": 40628293877,
-    "head": "75b039e8e34fd8e049284c060e9f8de15bfe087d",
-    "routeBlob": "85b5bbf1aff9e1777fc523d067586f9870dc87a6",
-    "proofBlob": "3e7b9502c2ad23b97f20f1ad045703fcd0a97789",
-    "file": "scripts/qa/tenant-self-profile-http.mjs",
-    "workflow": ".github/workflows/tenant-self-profile-http.yml",
-    "own": 165,
-    "foreign": 220,
-    "unchanged": 124,
-    "forged": 177,
-    "denialKind": "same signed-in employee denied 403 after revocation of former-employer membership while still granted another employer"
-  },
-  {
     "key": "GET workforce/demand-observations/issued",
     "pr": 1514,
     "run": 40624976387,
@@ -81,7 +66,7 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     .filter(x => x.m.testedBy?.verifiedMainCommit === BASE)
     .map(x => x.key).sort();
   assert.deepEqual(credited, CASES.map(c => c.key).sort(),
-    "only four reviewed methods may reuse this sweep's evidence base");
+    "only three exact reviewed methods may reuse this sweep's evidence base");
   const seen = new Map();
   const checkFile = (path, expected) => {
     if (!seen.has(path)) seen.set(path, read(path));
@@ -135,13 +120,6 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
       assert.match(forged, /forged body employer\/employee/);
       assert.match(suite, /stolen victim schedule hash/);
       assert.match(suite, /const repeated = await post\(actor, body\)/);
-    } else if (c.key === "PATCH self/profile") {
-      assert.match(own, /const actual = await checked\(ENDPOINT/);
-      assert.match(foreign, /const revoked = await checked\(ENDPOINT/);
-      assert.match(lines.slice(c.foreign - 1, c.foreign + 5).join("\n"),
-        /403, "reused session denied after original employer membership revocation"/);
-      assert.match(forged, /const forged = await checked\(ENDPOINT/);
-      assert.match(suite, /same-company coworker forged selector/);
     } else if (c.key === "GET workforce/demand-observations/issued") {
       assert.match(own, /const own = await request\(url, \{ cookie: attacker.cookie \}\)/);
       assert.match(foreign, /await denied\(endpoint\(row, victim\.org\.id/);
@@ -158,6 +136,34 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
       workflow.includes("127.0.0.1") && workflow.includes("npm run build"),
       c.key + ": proof must run real HTTP on disposable PG16");
   }
+  // Merged #1524's route no longer matches #1518's successful historical
+  // self-profile HTTP proof. This sweep is deliberately NOT a profile credit.
+  // Source, supplemental audit-veto runner and its regression pins are exact.
+  const profileRoute = "src/app/api/self/profile/route.ts";
+  const profile = manifest.allApiRouteFiles[profileRoute];
+  const profileMethod = profile?.methods.find(method => method.name === "PATCH");
+  assert.equal(profile?.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3",
+    "new atomic handler may not borrow historical #1518 route evidence");
+  checkFile(profileRoute, profile.gitBlobSha);
+  assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without independent acceptance");
+  assert.equal(profileMethod?.testedBy, null, "old #1518 route proof must not certify merged #1524");
+  const atomic = profileMethod.reviewedUncertified;
+  assert.equal(atomic?.kind, "pii02-self-profile-atomic-source-review-only");
+  assert.equal(atomic?.coverageCredits, 0);
+  assert.equal(atomic?.independentReview, "PENDING");
+  assert.equal(atomic?.routeBlobSha, profile.gitBlobSha);
+  assert.equal(atomic?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
+  assert.equal(atomic?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
+  assert.equal(atomic?.fileBlobSha, "2bae931424036014f92211a50c4211824a61d7b1");
+  checkFile(atomic.file, atomic.fileBlobSha);
+  assert.equal(atomic?.testFile, "tests/tenant-self-profile-contract.test.mjs");
+  assert.equal(atomic?.testBlobSha, "bda6d239383e0736302c1970cbc0aa78433ef470");
+  checkFile(atomic.testFile, atomic.testBlobSha);
+  assert.match(read("scripts/qa/tenant-self-profile-atomic-http.mjs"),
+    /profileAuditRollbackProven: true/);
+  assert.match(read(".github/workflows/tenant-self-profile-http.yml"), /image: postgres:16/);
+  assert.match(read(".github/workflows/tenant-self-profile-http.yml"),
+    /node --import tsx scripts\/qa\/tenant-self-profile-atomic-http\.mjs/);
   for (const [path, verb] of [
     ["src/app/api/workforce/demand-staffing/policies/route.ts", "GET"],
     ["src/app/api/workforce/demand-observations/issued/route.ts", "POST"],

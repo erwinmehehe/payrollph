@@ -12,10 +12,13 @@ export function requireDisposableSelfProfile(env = process.env) {
   } catch {
     throw new Error("ESS_PROFILE_REFUSED: explicit disposable URLs required");
   }
-  const safe = env.CI === "true"
+  const safe = env.GITHUB_ACTIONS === "true"
+    && env.CI === "true"
     && env.TENANT_SECOND_PASS_MODE === "isolated-ci-only"
     && env.NODE_ENV === "production"
     && app.href === "http://127.0.0.1:3000/"
+    && env.DATABASE_URL === "postgresql://postgres:postgres@127.0.0.1:5432/app_db"
+    && env.SECURITY_SMOKE_URL === "http://127.0.0.1:3000"
     && database.protocol === "postgresql:"
     && database.hostname === "127.0.0.1"
     && database.port === "5432"
@@ -26,7 +29,9 @@ export function requireDisposableSelfProfile(env = process.env) {
     && env.PAYMONGO_DISBURSEMENTS_ENABLED === "false"
     && env.XENDIT_PAYOUTS_ENABLED === "false"
     && env.XENDIT_BILLING_ENABLED === "false"
-    && env.DEMO_MODE !== "true"
+    && env.DEMO_MODE === "false"
+    && !env.NEON_DATABASE_URL
+    && !env.NEON_API_KEY
     && !env.PAYMONGO_SECRET_KEY
     && !env.XENDIT_SECRET_KEY
     && !env.XENDIT_PAYOUT_SECRET_KEY

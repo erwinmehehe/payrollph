@@ -140,7 +140,13 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
       assert.ok(source[line - 1].trim(), key + ": blank source assertion " + pin);
     }
   }
-  assert.equal(methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation")?.status, "GAP");
+  const independentPost = methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation");
+  assert.equal(independentPost?.status, "COVERED", "POST has separate persisted own-write/foreign-denial proof");
+  assert.equal(independentPost?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm-manager-attestation-post.mjs");
+  assert.equal(independentPost?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(independentPost?.testedBy?.postgresMajor, 18);
+  assert.notEqual(independentPost?.testedBy?.verifiedMainCommit, followOnBase,
+    "POST may not borrow manager-attestation GET's proof");
 });
 
 
@@ -206,7 +212,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH recruitment/privacy", "PATCH performance/follow-through-governance",
     "PATCH careers/admin", "POST workforce-planning/allocations",
     "GET year-end", "GET workforce/demand-staffing/policies",
-    "POST hcm/employment-term-decisions/[id]/manager-attestation",
+    "PATCH self/profile",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
     "POST benefits/hmo", "POST web-bundy/consent",
   ];
@@ -215,19 +221,26 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
   }
-  const newlyProven = [
-    "GET self/schedule-receipts", "POST self/schedule-receipts",
-    "PATCH self/profile", "GET workforce/demand-observations/issued",
+  const threeNew = [
+    "GET self/schedule-receipts",
+    "POST self/schedule-receipts",
+    "GET workforce/demand-observations/issued",
   ];
-  assert.equal(verifyMoreCredits(manifest), 4,
-    "only four distinct merged final-head method proofs may supplement six #1519 credits");
-  assert.ok(newlyProven.every(key => !targets.some(([existing]) => existing === key)),
-    "the 16 older method credits must not be double-counted");
-  for (const key of newlyProven) {
-    assert.equal(methods.get(key)?.status, "COVERED", key);
-    assert.equal(methods.get(key)?.testedBy?.verifiedMainCommit,
+  assert.equal(verifyMoreCredits(manifest), 3,
+    "only three new distinct, source-matched, fully exercised methods");
+  assert.ok(threeNew.every(key => !targets.some(([existing]) => existing === key)),
+    "existing #1509 credits must keep their independent proof owners");
+  for (const key of threeNew) {
+    const method = methods.get(key);
+    assert.equal(method?.status, "COVERED", key);
+    assert.equal(method?.testedBy?.verifiedMainCommit,
       "fe3ad8901bfa714d59639d9f59a13cf133eeab36", key);
   }
+  const profile = methods.get("PATCH self/profile");
+  assert.equal(profile?.status, "GAP", "merged #1524 route changed after #1518's proof");
+  assert.equal(profile?.testedBy, null);
+  assert.equal(profile?.reviewedUncertified?.coverageCredits, 0);
+  assert.equal(profile?.reviewedUncertified?.independentReview, "PENDING");
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),
@@ -242,7 +255,7 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
     ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
     ["STA-01", [27,21,0,6]], ["PII-01", [39,32,0,7]],
-    ["PII-02", [38,29,0,9]], ["WRK-01", [39,20,0,19]],
+    ["PII-02", [38,28,0,10]], ["WRK-01", [39,20,0,19]],
     ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
     ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
   ]);

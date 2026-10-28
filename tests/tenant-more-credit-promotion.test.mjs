@@ -8,12 +8,16 @@ import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 const manifest = JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 
-test("exactly four merged final-head PG16/HTTP methods gain distinct provisional credits", () => {
+test("three distinct final-head PG16/HTTP methods gain provisional credits; atomic profile stays GAP", () => {
   assertLiveTenantCounts(assert, manifest);
-  assert.equal(verifyMoreCredits(manifest), 4);
+  assert.equal(verifyMoreCredits(manifest), 3);
+  const profile = manifest.allApiRouteFiles["src/app/api/self/profile/route.ts"];
+  assert.equal(profile.methods.find(m => m.name === "PATCH")?.status, "GAP");
+  assert.equal(profile.methods.find(m => m.name === "PATCH")?.testedBy, null);
+  assert.equal(profile.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3");
 });
 
-test("tampered source, forged receipt and seventh credit all fail closed", () => {
+test("tampered source, forged receipt, fourth credit or profile acceptance all fail closed", () => {
   const route = "src/app/api/self/schedule-receipts/route.ts";
   const tamper = fn => {
     const modified = structuredClone(manifest);
@@ -30,6 +34,18 @@ test("tampered source, forged receipt and seventh credit all fail closed", () =>
       .find(m => m.name === "POST").testedBy = {
         verifiedMainCommit: "fe3ad8901bfa714d59639d9f59a13cf133eeab36"
       };
+  });
+  tamper(modified => {
+    modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
+      .find(m => m.name === "PATCH").status = "COVERED";
+  });
+  tamper(modified => {
+    modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
+      .find(m => m.name === "PATCH").reviewedUncertified.independentReview = "APPROVED";
+  });
+  tamper(modified => {
+    modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
+      .find(m => m.name === "PATCH").reviewedUncertified.fileBlobSha = "0".repeat(40);
   });
   const source = "scripts/qa/tenant-self-schedule-receipts-http.mjs";
   assert.throws(() => verifyMoreCredits(manifest, path =>
