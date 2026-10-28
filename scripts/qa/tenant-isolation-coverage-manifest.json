@@ -10289,7 +10289,7 @@
       "businessIds": []
     },
     "src/app/api/employees/route.ts": {
-      "gitBlobSha": "5032fb958c435f3332af408ca6c3217e764cbb7e",
+      "gitBlobSha": "55714fa2eb6bc4efa4ba6b01c91864e417ef99a3",
       "route": "employees",
       "methods": [
         {
@@ -10310,14 +10310,40 @@
           "line": 116,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "employee-explicit-wage-region-validation-only",
+            "originalRouteBlobSha": "5032fb958c435f3332af408ca6c3217e764cbb7e",
+            "routeBlobSha": "55714fa2eb6bc4efa4ba6b01c91864e417ef99a3",
+            "onlyChangedMethod": "POST",
+            "validationStatus": 422,
+            "validationErrorCode": "INVALID_WAGE_REGION",
+            "reconstructedOriginalRouteSource": true,
+            "coverageCredits": 0,
+            "testFile": "tests/wage-orders.test.ts",
+            "browserProofFile": "scripts/hris-journey-synthetic-browser.mjs",
+            "limitation": "Source-only validation-change review; POST/PATCH remain GAP, no independent three-employer real-HTTP method proof; no tenant-isolation acceptance."
+          }
         },
         {
           "name": "PATCH",
-          "line": 410,
+          "line": 409,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "employee-explicit-wage-region-validation-only",
+            "originalRouteBlobSha": "5032fb958c435f3332af408ca6c3217e764cbb7e",
+            "routeBlobSha": "55714fa2eb6bc4efa4ba6b01c91864e417ef99a3",
+            "onlyChangedMethod": "POST",
+            "validationStatus": 422,
+            "validationErrorCode": "INVALID_WAGE_REGION",
+            "reconstructedOriginalRouteSource": true,
+            "coverageCredits": 0,
+            "testFile": "tests/wage-orders.test.ts",
+            "browserProofFile": "scripts/hris-journey-synthetic-browser.mjs",
+            "limitation": "Source-only validation-change review; POST/PATCH remain GAP, no independent three-employer real-HTTP method proof; no tenant-isolation acceptance."
+          }
         }
       ],
       "employerSources": {
@@ -10369,31 +10395,31 @@
           "token": "getSessionUser"
         },
         {
-          "line": 159,
+          "line": 158,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 173,
+          "line": 172,
           "token": "getAccess"
         },
         {
-          "line": 411,
+          "line": 410,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 414,
+          "line": 413,
           "token": "getSessionUser"
         },
         {
-          "line": 425,
+          "line": 424,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 449,
+          "line": 448,
           "token": "getAccess"
         },
         {
-          "line": 450,
+          "line": 449,
           "token": "assertScope"
         }
       ],
@@ -10407,27 +10433,27 @@
           "token": "body.organizationId"
         },
         {
-          "line": 182,
+          "line": 181,
           "token": "body.legalEntityId"
         },
         {
-          "line": 182,
+          "line": 181,
           "token": "body.legalEntityId"
         },
         {
-          "line": 184,
+          "line": 183,
           "token": "body.legalEntityId"
         },
         {
-          "line": 418,
+          "line": 417,
           "token": "body.organizationId"
         },
         {
-          "line": 419,
+          "line": 418,
           "token": "body.employeeId"
         },
         {
-          "line": 446,
+          "line": 445,
           "token": "body.legalEntityId"
         }
       ],

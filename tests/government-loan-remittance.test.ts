@@ -101,3 +101,53 @@ test("member posting must match the exact payroll-deducted loan amount", () => {
     postingReference: "POST-1",
   }).ok, true);
 });
+
+test("remittance month validator rejects silent rollover, coercion and unknown agency", () => {
+  for (const agency of ["SSS", "Pag-IBIG"] as const) {
+    for (const month of ["2026-00", "2026-13", "2026-99", "2026-9",
+      "0099-12", "0000-01", "2026-02-30", "2026-10\n", ""]) {
+      assert.throws(() => governmentLoanRemittanceDueDate(agency, month),
+        /Valid agency and applicableMonth/, agency + ": " + month);
+    }
+  }
+  assert.throws(() => governmentLoanRemittanceDueDate(
+    "Fake Agency" as "SSS", "2026-09",
+  ), /Valid agency/);
+  assert.throws(() => governmentLoanRemittanceDueDate(
+    "SSS", 202609 as unknown as string,
+  ), /Valid agency/);
+  assert.equal(governmentLoanRemittanceDueDate("SSS", "2026-12"), "2027-01-31");
+  assert.equal(governmentLoanRemittanceDueDate("Pag-IBIG", "2026-12"), "2027-01-15");
+  assert.throws(() => governmentLoanRemittanceDueDate("SSS", "9999-12"), /supported calendar/);
+});
+
+test("non-finite and fractional-cent remittance payments fail before database formatting", () => {
+  const valid = {
+    expectedTotal: 125.01, amountPaid: 125.01,
+    paymentReference: "PRN-12345", agencyAcknowledgementReference: "ACK-12345",
+  };
+  for (const invalid of [NaN, Infinity, -Infinity, 0, -0.01, -125, 125.001,
+    125.005, 10_000_000_000, Number.MAX_VALUE]) {
+    assert.equal(canRecordGovernmentLoanRemittance({ ...valid, amountPaid: invalid }).ok,
+      false, "reject paid " + String(invalid));
+    assert.equal(canRecordGovernmentLoanRemittance({ ...valid, expectedTotal: invalid }).ok,
+      false, "reject expected " + String(invalid));
+  }
+  assert.equal(canRecordGovernmentLoanRemittance(valid).ok, true);
+  assert.equal(canRecordGovernmentLoanRemittance({ ...valid, amountPaid: 125 }).ok,
+    true, "preserve the existing one-cent payment tolerance");
+});
+
+test("non-finite and fractional-cent agency posting evidence fails closed", () => {
+  const valid = { expectedAmount: 125.01, postedAmount: 125.01, postingReference: "POST-12345" };
+  for (const invalid of [NaN, Infinity, -Infinity, 0, -1, 125.001, 125.005,
+    10_000_000_000, Number.MAX_VALUE]) {
+    assert.equal(canConfirmGovernmentLoanPosting({ ...valid, postedAmount: invalid }).ok,
+      false, "reject posted " + String(invalid));
+    assert.equal(canConfirmGovernmentLoanPosting({ ...valid, expectedAmount: invalid }).ok,
+      false, "reject expected " + String(invalid));
+  }
+  assert.equal(canConfirmGovernmentLoanPosting(valid).ok, true);
+  assert.equal(canConfirmGovernmentLoanPosting({ ...valid, postedAmount: 125 }).ok,
+    true, "preserve the existing one-cent posting tolerance");
+});

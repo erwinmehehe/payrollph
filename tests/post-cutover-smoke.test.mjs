@@ -155,3 +155,37 @@ test("real monthly BIR 1601-C draft fixture has a complete cutoff and no invente
   assert.match(exporter, /if \(kind === "bir-1601c"\) \{\s*if \(!isFinalCutoffOfMonth\)/,
     "The exporter must continue rejecting an incomplete monthly worksheet");
 });
+
+test("post-cutover restricted-role hire proof explicitly supplies the wage region", () => {
+  const ci = readFileSync("scripts/qa/post-cutover-ci-smoke.mjs", "utf8");
+  const newHires = ci.split('await check("employee onboarding through real HTTP"')[1]
+    ?.split('await check("two-employer high-risk HTTP read/write isolation"')[0];
+  const tenantProbes = ci.split('await check("two-employer high-risk HTTP read/write isolation"')[1]
+    ?.split('await check("mid-transaction payroll failure rolls back draft and partial entry"')[0];
+  assert.ok(newHires && tenantProbes, "Keep the original real-HTTP first-hire and tenant-denial checks");
+
+  assert.match(newHires, /region: "NCR",\s*payBasis: "monthly"/,
+    "Both fictional employees need an explicit valid region, not a server default");
+  assert.match(newHires, /expectStatus\(result, 201, `EMPLOYEE_\$\{index\}`\)/,
+    "Actual employee creation must return 201, not an ignored 422");
+  assert.match(newHires, /created\?\.employee\?\.region, "NCR"/,
+    "Real response must prove the region persisted");
+  assert.match(newHires, /created\?\.employee\?\.organizationId, state\.a/,
+    "Created employees must belong to the authorized employer");
+  assert.match(newHires, /SELECT region FROM public\.employees WHERE id=\$1 AND organization_id=\$2/,
+    "Read the actual saved wage region from restricted PostgreSQL");
+  assert.match(newHires, /persisted\[0\]\.region, "NCR"/);
+
+  // Both cross-employer POST probes must pass region validation to actually
+  // exercise the 403 authorization gate, rather than a misleading 422.
+  assert.match(tenantProbes, /organizationId: state\.a, firstName: "Forbidden"[\s\S]*?region: "NCR"/);
+  assert.match(tenantProbes, /organizationId: state\.b, firstName: "Forbidden"[\s\S]*?region: "NCR"/);
+  assert.match(tenantProbes, /mutation\.status, 403, "B_MUST_NOT_WRITE_A_EMPLOYEES"/);
+  assert.match(tenantProbes, /reverseWrite\.status, 403, "A_MUST_NOT_WRITE_B_EMPLOYEES"/);
+
+  const route = readFileSync("src/app/api/employees/route.ts", "utf8");
+  assert.match(route, /wageRegion = requireExplicitWageRegion\(body\.region\)/);
+  assert.match(route, /code: "INVALID_WAGE_REGION"/);
+  assert.doesNotMatch(route, /body\.region \?\? "NCR"/,
+    "Never loosen new-hire server validation to rescue a synthetic fixture");
+});

@@ -41,7 +41,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 import { requireSaasPaidWrites, isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { getEntitlements, seatUsage } from "@/lib/billing";
-import { WAGE_ORDERS, wageOrderFor } from "@/lib/wage-orders";
+import { WAGE_ORDERS, requireExplicitWageRegion } from "@/lib/wage-orders";
 import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
 import {
   compensationGovernanceQuery,
@@ -125,12 +125,11 @@ export async function POST(request: Request) {
   const firstName = String(body.firstName ?? "").trim();
   const middleName = String(body.middleName ?? "").trim();
   const lastName = String(body.lastName ?? "").trim();
-  // Use a canonical NWPC region on new records: an unsupported value would
-  // otherwise surface as an opaque error during the employee's first payroll.
+  // Require an explicit NWPC region on new records, never a silent NCR default.
   // This validates the screening *region*, not the employer's legal wage tier.
   let wageRegion: string;
   try {
-    wageRegion = wageOrderFor(String(body.region ?? "NCR")).region;
+    wageRegion = requireExplicitWageRegion(body.region);
   } catch {
     return Response.json({
       error: "Select a supported Philippine wage region before creating the employee.",
