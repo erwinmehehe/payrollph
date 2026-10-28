@@ -291,6 +291,12 @@ test("real HTTP proof extends existing worker/peer test without changing shared 
   const originalGuard = src.indexOf("requireDisposableSelfAvailability();");
   const extraGuard = src.indexOf("requireDisposableAvailability();");
   const dbImport = src.indexOf('import("../../src/db/index.ts")');
+  const peerSeed = src.indexOf("peers.push({ employee: peer, rule: peerRule");
+  const victimSeed = src.indexOf('const victim = await seedEmployeeEmployer("VICTIM")');
+  assert.ok(peerSeed >= 0 && victimSeed > peerSeed,
+    "real higher-ID victim must be inserted after BOTH attacker peers");
+  assert.match(src, /victim\.worker\.id > peers\[index\]\.employee\.id/);
+  assert.match(src, /victim\.rule\.id > peers\[index\]\.rule\.id/);
   assert.ok(originalGuard >= 0 && extraGuard > originalGuard && dbImport > extraGuard,
     "strict disposable guard must run before application imports");
   for (const code of [
