@@ -6,6 +6,7 @@ import {
   CONSENT_METHOD, CONSENT_VERSION, CONSENT_FIXTURE_SCHEMA,
   requireDisposableConsentTarget, assertNonCacheableConsent,
   assertOwnedConsentReceipt, assertConsentRefused,
+  assertScopedConsentWithdrawal, assertScopedWithdrawalAudit,
 } from "../scripts/qa/tenant-photo-consent-contract.mjs";
 
 const safeEnv = Object.freeze({
@@ -282,4 +283,101 @@ test("first-refusal worker identifiers stay within the actual employee schema li
     const number = "TTBL-" + label + "-" + "a".repeat(nonceLength) + "-" + suffix;
     assert.ok(number.length <= limit, number + " exceeds varchar(" + limit + ")");
   }
+});
+
+
+test("PG16 withdrawal keeps the separately persisted first-refusal peer consent byte-identical", () => {
+  const before = {
+    consent: [
+      {
+        id: 120, organizationId: 11, employeeId: 21,
+        consentVersion: CONSENT_VERSION, choice: "accepted",
+        decidedByUserId: 31, decidedAt: "2026-10-28T01:00:00.000Z",
+      },
+      {
+        id: 121, organizationId: 11, employeeId: 22,
+        consentVersion: CONSENT_VERSION, choice: "declined",
+        decidedByUserId: 32, decidedAt: "2026-10-28T01:01:00.000Z",
+      },
+    ],
+    audits: [
+      { id: 210, organizationId: 11,
+        actor: "Fictional initial photo refusal TTBL-ATTA-test",
+        action: "WFM selfie consent recorded",
+        resource: "WFM photo evidence",
+        metadata: { employeeId: 22, consentVersion: CONSENT_VERSION,
+          choice: "declined", nonHeldPhotoBytesPurged: false } },
+    ],
+  };
+  const after = structuredClone(before);
+  after.consent[0] = {
+    ...after.consent[0], choice: "declined", decidedByUserId: 31,
+    decidedAt: "2026-10-28T01:02:00.000Z",
+  };
+  after.audits.push({
+    id: 211, organizationId: 11,
+    actor: "Fictional photo-consent employee TTBL-ATTA-test",
+    action: "WFM selfie consent withdrawn", resource: "WFM photo evidence",
+    metadata: { employeeId: 21, consentVersion: CONSENT_VERSION,
+      choice: "declined", nonHeldPhotoBytesPurged: true },
+  });
+  const owner = { organizationId: 11, employeeId: 21, actorUserId: 31 };
+  const auditor = {
+    organizationId: 11, employeeId: 21,
+    actorName: "Fictional photo-consent employee TTBL-ATTA-test",
+  };
+  assert.equal(before.consent.length, 2,
+    "the old one-consent-per-company assertion was invalid after the first-refusal scenario");
+  assert.doesNotThrow(() => assertScopedConsentWithdrawal(before, after, owner));
+  assert.doesNotThrow(() => assertScopedWithdrawalAudit(before, after, auditor));
+  assert.deepEqual(after.consent[1], before.consent[1],
+    "separate same-employer first refusal remains unchanged");
+
+  for (const mutate of [
+    a => { a.consent.pop(); },
+    a => { a.consent.push(structuredClone(a.consent[0])); },
+    a => { a.consent[0].id += 1; },
+    a => { a.consent[0].organizationId = 99; },
+    a => { a.consent[0].employeeId = 22; },
+    a => { a.consent[0].choice = "accepted"; },
+    a => { a.consent[0].decidedByUserId = 32; },
+    a => { a.consent[0].consentVersion = "other-consent-v1"; },
+    a => { a.consent[0].decidedAt = "2026-10-27T23:59:00.000Z"; },
+    a => { a.consent[0].extraField = "unauthorized"; },
+    a => { a.consent[1].choice = "accepted"; },
+    a => { a.consent[1].decidedByUserId = 31; },
+    a => { a.consent[1].id = 999; },
+    a => { a.consent[1].decidedAt = "2026-10-28T02:00:00.000Z"; },
+  ]) {
+    const bad = structuredClone(after);
+    mutate(bad);
+    assert.throws(() => assertScopedConsentWithdrawal(before, bad, owner),
+      "a changed, removed or overwritten peer must never make a withdrawal test pass");
+  }
+
+  for (const mutate of [
+    a => { a.audits.pop(); },
+    a => { a.audits.push(structuredClone(a.audits.at(-1))); },
+    a => { a.audits[0].metadata.choice = "accepted"; },
+    a => { a.audits.at(-1).organizationId = 14; },
+    a => { a.audits.at(-1).actor = "wrong account"; },
+    a => { a.audits.at(-1).metadata.employeeId = 22; },
+    a => { a.audits.at(-1).metadata.nonHeldPhotoBytesPurged = false; },
+    a => { a.audits.at(-1).resource = "Payroll"; },
+  ]) {
+    const bad = structuredClone(after);
+    mutate(bad);
+    assert.throws(() => assertScopedWithdrawalAudit(before, bad, auditor),
+      "a forged audit or altered peer refusal must never count as proof");
+  }
+});
+
+test("withdrawal HTTP proof scopes both consent and audit to original actor, never total org rows", () => {
+  const code = readFileSync("scripts/qa/tenant-photo-consent-http.mjs", "utf8");
+  assert.match(code, /assertScopedConsentWithdrawal\(before, after, \{/);
+  assert.match(code, /assertScopedWithdrawalAudit\(before, after, \{/);
+  assert.match(code, /row\.employeeId === firstRefusal\.employeeId/);
+  assert.match(code, /firstRefusal\.employeeId !== e\.worker\.id/);
+  assert.doesNotMatch(code, /assert\.equal\(after\.consent\.length, 1\);\s*assert\.equal\(after\.consent\[0\]\.id, before\.consent\[0\]\.id\)/,
+    "the old one-consent-per-employer withdrawal assertion must not reappear");
 });
