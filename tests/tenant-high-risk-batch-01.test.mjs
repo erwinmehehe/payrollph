@@ -1,4 +1,5 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 /**
@@ -469,15 +470,19 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   }
   const promotionCredits = verifyPromotionCredits(manifest);
   assert.equal(promotionCredits, 16);
+  // Keep the original 124/359 historical baseline unchanged. Only subtract
+  // the six exact-source verified follow-on credits from the current ledger.
+  const followOnCredits = verifyFollowOnCredits(manifest);
+  assert.equal(followOnCredits, 6);
   const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
   assert.equal(manifest.metrics.coveredAfter - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
