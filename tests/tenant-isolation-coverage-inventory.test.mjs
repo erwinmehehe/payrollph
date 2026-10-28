@@ -323,6 +323,67 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/self/profile/route.ts PATCH") {
+    // PII-02 source hardening is not a tenant-isolation certification. The
+    // previous route changed, so require exact current source, real PG16 HTTP
+    // proof and its negative controls, while retaining zero method credits.
+    // Any further edit must fail this exception and trigger a fresh review.
+    const reviewed = method.reviewedUncertified;
+    const routePath = "src/app/api/self/profile/route.ts";
+    const source = readFileSync(routePath, "utf8");
+    assert.equal(currentBlob, "41d26b23678e8822aff4701a611c429e97f659c3",
+      "Changed employee self-profile handler needs renewed source and security review");
+    assert.equal(reviewed?.kind, "pii02-self-profile-atomic-source-review-only");
+    assert.equal(reviewed?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
+    assert.equal(reviewed?.routeBlobSha, currentBlob);
+    assert.equal(reviewed?.coverageCredits, 0);
+    assert.equal(reviewed?.independentReview, "PENDING");
+    assert.equal(method.testedBy, null, "No method is promoted to COVERED");
+    assert.equal(reviewed?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
+    assert.equal(reviewed?.fileBlobSha, gitBlobSha(readFileSync(reviewed.file)),
+      "Any QA runner change invalidates this source-only exception");
+    assert.equal(reviewed?.testFile, "tests/tenant-self-profile-contract.test.mjs");
+    assert.equal(reviewed?.testBlobSha, gitBlobSha(readFileSync(reviewed.testFile)),
+      "Any negative-control test change requires review");
+    const checks = [
+      [reviewed.ownPositiveLine, /const actual = await checked\(ENDPOINT, \{/],
+      [reviewed.forgedSelectorLine, /const forged = await checked\(ENDPOINT/],
+      [reviewed.workerMismatchLine, /const mismatch = await checked\(ENDPOINT, \{/],
+      [reviewed.foreignDenialLine, /const revoked = await checked\(ENDPOINT/],
+      [reviewed.auditVetoLine, /const auditVeto = await checked\(ENDPOINT, \{/],
+      [reviewed.auditRollbackLine, /assert\.deepEqual\(await snapshot\(first\.org\.id\), beforeAuditVeto/],
+      [reviewed.unchangedVictimLine, /await unchangedVictim\("membership revoked/],
+    ];
+    const evidence = readableLines(reviewed.file);
+    for (const [line, expected] of checks) {
+      assert.match(evidenceLine(reviewed.file, line, key), expected);
+    }
+    for (const [line, status] of [
+      [reviewed.ownPositiveLine, 200],
+      [reviewed.workerMismatchLine, 403],
+      [reviewed.foreignDenialLine, 403],
+      [reviewed.auditVetoLine, 500],
+    ]) {
+      assert.match(evidence.slice(line - 1, line + 6).join("\n"),
+        new RegExp(", " + status + ","),
+        "Genuine localhost HTTP proof must assert the exact expected status");
+    }
+    assert.match(evidence.join("\n"), /requireDisposableSelfProfile\(\)/);
+    assert.match(evidence.join("\n"), /for \(const own of attackers\)/);
+    assert.match(evidence.join("\n"), /profileAuditRollbackProven: true/);
+    assert.match(source, /db\.transaction\(async \(tx\) =>/);
+    assert.match(source, /\.for\("update"\)\.limit\(1\)/);
+    assert.match(source, /\.for\("share"\)\.limit\(1\)/);
+    assert.match(source, /eq\(employees\.organizationId, boundEmployee\.organizationId\)/);
+    assert.match(source, /await tx\.insert\(auditEvents\)\.values\(\{/);
+    assert.ok(source.indexOf("tx.update(employees)") < source.indexOf("tx.insert(auditEvents)"),
+      "Contact edit and audit receipt must stay in one transaction");
+    const workflow = readFileSync(".github/workflows/tenant-self-profile-http.yml", "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-self-profile-atomic-http\.mjs/);
+    return;
+  }
   // #1521 changes POST employee creation only to require an explicit NWPC
   // wage-region value and return INVALID_WAGE_REGION / 422 before any write.
   // The reconstructed pre-change route must match its original Git blob byte
