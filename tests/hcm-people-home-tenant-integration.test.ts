@@ -153,13 +153,13 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
       })),
       {
         organizationId: alpha.id, instanceId: crowdedFlow.id,
-        stepIndex: 31, stepType: "approval",
-        label: "Late HR decision", assignee: "ROLE:HR", status: "pending",
+        stepIndex: 31, stepType: "approval" as const,
+        label: "Late HR decision", assignee: "ROLE:HR", status: "pending" as const,
       },
       {
         organizationId: alpha.id, instanceId: crowdedFlow.id,
-        stepIndex: 32, stepType: "review",
-        label: "Late named decision", assignee: actor.name.toUpperCase(), status: "pending",
+        stepIndex: 32, stepType: "review" as const,
+        label: "Late named decision", assignee: actor.name.toUpperCase(), status: "pending" as const,
       },
     ]).returning();
     const hrTarget = crowdedSteps[31];
