@@ -67,14 +67,32 @@ export function assertDemandDenial(response, status, forbidden = []) {
   }
 }
 
+/**
+ * Next/edge response layers may normalize the order of safe cache directives
+ * and sometimes supply only "no-store". Do not mistake that secure transport
+ * behavior for a missing tenant-isolation receipt. Fail closed if no-store is
+ * absent or any public/shared/stale cache directive is present.
+ */
+export function assertNonCacheableDemand(headers) {
+  const raw = headers?.get?.("cache-control") ?? "";
+  const directives = raw.toLowerCase().split(",").map(d => d.trim()).filter(Boolean);
+  assert.ok(directives.includes("no-store"),
+    "source-read response must prohibit storage (Cache-Control no-store missing)");
+  const allowed = new Set([
+    "private", "no-store", "no-cache", "max-age=0",
+    "must-revalidate", "proxy-revalidate",
+  ]);
+  assert.ok(directives.every(d => allowed.has(d)),
+    "source-read response may not permit public, shared, stale or cacheable storage");
+}
+
 export function assertBoundDemandRead(kind, response, ctx, persisted) {
   assert.ok(DEMAND_RECOVERY_METHODS.some(name => name.includes(
     kind === "issued" ? "demand-observations/issued" : "demand-staffing/policies"
   )));
   assert.equal(response?.status, 200, "real authorized GET must succeed");
   assert.ok(typeof response.text === "string" && response.json && typeof response.json === "object");
-  assert.match(response.headers?.get?.("cache-control") ?? "", /private.*no-store/,
-    "source-read response must be private and uncached");
+  assertNonCacheableDemand(response.headers);
   assert.equal(response.json.readOnly, true);
   const rows = kind === "issued" ? response.json.issued : response.json.policies;
   assert.ok(Array.isArray(rows) && rows.length === 1, "one nonempty source-bound GET required");

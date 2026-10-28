@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   DEMAND_RECOVERY_METHODS, requireDisposableDemandRecovery,
   assertDemandDenial, assertBoundDemandRead, assertImmutableDemandSources,
+  assertNonCacheableDemand,
 } from "../scripts/qa/tenant-demand-governance-recovery-contract.mjs";
 import { createRows } from "../scripts/qa/tenant-table-rows/read/demand-governance.mjs";
 
@@ -190,4 +191,34 @@ test("route source retains active employer, real worksite, role, policy and hash
     "genuine victim higher-ID job-profile selector",
     "all own, victim, foreign, forged and negative GETs",
   ]) assert.ok(source.includes(text), "supplemental real PG16 proof missing: " + text);
+});
+
+test("non-cacheable GET is accepted regardless of safe directive order; unsafe caching stays rejected", () => {
+  for (const value of [
+    "private, no-store",
+    "no-store, private",
+    "no-store",
+    "no-cache, no-store, max-age=0, must-revalidate",
+    "No-Store, MAX-AGE=0, private",
+    "no-store, proxy-revalidate",
+  ]) {
+    const headers = new Headers({ "cache-control": value });
+    assert.doesNotThrow(() => assertNonCacheableDemand(headers), value);
+    for (const kind of ["issued", "policy"]) {
+      const r = mock(kind);
+      r.headers = headers;
+      assert.doesNotThrow(() => assertBoundDemandRead(
+        kind, r, ctx, kind === "issued" ? sqlIssue : sqlPolicy), value);
+    }
+  }
+  for (const value of [
+    "", "private", "no-cache", "public, max-age=300",
+    "no-store, public", "public, no-store", "no-store, s-maxage=0",
+    "no-store, max-age=1", "no-store, stale-while-revalidate=0",
+    "no-store, immutable", "no-store, private, s-maxage=600",
+  ]) {
+    const headers = new Headers();
+    if (value) headers.set("cache-control", value);
+    assert.throws(() => assertNonCacheableDemand(headers), value || "(absent)");
+  }
 });
