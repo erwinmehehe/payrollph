@@ -161,8 +161,11 @@ test("route remains employee-session-only and never selects arbitrary employee s
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const source = manifest.allApiRouteFiles["src/app/api/self/take-home-estimate/route.ts"];
-  assert.equal(source.methods.find(m => m.name === "GET")?.status, "GAP",
-    "synthetic QA source work does not grant any method-level coverage credit");
+  const method = source.methods.find(m => m.name === "GET");
+  assert.equal(method?.status, "COVERED", "executed fictional PG16/HTTP evidence separately reconciled");
+  assert.equal(method?.testedBy?.file, "scripts/qa/tenant-self-take-home-http.mjs");
+  assert.equal(method?.testedBy?.prNumber, 1503);
+  assert.match(method?.testedBy?.evidence ?? "", /actions\/runs\/40540826027/);
 });
 test("runner must enforce disposable guard before any application or database import", () => {
   const source = readFileSync("scripts/qa/tenant-self-take-home-http.mjs", "utf8");

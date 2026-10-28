@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-22",
-  "acceptanceStatus": "NOT ACCEPTED: 174 API methods and 17 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. Tenant-table proofs add 3 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 259 COVERED / 10 PUBLIC-BY-DESIGN / 225 GAP; no global tenant-isolation acceptance. PR #1402 adds 11 distinct provisional People/platform write-method credits from exact-head disposable PG16/localhost HTTP run 40200060037 (head 1fd16ee304a896072560fd86ff06915e7bce159c): default 28 write rows/56 attacker-victim pairs/28 discriminating/30 forged and unchanged victim database. A twelfth create_worksite action-level scenario passed but POST workforce/worksites remains GAP because other POST actions were not proven; the unchanged legacy guard prohibits blanket credit. The multi-entity and flagged-reads profiles passed their configured table checks, without write rows. Combined 270 COVERED / 10 PUBLIC-BY-DESIGN / 214 GAP, plus 18 page/action GAPs. These are not production, full tenant-isolation certification or independent reviewer approval. Fresh final-head CI remains required. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 214 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1427 adds three provisional, local-disposable-PG16 Compliance Evidence POST method proofs (filing validations, labor-inspection drills and compliance validation) only. They remain subject to exact-head CI and independent reviewer acceptance; 203 API and 18 page/action GAPs remain NOT ACCEPTED. No production payroll or statutory release is authorized. PR #1429's People Home page has provisional two-attacker real-Chromium/PG16 source-pinned proof only; 17 page/action GAPs and 203 API method GAPs remain NOT ACCEPTED. No production pilot activation or security certification. PR #1433's labor-costing POST is provisionally source-pinned with separate synthetic PG16 HTTP evidence for three actions. 202 API method GAPs and 17 page/action GAPs remain; independent security acceptance and migration approval are still required. No production payroll, posting or SQL execution is authorized. PR #1437 adds exactly three provisional seeded path-ID GET/POST proofs for MWE classifications and connected-impact; these local-disposable-PG16 receipts are not a production certification and require fresh exact-head CI plus independent security review. Tenant-table proofs add 12 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 306 COVERED / 10 PUBLIC-BY-DESIGN / 182 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 5 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 311 COVERED / 10 PUBLIC-BY-DESIGN / 177 GAP; no global tenant-isolation acceptance. Self-development adds 3 source-bound provisional local HTTP method credits; exact-head PG16 CI and review pending.",
+  "acceptanceStatus": "NOT ACCEPTED: 158 API methods and 17 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. Tenant-table proofs add 3 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 259 COVERED / 10 PUBLIC-BY-DESIGN / 225 GAP; no global tenant-isolation acceptance. PR #1402 adds 11 distinct provisional People/platform write-method credits from exact-head disposable PG16/localhost HTTP run 40200060037 (head 1fd16ee304a896072560fd86ff06915e7bce159c): default 28 write rows/56 attacker-victim pairs/28 discriminating/30 forged and unchanged victim database. A twelfth create_worksite action-level scenario passed but POST workforce/worksites remains GAP because other POST actions were not proven; the unchanged legacy guard prohibits blanket credit. The multi-entity and flagged-reads profiles passed their configured table checks, without write rows. Combined 270 COVERED / 10 PUBLIC-BY-DESIGN / 214 GAP, plus 18 page/action GAPs. These are not production, full tenant-isolation certification or independent reviewer approval. Fresh final-head CI remains required. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 214 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1427 adds three provisional, local-disposable-PG16 Compliance Evidence POST method proofs (filing validations, labor-inspection drills and compliance validation) only. They remain subject to exact-head CI and independent reviewer acceptance; 203 API and 18 page/action GAPs remain NOT ACCEPTED. No production payroll or statutory release is authorized. PR #1429's People Home page has provisional two-attacker real-Chromium/PG16 source-pinned proof only; 17 page/action GAPs and 203 API method GAPs remain NOT ACCEPTED. No production pilot activation or security certification. PR #1433's labor-costing POST is provisionally source-pinned with separate synthetic PG16 HTTP evidence for three actions. 202 API method GAPs and 17 page/action GAPs remain; independent security acceptance and migration approval are still required. No production payroll, posting or SQL execution is authorized. PR #1437 adds exactly three provisional seeded path-ID GET/POST proofs for MWE classifications and connected-impact; these local-disposable-PG16 receipts are not a production certification and require fresh exact-head CI plus independent security review. Tenant-table proofs add 12 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 306 COVERED / 10 PUBLIC-BY-DESIGN / 182 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 5 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 311 COVERED / 10 PUBLIC-BY-DESIGN / 177 GAP; no global tenant-isolation acceptance. Self-development adds 3 source-bound provisional local HTTP method credits; exact-head PG16 CI and review pending.",
   "metrics": {
     "routeFiles": 295,
     "methods": 498,
     "coveredBefore": 20,
-    "coveredAfter": 314,
+    "coveredAfter": 330,
     "publicByDesign": 10,
-    "gap": 174,
+    "gap": 158,
     "scopedPagesAndActions": 21,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -170,9 +170,22 @@
         {
           "name": "GET",
           "line": 14,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1475 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40503386113.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-identity-account-http.mjs",
+            "line": 119,
+            "ownPositiveLine": 119,
+            "foreignDenialLine": 131,
+            "unchangedDbLine": 137,
+            "forgedSelectorLine": 131,
+            "scope": "Session-principal GET: own nonempty account, actual victim and peer IDs ignored as unauthorized selectors, anonymous 401, no secrets; victim/peer user/session/audit unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40503386113 (PR #1475 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1475,
+            "workflowRunId": 40503386113,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": [
@@ -783,16 +796,42 @@
         {
           "name": "POST",
           "line": 67,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1494 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40529565588.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-offline-claims-http.mjs",
+            "line": 138,
+            "ownPositiveLine": 138,
+            "foreignDenialLine": 174,
+            "unchangedDbLine": 227,
+            "forgedSelectorLine": 180,
+            "scope": "Employee POST unverified claim persisted 201 + audit and readback for two attackers; real victim/foreign employee 403 and stolen worker 422; idempotent replay and changed replay refused; victim and attendance/payroll unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40529565588 (PR #1494 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1494,
+            "workflowRunId": 40529565588,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         },
         {
           "name": "PATCH",
           "line": 140,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1494 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40529565588.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-offline-claims-http.mjs",
+            "line": 234,
+            "ownPositiveLine": 234,
+            "foreignDenialLine": 202,
+            "unchangedDbLine": 227,
+            "forgedSelectorLine": 199,
+            "scope": "Both supported flag/dismiss reviewer decisions positively persist exact status and audit; real higher-ID victim and other employer claim IDs return 403/404 under foreign and forged own organization selectors; all victim/payroll rows unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40529565588 (PR #1494 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1494,
+            "workflowRunId": 40529565588,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": [
@@ -1131,9 +1170,22 @@
         {
           "name": "GET",
           "line": 6,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1475 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40503386113.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-identity-account-http.mjs",
+            "line": 117,
+            "ownPositiveLine": 117,
+            "foreignDenialLine": 129,
+            "unchangedDbLine": 137,
+            "forgedSelectorLine": 129,
+            "scope": "Session-principal GET: real own and victim owner positives, authentic victim and same-employer peer IDs forged in query cannot change cookie identity; no leaked session/token data; victim/peer membership and audit unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40503386113 (PR #1475 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1475,
+            "workflowRunId": 40503386113,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -17070,9 +17122,22 @@
         {
           "name": "POST",
           "line": 23,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1488 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40515729369.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-leave-preview-http.mjs",
+            "line": 167,
+            "ownPositiveLine": 167,
+            "foreignDenialLine": 177,
+            "unchangedDbLine": 214,
+            "forgedSelectorLine": 178,
+            "scope": "Read-only leave preview, independent owner and employee positives, real higher-ID victim 403, stolen victim worker 404, same-employer peer isolation, persisted shift/leave/payroll/audit unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40515729369 (PR #1488 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1488,
+            "workflowRunId": 40515729369,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -17744,9 +17809,22 @@
         {
           "name": "POST",
           "line": 16,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1482 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40510286524.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-loan-schedule-tenant-http.mjs",
+            "line": 88,
+            "ownPositiveLine": 88,
+            "foreignDenialLine": 107,
+            "unchangedDbLine": 144,
+            "forgedSelectorLine": 131,
+            "scope": "All company, imported-agency and floor preview types positively exercised for both employers; actual victim employer 403, forged approval override has no authority, invalid cents 422, real victim loans/payroll/audit unchanged. PATCH loans remains GAP.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40510286524 (PR #1482 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1482,
+            "workflowRunId": 40510286524,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -20073,9 +20151,22 @@
         {
           "name": "POST",
           "line": 78,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1495 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40538867815.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-overpayment-preview-http.mjs",
+            "line": 235,
+            "ownPositiveLine": 235,
+            "foreignDenialLine": 246,
+            "unchangedDbLine": 296,
+            "forgedSelectorLine": 248,
+            "scope": "Read-only review-only preview with exact persisted fictional Released source fingerprint, own positive for two attackers and victim, foreign employer 403, forged victim run/worker 404, SQL source/loans/leave/payroll/audit unchanged. Not payroll release or wage recovery.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40538867815 (PR #1495 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1495,
+            "workflowRunId": 40538867815,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -25641,16 +25732,42 @@
         {
           "name": "GET",
           "line": 54,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1455 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40444843870.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-self-availability-http.mjs",
+            "line": 167,
+            "ownPositiveLine": 167,
+            "foreignDenialLine": 176,
+            "unchangedDbLine": 223,
+            "forgedSelectorLine": 178,
+            "scope": "Authenticated employee own GET, genuine higher-ID victim and same-employer peer exclusions; explicit foreign employer/worker selectors rejected 400; unchanged victim availability, people, audit and payroll.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40444843870 (PR #1455 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1455,
+            "workflowRunId": 40444843870,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         },
         {
           "name": "POST",
           "line": 101,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1455 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40444843870.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-self-availability-http.mjs",
+            "line": 199,
+            "ownPositiveLine": 199,
+            "foreignDenialLine": 192,
+            "unchangedDbLine": 223,
+            "forgedSelectorLine": 189,
+            "scope": "Both actual supported create/remove actions: persisted own 201/readback and removal 200, real foreign and peer rule removal 409, forged JSON/URL selectors 400; unchanged victim/peer DB.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40444843870 (PR #1455 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1455,
+            "workflowRunId": 40444843870,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -26111,16 +26228,42 @@
         {
           "name": "GET",
           "line": 38,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1486 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40527544388.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-ess-statutory-identity-http.mjs",
+            "line": 115,
+            "ownPositiveLine": 115,
+            "foreignDenialLine": 232,
+            "unchangedDbLine": 208,
+            "forgedSelectorLine": 116,
+            "scope": "Masked employee-identifier own read matches SQL exact employee scope; forged real victim organization/worker selectors return own bound records only, revoked old employer 403, victim identity/audit/requests unchanged. Executed in Security HTTP Smoke.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40527544388 (PR #1486 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1486,
+            "workflowRunId": 40527544388,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         },
         {
           "name": "POST",
           "line": 81,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1486 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40527544388.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-ess-statutory-identity-http.mjs",
+            "line": 78,
+            "ownPositiveLine": 78,
+            "foreignDenialLine": 240,
+            "unchangedDbLine": 208,
+            "forgedSelectorLine": 183,
+            "scope": "Employee identifier review creates own encrypted pending request in SQL; injected victim organization/employee/user selectors cannot change persisted owner; revoked former-employer session 403; real victim rows/audit unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40527544388 (PR #1486 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1486,
+            "workflowRunId": 40527544388,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -27296,9 +27439,22 @@
         {
           "name": "GET",
           "line": 16,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1503 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40540826027.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-self-take-home-http.mjs",
+            "line": 226,
+            "ownPositiveLine": 226,
+            "foreignDenialLine": 255,
+            "unchangedDbLine": 259,
+            "forgedSelectorLine": 239,
+            "scope": "Employee session-bound own nonempty salary estimate; real higher-ID victim/peer forged query selectors cannot select their pay, forged cross-employer employee-link sessions 403, all pay/payroll/audit source snapshots unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40540826027 (PR #1503 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1503,
+            "workflowRunId": 40540826027,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -27345,16 +27501,42 @@
         {
           "name": "GET",
           "line": 81,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1478 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40497504543.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-self-workforce-http.mjs",
+            "line": 161,
+            "ownPositiveLine": 161,
+            "foreignDenialLine": 170,
+            "unchangedDbLine": 214,
+            "forgedSelectorLine": 170,
+            "scope": "Employee own nonempty punch/schedule GET; real higher-ID victim and same-employer peer selectors cannot redirect session-bound response; source and victim payroll/audit unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40497504543 (PR #1478 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1478,
+            "workflowRunId": 40497504543,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         },
         {
           "name": "POST",
           "line": 140,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1478 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40497504543.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-self-workforce-http.mjs",
+            "line": 192,
+            "ownPositiveLine": 192,
+            "foreignDenialLine": 182,
+            "unchangedDbLine": 214,
+            "forgedSelectorLine": 182,
+            "scope": "Single supported request_correction action: own persisted pending request 201/audit/readback; genuine victim and same-employer peer punch ID 404 despite forged selectors; no punch or payroll mutation.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40497504543 (PR #1478 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1478,
+            "workflowRunId": 40497504543,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -28879,9 +29061,22 @@
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1484 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40514472303.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-v1-journal-http.mjs",
+            "line": 196,
+            "ownPositiveLine": 196,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 265,
+            "forgedSelectorLine": 217,
+            "scope": "Bearer-key CSV journal own Released-run exact-centavo positives with actor-bound export audit; genuine higher-ID victim legal entity 403 and forged organization selector cannot switch key owner; victim sources and keys unchanged.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40514472303 (PR #1484 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1484,
+            "workflowRunId": 40514472303,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         }
       ],
       "employerSources": {
@@ -34034,9 +34229,22 @@
         {
           "name": "GET",
           "line": 42,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1473 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40500780327.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-batches/roster-batches-http.mjs",
+            "line": 155,
+            "ownPositiveLine": 155,
+            "foreignDenialLine": 163,
+            "unchangedDbLine": 174,
+            "forgedSelectorLine": 164,
+            "scope": "Only organization-selector GET list method: real persisted own batch 200, genuine higher-ID foreign organization selector 403, cross-employer marker rejection, all three employer roster/audit snapshots unchanged. POST stage/approve remains GAP.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40500780327 (PR #1473 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "postgresMajor": 16,
+            "prNumber": 1473,
+            "workflowRunId": 40500780327,
+            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+          }
         },
         {
           "name": "POST",

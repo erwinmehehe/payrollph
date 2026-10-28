@@ -1,3 +1,4 @@
+import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -619,8 +620,15 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   const offlineRead = offline.methods.find((method) => method.name === "GET");
   assert.equal(offlineRead?.status, "COVERED", "Offline read requires the executed employer-scoped proof");
   assert.equal(offlineRead?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/read/offline-claims.mjs");
-  assert.ok(offline.methods.filter((method) => method.name !== "GET").every((method) => method.status === "GAP"),
-    "A read proof does not prove submission or review writes");
+  for (const verb of ["POST", "PATCH"]) {
+    const method = offline.methods.find(item => item.name === verb);
+    assert.equal(method?.status, "COVERED", verb + " requires its own executed SQL/HTTP proof");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-offline-claims-http.mjs");
+    assert.equal(method?.testedBy?.prNumber, 1494);
+    for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
+      assert.ok(method?.testedBy?.[field] > 0, verb + " needs " + field);
+    }
+  }
 });
 
 test("extended three-employer reads and asset writes have checkable method-specific proof", () => {
@@ -799,6 +807,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
+        assert.equal(verifyPromotionCredits(manifest), 16);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
         assert.equal(verifySelfDevelopmentCredits(manifest), 3);
         continue;
