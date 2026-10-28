@@ -195,13 +195,7 @@ test("focused workflow must execute the real PG16 localhost runner rather than a
   assert.match(runner, /workerEmployeeId: first\.peer\.id/);
   assert.match(runner, /CREATE FUNCTION ci_self_profile_reject_audit/);
   // The audit-veto fixture must parse in PostgreSQL before it can exercise
-  // rollback. A lone '
-  assert.match(runner, /DROP TRIGGER IF EXISTS ci_self_profile_reject_audit/);
-  assert.match(runner, /failed audit transaction cannot commit an unaudited contact change/);
-  assert.match(runner, /profileAuditRollbackProven: true/);
-  assert.doesNotMatch(runner, /https:\/\/(?!example\.invalid)/);
-});
- is not a valid PL/pgSQL dollar-quote delimiter.
+  // rollback. Single-dollar delimiters are invalid PL/pgSQL dollar quoting.
   const auditSql = runner.match(/CREATE FUNCTION ci_self_profile_reject_audit[\s\S]*?CREATE TRIGGER ci_self_profile_reject_audit/)?.[0];
   assert.ok(auditSql, "fixture must define the test-only audit veto trigger");
   assert.match(auditSql, /LANGUAGE plpgsql AS \$ci_profile_audit\$/);
