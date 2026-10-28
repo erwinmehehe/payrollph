@@ -1,0 +1,54 @@
+{
+  "schema": "self-development-local-http-v1",
+  "runLabel": "local WSL PostgreSQL 18.6 self-development 2026-10-27; docs/qa/tenant-self-development-receipt.json",
+  "base": "4f305e29a945d8dc48583a88b76b6d057b5bd289",
+  "methods": [
+    "GET self/performance/development-plans",
+    "POST self/performance/development-plans",
+    "PATCH self/performance/development-plans"
+  ],
+  "postgresMajor": 18,
+  "serverVersionNum": 180006,
+  "ci": "NOT_RUN",
+  "productionTested": false,
+  "mutation": {
+    "rejected": true,
+    "message": "Missing expected exception: POST proof accepts another employer's data"
+  },
+  "run": {
+    "kind": "self-development-tenant-http",
+    "methods": [
+      "GET self/performance/development-plans",
+      "POST self/performance/development-plans",
+      "PATCH self/performance/development-plans"
+    ],
+    "ownReads": 2,
+    "progressProofs": 4,
+    "milestoneProofs": 4,
+    "denied": 48,
+    "discriminatingMethods": 3,
+    "victimDatabaseUnchanged": true,
+    "coverageCredits": 0,
+    "productionTested": false,
+    "certified": false,
+    "serverVersionNum": 180006
+  },
+  "sources": [
+    {
+      "file": "scripts/qa/tenant-self-development-contract.mjs",
+      "sha256": "51a3d9a3ae47fc6cb0776281f5402b47c4ddd7c6da21b5ef58cc63c4e90d8db1"
+    },
+    {
+      "file": "scripts/qa/tenant-self-development-http.mjs",
+      "sha256": "28b93ec1056f8b8722ff9429132603be3989def8c3156168ffe2da266d7d0107"
+    },
+    {
+      "file": ".github/workflows/tenant-ess-development-http.yml",
+      "sha256": "de7212b270dfcf0c655746805f7d7b36e106f5da608093a318ed63073e487e4c"
+    },
+    {
+      "file": "src/app/api/self/performance/development-plans/route.ts",
+      "sha256": "25b8cfa85d4fdddd0a4bffbb40817ee8c45a80a202f91818ca0b0d3dcab532cb"
+    }
+  ]
+}

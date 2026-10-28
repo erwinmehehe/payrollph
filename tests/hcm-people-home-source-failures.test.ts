@@ -3,11 +3,36 @@ import test from "node:test";
 import {
   settlePeopleHomeSourcePreviews,
   projectPeopleHomeFollowUpSources,
+  peopleHomeSourceLinkAccessibleName,
   type PeopleHomeSection,
 } from "../src/lib/hcm-people-home-worklist";
 
 const section = (items: PeopleHomeSection["items"] = []): PeopleHomeSection => ({
   state: "ready", items, hasMore: false, partial: false, total: null,
+});
+
+
+test("source action names remain distinct for repeated work items across sources", () => {
+  const action = peopleHomeSourceLinkAccessibleName;
+  assert.equal(action({ source: "hcm_business_process", sourceId: 17, title: "Transfer" }),
+    "Open source workflow: Transfer (HCM step 17)");
+  assert.equal(action({ source: "hcm_business_process", sourceId: 18, title: "Transfer" }),
+    "Open source workflow: Transfer (HCM step 18)");
+  assert.equal(action({ source: "lifecycle_notification", sourceId: 17, title: "Employment lifecycle follow-up" }),
+    "Open source workflow: Employment lifecycle follow-up (Lifecycle notification 17)");
+  assert.equal(action({ source: "provisioning", sourceId: 17, title: "Onboarding checklist" }),
+    "Open worker in People: Onboarding checklist (Provisioning task 17)");
+  assert.equal(action({ source: "operational_case", sourceId: 17, title: "Assigned operational case" }),
+    "Open source workflow: Assigned operational case (Operational case 17)");
+
+  const sameTitleAcrossSources = [
+    { source: "hcm_business_process" as const, sourceId: 17, title: "Review" },
+    { source: "lifecycle_notification" as const, sourceId: 17, title: "Review" },
+    { source: "operational_case" as const, sourceId: 17, title: "Review" },
+    { source: "hcm_business_process" as const, sourceId: 18, title: "Review" },
+  ].map(action);
+  assert.equal(new Set(sameTitleAcrossSources).size, sameTitleAcrossSources.length,
+    "same-looking tasks cannot produce indistinguishable accessible link names");
 });
 
 test("one source failure cannot zero, expose, or erase the other two previews", async () => {

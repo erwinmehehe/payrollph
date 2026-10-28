@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
@@ -798,6 +799,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
+        assert.equal(verifySelfDevelopmentCredits(manifest), 3);
+        continue;
+      }
       if (["scripts/qa/tenant-benefit-enrollments-http.mjs", "scripts/qa/tenant-worksites-http.mjs"].includes(proof?.file)) {
         assert.equal(verifyMergedProofCredits(manifest), 4);
         continue;

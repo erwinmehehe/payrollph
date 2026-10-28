@@ -11,7 +11,7 @@ import { employees, organizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { canOpenPeopleHome, explicitHcmEmployerId, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
-import { loadPeopleHomeWorklist } from "@/lib/hcm-people-home-worklist";
+import { loadPeopleHomeWorklist, peopleHomeSourceLinkAccessibleName } from "@/lib/hcm-people-home-worklist";
 import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
 
 export const dynamic = "force-dynamic";
@@ -216,7 +216,7 @@ export default async function HcmCommandCenter({
                     You initiated this request. A separate reviewer is required.
                   </p>}
                   {canOpenSource(item.sourceUrl) ? (
-                    <Link href={item.sourceUrl} className="mt-2 inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+                    <Link href={item.sourceUrl} className="mt-2 inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-emerald-800 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700" aria-label={peopleHomeSourceLinkAccessibleName(item)}>
                       {item.source === "provisioning" ? "Open worker in People" : "Open source workflow"}
                     </Link>
                   ) : <p className="mt-2 text-xs text-slate-600">People workspace action unavailable to this role.</p>}
