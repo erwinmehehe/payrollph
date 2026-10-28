@@ -10,7 +10,7 @@ import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
 import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
 import { parseFirstPayrollProgressRead, readVerifiedFirstPayrollProgress, type SavedFirstPayrollProgress } from "@/lib/first-payroll-progress-read";
-import { readVerifiedFirstPayrollPreview } from "@/lib/first-payroll-preview-read";
+import { isVerifiedFirstPayrollPreview, readVerifiedFirstPayrollPreview, type FirstPayrollPreview } from "@/lib/first-payroll-preview-read";
 import { readVerifiedFirstPayrollLegalEmployer } from "@/lib/first-payroll-legal-employer-read";
 
 function firstPayrollStep(key: FirstPayrollKey) {
@@ -19,12 +19,11 @@ function firstPayrollStep(key: FirstPayrollKey) {
   return found;
 }
 type Progress = SavedFirstPayrollProgress;
-type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
-type Preview = { rows:PreviewRow[];blockers:string[];warnings?:string[];previewReady:boolean;dryRun:true };
 type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string;birTin?:string|null;sssEmployerNo?:string|null;philHealthEmployerNo?:string|null;pagIbigEmployerNo?:string|null };
 type InlinePanelProps = {
  step:FirstPayrollKey;data:DashboardData;onRefresh:()=>Promise<void>;
  onProgressUpdate?:()=>Promise<void>;
+ onOpenPeople?:()=>void;
  onDecide?:(id:number,status:"Approved"|"Declined")=>Promise<void>;
  canDecide?:boolean;canManageDelegations?:boolean;notify?:Notify;
 };
@@ -42,7 +41,7 @@ export function FirstPayrollInlinePanel(props: InlinePanelProps) {
 }
 
 function ScopedFirstPayrollInlinePanel({
- step, data, onRefresh, onProgressUpdate, onDecide, canDecide = false, canManageDelegations = false, notify = () => {},
+ step, data, onRefresh, onProgressUpdate, onOpenPeople, onDecide, canDecide = false, canManageDelegations = false, notify = () => {},
 }: InlinePanelProps) {
  const organizationId=data.selectedOrganization.id;
  const defaultOwner=firstPayrollStep(step).owner;
@@ -66,13 +65,19 @@ function ScopedFirstPayrollInlinePanel({
  const [target,setTarget]=useState<string>(defaultOwner);
  const [start,setStart]=useState("");const [end,setEnd]=useState("");const [payDate,setPayDate]=useState("");
  const [acknowledged,setAcknowledged]=useState(false);
- const [preview,setPreview]=useState<Preview|null>(null);
+ const [previewResult,setPreview]=useState<FirstPayrollPreview|null>(null);
+ // A response may be valid for the request that started it but obsolete for
+ // the dates currently on screen. Never offer a draft from that older preview.
+ const preview=previewResult&&isVerifiedFirstPayrollPreview(previewResult,{
+   organizationId,periodStart:start,periodEnd:end,payDate,
+ })?previewResult:null;
  const [previewUnavailable,setPreviewUnavailable]=useState(false);
  const [draftId,setDraftId]=useState<number|null>(null);
  useEffect(()=>{
   let cancelled=false;
   void readVerifiedFirstPayrollProgress(organizationId, fetch)
    .then(p=>{if(cancelled)return;setProgress(p);setProgressVerified(true);
+      setAcknowledged(false);
       const reviewed=p?.completedSteps?.time;
       if(reviewed?.periodStart)setStart(reviewed.periodStart);
       if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
@@ -118,9 +123,15 @@ function ScopedFirstPayrollInlinePanel({
     if(!response.ok)throw Error(result.error??"Could not complete action");
     if(url==="/api/first-payroll/progress")setProgress(parseFirstPayrollProgressRead(result, organizationId));
     if(result.run?.id)setDraftId(result.run.id);
-    if(result.progress)await onProgressUpdate?.();
-    await onRefresh();
     setNotice(message);
+    // The mutation has already committed. A failed read refresh must not turn
+    // it into an apparent failed write or leave an invitation ready to resend.
+    try {
+      if(result.progress)await onProgressUpdate?.();
+      await onRefresh();
+    }catch{
+      setError("Changes were saved, but the workspace could not refresh. Refresh the page to load the latest records.");
+    }
     return true;
   }catch(e){setError(e instanceof Error?e.message:"Action failed");return false;}
   finally{setBusy(false);}
@@ -156,6 +167,7 @@ function ScopedFirstPayrollInlinePanel({
    : "—";
  const reviewed=progress?.completedSteps?.time;
  const activeRole=data.access?.role??"";
+ const employeesMissingPayout=data.firstPayrollReadiness?.employeesMissingPayout;
  const companyWide=data.access?.companyWide===true;
  const reviewersCanEdit=companyWide&&["owner","admin"].includes(activeRole);
  const canAddPeople=companyWide&&["owner","admin","bookkeeper","hr"].includes(activeRole);
@@ -206,6 +218,13 @@ function ScopedFirstPayrollInlinePanel({
      {progress?.completedSteps?.company&&<small>Confirmed by user #{progress.completedSteps.company.byUserId}</small>}
    </div>}
    {step==="people"&&<div>
+     {typeof employeesMissingPayout==="number"&&employeesMissingPayout>0&&<section className="mb-3 grid min-w-0 gap-2 rounded-lg border p-3" aria-label="Existing employee payout setup">
+       <h3 className="font-semibold">Complete existing employee payout details</h3>
+       <p>Update the existing employee records in People, then return to first payroll.</p>
+       {canAddPeople&&onOpenPeople
+         ?<button type="button" className="secondary-button" style={{width:"100%",minWidth:0,height:"auto",whiteSpace:"normal"}} disabled={busy} onClick={onOpenPeople}>Open People to edit payout details</button>
+         :<p>Ask an authorized People administrator to update the payout details.</p>}
+     </section>}
      <div className="flex flex-wrap gap-2">
        <button type="button" className="secondary-button" onClick={()=>setPeopleMode("add")}>Add one employee</button>
        <button type="button" className="secondary-button" onClick={()=>setPeopleMode("import")}>Import CSV</button>
@@ -221,10 +240,10 @@ function ScopedFirstPayrollInlinePanel({
        ?<EmployeeImportPreviewPanel organizationId={organizationId} onImported={()=>void onRefresh()}/>
        :<p role="alert">Employee CSV preview is not enabled. Individual employee creation remains available; unsafe direct import is not exposed here.</p>)}
    </div>}
-   {step==="time"&&<div className="grid gap-3">
+   {step==="time"&&<div className="grid min-w-0 grid-cols-1 gap-3">
      <p>An authorized HR reviewer must check missing punches, leave, schedule exceptions and the actual pay period. This attestation does not approve timesheets or bypass payroll attendance locks.</p>
-     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
-     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setAcknowledged(false);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setAcknowledged(false);}}/></label>
      {start&&end ? <>
        <p role="status">{periodPunches.length} recorded attendance punch{periodPunches.length===1?"":"es"} and {periodLeaves.length} leave request{periodLeaves.length===1?"":"s"} overlap this selected period. Review recorded exceptions before attesting. Absence of records does not prove attendance was completed.</p>
        {periodPunches.length===0
@@ -270,7 +289,7 @@ function ScopedFirstPayrollInlinePanel({
        Invite {role}</button>
      <p>Active payroll officers: {data.firstPayrollReadiness?.payrollOfficerCount??0}; independent checkers: {data.firstPayrollReadiness?.checkerCount??0}.</p>
    </div>}
-   {step==="payroll"&&<div className="grid gap-3">
+   {step==="payroll"&&<div className="grid min-w-0 grid-cols-1 gap-3">
      {data.firstPayrollConnectedEnabled && canPreviewPayroll && data.payrollRuns.length > 0 && <section aria-label="Saved payroll runs" className="grid gap-3 rounded-lg border p-3">
        <h3 className="font-semibold">Continue a saved payroll</h3>
        <p className="text-sm">Open the existing run to calculate, resolve exceptions and submit it to a separate checker. Refreshing this page does not require another draft.</p>
@@ -282,18 +301,19 @@ function ScopedFirstPayrollInlinePanel({
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay date</span><input className="block min-w-0 w-full" type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
-     <button type="button" className="primary-button" disabled={busy||!progressVerified||!canPreviewPayroll||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
+     <button type="button" className="primary-button" style={{minWidth:0,maxWidth:"100%",height:"auto",whiteSpace:"normal"}} disabled={busy||!progressVerified||!canPreviewPayroll||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
      {!canPreviewPayroll&&<p role="status">Only company-wide payroll viewers can inspect calculated preview amounts.</p>}
+     {previewResult&&!preview&&<p role="status">Pay-period details changed. Preview this period again before creating a draft.</p>}
      {previewUnavailable&&<p role="alert">Payroll preview unavailable. No counts or amounts are verified. <button type="button" className="secondary-button" disabled={busy||!progressVerified} onClick={()=>void dryRun()}>Retry payroll preview</button></p>}
      {preview&&<>
        <p role="status">{preview.previewReady?"Preview ready for reconciliation":"Preview has blockers"}</p>
        {preview.blockers.map((b,i)=><p key={i} role="alert">{b}</p>)}
        {preview.warnings?.map((b,i)=><p key={i}>{b}</p>)}
-       <div className="max-w-full overflow-x-auto" role="region" aria-label="First payroll per-employee preview" tabIndex={0}><table className="min-w-[700px]"><thead><tr>{["Employee","Gross","SSS","PhilHealth","Pag-IBIG","Withholding","Net","Blockers"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+       <div className="min-w-0 w-full max-w-full overflow-x-auto" role="region" aria-label="First payroll per-employee preview" tabIndex={0}><table className="min-w-[700px]"><thead><tr>{["Employee","Gross","SSS","PhilHealth","Pag-IBIG","Withholding","Net","Blockers"].map(h=><th key={h}>{h}</th>)}</tr></thead>
        <tbody>{preview.rows.map(row=><tr key={row.employeeId}>
          <td>{row.name}</td>{[row.gross,row.sss,row.philHealth,row.pagIbig,row.withholding,row.net].map((n,i)=><td key={i}>{n==null?"—":n.toFixed(2)}</td>)}
          <td>{row.blockers.join("; ")||"None"}</td></tr>)}</tbody></table></div>
-       {preview.previewReady&&<button type="button" className="secondary-button" disabled={busy||!progressVerified||!canDraftPayroll||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
+       {preview.previewReady&&<button type="button" className="secondary-button" style={{minWidth:0,maxWidth:"100%",height:"auto",whiteSpace:"normal"}} disabled={busy||!progressVerified||!canDraftPayroll||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
          periodStart:start,periodEnd:end,payDate,processNow:false,
        },"A draft payroll record was created. It is not calculated, approved or released.")}>Create actual draft payroll (writes a draft record)</button>}
        {preview.previewReady&&!canDraftPayroll&&<p role="status">A payroll operator must create the draft. Preview access does not grant maker privileges.</p>}
