@@ -13,6 +13,8 @@ export function requireDisposableHandoffEnv(env = process.env) {
   requireDisposablePlanningEnv(env);
   assert.equal(env.REQUIRE_PRIVILEGED_MFA, "true", "HANDOFF_REFUSED: MFA proof required");
   assert.equal(env.TENANT_TABLE_PROFILE, "default", "HANDOFF_REFUSED: isolated default profile required");
+  assert.equal(env.XENDIT_BILLING_ENABLED, "false",
+    "HANDOFF_REFUSED: connected billing must be disabled in synthetic proof");
   assert.equal(env.HCM_ENTERPRISE_PLAN_GATE_ENABLED, undefined,
     "HANDOFF_REFUSED: never turn on paid planning features in this proof");
   for (const name of ["STRIPE_SECRET_KEY", "BANK_DATA_ENCRYPTION_KEY_PRODUCTION",
