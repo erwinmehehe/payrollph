@@ -139,7 +139,7 @@ test("actual authoritative snapshot includes attestations, decision, staff, audi
   ]) assert.ok(code.includes(source), "victim source missing from real SQL snapshot: " + source);
 });
 
-test("original route is organization/decision bound; only proven GET gains scoped credit", () => {
+test("original route retains independently proven GET and distinct POST source receipts", () => {
   const route = readFileSync(
     "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts", "utf8");
   const lib = readFileSync("src/lib/hcm-manager-attestation.ts", "utf8");
@@ -160,8 +160,11 @@ test("original route is organization/decision bound; only proven GET gains scope
   assert.equal(get?.testedBy?.routeBlobSha, record.gitBlobSha);
   assert.equal(get?.testedBy?.forgedSelectorLine, 212);
   assert.equal(get?.testedBy?.foreignDenialLine, 199);
-  assert.equal(record.methods.find(x => x.name === "POST")?.status, "GAP");
-  assert.equal(record.methods.find(x => x.name === "POST")?.testedBy, null);
+  const post = record.methods.find(x => x.name === "POST");
+  assert.equal(post?.status, "COVERED", "POST has separately executed persisted manager-attestation evidence");
+  assert.equal(post?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(post?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm-manager-attestation-post.mjs");
+  for (const pin of ["rowLine", "ownPositiveLine", "foreignDenialLine", "unchangedDbLine"]) assert.ok(Number.isSafeInteger(post.testedBy[pin]) && post.testedBy[pin] > 0);
 });
 
 test("dedicated workflow runs independent real localhost PG16 proof with no provider", () => {
