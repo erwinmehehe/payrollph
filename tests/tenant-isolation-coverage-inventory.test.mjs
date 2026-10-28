@@ -480,6 +480,58 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // STA-01 filing-outcome PATCH: a dedicated real PG16/HTTP suite exercises
+  // only fictional REJECTED outcomes. Moving the conditional update and audit
+  // into one DB transaction is security hardening, NOT an accepted-outcome
+  // positive and not an eligible whole-method COVERED promotion.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/compliance/filing-validations/[id]/route.ts PATCH") {
+    const reviewed = method.reviewedUncertified;
+    const original = "91ad31b9bd663a855c033932f446c604c4ce6a41";
+    const current = "09f642a67035dc9ce22fa502d80518ba18641b0f";
+    assert.equal(currentBlob, current, "Filing PATCH changed: require renewed exact-source review");
+    assert.equal(reviewed?.kind, "sta01-filing-outcome-audit-atomicity-only-no-full-PATCH-credit");
+    assert.equal(reviewed.originalRouteBlobSha, original);
+    assert.equal(reviewed.routeBlobSha, current);
+    assert.equal(reviewed.helperFile, "src/lib/filing-evidence-store.ts");
+    assert.equal(reviewed.proofFile, "scripts/qa/tenant-table-rows/write/compliance-filing.mjs");
+    assert.equal(reviewed.testFile, "tests/tenant-compliance-filing-contract.test.mjs");
+    for (const [file,sha] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.testFile, reviewed.testBlobSha],
+    ]) {
+      assert.match(sha, /^[a-f0-9]{40}$/);
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "Filing atomicity security helper/proof modified without re-review: " + file);
+    }
+    assert.equal(reviewed.atomicAuditRollbackRequired, true);
+    assert.equal(reviewed.acceptedOutcomePositiveProven, false);
+    assert.equal(reviewed.fullMethodCoverageCredits, 0);
+    assert.equal(reviewed.noProviderOrAgencySubmission, true);
+    assert.equal(method.testedBy, null, "Rejected-only proof must stay GAP");
+    assert.match(method.reason, /still GAP|Still GAP/);
+    const route = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
+    const store = readFileSync(reviewed.helperFile, "utf8");
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    for (const guard of [
+      /enforceSameOriginMutation\(request\)/,
+      /getSessionUser\(\)/,
+      /assertOrganizationRole\(/,
+      /requireSensitiveActionMfa\(user\)/,
+      /getFilingValidation\(organizationId, id\)/,
+      /resolveMultiEntityContext\(/,
+      /assertEntityResource\(scope.context, existing.legalEntityId\)/,
+      /assertOrganizationUnitAccess\(/,
+      /record = await db\.transaction\(async \(tx\) => \{/,
+      /await tx\.insert\(auditEvents\)\.values\(\{/,
+    ]) assert.match(route, guard, "Filing PATCH must retain tenant gate + atomic audit");
+    assert.match(store, /await \(transaction \?\? db\)\s*\.update\(governmentFilingValidations\)/);
+    assert.match(proof, /atomicAuditInsertRollbackProven: true/);
+    assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

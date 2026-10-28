@@ -5203,15 +5203,30 @@
       ]
     },
     "src/app/api/compliance/filing-validations/[id]/route.ts": {
-      "gitBlobSha": "91ad31b9bd663a855c033932f446c604c4ce6a41",
+      "gitBlobSha": "09f642a67035dc9ce22fa502d80518ba18641b0f",
       "route": "compliance/filing-validations/[id]",
       "methods": [
         {
           "name": "PATCH",
           "line": 21,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: merged #1501 fictional PG16/real-HTTP rejection-only evidence covers own/foreign/forged/persisted audit but does NOT exercise a successful accepted filing outcome. This separate STA-01 source change binds the conditional outcome update and actor-bound audit to one transaction, with disposable CI audit-failure rollback evidence. Exact-head CI and independent security/filing-owner review remain required; no agency confirmation, provider action, payroll release or coverage credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "sta01-filing-outcome-audit-atomicity-only-no-full-PATCH-credit",
+            "originalRouteBlobSha": "91ad31b9bd663a855c033932f446c604c4ce6a41",
+            "routeBlobSha": "09f642a67035dc9ce22fa502d80518ba18641b0f",
+            "helperFile": "src/lib/filing-evidence-store.ts",
+            "helperBlobSha": "ae9b8e3f048e24b23fb35e4c9cd2334c2e44819f",
+            "proofFile": "scripts/qa/tenant-table-rows/write/compliance-filing.mjs",
+            "proofBlobSha": "6bb8bf721e73b47b2b79e26b27ec36f1c22aae34",
+            "testFile": "tests/tenant-compliance-filing-contract.test.mjs",
+            "testBlobSha": "9befe55be39ec7fb783958561da4182edc060ae4",
+            "atomicAuditRollbackRequired": true,
+            "acceptedOutcomePositiveProven": false,
+            "fullMethodCoverageCredits": 0,
+            "noProviderOrAgencySubmission": true
+          }
         }
       ],
       "employerSources": {

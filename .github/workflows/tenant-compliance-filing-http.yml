@@ -73,7 +73,7 @@ jobs:
             echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
             echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
           } >> "$GITHUB_ENV"
-      - name: Validate exact-head source syntax and eight negative contracts
+      - name: Validate exact-head source syntax and adversarial atomic-audit contracts
         run: |
           node --check scripts/qa/tenant-compliance-filing-contract.mjs
           node --check scripts/qa/tenant-compliance-filing-run.mjs
