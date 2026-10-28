@@ -136,7 +136,10 @@ export async function proveStaffingWrites() {
     assert.notEqual(e.cookie, e.checker.cookie);
   }
   async function positive(e, method, body, policyStatus, actorId, cookie) {
-    const before = await snapshot(e.org.id);
+    // Snapshot every real employer, not just the actor. A 201 on Alpha is NOT
+    // proof of isolation if it silently writes Beta, the victim or excluded.
+    const allBefore = await freezeAll();
+    const before = allBefore.get(e.org.id);
     const response = await request(STAFFING_ENDPOINT, { method, body, cookie });
     const expectedStatus = method === "POST" ? 201 : 200;
     assert.equal(response.status, expectedStatus,
@@ -187,10 +190,15 @@ export async function proveStaffingWrites() {
     for (const other of subjects.filter(x => x !== e)) {
       assert.ok(!response.text.includes(other.marker),
         "a success must not include another employer's private policy");
+      assertImmutableStaffingSql(allBefore.get(other.org.id),
+        await snapshot(other.org.id),
+        "successful " + method + " " + policyStatus +
+        " must leave foreign/victim/excluded employer unchanged: " + other.marker);
     }
     return { row, response };
   }
   async function ownRead(e, expectedStatus, expectedIds) {
+    const before = await freezeAll();
     const params = new URLSearchParams({
       organizationId: String(e.org.id), worksiteId: String(e.site.id),
       jobProfileId: String(e.job.id),
@@ -214,6 +222,7 @@ export async function proveStaffingWrites() {
     }
     assertNoForeignPolicy(response, subjects.filter(x => x !== e)
       .map(x => x.marker));
+    await unchangedEverywhere(before, "own policy GET cannot mutate any business source");
   }
   try {
     const version = await pool.query("show server_version_num");
