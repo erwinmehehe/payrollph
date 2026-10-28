@@ -47,12 +47,32 @@ export function assertNoPrivateResponse(response, markers = []) {
   }
 }
 
+/**
+ * Next.js may normalize "private, no-store" into "no-store, max-age=0" for
+ * dynamic route responses. Both prohibit storage, but public/shared-cache
+ * directives, stale response reuse or a positive TTL must remain failures.
+ * Check complete directives, not a substring such as "no-storex".
+ */
+export function assertPrivateNoStore(headers) {
+  assert.ok(headers && typeof headers.get === "function", "HTTP cache headers required");
+  const raw = headers.get("cache-control");
+  assert.ok(typeof raw === "string" && raw.trim(), "private employee response must set Cache-Control");
+  const directives = raw.toLowerCase().split(",").map(part => part.trim()).filter(Boolean);
+  assert.ok(directives.includes("no-store"), "private employee response must prohibit storage");
+  assert.ok(!directives.some(directive => directive === "public" || directive === "immutable"
+    || /^s-maxage(?:=|$)/.test(directive) || /^stale-(?:while-revalidate|if-error)(?:=|$)/.test(directive)),
+  "private employee response cannot enable shared or stale caching");
+  assert.ok(directives.every(directive => !/^max-age(?:=|$)/.test(directive)
+    || directive === "max-age=0"),
+  "private employee response cannot advertise a positive cache lifetime");
+}
+
 export function assertOwnSchedule(response, employer, expectedState = "pending", markers = []) {
   assert.equal(response.status, 200, employer.label + " own GET must succeed");
   assert.ok(response.json && typeof response.json === "object");
   assert.deepEqual(Object.keys(response.json).sort(), ["boundary", "days"]);
   assert.equal(response.json.days.length, 7);
-  assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assertPrivateNoStore(response.headers);
   assert.ok((response.headers.get("vary") ?? "").includes("Cookie"));
   const day = response.json.days[0];
   assert.equal(day.date, employer.date);
