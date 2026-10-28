@@ -87,6 +87,12 @@ test("All People Home query workloads are tenant-qualified, capped and private",
   const batchedRoles = read("src/lib/delegation.ts");
   assert.match(projection, /const BP_CANDIDATE_LIMIT = 30/);
   assert.match(projection, /const FOLLOWUP_SOURCE_LIMIT = 6/);
+  const assigneeFilter = projection.indexOf("inArray(sql<string>`lower(");
+  const decisionLimit = projection.indexOf(".limit(BP_CANDIDATE_LIMIT + 1)");
+  assert.ok(assigneeFilter >= 0 && decisionLimit > assigneeFilter,
+    "SQL must filter eligible HCM assignees before limiting the decision preview");
+  assert.match(batchedRoles, /const candidates = assignees \?\? \[/);
+  assert.match(batchedRoles, /delegations\.map\(\(row\) => row\.fromApprover\)/);
   assert.match(projection, /eq\(hcmLifecycleNotificationTasks.organizationId, organizationId\)/);
   assert.match(projection, /eq\(provisioningTasks.organizationId, organizationId\)/);
   assert.match(projection, /eq\(hcmBusinessProcessInstances.organizationId, organizationId\)/);
