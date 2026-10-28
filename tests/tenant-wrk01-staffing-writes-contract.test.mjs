@@ -204,6 +204,16 @@ test("actual HTTP source covers creation, all PATCH decisions, real target IDs a
   ]) {
     if (marker !== "original") assert.ok(code.includes(marker), marker);
   }
+  // A test with only own-scope 201/200 does not prove that the actual
+  // victim's persisted data remains unchanged after a successful mutation.
+  assert.match(code, /const allBefore = await freezeAll\(\)/);
+  assert.match(code, /assertImmutableStaffingSql\(allBefore\.get\(other\.org\.id\)/);
+  assert.match(code, /await unchangedEverywhere\(before, "own policy GET/);
+  assert.match(code, /for \(const e of subjects\) await seedEmployerEvidence\(e\)/);
+  assert.match(code, /genuine non-allowlisted employer POST/);
+  assert.match(code, /genuine non-allowlisted employer PATCH/);
+  assert.match(code, /assertStaffingDenied\(excludedGet, 404/);
+  assert.match(code, /await unchangedEverywhere\(excludedBefore/);
   for (const marker of [
     "assertImmutableStaffingSql", "assertNoForeignPolicy",
     "contentSha256", "approvalReceiptSha256",
