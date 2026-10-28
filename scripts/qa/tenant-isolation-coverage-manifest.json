@@ -27386,15 +27386,35 @@
       ]
     },
     "src/app/api/self/profile/route.ts": {
-      "gitBlobSha": "85b5bbf1aff9e1777fc523d067586f9870dc87a6",
+      "gitBlobSha": "41d26b23678e8822aff4701a611c429e97f659c3",
       "route": "self/profile",
       "methods": [
         {
           "name": "PATCH",
-          "line": 18,
+          "line": 17,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "PII-02 hardened contact-only PATCH has focused fictional PG16/localhost proof, but independent security/privacy and #1523 source-credit reconciliation remain pending. No method credit or production acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "pii02-self-profile-atomic-source-review-only",
+            "originalRouteBlobSha": "85b5bbf1aff9e1777fc523d067586f9870dc87a6",
+            "routeBlobSha": "41d26b23678e8822aff4701a611c429e97f659c3",
+            "file": "scripts/qa/tenant-self-profile-atomic-http.mjs",
+            "fileBlobSha": "2bae931424036014f92211a50c4211824a61d7b1",
+            "testFile": "tests/tenant-self-profile-contract.test.mjs",
+            "testBlobSha": "bda6d239383e0736302c1970cbc0aa78433ef470",
+            "ownPositiveLine": 167,
+            "forgedSelectorLine": 179,
+            "workerMismatchLine": 219,
+            "auditVetoLine": 254,
+            "auditRollbackLine": 258,
+            "foreignDenialLine": 284,
+            "unchangedVictimLine": 294,
+            "evidence": "Focused isolated PG16/localhost HTTP #40647115749 passed on d37ad55cab886b7ba2d7192d9bde5f38000b4d67; new exact-head CI and independent review required.",
+            "scope": "PATCH self/profile only. Original #1518 proof remains historical; audit/worker-bind source changed. No production/Neon run, employer acceptance or method-status promotion.",
+            "coverageCredits": 0,
+            "independentReview": "PENDING"
+          }
         }
       ],
       "employerSources": {
@@ -27406,26 +27426,30 @@
       },
       "guards": [
         {
-          "line": 5,
+          "line": 4,
           "token": "getSessionUser"
         },
         {
-          "line": 7,
+          "line": 6,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 19,
+          "line": 18,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 22,
+          "line": 21,
           "token": "getSessionUser"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 24,
+          "line": 23,
+          "token": "employeeId"
+        },
+        {
+          "line": 26,
           "token": "employeeId"
         },
         {
@@ -27437,19 +27461,47 @@
           "token": "organizationId"
         },
         {
-          "line": 50,
-          "token": "employeeId"
-        },
-        {
-          "line": 58,
+          "line": 56,
           "token": "organizationId"
         },
         {
-          "line": 58,
+          "line": 56,
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 59,
+          "token": "organizationId"
+        },
+        {
+          "line": 59,
+          "token": "organizationId"
+        },
+        {
+          "line": 71,
+          "token": "organizationId"
+        },
+        {
+          "line": 71,
+          "token": "organizationId"
+        },
+        {
+          "line": 82,
+          "token": "organizationId"
+        },
+        {
+          "line": 82,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 97,
           "token": "employeeId"
         }
       ]
