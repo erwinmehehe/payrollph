@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
-import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
+import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -113,9 +113,8 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
   ];
   assertLiveTenantCounts(assert, manifest);
   assert.equal(verifyFollowOnCredits(manifest), 6);
-  assert.equal(manifest.metrics.coveredAfter, 336);
-  assert.equal(manifest.metrics.gap, 152);
-  assert.equal(manifest.metrics.publicByDesign, 10);
+  // assertLiveTenantCounts already reconciles every live total with the
+  // complete method inventory and the PR base. Do not re-pin moving totals.
   const followOnCredited = [...methods].filter(([, method]) =>
     method.testedBy?.verifiedMainCommit === followOnBase);
   assert.equal(followOnCredited.length, 6, "only the six newly reviewed methods are credited");
@@ -167,6 +166,26 @@ test("six-credit proof-source guard fails closed on borrowed, altered or seventh
   assert.throws(() => verifyFollowOnCredits(manifest, file =>
     file === script ? readFileSync(file, "utf8") + "\n// tampered" :
       readFileSync(file, "utf8")), /source blob drift/);
+});
+
+test("source-pinned proof workflows reject external and lookalike URL destinations", () => {
+  assert.doesNotThrow(() =>
+    assertWorkflowUsesOnlyLoopbackUrls('curl "http://127.0.0.1:3000/login"'));
+  for (const target of [
+    "https://api.paymongo.com/v1",
+    "https://api.xendit.co/v2",
+    "http://api.paymongo.com/v1",
+    "https://attacker.invalid/path/https://api.paymongo.com",
+    "http://127.0.0.1.attacker.invalid:3000/login",
+    "http://127.0.0.1@attacker.invalid/login",
+    "http://localhost:3000/login",
+    "https://127.0.0.1:3000/login",
+    "http://untrusted.invalid:3000/login",
+  ]) {
+    assert.throws(() => assertWorkflowUsesOnlyLoopbackUrls(
+      "curl " + target), /proof workflow/,
+    "source guard must reject " + target);
+  }
 });
 
 test("already credited and partial-action methods are not double-counted", () => {
