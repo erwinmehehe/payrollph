@@ -73,6 +73,7 @@ jobs:
       - name: Parse exact sources and run strict environment and adversarial contract tests
         run: |
           node --check scripts/qa/tenant-self-availability-http.mjs
+          node --check scripts/qa/tenant-self-availability-recovery-http.mjs
           node --check scripts/qa/tenant-self-availability-contract.mjs
           node --check tests/tenant-self-availability-contract.test.mjs
           node --test tests/tenant-self-availability-guard.test.mjs tests/tenant-self-availability-contract.test.mjs
@@ -95,4 +96,4 @@ jobs:
       - name: Build source against fictional local configuration
         run: npm run build
       - name: Two independent ESS attackers versus real victim and peer (GET + POST)
-        run: node --import tsx scripts/qa/tenant-self-availability-http.mjs
+        run: node --import tsx scripts/qa/tenant-self-availability-recovery-http.mjs
