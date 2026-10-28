@@ -5,7 +5,9 @@
 **Coverage:** This is defense-in-depth for the `POST` and `PATCH` methods of
 `/api/workforce-planning/allocations`. The formal WRK-02 batch and the
 authoritative tenant-coverage manifest remain separately review-gated.
-No new `COVERED` classification is claimed in this PR.
+No new `COVERED` classification is claimed in this PR. The updated handler's
+source SHA is now recorded in the inventory with an exact, tested-but-uncertified
+POST/PATCH exception. This is re-inventory, **not** coverage promotion.
 
 ## Independence and change boundary
 
@@ -13,9 +15,12 @@ The work is limited to Workforce Planning allocation and manager-submission
 decisions. It does not touch any open PR's People Home, HCM delegation,
 first-payroll onboarding, treasury, statutory filing or tenant-credit
 reconciliation files. It modifies the existing allocation handler, its dedicated
-PG16/HTTP runner, its contract tests and this QA note. No migrations, payment
-providers, payouts, deployment flags, global tenant catalog, coverage manifest
-or real worker/payroll data are changed.
+PG16/HTTP runner, its contract tests and this QA note. The shared coverage
+manifest and its source-review validator are also updated solely to pin the
+changed handler SHA and zero-credit provisional evidence. Other concurrent PRs
+may modify that manifest and require ordinary merge reconciliation. No
+migrations, payment providers, payouts, deployment flags, global tenant
+catalog, recorded method counts or real worker/payroll data are changed.
 
 ## Production handler hardening
 
@@ -75,17 +80,28 @@ The new `PATCH` acceptance cases require:
 The contract test pins the tenant predicates, real HTTP invocation,
 snapshot comparisons, independent checker identities and `newCredits: 0`.
 
+**Executed proof:** The PR's original reviewed head
+`3b548203726254c18f4ad4fb201a609c96f5e25a` passed the dedicated
+[PG16 real-HTTP WFP allocations job](https://github.com/erwinmehehe/payrollph/actions/runs/40684903960/job/122804642868).
+The re-inventory source guard pins the identical handler, runner, contract and
+workflow blobs, verifies both method-specific positive and foreign-denial
+lines, and leaves `POST` and `PATCH` at `GAP`. Fresh CI on the new review head
+is needed, as are human security and owner decisions.
+
 ## Limitations and gates
 
 This is **not** complete WRK-02 coverage. The allocation `POST` method's
 existing-allocation update branch and certain concurrent budget/race
 scenarios are not fully exercised by this runner. The separate batch
 closure contract requires complete method and batch proof and precise
-source/CI line receipts before any coverage promotion. No actual
-PG16/HTTP result is claimed until the new PR head's workflow executes.
+source/CI line receipts before any coverage promotion. The earlier passing
+job is source-identical, but fresh CI on the final PR head and independent
+review remain necessary. Decision-race and opt-in combinations remain outside
+the presently credited method scope.
 
-- [ ] New PR head's source-contract tests pass
-- [ ] New PR head's disposable PostgreSQL 16 + real Next HTTP workflow passes
+- [x] Source-identical original head's dedicated PostgreSQL 16 HTTP proof passed
+- [ ] Updated PR head's source-contract and inventory drift-guard tests pass
+- [ ] Updated PR head's disposable PostgreSQL 16 + real Next HTTP workflow passes
 - [ ] New PR head's required typecheck, CI and security checks pass
 - [ ] Independent maintainer/security review accepts the source changes
 - [ ] Any future method-credit reconciliation is reviewed separately
