@@ -27,6 +27,12 @@ jobs:
     env:
       WORKER_ENABLED: 'false'
       CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      DEMO_MODE: 'false'
+      # Never leave localhost or send a real email; a local SMTP sink captures it.
+      SMTP_URL: 'smtp://127.0.0.1:2525'
+      MAIL_FROM: 'PayrollPH QA <no-reply@example.invalid>'
+      POSTMARK_SERVER_TOKEN: ''
     services:
       postgres:
         image: postgres:16
@@ -50,7 +56,16 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Export disposable targets; keep billing and money switches off
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo "XENDIT_BILLING_ENABLED=false" >> "$GITHUB_ENV"
+      - name: Syntax and source-contract negative tests
+        run: |
+          node --check scripts/qa/tenant-invitations-post-boundary.mjs
+          node --check tests/tenant-invitations-post-boundary.test.mjs
       - run: node --test tests/tenant-invitations-post-boundary.test.mjs
       - name: Throwaway encryption material
         shell: bash
@@ -67,4 +82,5 @@ jobs:
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
       - run: npm run build
-      - run: node --import tsx scripts/qa/tenant-invitations-post-boundary.mjs
+      - name: Verify authorized POST, local SMTP delivery, audit and A/B/victim isolation
+        run: node --import tsx scripts/qa/tenant-invitations-post-boundary.mjs
