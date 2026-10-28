@@ -49,10 +49,17 @@ const cents = (v: unknown): number | null => {
   return Number.isSafeInteger(value) ? value : null;
 };
 const money = (v: unknown): v is string => cents(v) !== null;
-const timestamp = (v: unknown): v is string =>
-  typeof v === "string" &&
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(v) &&
-  Number.isFinite(Date.parse(v));
+const timestamp = (v: unknown): v is string => {
+  if (typeof v !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(v)) return false;
+  const parsed = Date.parse(v);
+  if (!Number.isFinite(parsed)) return false;
+  // Date.parse normalizes nonexistent dates (February 31, hour 24) into
+  // different dates. Remittance evidence must be the exact claimed instant.
+  const normalizedInput = v.replace(/(?:\.(\d{1,3}))?Z$/, (_match, fraction: string | undefined) =>
+    "." + (fraction ?? "").padEnd(3, "0") + "Z");
+  return new Date(parsed).toISOString() === normalizedInput;
+};
 const day = (v: unknown): v is string => {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const parsed = Date.parse(v + "T00:00:00.000Z");
