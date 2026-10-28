@@ -181,7 +181,7 @@ test("audit source requires exact own key, employer, legal entity and no early w
   assert.throws(() => assertJournalAuditIncrement(before, changedPrior, opts));
 });
 
-test("dedicated source never changes production API or manifest status", () => {
+test("dedicated source preserves production API and has separately reconciled provisional method credit", () => {
   const source = readFileSync("src/app/api/v1/journal-entries/route.ts", "utf8");
   const proof = readFileSync("scripts/qa/tenant-v1-journal-http.mjs", "utf8");
   const routeLib = readFileSync("src/lib/api-v1-extended.ts", "utf8");
@@ -199,6 +199,9 @@ test("dedicated source never changes production API or manifest status", () => {
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles)
     .find(item => item.route === "v1/journal-entries");
-  assert.equal(record?.methods?.find(m => m.name === "GET")?.status, "GAP",
-    "no unaccepted coverage credits can be granted by this PR");
+  const evidence = record?.methods?.find(m => m.name === "GET");
+  assert.equal(evidence?.status, "COVERED", "exact-head PG16 bearer-key proof was separately reviewed");
+  assert.equal(evidence?.testedBy?.file, "scripts/qa/tenant-v1-journal-http.mjs");
+  assert.equal(evidence?.testedBy?.prNumber, 1484);
+  assert.match(evidence?.testedBy?.evidence ?? "", /actions\/runs\/40514472303/);
 });

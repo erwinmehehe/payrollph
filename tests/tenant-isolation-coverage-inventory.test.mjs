@@ -619,8 +619,15 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   const offlineRead = offline.methods.find((method) => method.name === "GET");
   assert.equal(offlineRead?.status, "COVERED", "Offline read requires the executed employer-scoped proof");
   assert.equal(offlineRead?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/read/offline-claims.mjs");
-  assert.ok(offline.methods.filter((method) => method.name !== "GET").every((method) => method.status === "GAP"),
-    "A read proof does not prove submission or review writes");
+  for (const verb of ["POST", "PATCH"]) {
+    const method = offline.methods.find(item => item.name === verb);
+    assert.equal(method?.status, "COVERED", verb + " requires its own executed SQL/HTTP proof");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-offline-claims-http.mjs");
+    assert.equal(method?.testedBy?.prNumber, 1494);
+    for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
+      assert.ok(method?.testedBy?.[field] > 0, verb + " needs " + field);
+    }
+  }
 });
 
 test("extended three-employer reads and asset writes have checkable method-specific proof", () => {

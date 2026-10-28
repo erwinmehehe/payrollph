@@ -302,13 +302,16 @@ test("read-only source snapshots reject any changed payroll, worker, loan, payou
   }
 });
 
-test("exact POST remains GAP; real source route enforces checker/MFA and has no money writes", () => {
+test("exact preview-only POST has source-pinned credit; route still enforces checker/MFA without money writes", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles)
     .find(row => row.route === "payroll-overpayment-preview");
-  assert.equal(record?.methods.find(m => m.name === "POST")?.status, "GAP",
-    "no source-only or pending CI proof can grant a coverage credit");
+  const credit = record?.methods.find(m => m.name === "POST");
+  assert.equal(credit?.status, "COVERED", "executed PG16/HTTP source proof reconciled separately");
+  assert.equal(credit?.testedBy?.file, "scripts/qa/tenant-overpayment-preview-http.mjs");
+  assert.equal(credit?.testedBy?.prNumber, 1495);
+  assert.match(credit?.testedBy?.evidence ?? "", /actions\/runs\/40538867815/);
   const route = readFileSync("src/app/api/payroll-overpayment-preview/route.ts", "utf8");
   const dbSource = readFileSync("src/lib/payroll-overpayment-preview-server.ts", "utf8");
   for (const clause of [
