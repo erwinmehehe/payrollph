@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
@@ -162,15 +163,37 @@ test("disposable guard refuses non-Actions, provider keys, workers and hosted ta
     /AVAILABILITY_TENANT_REFUSED/, JSON.stringify(overrides));
 });
 
-test("both self-availability GET and POST remain GAP; proof never awards a credit", () => {
+test("supplemental proof awards no new credit and preserves previously promoted exact-source evidence", () => {
   assert.deepEqual(METHODS, ["GET self/availability", "POST self/availability"]);
   assert.equal(ENDPOINT, "/api/self/availability");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const route = manifest.allApiRouteFiles["src/app/api/self/availability/route.ts"];
   assert.equal(route.route, "self/availability");
-  assert.equal(route.methods.find(m => m.name === "GET")?.status, "GAP");
-  assert.equal(route.methods.find(m => m.name === "POST")?.status, "GAP");
+  const canonical = "scripts/qa/tenant-self-availability-http.mjs";
+  for (const method of ["GET", "POST"]) {
+    const row = route.methods.find(m => m.name === method);
+    assert.ok(row && ["GAP", "COVERED"].includes(row.status),
+      "must not change the method classification or invent a third state");
+    if (row.status === "GAP") {
+      assert.equal(row.testedBy, null, "uncredited historical branches stay GAP");
+      continue;
+    }
+    // Newer main independently promoted these methods from PR #1455.
+    // Their coverage MUST remain linked to the untouched, digest-pinned
+    // original proof, never to this new supplemental test.
+    assert.equal(row.testedBy?.file, canonical);
+    assert.equal(row.testedBy?.prNumber, 1455);
+    assert.equal(row.testedBy?.workflowRunId, 40444843870);
+    for (const pin of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
+      assert.ok(Number.isSafeInteger(row.testedBy?.[pin]) && row.testedBy[pin] > 0,
+        method + " requires all four source evidence pins");
+    }
+    const pins = JSON.parse(readFileSync("scripts/qa/tenant-gap-promotion-pins.json", "utf8"));
+    const digest = createHash("sha256").update(readFileSync(canonical)).digest("hex");
+    assert.equal(digest, pins.hashes[canonical],
+      "canonical #1455 evidence must be byte-for-byte unchanged");
+  }
 });
 
 test("real own availability GET must be nonempty, complete, private and worker-scoped", () => {
@@ -287,7 +310,7 @@ test("all private 400, 401, 403 and 409 denials must contain no source content",
 });
 
 test("real HTTP proof extends existing worker/peer test without changing shared runner", () => {
-  const src = readFileSync("scripts/qa/tenant-self-availability-http.mjs", "utf8");
+  const src = readFileSync("scripts/qa/tenant-self-availability-recovery-http.mjs", "utf8");
   const originalGuard = src.indexOf("requireDisposableSelfAvailability();");
   const extraGuard = src.indexOf("requireDisposableAvailability();");
   const dbImport = src.indexOf('import("../../src/db/index.ts")');
@@ -313,6 +336,6 @@ test("real HTTP proof extends existing worker/peer test without changing shared 
     "npm run build", "TENANT_AVAILABILITY_MODE=fictional-only",
     "WORKER_ENABLED=false", "XENDIT_BILLING_ENABLED=false",
     "tests/tenant-self-availability-contract.test.mjs",
-    "node --import tsx scripts/qa/tenant-self-availability-http.mjs",
+    "node --import tsx scripts/qa/tenant-self-availability-recovery-http.mjs",
   ]) assert.ok(workflow.includes(code), "missing CI proof: " + code);
 });
