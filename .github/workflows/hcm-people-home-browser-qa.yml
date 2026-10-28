@@ -10,6 +10,7 @@ on:
       - "src/app/api/hcm/business-processes/inbox/**"
       - "src/components/hcm-business-process-inbox.tsx"
       - "tests/hcm-action-center-v2.test.ts"
+      - "tests/hcm-people-home-tenant-integration.test.ts"
       - "src/lib/hcm-people-home-*.ts"
       - "src/lib/delegation.ts"
       - "src/components/linaw-workspace.tsx"
@@ -84,6 +85,10 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed disposable test database only
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
+      # The fixture requires an untouched serial sequence (employers 1/2/3).
+      # Run supplementary tests only AFTER these canonical IDs are seeded.
+      - name: Verify membership revocation against disposable PostgreSQL
+        run: node --import tsx --test tests/hcm-people-home-tenant-integration.test.ts
       - name: Build local app with synthetic flags
         run: npm run build
       # Ubuntu runners already provide the runtime libraries. Running

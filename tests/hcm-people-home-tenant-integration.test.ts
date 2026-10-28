@@ -183,6 +183,44 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
       section.items.every((item) => item.tenantId === beta.id)));
     assert.ok(!JSON.stringify(other).includes("AlphaPrivate"));
 
+    // Membership revocation takes effect for a fresh read even when the
+    // same signed-in actor remains a valid People admin for another employer.
+    // Never reuse Alpha's previously authorized worklist for a revoked tenant.
+    await db.update(userOrganizations).set({ active: false })
+      .where(eq(userOrganizations.id, alphaMembership.id));
+    await assert.rejects(loadPeopleHomeWorklist(alpha.id, context), /not authorized/i,
+      "Revoking Alpha membership must block a formerly successful worklist read");
+    const betaAfterRevocation = await loadPeopleHomeWorklist(beta.id, context);
+    assert.deepEqual(betaAfterRevocation.decisions.items.map((item) => item.sourceId),
+      [betaStep.id], "Revocation in Alpha cannot suppress Beta's authorized worklist");
+    assert.deepEqual(betaAfterRevocation.ownedCases.items.map((item) => item.sourceId),
+      [betaCase.id], "Revoking Alpha cannot suppress Beta's authorized cases");
+    assert.deepEqual(betaAfterRevocation.followUps.items
+      .filter((item) => item.source === "provisioning")
+      .map((item) => item.subjectEmployeeId), [betaWorker.id],
+      "Beta provisioning stays scoped to Beta after Alpha membership is revoked");
+    assert.ok(Object.values(betaAfterRevocation).every((section) =>
+      section.items.every((item) => item.tenantId === beta.id)),
+      "Every Beta source remains employer-bound after Alpha revocation");
+    assert.ok(!JSON.stringify(betaAfterRevocation).includes("AlphaPrivate"),
+      "Beta after the Alpha downgrade must not carry stale Alpha records");
+    await db.update(userOrganizations).set({ active: true })
+      .where(eq(userOrganizations.id, alphaMembership.id));
+    const alphaAfterRestoration = await loadPeopleHomeWorklist(alpha.id, context);
+    assert.deepEqual(alphaAfterRestoration.decisions.items.map((item) => item.sourceId),
+      [alphaStep.id], "Active membership restoration must still honor exact employer binding");
+    assert.deepEqual(alphaAfterRestoration.ownedCases.items.map((item) => item.sourceId),
+      [alphaCase.id], "Restoration returns only Alpha's authorized cases");
+    assert.deepEqual(alphaAfterRestoration.followUps.items
+      .filter((item) => item.source === "provisioning")
+      .map((item) => item.subjectEmployeeId), [alphaWorker.id],
+      "Restoration returns only Alpha's authorized provisioning");
+    assert.ok(Object.values(alphaAfterRestoration).every((section) =>
+      section.items.every((item) => item.tenantId === alpha.id)),
+      "Every restored Alpha source must remain employer-bound");
+    assert.ok(!JSON.stringify(alphaAfterRestoration).includes("BetaPrivate"),
+      "Restored Alpha access must never include private Beta records");
+
     process.env.HCM_PEOPLE_HOME_ENABLED = "false";
     await assert.rejects(loadPeopleHomeWorklist(alpha.id, context), /pilot is disabled/);
   } finally {
