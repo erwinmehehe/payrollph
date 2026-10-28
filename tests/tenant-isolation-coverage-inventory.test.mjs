@@ -1,5 +1,6 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
+import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -77,7 +78,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const proof = method.testedBy;
     assert.ok(proof && typeof proof === "object", key + ": COVERED requires a valid proof reference");
     evidenceLine(proof.file, proof.line, key);
-    if (isNewOrChanged) {
+  if (isNewOrChanged) {
       // Newly introduced or changed code cannot borrow a single anonymous/invalid-request
       // status assertion as proof of actual cross-employer isolation.
       evidenceLine(proof.file, proof.ownPositiveLine, key + " attacker-own positive");
@@ -1102,6 +1103,12 @@ test("all credited proof links point to the claimed route and every recertified 
         // Exactly six reviewed routes and source/receipt blobs are pinned by
         // the dedicated validator; this is not an arbitrary new source bypass.
         assert.equal(verifyFollowOnCredits(manifest), 6);
+        continue;
+      }
+      if (proof?.verifiedMainCommit === "fe3ad8901bfa714d59639d9f59a13cf133eeab36") {
+        // Three exact proof-owned methods on unchanged merged source blobs.
+        // The #1524 self-profile route is a source-reviewed GAP; no stale credit.
+        assert.equal(verifyMoreCredits(manifest), 3);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
