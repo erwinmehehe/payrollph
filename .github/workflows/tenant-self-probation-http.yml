@@ -1,0 +1,119 @@
+name: ESS probation-review tenant isolation (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-probation-http.yml'
+      - 'scripts/qa/tenant-self-probation-*.mjs'
+      - 'tests/tenant-self-probation-contract.test.mjs'
+      - 'docs/qa/tenant-self-probation-http.md'
+      - 'src/app/api/self/probation-reviews/**'
+      - 'src/lib/hcm-probation-reviews.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-self-probation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ess-probation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export localhost-only SQL and disable workers, providers and payment paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_PROBATION_MODE=fictional-only'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
+            echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
+          } >> "$GITHUB_ENV"
+      - name: Parse sources and run fail-closed source and negative-control contracts
+        run: |
+          node --check scripts/qa/tenant-self-probation-contract.mjs
+          node --check scripts/qa/tenant-self-probation-http.mjs
+          node --check tests/tenant-self-probation-contract.test.mjs
+          node --test tests/tenant-self-probation-contract.test.mjs
+      - name: Generate CI-only encryption and webhook material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Build empty disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply source-pinned isolated schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare independent HCM fixture infrastructure
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build Next application for localhost with all production flags unchanged
+        run: npm run build
+      - name: Start isolated production-mode Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 \
+            > /tmp/tenant-self-probation-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-self-probation-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-self-probation-next.log
+          exit 1
+      - name: Real employee GET and POST, victim, peer, mismatch and SQL immutability proof
+        run: node --import tsx scripts/qa/tenant-self-probation-http.mjs
+      - name: Print isolated server errors on failure
+        if: failure()
+        run: cat /tmp/tenant-self-probation-next.log || true
