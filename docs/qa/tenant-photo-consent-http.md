@@ -79,7 +79,7 @@ file. Cookies and private fixture contents never appear in logs or artifacts.
    returns 409 without any write. This exercises the initial-decline action
    separately from accepted-to-declined withdrawal; it does **not** establish
    what should happen to legacy photos if they exist before consent.
-10. Thirteen focused source-contract tests check environment guards, tenant
+10. Fourteen focused source-contract tests check environment guards, tenant
     IDs, minimal receipts, cache directives, private denied responses, route
     authorization checks, workflow ordering, first-decline source assertions,
     and still-GAP manifest status.
@@ -89,7 +89,7 @@ registry, migration, live provider or payroll method is edited by this PR.
 
 ## Independent acceptance gates
 
-- [ ] All thirteen source-contract tests and syntax checks pass at the **new final head**.
+- [ ] All fourteen source-contract tests and syntax checks pass at the **new final head**.
 - [ ] Actual PostgreSQL 16 and authenticated localhost HTTP proof passes
       for both independent attackers and genuinely higher-ID victim.
 - [ ] Legal hold, audit, no-leak, employee mismatch and full source
