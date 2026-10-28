@@ -81,6 +81,7 @@ export async function proveSelfScheduleReceiptIsolation() {
     const peerShift = await shift(e, peerWorker, "PEER");
     return { ...e, ...ownShift, self, peer: {
       worker: peerWorker, self: peerLogin, ...peerShift,
+      date, label: label + "-PEER",
     }, date };
   }
   async function get(e, path = ENDPOINT, cookie = e.self.cookie) {
@@ -212,6 +213,9 @@ export async function proveSelfScheduleReceiptIsolation() {
       const session = await t.standaloneMakeSession(forged.id);
       await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
         .where(eq(s.sessions.id, session.id));
+      // Account creation is an intentional synthetic fixture mutation. Freeze
+      // the new source state before asserting denial has no further side effects.
+      stable.set(actor.org.id, await snapshot(actor.org.id));
       await denied(actor.label + " forged victim employee link GET",
         await get(actor, ENDPOINT, session.cookie), 403);
       await denied(actor.label + " forged victim employee link POST",
