@@ -256,7 +256,13 @@ export async function POST(request: Request) {
             notes,
             updatedByUserId: user.id,
             updatedAt: new Date(),
-          }).where(eq(workforcePlanAllocations.id, existing.id)).returning();
+          }).where(and(
+            eq(workforcePlanAllocations.id, existing.id),
+            eq(workforcePlanAllocations.organizationId, organizationId),
+            eq(workforcePlanAllocations.planId, planId),
+            eq(workforcePlanAllocations.orgUnitId, orgUnitId),
+          )).returning();
+          if (!updated) throw new Error("ALLOCATION_MISSING");
           return updated;
         }
 
@@ -345,10 +351,15 @@ export async function POST(request: Request) {
 
     try {
       const created = await db.transaction(async (tx) => {
-        await tx.execute(sql`select id from workforce_plan_allocations where id = ${allocationId} for update`);
+        // Scope the locked row as well as the earlier preflight. A stale or
+        // cross-tenant allocation reference must never be used to draft work.
         const [freshAllocation] = await tx.select().from(workforcePlanAllocations)
-          .where(eq(workforcePlanAllocations.id, allocationId))
-          .limit(1);
+          .where(and(
+            eq(workforcePlanAllocations.id, allocationId),
+            eq(workforcePlanAllocations.organizationId, organizationId),
+            eq(workforcePlanAllocations.planId, allocation.planId),
+            eq(workforcePlanAllocations.orgUnitId, allocation.orgUnitId),
+          )).for("update").limit(1);
         if (!freshAllocation) throw new Error("ALLOCATION_MISSING");
         if (
           requestedHeadcount > freshAllocation.headcountCeiling
@@ -358,6 +369,7 @@ export async function POST(request: Request) {
         }
 
         const [latest] = await tx.select().from(workforcePlanManagerSubmissions).where(and(
+          eq(workforcePlanManagerSubmissions.organizationId, organizationId),
           eq(workforcePlanManagerSubmissions.planId, freshAllocation.planId),
           eq(workforcePlanManagerSubmissions.orgUnitId, freshAllocation.orgUnitId),
         )).orderBy(desc(workforcePlanManagerSubmissions.version)).limit(1);
@@ -408,6 +420,9 @@ export async function POST(request: Request) {
           error: "The allocation changed and this request now exceeds the current ceiling.",
         }, { status: 409 });
       }
+      if (error instanceof Error && error.message === "ALLOCATION_MISSING") {
+        return Response.json({ error: "The allocation changed or is unavailable." }, { status: 409 });
+      }
       throw error;
     }
   }
@@ -454,9 +469,10 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "This manager submission is outside your workforce scope." }, { status: 403 });
   }
 
-  if (action === "submit") {
   const advancedDenied = await denyOptInEnterpriseAdvancedPlan(submission.organizationId, "planning");
   if (advancedDenied) return advancedDenied;
+
+  if (action === "submit") {
     if (submission.status !== "draft") {
       return Response.json({ error: "Only draft manager requests can be submitted." }, { status: 409 });
     }
@@ -465,8 +481,12 @@ export async function PATCH(request: Request) {
     }
 
     const [allocation] = await db.select().from(workforcePlanAllocations)
-      .where(eq(workforcePlanAllocations.id, submission.allocationId))
-      .limit(1);
+      .where(and(
+        eq(workforcePlanAllocations.id, submission.allocationId),
+        eq(workforcePlanAllocations.organizationId, submission.organizationId),
+        eq(workforcePlanAllocations.planId, submission.planId),
+        eq(workforcePlanAllocations.orgUnitId, submission.orgUnitId),
+      )).limit(1);
     if (!allocation) return Response.json({ error: "The linked workforce allocation no longer exists." }, { status: 409 });
     if (
       submission.requestedHeadcount > allocation.headcountCeiling
@@ -478,8 +498,10 @@ export async function PATCH(request: Request) {
     }
 
     const [plan] = await db.select().from(workforcePlans)
-      .where(eq(workforcePlans.id, submission.planId))
-      .limit(1);
+      .where(and(
+        eq(workforcePlans.id, submission.planId),
+        eq(workforcePlans.organizationId, submission.organizationId),
+      )).limit(1);
     if (!plan) return Response.json({ error: "Workforce plan not found." }, { status: 404 });
 
     const now = new Date();
@@ -491,6 +513,11 @@ export async function PATCH(request: Request) {
       updatedAt: now,
     }).where(and(
       eq(workforcePlanManagerSubmissions.id, submissionId),
+      eq(workforcePlanManagerSubmissions.organizationId, submission.organizationId),
+      eq(workforcePlanManagerSubmissions.allocationId, submission.allocationId),
+      eq(workforcePlanManagerSubmissions.planId, submission.planId),
+      eq(workforcePlanManagerSubmissions.orgUnitId, submission.orgUnitId),
+      eq(workforcePlanManagerSubmissions.createdByUserId, user.id),
       eq(workforcePlanManagerSubmissions.status, "draft"),
     )).returning();
     if (!updated) return Response.json({ error: "The request changed before submission. Reload and try again." }, { status: 409 });
@@ -532,20 +559,28 @@ export async function PATCH(request: Request) {
 
   try {
     const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`select id from workforce_plan_allocations where id = ${submission.allocationId} for update`);
-      await tx.execute(sql`select id from workforce_plan_manager_submissions where id = ${submissionId} for update`);
+      // Keep both row locks and every decision scoped to the same employer,
+      // plan and org unit. Never consume a foreign allocation reference.
+      const [allocation] = await tx.select().from(workforcePlanAllocations)
+        .where(and(
+          eq(workforcePlanAllocations.id, submission.allocationId),
+          eq(workforcePlanAllocations.organizationId, submission.organizationId),
+          eq(workforcePlanAllocations.planId, submission.planId),
+          eq(workforcePlanAllocations.orgUnitId, submission.orgUnitId),
+        )).for("update").limit(1);
+      if (!allocation) throw new Error("ALLOCATION_MISSING");
 
       const [freshSubmission] = await tx.select().from(workforcePlanManagerSubmissions)
-        .where(eq(workforcePlanManagerSubmissions.id, submissionId))
-        .limit(1);
+        .where(and(
+          eq(workforcePlanManagerSubmissions.id, submissionId),
+          eq(workforcePlanManagerSubmissions.organizationId, submission.organizationId),
+          eq(workforcePlanManagerSubmissions.planId, submission.planId),
+          eq(workforcePlanManagerSubmissions.orgUnitId, submission.orgUnitId),
+          eq(workforcePlanManagerSubmissions.allocationId, allocation.id),
+        )).for("update").limit(1);
       if (!freshSubmission || freshSubmission.status !== "submitted") {
         throw new Error("SUBMISSION_DECISION_CONFLICT");
       }
-
-      const [allocation] = await tx.select().from(workforcePlanAllocations)
-        .where(eq(workforcePlanAllocations.id, freshSubmission.allocationId))
-        .limit(1);
-      if (!allocation) throw new Error("ALLOCATION_MISSING");
 
       if (action === "accept") {
         if (
@@ -558,6 +593,7 @@ export async function PATCH(request: Request) {
           status: "superseded",
           updatedAt: new Date(),
         }).where(and(
+          eq(workforcePlanManagerSubmissions.organizationId, submission.organizationId),
           eq(workforcePlanManagerSubmissions.planId, freshSubmission.planId),
           eq(workforcePlanManagerSubmissions.orgUnitId, freshSubmission.orgUnitId),
           eq(workforcePlanManagerSubmissions.status, "accepted"),
@@ -574,6 +610,10 @@ export async function PATCH(request: Request) {
         updatedAt: now,
       }).where(and(
         eq(workforcePlanManagerSubmissions.id, submissionId),
+        eq(workforcePlanManagerSubmissions.organizationId, submission.organizationId),
+        eq(workforcePlanManagerSubmissions.allocationId, submission.allocationId),
+        eq(workforcePlanManagerSubmissions.planId, submission.planId),
+        eq(workforcePlanManagerSubmissions.orgUnitId, submission.orgUnitId),
         eq(workforcePlanManagerSubmissions.status, "submitted"),
       )).returning();
       if (!updated) throw new Error("SUBMISSION_DECISION_CONFLICT");
@@ -604,6 +644,9 @@ export async function PATCH(request: Request) {
       return Response.json({
         error: "The top-down allocation changed and this request now exceeds the current ceiling.",
       }, { status: 409 });
+    }
+    if (error instanceof Error && error.message === "ALLOCATION_MISSING") {
+      return Response.json({ error: "The linked workforce allocation changed or is unavailable." }, { status: 409 });
     }
     throw error;
   }
