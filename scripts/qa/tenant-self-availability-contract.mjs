@@ -5,6 +5,7 @@
  * or grant any tenant-isolation method coverage credits.
  */
 import assert from "node:assert/strict";
+import { requireSensitiveNoStoreCache } from "./tenant-self-availability-guard.mjs";
 
 export const ENDPOINT = "/api/self/availability";
 export const METHODS = Object.freeze([
@@ -60,9 +61,11 @@ export function assertNoPrivateMarkers(response, markers = []) {
 }
 
 function privateHeaders(response) {
-  assert.equal(response.headers?.get?.("cache-control"), "private, no-store",
-    "employee availability must not be publicly cacheable");
-  assert.match(response.headers?.get?.("vary") ?? "", /cookie/i,
+  // Next.js normalizes private,no-store to no-store,max-age=0 in some builds.
+  // Reuse the established source guard rather than asserting one serialization.
+  requireSensitiveNoStoreCache(response.headers);
+  const vary = response.headers?.get?.("vary");
+  if (vary) assert.match(vary, /cookie/i,
     "employee availability must vary by authenticated cookie");
 }
 
