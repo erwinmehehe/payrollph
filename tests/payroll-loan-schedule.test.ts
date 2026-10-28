@@ -135,9 +135,9 @@ test("A-1 floor preview denies blank or malformed approval evidence", () => {
   };
   for (const invalidOverride of [
     { ...valid.override, approvalEvidenceReference: "          " },
-    { ...valid.override, approvalEvidenceReference: "REVIEW-1234\\nFORGED" },
+    { ...valid.override, approvalEvidenceReference: "REVIEW-1234" + String.fromCharCode(10) + "FORGED" },
     { ...valid.override, reason: 12345 },
-    { ...valid.override, reason: "Documented separate\\tlegal and payroll approval" },
+    { ...valid.override, reason: "Documented separate" + String.fromCharCode(9) + "legal and payroll approval" },
   ]) {
     assert.throws(() => previewDiscretionaryLoanDeduction({
       ...valid, override: invalidOverride,
