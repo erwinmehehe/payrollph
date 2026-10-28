@@ -64,6 +64,82 @@ test("credit sweep only updates 16 distinct verified GAP methods with four sourc
   }
 });
 
+test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP methods", () => {
+  const followOnBase = "dd890dd65f14a3a508ef5df7227fd84655c21fcd";
+  const followOnTargets = [
+    [
+      "GET self/probation-reviews",
+      1507,
+      40623884094,
+      "scripts/qa/tenant-self-probation-http.mjs",
+      "be00791a82412f08e79a1b4f6f9a497eef80729f"
+    ],
+    [
+      "POST self/probation-reviews",
+      1507,
+      40623884094,
+      "scripts/qa/tenant-self-probation-http.mjs",
+      "be00791a82412f08e79a1b4f6f9a497eef80729f"
+    ],
+    [
+        1512,
+      40624278478,
+      "scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs",
+      "5783f860414d0076ce837c46a37fc8e1b10f5907"
+    ],
+    [
+      "GET self/performance",
+      1513,
+      40620797757,
+      "scripts/qa/tenant-self-performance-http.mjs",
+      "328d1a3fd1371bfba9694a3933cdc38aab3f4dee"
+    ],
+    [
+      "POST self/performance",
+      1513,
+      40620797757,
+      "scripts/qa/tenant-self-performance-http.mjs",
+      "328d1a3fd1371bfba9694a3933cdc38aab3f4dee"
+    ],
+    [
+      "PATCH self/performance",
+      1513,
+      40620797757,
+      "scripts/qa/tenant-self-performance-http.mjs",
+      "328d1a3fd1371bfba9694a3933cdc38aab3f4dee"
+    ]
+  ];
+  assertLiveTenantCounts(assert, manifest);
+  assert.equal(manifest.metrics.coveredAfter, 336);
+  assert.equal(manifest.metrics.gap, 152);
+  assert.equal(manifest.metrics.publicByDesign, 10);
+  const followOnCredited = [...methods].filter(([, method]) =>
+    method.testedBy?.verifiedMainCommit === followOnBase);
+  assert.equal(followOnCredited.length, 6, "only the six newly reviewed methods are credited");
+  for (const [key, pr, run, file, blob] of followOnTargets) {
+    const method = methods.get(key);
+    assert.equal(method?.status, "COVERED", key);
+    const evidence = method.testedBy;
+    assert.ok(evidence, key + " has its own four-part evidence");
+    assert.equal(evidence.file, file);
+    assert.equal(evidence.proofBlobSha, blob);
+    assert.equal(evidence.prNumber, pr);
+    assert.equal(evidence.workflowRunId, run);
+    assert.equal(evidence.postgresMajor, 16);
+    assert.equal(evidence.verifiedMainCommit, followOnBase);
+    assert.equal(evidence.line, evidence.ownPositiveLine);
+    assert.ok(evidence.scope && evidence.scope.length > 50);
+    assert.match(evidence.evidence, new RegExp("/actions/runs/" + run + "(?:\\\\D|$)"));
+    const source = readFileSync(file, "utf8").split("\\n");
+    for (const pin of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine", "forgedSelectorLine"]) {
+      const line = evidence[pin];
+      assert.ok(Number.isSafeInteger(line) && line > 0 && line <= source.length, key + ": " + pin);
+      assert.ok(source[line - 1].trim(), key + ": blank source assertion " + pin);
+    }
+  }
+  assert.equal(methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation")?.status, "GAP");
+});
+
 test("already credited and partial-action methods are not double-counted", () => {
   const already = [
     "GET holidays", "POST holidays", "PATCH holidays", "DELETE holidays",
@@ -77,6 +153,7 @@ test("already credited and partial-action methods are not double-counted", () =>
   }
   const excluded = [
     "POST workforce/roster-batches", "PATCH loans", "POST hcm/capabilities",
+    "PATCH approvals/[id]",
     "PATCH recruitment/privacy", "PATCH performance/follow-through-governance",
     "PATCH careers/admin", "POST workforce-planning/allocations",
     "GET year-end", "GET workforce/demand-observations/issued",
@@ -98,13 +175,13 @@ test("already credited and partial-action methods are not double-counted", () =>
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
-  assert.match(doc, /330 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 158 GAP/);
+  assert.match(doc, /336 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 152 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
   const expected = new Map([
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
     ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
-    ["STA-01", [27,21,0,6]], ["PII-01", [39,31,0,8]],
-    ["PII-02", [38,21,0,17]], ["WRK-01", [39,19,0,20]],
+    ["STA-01", [27,21,0,6]], ["PII-01", [39,32,0,7]],
+    ["PII-02", [38,26,0,12]], ["WRK-01", [39,19,0,20]],
     ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
     ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
   ]);
