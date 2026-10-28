@@ -255,7 +255,7 @@ test("first refusal is a distinct owned POST with no photos or fixture-file netw
   const script = readFileSync("scripts/qa/tenant-photo-consent-http.mjs", "utf8");
   for (const source of [
     'const firstDeclines = [];',
-    'await addWorker(e, "FIRST-DECLINE", { payProfile: false })',
+    'await addWorker(e, "DECLINE", { payProfile: false })',
     'firstDeclines.push({',
     'const session = await shared.standaloneMakeSession(peer.userId);',
     '"declined", "recorded"',
@@ -269,4 +269,17 @@ test("first refusal is a distinct owned POST with no photos or fixture-file netw
     "first-time refusal must have never-captured own photos");
   assert.ok(script.includes('assertOtherSourcesPreserved(before, after, "first-time consent refusal " + e.marker)'),
     "must compare real employer staff, photos, payroll and audit sources");
+});
+
+test("first-refusal worker identifiers stay within the actual employee schema limit", () => {
+  const script = readFileSync("scripts/qa/tenant-photo-consent-http.mjs", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const limit = Number(schema.match(/employeeNo: varchar\("employee_no", \{ length: (\d+) \}/)?.[1]);
+  const nonceLength = Number(script.match(/const nonce = .*\.slice\(0, (\d+)\)/)?.[1]);
+  const suffixes = [...script.matchAll(/addWorker\(e, "([^"]+)"/g)].map(match => match[1]);
+  assert.ok(limit && nonceLength && suffixes.length);
+  for (const label of ["ATTA", "ATTB"]) for (const suffix of suffixes) {
+    const number = "TTBL-" + label + "-" + "a".repeat(nonceLength) + "-" + suffix;
+    assert.ok(number.length <= limit, number + " exceeds varchar(" + limit + ")");
+  }
 });

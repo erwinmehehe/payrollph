@@ -146,7 +146,7 @@ async function bootstrap() {
     // the private fixture or transmit fixture-derived cookies via raw fetch.
     const firstDeclines = [];
     for (const e of [a, b]) {
-      const peer = await addWorker(e, "FIRST-DECLINE", { payProfile: false });
+      const peer = await addWorker(e, "DECLINE", { payProfile: false });
       const [actor] = await db.insert(users).values({
         name: "Fictional initial photo refusal " + e.marker,
         email: "initial-photo-refusal-" + randomUUID() + "@example.invalid",
