@@ -363,6 +363,29 @@ export async function proveSelfPerformance() {
           method,actor,ownerBody,403,[victim.marker],forged.get(actor.org.id));
       }
     }
+    // Cross-site POST/PATCH must be rejected even when the caller has a valid
+    // employee session and a valid own employee resource.
+    for(const actor of [a,b]){
+      for(const method of ["POST","PATCH"]){
+        const body=method==="POST"
+          ?{oneOnOneId:actor.profile.meeting.id,content:"cross-site forged agenda"}
+          :{reviewId:actor.profile.review.id,selfScore:4,
+            employeeReflection:"cross-site forged self-assessment"};
+        const response=await fetch(new URL(ENDPOINT,process.env.SECURITY_SMOKE_URL),{
+          method,headers:{
+            cookie:actor.self.cookie,origin:"https://forgery.example.invalid",
+            "sec-fetch-site":"cross-site","content-type":"application/json",
+          },body:JSON.stringify(body),redirect:"manual",cache:"no-store",
+        });
+        const raw=await response.text();
+        let json;try{json=JSON.parse(raw);}catch{json=null;}
+        assertDenied({status:response.status,text:raw,json},403,[victim.marker]);
+        for(const employer of all)assertUnchanged(stable.get(employer.org.id),
+          await snapshot(employer.org.id),
+          actor.label+" cross-site "+method+" must leave "+employer.label+" unchanged");
+        checks++;
+      }
+    }
     for(const method of ["GET","POST","PATCH"]){
       const body=method==="POST"
         ?{oneOnOneId:victim.profile.meeting.id,content:"unauthenticated agenda"}
