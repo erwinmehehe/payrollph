@@ -21,7 +21,8 @@ const safe = {
 const actor = {
   marker: "TEST-ATTA", orgId: 10, ownerId: 20, ownerName: "TEST-ATTA owner",
   planId: 30, planName: "TEST-ATTA approved plan", jobId: 40,
-  jobTitle: "TEST-ATTA role", siteId: 50, shiftId: 60, positionIds: [70, 71],
+  jobTitle: "TEST-ATTA role", siteId: 50, siteName: "TEST-ATTA site",
+  shiftId: 60, shiftCode: "TEST-ATTA-SHIFT", positionIds: [70, 71],
 };
 const row = {
   id: 81, organizationId: actor.orgId, worksiteId: actor.siteId,
@@ -37,6 +38,7 @@ const row = {
 const audit = {
   organizationId: actor.orgId, actor: actor.ownerName,
   action: "HCM workforce plan handed to WFM demand",
+  resource: [actor.planName, actor.jobTitle, actor.siteName, actor.shiftCode].join(" · "),
   metadata: { planId: actor.planId, jobProfileId: actor.jobId,
     worksiteId: actor.siteId, shiftDefinitionId: actor.shiftId,
     requiredHeadcount: 1, positionIds: actor.positionIds, requirementIds: [row.id] },
@@ -102,6 +104,13 @@ test("real SQL receipt, actor identity and immutable unrelated state required fo
   assert.throws(() => assertOwnedHandoffWrite(noAudit));
   const forgedAudit = owned(); forgedAudit.after.auditEvents[0].actor = "attacker";
   assert.throws(() => assertOwnedHandoffWrite(forgedAudit));
+  const foreignResource = owned(); foreignResource.after.auditEvents[0].resource =
+    "TEST-VICTIM secret job";
+  assert.throws(() => assertOwnedHandoffWrite(foreignResource));
+  const overlongResource = owned(); overlongResource.actor = {
+    ...actor, planName: actor.planName.repeat(20),
+  };
+  assert.throws(() => assertOwnedHandoffWrite(overlongResource));
   const crossPayroll = owned(); crossPayroll.after.payrollRuns.push({ id: 4 });
   assert.throws(() => assertOwnedHandoffWrite(crossPayroll));
   const foreignText = owned(); foreignText.response.text += " TEST-VICTIM";
@@ -156,6 +165,7 @@ test("source review: actual own create/update and foreign/forged tenant denials 
   assert.match(script, /assertImmutableHandoffState\(/);
   assert.match(script, /assertOwnedHandoffWrite\(/);
   assert.match(script, /newCredits: 0/);
+  assert.match(script, /synthetic audit resource exceeds the real PostgreSQL column/);
   assert.match(script, /process\.env\.TENANT_TABLE_PROFILE/);
   const workflow = readFileSync(".github/workflows/tenant-wfp-demand-handoff-http.yml", "utf8");
   assert.match(workflow, /image: postgres:16/);
