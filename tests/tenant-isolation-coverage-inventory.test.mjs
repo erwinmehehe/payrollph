@@ -480,6 +480,77 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Signup is a public tenant-CREATION method, not an already authenticated
+  // own/foreign employer method. Permit only the four reviewed anti-abuse
+  // source substitutions, while keeping the entire POST method GAP.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/signup/route.ts POST") {
+    const review = method.reviewedUncertified;
+    const originalBlob = "e2461cd23756b2b1c078f76c7c751d646e7e4f0f";
+    const hardenedBlob = "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc";
+    assert.equal(currentBlob, hardenedBlob, "Signup route changed again: fresh source review required");
+    assert.equal(review?.kind, "signup-antiabuse-hardening-only-no-tenant-credit");
+    assert.equal(review.originalRouteBlobSha, originalBlob);
+    assert.equal(review.routeBlobSha, hardenedBlob);
+    assert.equal(review.fullMethodCoverageCredits, 0);
+    assert.equal(review.ownForeignTenantProof, false);
+    assert.equal(review.goLiveApproval, false);
+    assert.deepEqual(review.coveredRateLimitKeys,
+      ["signup:ip", "signup-domain", "signup-email"]);
+    assert.equal(review.distributedMode, "distributed-postgres");
+    assert.equal(review.fallbackResponseStatus, 503);
+    assert.equal(review.authoritativeThrottleStatus, 429);
+    assert.equal(method.testedBy, null, "Signup POST remains GAP until separate method proof");
+    assert.match(method.reason, /GAP/);
+
+    const source = readFileSync("src/app/api/signup/route.ts", "utf8");
+    // Reconstruct the exact pre-fix Git blob: no signup transaction,
+    // billing, invite, origin, proof, or account-activation change can hitchhike.
+    const reviewedChanges = [
+      ['import { signupMode, signupRateLimitResponse } from "@/lib/saas-launch-config";',
+        'import { signupMode } from "@/lib/saas-launch-config";'],
+      ['  const ipRateGate = signupRateLimitResponse(limited);\n  if (ipRateGate) return ipRateGate;',
+        '  if (!limited.allowed) return Response.json({ error: "Too many registration attempts. Please try later." }, { status: 429 });'],
+      ['    const domainRateGate = signupRateLimitResponse(byDomain, "Too many registration requests. Please try later.");\n    if (domainRateGate) return domainRateGate;',
+        '    if (!byDomain.allowed) return Response.json({ error: "Too many registration requests. Please try later." }, { status: 429 });'],
+      ['  const emailRateGate = signupRateLimitResponse(byEmail, "Too many registration requests. Please try later.");\n  if (emailRateGate) return emailRateGate;',
+        '  if (!byEmail.allowed) return Response.json({ error: "Too many registration requests. Please try later." }, { status: 429 });'],
+    ];
+    let original = source;
+    for (const [hardened, former] of reviewedChanges) {
+      assert.equal(original.split(hardened).length - 1, 1,
+        "Every exact signup limiter substitution must occur once");
+      original = original.replace(hardened, former);
+    }
+    assert.equal(gitBlobSha(Buffer.from(original)), originalBlob,
+      "Signup PR may change ONLY the reviewed rate-limit call sites");
+    assert.equal((source.match(/signupRateLimitResponse\(/g) ?? []).length, 3,
+      "Every public account-creation quota must use the fail-closed response");
+    assert.equal((source.match(/rateLimitDistributed\(/g) ?? []).length, 3);
+
+    const config = readFileSync("src/lib/saas-launch-config.ts", "utf8");
+    const pricing = readFileSync("src/lib/saas-pricing.ts", "utf8");
+    const pilotTests = readFileSync("tests/private-pilot-invite.test.ts", "utf8");
+    const pricingTests = readFileSync("tests/saas-subscriptions.test.ts", "utf8");
+    for (const [content, sha, label] of [
+      [config, review.launchConfigBlobSha, "Shared limiter mode guard"],
+      [pricing, review.pricingBlobSha, "Seat-count type validator"],
+      [pilotTests, review.pilotTestBlobSha, "Limiter-fallback regression test"],
+      [pricingTests, review.subscriptionTestBlobSha, "Seat-count regression test"],
+    ]) {
+      assert.equal(gitBlobSha(Buffer.from(content)), sha,
+        label + " changed without another reviewed source and test cycle");
+    }
+    assert.match(config, /rate\.mode !== "distributed-postgres"/);
+    assert.ok(config.includes('status: 503, headers: { "Cache-Control": "no-store" }'));
+    assert.ok(config.includes('status: 429, headers: { "Cache-Control": "no-store" }'));
+    assert.ok(pricing.includes('!/^\\d+$/.test(value)'),
+      "Reject nondecimal/JSON-coerced values as employee seat counts");
+    assert.match(pilotTests, /registration refuses per-process rate-limit fallback at all three gates/);
+    assert.match(pricingTests, /seat counts accept only real numbers or decimal digit strings/);
+    return;
+  }
+
   // STA-01 filing-outcome PATCH: a dedicated real PG16/HTTP suite exercises
   // only fictional REJECTED outcomes. Moving the conditional update and audit
   // into one DB transaction is security hardening, NOT an accepted-outcome
