@@ -213,13 +213,29 @@ test("already credited and partial-action methods are not double-counted", () =>
     "GET year-end", "GET workforce/demand-observations/issued",
     "GET workforce/demand-staffing/policies",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
-    "POST benefits/hmo", "POST web-bundy/consent",
+    "POST web-bundy/consent",
   ];
   for (const key of excluded) {
     assert.equal(methods.get(key)?.status, "GAP", key);
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
   }
+  // HMO POST is distinct from the sixteen historical promotion credits.
+  // Its separate executed four-action HTTP receipt must be preserved, never
+  // borrowed by the source-only HMO fixture or an unrelated method.
+  const hmoPost = methods.get("POST benefits/hmo");
+  assert.equal(hmoPost?.status, "COVERED", "HMO POST has its own provisional reviewed method credit");
+  assert.equal(hmoPost?.testedBy?.file, "scripts/qa/tenant-hmo-http.mjs",
+    "HMO POST cannot borrow the source-only benefits fixture");
+  assert.deepEqual(hmoPost?.testedBy?.postActions,
+    ["create_plan", "add_dependent", "update_dependent", "update_enrollment"]);
+  assert.deepEqual(hmoPost?.testedBy?.ownStatusByAction,
+    { create_plan: 201, add_dependent: 201, update_dependent: 200, update_enrollment: 200 });
+  assert.equal(hmoPost?.testedBy?.foreignStatus, 403);
+  assert.equal(hmoPost?.testedBy?.passedJob,
+    "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
+  assert.notEqual(hmoPost?.testedBy?.verifiedMainCommit, base,
+    "HMO POST must not be double-counted as a historical promotion target");
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),
