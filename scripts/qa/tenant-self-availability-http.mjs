@@ -12,6 +12,10 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { requireDisposableSelfAvailability, requireSensitiveNoStoreCache } from "./tenant-self-availability-guard.mjs";
+import {
+  requireDisposableAvailability, assertOwnAvailability, assertCreated,
+  assertRemovedFuture, assertPrivateDenial, assertUnchanged,
+} from "./tenant-self-availability-contract.mjs";
 
 const ENDPOINT = "/api/self/availability";
 
@@ -37,16 +41,20 @@ async function terminate(server) {
 export async function verifySelfAvailabilityTenantHttp() {
   // No application/DB modules load until the disposable target passes.
   requireDisposableSelfAvailability();
-  const [{ db, pool }, schema, table, dateLib, availability] = await Promise.all([
+  requireDisposableAvailability();
+  const [{ db, pool }, schema, table, dateLib, availability,
+    { auditBusinessSnapshot }] = await Promise.all([
     import("../../src/db/index.ts"),
     import("../../src/db/schema.ts"),
     import("./tenant-table-http.mjs"),
     import("../../src/lib/workforce-employee-upcoming-week.ts"),
     import("../../src/lib/workforce-employee-availability-preferences.ts"),
+    import("./tenant-table-invariants.mjs"),
   ]);
   const {
     organizations, users, userOrganizations, employeeAvailabilityRules, employees,
     auditEvents, payrollRuns, sessions,
+    employeeScheduleAssignments, timePunches, leaveRequests,
   } = schema;
   const { eq, and } = await import("drizzle-orm");
   const { seedEmployer, standaloneMakeSession, standaloneRequest, addWorker } = table;
@@ -66,6 +74,38 @@ export async function verifySelfAvailabilityTenantHttp() {
     db.select().from(payrollRuns)
       .where(eq(payrollRuns.organizationId, orgId)).orderBy(payrollRuns.id),
   ]);
+
+  const sourceSnapshot = async orgId => {
+    const [rules, staff, memberships, payroll, assignments, punches, leaves, audit] =
+      await Promise.all([
+        db.select().from(employeeAvailabilityRules)
+          .where(eq(employeeAvailabilityRules.organizationId, orgId))
+          .orderBy(employeeAvailabilityRules.id),
+        db.select().from(employees).where(eq(employees.organizationId, orgId))
+          .orderBy(employees.id),
+        db.select().from(userOrganizations)
+          .where(eq(userOrganizations.organizationId, orgId))
+          .orderBy(userOrganizations.id),
+        db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, orgId))
+          .orderBy(payrollRuns.id),
+        db.select().from(employeeScheduleAssignments)
+          .where(eq(employeeScheduleAssignments.organizationId, orgId))
+          .orderBy(employeeScheduleAssignments.id),
+        db.select().from(timePunches).where(eq(timePunches.organizationId, orgId))
+          .orderBy(timePunches.id),
+        db.select().from(leaveRequests).where(eq(leaveRequests.organizationId, orgId))
+          .orderBy(leaveRequests.id),
+        db.select().from(auditEvents).where(eq(auditEvents.organizationId, orgId))
+          .orderBy(auditEvents.id),
+      ]);
+    return JSON.parse(JSON.stringify({
+      rules, employees: staff, memberships, payroll,
+      assignments, punches, leaves, audit: auditBusinessSnapshot(audit),
+    }));
+  };
+  const proofActor = e => ({
+    ...e, self: { ...e.self, userId: e.self.id, cookie: e.selfCookie },
+  });
 
   async function seedEmployeeEmployer(label) {
     const e = await seedEmployer(label, nonce, standaloneMakeSession);
@@ -109,10 +149,43 @@ export async function verifySelfAvailabilityTenantHttp() {
         effectiveFrom: today, notes: attacker.marker + " PEER PRIVATE",
         createdBy: "Fictional peer",
       }).returning();
-      peers.push({ employee: peer, rule: peerRule });
+      const [peerUser] = await db.insert(users).values({
+        email: (attacker.marker + "-peer-ess@example.invalid").toLowerCase(),
+        name: attacker.marker + " fictional peer employee",
+        role: "employee", employeeId: peer.id, active: true,
+        passwordHash: "disposable-peer-only", totpEnabled: true,
+      }).returning();
+      await db.insert(userOrganizations).values({
+        userId: peerUser.id, organizationId: attacker.org.id,
+        role: "employee", workerEmployeeId: peer.id, active: true,
+      });
+      const peerSession = await standaloneMakeSession(peerUser.id);
+      await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+        .where(eq(sessions.id, peerSession.id));
+      peers.push({ employee: peer, rule: peerRule,
+        user: peerUser, cookie: peerSession.cookie });
+    }
+
+    const forgedCookies = [];
+    for (const attacker of attackers) {
+      const [forged] = await db.insert(users).values({
+        name: attacker.marker + " forged foreign employee link",
+        email: (attacker.marker + "-forged-availability@example.invalid").toLowerCase(),
+        role: "employee", employeeId: victim.worker.id, active: true,
+        passwordHash: "disposable-forged-only", totpEnabled: true,
+      }).returning();
+      await db.insert(userOrganizations).values({
+        userId: forged.id, organizationId: attacker.org.id,
+        role: "employee", active: true,
+      });
+      const forgedSession = await standaloneMakeSession(forged.id);
+      await db.update(sessions).set({ mfaVerifiedAt: new Date() })
+        .where(eq(sessions.id, forgedSession.id));
+      forgedCookies.push(forgedSession.cookie);
     }
 
     const victimRowsBefore = await snapshots(victim.org.id);
+    const victimSourceBefore = await sourceSnapshot(victim.org.id);
     assert.equal(victimRowsBefore[0].length, 1);
     const peerRowsBefore = await Promise.all(peers.map((p, i) => db.select()
       .from(employeeAvailabilityRules).where(and(
@@ -150,11 +223,27 @@ export async function verifySelfAvailabilityTenantHttp() {
         label + ": unrelated victim marker appeared");
       return response;
     }
+    async function deniedSource(path, options, status, label, forbidden = []) {
+      const before = await Promise.all([attackerA, attackerB, victim]
+        .map(e => sourceSnapshot(e.org.id)));
+      const response = await expect(path, options, status, label);
+      assertPrivateDenial(response, status, forbidden);
+      const after = await Promise.all([attackerA, attackerB, victim]
+        .map(e => sourceSnapshot(e.org.id)));
+      for (let i = 0; i < before.length; i++) {
+        assertUnchanged(before[i], after[i],
+          label + ": no employee, audit, availability, roster or payroll SQL writes");
+      }
+      return response;
+    }
 
     // The victim is real, populated and readable only through their own login.
     const victimOwn = await expect(ENDPOINT, { cookie: victim.selfCookie }, 200, "victim own GET");
     assert.ok(victimOwn.json?.rules?.some(row => row.id === victim.rule.id &&
       row.notes === victim.marker + " private weekly rule"));
+    assertOwnAvailability(victimOwn, proofActor(victim),
+      (await sourceSnapshot(victim.org.id)).rules, today,
+      [attackerA.marker + " private weekly rule", attackerB.marker + " private weekly rule"]);
 
     await expect(ENDPOINT, {}, 401, "anonymous GET");
     await expect(ENDPOINT, { cookie: attackerA.cookie }, 403, "company owner cannot use ESS GET");
@@ -168,37 +257,62 @@ export async function verifySelfAvailabilityTenantHttp() {
 
       assert.ok(start.json?.rules?.some(row => row.id === own.rule.id &&
         row.notes === own.marker + " private weekly rule"));
+      assertOwnAvailability(start, proofActor(own),
+        (await sourceSnapshot(own.org.id)).rules, today,
+        [victim.marker, own.marker + " PEER PRIVATE"]);
+      const peerResponse = await expect(ENDPOINT, { cookie: peer.cookie }, 200,
+        "independent same-employer peer GET");
+      assertOwnAvailability(peerResponse, {
+        ...own, worker: peer.employee,
+        marker: own.marker + " PEER",
+        self: { userId: peer.user.id, name: peer.user.name, cookie: peer.cookie },
+      }, (await sourceSnapshot(own.org.id)).rules, today,
+      [victim.marker, own.marker + " private weekly rule"]);
       assert.ok(!start.text.includes(peer.rule.notes), "same-employer second worker must remain private");
       assert.ok(!start.text.includes(victim.marker), "real victim must not appear in own GET");
 
       // GET never trusts supplied tenant or worker IDs from the browser.
-      await expect(ENDPOINT + "?organizationId=" + victim.org.id,
-        owner, 400, "forged victim employer GET");
-      await expect(ENDPOINT + "?employeeId=" + victim.worker.id,
-        owner, 400, "forged victim worker GET");
+      await deniedSource(ENDPOINT + "?organizationId=" + victim.org.id,
+        owner, 400, "forged victim employer GET", [victim.marker]);
+      await deniedSource(ENDPOINT + "?employeeId=" + victim.worker.id,
+        owner, 400, "forged victim worker GET", [victim.marker]);
 
       // POST refuses forged selectors in URL or JSON and cannot delete either
       // a foreign employer's object or a different worker's same-employer object.
-      await expect(ENDPOINT + "?organizationId=" + victim.org.id,
+      await deniedSource(ENDPOINT + "?organizationId=" + victim.org.id,
         { ...owner, method: "POST", body: validDraft(own.marker, 5) },
-        400, "forged victim employer POST URL");
-      await expect(ENDPOINT,
+        400, "forged victim employer POST URL", [victim.marker]);
+      await deniedSource(ENDPOINT,
         { ...owner, method: "POST", body: {
           ...validDraft(own.marker, 5), organizationId: victim.org.id,
           employeeId: victim.worker.id,
-        } }, 400, "forged victim identifiers POST JSON");
-      await expect(ENDPOINT,
+        } }, 400, "forged victim identifiers POST JSON", [victim.marker]);
+      await deniedSource(ENDPOINT,
         { ...owner, method: "POST", body: { action: "remove", ruleId: victim.rule.id } },
-        409, "foreign employer object removal denial");
-      await expect(ENDPOINT,
+        409, "foreign employer object removal denial", [victim.marker]);
+      await deniedSource(ENDPOINT,
         { ...owner, method: "POST", body: { action: "remove", ruleId: peer.rule.id } },
-        409, "same employer different worker removal denial");
+        409, "same employer different worker removal denial",
+        [victim.marker, own.marker + " PEER PRIVATE"]);
+      const opposite = own === attackerA ? attackerB : attackerA;
+      await deniedSource(ENDPOINT,
+        { ...owner, method: "POST",
+          body: { action: "remove", ruleId: opposite.rule.id } },
+        409, "other real attacker employer object removal denial", [victim.marker]);
 
       // Real authorized create and readback prove that this is not a generic
       // 403/empty-response smoke test. The mutation is preferences only.
+      const beforeCreate = await sourceSnapshot(own.org.id);
+      const otherBeforeCreate = await sourceSnapshot(
+        own === attackerA ? attackerB.org.id : attackerA.org.id);
       const created = await expect(ENDPOINT,
         { ...owner, method: "POST", body: validDraft(own.marker, 5) },
         201, "authenticated own create");
+      assertCreated(beforeCreate, await sourceSnapshot(own.org.id),
+        proofActor(own), created, validDraft(own.marker, 5));
+      assertUnchanged(otherBeforeCreate, await sourceSnapshot(
+        own === attackerA ? attackerB.org.id : attackerA.org.id),
+        "positive own create cannot change other employer SQL rows");
       assert.equal(created.json?.saved, true);
       assert.equal(created.json?.publishedRosterChanged, false);
       assert.equal(created.json?.payrollMutationPerformed, false);
@@ -206,10 +320,21 @@ export async function verifySelfAvailabilityTenantHttp() {
       const ownAfterCreate = await expect(ENDPOINT, owner, 200, "own create readback");
       assert.ok(ownAfterCreate.json?.rules?.some(row => row.id === created.json.id &&
         row.notes === own.marker + " owned new availability"));
+      assertOwnAvailability(ownAfterCreate, proofActor(own),
+        (await sourceSnapshot(own.org.id)).rules, today,
+        [victim.marker, own.marker + " PEER PRIVATE"]);
+      await deniedSource(ENDPOINT, { ...owner, method: "POST",
+        body: validDraft(own.marker, 5) }, 409,
+      "duplicated own preference cannot insert or audit twice", [victim.marker]);
 
+      const beforeRemove = await sourceSnapshot(own.org.id);
+      const target = beforeRemove.rules.find(row => row.id === created.json.id);
+      assert.ok(target, "removal target must be actual own PostgreSQL rule");
       const removed = await expect(ENDPOINT,
         { ...owner, method: "POST", body: { action: "remove", ruleId: created.json.id } },
         200, "owned future preference removal");
+      assertRemovedFuture(beforeRemove, await sourceSnapshot(own.org.id),
+        proofActor(own), removed, target);
       assert.equal(removed.json?.removed, true);
       assert.equal(removed.json?.publishedRosterChanged, false);
       assert.equal(removed.json?.payrollMutationPerformed, false);
@@ -217,9 +342,24 @@ export async function verifySelfAvailabilityTenantHttp() {
       assert.ok(finalRead.json?.rules?.some(row => row.id === own.rule.id));
       assert.ok(!finalRead.json?.rules?.some(row => row.id === created.json.id));
       assert.ok(!finalRead.text.includes(peer.rule.notes));
+      assertOwnAvailability(finalRead, proofActor(own),
+        (await sourceSnapshot(own.org.id)).rules, today,
+        [victim.marker, own.marker + " PEER PRIVATE"]);
+    }
+
+    for (const [i, actor] of attackers.entries()) {
+      await deniedSource(ENDPOINT, { cookie: forgedCookies[i] }, 403,
+        "copied victim employeeId without victim membership GET", [victim.marker]);
+      await deniedSource(ENDPOINT, { cookie: forgedCookies[i], method: "POST",
+        body: { action: "remove", ruleId: victim.rule.id } }, 403,
+        "copied victim employeeId without victim membership POST", [victim.marker]);
+      await deniedSource(ENDPOINT, { cookie: actor.cookie }, 403,
+        "company owner cannot read ESS availability", [victim.marker]);
     }
 
     const victimRowsAfter = await snapshots(victim.org.id);
+    assertUnchanged(victimSourceBefore, await sourceSnapshot(victim.org.id),
+      "real higher-ID victim full availability, HR, payroll and audit source");
     assert.deepEqual(victimRowsAfter, victimRowsBefore,
       "Cross-employer attempts must leave victim availability, employees, audit and payroll unchanged");
     for (const [idx, peer] of peers.entries()) {
