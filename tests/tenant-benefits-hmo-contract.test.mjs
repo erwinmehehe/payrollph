@@ -53,6 +53,7 @@ async function seededHarness() {
     const e = employers[index];
     return {
       orgId: e.org.id, workerId: e.worker.id,
+      worker: { ...e.worker, firstName: "Table", lastName: e.marker },
       marker: e.marker, rank: e.rank, owner: e.owner,
       seeded: seeds[index], victimSeeded: seeds[2],
       victim: employers[2],
@@ -202,48 +203,152 @@ test("forged write validators reject leakage, missing audit, changed old plan an
   }
 });
 
-test("additional actions reject victim dependent/enrollment IDs and preserve source state", async () => {
+test("additional valid HMO actions persist exact own rows, audit events and readback after stolen-ID refusals", async () => {
   const h = await seededHarness(), c = h.ctxFor(0);
   await makeOwnWrite(h, c);
   const visited = [];
+  const resource = c.worker.firstName + " " + c.worker.lastName;
+  const saveEvent = async (entry) => {
+    await h.db.insert(h.tables.benefitEnrollmentEvents).values({
+      organizationId: c.orgId, enrollmentId: c.seeded.enrollmentId,
+      employeeId: c.workerId, actor: c.owner.name, ...entry,
+    }).returning();
+  };
+  const saveAudit = async (action, metadata) => {
+    await h.db.insert(h.tables.auditEvents).values({
+      organizationId: c.orgId, actor: c.owner.name,
+      action, resource, metadata,
+    }).returning();
+  };
+  const reply = (status, json) => ({ status, json, text: JSON.stringify(json) });
   const request = async (url, { method, body, cookie }) => {
     assert.equal(cookie, "fake-session-A");
     assert.ok(url.startsWith("/api/benefits/hmo"));
-    visited.push(method === "GET" ? "GET" : body.action);
-    if (method === "POST") {
-      assert.equal(body.organizationId, c.orgId);
-      if (body.action === "update_dependent") {
-        assert.equal(body.dependentId, c.victimSeeded.dependentId);
-      } else if (body.action === "update_enrollment") {
-        assert.equal(body.enrollmentId, c.victimSeeded.enrollmentId);
-      } else throw new Error("unrecognized additional probe");
-      const json = { error: "HMO resource not found." };
-      return { status: 404, json, text: JSON.stringify(json) };
+    if (method === "GET") {
+      visited.push("GET");
+      const own = await h.row.state(c.orgId);
+      const json = {
+        plans: own.plans.filter(p => p.category === "hmo"),
+        enrollments: own.enrollments.map(e => ({
+          ...e, dependents: own.dependents.filter(d => d.enrollmentId === e.id),
+        })),
+      };
+      return reply(200, json);
     }
-    assert.equal(method, "GET");
-    const own = await h.row.state(c.orgId);
-    const json = {
-      plans: own.plans.filter(p => p.category === "hmo"),
-      enrollments: own.enrollments.map(e => ({
-        ...e, dependents: own.dependents.filter(d => d.enrollmentId === e.id),
-      })),
-    };
-    return { status: 200, json, text: JSON.stringify(json) };
+    assert.equal(method, "POST");
+    assert.equal(body.organizationId, c.orgId);
+    const victimReference =
+      (body.action === "add_dependent" || body.action === "update_enrollment")
+        ? body.enrollmentId === c.victimSeeded.enrollmentId
+        : body.dependentId === c.victimSeeded.dependentId;
+    visited.push(body.action + (victimReference ? "-forged" : "-own"));
+    if (victimReference) return reply(404, { error: "HMO resource not found." });
+
+    if (body.action === "add_dependent") {
+      assert.equal(body.enrollmentId, c.seeded.enrollmentId);
+      const [dependent] = await h.db.insert(h.tables.benefitDependents).values({
+        organizationId: c.orgId, enrollmentId: c.seeded.enrollmentId,
+        employeeId: c.workerId, name: body.name,
+        relationship: "child", birthDate: body.birthDate, sex: null,
+        status: "pending", monthlyContribution: "25.00",
+        providerMemberId: null, createdAt: "2026-10-28T00:00:00.000Z",
+        updatedAt: "2026-10-28T00:00:00.000Z",
+      }).returning();
+      await saveEvent({ eventType: "dependent_added", status: "pending",
+        metadata: { dependentId: dependent.id, relationship: "child",
+          monthlyContribution: 25 } });
+      await saveAudit("HMO dependent added", {
+        enrollmentId: c.seeded.enrollmentId,
+        dependentId: dependent.id, relationship: "child",
+      });
+      return reply(201, dependent);
+    }
+    if (body.action === "update_dependent") {
+      const d = h.store.benefitDependents.find(row =>
+        row.id === body.dependentId && row.organizationId === c.orgId);
+      assert.ok(d && d.enrollmentId === c.seeded.enrollmentId);
+      Object.assign(d, { status: body.status, providerMemberId: body.providerMemberId,
+        updatedAt: "2026-10-28T00:01:00.000Z" });
+      await saveEvent({ eventType: "dependent_updated", status: body.status,
+        metadata: { dependentId: d.id, relationship: d.relationship } });
+      await saveAudit("HMO dependent updated", {
+        dependentId: d.id, enrollmentId: d.enrollmentId, status: body.status,
+      });
+      return reply(200, structuredClone(d));
+    }
+    if (body.action === "update_enrollment") {
+      const e = h.store.benefitEnrollments.find(row =>
+        row.id === body.enrollmentId && row.organizationId === c.orgId);
+      assert.ok(e);
+      Object.assign(e, { status: body.status, providerStatus: body.providerStatus,
+        providerMemberId: body.providerMemberId, effectiveOn: body.effectiveOn });
+      await saveEvent({ eventType: "enrollment_updated", status: body.status,
+        metadata: { providerStatus: body.providerStatus,
+          providerMemberId: body.providerMemberId,
+          effectiveOn: body.effectiveOn } });
+      await saveAudit("HMO enrollment updated", {
+        enrollmentId: e.id, status: body.status,
+        providerStatus: body.providerStatus, eventType: "enrollment_updated",
+      });
+      return reply(200, structuredClone(e));
+    }
+    throw new Error("unexpected HMO proof action");
   };
-  const expectStatus = (res, status) => {
-    assert.equal(res.status, status);
-    return res;
+  const expectStatus = (response, status) => {
+    assert.equal(response.status, status);
+    return response;
   };
   const result = await h.row.exercise(c, {
     request, expectStatus, cookie: "fake-session-A",
   });
   assert.deepEqual(visited, [
-    "update_dependent", "update_enrollment", "GET",
+    "update_dependent-forged", "update_enrollment-forged", "GET",
+    "add_dependent-own", "update_dependent-own", "update_enrollment-own", "GET",
   ]);
   assert.deepEqual(result, {
     forgedAdditionalIdsDenied: 2, ownHmoReadback: true,
+    legitimateHmoActions: [
+      "add_dependent", "update_dependent", "update_enrollment",
+    ],
     victimHmoUntouched: true, providerOrMoneyMovement: false,
   });
+  const victim = await h.row.state(c.victim.org.id);
+  assert.equal(victim.dependents.length, 1);
+  assert.equal(victim.events.length, 0);
+  assert.equal(victim.audit.length, 0);
+  const own = await h.row.state(c.orgId);
+  assert.equal(own.dependents.length, 2);
+  assert.equal(own.events.length, 3);
+  assert.equal(own.audit.length, 4);
+});
+
+test("a fabricated 201 HMO dependent response without a persisted row and audit is refused", async () => {
+  const h = await seededHarness(), c = h.ctxFor(0);
+  await makeOwnWrite(h, c);
+  await assert.rejects(() => h.row.exercise(c, {
+    cookie: "fake-session-A",
+    expectStatus: (res, status) => {
+      assert.equal(res.status, status); return res;
+    },
+    request: async (url, { method, body }) => {
+      if (method === "POST" && body.action === "add_dependent") {
+        const json = { id: 9999, organizationId: c.orgId };
+        return { status: 201, json, text: JSON.stringify(json) };
+      }
+      if (method === "POST") {
+        return { status: 404, json: { error: "Not found." },
+          text: '{"error":"Not found."}' };
+      }
+      const own = await h.row.state(c.orgId);
+      const json = {
+        plans: own.plans,
+        enrollments: own.enrollments.map(row => ({
+          ...row, dependents: own.dependents.filter(d => d.enrollmentId === row.id),
+        })),
+      };
+      return { status: 200, json, text: JSON.stringify(json) };
+    },
+  }), /dependent|actual PostgreSQL|source|row/i);
 });
 
 test("additional source checks fail if forged action succeeds or touches victim records", async () => {
