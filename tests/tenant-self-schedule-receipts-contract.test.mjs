@@ -62,7 +62,7 @@ test("CI gate rejects production, non-local, payment and disabled-pilot modes BE
       /SCHEDULE_RECEIPT_TENANT_REFUSED/, JSON.stringify(patch));
   }
 });
-test("both documented schedule receipt methods remain GAP, with zero premature credits", () => {
+test("both schedule receipt methods preserve exact independently proven GET/POST source credits", () => {
   assert.deepEqual(METHODS, ["GET self/schedule-receipts", "POST self/schedule-receipts"]);
   assert.equal(ENDPOINT, "/api/self/schedule-receipts");
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -70,8 +70,11 @@ test("both documented schedule receipt methods remain GAP, with zero premature c
   assert.equal(route.route, "self/schedule-receipts");
   for (const method of ["GET", "POST"]) {
     const item = route.methods.find(m => m.name === method);
-    assert.equal(item.status, "GAP");
-    assert.equal(item.testedBy, null);
+    assert.equal(item.status, "COVERED");
+    assert.equal(item.testedBy?.prNumber, 1520);
+    assert.equal(item.testedBy?.workflowRunId, 40631756084);
+    assert.equal(item.testedBy?.routeBlobSha, route.gitBlobSha);
+    assert.ok(item.testedBy?.unchangedDbLine && item.testedBy?.forgedSelectorLine);
   }
 });
 test("own read must contain exact private, bound current schedule, not an empty or victim response", () => {

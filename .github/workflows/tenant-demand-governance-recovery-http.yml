@@ -8,6 +8,8 @@ on:
       - '.github/workflows/tenant-demand-governance-recovery-http.yml'
       - 'scripts/qa/tenant-demand-governance-recovery-*.mjs'
       - 'tests/tenant-demand-governance-recovery-contract.test.mjs'
+      - 'scripts/qa/tenant-demand-approved-policy-get-*.mjs'
+      - 'tests/tenant-demand-approved-policy-get-contract.test.mjs'
       - 'scripts/qa/tenant-table-rows/read/demand-governance.mjs'
       - 'scripts/qa/tenant-table-allowlist-bootstrap.mjs'
       - 'scripts/qa/tenant-table-invariants.mjs'
@@ -90,6 +92,10 @@ jobs:
           node --check scripts/qa/tenant-demand-governance-recovery-http.mjs
           node --check tests/tenant-demand-governance-recovery-contract.test.mjs
           node --test tests/tenant-demand-governance-recovery-contract.test.mjs
+          node --check scripts/qa/tenant-demand-approved-policy-get-contract.mjs
+          node --check scripts/qa/tenant-demand-approved-policy-get-http.mjs
+          node --check tests/tenant-demand-approved-policy-get-contract.test.mjs
+          node --test tests/tenant-demand-approved-policy-get-contract.test.mjs
       - name: Create throwaway local encryption and webhook inputs
         shell: bash
         run: |
@@ -132,6 +138,8 @@ jobs:
           exit 1
       - name: Prove own source GET, foreign and forged scope denial, and unchanged victim SQL
         run: node --import tsx scripts/qa/tenant-demand-governance-recovery-http.mjs
+      - name: Prove genuine approved-policy GET on both own employers and deny real victim sources
+        run: node --import tsx scripts/qa/tenant-demand-approved-policy-get-http.mjs
       - name: Show only isolated localhost Next logs on failure
         if: failure()
         run: cat /tmp/tenant-demand-recovery-next.log || true

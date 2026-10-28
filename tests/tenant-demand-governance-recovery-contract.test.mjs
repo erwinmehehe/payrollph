@@ -58,7 +58,7 @@ const denial = status => {
   return { status, json, text: JSON.stringify(json), headers: new Headers() };
 };
 
-test("two genuine current-main GAP methods, no blanket credit or shared-row edit", () => {
+test("only the issued-demand GET gains proof credit; approved-policy GET still lacks a positive", () => {
   assert.deepEqual(DEMAND_RECOVERY_METHODS, [
     "GET workforce/demand-observations/issued", "GET workforce/demand-staffing/policies",
   ]);
@@ -77,8 +77,16 @@ test("two genuine current-main GAP methods, no blanket credit or shared-row edit
   for (const key of DEMAND_RECOVERY_METHODS) {
     const [method, route] = key.split(" ");
     const found = Object.values(manifest.allApiRouteFiles).find(x => x.route === route);
-    assert.equal(found?.methods?.find(x => x.name === method)?.status, "GAP");
-    assert.equal(found?.methods?.find(x => x.name === method)?.testedBy, null);
+    const target = found?.methods?.find(x => x.name === method);
+    if (key === "GET workforce/demand-observations/issued") {
+      assert.equal(target?.status, "COVERED");
+      assert.equal(target?.testedBy?.prNumber, 1514);
+      assert.equal(target?.testedBy?.workflowRunId, 40624976387);
+      assert.equal(target?.testedBy?.routeBlobSha, found.gitBlobSha);
+    } else {
+      assert.equal(target?.status, "GAP", "approved-mode nonempty positive is absent");
+      assert.equal(target?.testedBy, null);
+    }
   }
 });
 
