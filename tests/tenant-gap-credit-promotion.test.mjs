@@ -139,7 +139,13 @@ test("follow-on 2026-10-28 sweep credits exactly six independently proven GAP me
       assert.ok(source[line - 1].trim(), key + ": blank source assertion " + pin);
     }
   }
-  assert.equal(methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation")?.status, "GAP");
+  const independentPost = methods.get("POST hcm/employment-term-decisions/[id]/manager-attestation");
+  assert.equal(independentPost?.status, "COVERED", "POST has separate persisted own-write/foreign-denial proof");
+  assert.equal(independentPost?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm-manager-attestation-post.mjs");
+  assert.equal(independentPost?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+  assert.equal(independentPost?.testedBy?.postgresMajor, 18);
+  assert.notEqual(independentPost?.testedBy?.verifiedMainCommit, followOnBase,
+    "POST may not borrow manager-attestation GET's proof");
 });
 
 
@@ -206,7 +212,6 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH careers/admin", "POST workforce-planning/allocations",
     "GET year-end", "GET workforce/demand-observations/issued",
     "GET workforce/demand-staffing/policies",
-    "POST hcm/employment-term-decisions/[id]/manager-attestation",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
     "POST benefits/hmo", "POST web-bundy/consent",
   ];
@@ -223,7 +228,7 @@ test("already credited and partial-action methods are not double-counted", () =>
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
-  assert.match(doc, /336 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 152 GAP/);
+  assert.match(doc, /337 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 151 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
   const expected = new Map([
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],

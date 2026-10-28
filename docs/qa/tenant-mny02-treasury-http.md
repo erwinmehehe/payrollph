@@ -6,6 +6,8 @@
 **Route blob:** bb5b9cd2b0a0ca2d9ec3d66bfab80ebdf344d653.
 **Coverage:** zero method credits. The authoritative main manifest and all previous receipts are unchanged. This is a review-only proof candidate and does not certify any live money action.
 
+**Main synchronization (2026-10-28):** Rebases the review context to `main@dac65d5681c9fb028b9626d1833f2794c1e71156` by a merge commit, retaining all independent #1526 method evidence. The upstream provisional ledger now reads **337 COVERED / 10 PUBLIC-BY-DESIGN / 151 GAP** out of 498 API methods, with 17 page/action GAPs. This MNY-02 treasury POST remains **GAP**, contributes **zero** new credits, and requires fresh exact-synced-head PG16/HTTP and normal CI/security checks plus independent domain-owner approval. Original `03e5f389` is the branch-creation baseline only.
+
 ## Why this is independent
 
 Open PRs at creation were #1521 (employee wage region), #1523 (four PII/WRK method credits), #1524 (ESS self-profile PATCH) and #1526 (HCM manager-attestation POST). No related MNY-02, treasury-controls or overlapping route PR was open. The reservation ledger had no entries. This PR does not touch those families, their files, coverage counts or work queues.

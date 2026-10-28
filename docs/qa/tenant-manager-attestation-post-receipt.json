@@ -1,0 +1,75 @@
+{
+  "schema": "manager-attestation-post-local-http-v1",
+  "runLabel": "local PostgreSQL 18.6 production-mode localhost HTTP 2026-10-28 manager-attestation POST",
+  "postgresMajor": 18,
+  "serverVersionNum": 180006,
+  "ci": "NOT_RUN",
+  "productionTested": false,
+  "run": {
+    "kind": "tenant-write-table-proof",
+    "profile": "default",
+    "family": "hcm-manager-attestation-post",
+    "pathOnly": false,
+    "rows": 1,
+    "ownAndForeignPairs": 2,
+    "discriminatingProofs": 1,
+    "forgedReferenceProofs": 2,
+    "victimDatabaseUnchanged": true,
+    "productionTested": false,
+    "certified": false,
+    "additionalActionProofs": [
+      {
+        "key": "POST hcm/employment-term-decisions/[id]/manager-attestation",
+        "attacker": 1,
+        "recommendations": [
+          "support",
+          "do_not_support",
+          "needs_more_review"
+        ],
+        "sealedDecisionDenied": true,
+        "unassignedAdminDenied": true,
+        "changedManagerDenied": true,
+        "mfaDenied": true
+      },
+      {
+        "key": "POST hcm/employment-term-decisions/[id]/manager-attestation",
+        "attacker": 2,
+        "recommendations": [
+          "support",
+          "do_not_support",
+          "needs_more_review"
+        ],
+        "sealedDecisionDenied": true,
+        "unassignedAdminDenied": true,
+        "changedManagerDenied": true,
+        "mfaDenied": true
+      }
+    ]
+  },
+  "mutation": {
+    "rejected": true,
+    "message": "expect accepts another employer's data"
+  },
+  "sources": [
+    {
+      "file": "scripts/qa/tenant-table-rows/write/hcm-manager-attestation-post.mjs",
+      "sha256": "4b06f043200a633a2a102eed28618d6791b3b66ae4bed1e529a69357db60598f"
+    },
+    {
+      "file": "scripts/qa/tenant-table-rows/read/hcm-manager-attestation.mjs",
+      "sha256": "6cb0455ced462f66041856d47de0193197055fd0d24496e4e26520d336c47c59"
+    },
+    {
+      "file": "scripts/qa/tenant-write-table-http.mjs",
+      "sha256": "a8c9736a454a2425c67899a7ee188417ba83771478e431e728fa4bae01aa9b80"
+    },
+    {
+      "file": "src/app/api/hcm/employment-term-decisions/[id]/manager-attestation/route.ts",
+      "sha256": "cbf0aa633e054818c902e0897a529aa2fdde7812b538f56fba267b0e3387e975"
+    },
+    {
+      "file": "src/lib/hcm-manager-attestation.ts",
+      "sha256": "9a8870f1b2de5741b9a2c5d1bf46b733258d74c921a50a74b7ea893a7c8990b7"
+    }
+  ]
+}

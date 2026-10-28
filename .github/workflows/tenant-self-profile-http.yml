@@ -8,6 +8,7 @@ on:
       - '.github/workflows/tenant-self-profile-http.yml'
       - 'scripts/qa/tenant-self-profile-contract.mjs'
       - 'scripts/qa/tenant-self-profile-http.mjs'
+      - 'scripts/qa/tenant-self-profile-atomic-http.mjs'
       - 'tests/tenant-self-profile-contract.test.mjs'
       - 'docs/qa/tenant-self-profile-http.md'
       - 'src/app/api/self/profile/route.ts'
@@ -73,6 +74,7 @@ jobs:
         run: |
           node --check scripts/qa/tenant-self-profile-contract.mjs
           node --check scripts/qa/tenant-self-profile-http.mjs
+          node --check scripts/qa/tenant-self-profile-atomic-http.mjs
           node --check tests/tenant-self-profile-contract.test.mjs
           node --test tests/tenant-self-profile-contract.test.mjs
       - name: Generate throwaway isolated encryption test material
@@ -113,8 +115,8 @@ jobs:
           done
           cat /tmp/tenant-self-profile.log
           exit 1
-      - name: Real employer employee/peer/victim PATCH, forged selector and membership revocation
-        run: node --import tsx scripts/qa/tenant-self-profile-http.mjs
+      - name: Real profile PATCH with worker-binding, audit rollback, forged selectors and revocation
+        run: node --import tsx scripts/qa/tenant-self-profile-atomic-http.mjs
       - name: Isolated localhost diagnostics on failure
         if: failure()
         run: cat /tmp/tenant-self-profile.log || true
