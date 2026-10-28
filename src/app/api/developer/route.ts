@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { apiKeys, webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { mintApiKey } from "@/lib/api-auth";
 import { ALLOWED_API_SCOPES, activeApiScopes, normalizeScopes } from "@/lib/developer-api-scopes";
-import { recordAuditEvent } from "@/lib/audit";
+import {
+  createDeveloperApiKeyWithAudit, createDeveloperWebhookWithAudit, revokeDeveloperApiKeyWithAudit,
+} from "@/lib/developer-security-mutations";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { validateWebhookTarget } from "@/lib/security-network";
@@ -100,20 +102,13 @@ export async function POST(request: Request) {
 
   if (action === "create-key") {
     const minted = mintApiKey();
-    const [row] = await db.insert(apiKeys).values({
-      organizationId,
+    // The key must never survive a failed audit receipt. Do not return the
+    // one-time plaintext token until BOTH writes have committed.
+    const row = await createDeveloperApiKeyWithAudit({
+      organizationId, actor: user.name,
       name: String(body.name ?? "Untitled key").slice(0, 120),
-      prefix: minted.prefix,
-      keyHash: minted.keyHash,
+      prefix: minted.prefix, keyHash: minted.keyHash,
       scopes: normalizeScopes(body.scopes),
-    }).returning();
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "API key created",
-      resource: row.name,
-      metadata: { prefix: row.prefix, scopes: row.scopes },
     });
 
     return Response.json({
@@ -128,12 +123,10 @@ export async function POST(request: Request) {
   if (action === "revoke-key") {
     const keyId = Number(body.keyId);
     if (!Number.isInteger(keyId)) return Response.json({ error: "keyId is required." }, { status: 400 });
-    const [row] = await db.update(apiKeys)
-      .set({ revokedAt: new Date() })
-      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.organizationId, organizationId)))
-      .returning();
+    const row = await revokeDeveloperApiKeyWithAudit({
+      organizationId, keyId, actor: user.name,
+    });
     if (!row) return Response.json({ error: "Key not found in this workspace." }, { status: 404 });
-    await recordAuditEvent({ organizationId, actor: user.name, action: "API key revoked", resource: row.name, metadata: { prefix: row.prefix } });
     return Response.json({ ok: true });
   }
 
@@ -154,14 +147,10 @@ export async function POST(request: Request) {
     if (events.length === 0) {
       return Response.json({ error: "Choose at least one supported webhook event." }, { status: 422 });
     }
-    const [row] = await db.insert(webhookEndpoints).values({
-      organizationId,
-      url,
+    const row = await createDeveloperWebhookWithAudit({
+      organizationId, actor: user.name, url, events,
       secret: `whsec_${randomBytes(32).toString("hex")}`,
-      events,
-    }).returning();
-
-    await recordAuditEvent({ organizationId, actor: user.name, action: "Webhook endpoint created", resource: url, metadata: { events } });
+    });
     return Response.json({ id: row.id, url: row.url, events: row.events, secret: row.secret }, { status: 201 });
   }
 

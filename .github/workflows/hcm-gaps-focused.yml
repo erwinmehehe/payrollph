@@ -17,6 +17,8 @@ on:
       - "tests/public-api-v1-extended*.test.ts"
       - "tests/developer-api-scope-allowlist.test.ts"
       - "src/app/api/developer/route.ts"
+      - "src/lib/developer-security-mutations.ts"
+      - "tests/developer-security-atomic-audit-db.test.ts"
       - "tests/approval-delegated-sod-behavior.test.ts"
       - ".github/workflows/hcm-gaps-focused.yml"
 
@@ -77,6 +79,7 @@ jobs:
             tests/engagement-survey-atomic-audit-db.test.ts \
             tests/public-api-v1-extended-db.test.ts \
             tests/developer-api-scope-allowlist.test.ts \
+            tests/developer-security-atomic-audit-db.test.ts \
             tests/approval-delegated-sod-behavior.test.ts \
             tests/hcm-goals-entity-scope.test.ts
 
@@ -161,6 +164,8 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Prepare isolated golden certification schema
         run: npm run db:push
+      - name: Apply cutover baseline objects in disposable PostgreSQL
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Certify statutory payroll golden cases
         run: npm run payroll:golden
       - name: Reconcile employee-level Phase 2A

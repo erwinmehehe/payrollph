@@ -8401,12 +8401,12 @@
       "businessIds": []
     },
     "src/app/api/developer/route.ts": {
-      "gitBlobSha": "d703c535b5f15a57af6069b3248d08853e9fe234",
+      "gitBlobSha": "c1b777dc9b290a9980e82549c6523a4811488fba",
       "route": "developer",
       "methods": [
         {
           "name": "GET",
-          "line": 18,
+          "line": 20,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8423,10 +8423,30 @@
         },
         {
           "name": "POST",
-          "line": 63,
+          "line": 65,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Developer POST still GAP: no completed two-employer real HTTP owned success/real-victim denial proof across all create-key, revoke-key, create-webhook and test-webhook actions. Source-only reviewed transactional audit refactor does not earn API coverage or production acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "developer-security-atomic-audit-only",
+            "originalRouteBlobSha": "d703c535b5f15a57af6069b3248d08853e9fe234",
+            "routeBlobSha": "c1b777dc9b290a9980e82549c6523a4811488fba",
+            "helperFile": "src/lib/developer-security-mutations.ts",
+            "helperBlobSha": "d9e096588b9da32c066d5450865e87cc039e1e38",
+            "dbTestFile": "tests/developer-security-atomic-audit-db.test.ts",
+            "dbTestBlobSha": "383dc9962e6f7dba3b762467ad5a55293049db9a",
+            "evidenceKind": "fictional-pg16-db-only-not-http",
+            "boundedActions": [
+              "create-key",
+              "revoke-key",
+              "create-webhook"
+            ],
+            "remainingUnprovedActions": [
+              "test-webhook"
+            ],
+            "coverageCredits": 0,
+            "notes": "Only transaction-scoped security mutation/audit refactor was reviewed, preserving existing route auth/MFA/tenant checks. POST remains GAP; separate authenticated real HTTP proof is required. Do not promote coverage, weaken status checks or activate production."
+          }
         }
       ],
       "employerSources": {
@@ -8438,91 +8458,75 @@
       },
       "guards": [
         {
-          "line": 8,
+          "line": 10,
           "token": "getSessionUser"
         },
         {
-          "line": 12,
+          "line": 14,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 12,
+          "line": 14,
           "token": "getAccess"
         },
         {
-          "line": 13,
+          "line": 15,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 19,
+          "line": 21,
           "token": "getSessionUser"
         },
         {
-          "line": 24,
+          "line": 26,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 31,
+          "line": 33,
           "token": "getAccess"
         },
         {
-          "line": 64,
+          "line": 66,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 67,
+          "line": 69,
           "token": "getSessionUser"
         },
         {
-          "line": 79,
+          "line": 81,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 86,
+          "line": 88,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 23,
+          "line": 25,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 74,
+          "line": 76,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 23,
+          "line": 25,
           "token": "organizationId"
         },
         {
-          "line": 23,
+          "line": 25,
           "token": "organizationId"
         },
         {
-          "line": 26,
+          "line": 28,
           "token": "organizationId"
         },
         {
-          "line": 31,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 38,
-          "token": "organizationId"
-        },
-        {
-          "line": 38,
+          "line": 33,
           "token": "organizationId"
         },
         {
@@ -8534,11 +8538,19 @@
           "token": "organizationId"
         },
         {
-          "line": 74,
+          "line": 40,
           "token": "organizationId"
         },
         {
-          "line": 74,
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
           "token": "organizationId"
         },
         {
@@ -8546,11 +8558,19 @@
           "token": "organizationId"
         },
         {
-          "line": 77,
+          "line": 76,
           "token": "organizationId"
         },
         {
-          "line": 81,
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 79,
+          "token": "organizationId"
+        },
+        {
+          "line": 83,
           "token": "organizationId"
         }
       ]
