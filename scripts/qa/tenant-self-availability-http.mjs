@@ -135,11 +135,11 @@ export async function verifySelfAvailabilityTenantHttp() {
   try {
     const attackerA = await seedEmployeeEmployer("ATTA");
     const attackerB = await seedEmployeeEmployer("ATTB");
-    const victim = await seedEmployeeEmployer("VICTIM");
-    assert.ok(victim.org.id > attackerA.org.id && victim.org.id > attackerB.org.id);
-    assert.ok(victim.worker.id > attackerA.worker.id && victim.worker.id > attackerB.worker.id);
     const attackers = [attackerA, attackerB];
 
+    // Seed the peers before the victim, so the victim's actual employee and
+    // availability IDs exceed *all* attacker and same-employer peer IDs,
+    // not merely the primary attacker IDs. Never guess or hardcode IDs.
     const peers = [];
     for (const attacker of attackers) {
       const peer = await addWorker(attacker, "PEER", { payProfile: false });
@@ -164,6 +164,16 @@ export async function verifySelfAvailabilityTenantHttp() {
         .where(eq(sessions.id, peerSession.id));
       peers.push({ employee: peer, rule: peerRule,
         user: peerUser, cookie: peerSession.cookie });
+    }
+
+    const victim = await seedEmployeeEmployer("VICTIM");
+    assert.ok(victim.org.id > attackerA.org.id && victim.org.id > attackerB.org.id);
+    assert.ok(victim.worker.id > attackerA.worker.id && victim.worker.id > attackerB.worker.id);
+    for (const [index, actor] of attackers.entries()) {
+      assert.ok(victim.worker.id > peers[index].employee.id,
+        "higher-ID victim must exceed actual same-company peer worker IDs");
+      assert.ok(victim.rule.id > peers[index].rule.id && victim.rule.id > actor.rule.id,
+        "higher-ID victim must exceed actual attacker and peer availability IDs");
     }
 
     const forgedCookies = [];
