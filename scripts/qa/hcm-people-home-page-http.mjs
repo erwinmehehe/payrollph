@@ -1,6 +1,30 @@
 import assert from "node:assert/strict";
 import pg from "pg";
 
+// Fixture-only markers deliberately include same-looking employee numbers in
+// two different employers. The People Home projection must not serialize any
+// raw employee/source fields into Next.js HTML or React Server Components,
+// even when text is not visibly rendered in the hydrated page.
+const PRIVATE_SOURCE_MARKERS = [
+  "AlphaPrivate", "BetaPrivate", "BetaSecond", "VictimExclusive",
+  "SHARED-001", "VICTIM-ONLY-003", "99000.00",
+  "AlphaPrivate step", "BetaPrivate step",
+  "AlphaPrivate note", "BetaPrivate note",
+  "AlphaPrivate case detail", "BetaPrivate case detail",
+];
+function assertNoPrivateSourceInSerializedHtml(markup, context) {
+  assert.ok(typeof markup === "string" && markup.length > 0,
+    context + ": expected a real HTML/Next stream");
+  // Next's RSC payload may spell ASCII values as JavaScript Unicode escapes.
+  // Normalize those escapes before comparing literal fictional PII markers.
+  const decoded = markup.replace(/\\u([0-9a-fA-F]{4})/g, (_, digits) =>
+    String.fromCharCode(Number.parseInt(digits, 16)));
+  for (const marker of PRIVATE_SOURCE_MARKERS) {
+    assert.ok(!decoded.includes(marker),
+      context + ": private source data leaked into server HTML/RSC payload (" + marker + ")");
+  }
+}
+
 /**
  * Strict page proof, not an empty-page or feature-disabled false positive.
  * Two independent, actually HR-scoped sessions may read only their own employer
@@ -80,11 +104,24 @@ export async function verifyIndependentPeopleHomeTenantProof({ browser, base, lo
         assert.ok(!ownHtml.includes("Synthetic Victim Only Employer"));
         assert.ok(!ownHtml.includes("VICTIM-ONLY-003"));
         assert.ok(!ownHtml.includes("VictimExclusive"));
+        // Visible text alone cannot detect private data in Next.js flight
+        // scripts or hidden props. Inspect complete server response and DOM.
+        const ownServerHtml = await ownPage.text();
+        const ownSerializedDom = await page.content();
+        assertNoPrivateSourceInSerializedHtml(ownServerHtml,
+          actor.email + " authorized 200 response");
+        assertNoPrivateSourceInSerializedHtml(ownSerializedDom,
+          actor.email + " serialized page");
 
         const foreignPage = await page.goto(base + "/hcm/command-center?organizationId=" + victimId, { waitUntil: "domcontentloaded" });
         assert.equal(foreignPage?.status(), 404,
           "The allowlisted, populated, real victim MUST be denied to an authenticated foreign HR user");
         const foreignHtml = await page.content();
+        const foreignServerHtml = await foreignPage.text();
+        assertNoPrivateSourceInSerializedHtml(foreignServerHtml,
+          actor.email + " denied 404 response");
+        assertNoPrivateSourceInSerializedHtml(foreignHtml,
+          actor.email + " denied page");
         for (const marker of ["Synthetic Victim Only Employer", "VICTIM-ONLY-003",
           "VictimExclusive", "VictimExclusive follow-up"]) {
           assert.ok(!foreignHtml.includes(marker), "Foreign response must not leak victim-only data");

@@ -73,8 +73,13 @@ export function parseCsv(text: string): string[][] {
     }
     if (char === '"') { quoted = true; continue; }
     if (char === ",") { row.push(field); field = ""; continue; }
-    if (char === "\n") { row.push(field); rows.push(row); row = []; field = ""; continue; }
-    if (char === "\r") continue;
+    // CRLF is one record boundary; standalone CR is also a boundary, never
+    // silently discarded from an employee number or other unquoted field.
+    if (char === "\n" || char === "\r") {
+      row.push(field); rows.push(row); row = []; field = "";
+      if (char === "\r" && text[index + 1] === "\n") index += 1;
+      continue;
+    }
     field += char;
   }
   if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }

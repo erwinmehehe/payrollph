@@ -247,6 +247,42 @@ test("source route first scopes real filing by organization and keeps independen
   ]) assert.ok(store.includes(condition), "missing actual DB tenant condition: " + condition);
 });
 
+
+test("filing outcome and audit share one PostgreSQL commit, including audit-veto rollback", () => {
+  const route = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
+  const store = readFileSync("src/lib/filing-evidence-store.ts", "utf8");
+  const proof = readFileSync("scripts/qa/tenant-table-rows/write/compliance-filing.mjs", "utf8");
+
+  assert.match(route, /record = await db\.transaction\(async \(tx\) => \{/);
+  assert.match(route, /await recordFilingOutcome\(\{ organizationId, id, actor: user\.name, outcome: parsed\.value \}, tx\)/);
+  assert.match(route, /if \(!updated\) return null;/);
+  assert.match(route, /await tx\.insert\(auditEvents\)\.values\(\{/);
+  assert.ok(route.indexOf("await tx.insert(auditEvents)") >
+    route.indexOf("await recordFilingOutcome("), "audit write must follow the conditional filing outcome inside the same callback");
+  assert.ok(!route.includes("await recordAuditEvent("),
+    "independent audit connection cannot atomically roll back the filing decision");
+  assert.match(store, /transaction\?: Parameters<Parameters<typeof db\.transaction>\[0\]>\[0\]/);
+  assert.match(store, /await \(transaction \?\? db\)\s*\.update\(governmentFilingValidations\)/);
+  assert.match(store, /eq\(governmentFilingValidations\.organizationId, input\.organizationId\)/);
+  assert.match(store, /eq\(governmentFilingValidations\.status, "generated"\)/);
+
+  // No mocked status proves rollback. The exact DDL runs inside isolated real
+  // PostgreSQL 16 and must reject an actual HTTP PATCH audit INSERT.
+  assert.match(proof, /CREATE FUNCTION ci_filing_audit_veto\(\) RETURNS trigger/);
+  assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2,
+    "the CI-only PL/pgSQL function requires matching dollar quote delimiters");
+  assert.match(proof, /CREATE TRIGGER ci_filing_audit_veto_trigger/);
+  assert.match(proof, /RAISE EXCEPTION 'CI_ONLY_FILING_AUDIT_VETO'/);
+  assert.match(proof, /atomic filing decision must roll back on a failed audit insert/);
+  assert.match(proof, /proveFilingStateUntouched\(beforeVeto, await state\(ctx\.orgId\)\)/);
+  assert.match(proof, /proveFilingStateUntouched\(victimBeforeVeto,/);
+  assert.match(proof, /DROP TRIGGER ci_filing_audit_veto_trigger ON audit_events/);
+  assert.match(proof, /DROP FUNCTION ci_filing_audit_veto\(\)/);
+  assert.match(proof, /await db\.delete\(governmentFilingValidations\)\.where\(and\(/,
+    "temporary audit-veto filing fixture must not contaminate later proofs");
+  assert.match(proof, /atomicAuditInsertRollbackProven: true/);
+});
+
 test("manifest is still GAP; synthetic rejection is not external agency acceptance", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));

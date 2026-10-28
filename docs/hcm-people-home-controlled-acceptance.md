@@ -1,6 +1,6 @@
 # HCM People Home / My Tasks integration — controlled acceptance
 
-Status: source-only implementation on draft PR #755. Not production acceptance or an authorization to enable unreconciled payroll, bank, document, WFM, or HCM features.
+Status (2026-10-28): source-level server minimization from PR #755, partial-source error handling from PR #1429, and synthetic membership-revocation QA from PR #1510 are merged on `main`. Issue #695 remains OPEN: signed-in deployed-app HR/security/operator acceptance, physical accessibility checks, and explicit employer activation approval are **NOT RUN / NOT APPROVED**. This document is a source/QA handoff, never authorization to enable payroll, bank, document, WFM, or HCM features.
 
 ## Scope
 
@@ -27,9 +27,10 @@ Both `HCM_PEOPLE_HOME_ENABLED=true` and `NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED=tru
 4. Create pending HCM steps for a named user, a role and a delegate; also create an unassigned step and a maker-initiated approval. Verify assignments and maker-checker label agree with the authoritative HCM Inbox and no action is offered on People Home.
 5. Create HR source findings (review, follow-up, neutral optional check) and a separately owned/unowned operational case. Verify no source check is labelled an approval, and the owned-case preview does not show unowned cases.
 6. Test source failure, missing dates, 31+ pending BP candidates and more than five visible source items. The UI must not claim "all clear" or fabricate an exact decision count on a truncated candidate set.
-7. Switch employer rapidly, refresh and deep-link from each People Home card. Confirm the link returns to the selected employer, the People screen and (for decisions) the expanded Employee administration/HCM Inbox panel. No stale tenant data should remain.
-8. Synthetic Chromium verifies named screen-reader landmarks/articles, heading hierarchy, keyboard focus and 375px viewport. Protected staging must still cover zoom, real screen-reader interaction, slow-network/retry behavior and sanitized traces without real personal data.
-9. Keep GitHub source merge authorization distinct from protected production deployment, real employer payroll validation, bank encryption, live DB migration and release committee authorization.
+7. Before trusting the displayed content, inspect the **complete server HTML/Next RSC response body and serialized DOM**, not only visible text. For both signed-in fictional HR users, reject any employee number shared across tenants, private employee/source label, case detail or pay-profile amount, even when hidden in script payloads. On an actual high-ID, feature-allowlisted foreign employer 404, verify both response body and rendered markup contain no victim markers. Source-only regression on a disposable PG16 localhost server does not replace real signed-in UAT.
+8. Switch employer rapidly, refresh and deep-link from each People Home card. Confirm the link returns to the selected employer, the People screen and (for decisions) the expanded Employee administration/HCM Inbox panel. No stale tenant data should remain.
+9. Synthetic Chromium verifies named screen-reader landmarks/articles, heading hierarchy, keyboard focus and 375px viewport. Protected staging must still cover zoom, real screen-reader interaction, slow-network/retry behavior and sanitized traces without real personal data.
+10. Keep GitHub source merge authorization distinct from protected production deployment, real employer payroll validation, bank encryption, live DB migration and release committee authorization.
 
 ## Production hold
 
