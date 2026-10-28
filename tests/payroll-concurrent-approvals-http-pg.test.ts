@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "../src/db";
+import { db, pool } from "../src/db";
 import {
   approvalTasks, auditEvents, organizations, payrollRuns, userOrganizations, users,
 } from "../src/db/schema";
@@ -105,6 +105,28 @@ test("two simultaneous HTTP checker decisions commit exactly one approval and on
       }),
       { params: Promise.resolve({ id: String(task.id) }) },
     );
+
+    // A real audit INSERT veto must roll back both the task and payroll state.
+    const veto = "qa_payroll_decision_veto_" + org.id;
+    await pool.query(`CREATE FUNCTION ${veto}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.organization_id = ${org.id} AND NEW.action IN ('Approval approved', 'Approval declined') THEN
+        RAISE EXCEPTION 'FICTIONAL_DECISION_AUDIT_VETO'; END IF; RETURN NEW; END $$`);
+    try {
+      await pool.query(`CREATE TRIGGER ${veto} BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION ${veto}()`);
+      await assert.rejects(decide("Approved"), (error: unknown) => {
+        let current = error;
+        while (current instanceof Error) {
+          if (current.message.includes("FICTIONAL_DECISION_AUDIT_VETO")) return true;
+          current = current.cause;
+        }
+        return false;
+      });
+      assert.equal((await db.select().from(approvalTasks).where(eq(approvalTasks.id, task.id)))[0].status, "Pending");
+      assert.equal((await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id)))[0].status, "Pending approval");
+    } finally {
+      await pool.query(`DROP TRIGGER IF EXISTS ${veto} ON audit_events`);
+      await pool.query(`DROP FUNCTION IF EXISTS ${veto}()`);
+    }
 
     // Different decisions race for the same pre-transaction Pending snapshot.
     const responses = await Promise.all([decide("Approved"), decide("Declined")]);

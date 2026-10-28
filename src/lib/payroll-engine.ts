@@ -338,22 +338,23 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
       chunkSize,
       attempts: 0,
     });
-  });
-  await recordAuditEvent({
-    organizationId: run.organizationId,
-    actor: "System",
-    action: "Payroll job queued",
-    resource: run.periodLabel,
-    metadata: {
-      runId,
-      totalChunks,
-      chunkSize,
-      ruleVersion: PAYROLL_RULE_VERSION,
-      periodStart: run.periodStart,
-      periodEnd: run.periodEnd,
-      scopeOrgUnitId: run.scopeOrgUnitId,
-      legalEntityId: run.legalEntityId,
-    },
+    // Audit veto must roll back the destructive register/job reset too.
+    await recordAuditEvent({
+      organizationId: run.organizationId,
+      actor: "System",
+      action: "Payroll job queued",
+      resource: run.periodLabel,
+      metadata: {
+        runId,
+        totalChunks,
+        chunkSize,
+        ruleVersion: PAYROLL_RULE_VERSION,
+        periodStart: run.periodStart,
+        periodEnd: run.periodEnd,
+        scopeOrgUnitId: run.scopeOrgUnitId,
+        legalEntityId: run.legalEntityId,
+      },
+    }, tx);
   });
 
   return { runId, totalChunks, employeeCount: employeeRows.length };
@@ -1897,9 +1898,8 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     }).where(and(eq(payrollJobs.id, payrollJobId), eq(payrollJobs.status, "processing")))
       .returning({ id: payrollJobs.id });
     if (!updatedRun || !updatedJob) throw new Error("PAYROLL_HISTORY_TRANSACTION_COMMIT_LOST");
+    if (done) await finalizeRun(input.runId, tx);
   });
-
-  if (done) await finalizeRun(input.runId);
 
   return {
     done,
@@ -1910,8 +1910,8 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   };
 }
 
-async function finalizeRun(runId: number) {
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+async function finalizeRun(runId: number, tx: Pick<typeof db, "select" | "insert">) {
+  const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return;
   await recordAuditEvent({
     organizationId: run.organizationId,
@@ -1924,7 +1924,7 @@ async function finalizeRun(runId: number) {
       exceptions: run.exceptions,
       ruleVersion: PAYROLL_RULE_VERSION,
     },
-  });
+  }, tx);
 }
 
 export function calculateEmployeePay(input: {
