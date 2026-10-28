@@ -132,6 +132,14 @@ export function wageOrderFor(region: string, asOfDate?: string, wageClass?: Regi
   return applicable ?? order;
 }
 
+/** Employee creation must never infer NCR from missing or coerced input. */
+export function requireExplicitWageRegion(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error("A supported Philippine wage region must be selected.");
+  }
+  return wageOrderFor(value).region;
+}
+
 export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22,
   asOfDate?: string, wageClass?: RegionVIIWageClass) {
   if (!Number.isFinite(monthlyBasic) || monthlyBasic < 0 || !Number.isFinite(daysPerMonth) || daysPerMonth <= 0) {
