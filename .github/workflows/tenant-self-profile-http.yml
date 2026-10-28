@@ -1,0 +1,120 @@
+name: ESS profile PATCH tenant isolation (fictional PG16 and HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-profile-http.yml'
+      - 'scripts/qa/tenant-self-profile-contract.mjs'
+      - 'scripts/qa/tenant-self-profile-http.mjs'
+      - 'tests/tenant-self-profile-contract.test.mjs'
+      - 'docs/qa/tenant-self-profile-http.md'
+      - 'src/app/api/self/profile/route.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/audit.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-invariants.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-self-profile-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  profile-patch:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export fictional localhost PG16 environment with all providers disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+          } >> "$GITHUB_ENV"
+      - name: Static contract, negative controls and syntax gate
+        run: |
+          node --check scripts/qa/tenant-self-profile-contract.mjs
+          node --check scripts/qa/tenant-self-profile-http.mjs
+          node --check tests/tenant-self-profile-contract.test.mjs
+          node --test tests/tenant-self-profile-contract.test.mjs
+      - name: Generate throwaway isolated encryption test material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create empty disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply synthetic reviewed-schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM work-item fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode application on localhost only
+        run: npm run build
+      - name: Start disposable production-mode localhost app
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-self-profile.log 2>&1 &
+          server=$!
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-self-profile.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-self-profile.log
+          exit 1
+      - name: Real employer employee/peer/victim PATCH, forged selector and membership revocation
+        run: node --import tsx scripts/qa/tenant-self-profile-http.mjs
+      - name: Isolated localhost diagnostics on failure
+        if: failure()
+        run: cat /tmp/tenant-self-profile.log || true
