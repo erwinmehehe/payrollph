@@ -58,12 +58,12 @@ test("self-availability API keeps the session authoritative for both reads and w
 
 test("standalone workflow runs real signed-in HTTP against fictional PG16 only", () => {
   const wf = readFileSync(".github/workflows/tenant-self-availability-http.yml", "utf8");
-  const proof = readFileSync("scripts/qa/tenant-self-availability-http.mjs", "utf8");
+  const proof = readFileSync("scripts/qa/tenant-self-availability-recovery-http.mjs", "utf8");
   assert.match(wf, /image: postgres:16/);
   assert.match(wf, /npm run db:push/);
   assert.match(wf, /apply-isolated-baseline\.mjs/);
   assert.match(wf, /npm run build/);
-  assert.match(wf, /node --import tsx scripts\/qa\/tenant-self-availability-http\.mjs/);
+  assert.match(wf, /node --import tsx scripts\/qa\/tenant-self-availability-recovery-http\.mjs/);
   assert.match(proof, /requireDisposableSelfAvailability\(\)/);
   assert.match(proof, /seedEmployeeEmployer\("VICTIM"/);
   // The strengthened runner wraps HTTP denials in deniedSource(), which
