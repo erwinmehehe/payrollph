@@ -83,3 +83,27 @@ test("unbounded demand does not return impossible headcount or infinity", () => 
   assert.equal(result.rows[0].requiredWorkers, null);
   assert.ok(result.rows[0].reviewReasons.includes("staffing_estimate_unbounded"));
 });
+
+test("review-ready staffing requires literal boolean skill and rest evidence", () => {
+  for (const invalid of ["false", "true", 1, 0, null, undefined, [], {}]) {
+    assert.throws(() => previewDemandToStaffing([{
+      ...sample, eligibleSkillEvidenceComplete: invalid,
+    } as unknown as DemandStaffingSlot]), /Invalid, duplicated or unbounded/,
+    "reject coerced skill proof: " + String(invalid));
+    assert.throws(() => previewDemandToStaffing([{
+      ...sample, restAndAvailabilityEvidenceComplete: invalid,
+    } as unknown as DemandStaffingSlot]), /Invalid, duplicated or unbounded/,
+    "reject coerced rest/availability proof: " + String(invalid));
+  }
+  const denied = previewDemandToStaffing([{
+    ...sample, eligibleSkillEvidenceComplete: false,
+    restAndAvailabilityEvidenceComplete: true,
+  }]);
+  assert.equal(denied.status, "source_review");
+  assert.equal(denied.rows[0].feasibleDraftAdds, null);
+  assert.ok(denied.rows[0].reviewReasons.includes("skill_evidence_missing"));
+  const verified = previewDemandToStaffing([sample]);
+  assert.equal(verified.status, "review_ready");
+  assert.equal(verified.rows[0].feasibleDraftAdds, 2);
+  assert.equal(verified.automaticallyPublished, false);
+});

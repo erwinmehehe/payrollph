@@ -1,0 +1,126 @@
+name: Tenant MNY-02 Treasury Controls POST (Fictional PG16 Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-mny02-treasury-http.yml"
+      - "scripts/qa/tenant-mny02-treasury-*.mjs"
+      - "tests/tenant-mny02-treasury-contract.test.mjs"
+      - "docs/qa/tenant-mny02-treasury-http.md"
+      - "src/app/api/treasury-controls/route.ts"
+      - "src/lib/treasury-controls.ts"
+      - "src/lib/security-request.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/db/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel superseded PR evidence only. Never collide with workflow_dispatch
+# or another PR's disposable database acceptance run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mny02-treasury-tenant-post:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Set disposable localhost environment with all providers disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo "TENANT_TREASURY_MODE=fictional-mny02-only"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "REQUIRE_PRIVILEGED_MFA=true"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "STRIPE_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "NEON_DATABASE_URL="
+          } >> "$GITHUB_ENV"
+      - name: Guard and mutation-test exact MNY-02 POST before any DB use
+        run: |
+          node --check scripts/qa/tenant-mny02-treasury-contract.mjs
+          node --check scripts/qa/tenant-mny02-treasury-http.mjs
+          node --check tests/tenant-mny02-treasury-contract.test.mjs
+          node --test tests/tenant-mny02-treasury-contract.test.mjs
+      - name: Create synthetic in-memory-only encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Create fresh disposable PostgreSQL 16 application schema
+        run: npm run db:push
+      - name: Apply offline synthetic schema baseline to app_db
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build isolated production-mode app; no deployment
+        run: npm run build
+      - name: Start real Next.js localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-mny02-treasury.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 90 /tmp/tenant-mny02-treasury.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Disposable localhost Next.js failed to start"
+          tail -n 90 /tmp/tenant-mny02-treasury.log
+          exit 1
+      - name: Prove independent own POST, higher-ID victim denial, forged IDs, untouched payroll
+        run: node --import tsx scripts/qa/tenant-mny02-treasury-http.mjs
+      - name: Report sanitized localhost diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/tenant-mny02-treasury.log || true
