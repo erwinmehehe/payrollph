@@ -30,11 +30,11 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ## 2026-10-29 latest origin/main credit-promotion review — proposed, NOT MERGED
 
-> **2026-10-29 sync to main@cc0c0f989eba (DRAFT, NOT ACCEPTED):** Current upstream main has **349 COVERED / 10 PUBLIC-BY-DESIGN / 139 GAP**, including two separately proof-credited HCM methods merged via #1595. This review-only PR adds only three disjoint PG16 method receipts, yielding **352 COVERED / 10 PUBLIC-BY-DESIGN / 136 GAP** of 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Require new exact-head CI and independent security/coverage-owner review before merging. No payroll or tenant-wide certification.
+> **2026-10-29 sync to main@b018fabb6443 (DRAFT, NOT ACCEPTED):** Current upstream main has **352 COVERED / 10 PUBLIC-BY-DESIGN / 136 GAP**, including two separately proof-credited HCM methods merged via #1595 and the three methods merged via #1591. This review-only PR adds only three disjoint PG16 method receipts, yielding **355 COVERED / 10 PUBLIC-BY-DESIGN / 133 GAP** of 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Require new exact-head CI and independent security/coverage-owner review before merging. No payroll or tenant-wide certification.
 
-**Authoritative proposed manifest snapshot:** exact `main@cc0c0f989ebaeb65452ac227c3f15ae143bc9f5b` plus this PR's three additional SHA-pinned, previously uncredited method receipts. Newer upstream HCM, attendance, reporting, and approver source protections are retained. The earlier 341/10/147 and 347/10/141 snapshots below are historical; re-fetch main before accepting the sweep.
+**Authoritative proposed manifest snapshot:** exact `main@b018fabb6443a19501a9b2b33528d41ce9296d12` plus this PR's three additional SHA-pinned, previously uncredited method receipts. Newer upstream HCM, attendance, reporting, and approver source protections are retained. The earlier 341/10/147 and 347/10/141 snapshots below are historical; re-fetch main before accepting the sweep.
 
-**API ledger proposed after main sync:** 295 route files; **498 methods = 352 COVERED + 10 PUBLIC-BY-DESIGN + 136 GAP**. Upstream main has 349/10/139; this PR adds +3 COVERED / -3 GAP without double counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Tenant-wide isolation is NOT ACCEPTED and all batches remain incomplete.
+**API ledger proposed after main sync:** 295 route files; **498 methods = 355 COVERED + 10 PUBLIC-BY-DESIGN + 133 GAP**. Upstream main has 352/10/136; this PR adds +3 COVERED / -3 GAP without double counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Tenant-wide isolation is NOT ACCEPTED and all batches remain incomplete.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -43,7 +43,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
-| 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 25 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
@@ -55,7 +55,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **268 COVERED + 2 PUBLIC-BY-DESIGN + 136 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **271 COVERED + 2 PUBLIC-BY-DESIGN + 133 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — exact-final-head evidence
 

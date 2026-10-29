@@ -8,6 +8,7 @@ on:
       - '.github/workflows/tenant-roster-batches-http.yml'
       - 'scripts/qa/tenant-batches/roster-batches-*.mjs'
       - 'tests/tenant-batches/roster-batches.test.mjs'
+      - 'tests/tenant-batches/roster-batches-actions.test.mjs'
       - 'src/app/api/workforce/roster-batches/**'
       - 'src/lib/workforce-bulk-publish.ts'
       - 'src/lib/workforce-manager-actions.ts'
@@ -66,7 +67,13 @@ jobs:
       - name: Export reviewed disposable localhost configuration
         run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
       - name: Test refusal guards and own-object proof contracts
-        run: node --test tests/tenant-batches/roster-batches.test.mjs
+        run: |
+          node --check scripts/qa/tenant-batches/roster-batches-actions-http.mjs
+          node --test tests/tenant-batches/roster-batches.test.mjs tests/tenant-batches/roster-batches-actions.test.mjs
+      - name: Run full tenant root suite on POSIX
+        run: node --test tests/tenant-*.test.mjs
+      - name: Run repository lint
+        run: npm run lint
       - name: Generate fictional encryption material without provider secrets
         shell: bash
         run: |
@@ -88,6 +95,11 @@ jobs:
         run: |
           set -euo pipefail
           node --import tsx scripts/qa/tenant-batches/roster-batches-http.mjs seed >> "$GITHUB_ENV"
+      - name: Seed independent stage and approve shifts, worksite grants and MFA checker sessions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/qa/tenant-batches/roster-batches-actions-http.mjs seed >> "$GITHUB_ENV"
       - name: Build production-mode app against fictional-only scope
         run: npm run build
       - name: Start localhost Next server with disposable three-employer allowlist
@@ -106,8 +118,10 @@ jobs:
           done
           cat /tmp/tenant-roster-batches-server.log
           exit 1
-      - name: Prove populated GET + reject-only POST and cross-employer denials
+      - name: Prove original populated GET + rejected POST without changing receipts
         run: node --import tsx scripts/qa/tenant-batches/roster-batches-http.mjs prove
+      - name: Prove stage replay approve and forged-reference denials for all three employers
+        run: node --import tsx scripts/qa/tenant-batches/roster-batches-actions-http.mjs prove
       - name: Show disposable server diagnostics on failure
         if: failure()
         run: cat /tmp/tenant-roster-batches-server.log || true

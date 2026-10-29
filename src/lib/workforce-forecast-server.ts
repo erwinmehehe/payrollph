@@ -23,6 +23,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { annualEmployerStatutoryCost, annualizePayProfile, buildWorkforceDemandForecast } from "@/lib/workforce-forecast";
+import { coherentWorkforceTenantScope } from "@/lib/workforce-tenant-scope";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 
 export type WorkforceForecastScope = {
@@ -48,19 +49,22 @@ function roleAllowed(role: string, roles: readonly string[]) {
 
 export async function loadScopedWorkforceForecast(input: WorkforceForecastRequest) {
   const access = await getAccess(input.userId, input.organizationId);
-  if (!access || !roleAllowed(access.role, WORKFORCE_MANAGER_ROLES as readonly string[])) {
+  // Internal callers must not interpret malformed company/unit scope as a
+  // company-wide financial forecast. Verify the employer before bulk SQL.
+  if (!access || !coherentWorkforceTenantScope(access, input.organizationId)
+      || !roleAllowed(access.role, WORKFORCE_MANAGER_ROLES as readonly string[])) {
     throw new Error("Workforce-manager access is required to forecast staffing.");
   }
 
   if (
     input.orgUnitId != null
-    && (!Number.isInteger(input.orgUnitId) || input.orgUnitId <= 0)
+    && (!Number.isSafeInteger(input.orgUnitId) || input.orgUnitId <= 0)
   ) {
     throw new Error("Invalid organization-unit scope.");
   }
   if (
     input.worksiteId != null
-    && (!Number.isInteger(input.worksiteId) || input.worksiteId <= 0)
+    && (!Number.isSafeInteger(input.worksiteId) || input.worksiteId <= 0)
   ) {
     throw new Error("Invalid worksite scope.");
   }
@@ -181,7 +185,13 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
       componentCode: compensationComponents.code,
     })
       .from(employeeCompensationComponents)
-      .innerJoin(compensationComponents, eq(employeeCompensationComponents.componentId, compensationComponents.id))
+      // The FK links only component ID, not organization ID. Defend against
+      // inconsistent cross-employer component references during forecasts.
+      .innerJoin(compensationComponents, and(
+        eq(employeeCompensationComponents.componentId, compensationComponents.id),
+        eq(employeeCompensationComponents.organizationId, compensationComponents.organizationId),
+        eq(compensationComponents.organizationId, input.organizationId),
+      ))
       .where(and(
         eq(employeeCompensationComponents.organizationId, input.organizationId),
         inArray(employeeCompensationComponents.status, ["scheduled", "active"]),
