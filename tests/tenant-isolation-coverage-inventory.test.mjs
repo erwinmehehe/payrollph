@@ -1125,7 +1125,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
       "New salary preview proof/source change requires renewed security review");
     assert.equal(method.testedBy, null, "Salary preview POST remains GAP");
-    assert.equal(manifest.metrics.gap, 147);
+    // The global inventory test recomputes live totals from every current route.
+    // A focused uncredited GAP must not pin a historic repository-wide count.
+    assert.equal(reviewed.coverageCredits, 0);
     const route = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
     const permission = route.indexOf("assertOrganizationRole(");
     const selected = route.indexOf("const entityScope = await resolveMultiEntityContext({");
