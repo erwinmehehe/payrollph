@@ -4,6 +4,7 @@ import { employees, employeePayProfiles, employeePayRevisions, payrollEntries, p
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
 } from "@/lib/security-request";
@@ -73,6 +74,21 @@ export async function POST(request: Request) {
   }
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+
+  // Organization-wide People access does not grant every legal employer.
+  // Reconcile the raw body, header and query selectors before reading any
+  // employee/payroll source. With multi-entity OFF, no optional grant tables
+  // are queried and the existing single-employer behavior is preserved.
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId, request, requested: body.legalEntityId as string | number | null | undefined,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  if (entityScope.context.enabled && entityScope.context.group) {
+    return Response.json({ error: "Group-level accounts cannot preview an individual's salary corrections." }, { status: 403 });
+  }
+  const entityDenied = assertEntityResource(entityScope.context, legalEntityId);
+  if (entityDenied) return entityDenied;
+
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id, action: "hcm-salary-correction-preview", resourceId: employeeId,
     limit: 8, windowMs: 15 * 60_000,
@@ -103,6 +119,9 @@ export async function POST(request: Request) {
     if (!employee || employee.legalEntityId !== legalEntityId) {
       return Response.json({ error: "Employee not found in the selected legal employer." }, { status: 404 });
     }
+    // Bind the actual resource employer as well as the caller's selector.
+    const employeeEntityDenied = assertEntityResource(entityScope.context, employee.legalEntityId);
+    if (employeeEntityDenied) return employeeEntityDenied;
     if (effectiveDate < String(employee.startDate)) {
       return Response.json({ error: "Effective date cannot predate the recorded employment start." }, { status: 400 });
     }

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
-import { legalEntities } from "@/db/schema";
+import { employees, legalEntities, orgUnits, payrollRuns } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -30,12 +30,37 @@ async function authorize(userId: number, organizationId: number) {
   // Current companyWide is an org-unit scope, NOT an entity grant.
   // Until the reviewed multi-entity permission model ships, fail closed for
   // any tenant with zero or multiple legal employers.
-  const entities = await db.select({ id: legalEntities.id }).from(legalEntities)
-    .where(eq(legalEntities.organizationId, organizationId)).limit(2);
-  if (entities.length !== 1) {
+  const entities = await db.select({ id: legalEntities.id, active: legalEntities.active })
+    .from(legalEntities).where(eq(legalEntities.organizationId, organizationId)).limit(2);
+  if (entities.length !== 1 || entities[0].active !== true) {
     return { denied: Response.json({
       error: "This report builder requires a verified single-entity workspace. Multi-entity reporting is disabled pending entity-grant review.",
     }, { status: 409 }) };
+  }
+  const employerId = entities[0].id;
+  // A single registered employer is insufficient if older employees, payroll
+  // runs or units are unassigned or point at another legal employer. The
+  // custom report uses company-wide rows: refuse both metadata and exports
+  // until the legacy attribution is independently reconciled.
+  const [unattributedWorkers, unattributedRuns, unattributedUnits] = await Promise.all([
+    db.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      or(isNull(employees.legalEntityId), ne(employees.legalEntityId, employerId)),
+    )).limit(1),
+    db.select({ id: payrollRuns.id }).from(payrollRuns).where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      or(isNull(payrollRuns.legalEntityId), ne(payrollRuns.legalEntityId, employerId)),
+    )).limit(1),
+    db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+      eq(orgUnits.organizationId, organizationId),
+      or(isNull(orgUnits.legalEntityId), ne(orgUnits.legalEntityId, employerId)),
+    )).limit(1),
+  ]);
+  if (unattributedWorkers.length || unattributedRuns.length || unattributedUnits.length) {
+    return { denied: Response.json({
+      error: "Historical legal-employer attribution requires independent review before custom reports are available.",
+      code: "HCM_REPORT_ENTITY_ATTRIBUTION_REQUIRED",
+    }, { status: 409, headers: { "Cache-Control": "no-store" } }) };
   }
   return { role: access.role as ReportRole };
 }

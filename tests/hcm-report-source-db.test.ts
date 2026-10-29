@@ -3,7 +3,7 @@ import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  employees, organizations, orgUnits, payrollEntries, payrollRuns,
+  employees, legalEntities, organizations, orgUnits, payrollEntries, payrollRuns,
   leaveRequests, overtimeRequests,
 } from "../src/db/schema";
 import { loadAuthorizedReportRows, overtimeCostFromPayLines } from "../src/lib/hcm-report-source";
@@ -30,29 +30,41 @@ test("report source is tenant-isolated and rejects unscoped payroll attribution"
       { name: "HCM Report Test B", legalName: "HCM Report Test B" },
     ]).returning({ id: organizations.id });
     orgIds.push(a.id, b.id);
+    const [entityA, entityB] = await db.insert(legalEntities).values([
+      { organizationId: a.id, code: "HCM-RPT-A", legalName: "Fictional Report Entity A",
+        displayName: "Fictional Report A", primaryEntity: true },
+      { organizationId: b.id, code: "HCM-RPT-B", legalName: "Fictional Report Entity B",
+        displayName: "Fictional Report B", primaryEntity: true },
+    ]).returning({ id: legalEntities.id });
     const [unitA, unitB] = await db.insert(orgUnits).values([
-      { organizationId: a.id, type: "department", code: "RPTA", name: "Operations" },
-      { organizationId: b.id, type: "department", code: "RPTB", name: "Finance" },
+      { organizationId: a.id, legalEntityId: entityA.id,
+        type: "department", code: "RPTA", name: "Operations" },
+      { organizationId: b.id, legalEntityId: entityB.id,
+        type: "department", code: "RPTB", name: "Finance" },
     ]).returning({ id: orgUnits.id });
     const [workerA, workerB] = await db.insert(employees).values([
       {
-        organizationId: a.id, orgUnitId: unitA.id, employeeNo: "RPT-A",
+        organizationId: a.id, legalEntityId: entityA.id,
+        orgUnitId: unitA.id, employeeNo: "RPT-A",
         firstName: "Sample", lastName: "One", title: "Tester",
         avatarInitials: "SO", basicRate: "20000.00", startDate: "2026-01-01",
       },
       {
-        organizationId: b.id, orgUnitId: unitB.id, employeeNo: "RPT-B",
+        organizationId: b.id, legalEntityId: entityB.id,
+        orgUnitId: unitB.id, employeeNo: "RPT-B",
         firstName: "Sample", lastName: "Two", title: "Tester",
         avatarInitials: "ST", basicRate: "30000.00", startDate: "2026-01-01",
       },
     ]).returning({ id: employees.id });
     const [runA, runB] = await db.insert(payrollRuns).values([
       {
-        organizationId: a.id, scopeOrgUnitId: unitA.id, periodLabel: "October first",
+        organizationId: a.id, legalEntityId: entityA.id,
+        scopeOrgUnitId: unitA.id, periodLabel: "October first",
         periodStart: "2026-10-01", periodEnd: "2026-10-15", payDate: "2026-10-15", status: "Released",
       },
       {
-        organizationId: b.id, scopeOrgUnitId: unitB.id, periodLabel: "October first",
+        organizationId: b.id, legalEntityId: entityB.id,
+        scopeOrgUnitId: unitB.id, periodLabel: "October first",
         periodStart: "2026-10-01", periodEnd: "2026-10-15", payDate: "2026-10-15", status: "Released",
       },
     ]).returning({ id: payrollRuns.id });
@@ -72,6 +84,99 @@ test("report source is tenant-isolated and rejects unscoped payroll attribution"
     const range = { startDate: "2026-10-01", endDate: "2026-10-31" };
     const payroll = await loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range });
     assert.deepEqual(payroll, [{ department: "Operations", grossPay: 6000, overtimeCost: 500 }]);
+
+    // Malformed legacy rows can link a run owned by A to a worker from B.
+    // With only the payroll-run join, that foreign worker's wages were included
+    // in A's report. The new employee join must reject the entire report.
+    const [foreignEntry] = await db.insert(payrollEntries).values({
+      payrollRunId: runA.id, employeeId: workerB.id,
+      grossPay: "99000.00", deductions: "1000.00", netPay: "98000.00",
+      lineItems: [{ code: "OT", amount: "9999.00" }],
+    }).returning({ id: payrollEntries.id });
+    await assert.rejects(
+      () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      /source attribution/,
+    );
+    await db.delete(payrollEntries).where(eq(payrollEntries.id, foreignEntry.id));
+    assert.deepEqual(
+      await loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      payroll, "original own-employer rows still work after foreign entry is removed",
+    );
+
+    // The reviewed production/cutover schema may enforce a tenant/employer
+    // composite FK that is absent from the disposable source-first PG16 schema.
+    // Never disable a real constraint or assume the PG16 fixture has one.
+    // When the DB allows a legacy cross-employer link, the report source MUST
+    // reject it without returning foreign wages.
+    let crossEmployerUpdateAllowed = false;
+    try {
+      const [updated] = await db.update(employees).set({ legalEntityId: entityB.id })
+        .where(eq(employees.id, workerA.id))
+        .returning({ id: employees.id, legalEntityId: employees.legalEntityId });
+      assert.equal(updated?.id, workerA.id);
+      assert.equal(updated?.legalEntityId, entityB.id);
+      crossEmployerUpdateAllowed = true;
+    } catch (error) {
+      // If the reviewed composite FK exists, require its exact PostgreSQL
+      // error instead of treating an unrelated database failure as a pass.
+      const cause = (error as { cause?: { code?: string; constraint?: string } })?.cause;
+      assert.equal(cause?.code, "23503", "Only the tenant/employer FK may reject this fixture");
+      assert.equal(cause?.constraint, "employees_tenant_employer_fk");
+    }
+    if (crossEmployerUpdateAllowed) {
+      try {
+        await assert.rejects(
+          () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+          /source attribution/,
+          "Source-first PG16 must reject cross-employer wages even without the composite FK",
+        );
+      } finally {
+        // Restore the synthetic worker even if the rejection assertion fails.
+        await db.update(employees).set({ legalEntityId: entityA.id })
+          .where(eq(employees.id, workerA.id));
+      }
+    } else {
+      const [unchanged] = await db.select({ legalEntityId: employees.legalEntityId })
+        .from(employees).where(eq(employees.id, workerA.id)).limit(1);
+      assert.equal(unchanged?.legalEntityId, entityA.id,
+        "A rejected foreign-employer update must preserve the original employee");
+    }
+    assert.deepEqual(
+      await loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      payroll, "valid own-employer pay remains visible after the cross-employer probe",
+    );
+
+    // A second legal employer belonging to A is valid under that FK but
+    // inconsistent with A's released run, which uses entityA. The report
+    // loader must reject the mismatched pay source instead of adding wages.
+    const [otherEntityA] = await db.insert(legalEntities).values({
+      organizationId: a.id, code: "HCM-RPT-A-SECOND",
+      legalName: "Fictional second employer within A",
+      displayName: "Fictional Second Entity A",
+    }).returning({ id: legalEntities.id });
+    await db.update(employees).set({ legalEntityId: otherEntityA.id })
+      .where(eq(employees.id, workerA.id));
+    await assert.rejects(
+      () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      /source attribution/,
+      "Real employee/run employer disagreement must fail closed",
+    );
+
+    // Missing historical employer attribution is not the same as verified
+    // membership of the current company. Keep the report unavailable.
+    await db.update(employees).set({ legalEntityId: null })
+      .where(eq(employees.id, workerA.id));
+    await assert.rejects(
+      () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      /source attribution/,
+      "An unattributed worker in released payroll must fail closed",
+    );
+    await db.update(employees).set({ legalEntityId: entityA.id })
+      .where(eq(employees.id, workerA.id));
+    assert.deepEqual(
+      await loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      payroll, "own payroll results recover after legal-employer attribution is restored",
+    );
     const time = await loadAuthorizedReportRows({ organizationId: a.id, dataset: "time", ...range });
     assert.equal(time.length, 2);
     assert.equal(time.reduce((sum, row) => sum + Number(row.absenceDays), 0), 1);
