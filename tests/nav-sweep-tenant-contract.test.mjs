@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  NAV_TENANT_ORIGIN, requireDisposableNavTenantEnv, tenantNavPageUrl,
+  NAV_TENANT_ORIGIN, NAV_TENANT_ROUTE_BY_FILE, requireDisposableNavTenantEnv,
+  tenantNavPageUrl, navReceiptStatus,
   requireRealEmployerTrio, inspectNavPage, assertReadOnlySnapshot, verifyNavCoverage,
 } from "../scripts/nav-sweep-tenant-contract.mjs";
 
@@ -69,10 +70,42 @@ test("manifest page URLs require a real positive employer ID and static source p
   for (const id of [0, -1, NaN, "15", 1.5, Number.MAX_SAFE_INTEGER + 1]) {
     assert.throws(() => tenantNavPageUrl("src/app/app/page.tsx", id));
   }
-  for (const p of ["src/app/hcm/[id]/page.tsx", "https://example.com/page.tsx",
+  for (const p of ["src/app/hcm/[id]/page.tsx", "src/app/hcm/not-allowlisted/page.tsx",
+    "https://example.com/page.tsx",
     "src/app/../../secrets/page.tsx", "src/app/app/route.ts"]) {
     assert.throws(() => tenantNavPageUrl(p, 15));
   }
+});
+
+test("outbound route allowlist exactly matches the 21-page manifest", () => {
+  const manifest = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.deepEqual(manifest.scopedPages.map(p => p.path).sort(),
+    Object.keys(NAV_TENANT_ROUTE_BY_FILE).sort());
+  for (const [file, route] of Object.entries(NAV_TENANT_ROUTE_BY_FILE)) {
+    assert.equal(tenantNavPageUrl(file, 17), route + "?organizationId=17");
+  }
+  const observations = manifest.scopedPages.flatMap(p => ["ATTA", "ATTB"].map(attacker => ({
+    file: p.path, attacker, ownPopulated: p.path === "src/app/app/page.tsx",
+    methodCredited: false, pageCredited: false,
+  })));
+  assert.doesNotThrow(() => verifyNavCoverage(manifest, observations));
+  const drifted = structuredClone(manifest);
+  drifted.scopedPages[0].path = "src/app/hcm/unreviewed/page.tsx";
+  assert.throws(() => verifyNavCoverage(drifted, observations), /allowlist/);
+  assert.throws(() => tenantNavPageUrl("src/app/hcm/unreviewed/page.tsx", 17));
+});
+
+test("receipt HTTP codes are literal, bounded and reject untrusted values", () => {
+  for (const status of [200, 204, 302, 307, 401, 403, 404, 422, 429]) {
+    assert.equal(navReceiptStatus(status), status);
+  }
+  for (const status of [500, 199, 299, "200", null, NaN, Infinity, {}]) {
+    assert.throws(() => navReceiptStatus(status));
+  }
+  const proof = inspectNavPage(pageProof());
+  assert.equal(proof.ownStatus, 200);
+  assert.equal(proof.foreignStatus, 404);
 });
 
 test("requires two distinct real SQL attacker identities and higher-ID victim", () => {

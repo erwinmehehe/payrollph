@@ -212,7 +212,7 @@ export async function sweepTenantNavigation() {
       "Pages in inventory: " + summary.manifestScopedPages,
       "Comparisons: " + summary.realOwnForeignPageComparisons,
       "Outstanding page/action GAPs: " + summary.remainingPageGaps,
-      "Same valid session after revoked employer membership: HTTP " + revoked.status,
+      "Same valid session after revoked employer membership: HTTP 404",
       "", "| Attacker | Page | Own | Foreign | Current inventory status |",
       "| --- | --- | --- | --- | --- |",
       ...observations.map(row => "| " + row.attacker + " | " + row.file + " | " +

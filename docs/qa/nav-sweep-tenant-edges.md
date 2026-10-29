@@ -12,7 +12,7 @@ The existing Navigation runtime error sweep exercises real Playwright browser na
 - The normal `/app?organizationId=` own source must be 200, HTML, with a **real persisted employer name and private worker marker**, not a 200 error shell. A copied high-ID foreign `/app?organizationId=` must be exact 404 for each attacker.
 - Snapshot actual SQL employer, worker, pay-profile, payroll, staffing, membership, outbox and audit business state for **all three employers** before any navigation. All 42 cross-employer comparisons must preserve these records. Session last-seen fields are excluded, because legitimate authenticated reads can refresh a session timestamp.
 - Finally revoke attacker A's real employer membership without deleting its still-valid session. The same actor must receive exact 404 when opening the previously accessible employer URL; A's business/audit records and every victim/B record stay unchanged.
-- Write a **separate** machine-readable JSON and Markdown receipt under `qa-artifacts/nav-sweep/tenant-edges.*`, which the existing workflow uploads. The report does not replace the role/viewport report, the manifest, browser screenshots or the independently reviewed tenant-isolation inventory.
+- Write a **separate** machine-readable JSON and Markdown receipt under `qa-artifacts/nav-sweep/tenant-edges.*`, which the existing workflow uploads. The report does not replace the role/viewport report, the manifest, browser screenshots or the independently reviewed tenant-isolation inventory. The HTTP client uses a reviewed exact-route localhost allowlist checked against all 21 manifest paths. Reports store bounded literal status codes and approved inventory metadata, never response bodies or unchecked network strings.
 
 ## What this does not prove
 

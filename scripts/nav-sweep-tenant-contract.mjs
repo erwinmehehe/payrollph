@@ -6,6 +6,33 @@ import assert from "node:assert/strict";
 
 export const NAV_TENANT_ORIGIN = "http://127.0.0.1:3000";
 
+// Manifest entries are untrusted inventory data, never HTTP destinations.
+// Only these exact reviewed local page routes may become outbound requests.
+export const NAV_TENANT_ROUTE_BY_FILE = Object.freeze({
+  "src/app/app/engagement/page.tsx": "/app/engagement",
+  "src/app/app/goals-reviews/page.tsx": "/app/goals-reviews",
+  "src/app/app/page.tsx": "/app",
+  "src/app/billing/setup/page.tsx": "/billing/setup",
+  "src/app/careers/page.tsx": "/careers",
+  "src/app/hcm/action-center/page.tsx": "/hcm/action-center",
+  "src/app/hcm/command-center/page.tsx": "/hcm/command-center",
+  "src/app/hcm/hire-payroll-review/page.tsx": "/hcm/hire-payroll-review",
+  "src/app/hcm/hr-cases/page.tsx": "/hcm/hr-cases",
+  "src/app/hcm/manager-decision-inbox/page.tsx": "/hcm/manager-decision-inbox",
+  "src/app/hcm/manager-direct-reports/page.tsx": "/hcm/manager-direct-reports",
+  "src/app/hcm/my-team/page.tsx": "/hcm/my-team",
+  "src/app/hcm/org-explorer/page.tsx": "/hcm/org-explorer",
+  "src/app/hcm/process-monitor/page.tsx": "/hcm/process-monitor",
+  "src/app/hcm/team-leave-calendar/page.tsx": "/hcm/team-leave-calendar",
+  "src/app/hcm/work-items/page.tsx": "/hcm/work-items",
+  "src/app/hcm/worker-360/page.tsx": "/hcm/worker-360",
+  "src/app/self/schedule-receipts/page.tsx": "/self/schedule-receipts",
+  "src/app/workspace/2316/page.tsx": "/workspace/2316",
+  "src/app/workspace/prior-employer/page.tsx": "/workspace/prior-employer",
+  "src/app/workspace/report-builder/page.tsx": "/workspace/report-builder",
+});
+
+
 export function requireDisposableNavTenantEnv(env = process.env) {
   assert.equal(env.CI, "true", "NAV_TENANT_REFUSED: CI-only");
   assert.equal(env.BUILD_BLOCK_ACCEPTANCE_MODE, "synthetic-postgres-only",
@@ -33,12 +60,36 @@ export function requireDisposableNavTenantEnv(env = process.env) {
 }
 
 export function tenantNavPageUrl(file, id) {
-  assert.match(file, /^src\/app(?:\/[a-zA-Z0-9_-]+)+\/page\.tsx$/,
-    "Explicit literal route required, never infer a dynamic business-ID path");
+  assert.ok(typeof file === "string" && Object.hasOwn(NAV_TENANT_ROUTE_BY_FILE, file),
+    "NAV_TENANT_REFUSED: only reviewed scoped page routes may be requested");
   assert.ok(Number.isSafeInteger(id) && id > 0, "Actual positive employer ID required");
-  const route = file.slice("src/app".length, -"/page.tsx".length);
-  assert.ok(route.startsWith("/") && !route.includes("[") && !route.includes("]"));
-  return route + "?organizationId=" + id;
+  return NAV_TENANT_ROUTE_BY_FILE[file] + "?organizationId=" + id;
+}
+
+// Drop network taint before writing receipts: only approved literal HTTP codes.
+// Any unexpected status fails closed rather than persisting untrusted input.
+export function navReceiptStatus(status) {
+  switch (status) {
+    case 200: return 200;
+    case 201: return 201;
+    case 202: return 202;
+    case 204: return 204;
+    case 301: return 301;
+    case 302: return 302;
+    case 303: return 303;
+    case 307: return 307;
+    case 308: return 308;
+    case 400: return 400;
+    case 401: return 401;
+    case 403: return 403;
+    case 404: return 404;
+    case 405: return 405;
+    case 409: return 409;
+    case 410: return 410;
+    case 422: return 422;
+    case 429: return 429;
+    default: assert.fail("NAV_TENANT_REFUSED: unexpected HTTP status for receipt");
+  }
 }
 
 export function requireRealEmployerTrio(subjects) {
@@ -111,9 +162,9 @@ export function inspectNavPage({ file, own, foreign, actor, victim }) {
   }
   return {
     file, attacker: actor.label,
-    ownStatus: own.status, foreignStatus: foreign.status,
+    ownStatus: navReceiptStatus(own.status), foreignStatus: navReceiptStatus(foreign.status),
     ownPopulated: file === "src/app/app/page.tsx",
-    foreignDenied: [302, 303, 307, 308, 401, 403, 404].includes(foreign.status),
+    foreignDenied: [302, 303, 307, 308, 401, 403, 404].includes(navReceiptStatus(foreign.status)),
     methodCredited: false, pageCredited: false,
   };
 }
@@ -126,6 +177,9 @@ export function assertReadOnlySnapshot(before, after, why) {
 export function verifyNavCoverage(manifest, observations) {
   assert.ok(Array.isArray(manifest?.scopedPages) && manifest.scopedPages.length === 21,
     "All 21 currently enumerated scoped pages/actions must be probed");
+  assert.deepEqual(manifest.scopedPages.map(p => p.path).sort(),
+    Object.keys(NAV_TENANT_ROUTE_BY_FILE).sort(),
+    "Manifest drift requires review of the exact outbound localhost route allowlist");
   assert.ok(manifest.scopedPages.some(p => p.status === "GAP"),
     "A default-off page cannot be silently awarded new coverage");
   assert.equal(observations.length, manifest.scopedPages.length * 2);
