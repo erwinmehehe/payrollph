@@ -103,14 +103,47 @@ test("report source is tenant-isolated and rejects unscoped payroll attribution"
       payroll, "original own-employer rows still work after foreign entry is removed",
     );
 
-    // A worker linked to another legal employer must also fail closed even
-    // if the worker's organization_id still appears to match the payroll run.
-    await db.update(employees).set({ legalEntityId: entityB.id }).where(eq(employees.id, workerA.id));
+    // The database has a reviewed tenant/employer composite FK. We must NOT
+    // disable that protection just to test legacy corruption: a worker from A
+    // may never be assigned directly to company B's employer.
+    await assert.rejects(
+      () => db.update(employees).set({ legalEntityId: entityB.id })
+        .where(eq(employees.id, workerA.id)),
+      /employees_tenant_employer_fk|foreign key constraint/,
+      "Real PostgreSQL tenant/employer FK must reject a cross-company reference",
+    );
+
+    // A second legal employer belonging to A is valid under that FK but
+    // inconsistent with A's released run, which uses entityA. The report
+    // loader must reject the mismatched pay source instead of adding wages.
+    const [otherEntityA] = await db.insert(legalEntities).values({
+      organizationId: a.id, code: "HCM-RPT-A-SECOND",
+      legalName: "Fictional second employer within A",
+      displayName: "Fictional Second Entity A",
+    }).returning({ id: legalEntities.id });
+    await db.update(employees).set({ legalEntityId: otherEntityA.id })
+      .where(eq(employees.id, workerA.id));
     await assert.rejects(
       () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
       /source attribution/,
+      "Real employee/run employer disagreement must fail closed",
     );
-    await db.update(employees).set({ legalEntityId: entityA.id }).where(eq(employees.id, workerA.id));
+
+    // Missing historical employer attribution is not the same as verified
+    // membership of the current company. Keep the report unavailable.
+    await db.update(employees).set({ legalEntityId: null })
+      .where(eq(employees.id, workerA.id));
+    await assert.rejects(
+      () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      /source attribution/,
+      "An unattributed worker in released payroll must fail closed",
+    );
+    await db.update(employees).set({ legalEntityId: entityA.id })
+      .where(eq(employees.id, workerA.id));
+    assert.deepEqual(
+      await loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      payroll, "own payroll results recover after legal-employer attribution is restored",
+    );
     const time = await loadAuthorizedReportRows({ organizationId: a.id, dataset: "time", ...range });
     assert.equal(time.length, 2);
     assert.equal(time.reduce((sum, row) => sum + Number(row.absenceDays), 0), 1);
