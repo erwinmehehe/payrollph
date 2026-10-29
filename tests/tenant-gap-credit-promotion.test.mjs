@@ -265,21 +265,62 @@ test("already credited and partial-action methods are not double-counted", () =>
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
-  assert.match(doc, /340 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 148 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
-  const expected = new Map([
-    ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
-    ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
-    ["STA-01", [27,21,0,6]], ["PII-01", [39,32,0,7]],
-    ["PII-02", [38,28,0,10]], ["WRK-01", [39,20,0,19]],
-    ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
-    ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
+  assert.match(doc, /NOT ACCEPTED/);
+  // Current figures must come from the method manifest, never a previously merged PR.
+  const live = `${manifest.metrics.methods} methods = ${manifest.metrics.coveredAfter} COVERED + ${manifest.metrics.publicByDesign} PUBLIC-BY-DESIGN + ${manifest.metrics.gap} GAP`;
+  assert.ok(doc.includes(live), "Current closure plan totals must match live method counts");
+  // Freeze original batch names and sizes, but derive changing statuses from the actual method records.
+  const baselineBatches = new Map([
+    ["DL-01", 26], ["DL-02", 26], ["MNY-01", 33], ["MNY-02", 33],
+    ["STA-01", 27], ["PII-01", 39], ["PII-02", 38], ["WRK-01", 39],
+    ["WRK-02", 39], ["WRK-03", 40], ["EDG-01", 33], ["EDG-02", 33],
   ]);
-  const lines = doc.split("\n").filter(line => /^\| [1-6] \| \*\*/.test(line));
-  assert.equal(lines.length, 12);
-  for (const line of lines) {
-    const m = line.match(/^\| [1-6] \| \*\*([A-Z]+-\d+)\*\* \| (\d+) \| (\d+) \| (\d+) \| (\d+) \| INCOMPLETE \|$/);
-    assert.ok(m, "unparseable batch row: " + line);
-    assert.deepEqual(m.slice(2).map(Number), expected.get(m[1]), m[1]);
+  const current = doc.split("### Current 406-method frozen batch queue — 2026-10-29")[1]
+    ?.split("### Three narrowly promoted API methods")[0];
+  assert.ok(current, "Current batch reconciliation table is required");
+  const rows = current.split("\n").filter(line => line.startsWith("| ") && line.includes("**"));
+  assert.equal(rows.length, baselineBatches.size, "Every frozen batch must appear exactly once");
+  const frozen = doc.split("### Batch DL-01 —")[1]?.split("## Page and server-action closure")[0];
+  assert.ok(frozen, "Frozen 406-method closure queue is required");
+  const sections = ("### Batch DL-01 —" + frozen).split("### Batch ").slice(1);
+  assert.deepEqual(sections.map(section => section.split(" ")[0]), [...baselineBatches.keys()]);
+  const seen = new Set();
+  const total = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+  for (const section of sections) {
+    const [header, ...body] = section.split("\n");
+    const id = header.split(" ")[0];
+    const expectedSize = baselineBatches.get(id);
+    const links = body.filter(line => line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"));
+    assert.equal(links.length, expectedSize, id + ": frozen source-link count changed");
+    const count = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+    for (const link of links) {
+      const identity = link.split("`")[1];
+      const [verb, url] = identity.split(" ");
+      const file = link.split(" — [source](../../")[1]?.split("#L")[0];
+      assert.ok(file?.startsWith("src/app/api/"), id + ": missing exact route source link");
+      const route = manifest.allApiRouteFiles[file];
+      assert.equal("/api/" + route?.route, url, identity + ": source path must match method");
+      const method = route.methods.find(item => item.name === verb);
+      assert.ok(method, identity + ": absent from current manifest");
+      assert.ok(!seen.has(identity), identity + ": duplicated in frozen queue");
+      seen.add(identity);
+      assert.ok(Object.hasOwn(count, method.status), identity + ": unsupported method status");
+      count[method.status]++;
+      total[method.status]++;
+    }
+    const matching = rows.filter(line => line.includes("**" + id + "**"));
+    assert.equal(matching.length, 1, id + ": exactly one batch summary row required");
+    const columns = matching[0].split("|").map(value => value.trim());
+    assert.deepEqual([Number(columns[3]), Number(columns[4]), Number(columns[5]), Number(columns[6])],
+      [expectedSize, count.COVERED, count["PUBLIC-BY-DESIGN"], count.GAP],
+      id + ": documented batch status must match source-linked live method records");
+    assert.equal(columns[7], "INCOMPLETE", id + ": cannot claim an accepted batch");
+    assert.ok(count.GAP > 0, id + ": still has unproven methods");
   }
+  assert.equal(seen.size, 406, "The historic 406-method queue cannot shrink or grow");
+  assert.equal(total.COVERED + total["PUBLIC-BY-DESIGN"] + total.GAP, seen.size);
+  assert.ok(current.includes(`Frozen subtotal: **${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406**`),
+    "The frozen queue subtotal must reflect the actual source-linked statuses");
+  assert.equal(total.GAP, manifest.metrics.gap, "Every live method GAP must remain in the frozen closure queue");
 });
