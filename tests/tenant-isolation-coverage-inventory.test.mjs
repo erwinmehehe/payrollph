@@ -796,7 +796,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "eq(userOrganizations.userId, currentAccount.id)",
       "eq(userOrganizations.organizationId, linkedEmployee.organizationId)",
       "eq(userOrganizations.active, true)",
-      '}).for("share").limit(1)',
+      ')).for("share").limit(1)',
       "eq(employees.organizationId, linkedEmployee.organizationId)",
       "if (!updatedEmployee)",
       "if (!updatedAccount)",
