@@ -1,107 +1,78 @@
 # Nonce CSP verification evidence, PR #1388 follow-up
 
-**Decision: NOT READY / keep `NEXT_CSP_ENABLED` OFF.**
+**Production decision: NO-GO. Keep `NEXT_CSP_ENABLED` OFF.** A completed exact-head local CI run now provides **PASS for all five scoped verification checks**, but it does **not** certify production traffic, third-party integrations, real devices, or hosting cost.
 
-This is a **verification-only** change from `origin/main`, not a
-new CSP implementation, migration or production deployment. It reuses
-the `src/proxy.ts`, `src/lib/nonce-csp.ts`, root `connection()` and existing
-`tests/nonce-csp.test.ts` from merged PR
-[#1388](https://github.com/erwinmehehe/payrollph/pull/1388).
-The existing source/unit tests are NOT credited as actual browser or TTFB proof.
+## Verified exact-commit evidence, October 29, 2026
 
-## Baseline / source review, completed October 29, 2026
+- **Original implementation:** [PR #1388](https://github.com/erwinmehehe/payrollph/pull/1388), already merged, introduced the opt-in nonce CSP, preserved the flag-OFF static policy, and explicitly deferred browser, nonce matching, errors, SEO and hosting proof.
+- **Verification PR:** [#1587](https://github.com/erwinmehehe/payrollph/pull/1587), merged as a verification-only change. This follow-up updates the documentation, **not** the CSP implementation or flag.
+- **Successful executed run:** [Nonce CSP served Chromium and SEO evidence, run 40849978543](https://github.com/erwinmehehe/payrollph/actions/runs/40849978543), **completed success**, 2026-10-29 10:24 UTC, for exact tested commit `21c48fe417ad9dd789081f50bfc03e84ce4a6ba9`.
+- **Raw proof artifact:** `csp-nonce-verification-21c48fe417ad9dd789081f50bfc03e84ce4a6ba9`; artifact ID `12890330739`; archive SHA-256 `6311ad06c10cbe3975045368fdfaf50d8771c507774a0a77456c7c0015ba3d50`. Download from the successful Actions run **before artifact expiration on November 12, 2026**.
+- **Superseded attempt:** [40842039109](https://github.com/erwinmehehe/payrollph/actions/runs/40842039109) was **cancelled** and had no artifact. Its cancellation must not be mistaken for the outcome of the later, successful exact-head run.
 
-- Original PR #1388 explicitly left served Next.js 16 browser/hydration,
-  nonce-to-script matching, error-page headers, caching/SEO/TTFB, and hosting
-  capacity as outstanding acceptance gates.
-- `src/proxy.ts` generates a per-request nonce for matching non-API HTML
-  and forwards the CSP and x-nonce header to rendering and the response.
-  The HCM multi-entity embargo and API handling remain independent.
-- `next.config.ts` retains the legacy static CSP when the flag is not
-  `true`. The root layout uses `connection()` only when it is explicitly
-  enabled at build and runtime.
-- Local authoring-container command `git fetch origin main` was **attempted**
-  but exited 128: `Could not resolve host: github.com`. The GitHub connector
-  confirmed the then-current `main` SHA as
-  `790e5de49523e31807495e1495dcd3483588d4ce`;
-  this verification branch was created from that exact commit SHA. The
-  disposable GitHub Actions acceptance job performs a fresh
-  `git fetch origin main` and records the actual HEAD, origin/main and
-  merge-base values. Do not describe the author's local fetch as successful.
+The successful workflow checked out the exact commit, executed `git fetch origin main`, and recorded the then-current `origin/main=5a3c209dffb2198e8944d0781025c42b117024b0` in `git-fetch-main.log`. Its isolated runner used Ubuntu, local PostgreSQL 16 `app_db`, a **fictional HCM employer fixture**, pinned headless Chromium, and **two independent Next.js production builds** with `NEXT_CSP_ENABLED=false` and `NEXT_CSP_ENABLED=true` respectively at **both build and serve time**. No deployment, real employer data, production database or money flow was accessed.
 
-## Required acceptance and exact evidence
+## Required acceptance results
 
-These statuses are **unverified until an Actions run produces raw artifacts**.
-The workflow fails closed if it cannot complete the two independent
-production builds and actual Chromium checks; it does not turn the flag on
-outside its disposable localhost runner.
-
-| Gate | Initial status | Required raw evidence |
+| Requirement | Executed result | Evidence in run 40849978543 |
 | --- | --- | --- |
-| 1. Real browser and hydration | **UNVERIFIED** | Screenshot PNGs for marketing/login, authenticated payroll workspace and HCM command/action centers. Captured console errors, page errors and `securitypolicyviolation` events. Real React password visibility and Payroll tab clicks. |
-| 2. CSP header and HTML script nonce | **UNVERIFIED** | Exact `script-src`, nonce parsed from header, counts of executable scripts whose `nonce` matches, two independent nonces on the same route, strict no-`unsafe-inline`/no-`unsafe-eval` in production-mode ON. |
-| 3. 404/500/error pages | **UNVERIFIED** | Actual HTTP 404 for missing route and actual HTTP 500 from a **temporary CI-only SSR error route**, twice per build, with valid CSP. The error route is never committed or deployed. |
-| 4. SEO, TTFB and HTML | **UNVERIFIED** | Two independent production builds with flag OFF and ON, seven measured GET samples per page after warmup, HTTP status, response header timing, content length, SHA256 and SEO title/description/canonical/H1. |
-| 5. Hosting-load review | **UNVERIFIED** | Both build route/prerender manifests, route classifications, timing differences and scenario-based SSR demand estimate. This is not a production load test. |
+| 1. Real browser, login, Payroll and HCM hydration | **PASS, local scope** | Six real Chromium pages returned HTTP 200 in both builds: marketing, login, public HCM, authenticated Payroll workspace, HCM People Home/command center and action center. Actual console errors, page errors and `securitypolicyviolation` event counts were **0** for all 12 page checks. Harness also exercised the React login password visibility button, Payroll tab navigation, and HCM navigation. See `off/raw-evidence.json`, `on/raw-evidence.json` and PNG screenshots. |
+| 2. CSP header nonce equals rendered executable script nonces | **PASS, local scope** | `htmlCheck: true` in both harness runs. Two independent served HTML responses per route were compared; the ON build required matching header/script nonces and a fresh nonce per response without production `script-src` `unsafe-inline` or `unsafe-eval`. See raw JSON header values, script counts and nonce comparisons. |
+| 3. 404 and 500/error boundary CSP | **PASS, tested server errors** | Real HTTP **404/404** on a missing route and **500/500** on an intentionally thrown temporary SSR error route, both with the expected CSP and nonce check. The 500 fixture existed **only in the disposable CI checkout**; it was never committed or deployed. See raw HTTP evidence and server logs. |
+| 4. SEO, HTML and TTFB OFF versus ON | **PASS for measurement and metadata parity; further performance review required** | Seven GET requests per route per mode after one warmup, median timing to response headers, raw HTML bytes and SHA-256, HTTP status, SEO title, description, canonical and H1. Reported SEO fields were identical between modes on tested pages. See measured table below and `off/on/raw-evidence.json`. |
+| 5. Hosting-load review | **PASS for build evidence and scenario estimate; NOT scale-tested** | Prerendered route counts changed from **139 OFF to 14 ON** (125 fewer). Two build logs/manifests, local timings, and scenario math support a material potential increase in server rendering. They do **not** demonstrate production-scale capacity or actual billing cost. |
 
-### Executable evidence
+### Observed local TTFB and HTML size
 
-The verification-only workflow is
-[`.github/workflows/nonce-csp-verification.yml`](../../.github/workflows/nonce-csp-verification.yml).
+Milliseconds are median **response-header arrival times** from a local loopback Node fetch, not real-user Core Web Vitals or Lighthouse TTFB. Each mode was an independent production build on the same runner; its seven requests followed one warmup. A positive delta means the nonce-mode response was slower in these observations.
 
-Its real-browser/HTTP collector is
-[`scripts/qa/csp-nonce-browser-verification.mjs`](../../scripts/qa/csp-nonce-browser-verification.mjs)
-and its comparison/report generator is
-[`scripts/qa/csp-nonce-evidence-summary.mjs`](../../scripts/qa/csp-nonce-evidence-summary.mjs).
+| Route | HTTP OFF/ON | TTFB OFF | TTFB ON | Change | HTML bytes OFF | HTML bytes ON | SEO fields match |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `/` | 200 / 200 | 14.95 ms | 15.41 ms | **+0.46 ms** | 87,781 | 90,091 | Yes |
+| `/login` | 200 / 200 | 5.97 ms | 7.45 ms | **+1.48 ms** | 33,144 | 35,039 | Yes |
+| `/hcm` | 200 / 200 | 2.77 ms | 8.91 ms | **+6.14 ms** | 60,085 | 61,938 | Yes |
+| `/__csp_qa_not_found` | 404 / 404 | 1.91 ms | 4.73 ms | **+2.82 ms** | 12,439 | 13,941 | Yes |
+| `/csp-qa-expected-500` | 500 / 500 | 5.75 ms | 7.01 ms | **+1.26 ms** | 10,072 | 11,370 | Yes |
 
-The **actual evidence report for each run** is generated as
-`qa-artifacts/csp-verification/verification-report.md` and uploaded along
-with all raw evidence JSON, screenshots, build route manifests, stdout and
-server logs in the Actions artifact named
-`csp-nonce-verification-<exact-commit-SHA>`. This committed document is the
-review gate / evidence index, **not a substitute for a run result**.
-After a run, transcribe only observed PASS/FAIL evidence and the run link
-before asking the owner to authorize any production change.
+**Interpretation:** This single-run local timing suggests no functional/hydration regression on these pages but shows some latency cost, especially for `/hcm`. Do not project the millisecond differences to customers: sequential runs, warmed caches, host CPU, DB performance and network geography all affect measurements. Raw per-request samples and response/HTML hashes are provided in the artifact.
 
-### Method / constraints
+### Hosting and caching impact
 
-Both builds use the same GitHub runner and disposable PostgreSQL 16
-`app_db`, reusing the repository's fictional
-`hcm-people-home-synthetic-fixture.ts`. The flag is explicitly set OFF
-at the first **build and runtime**, then ON at the independent second
-**build and runtime**. Servers bind only `127.0.0.1:3000` and are
-stopped between builds. The workflow does not reference Vercel deployments,
-Neon databases, customer payroll data or external payment APIs.
+The prerendered route inventory decreased from **139 to 14**, a drop of **125 routes (about 90% of the OFF inventory)**. This is a build-classification change, **not** evidence that 125 routes receive real traffic or that server CPU rose by 90%. Some pages were already dynamically rendered when CSP was OFF.
 
-For fairness, TTFB is measured locally to **response headers** in milliseconds
-using Node fetch, with 7 samples after 1 warm-up. Results are not
-geographically distributed real-user TTFB or Lighthouse Core Web Vitals.
-A change in generated HTML SHA256 is expected from nonce replacement; the
-SEO title, description, canonical and H1 must be compared independently.
-Some marketing routes are already dynamic with the flag OFF.
+For *additional* HTML requests that would previously be served from a static/ISR cache, an **illustrative, unmeasured** 100 ms of CPU per new SSR render yields:
 
-### Hosting cost estimation, not production-scale load proof
+| Extra HTML requests/sec | Extra HTML renders/day | Illustrative continuous CPU at 100 ms/request |
+| ---: | ---: | ---: |
+| 10 | 864,000 | 1 vCPU |
+| 100 | 8,640,000 | 10 vCPU |
+| 500 | 43,200,000 | 50 vCPU |
 
-Additional requests that previously hit a static/ISR CDN cache can become
-per-request HTML renders under nonce mode. For assumed additional HTML traffic
-of 10, 100 and 500 requests/second respectively, the extra daily SSR volume
-is approximately 864,000; 8,640,000; and 43,200,000 HTML renders/day.
-Using a **hypothetical, unmeasured** 100ms CPU per additional request,
-that would occupy roughly 1, 10 or 50 vCPU continuously. These are
-scenario calculations, NOT observed usage or billing. Routes already
-dynamic cannot be counted again. The actual hosting decision needs
-origin cache hit ratios, CPU/SSR time and p95/p99 latency by route from a
-production-like environment.
+This is scenario math only, **not production load testing**, observed compute usage, or a cost quote. A real rollout requires measured production-like cache hit rate, incremental render CPU, peak concurrency, response p95/p99, origin request volume and cost against the owner's budgets. Route-specific CDN behavior must be measured on the proposed hosting configuration.
 
-### Owner recommendation and limits
+## Reproducible raw evidence index
 
-**Remain OFF.** Only after exact-commit build parity, actual browser/hydration,
-404/500 nonce behavior, marketing SEO/TTFB, third-party/physical-device
-compatibility and hosting cost are reviewed should the owner and security lead
-consider a **separate** approved production rollout. A CI PASS is not itself
-permission to flip the flag.
+The run's uploaded artifact contains:
 
-No changed application CSP default, no production flag, no security-policy
-weakening, no new runtime route in the submitted PR, no money actions,
-no real personal data. Verification scope does not certify all app routes or
-physical mobile devices.
+- `off/raw-evidence.json`, `on/raw-evidence.json`: actual HTTP response headers/CSP, per-response script nonce matching, raw browser errors/CSP violation events, authentication, script counts, timestamps, HTML hash/size, all measured samples and per-page PASS/FAIL.
+- `off/*.png`, `on/*.png`: actual headless Chromium screenshots of public pages and fictional authenticated payroll/HCM pages.
+- `off/build.log`, `on/build.log`, `off/build-routes.json`, `on/build-routes.json`: build behavior and prerendered-route inventory.
+- `off/server.log`, `on/server.log`: production-mode localhost server output and expected synthetic error route.
+- `off/harness.log`, `on/harness.log`, `comparison.json`, `verification-report.md`, `summary.log` and `git-fetch-main.log`: actual executable evidence and comparison output.
+
+**Verification sources:** [workflow](../../.github/workflows/nonce-csp-verification.yml), [Chromium/HTTP collector](../../scripts/qa/csp-nonce-browser-verification.mjs), [summary generator](../../scripts/qa/csp-nonce-evidence-summary.mjs). The one-off fixture page for HTTP 500 exists only in CI, not in this repository's runtime routes.
+
+## Remaining gates and owner recommendation
+
+**NO-GO for production enablement.** The five scoped verification items passed on a synthetic localhost runner, but PR #1388's rollout acceptance also calls for further hosted/browser compatibility and approval. Complete these before any separate production flag change:
+
+1. **Independent review of the exact raw artifact** and the nonce/HTML invariants, especially error responses, redirected/authenticated requests and first-load/client transitions.
+2. **Production-like hosted staging** with real CDN behavior, representative marketing SEO/Lighthouse checks, cache-hit ratio and peak-hour SSR latency/memory/cost measurement. A single runner's TTFB medians do not clear this gate.
+3. **Third-party script, font, analytics, login/form and mobile browser compatibility** on actual staging integrations, including at least physical iOS/Android browser checks.
+4. **Owner, Security and Web/SEO signoff**, rollback through a distinct flag-OFF build (not only toggling an environment variable at runtime), and documented cost/security thresholds.
+
+`NEXT_CSP_ENABLED` stays **OFF**. This documentation records already-run evidence; it does not change `src/proxy.ts`, `next.config.ts`, `src/app/layout.tsx`, feature defaults, CI security settings, production hosting, bank/payroll logic, or any user data. The project remains subject to all independent privacy/launch gates.
+
+## Historical authoring-container limitation
+
+Before #1587 was opened, the authoring container tried `git fetch origin main` and got `Could not resolve host: github.com` (exit 128). The verification branch was instead created from the then-current confirmed `main` SHA `790e5de49523e31807495e1495dcd3483588d4ce` using the connected GitHub API. The subsequent **successful GitHub Actions run did execute** `git fetch origin main`. These are distinct environments; do not call the earlier failed local fetch a success.
