@@ -3,10 +3,10 @@ import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { operationalSecret } from "../../src/lib/operational-secret";
-import { employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
+import { attendanceExceptionEvents, employeePayProfiles, employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
 import { ensurePublicDemoTenant } from "../../src/db/public-demo";
 
 // Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
@@ -14,18 +14,22 @@ import { ensurePublicDemoTenant } from "../../src/db/public-demo";
 // provider action or official filing is ever contacted.
 const ORIGIN = "http://127.0.0.1:3000";
 const PERIOD = "periodStart=2026-10-01&periodEnd=2026-10-15";
+const ATTENDANCE_DATES = "startDate=2026-10-01&endDate=2026-10-15";
 const ROLES = ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"];
 const ACCESS = {
-  owner:      { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403 },
-  hr:         { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 403, payslips: 403 },
-  payroll:    { dashboard: 200, bi: 200, planning: 403, allocations: 403, timesheets: 403, payroll: 200, payslips: 403 },
-  checker:    { dashboard: 200, bi: 403, planning: 403, allocations: 403, timesheets: 403, payroll: 403, payslips: 403 },
-  bookkeeper: { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403 },
-  employee:   { dashboard: 403, bi: 403, planning: 403, allocations: 403, timesheets: 200, payroll: 403, payslips: 200 },
+  owner:      { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403, attendance: 200 },
+  hr:         { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 403, payslips: 403, attendance: 200 },
+  payroll:    { dashboard: 200, bi: 200, planning: 403, allocations: 403, timesheets: 403, payroll: 200, payslips: 403, attendance: 200 },
+  checker:    { dashboard: 200, bi: 403, planning: 403, allocations: 403, timesheets: 403, payroll: 403, payslips: 403, attendance: 403 },
+  bookkeeper: { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403, attendance: 200 },
+  employee:   { dashboard: 403, bi: 403, planning: 403, allocations: 403, timesheets: 200, payroll: 403, payslips: 200, attendance: 403 },
 };
 const observations = [];
 let errors = 0;
 let verifiedSourceSha = null;
+let seededAttendanceEventId = null;
+let seededOutsideUnitEventId = null;
+let seededScopedOrgUnitId = null;
 
 function guardEnvironment() {
   assert.equal(process.env.CI, "true");
@@ -38,15 +42,62 @@ function guardEnvironment() {
   assert.equal(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "false");
   assert.equal(process.env.XENDIT_PAYOUTS_ENABLED, "false");
   const url = new URL(process.env.DATABASE_URL ?? "");
+  assert.equal(url.protocol, "postgresql:");
   assert.equal(url.hostname, "127.0.0.1");
   assert.equal(url.port, "5432");
   assert.equal(url.pathname, "/app_db");
+  assert.equal(url.username, "postgres");
+  assert.equal(url.password, "postgres");
+  // No libpq/connection-string query override may redirect this fixture
+  // to a hosted database even if the parsed URL hostname is loopback.
+  assert.equal(url.search, "");
+  assert.equal(url.hash, "");
   // pull_request GITHUB_SHA usually refers to GitHub's synthetic merge commit,
   // not the exact PR head checked out by actions/checkout. Attest the real HEAD.
   const checkedOutSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   assert.match(checkedOutSha, /^[0-9a-f]{40}$/);
   assert.equal(checkedOutSha, process.env.RBAC_SOURCE_SHA);
   verifiedSourceSha = checkedOutSha;
+}
+
+// #1015: only a disposable PG16 runner may create the fictional event.
+// A nonempty queue ensures GET really queries the repaired table rather
+// than returning 200 before touching it for an employer with no employees.
+async function seedAttendanceExceptionForDemo(org) {
+  guardEnvironment();
+  assert.equal(seededAttendanceEventId, null);
+  const workers = await db.select({
+    id: employees.id, orgUnitId: employees.orgUnitId,
+  }).from(employees).where(eq(employees.organizationId, org))
+    .orderBy(employees.id);
+  const inUnit = workers.find(row => Number.isSafeInteger(row.orgUnitId) && row.orgUnitId > 0);
+  const outsideUnit = workers.find(row =>
+    Number.isSafeInteger(row.orgUnitId) && row.orgUnitId > 0 &&
+    row.orgUnitId !== inUnit?.orgUnitId);
+  assert.ok(inUnit && outsideUnit,
+    "Fictional tenant must contain employees in two distinct real organizational units");
+
+  // Two nonempty actual events make a company-wide 200 and an isolated
+  // unit-HR 200 distinguishable. No hardcoded employee or unit IDs.
+  const events = await db.insert(attendanceExceptionEvents).values(
+    [inUnit, outsideUnit].map((worker, index) => ({
+      organizationId: org,
+      employeeId: worker.id,
+      workDate: "2026-10-12",
+      exceptionKind: index === 0 ? "missing_time_in" : "missing_time_out",
+      severity: "warning",
+      message: "Fictional issue 1015 unit scope fixture " + index,
+      fingerprintSha256: createHash("sha256")
+        .update("issue1015-" + org + "-" + randomUUID()).digest("hex"),
+      status: "open",
+      slaDueAt: new Date("2026-10-13T00:00:00.000Z"),
+    })),
+  ).returning({ id: attendanceExceptionEvents.id });
+  assert.equal(events.length, 2);
+  assert.ok(events.every(row => Number.isSafeInteger(row.id) && row.id > 0));
+  seededAttendanceEventId = events[0].id;
+  seededOutsideUnitEventId = events[1].id;
+  seededScopedOrgUnitId = inUnit.orgUnitId;
 }
 
 function evidence(role, name, actual, expected, validShape = true) {
@@ -80,6 +131,21 @@ async function request(path, cookie = null, role = null) {
 
 function validRead(name, body, role, org) {
   if (body === null || typeof body !== "object" || Array.isArray(body)) return false;
+  if (name === "attendance") return seededAttendanceEventId !== null &&
+    seededOutsideUnitEventId !== null && body.organizationId === org &&
+    body.range?.startDate === "2026-10-01" &&
+    body.range?.endDate === "2026-10-15" &&
+    Number.isSafeInteger(body.summary?.open) && body.summary.open >= 2 &&
+    Number.isSafeInteger(body.summary?.unassigned) && body.summary.unassigned >= 2 &&
+    Array.isArray(body.ownerCandidates) && Array.isArray(body.exceptions) &&
+    body.exceptions.some(row => row.id === seededAttendanceEventId &&
+      row.organizationId === org && row.status === "open" &&
+      row.employee?.id === row.employeeId) &&
+    body.exceptions.some(row => row.id === seededOutsideUnitEventId &&
+      row.organizationId === org && row.status === "open" &&
+      row.employee?.id === row.employeeId) &&
+    body.exceptions.every(row => row.organizationId === org &&
+      row.employee?.id === row.employeeId);
   if (name === "dashboard") return body.selectedOrganization?.id === org;
   if (name === "bi") return Array.isArray(body.datasets) && body.datasets.length > 0 &&
     Array.isArray(body.scopes?.legalEntities) && Array.isArray(body.scopes?.orgUnits) &&
@@ -157,6 +223,37 @@ async function seedForeignEmployer() {
     role: "owner",
     active: true,
   });
+  // Prove the second employer owns an ACTUAL attendance exception, rather
+  // than accepting a foreign-company denial where no attendance row exists.
+  const [foreignEmployee] = await db.insert(employees).values({
+    organizationId: foreignOrg.id,
+    employeeNo: "QA-ATT-" + nonce,
+    firstName: "Fictional",
+    lastName: "ForeignWorker",
+    title: "Synthetic attendance worker",
+    avatarInitials: "FW",
+    basicRate: "20000.00",
+    startDate: "2026-10-01",
+  }).returning({ id: employees.id });
+  // Complete this fictional worker before the read-only dashboard preflight.
+  // Runtime reads must never backfill missing pay profiles themselves.
+  await db.insert(employeePayProfiles).values({
+    organizationId: foreignOrg.id, employeeId: foreignEmployee.id,
+    payBasis: "monthly", rateAmount: "20000.00",
+    standardWorkDaysPerMonth: "26.00", standardHoursPerDay: "8.00",
+  });
+  const [foreignAttendance] = await db.insert(attendanceExceptionEvents).values({
+    organizationId: foreignOrg.id,
+    employeeId: foreignEmployee.id,
+    workDate: "2026-10-12",
+    exceptionKind: "missing_time_in",
+    severity: "warning",
+    message: "Fictional existing foreign employer attendance",
+    fingerprintSha256: createHash("sha256")
+      .update("issue1015-foreign-" + nonce).digest("hex"),
+    status: "open",
+  }).returning({ id: attendanceExceptionEvents.id });
+  assert.ok(Number.isSafeInteger(foreignAttendance?.id) && foreignAttendance.id > 0);
   const [foreignRun] = await db.insert(payrollRuns).values({
     organizationId: foreignOrg.id,
     periodLabel: "FICTIONAL-CROSS-TENANT-QA-" + nonce,
@@ -179,7 +276,11 @@ async function seedForeignEmployer() {
     expiresAt: new Date(Date.now() + 60 * 60_000),
     lastSeenAt: new Date(),
   });
-  return { org: foreignOrg.id, run: foreignRun.id, cookie: "linaw_session=" + token };
+  return {
+    org: foreignOrg.id, run: foreignRun.id,
+    employeeId: foreignEmployee.id, attendanceEventId: foreignAttendance.id,
+    cookie: "linaw_session=" + token,
+  };
 }
 
 /**
@@ -238,6 +339,20 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
     directBody?.runId === foreign.run && directBody?.organizationId === foreign.org &&
     Array.isArray(directBody?.entries));
 
+  const attendance = await request("/api/workforce/attendance-exception-events?organizationId=" +
+    foreign.org + "&" + ATTENDANCE_DATES, foreign.cookie);
+  const attendanceBody = await attendance.json().catch(() => null);
+  evidence("foreign-owner", "attendance-own-existing-event", attendance.status, 200,
+    attendanceBody?.organizationId === foreign.org &&
+    attendanceBody?.summary?.open >= 1 &&
+    Array.isArray(attendanceBody.exceptions) &&
+    attendanceBody.exceptions.some(row => row.id === foreign.attendanceEventId &&
+      row.employeeId === foreign.employeeId && row.organizationId === foreign.org));
+
+  const attendanceBefore = await db.select().from(attendanceExceptionEvents)
+    .where(eq(attendanceExceptionEvents.organizationId, foreign.org))
+    .orderBy(attendanceExceptionEvents.id);
+  assert.ok(attendanceBefore.some(row => row.id === foreign.attendanceEventId));
   const snapshot = await db.select().from(payrollRuns).where(eq(payrollRuns.id, foreign.run)).limit(1);
   assert.equal(snapshot.length, 1);
 
@@ -249,6 +364,8 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
     ["cross-tenant-workforce", "/api/workforce-planning?organizationId=" + foreign.org],
     ["cross-tenant-payroll", "/api/payroll-runs?organizationId=" + foreign.org],
     ["cross-tenant-existing-run", "/api/payroll-runs?runId=" + foreign.run + "&include=entries"],
+    ["cross-tenant-attendance", "/api/workforce/attendance-exception-events?organizationId=" +
+      foreign.org + "&" + ATTENDANCE_DATES],
   ]) {
     await probe("owner", name, path, 403, demoOwner.cookie, demoOwner.org);
   }
@@ -256,6 +373,84 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
   const after = await db.select().from(payrollRuns).where(eq(payrollRuns.id, foreign.run)).limit(1);
   evidence("foreign-owner", "run-unchanged-after-denials", 200, 200,
     isDeepStrictEqual(after, snapshot));
+  const attendanceAfter = await db.select().from(attendanceExceptionEvents)
+    .where(eq(attendanceExceptionEvents.organizationId, foreign.org))
+    .orderBy(attendanceExceptionEvents.id);
+  evidence("foreign-owner", "attendance-unchanged-after-denials", 200, 200,
+    isDeepStrictEqual(attendanceAfter, attendanceBefore));
+}
+
+/**
+ * Synthetic PG16 acceptance for two missing #1015 access boundaries:
+ *  - an existing privileged Owner session must fail after membership revoke
+ *  - unit-scoped HR must see its own attendance, not a second unit's record
+ *
+ * The original memberships are restored in finally blocks on the disposable
+ * database. Neither operation is executed against Neon or any public host.
+ */
+async function verifyAttendanceRevocationAndUnitScope(demoOwner, demoHr) {
+  guardEnvironment();
+  assert.equal(demoOwner.org, demoHr.org);
+  const organizationId = demoOwner.org;
+  const path = "/api/workforce/attendance-exception-events?organizationId=" +
+    organizationId + "&" + ATTENDANCE_DATES;
+  const before = await db.select().from(attendanceExceptionEvents)
+    .where(eq(attendanceExceptionEvents.organizationId, organizationId))
+    .orderBy(attendanceExceptionEvents.id);
+  assert.ok(before.some(row => row.id === seededAttendanceEventId));
+  assert.ok(before.some(row => row.id === seededOutsideUnitEventId));
+
+  const ownerMembership = await db.select().from(userOrganizations)
+    .where(and(eq(userOrganizations.userId, demoOwner.userId),
+      eq(userOrganizations.organizationId, organizationId))).limit(1);
+  assert.equal(ownerMembership.length, 1);
+  assert.equal(ownerMembership[0].active, true);
+  try {
+    await db.update(userOrganizations).set({ active: false })
+      .where(eq(userOrganizations.id, ownerMembership[0].id));
+    await probe("owner", "attendance-revoked-denied", path, 403,
+      demoOwner.cookie, organizationId);
+  } finally {
+    await db.update(userOrganizations).set({ active: true })
+      .where(eq(userOrganizations.id, ownerMembership[0].id));
+  }
+  const afterRevocation = await db.select().from(attendanceExceptionEvents)
+    .where(eq(attendanceExceptionEvents.organizationId, organizationId))
+    .orderBy(attendanceExceptionEvents.id);
+  evidence("owner", "attendance-revocation-unchanged", 200, 200,
+    isDeepStrictEqual(afterRevocation, before));
+
+  const hrMembership = await db.select().from(userOrganizations)
+    .where(and(eq(userOrganizations.userId, demoHr.userId),
+      eq(userOrganizations.organizationId, organizationId))).limit(1);
+  assert.equal(hrMembership.length, 1);
+  assert.equal(hrMembership[0].role, "hr");
+  assert.equal(hrMembership[0].active, true);
+  assert.equal(hrMembership[0].orgUnitId, null,
+    "The demo HR must be company-wide before scoped acceptance");
+  assert.ok(Number.isSafeInteger(seededScopedOrgUnitId) && seededScopedOrgUnitId > 0);
+  try {
+    await db.update(userOrganizations).set({ orgUnitId: seededScopedOrgUnitId })
+      .where(eq(userOrganizations.id, hrMembership[0].id));
+    const response = await request(path, demoHr.cookie);
+    const body = await response.json().catch(() => null);
+    evidence("hr", "attendance-unit-scope-only", response.status, 200,
+      body?.organizationId === organizationId &&
+      body?.summary?.open >= 1 &&
+      Array.isArray(body.exceptions) &&
+      body.exceptions.some(row => row.id === seededAttendanceEventId &&
+        row.employee?.orgUnitId === seededScopedOrgUnitId) &&
+      !body.exceptions.some(row => row.id === seededOutsideUnitEventId) &&
+      body.exceptions.every(row => row.employee?.orgUnitId === seededScopedOrgUnitId));
+  } finally {
+    await db.update(userOrganizations).set({ orgUnitId: hrMembership[0].orgUnitId })
+      .where(eq(userOrganizations.id, hrMembership[0].id));
+  }
+  const afterScope = await db.select().from(attendanceExceptionEvents)
+    .where(eq(attendanceExceptionEvents.organizationId, organizationId))
+    .orderBy(attendanceExceptionEvents.id);
+  evidence("hr", "attendance-unit-scope-unchanged", 200, 200,
+    isDeepStrictEqual(afterScope, before));
 }
 
 async function run() {
@@ -284,12 +479,13 @@ async function run() {
     "/api/workforce-planning?organizationId=1",
     "/api/workforce-planning/allocations?organizationId=1",
     "/api/workforce/timesheets?organizationId=1&" + PERIOD,
+    "/api/workforce/attendance-exception-events?organizationId=1&" + ATTENDANCE_DATES,
     "/api/payroll-runs?organizationId=1"]) {
     await probe("anonymous", "deny-" + new URL(path, ORIGIN).pathname,
       path, 401, null, 1);
   }
 
-  let demoOwner = null;
+  let demoOwner = null, demoHr = null;
   for (const role of ROLES) {
     let session;
     try {
@@ -304,12 +500,19 @@ async function run() {
       const cookies = response.headers.getSetCookie().map(x => x.split(";")[0])
         .filter(x => /^[A-Za-z0-9_-]+=[^\r\n]+$/.test(x));
       evidence(role, "demo-session", response.status, 200, valid && cookies.length > 0);
-      if (valid && cookies.length > 0) session = { org, cookie: cookies.join("; ") };
+      if (valid && cookies.length > 0) {
+        assert.ok(Number.isSafeInteger(body.user?.id) && body.user.id > 0);
+        session = { org, cookie: cookies.join("; "), userId: body.user.id };
+      }
     } catch {
       evidence(role, "demo-session", 0, 200, false);
     }
     if (!session) continue;
-    if (role === "owner") demoOwner = session;
+    if (role === "owner") {
+      demoOwner = session;
+      await seedAttendanceExceptionForDemo(session.org);
+    }
+    if (role === "hr") demoHr = session;
 
     const org = session.org, cookie = session.cookie;
     const query = "organizationId=" + org;
@@ -319,6 +522,7 @@ async function run() {
       planning: "/api/workforce-planning?" + query,
       allocations: "/api/workforce-planning/allocations?" + query,
       timesheets: "/api/workforce/timesheets?" + query + "&" + PERIOD,
+      attendance: "/api/workforce/attendance-exception-events?" + query + "&" + ATTENDANCE_DATES,
       payroll: "/api/payroll-runs?" + query,
       payslips: "/api/self/payslips",
     };
@@ -326,12 +530,15 @@ async function run() {
       await probe(role, name, path, ACCESS[role][name], cookie, org);
     }
   }
-  assert.ok(demoOwner, "The fictional demo Owner must authenticate before tenant isolation QA");
+  assert.ok(demoOwner && demoHr,
+    "Fictional Owner and HR must authenticate before attendance boundary QA");
+  await verifyAttendanceRevocationAndUnitScope(demoOwner, demoHr);
   await verifyDuplicateDemoLabelDenied(demoOwner);
   await verifyExistingForeignEmployerDenials(demoOwner);
   // No role may silently drop out of the matrix and leave a green subset.
-  // 2 true victim-owned positives + 5 actual victim denials + unchanged DB.
-  const expected = 2 + 5 + ROLES.length * 8 + 2 + 3 + 5 + 1;
+  // 2 private + 6 anonymous + 6*9 role + 4 revocation/scope + 2 demo
+  // provisioning + 4 foreign positive + 6 foreign denials + 2 unchanged DB.
+  const expected = 2 + 6 + ROLES.length * 9 + 4 + 2 + 4 + 6 + 2;
   assert.equal(observations.length, expected,
     "Every anonymous, login, role-route and cross-tenant probe must execute");
 }
