@@ -7,7 +7,7 @@ import { resolveExplicitEntitySelection } from "../src/lib/multi-entity-selector
 const source = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
 
 test("salary preview authorizes raw body entity before employee or pay source reads", () => {
-  assert.match(source, /resolveMultiEntityContext\(\{\s*userId: user\.id, organizationId, request, requested: body\.legalEntityId,/);
+  assert.match(source, /resolveMultiEntityContext\(\{\s*userId: user\.id, organizationId, request, requested: body\.legalEntityId as string \| number \| null \| undefined,/);
   assert.match(source, /assertEntityResource\(entityScope\.context, legalEntityId\)/);
   assert.match(source, /assertEntityResource\(entityScope\.context, employee\.legalEntityId\)/);
   assert.match(source, /if \(entityScope\.context\.group\)/);

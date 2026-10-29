@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   // employee/payroll source. With multi-entity OFF, no optional grant tables
   // are queried and the existing single-employer behavior is preserved.
   const entityScope = await resolveMultiEntityContext({
-    userId: user.id, organizationId, request, requested: body.legalEntityId,
+    userId: user.id, organizationId, request, requested: body.legalEntityId as string | number | null | undefined,
   });
   if (!entityScope.ok) return entityScope.response;
   if (entityScope.context.group) {
