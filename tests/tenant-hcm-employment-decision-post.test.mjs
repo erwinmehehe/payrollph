@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   HCM_DECISION_POST, requireDisposableHcmDecisionEnv,
   assertVictimDecisionUnchanged, assertNoVictimDecisionLeak,
+  assertDeniedHcmDecisionResponse,
 } from "../scripts/qa/tenant-hcm-employment-decision-contract.mjs";
 
 const source = readFileSync("scripts/qa/tenant-hcm-employment-decision-post.mjs", "utf8");
@@ -25,6 +26,8 @@ test("HCM POST proof refuses every non-disposable execution target and live prov
     ["SECURITY_SMOKE_URL", "https://payroll.example.test"],
     ["DATABASE_URL", "postgresql://postgres:postgres@database.internal:5432/app_db"],
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/production"],
+    ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db?host=remote.invalid"],
+    ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db#unexpected"],
     ["PAYMONGO_DISBURSEMENTS_ENABLED", "true"], ["XENDIT_PAYOUTS_ENABLED", "true"],
     ["PAYMONGO_SECRET_KEY", "live-provider-key"],
   ];
@@ -42,6 +45,13 @@ test("victim snapshot and confidentiality negative-controls fail loudly", () => 
   }, "victim changed"));
   assert.doesNotThrow(() => assertNoVictimDecisionLeak({ text: '{"ok":true}' }, "VICTIM", "safe"));
   assert.throws(() => assertNoVictimDecisionLeak({ text: "VICTIM" }, "VICTIM", "leak"));
+  const safeDenial = { text: '{"error":"Access denied"}', json: { error: "Access denied" } };
+  assert.doesNotThrow(() => assertDeniedHcmDecisionResponse(safeDenial, "VICTIM", "denied"));
+  for (const invalid of [
+    { text: "<html>Forbidden</html>", json: null },
+    { text: '{"decision":{"id":41}}', json: { error: "Access denied", decision: { id: 41 } } },
+    { text: '{"error":"VICTIM"}', json: { error: "VICTIM" } },
+  ]) assert.throws(() => assertDeniedHcmDecisionResponse(invalid, "VICTIM", "unsafe denial"));
 });
 
 test("actual production HCM POST tenant and MFA guards remain scoped", () => {
@@ -76,6 +86,13 @@ test("two real owned HTTP inserts and high-ID victim/forged SQL denial are execu
     "assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id)",
     "assert.deepEqual(afterOwn.payrollRuns, beforeOwn.payrollRuns",
     "newCredits: 0, independentlyAccepted: false, productionCertified: false",
+    "assertDeniedHcmDecisionResponse(denied, victimMarker, attack.type)",
+    "db.update(userOrganizations).set({ active: false })",
+    '}), 403, "Revoked fictional owner must not create an employment decision"',
+    "assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id)",
+    "db.update(userOrganizations).set({ active: true })",
+    "assert.equal(revokedDenials, 2)",
+    "revokedOwnerHttp403: revokedDenials",
   ]) assert.ok(source.includes(guard), "Proof safeguard missing: " + guard);
 });
 
