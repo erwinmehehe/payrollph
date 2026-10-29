@@ -2713,7 +2713,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(workflow, /node --import tsx scripts\/qa\/tenant-report-builder-page-http\.mjs/);
         assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
         assert.equal(reviewed.credits, 0, "No page or API credit from feature-ON GET-only proof");
-        return; // Deliberate exact-source, zero-credit GAP exception, not blanket certification.
+        continue; // Deliberate exact-source, zero-credit GAP exception, not blanket certification.
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
