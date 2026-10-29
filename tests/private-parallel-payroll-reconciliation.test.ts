@@ -311,6 +311,32 @@ test("matching balanced journals cannot hide swapped statutory versus tax liabil
   });
 });
 
+test("matching balanced unmapped GL suspense entries cannot create false reconciliation", () => {
+  withFixture((root, manifest) => {
+    const period = "2026-07";
+    const unmapped = [
+      ["UNMAPPED_SUSPENSE_DEBIT", EMPLOYER, period, "125.00", "0.00"],
+      ["UNMAPPED_SUSPENSE_CREDIT", EMPLOYER, period, "0.00", "125.00"],
+    ];
+    // The two books still balance and match account by account. Without the
+    // canonical-account guard the offline verifier would incorrectly pass.
+    for (const source of ["incumbentJournal", "linawJournal"] as const) {
+      mutate(root, manifest, 0, source, () =>
+        asCsv(JOURNAL_COLUMNS, [...journalRows(period), ...unmapped]));
+    }
+    const report = evaluateParallelPayrollReconciliation(manifest, root);
+    assert.equal(report.status, "reconciliation-blocked");
+    assert.equal(report.results[0].incumbentJournalAccounts, 12);
+    assert.equal(report.results[0].linawJournalAccounts, 12);
+    assert.equal(report.issues.filter((issue) =>
+      issue.includes("normalized GL contains unmapped accounts")).length, 2);
+    assert.ok(!report.issues.some((issue) => issue.includes("do not balance")));
+    assert.ok(!report.issues.some((issue) => issue.includes("GL account mismatch")));
+    assert.ok(!JSON.stringify(report).includes("UNMAPPED_SUSPENSE"));
+    assert.ok(!JSON.stringify(report).includes("125.00"));
+  });
+});
+
 test("a documented withholding refund bridges to GL debit rather than fictitious credit", () => {
   withFixture((root, manifest) => {
     for (const source of ["incumbentPayroll", "linawPayroll"] as const) {

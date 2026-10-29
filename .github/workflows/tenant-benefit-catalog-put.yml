@@ -1,0 +1,90 @@
+name: Tenant benefit catalogue PUT isolation (fictional PG16)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-benefit-catalog-put.yml'
+      - 'src/app/api/benefits/route.ts'
+      - 'src/lib/benefit-catalog-tenant.ts'
+      - 'scripts/qa/tenant-benefit-catalog-put-http.mjs'
+      - 'scripts/qa/tenant-benefit-catalog-put-contract.mjs'
+      - 'tests/benefit-catalog-tenant.test.ts'
+      - 'tests/tenant-benefit-catalog-put-contract.test.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'tests/tenant-isolation-coverage-inventory.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benefit-catalog-put-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  benefit-catalog-put:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Attest exact PR head
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export provider-off localhost-only synthetic environment
+        shell: bash
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo "WORKER_ENABLED=false" >> "$GITHUB_ENV"
+          echo "CENTRAL_SCHEDULER_ENABLED=false" >> "$GITHUB_ENV"
+          echo "XENDIT_BILLING_ENABLED=false" >> "$GITHUB_ENV"
+      - name: Fail-closed preflight and negative controls before database imports
+        run: node --test tests/tenant-benefit-catalog-put-contract.test.mjs
+      - name: Pure employer-bound seed and canonical selector tests
+        run: node --import tsx --test tests/benefit-catalog-tenant.test.ts
+      - name: Generate disposable encryption and webhook keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Typecheck exact branch
+        run: npm run typecheck
+      - name: Create fresh disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual localhost production-mode application
+        run: npm run build
+      - name: Exercise real own/foreign/revoked/concurrent PUT and SQL snapshots
+        run: node --import tsx scripts/qa/tenant-benefit-catalog-put-http.mjs
