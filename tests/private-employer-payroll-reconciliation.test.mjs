@@ -23,6 +23,19 @@ test("synthetic: PHP 0.01 passes; PHP 0.02 fails with field count",()=>{
  assert.equal(outside.pass,false);assert.equal(outside.varianceOverCent,1);
  assert.equal(outside.differencesByField.net,1);
 });
+test("synthetic: two individually tolerable one-cent errors fail when aggregate exceeds one cent",()=>{
+ const reference=csv(row("FICTIONAL-01"),row("FICTIONAL-02"));
+ const candidate=csv(row("FICTIONAL-01","12123.01"),row("FICTIONAL-02","12123.01"));
+ const result=comparePayrollCsv(reference,candidate);
+ assert.equal(result.pass,false);
+ assert.equal(result.varianceOverCent,0,"per-employee one-cent threshold remains unchanged");
+ assert.deepEqual(result.aggregateVarianceFields,["net"]);
+ assert.equal(result.maximumAbsoluteVariancePesos,"0.01");
+ assert.ok(!JSON.stringify(result).includes("FICTIONAL-01"));
+ const cancelling=csv(row("FICTIONAL-01","12123.01"),row("FICTIONAL-02","12122.99"));
+ assert.equal(comparePayrollCsv(reference,cancelling).pass,true,"offsetting, per-worker <= one-cent differences remain within contract");
+});
+
 test("synthetic: missing, additional or repeated employees fail",()=>{
  const a=csv(row("FICTIONAL-01"),row("FICTIONAL-02"));
  assert.equal(comparePayrollCsv(a,csv(row("FICTIONAL-01"))).pass,false);
