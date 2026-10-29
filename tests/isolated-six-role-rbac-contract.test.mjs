@@ -42,6 +42,11 @@ test("customer-scope production 404 is proved privately and never counts as role
 
 test("isolated role QA may contact only localhost and a disposable PostgreSQL 16 database", () => {
   assert.match(local, /const ORIGIN = "http:\/\/127\.0\.0\.1:3000"/);
+  assert.match(local, /assert\.equal\(url\.protocol, "postgresql:"\)/);
+  assert.match(local, /assert\.equal\(url\.username, "postgres"\)/);
+  assert.match(local, /assert\.equal\(url\.password, "postgres"\)/);
+  assert.match(local, /assert\.equal\(url\.search, ""\)/);
+  assert.match(local, /assert\.equal\(url\.hash, ""\)/);
   assert.match(local, /assert\.equal\(url\.hostname, "127\.0\.0\.1"\)/);
   assert.match(local, /assert\.equal\(process\.env\.DEMO_MODE, "true"\)/);
   assert.match(local, /assert\.equal\(process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED, "false"\)/);
