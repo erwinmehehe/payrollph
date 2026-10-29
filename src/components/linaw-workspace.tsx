@@ -3,6 +3,7 @@ import { MoreModules } from "@/components/workspace/more-modules";
 import { CoreReports } from "@/components/workspace/core-reports";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { completePayrollDraftBrowserKey, payrollDraftBrowserKey } from "@/lib/payroll-draft-intent";
 import { useSearchParams } from "next/navigation";
 import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
@@ -314,9 +315,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
   }) {
     setBusy(true);
     try {
+      if (!data.user) throw Error("Sign in before creating payroll.");
+      const intentKey = payrollDraftBrowserKey(sessionStorage, data.user.id, {
+        organizationId: data.selectedOrganization.id, legalEntityId: input.legalEntityId,
+        scopeOrgUnitId: input.scopeOrgUnitId, periodStart: input.periodStart,
+        periodEnd: input.periodEnd, payDate: input.payDate, processNow: true,
+      });
       const response = await fetch("/api/payroll-runs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": intentKey },
         body: JSON.stringify({ ...input, organizationId: data.selectedOrganization.id, processNow: true }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -324,14 +331,21 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, inlin
         notify(payload.error ?? "The payroll run could not be created.", "err");
         return;
       }
-      await refresh();
+      if (!Number.isSafeInteger(payload.run?.id) || payload.run.id <= 0
+        || payload.run.organizationId !== data.selectedOrganization.id) throw Error("Unverified payroll creation response");
       setNewPayrollOpen(false);
       setPage("Payroll");
-      notify(payload.payoutReadiness?.deferred === true
+      completePayrollDraftBrowserKey(sessionStorage,data.user.id,data.selectedOrganization.id,intentKey);
+      notify(payload.idempotentReplay === true
+        ? "Existing payroll run recovered. Review its current status in Payroll; no second run was created."
+        : payload.payoutReadiness?.deferred === true
         ? "Draft created for calculation. Complete payout details and resolve assurance findings before approval or release."
         : "Run created and queued through the chunked background worker.");
+      try { await refresh(); } catch {
+        notify("Payroll was saved, but the workspace could not refresh. Reload Payroll to resume the existing run.", "err");
+      }
     } catch {
-      notify("Could not reach the payroll service.", "err");
+      notify("Payroll creation could not be confirmed. Check Payroll or retry the same details to recover the existing attempt.", "err");
     } finally {
       setBusy(false);
     }
