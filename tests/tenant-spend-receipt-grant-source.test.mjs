@@ -37,7 +37,8 @@ function assertReceiptBoundary(source) {
   const attached = postBody.indexOf("tx.update(expenseClaimEvidence)");
   assert.ok(final > intent && attached > final,
     "final commit must re-check the locked employee grant after storage IO");
-  assert.ok(postBody.indexOf("freshCore.employeeId !== claim.employeeId") < final,
+  const reassignmentGuard = postBody.indexOf("freshCore.employeeId !== claim.employeeId");
+  assert.ok(reassignmentGuard > 0 && reassignmentGuard < final,
     "claim reassignment while uploading must not attach a mismatched employee");
   assert.match(postBody, /eq\(expenseClaimEvidence\.organizationId, claim\.organizationId\)/);
   assert.match(postBody, /reconcilePendingSpendReceipt\(pendingDocumentId\)/,
