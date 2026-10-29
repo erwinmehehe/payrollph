@@ -38,3 +38,32 @@ test("synthetic: mixed or mismatched pay periods and malformed money fail closed
  assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01").replace("FICTIONAL-EMPLOYER-A","FICTIONAL-EMPLOYER-B"))),/LEGAL_EMPLOYER_MISMATCH/);
  assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01"),row("FICTIONAL-02").replace("FICTIONAL-EMPLOYER-A","FICTIONAL-EMPLOYER-B"))),/MIXED_LEGAL_EMPLOYERS/);
 });
+
+test("synthetic: extra personal-data columns are rejected, while order-only changes remain valid",()=>{
+ const a=csv(row("FICTIONAL-01"));
+ const unsafe=[header+",employeeName,bankAccount",row("FICTIONAL-01")+",PRIVATE-NAME,PRIVATE-BANK",""].join("\n");
+ assert.throws(()=>comparePayrollCsv(a,unsafe),/NONCANONICAL_CSV_HEADER/);
+ assert.throws(()=>comparePayrollCsv(unsafe,unsafe),/NONCANONICAL_CSV_HEADER/);
+ // Reverse column order without changing any source values.
+ const ordered=[header.split(",").reverse().join(","),row("FICTIONAL-01").split(",").reverse().join(","),""].join("\n");
+ assert.equal(comparePayrollCsv(a,ordered).pass,true);
+});
+
+test("synthetic: valid quoted employee identifiers and CRLF remain supported, malformed trailing text fails",()=>{
+ const a=csv(row("FICTIONAL-01"));
+ const quoted=csv(row('"FICTIONAL-01"')).replace(/\n/g,"\r\n");
+ assert.equal(comparePayrollCsv(a,quoted).pass,true);
+ const invalid=csv(row('"FICTIONAL-01"trailing'));
+ assert.throws(()=>comparePayrollCsv(a,invalid),/INVALID_CSV_QUOTE/);
+ const hiddenNewline=csv(row('"FICTIONAL\n01"'));
+ assert.throws(()=>comparePayrollCsv(a,hiddenNewline),/INVALID_EMPLOYEE_NO/);
+});
+
+test("synthetic: bounded offline CSV input rejects oversized files, rows and amounts",()=>{
+ const a=csv(row("FICTIONAL-01"));
+ assert.throws(()=>comparePayrollCsv(a+"x".repeat(8*1024*1024),a),/CSV_TOO_LARGE/);
+ const many=[header,...Array.from({length:50_001},()=>row("FICTIONAL-01")),""].join("\n");
+ assert.throws(()=>comparePayrollCsv(many,a),/TOO_MANY_CSV_ROWS/);
+ const largeMoney=csv(row("FICTIONAL-01").replace("15000.00","9999999999.00"));
+ assert.throws(()=>comparePayrollCsv(a,largeMoney),/INVALID_MONEY/);
+});
