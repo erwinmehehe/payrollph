@@ -117,6 +117,13 @@ jobs:
       DEMO_MODE: "false"
       REQUIRE_PRIVILEGED_MFA: "true"
       CORE_MODULE_NAVIGATION_ENABLED: "false"
+      # The tenant-aware navigation extension must never run live workers,
+      # paid providers or outbound payout integrations.
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
       OPENAI_API_KEY: ""
       NEXT_TELEMETRY_DISABLED: "1"
     services:
@@ -136,6 +143,12 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify navigation sweep checks out the exact PR head or main SHA
+        shell: bash
+        env:
+          EXPECTED_NAV_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_NAV_SHA"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
@@ -155,6 +168,8 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Derive real navigation inventory and scan error call sites
         run: npx tsx scripts/nav-sweep-manifest.ts
+      - name: Fail-closed cross-employer navigation contract and negative controls
+        run: node --test tests/nav-sweep-tenant-contract.test.mjs
       - name: Reuse existing synthetic tenant fixture
         run: npx tsx scripts/core-modules-synthetic-fixture.ts
       - name: Add missing fictional role accounts
@@ -175,6 +190,10 @@ jobs:
           done
           cat /tmp/payrollph-nav-sweep.log
           exit 1
+      - name: Cross-employer business-ID navigation proof (two attackers, high-ID victim)
+        env:
+          NODE_ENV: "production"
+        run: node --import tsx scripts/nav-sweep-tenant-edges.mjs
       - name: Focused Settings navigation regression at desktop and 390px
         run: NAV_SWEEP_FOCUS_ROLE=owner NAV_SWEEP_FOCUS_PAGE=Settings node --import tsx --test tests/e2e/nav-sweep.spec.mjs
       - name: Focused 375px role-scoped visual and mobile navigation acceptance

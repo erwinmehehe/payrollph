@@ -10,6 +10,9 @@ export function isSellablePlan(value: unknown): value is SellablePlan {
 }
 
 export function safeSeats(value: unknown) {
+  // Do not turn JSON booleans, arrays, or exponent/hex strings into a billable
+  // number of employee seats. The UI may submit a decimal digit string.
+  if (typeof value !== "number" && (typeof value !== "string" || !/^\d+$/.test(value))) return null;
   const seats = typeof value === "number" ? value : Number(value);
   return Number.isSafeInteger(seats) && seats >= 1 && seats <= 2_000 ? seats : null;
 }

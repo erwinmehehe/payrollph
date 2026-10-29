@@ -29,6 +29,26 @@ export function recurringBillingReady(env: NodeJS.ProcessEnv = process.env) {
     && Boolean(env.APP_BASE_URL?.startsWith("https://"));
 }
 
+/** Public account creation may NOT fall back to a per-process rate counter.
+ * A cross-instance outage must not silently weaken registration abuse limits.
+ */
+export function signupRateLimitResponse(
+  rate: { allowed: boolean; mode: string },
+  throttledMessage = "Too many registration attempts. Please try later.",
+): Response | null {
+  if (rate.mode !== "distributed-postgres") {
+    return Response.json({ error: "Registration security check is temporarily unavailable." }, {
+      status: 503, headers: { "Cache-Control": "no-store" },
+    });
+  }
+  if (!rate.allowed) {
+    return Response.json({ error: throttledMessage }, {
+      status: 429, headers: { "Cache-Control": "no-store" },
+    });
+  }
+  return null;
+}
+
 /** Compatibility for billing-only paths; pilot signup never enables billing. */
 export function publicSelfServeReady() {
   return signupMode() === "paid";
