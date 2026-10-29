@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Configure required reviewers for this environment before first dispatch.
-    # This job NEVER deploys, sets NEXT_CSP_ENABLED or reads a database.
+    # Never deploys or sets NEXT_CSP_ENABLED. DB proof queries metadata only via a read-only user.
     environment: csp-hosted-staging
     env:
       CSP_STAGE_PROJECT_ID: ${{ vars.CSP_STAGE_PROJECT_ID }}
