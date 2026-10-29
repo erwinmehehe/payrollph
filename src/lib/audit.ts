@@ -11,6 +11,8 @@ import { auditEvents, userOrganizations } from "@/db/schema";
  * workspace membership (the audit row has a NOT NULL FK to organizations). Those
  * events are skipped rather than attributed to a guessed workspace, a missing
  * row is honest, a row pointing at the wrong company is not.
+ * Pass the current transaction as writer when the audit receipt must commit
+ * or roll back with a business-state change. Existing callers retain db.
  */
 export async function recordAuditEvent(input: {
   organizationId: number | null;
@@ -18,10 +20,10 @@ export async function recordAuditEvent(input: {
   action: string;
   resource: string;
   metadata?: Record<string, unknown>;
-}) {
+}, writer: Pick<typeof db, "insert"> = db) {
   if (input.organizationId == null) return null;
 
-  const [row] = await db.insert(auditEvents).values({
+  const [row] = await writer.insert(auditEvents).values({
     organizationId: input.organizationId,
     actor: input.actor,
     action: input.action,

@@ -92,7 +92,7 @@ async function makeOwnWrite(h, c) {
   return { before, after, response, plan };
 }
 
-test("one exact GAP method in new, independent Benefits/HMO write family", () => {
+test("one exact source-pinned method in the independent Benefits/HMO write family", () => {
   const { row } = harness();
   assert.equal(row.key, sourceKey);
   assert.equal(row.status, 201);
@@ -109,8 +109,15 @@ test("one exact GAP method in new, independent Benefits/HMO write family", () =>
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles)
     .find(item => item.route === "benefits/hmo");
-  assert.equal(record.methods.find(m => m.name === "POST")?.status, "GAP",
-    "source tests do not grant coverage credits");
+  const post = record.methods.find(m => m.name === "POST");
+  assert.equal(post?.status, "COVERED", "Only independently executed HMO POST HTTP proof can grant provisional credit");
+  assert.equal(post?.testedBy?.file, "scripts/qa/tenant-hmo-http.mjs",
+    "Source-only Benefits/HMO fixtures cannot grant coverage credits");
+  assert.deepEqual(post?.testedBy?.postActions,
+    ["create_plan", "add_dependent", "update_dependent", "update_enrollment"]);
+  assert.equal(post?.testedBy?.foreignStatus, 403);
+  assert.equal(post?.testedBy?.passedJob,
+    "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
 });
 
 test("all three HMO sources persist distinct real plan, enrollment and dependent IDs", async () => {

@@ -147,13 +147,29 @@ async function providerJson(request:typeof fetch, url:string, token:string):Prom
   if(!response.ok)throw new LoyverseSourceError("SOURCE_UNAVAILABLE");
   const declared=Number(response.headers.get("content-length")??0);
   if(!Number.isFinite(declared)||declared>MAX_BYTES)throw new LoyverseSourceError("SOURCE_REVIEW");
+  // Do not buffer an untrusted upstream response before checking its size.
+  // Content-Length can be absent or false; enforce the same cap while reading.
+  if(!response.body)throw new LoyverseSourceError("SOURCE_REVIEW");
+  const reader=response.body.getReader();
   let data:unknown;
+  const chunks:Uint8Array[]=[];
+  let bytes=0;
   try {
-    const raw=await response.text();
-    if(Buffer.byteLength(raw,"utf8")>MAX_BYTES)throw Error("oversized");
-    data=JSON.parse(raw);
+    for(;;){
+      const {done,value}=await reader.read();
+      if(done)break;
+      bytes+=value.byteLength;
+      if(bytes>MAX_BYTES){
+        await reader.cancel().catch(()=>{});
+        throw Error("oversized");
+      }
+      chunks.push(value);
+    }
+    data=JSON.parse(Buffer.concat(chunks,bytes).toString("utf8"));
   }catch {
     throw new LoyverseSourceError("SOURCE_REVIEW");
+  }finally {
+    reader.releaseLock();
   }
   if(!obj(data)||("errors" in data && (!Array.isArray(data.errors) ||
     data.errors.length>0)))throw new LoyverseSourceError("SOURCE_REVIEW");
