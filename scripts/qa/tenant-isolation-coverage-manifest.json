@@ -1867,7 +1867,7 @@
       "methods": [
         {
           "name": "GET",
-          "line": 13,
+          "line": 14,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1886,7 +1886,7 @@
         },
         {
           "name": "POST",
-          "line": 60,
+          "line": 61,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1905,7 +1905,7 @@
         },
         {
           "name": "DELETE",
-          "line": 147,
+          "line": 148,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1924,7 +1924,7 @@
         },
         {
           "name": "PUT",
-          "line": 208,
+          "line": 209,
           "status": "GAP",
           "reason": "Still GAP: employer-bound catalogue source correction has a separate proposed real HTTP PG16 fixture; independent review and exact-head CI acceptance remain pending. Zero new tenant-coverage credit.",
           "testedBy": null,
