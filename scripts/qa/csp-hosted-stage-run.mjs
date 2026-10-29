@@ -134,11 +134,19 @@ async function testBrowser(browser,stage,bypass,path) {
     viewport:{width:1440,height:900},
     serviceWorkers:"block",
   });
-  // Send optional protection bypass ONLY to the attested exact origin;
-  // NEVER to third-party scripts, redirected pages or other hosts.
-  if (bypass) await context.route("**/*",async route=>{
+  // Block ALL non-read requests, including unsolicited browser analytics
+  // posts. Send optional protection bypass ONLY to the attested exact origin.
+  // No password submit, payroll writes, POST telemetry or external tokens.
+  let blockedNonReadRequests=0;
+  await context.route("**/*",async route=>{
+    const method=route.request().method().toUpperCase();
+    if (method!=="GET" && method!=="HEAD") {
+      blockedNonReadRequests++;
+      await route.abort("blockedbyclient");
+      return;
+    }
     try {
-      if (new URL(route.request().url()).origin===stage.origin) {
+      if (bypass && new URL(route.request().url()).origin===stage.origin) {
         const h={...route.request().headers(),"x-vercel-protection-bypass":bypass};
         await route.continue({headers:h});
       } else await route.continue();
@@ -188,6 +196,9 @@ async function testBrowser(browser,stage,bypass,path) {
       entry.hydrationProof="public page rendered; no interactive click asserted";
     }
     entry.cspViolations=await page.evaluate(()=>window.__cspStageViolations||[]);
+    entry.blockedNonReadRequests=blockedNonReadRequests;
+    assert.equal(blockedNonReadRequests,0,
+      stage.mode+" "+path+": browser attempted non-read request; review integration");
     const relevantErrors=[...entry.consoleErrors,...entry.pageErrors]
       .filter(text=>/content security policy|refused to (load|execute)|hydration|react error #|minified react error/i.test(text));
     assert.equal(entry.cspViolations.length,0,stage.mode+" "+path+" CSP violations");
