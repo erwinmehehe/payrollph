@@ -118,7 +118,7 @@ test("CI evidence attests the ACTUAL checked-out PR head, not GitHub's synthetic
   assert.match(local, /denied\?\.error === "Not found\."/);
   assert.match(local, /operationalSecret\("readiness"\)/);
   assert.match(local, /readiness\?\.demoProvisioning === "non_production"/);
-  assert.match(local, /const expected = 2 \+ 6 \+ ROLES\.length \* 9 \+ 2 \+ 3 \+ 6 \+ 1/);
+  assert.match(local, /const expected = 2 \+ 6 \+ ROLES\.length \* 9 \+ 4 \+ 2 \+ 4 \+ 6 \+ 2/);
 });
 
 test("#1015 uses a real seeded attendance event for authenticated six-role HTTP proof", () => {
@@ -128,6 +128,18 @@ test("#1015 uses a real seeded attendance event for authenticated six-role HTTP 
   assert.match(local, /await seedAttendanceExceptionForDemo\(session\.org\)/);
   assert.match(local, /attendance: "\/api\/workforce\/attendance-exception-events\?"/);
   assert.match(local, /"cross-tenant-attendance"/);
+  assert.match(local, /"attendance-own-existing-event"/);
+  assert.match(local, /"attendance-unchanged-after-denials"/);
+  assert.match(local, /seededOutsideUnitEventId/);
+  assert.match(local, /verifyAttendanceRevocationAndUnitScope\(demoOwner, demoHr\)/);
+  assert.match(local, /"attendance-revoked-denied"/);
+  assert.match(local, /set\(\{ active: false \}\)/);
+  assert.match(local, /set\(\{ active: true \}\)/);
+  assert.match(local, /"attendance-unit-scope-only"/);
+  assert.match(local, /set\(\{ orgUnitId: seededScopedOrgUnitId \}\)/);
+  assert.match(local, /!body\.exceptions\.some\(row => row\.id === seededOutsideUnitEventId\)/);
+  assert.match(local, /"attendance-unit-scope-unchanged"/);
+  assert.match(local, /await verifyAttendanceRevocationAndUnitScope\(demoOwner, demoHr\)/);
   assert.match(local, /"\/api\/workforce\/attendance-exception-events\?organizationId=1&"/);
   assert.match(local, /owner:\s*\{[^\n]+attendance: 200/);
   assert.match(local, /hr:\s*\{[^\n]+attendance: 200/);
