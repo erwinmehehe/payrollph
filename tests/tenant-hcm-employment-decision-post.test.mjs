@@ -17,7 +17,10 @@ const safeEnv = {
   CI: "true", GITHUB_ACTIONS: "true", TENANT_SECOND_PASS_MODE: "isolated-ci-only",
   REQUIRE_PRIVILEGED_MFA: "true", SECURITY_SMOKE_URL: "http://127.0.0.1:3000",
   DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  NODE_ENV: "production", DEMO_MODE: "false",
+  WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
   PAYMONGO_DISBURSEMENTS_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
+  XENDIT_BILLING_ENABLED: "false",
 };
 
 test("HCM POST proof refuses every non-disposable execution target and live provider key", () => {
@@ -31,11 +34,51 @@ test("HCM POST proof refuses every non-disposable execution target and live prov
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db?host=remote.invalid"],
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db#unexpected"],
     ["PAYMONGO_DISBURSEMENTS_ENABLED", "true"], ["XENDIT_PAYOUTS_ENABLED", "true"],
+    ["XENDIT_BILLING_ENABLED", "true"],
+    ["WORKER_ENABLED", "true"], ["CENTRAL_SCHEDULER_ENABLED", "true"],
+    ["NODE_ENV", "development"], ["DEMO_MODE", "true"],
     ["PAYMONGO_SECRET_KEY", "live-provider-key"],
+    ["POSTMARK_SERVER_TOKEN", "live-provider-key"], ["SMTP_URL", "smtp://remote.invalid"],
   ];
   for (const [key, value] of substitutions) {
     assert.throws(() => requireDisposableHcmDecisionEnv({ ...safeEnv, [key]: value }),
       undefined, "Unexpected acceptance for " + key);
+  }
+  // Omitted OFF flags must not pass just because they are not literally "true".
+  for (const key of [
+    "NODE_ENV", "DEMO_MODE", "WORKER_ENABLED", "CENTRAL_SCHEDULER_ENABLED",
+    "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
+    "XENDIT_BILLING_ENABLED",
+  ]) {
+    assert.throws(() => requireDisposableHcmDecisionEnv({ ...safeEnv, [key]: undefined }),
+      undefined, "Missing explicit safe flag accepted: " + key);
+  }
+});
+
+test("disposable preflight executes before any application DB imports", () => {
+  // Static import declarations would execute before the runtime guard.
+  const eagerDb = /from\s+["']\.\.\/\.\.\/src\/db(?:\/schema)?["']/;
+  assert.doesNotMatch(isolatedRunner, eagerDb);
+  assert.doesNotMatch(source, eagerDb);
+  const runnerGuard = isolatedRunner.indexOf("requireDisposableHcmDecisionEnv(); // before any DB module import");
+  const runnerDb = isolatedRunner.indexOf('import("../../src/db/index.ts")');
+  const runnerProof = isolatedRunner.indexOf('import("./tenant-hcm-employment-decision-post.mjs")');
+  assert.ok(runnerGuard >= 0 && runnerGuard < runnerDb && runnerGuard < runnerProof,
+    "Runner must refuse unsafe environment before loading DB or proof module");
+  const proofGuard = source.indexOf("requireDisposableHcmDecisionEnv(); // before any DB or schema import");
+  const proofDb = source.indexOf('import("../../src/db/index.ts")');
+  assert.ok(proofGuard >= 0 && proofGuard < proofDb,
+    "Directly invoked proof must also guard before DB import");
+  const start = workflow.indexOf("- name: HCM decision POST own and cross-tenant real HTTP");
+  const end = workflow.indexOf("- name: Show server log on failure", start);
+  assert.ok(start >= 0 && end > start, "dedicated HCM CI step remains separate");
+  const step = workflow.slice(start, end);
+  for (const name of [
+    "NODE_ENV", "DEMO_MODE", "WORKER_ENABLED", "CENTRAL_SCHEDULER_ENABLED",
+    "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED", "XENDIT_BILLING_ENABLED",
+  ]) {
+    const expected = name === "NODE_ENV" ? '"production"' : '"false"';
+    assert.ok(step.includes(name + ": " + expected), "missing explicit HCM-only " + name);
   }
 });
 
