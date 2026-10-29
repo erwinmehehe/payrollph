@@ -256,11 +256,22 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const reviewed = method.reviewedUncertified;
     const routePath = "src/app/api/developer/route.ts";
     const route = readFileSync(routePath, "utf8");
-    const routeSha = "c1b777dc9b290a9980e82549c6523a4811488fba";
+    const routeSha = "f8ecdf3fc0063e296ded7184010237e37373cbd0";
     const originalSha = "d703c535b5f15a57af6069b3248d08853e9fe234";
     assert.equal(currentBlob, routeSha,
       "Developer POST changed again: require fresh route, audit and security review");
     assert.equal(reviewed?.kind, "developer-security-atomic-audit-only");
+    assert.equal(reviewed?.limiterFile, "src/lib/developer-rate-limit.ts");
+    assert.equal(reviewed?.limiterBlobSha, gitBlobSha(readFileSync(reviewed.limiterFile)),
+      "Developer security limiter changed: require renewed source and abuse-control review");
+    assert.equal(reviewed?.limiterTestFile, "tests/developer-rate-limit-gate.test.ts");
+    assert.equal(reviewed?.limiterTestBlobSha, gitBlobSha(readFileSync(reviewed.limiterTestFile)),
+      "Developer limiter tests changed: require renewed negative-control review");
+    assert.match(route, /developerMutationRateLimitResponse\(mutationLimit\)/);
+    assert.match(route, /if \(limiterDenied\) return limiterDenied;/);
+    const limiter = readFileSync(reviewed.limiterFile, "utf8");
+    assert.match(limiter, /result\.mode !== "distributed-postgres"/);
+
     assert.equal(reviewed?.originalRouteBlobSha, originalSha);
     assert.equal(reviewed?.routeBlobSha, routeSha);
     assert.equal(reviewed?.helperFile, "src/lib/developer-security-mutations.ts");

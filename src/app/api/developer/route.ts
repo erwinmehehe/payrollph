@@ -14,6 +14,7 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationRole, getAccess, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
+import { developerMutationRateLimitResponse } from "@/lib/developer-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -96,9 +97,8 @@ export async function POST(request: Request) {
     `developer-mutation:${user.id}:${organizationId}:${clientIp(request)}`,
     { limit: 30, windowMs: 5 * 60_000 },
   );
-  if (!mutationLimit.allowed) {
-    return Response.json({ error: "Too many developer-security changes. Try again later." }, { status: 429 });
-  }
+  const limiterDenied = developerMutationRateLimitResponse(mutationLimit);
+  if (limiterDenied) return limiterDenied;
 
   if (action === "create-key") {
     const minted = mintApiKey();
