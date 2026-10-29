@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-10-22",
-  "acceptanceStatus": "NOT ACCEPTED: 138 API methods and 17 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. Tenant-table proofs add 3 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 259 COVERED / 10 PUBLIC-BY-DESIGN / 225 GAP; no global tenant-isolation acceptance. PR #1402 adds 11 distinct provisional People/platform write-method credits from exact-head disposable PG16/localhost HTTP run 40200060037 (head 1fd16ee304a896072560fd86ff06915e7bce159c): default 28 write rows/56 attacker-victim pairs/28 discriminating/30 forged and unchanged victim database. A twelfth create_worksite action-level scenario passed but POST workforce/worksites remains GAP because other POST actions were not proven; the unchanged legacy guard prohibits blanket credit. The multi-entity and flagged-reads profiles passed their configured table checks, without write rows. Combined 270 COVERED / 10 PUBLIC-BY-DESIGN / 214 GAP, plus 18 page/action GAPs. These are not production, full tenant-isolation certification or independent reviewer approval. Fresh final-head CI remains required. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 214 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1427 adds three provisional, local-disposable-PG16 Compliance Evidence POST method proofs (filing validations, labor-inspection drills and compliance validation) only. They remain subject to exact-head CI and independent reviewer acceptance; 203 API and 18 page/action GAPs remain NOT ACCEPTED. No production payroll or statutory release is authorized. PR #1429's People Home page has provisional two-attacker real-Chromium/PG16 source-pinned proof only; 17 page/action GAPs and 203 API method GAPs remain NOT ACCEPTED. No production pilot activation or security certification. PR #1433's labor-costing POST is provisionally source-pinned with separate synthetic PG16 HTTP evidence for three actions. 202 API method GAPs and 17 page/action GAPs remain; independent security acceptance and migration approval are still required. No production payroll, posting or SQL execution is authorized. PR #1437 adds exactly three provisional seeded path-ID GET/POST proofs for MWE classifications and connected-impact; these local-disposable-PG16 receipts are not a production certification and require fresh exact-head CI plus independent security review. Tenant-table proofs add 12 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 306 COVERED / 10 PUBLIC-BY-DESIGN / 182 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 5 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 311 COVERED / 10 PUBLIC-BY-DESIGN / 177 GAP; no global tenant-isolation acceptance. Self-development adds 3 source-bound provisional local HTTP method credits; exact-head PG16 CI and review pending. PR #1526 adds exactly one distinct provisional manager-attestation POST credit from two-attacker/victim localhost PostgreSQL 18.6 HTTP proof, separate from main's independently source-pinned PG16 GET evidence. Final merged-branch PG16 real-HTTP CI and independent privacy/security/owner review remain mandatory; no employer decision, provider, payout, production or global tenant-isolation acceptance. Current proposal: 337 COVERED / 10 PUBLIC-BY-DESIGN / 151 GAP out of 498 methods, 17 page/action GAPs. Three additional exact-merged-source provisional PG16/localhost HTTP method credits from #1520 GET/POST schedule receipts and #1514 issued-demand GET; unchanged #1524 atomic self-profile PATCH remains GAP pending independent privacy/security/coverage-owner review and source-current receipt reconciliation. No production, provider or payroll acceptance. PR #1537 separately proposes one provisional, source-pinned four-action HMO POST method credit from fictional PG16 localhost HTTP; HMO GET retains its independent earlier proof. Combined pending-review proposal: 341 COVERED / 10 PUBLIC-BY-DESIGN / 147 GAP out of 498 methods, plus 17 page/action GAPs. No production carrier enrolment, payroll, provider or blanket tenant-isolation acceptance; independent review required. Tenant-table proofs add 6 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 347 COVERED / 10 PUBLIC-BY-DESIGN / 141 GAP; no global tenant-isolation acceptance.",
+  "acceptanceStatus": "NOT ACCEPTED: 136 API methods and 17 page/action GAPs remain. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. Tenant-table proofs add 3 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 259 COVERED / 10 PUBLIC-BY-DESIGN / 225 GAP; no global tenant-isolation acceptance. PR #1402 adds 11 distinct provisional People/platform write-method credits from exact-head disposable PG16/localhost HTTP run 40200060037 (head 1fd16ee304a896072560fd86ff06915e7bce159c): default 28 write rows/56 attacker-victim pairs/28 discriminating/30 forged and unchanged victim database. A twelfth create_worksite action-level scenario passed but POST workforce/worksites remains GAP because other POST actions were not proven; the unchanged legacy guard prohibits blanket credit. The multi-entity and flagged-reads profiles passed their configured table checks, without write rows. Combined 270 COVERED / 10 PUBLIC-BY-DESIGN / 214 GAP, plus 18 page/action GAPs. These are not production, full tenant-isolation certification or independent reviewer approval. Fresh final-head CI remains required. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 214 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1427 adds three provisional, local-disposable-PG16 Compliance Evidence POST method proofs (filing validations, labor-inspection drills and compliance validation) only. They remain subject to exact-head CI and independent reviewer acceptance; 203 API and 18 page/action GAPs remain NOT ACCEPTED. No production payroll or statutory release is authorized. PR #1429's People Home page has provisional two-attacker real-Chromium/PG16 source-pinned proof only; 17 page/action GAPs and 203 API method GAPs remain NOT ACCEPTED. No production pilot activation or security certification. PR #1433's labor-costing POST is provisionally source-pinned with separate synthetic PG16 HTTP evidence for three actions. 202 API method GAPs and 17 page/action GAPs remain; independent security acceptance and migration approval are still required. No production payroll, posting or SQL execution is authorized. PR #1437 adds exactly three provisional seeded path-ID GET/POST proofs for MWE classifications and connected-impact; these local-disposable-PG16 receipts are not a production certification and require fresh exact-head CI plus independent security review. Tenant-table proofs add 12 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 306 COVERED / 10 PUBLIC-BY-DESIGN / 182 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 5 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 311 COVERED / 10 PUBLIC-BY-DESIGN / 177 GAP; no global tenant-isolation acceptance. Self-development adds 3 source-bound provisional local HTTP method credits; exact-head PG16 CI and review pending. PR #1526 adds exactly one distinct provisional manager-attestation POST credit from two-attacker/victim localhost PostgreSQL 18.6 HTTP proof, separate from main's independently source-pinned PG16 GET evidence. Final merged-branch PG16 real-HTTP CI and independent privacy/security/owner review remain mandatory; no employer decision, provider, payout, production or global tenant-isolation acceptance. Current proposal: 337 COVERED / 10 PUBLIC-BY-DESIGN / 151 GAP out of 498 methods, 17 page/action GAPs. Three additional exact-merged-source provisional PG16/localhost HTTP method credits from #1520 GET/POST schedule receipts and #1514 issued-demand GET; unchanged #1524 atomic self-profile PATCH remains GAP pending independent privacy/security/coverage-owner review and source-current receipt reconciliation. No production, provider or payroll acceptance. PR #1537 separately proposes one provisional, source-pinned four-action HMO POST method credit from fictional PG16 localhost HTTP; HMO GET retains its independent earlier proof. Combined pending-review proposal: 341 COVERED / 10 PUBLIC-BY-DESIGN / 147 GAP out of 498 methods, plus 17 page/action GAPs. No production carrier enrolment, payroll, provider or blanket tenant-isolation acceptance; independent review required. Tenant-table proofs add 6 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 347 COVERED / 10 PUBLIC-BY-DESIGN / 141 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 2 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 349 COVERED / 10 PUBLIC-BY-DESIGN / 139 GAP; no global tenant-isolation acceptance.",
   "metrics": {
     "routeFiles": 295,
     "methods": 498,
     "coveredBefore": 20,
-    "coveredAfter": 350,
+    "coveredAfter": 352,
     "publicByDesign": 10,
-    "gap": 138,
+    "gap": 136,
     "scopedPagesAndActions": 21,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -2198,7 +2198,7 @@
       ]
     },
     "src/app/api/bi-exports/route.ts": {
-      "gitBlobSha": "81ae71f742b2166d1ab1d9aa6eaf0fabf094d828",
+      "gitBlobSha": "180b83f54228c55ceae4b78737027ddae1fb6333",
       "route": "bi-exports",
       "methods": [
         {
@@ -11738,12 +11738,12 @@
       ]
     },
     "src/app/api/hcm-report-builder/route.ts": {
-      "gitBlobSha": "3eab916aafbbd25724d16f4011d52380f25c7f9e",
+      "gitBlobSha": "bda200a0437b896ab4a2abeef5a972e599ebbbd7",
       "route": "hcm-report-builder",
       "methods": [
         {
           "name": "GET",
-          "line": 43,
+          "line": 68,
           "status": "COVERED",
           "reason": "DL-02: two independent signed-in employers receive a real nonempty authorized field catalog (metadata, not an own-object export) and foreign-employer HTTP 403. Separate POST report proof validates persisted owned rows. Victim DB remains unchanged.",
           "testedBy": {
@@ -11759,7 +11759,7 @@
         },
         {
           "name": "POST",
-          "line": 61,
+          "line": 86,
           "status": "COVERED",
           "reason": "DL-02: owner report POST returns actual seeded own-worker rows/counts for two distinct attacker employers (2 and 3 employees vs victim's 4); exact foreign-org 403 and unchanged victim PostgreSQL snapshot are tested.",
           "testedBy": {
@@ -11808,25 +11808,49 @@
           "token": "getAccess"
         },
         {
-          "line": 45,
+          "line": 27,
+          "token": "companyWide"
+        },
+        {
+          "line": 35,
+          "token": "entities[0].active !== true"
+        },
+        {
+          "line": 48,
+          "token": "isNull(employees.legalEntityId)"
+        },
+        {
+          "line": 52,
+          "token": "isNull(payrollRuns.legalEntityId)"
+        },
+        {
+          "line": 56,
+          "token": "isNull(orgUnits.legalEntityId)"
+        },
+        {
+          "line": 59,
+          "token": "unattributedWorkers.length"
+        },
+        {
+          "line": 70,
           "token": "getSessionUser"
         },
         {
-          "line": 63,
+          "line": 88,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 65,
+          "line": 90,
           "token": "getSessionUser"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 47,
+          "line": 72,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 68,
+          "line": 93,
           "token": "body.organizationId"
         }
       ],
@@ -11856,39 +11880,59 @@
           "token": "organizationId"
         },
         {
-          "line": 47,
-          "token": "organizationId"
-        },
-        {
-          "line": 48,
-          "token": "organizationId"
-        },
-        {
-          "line": 48,
-          "token": "organizationId"
-        },
-        {
-          "line": 49,
-          "token": "organizationId"
-        },
-        {
           "line": 51,
           "token": "organizationId"
         },
         {
-          "line": 68,
+          "line": 55,
           "token": "organizationId"
         },
         {
-          "line": 68,
+          "line": 72,
           "token": "organizationId"
         },
         {
-          "line": 69,
+          "line": 72,
           "token": "organizationId"
         },
         {
-          "line": 69,
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 74,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 76,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "organizationId"
+        },
+        {
+          "line": 94,
+          "token": "organizationId"
+        },
+        {
+          "line": 94,
+          "token": "organizationId"
+        },
+        {
+          "line": 97,
           "token": "organizationId"
         }
       ]
@@ -12222,9 +12266,20 @@
         {
           "name": "POST",
           "line": 103,
-          "status": "GAP",
-          "reason": "Only the declared set_employee_skill action has provisional two-attacker synthetic PG16/HTTP proof; create_skill, set_job_skill, link_credential and verification transitions remain unreviewed for this changed source. This is not method-level coverage or production acceptance.",
-          "testedBy": null,
+          "status": "COVERED",
+          "reason": "Provisional: write-table disposable PostgreSQL 16 real-HTTP proof (local Windows disposable PostgreSQL 16 with production-mode localhost server, full default and flagged-reads write tables, 2026-10-29): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-write-table-http.mjs",
+            "line": 112,
+            "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
+            "rowLine": 142,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
+            "scope": "Employer-scoped write (POST/PATCH/PUT/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (local disposable PostgreSQL 16; exact-head PG16 CI NOT_RUN).",
+            "evidence": "Local shared runner scripts/qa/tenant-write-table-http.mjs; local Windows disposable PostgreSQL 16 with production-mode localhost server, full default and flagged-reads write tables, 2026-10-29",
+            "postgresMajor": 16
+          },
           "reviewedUncertified": {
             "kind": "iso-date-regex-only-action-limited-employee-skill-proof",
             "originalRouteBlobSha": "5e8e1d0ac7fd7592a9da34091933ae9f0b6910fd",
@@ -15023,15 +15078,36 @@
       ]
     },
     "src/app/api/hcm/salary-corrections/preview/route.ts": {
-      "gitBlobSha": "17539b569af050bb1568d17e783661ae19302561",
+      "gitBlobSha": "8abc2b8059a403b81bf24c78108445651be4690a",
       "route": "hcm/salary-corrections/preview",
       "methods": [
         {
           "name": "POST",
-          "line": 24,
+          "line": 25,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Provisional legal-employer grant containment of salary-preview POST. Two-attacker disposable PG16 real HTTP proof is only a candidate until exact-head checks and independent security acceptance. Still GAP, testedBy null; 0 method credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
+            "oldRouteBlobSha": "17539b569af050bb1568d17e783661ae19302561",
+            "routeBlobSha": "8abc2b8059a403b81bf24c78108445651be4690a",
+            "testFile": "tests/hcm-salary-correction-entity-tenant.test.ts",
+            "testBlobSha": "243d84d7eaab43d950b70fc9d89c56f23cc21dbe",
+            "proxyFile": "src/proxy.ts",
+            "proxyBlobSha": "8ed6591c4846cad3251bc1ee2444ceb3461b170a",
+            "hcmHoldFile": "src/lib/multi-entity-hcm-hold.ts",
+            "hcmHoldBlobSha": "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
+            "contractFile": "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
+            "contractBlobSha": "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+            "proofFile": "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
+            "proofBlobSha": "243827a6b4481a25fc5a95259843862da117f5f0",
+            "workflowFile": ".github/workflows/tenant-hcm-salary-correction-preview.yml",
+            "workflowBlobSha": "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
+            "coverageCredits": 0,
+            "testedBy": null,
+            "independentSecurityReview": "PENDING",
+            "exactHeadHttpResult": "PENDING"
+          }
         }
       ],
       "employerSources": {
@@ -15055,103 +15131,115 @@
           "token": "getSessionUser"
         },
         {
-          "line": 8,
+          "line": 9,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 28,
+          "line": 29,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 30,
+          "line": 31,
           "token": "getSessionUser"
         },
         {
-          "line": 60,
+          "line": 61,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 65,
+          "line": 66,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 70,
+          "line": 71,
           "token": "getAccess"
+        },
+        {
+          "line": 7,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 89,
+          "token": "assertEntityResource(entityScope.context, legalEntityId)"
+        },
+        {
+          "line": 123,
+          "token": "assertEntityResource(entityScope.context, employee.legalEntityId)"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 40,
+          "line": 41,
           "token": "body.organizationId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "body.employeeId"
         },
         {
-          "line": 42,
+          "line": 43,
           "token": "body.legalEntityId"
         }
       ],
       "businessIds": [
         {
-          "line": 40,
-          "token": "organizationId"
-        },
-        {
-          "line": 40,
+          "line": 41,
           "token": "organizationId"
         },
         {
           "line": 41,
-          "token": "employeeId"
+          "token": "organizationId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "employeeId"
         },
         {
           "line": 42,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 42,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 45,
-          "token": "organizationId"
-        },
-        {
-          "line": 45,
           "token": "employeeId"
         },
         {
-          "line": 45,
+          "line": 43,
           "token": "legalEntityId"
         },
         {
-          "line": 61,
+          "line": 43,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 46,
           "token": "organizationId"
         },
         {
-          "line": 66,
-          "token": "organizationId"
-        },
-        {
-          "line": 70,
-          "token": "organizationId"
-        },
-        {
-          "line": 77,
+          "line": 46,
           "token": "employeeId"
         },
         {
-          "line": 95,
+          "line": 46,
           "token": "legalEntityId"
         },
         {
-          "line": 95,
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 71,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "employeeId"
+        },
+        {
+          "line": 111,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 111,
           "token": "legalEntityId"
         }
       ]
@@ -19471,7 +19559,7 @@
       ]
     },
     "src/app/api/organizations/[id]/payroll-approvers/route.ts": {
-      "gitBlobSha": "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab",
+      "gitBlobSha": "ffb27f3797ecaba1fec8198cab04c0f691382743",
       "route": "organizations/[id]/payroll-approvers",
       "methods": [
         {
@@ -19487,6 +19575,21 @@
             "unchangedDbLine": 349,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          },
+          "reviewedUncertified": {
+            "kind": "payroll-approvers-active-grant-hardened-source-zero-new-credit",
+            "oldRouteBlobSha": "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab",
+            "routeBlobSha": "ffb27f3797ecaba1fec8198cab04c0f691382743",
+            "runnerFile": "scripts/qa/tenant-payroll-approvers-http.mjs",
+            "runnerBlobSha": "bcdcefe33271811364d0b3878abdfc3a3c282346",
+            "contractFile": "tests/tenant-payroll-approvers-contract.test.mjs",
+            "contractBlobSha": "9dc730442d42d8b48025b9619b0b6b8ea9687c35",
+            "workflowFile": ".github/workflows/tenant-payroll-approvers-http.yml",
+            "workflowBlobSha": "f8577a357888bd3483840e3c59dbe9ffae082459",
+            "syntheticPg16Run": "40849212540",
+            "coverageCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
           }
         }
       ],
@@ -19511,6 +19614,10 @@
           "token": "getSessionUser"
         },
         {
+          "line": 18,
+          "token": "Number.isSafeInteger(organizationId)"
+        },
+        {
           "line": 22,
           "token": "getSessionUser"
         },
@@ -19519,8 +19626,40 @@
           "token": "assertOrganizationRole"
         },
         {
-          "line": 45,
+          "line": 33,
           "token": "getAccess"
+        },
+        {
+          "line": 37,
+          "token": "access.companyWide"
+        },
+        {
+          "line": 39,
+          "token": "Number.isSafeInteger(candidateUnitId)"
+        },
+        {
+          "line": 58,
+          "token": "eq(userOrganizations.active, true)"
+        },
+        {
+          "line": 59,
+          "token": "eq(users.active, true)"
+        },
+        {
+          "line": 60,
+          "token": "inArray(userOrganizations.role, [...PAYROLL_CHECKER_ROLES])"
+        },
+        {
+          "line": 61,
+          "token": "ne(userOrganizations.userId, user.id)"
+        },
+        {
+          "line": 62,
+          "token": "eq(userOrganizations.orgUnitId, candidateUnitId)"
+        },
+        {
+          "line": 69,
+          "token": "access.companyWide"
         }
       ],
       "callerSuppliedIds": [],
@@ -19538,31 +19677,27 @@
           "token": "organizationId"
         },
         {
-          "line": 39,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 39,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 43,
+          "line": 33,
           "token": "organizationId"
         },
         {
-          "line": 43,
-          "token": "organizationId"
-        },
-        {
-          "line": 45,
-          "token": "organizationId"
-        },
-        {
-          "line": 52,
+          "line": 37,
           "token": "orgUnitId"
         },
         {
           "line": 52,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 57,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 69,
           "token": "orgUnitId"
         }
       ]
@@ -24986,9 +25121,20 @@
         {
           "name": "PATCH",
           "line": 81,
-          "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "status": "COVERED",
+          "reason": "Provisional: write-table disposable PostgreSQL 16 real-HTTP proof (local Windows disposable PostgreSQL 16 with production-mode localhost server, full default and flagged-reads write tables, 2026-10-29): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-write-table-http.mjs",
+            "line": 112,
+            "rowFile": "scripts/qa/tenant-table-rows/write/recruitment-privacy.mjs",
+            "rowLine": 24,
+            "ownPositiveLine": 112,
+            "foreignDenialLine": 125,
+            "unchangedDbLine": 149,
+            "scope": "Employer-scoped write (POST/PATCH/PUT/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (local disposable PostgreSQL 16; exact-head PG16 CI NOT_RUN).",
+            "evidence": "Local shared runner scripts/qa/tenant-write-table-http.mjs; local Windows disposable PostgreSQL 16 with production-mode localhost server, full default and flagged-reads write tables, 2026-10-29",
+            "postgresMajor": 16
+          }
         }
       ],
       "employerSources": {
@@ -32525,12 +32671,12 @@
       ]
     },
     "src/app/api/workforce/attendance-exception-events/route.ts": {
-      "gitBlobSha": "b31b086aeed713b6e3bc7915ca74e74a65e2254f",
+      "gitBlobSha": "ea35f56f18add9af291a55c3767b2f388767d6e2",
       "route": "workforce/attendance-exception-events",
       "methods": [
         {
           "name": "GET",
-          "line": 43,
+          "line": 42,
           "status": "COVERED",
           "reason": "Executed synthetic disposable PG16 employer-owned GET success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
           "testedBy": {
@@ -32545,7 +32691,7 @@
         },
         {
           "name": "POST",
-          "line": 157,
+          "line": 159,
           "status": "COVERED",
           "reason": "Executed synthetic disposable PG16 employer-owned POST success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
           "testedBy": {
@@ -32585,59 +32731,59 @@
           "token": "getSessionUser"
         },
         {
-          "line": 21,
+          "line": 22,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 44,
+          "line": 43,
           "token": "getSessionUser"
         },
         {
-          "line": 65,
+          "line": 63,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 73,
+          "line": 71,
           "token": "getAccess"
         },
         {
-          "line": 154,
+          "line": 160,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 157,
+          "line": 163,
           "token": "getSessionUser"
         },
         {
-          "line": 169,
+          "line": 175,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 204,
+          "line": 210,
           "token": "getAccess"
         },
         {
-          "line": 206,
+          "line": 212,
           "token": "assertScope"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 48,
+          "line": 47,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 161,
+          "line": 167,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 48,
+          "line": 47,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 47,
           "token": "organizationId"
         },
         {
@@ -32645,51 +32791,51 @@
           "token": "organizationId"
         },
         {
-          "line": 61,
+          "line": 59,
           "token": "organizationId"
         },
         {
-          "line": 67,
+          "line": 65,
           "token": "organizationId"
         },
         {
-          "line": 73,
+          "line": 71,
           "token": "organizationId"
         },
         {
-          "line": 81,
+          "line": 79,
           "token": "orgUnitId"
         },
         {
-          "line": 81,
+          "line": 79,
           "token": "orgUnitId"
         },
         {
-          "line": 82,
+          "line": 80,
           "token": "organizationId"
         },
         {
-          "line": 82,
+          "line": 80,
           "token": "organizationId"
         },
         {
-          "line": 86,
+          "line": 84,
           "token": "orgUnitId"
         },
         {
-          "line": 86,
+          "line": 84,
           "token": "orgUnitId"
         },
         {
-          "line": 92,
+          "line": 90,
           "token": "orgUnitId"
         },
         {
-          "line": 92,
+          "line": 90,
           "token": "orgUnitId"
         },
         {
-          "line": 98,
+          "line": 96,
           "token": "organizationId"
         }
       ]

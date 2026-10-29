@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
+import { multiEntityHcmRequestDeferred } from "@/lib/multi-entity-hcm-hold";
 import { nonceContentSecurityPolicy } from "@/lib/nonce-csp";
 
 /**
@@ -11,7 +11,7 @@ export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const guarded = path === "/api/hcm" || path.startsWith("/api/hcm/") ||
     (path.startsWith("/hcm/") && path !== "/hcm/");
-  if (guarded && multiEntityHcmDeferred()) {
+  if (guarded && multiEntityHcmRequestDeferred(path, request.method)) {
     return NextResponse.json({
       error: "HCM APIs are unavailable until multi-entity employer isolation is reviewed.",
       code: "ENTITY_HCM_DEFERRED",

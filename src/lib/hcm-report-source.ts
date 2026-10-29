@@ -143,15 +143,30 @@ export async function loadAuthorizedReportRows(input: {
     payrollRunId: payrollEntries.payrollRunId,
     grossPay: payrollEntries.grossPay,
     lineItems: payrollEntries.lineItems,
+    employeeOrganizationId: employees.organizationId,
+    employeeLegalEntityId: employees.legalEntityId,
+    runLegalEntityId: payrollRuns.legalEntityId,
   }).from(payrollEntries)
     .innerJoin(payrollRuns, and(
       eq(payrollEntries.payrollRunId, payrollRuns.id),
       eq(payrollRuns.organizationId, organizationId),
       eq(payrollRuns.status, "Released"),
     ))
+    // The entry has no organization_id of its own. A payroll run belonging to
+    // employer A must never pull employee B's salary into A's analytics.
+    // LEFT JOIN preserves missing/corrupt employee links for explicit rejection.
+    .leftJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(inArray(payrollEntries.payrollRunId, runs.map(run => run.id)))
     .limit(MAX_SOURCE_ROWS + 1);
   checkedRows(entries);
+  if (entries.some(entry =>
+    entry.employeeOrganizationId !== organizationId
+    || (entry.runLegalEntityId != null
+      && entry.employeeLegalEntityId !== entry.runLegalEntityId)
+  )) {
+    // No foreign worker identifier, amounts, or employer name in the error.
+    throw new Error("Released payroll source attribution is inconsistent with its employee employer.");
+  }
   return entries.map(entry => ({
     department: runDepartment.get(entry.payrollRunId) ?? "Unattributed",
     grossPay: Number(entry.grossPay),

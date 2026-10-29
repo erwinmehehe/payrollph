@@ -22,6 +22,8 @@ const DOCUMENTED_ELSEWHERE = new Map([
   ["PII_LEGACY_PHOTO_KEY", "docs/security/pii-dedicated-key-transition.md"],
   ["WFM_LOYVERSE_ACCESS_TOKEN", "docs/wfm-loyverse-pos-aggregate-demand.md"],
   ["WFM_SQUARE_SANDBOX_ACCESS_TOKEN", "docs/wfm-square-sandbox-demand-adapter.md"],
+  // Guard-only credential marker; never configure it for the disposable salary proof.
+  ["STRIPE_SECRET_KEY", "docs/qa/hcm-salary-correction-entity-tenant.md"],
   ["XENDIT_SECRET_KEY", "docs/launch/self-service-billing-runbook.md"],
   ["XENDIT_CALLBACK_TOKEN", "docs/launch/self-service-billing-runbook.md"],
   ["XENDIT_PAYOUT_SECRET_KEY", "docs/xendit-default-payroll-payout.md"],
