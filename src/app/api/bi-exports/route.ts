@@ -188,6 +188,14 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "BI export failed.";
+    if (message === "BI_EXPORT_TENANT_SOURCE_MISMATCH") {
+      // An authorized user should know reconciliation is required without
+      // discovering a foreign employer's identifier, name or salary.
+      return Response.json({
+        error: "BI export blocked: payroll or workforce source attribution requires independent review.",
+        code: "BI_EXPORT_TENANT_SOURCE_MISMATCH",
+      }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    }
     const status = message.includes("row limit") ? 413 : 400;
     return Response.json({ error: message }, { status });
   }
