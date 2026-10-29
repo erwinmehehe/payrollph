@@ -40045,97 +40045,139 @@
     },
     {
       "path": "src/app/workspace/report-builder/page.tsx",
-      "blob": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
+      "blob": "4415282df5e859e004ae26662815d7b5f087657d",
       "ids": [
         {
-          "line": 6,
-          "token": "searchParams"
-        },
-        {
-          "line": 7,
-          "token": "searchParams"
-        },
-        {
-          "line": 7,
-          "token": "organizationId"
-        },
-        {
-          "line": 11,
-          "token": "searchParams"
-        },
-        {
-          "line": 12,
-          "token": "organizationId"
-        },
-        {
-          "line": 12,
-          "token": "params."
-        },
-        {
-          "line": 12,
-          "token": "organizationId"
-        },
-        {
-          "line": 13,
-          "token": "organizationId"
-        },
-        {
-          "line": 13,
-          "token": "organizationId"
-        },
-        {
           "line": 14,
+          "token": "searchParams"
+        },
+        {
+          "line": 15,
           "token": "organizationId"
         },
         {
-          "line": 14,
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
           "token": "organizationId"
         }
       ],
       "actions": [],
       "guards": [
         {
-          "line": 1,
+          "line": 16,
           "token": "getSessionUser"
         },
         {
-          "line": 8,
-          "token": "getSessionUser"
+          "line": 20,
+          "token": "criticalReleaseFlagEnabled"
+        },
+        {
+          "line": 23,
+          "token": "explicitReportBuilderEmployerId"
+        },
+        {
+          "line": 24,
+          "token": "notFound"
+        },
+        {
+          "line": 29,
+          "token": "getAccess"
+        },
+        {
+          "line": 30,
+          "token": "companyWide"
+        },
+        {
+          "line": 30,
+          "token": "roleAllowed"
+        },
+        {
+          "line": 31,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 32,
+          "token": "notFound"
         }
       ],
       "business": [
         {
-          "line": 7,
+          "line": 15,
           "token": "organizationId"
         },
         {
-          "line": 12,
+          "line": 23,
           "token": "organizationId"
         },
         {
-          "line": 12,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 13,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 13,
+          "line": 35,
           "token": "organizationId"
         },
         {
-          "line": 14,
-          "token": "organizationId"
-        },
-        {
-          "line": 14,
+          "line": 42,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: #1557 feature-ON report builder SSR now rejects malformed/cross-employer selectors and enforces active company-wide membership plus a deny-only role gate before client mount. Prior exact-head synthetic PG16 three-employer own-page/API and foreign/peer denial, unit scope, revoked grant and read-only SQL proof passed; independent security review, client interactions, API POST/CSV and multi-entity attribution remain unaccepted. Zero new page or method credits.",
+      "reviewedUncertified": {
+        "kind": "feature-on-report-builder-SSR-GET-PG16-unaccepted",
+        "originalPageBlobSha": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
+        "pageBlobSha": "4415282df5e859e004ae26662815d7b5f087657d",
+        "helperFile": "src/lib/tenant-report-builder.ts",
+        "helperBlobSha": "5d315afc085baad9ce2fc14946a34a6d738a773b",
+        "proofFile": "scripts/qa/tenant-report-builder-page-http.mjs",
+        "proofBlobSha": "48cc244d97e6b376c06be018d6a06e06dbc5d1f9",
+        "contractFile": "scripts/qa/tenant-report-builder-page-contract.mjs",
+        "contractBlobSha": "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
+        "contractTestFile": "tests/tenant-report-builder-page-contract.test.mjs",
+        "contractTestBlobSha": "6d88df59ca8bfc058bbc86004a3447a236d1ac19",
+        "unitTestFile": "tests/tenant-report-builder.test.ts",
+        "unitTestBlobSha": "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
+        "workflowFile": ".github/workflows/tenant-report-builder-page-qa.yml",
+        "workflowBlobSha": "2dbb81d60581fda30f9e8e77d31079ccf7cc32f5",
+        "priorPassedHead": "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
+        "priorPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
+        "ownPageLine": 106,
+        "ownApiLine": 107,
+        "foreignPageLine": 112,
+        "foreignApiLine": 114,
+        "unitScopeLine": 138,
+        "revokedPageLine": 169,
+        "revokedApiLine": 171,
+        "unchangedDbLine": 131,
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     }
   ],
   "sourceTraceCandidates": [
