@@ -13,6 +13,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import pg from "pg";
+import { hcmWorkItemFixtureSql } from "./prepare-hcm-work-item-fixture.mjs";
 
 const ADMIN = process.env.LOCAL_PG_ADMIN_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/postgres";
 const TARGET = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
@@ -59,7 +60,12 @@ try {
     catch (error) { await db.query("ROLLBACK"); throw error; }
     console.log("applied " + file);
   }
+  // Same SQL-only 0104 work-item objects the shared workflow prepares (hash-verified by its exporter).
+  await db.query("BEGIN");
+  try { await db.query(hcmWorkItemFixtureSql()); await db.query("COMMIT"); }
+  catch (error) { await db.query("ROLLBACK"); throw error; }
+  console.log("applied drizzle/0104_hcm_work_item_sla.sql (work-item fixture)");
 } finally {
   await db.end();
 }
-console.log("local disposable app_db ready (push + 0109 + supplement)");
+console.log("local disposable app_db ready (push + 0109 + supplement + 0104 work-item fixture)");
