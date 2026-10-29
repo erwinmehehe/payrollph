@@ -9,11 +9,12 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   auditEvents, employees, hcmEmploymentTerms, hcmEmploymentTermDecisions,
-  hcmEmploymentDecisionEvents, payrollRuns,
+  hcmEmploymentDecisionEvents, payrollRuns, userOrganizations,
 } from "../../src/db/schema";
 import {
   HCM_DECISION_POST, requireDisposableHcmDecisionEnv,
   assertVictimDecisionUnchanged, assertNoVictimDecisionLeak,
+  assertDeniedHcmDecisionResponse,
 } from "./tenant-hcm-employment-decision-contract.mjs";
 
 const EFFECTIVE_DATE = "2026-12-02";
@@ -113,7 +114,7 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
   // session cookie is not reused across tenants; no impersonation shortcut.
   const privileged = await Promise.all([1, 2].map(index =>
     makeSession(f.owners[index].id, { privileged: true })));
-  let positiveWrites = 0, foreignDenials = 0, forgedDenials = 0;
+  let positiveWrites = 0, foreignDenials = 0, forgedDenials = 0, revokedDenials = 0;
   const created = [];
 
   for (const index of [0, 1]) {
@@ -188,7 +189,7 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
       const denied = expectStatus(await request(HCM_DECISION_POST, {
         cookie, method: "POST", body: attack.body,
       }), attack.status, "Cross-tenant " + attack.type);
-      assertNoVictimDecisionLeak(denied, victimMarker, attack.type);
+      assertDeniedHcmDecisionResponse(denied, victimMarker, attack.type);
       assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id), attack.type);
       assert.deepEqual(await tenantSnapshot(org.id), afterOwn,
         "Denied forged request cannot change any own-org business SQL or audit");
@@ -197,10 +198,43 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
       if (attack.type === "victim-organization") foreignDenials++;
       else forgedDenials++;
     }
+
+    // The same MFA-backed cookie must immediately lose POST access when its
+    // organization membership is revoked. Revoke and restore only the
+    // fictional CI owner; never alter production memberships.
+    const memberWhere = and(
+      eq(userOrganizations.userId, actor.id),
+      eq(userOrganizations.organizationId, org.id),
+    );
+    const revoked = await db.update(userOrganizations).set({ active: false })
+      .where(memberWhere).returning({ active: userOrganizations.active });
+    assert.equal(revoked.length, 1, "Expected exactly one fictional owner membership");
+    assert.equal(revoked[0].active, false);
+    try {
+      const ownWhileRevoked = await tenantSnapshot(org.id);
+      const peerWhileRevoked = await tenantSnapshot(otherOrg.id);
+      const denied = expectStatus(await request(HCM_DECISION_POST, {
+        cookie, method: "POST", body: requestBody(org.id, worker.id, term.id, reason),
+      }), 403, "Revoked fictional owner must not create an employment decision");
+      assertDeniedHcmDecisionResponse(denied, victimMarker, "revoked membership");
+      assert.deepEqual(await tenantSnapshot(org.id), ownWhileRevoked,
+        "Revoked-owner POST must leave own-org decisions and audit unchanged");
+      assert.deepEqual(await tenantSnapshot(otherOrg.id), peerWhileRevoked,
+        "Revoked-owner POST must not touch the peer employer");
+      assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id),
+        "revoked-owner POST victim isolation");
+      revokedDenials++;
+    } finally {
+      const restored = await db.update(userOrganizations).set({ active: true })
+        .where(memberWhere).returning({ active: userOrganizations.active });
+      assert.equal(restored.length, 1);
+      assert.equal(restored[0].active, true);
+    }
   }
   assert.equal(positiveWrites, 2);
   assert.equal(foreignDenials, 2);
   assert.equal(forgedDenials, 6);
+  assert.equal(revokedDenials, 2);
   assert.notEqual(created[0].id, created[1].id);
   assert.notEqual(created[0].employeeId, created[1].employeeId);
   assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id),
@@ -209,7 +243,8 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
   console.log(JSON.stringify({
     kind: "HCM_EMPLOYMENT_DECISION_POST_TENANT_CANDIDATE",
     result: "PASS", ownHttp201: positiveWrites, victimOrgHttp403: foreignDenials,
-    forgedVictimHttp404: forgedDenials, victimActualHighId: victimTerm.id,
+    forgedVictimHttp404: forgedDenials, revokedOwnerHttp403: revokedDenials,
+    victimActualHighId: victimTerm.id,
     newCredits: 0, independentlyAccepted: false, productionCertified: false,
     providerTraffic: false, fictionalFixtureWrites: true,
     productionSourceMutation: false, payrollMutation: false,
