@@ -1,5 +1,6 @@
 // Source contract only: real HTTP/PG16 CI is a separate required acceptance gate.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
@@ -58,14 +59,66 @@ test("empty-unit, employee-role, revoked and anonymous paths remain distinct fro
   assert.match(suite, /await db.insert\(userOrganizations\).values\(\{ userId: former.user.id, organizationId: f.orgs\[3 - idx\].id/);
 });
 
-test("two unexecuted HMO candidates cannot borrow existing benefits/worksite credits", () => {
+test("HMO GET keeps its earlier independent table proof; only POST receives this reconciliation", () => {
   const hmo = manifest.allApiRouteFiles["src/app/api/benefits/hmo/route.ts"].methods;
-  assert.deepEqual(hmo.map(m => m.name), ["GET", "POST"]);
-  assert.equal(hmo.find(m => m.name === "POST").status, "GAP");
-  // GET may close only through the separate own-marker table proof, never through this candidate suite.
-  const get = hmo.find(m => m.name === "GET");
-  assert.ok(get.status === "GAP" || (get.status === "COVERED" && get.testedBy?.file === "scripts/qa/tenant-table-http.mjs"),
-    "benefits/hmo GET cannot be credited by the unexecuted HMO candidate");
-  assert.match(suite, /inventoryCreditsAdded: 0/);
-  assert.doesNotMatch(suite, /fetch\(["']https:\/\/|submitXendit|submitPaymongo/);
+  assert.deepEqual(hmo.map(method => method.name), ["GET", "POST"]);
+  const get = hmo.find(method => method.name === "GET");
+  assert.equal(get.status, "COVERED");
+  assert.equal(get.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+  const post = hmo.find(method => method.name === "POST");
+  assert.equal(post.status, "COVERED");
+  assert.equal(post.testedBy?.file, "scripts/qa/tenant-hmo-http.mjs");
+  assert.deepEqual(post.testedBy.postActions, actions);
+  assert.deepEqual(post.testedBy.postActionOwnLines, {
+    create_plan: 121, add_dependent: 128, update_dependent: 138, update_enrollment: 145,
+  });
+  assert.equal(post.testedBy.ownStatusByAction.create_plan, 201);
+  assert.equal(post.testedBy.ownStatusByAction.add_dependent, 201);
+  assert.equal(post.testedBy.ownStatusByAction.update_dependent, 200);
+  assert.equal(post.testedBy.ownStatusByAction.update_enrollment, 200);
+  assert.equal(post.testedBy.foreignStatus, 403);
+});
+
+test("HMO POST credit is pinned to the executed source, real victim denials and CI receipt", () => {
+  const post = manifest.allApiRouteFiles["src/app/api/benefits/hmo/route.ts"].methods
+    .find(method => method.name === "POST");
+  const proof = post.testedBy;
+  const gitBlobSha = source => {
+    const bytes = Buffer.from(source, "utf8");
+    return createHash("sha1").update(Buffer.from("blob " + bytes.length + "\0"))
+      .update(bytes).digest("hex");
+  };
+  const line = number => {
+    assert.ok(Number.isInteger(number) && number > 0, "Positive pinned proof line required");
+    const value = suite.split("\n")[number - 1];
+    assert.ok(value, "Pinned evidence line must exist: " + number);
+    return value;
+  };
+  assert.equal(proof.proofBlobSha, gitBlobSha(suite), "Changed HMO CI proof requires re-review");
+  assert.equal(proof.routeBlobSha, gitBlobSha(route), "Changed HMO route requires new PG16 acceptance");
+  assert.equal(proof.runnerBlobSha, gitBlobSha(runner), "Changed HMO runner requires new PG16 acceptance");
+  assert.equal(proof.reviewedHead, "b85715c76be9bf2c9f0ab0f08741853c8983d7d9");
+  assert.equal(proof.passedJob,
+    "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
+  assert.equal(proof.ciResultKind, "HMO_GET_POST_HTTP_CANDIDATE");
+  assert.match(line(proof.line), /createdPlan = expectStatus/);
+  assert.match(line(proof.ownPositiveLine), /createdPlan = expectStatus/);
+  for (const [action, pattern] of Object.entries({
+    create_plan: /createdPlan = expectStatus/,
+    add_dependent: /createdDependent = expectStatus/,
+    update_dependent: /updatedDependent = expectStatus/,
+    update_enrollment: /updatedEnrollment = expectStatus/,
+  })) assert.match(line(proof.postActionOwnLines[action]), pattern, action + " own HTTP");
+  assert.match(line(proof.foreignDenialLine), /await denied\(PATH,.*403/);
+  assert.match(line(proof.forgedSelectorLine), /await denied\(PATH,.*404/);
+  assert.match(line(proof.unchangedDbLine), /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
+  assert.match(line(proof.victimIdOrderingLine), /target\[field\]\.id > 6/);
+  assert.match(suite, /for \(const body of actionBodies\(victim, target,/);
+  assert.match(suite, /for \(const body of actionBodies\(org, target,.*\.slice\(1\)/);
+  assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+  assert.match(suite, /actualProviderTraffic: false, inventoryCreditsAdded: 0/);
+  assert.match(post.reason, /provisional/i);
+  assert.match(post.reason, /independent security review/i);
+  // The CI receipt ran while this was still a candidate. Credit is proposed
+  // in this PR only, not retroactively asserted by the earlier log message.
 });
