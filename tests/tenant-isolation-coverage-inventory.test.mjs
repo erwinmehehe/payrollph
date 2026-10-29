@@ -3413,3 +3413,70 @@ test("real-HTTP login audit for the public credential exchange cannot target a f
     "Sign-in audit must commit before browser session delivery");
   assert.match(route, /await revokeSession\(session\.token\)\.catch\(\(\) => \{\}\)/);
 });
+
+test("roster-batches POST credit requires independent HTTP stage, replay, approve AND reject", () => {
+  const routePath = "src/app/api/workforce/roster-batches/route.ts";
+  const api = manifest.allApiRouteFiles[routePath];
+  const post = api.methods.find(method => method.name === "POST");
+  const get = api.methods.find(method => method.name === "GET");
+  assert.equal(get.status, "COVERED", "prior GET proof and receipt are preserved");
+  const actionFile = "scripts/qa/tenant-batches/roster-batches-actions-http.mjs";
+  const legacyFile = "scripts/qa/tenant-batches/roster-batches-http.mjs";
+  const script = readFileSync(actionFile, "utf8");
+  const legacy = readFileSync(legacyFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-roster-batches-http.yml", "utf8");
+  // A directly inserted pending batch cannot pass for successful stage or
+  // approve. All three real HTTP paths are independent of old reject receipts.
+  for (const evidence of [
+    'const response = check(await post(e, stageBody(e)), 201',
+    'const replay = check(await post(e, stageBody(e)), 200',
+    'assert.equal(replay.json?.replayed, true)',
+    'assert.equal(row.requestSha256, requestDigest',
+    'assert.equal(receipt.action, "WFM bulk roster batch staged")',
+    'const result = check(await post(e, decideBody("approve", e.orgId,',
+    'assert.equal(row.decidedByUserId, e.checkerId)',
+    'assert.equal(override.employeeId, e.workerId)',
+    'assert.equal(receipt.action, "WFM governed bulk roster published")',
+    'assert.deepEqual(await snapshot(e.orgId), expected.get(e.orgId)',
+    'await deny(actor, stageBody(actor, {',
+    'victim.stageBatchId, actor.decisionNote), 404',
+    'victim.stageBatchId, actor.decisionNote), 403',
+    'independentReview: "PENDING", newCredits: 0',
+  ]) assert.ok(script.includes(evidence), "new roster POST receipt lacks " + evidence);
+  assert.match(legacy, /const victimReject = await reject\(victim, victim\.orgId, victim\.batchId\)/);
+  assert.match(legacy, /assertRejectedRosterMutation\(oldVictim,/);
+  const oldProve = workflow.indexOf("roster-batches-http.mjs prove");
+  const newProve = workflow.indexOf("roster-batches-actions-http.mjs prove");
+  assert.ok(oldProve >= 0 && newProve > oldProve,
+    "New tests must not replace signed rejection receipts");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /node --test tests\/tenant-\*\.test\.mjs/);
+  assert.match(workflow, /npm run lint/);
+  if (post.status === "GAP") {
+    assert.equal(post.testedBy, null, "untested stage/approve cannot be credited");
+    return;
+  }
+  assert.equal(post.status, "COVERED");
+  const proof = post.testedBy;
+  assert.equal(proof?.file, actionFile);
+  assert.equal(proof?.independentSecurityReview, "PENDING");
+  assert.equal(proof?.postgresMajor, 16);
+  assert.equal(proof?.productionTested, false);
+  assert.match(proof?.runLabel ?? "", /GitHub Actions .*PG16/);
+  assert.ok(Number.isSafeInteger(proof?.workflowRunId) && proof.workflowRunId > 0);
+  assert.equal(proof?.proofBlobSha, gitBlobSha(Buffer.from(script)));
+  assert.equal(proof?.legacyProofBlobSha, gitBlobSha(Buffer.from(legacy)));
+  const anchors = {
+    ownPositiveLine: /const response = check\(await post\(e, stageBody\(e\)\), 201/,
+    replayLine: /const replay = check\(await post\(e, stageBody\(e\)\), 200/,
+    approveLine: /const result = check\(await post\(e, decideBody\("approve", e\.orgId,/,
+    foreignDenialLine: /organizationId: victim\.orgId, employeeIds: \[victim\.workerId\]/,
+    forgedSelectorLine: /victim\.stageBatchId, actor\.decisionNote\), 404/,
+    unchangedDbLine: /assert\.deepEqual\(await snapshot\(e\.orgId\), expected\.get\(e\.orgId\)/,
+  };
+  for (const [field, re] of Object.entries(anchors)) {
+    assert.match(evidenceLine(actionFile, proof[field], field), re);
+  }
+  assert.match(evidenceLine(legacyFile, proof.legacyRejectLine, "positive reject"),
+    /const victimReject = await reject\(victim, victim\.orgId, victim\.batchId\)/);
+});
