@@ -7,7 +7,7 @@ import { runAutomationEventSafely } from "@/lib/automation";
 import { getSessionUser } from "@/lib/auth";
 import { validateContribution, type BenefitPlanInput } from "@/lib/benefits";
 import { auditEvents, benefitEnrollments, benefitPlans, employees, userOrganizations } from "@/db/schema";
-import { defaultEmployerBenefitPlans } from "@/lib/benefit-catalog-tenant";
+import { defaultEmployerBenefitPlans, parseCatalogEmployerId } from "@/lib/benefit-catalog-tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -214,9 +214,10 @@ export async function PUT(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId);
-  if (!Number.isSafeInteger(organizationId) || organizationId < 1 ||
-      organizationId > 2147483647) {
+  const organizationId = parseCatalogEmployerId(
+    body && typeof body === "object" && !Array.isArray(body) ? body.organizationId : null,
+  );
+  if (organizationId === null) {
     return Response.json({ error: "Valid organizationId is required." }, { status: 400 });
   }
   const denied = await assertOrganizationRole(
