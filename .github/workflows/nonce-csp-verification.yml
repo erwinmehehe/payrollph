@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      CSP_EVIDENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       CI: "true"
       TZ: Asia/Manila
       NEXT_TELEMETRY_DISABLED: "1"
@@ -49,6 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Fetch origin main and record exact baseline
         shell: bash
@@ -56,6 +58,7 @@ jobs:
           set -euo pipefail
           mkdir -p qa-artifacts/csp-verification/off qa-artifacts/csp-verification/on
           git fetch origin main 2>&1 | tee qa-artifacts/csp-verification/git-fetch-main.log
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           {
             echo "HEAD=$(git rev-parse HEAD)"
             echo "origin/main=$(git rev-parse origin/main)"
@@ -89,8 +92,10 @@ jobs:
       - name: Create temporary 500 route ONLY in disposable CI checkout
         shell: bash
         run: |
-          mkdir -p src/app/__csp_qa_error
-          cat > src/app/__csp_qa_error/page.tsx <<'TS'
+          # Next.js reserves leading-underscore route folders as private.
+          # Use a normal public segment so this disposable route can return 500.
+          mkdir -p src/app/csp-qa-expected-500
+          cat > src/app/csp-qa-expected-500/page.tsx <<'TS'
           import { connection } from "next/server";
           export const dynamic = "force-dynamic";
           export default async function Probe() {
@@ -178,7 +183,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: csp-nonce-verification-${{ github.sha }}
+          name: csp-nonce-verification-${{ github.event.pull_request.head.sha || github.sha }}
           path: qa-artifacts/csp-verification/
           if-no-files-found: warn
           retention-days: 14

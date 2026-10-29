@@ -15,7 +15,7 @@ const both = Boolean(off && on);
 const status = (ok, ready=true) => !ready ? "UNVERIFIED" : ok ? "PASS" : "FAIL";
 const n = value => typeof value === "number" ? value.toFixed(2) : "n/a";
 const page = (report,path) => report?.http?.filter(x => x.path === path) ?? [];
-const paths = ["/", "/login", "/hcm", "/__csp_qa_not_found", "/__csp_qa_error"];
+const paths = ["/", "/login", "/hcm", "/__csp_qa_not_found", "/csp-qa-expected-500"];
 const comparison = paths.map(path => {
   const a = off?.latency?.find(x => x.path === path);
   const b = on?.latency?.find(x => x.path === path);
@@ -32,7 +32,7 @@ const comparison = paths.map(path => {
 });
 const browserPass = both && off.browserPass === true && on.browserPass === true;
 const htmlPass = both && off.htmlCheck?.pass === true && on.htmlCheck?.pass === true;
-const errorPass = htmlPass && ["/__csp_qa_not_found", "/__csp_qa_error"].every((p,idx)=>
+const errorPass = htmlPass && ["/__csp_qa_not_found", "/csp-qa-expected-500"].every((p,idx)=>
   page(on,p).every(x=>x.status===(idx?500:404)&&x.pass) &&
   page(off,p).every(x=>x.status===(idx?500:404)&&x.pass) &&
   page(on,p).length === 2 && page(off,p).length === 2);
@@ -54,7 +54,7 @@ const sections = [
 const lines=[
   "# Nonce CSP verification: real served-build acceptance",
   "",
-  "Source commit: " + (process.env.GITHUB_SHA || "unknown"),
+  "Source commit: " + ((process.env.CSP_EVIDENCE_SOURCE_SHA || process.env.GITHUB_SHA) || "unknown"),
   "",
   "Environment: GitHub Actions disposable Ubuntu + local PostgreSQL 16 app_db, two separate Next.js production builds, headless Chromium, fictional HR fixture only.",
   "NEXT_CSP_ENABLED=false for the OFF build/server. NEXT_CSP_ENABLED=true for the ON build/server.",
@@ -106,7 +106,7 @@ const lines=[
   "No production flag toggle, no real employer records, no external authentication, no bank or payment operations. A local authoring-container git fetch failed because github.com DNS was unavailable; the GitHub Actions checkout explicitly fetches origin/main.",
   "A successful single-run local proof would not certify third-party integrations, physical devices or production-sized hosting load.",
 ];
-const summary={sourceSha:process.env.GITHUB_SHA,sections:sections.map(([name,s,detail])=>({name,status:s,detail})),comparison,
+const summary={sourceSha:(process.env.CSP_EVIDENCE_SOURCE_SHA || process.env.GITHUB_SHA),sections:sections.map(([name,s,detail])=>({name,status:s,detail})),comparison,
   offPrerendered:offBuild?.prerenderedPages?.length??null,onPrerendered:onBuild?.prerenderedPages?.length??null,
   productionEnabled:false};
 await writeFile(root+"/verification-report.md",lines.join("\n")+"\n");

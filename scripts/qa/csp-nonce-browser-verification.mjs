@@ -26,7 +26,7 @@ assert.equal(process.env.APP_BASE_URL, base);
 assert.equal(process.env.OPENAI_API_KEY || "", "");
 await mkdir(dest, { recursive: true });
 const report = {
-  mode, sourceSha: process.env.GITHUB_SHA, base, localSyntheticOnly: true,
+  mode, sourceSha: process.env.CSP_EVIDENCE_SOURCE_SHA || process.env.GITHUB_SHA, base, localSyntheticOnly: true,
   browser: [], http: [], latency: [], failures: [], sampleCount: 7,
   productionTrafficTested: false, productionCspEnabled: false,
 };
@@ -94,10 +94,31 @@ async function evidence(name, action) {
   }
 }
 
+// Two isolated, real sessions: HR can reach People Home; payroll can open Payroll.
+// Never log session cookies, login response bodies or credentials.
+async function syntheticLogin(context, email, label) {
+  try {
+    const response = await context.request.post(base + "/api/auth/login", {
+      headers: { origin: base, "sec-fetch-site": "same-origin" },
+      data: { email, password: "Synthetic-HCM-QA-Password-Only-2026!" },
+      failOnStatusCode: false,
+    });
+    const auth = { status: response.status(), hasSessionCookie: (await context.cookies())
+      .some(cookie => cookie.name === "__Host-linaw_session" || cookie.name === "linaw_session") };
+    assert.equal(auth.status, 200, label + ": expected real synthetic session");
+    assert.equal(auth.hasSessionCookie, true, label + ": expected session cookie");
+    return auth;
+  } catch (error) {
+    report.failures.push({ name: label, pass: false,
+      error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+}
+
 async function main() {
   // Raw standalone HTTP evidence: distinct requests, nonce/HTML contract,
   // error responses, and reproducible response timing.
-  for (const path of ["/", "/login", "/hcm", "/__csp_qa_not_found", "/__csp_qa_error"]) {
+  for (const path of ["/", "/login", "/hcm", "/__csp_qa_not_found", "/csp-qa-expected-500"]) {
     const samples = [];
     await httpProbe(path, "warmup", false);
     for (let i = 0; i < report.sampleCount; i++) {
@@ -120,7 +141,7 @@ async function main() {
     assert.ok(pages.length >= 10);
     assert.ok(pages.every(page => page.pass),
       "One or more response headers or executable script nonces failed; see http[]");
-    for (const path of ["/login", "/hcm", "/__csp_qa_not_found", "/__csp_qa_error"]) {
+    for (const path of ["/login", "/hcm", "/__csp_qa_not_found", "/csp-qa-expected-500"]) {
       const samples = pages.filter(row => row.path === path);
       assert.equal(samples.length, 2);
       if (enabled) {
@@ -130,7 +151,7 @@ async function main() {
     }
     assert.ok(pages.some(page => page.path === "/__csp_qa_not_found" && page.status === 404),
       "404 probe must actually return HTTP 404");
-    assert.ok(pages.some(page => page.path === "/__csp_qa_error" && page.status === 500),
+    assert.ok(pages.some(page => page.path === "/csp-qa-expected-500" && page.status === 500),
       "Synthetic throw route must actually return HTTP 500");
     return { pages: pages.map(p => ({ path:p.path, status:p.status, pass:p.pass })) };
   });
@@ -147,32 +168,28 @@ async function main() {
     for (const { path, name } of pages) {
       report.browser.push(await browserPage(context, path, name, false));
     }
-    // Use the actual login API, same origin, in a disposable local PG fixture.
-    // Never publish session cookies or authentication response bodies.
-    let auth = null;
-    try {
-      const response = await context.request.post(base + "/api/auth/login", {
-        headers: { origin: base, "sec-fetch-site": "same-origin" },
-        data: { email: "hcm-hr@example.test", password: "Synthetic-HCM-QA-Password-Only-2026!" },
-        failOnStatusCode: false,
-      });
-      auth = { status: response.status(), hasSessionCookie: (await context.cookies())
-        .some(cookie => cookie.name === "__Host-linaw_session" || cookie.name === "linaw_session") };
-      assert.equal(response.status(), 200);
-      assert.equal(auth.hasSessionCookie, true);
-    } catch (error) {
-      report.failures.push({ name: "synthetic HR login", pass: false,
-        error: error instanceof Error ? error.message : String(error) });
-    }
+    // Authenticate HR and Payroll separately. An HR grant does not imply
+    // payroll navigation, so the payroll click must use a real payroll role.
+    const auth = await syntheticLogin(context, "hcm-hr@example.test", "synthetic HR login");
     report.authentication = auth;
+    const payrollContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const payrollAuth = await syntheticLogin(payrollContext,
+        "hcm-payroll@example.test", "synthetic payroll login");
+      report.payrollAuthentication = payrollAuth;
+      if (payrollAuth?.status === 200 && payrollAuth.hasSessionCookie) {
+        report.browser.push(await browserPage(payrollContext,
+          "/app?organizationId=1", "payroll-workspace", true));
+      } else report.failures.push({ name: "authenticated payroll page skipped", pass: false,
+        error: "No valid real payroll-role synthetic session" });
+    } finally { await payrollContext.close(); }
     if (auth?.status === 200 && auth.hasSessionCookie) {
       for (const { path, name } of [
-        { path: "/app?organizationId=1", name: "payroll-workspace" },
         { path: "/hcm/command-center?organizationId=1", name: "hcm-command-center" },
         { path: "/hcm/action-center?organizationId=1", name: "hcm-action-center" },
       ]) report.browser.push(await browserPage(context, path, name, true));
-    } else report.failures.push({ name: "authenticated key pages skipped", pass: false,
-      error: "No valid production-mode local synthetic session" });
+    } else report.failures.push({ name: "authenticated HCM pages skipped", pass: false,
+      error: "No valid real HR-role synthetic session" });
     await context.close();
   } finally { await browser.close(); }
   report.browserPass = report.browser.length === 6 && report.browser.every(row => row.pass);
@@ -219,12 +236,16 @@ async function browserPage(context, path, name, authenticated) {
       const password = page.locator('input[autocomplete="current-password"]');
       await password.waitFor({ timeout: 20000 });
       assert.equal(await password.getAttribute("type"), "password");
-      await page.getByTestId("password-visibility").click();
+      // Keyboard activation is a real native button click and React onClick.
+      // Avoid pointer label forwarding to the neighboring "Forgot password?"
+      // button nested in the same label, which changed the form mid-probe.
+      const visibility = page.getByTestId("password-visibility");
+      await visibility.press("Enter");
       assert.equal(await password.getAttribute("type"), "text",
         "React password-visibility handler did not hydrate");
-      await page.getByTestId("password-visibility").click();
+      await visibility.press("Enter");
       assert.equal(await password.getAttribute("type"), "password");
-      record.hydrationInteraction = "password React visibility onClick toggled twice";
+      record.hydrationInteraction = "real keyboard-activated React password visibility toggled twice";
     }
     if (name === "payroll-workspace") {
       const session = await page.evaluate(async () => {
@@ -233,13 +254,17 @@ async function browserPage(context, path, name, authenticated) {
         return { status: response.status, role: body?.user?.role };
       });
       assert.equal(session.status, 200);
-      assert.equal(session.role, "hr");
+      assert.equal(session.role, "payroll", "A real payroll officer role is required");
       record.role = session.role;
       const payrollTab = page.locator('[data-nav-name="Payroll"]').first();
+      if (!await payrollTab.isVisible()) {
+        // Some workspace configurations put Payroll behind the real More menu.
+        await page.locator(".nav-more-toggle").click({ timeout: 20000 });
+      }
       await payrollTab.waitFor({ timeout: 40000 });
       await payrollTab.click();
       await page.locator('[data-workspace-page="Payroll"]').waitFor({ timeout: 40000 });
-      record.hydrationInteraction = "real React Payroll tab navigation";
+      record.hydrationInteraction = "real payroll-role React Payroll tab navigation";
     }
     if (name === "hcm-action-center") {
       await page.getByRole("heading", { name: "HCM Action Center" }).waitFor({
