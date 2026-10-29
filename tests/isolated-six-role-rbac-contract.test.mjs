@@ -127,6 +127,11 @@ test("CI evidence attests the ACTUAL checked-out PR head, not GitHub's synthetic
 });
 
 test("#1015 uses a real seeded attendance event for authenticated six-role HTTP proof", () => {
+  const worker = local.indexOf("const [foreignEmployee] = await db.insert(employees)");
+  const profile = local.indexOf("await db.insert(employeePayProfiles).values({", worker);
+  const attendance = local.indexOf("const [foreignAttendance]", worker);
+  assert.ok(worker >= 0 && profile > worker && attendance > profile,
+    "Foreign worker needs an explicit fictional pay profile before dashboard reads");
   assert.match(local, /async function seedAttendanceExceptionForDemo\(org\)/);
   assert.match(local, /await db\.insert\(attendanceExceptionEvents\)/);
   assert.match(local, /seededAttendanceEventId !== null/);

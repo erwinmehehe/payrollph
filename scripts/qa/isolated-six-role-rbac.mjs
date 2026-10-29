@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { operationalSecret } from "../../src/lib/operational-secret";
-import { attendanceExceptionEvents, employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
+import { attendanceExceptionEvents, employeePayProfiles, employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
 import { ensurePublicDemoTenant } from "../../src/db/public-demo";
 
 // Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
@@ -235,6 +235,13 @@ async function seedForeignEmployer() {
     basicRate: "20000.00",
     startDate: "2026-10-01",
   }).returning({ id: employees.id });
+  // Complete this fictional worker before the read-only dashboard preflight.
+  // Runtime reads must never backfill missing pay profiles themselves.
+  await db.insert(employeePayProfiles).values({
+    organizationId: foreignOrg.id, employeeId: foreignEmployee.id,
+    payBasis: "monthly", rateAmount: "20000.00",
+    standardWorkDaysPerMonth: "26.00", standardHoursPerDay: "8.00",
+  });
   const [foreignAttendance] = await db.insert(attendanceExceptionEvents).values({
     organizationId: foreignOrg.id,
     employeeId: foreignEmployee.id,
