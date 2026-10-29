@@ -71,3 +71,31 @@ test("owned POST requires a real SMTP token-hash, delivered outbox and actor aud
  assert.throws(()=>prove(response,saved,mail,outbox,[]));
  assert.throws(()=>prove(response,saved,mail,outbox,[...audits,...audits]));
 });
+
+test("real disposable PG16 runner exercises unit-visible read, eight privilege denials, own write and revoked session",()=>{
+ const runner=readFileSync("scripts/qa/tenant-invitations-post-boundary.mjs","utf8");
+ for(const proof of [
+  "const unitRead=await http.standaloneRequest(",
+  "row.orgUnitId===a.unit.id",
+  "const unitDeniedCases=[",
+  "sibling-unit employee",
+  "company-wide employee",
+  "unit admin invitation",
+  "unit owner invitation",
+  "unit bookkeeper invitation",
+  "const unitVictimGet=await http.standaloneRequest(",
+  "const unitVictimPost=await http.standaloneRequest(",
+  "const unitPositive=await http.standaloneRequest(",
+  "unitSaved?.orgUnitId,a.unit.id",
+  "smtp.captured.filter(mail=>mail.recipient===ownUnitEmail)",
+  "await db.update(s.userOrganizations).set({active:false})",
+  "revoked unit administrator cannot issue invites",
+  "methodFullyCovered:false,coverageCredits:0",
+ ])assert.ok(runner.includes(proof),"missing unit-isolation proof: "+proof);
+ const start=runner.indexOf("const unitDeniedCases=[");
+ const positive=runner.indexOf("const unitPositive=await http.standaloneRequest(");
+ const revoke=runner.indexOf("await db.update(s.userOrganizations).set({active:false})");
+ assert.ok(start>0&&positive>start&&revoke>positive,
+   "privilege denial, own success and revocation must execute in one live session sequence");
+});
+

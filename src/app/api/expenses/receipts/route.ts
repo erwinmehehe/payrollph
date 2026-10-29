@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, documents, employees, expenseClaimEvidence, expenseClaims } from "@/db/schema";
+import { auditEvents, documents, employees, expenseClaimEvidence, expenseClaims, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
@@ -15,21 +15,86 @@ import { recordAuditEvent } from "@/lib/audit";
 import { claimCanAttachReceipt, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
 import { SPEND_PENDING_RECEIPT_PREFIX, reconcilePendingSpendReceipt } from "@/lib/spend-receipt-object-reconciliation";
+import { receiptGrantMatches } from "@/lib/spend-receipt-tenant";
 
 export const dynamic = "force-dynamic";
 const enabled = () => spendPayrollEnabled() &&
   criticalReleaseFlagEnabled("employeeDocumentVault") && documentUploadsEnabled();
 const unavailable = () => Response.json({ error: "Private reimbursement receipts are not enabled." }, { status: 404 });
 const validId = (v: number) => Number.isSafeInteger(v) && v > 0;
+type ReceiptUser = NonNullable<Awaited<ReturnType<typeof getSessionUser>>>;
+type ReceiptClaim = typeof expenseClaims.$inferSelect;
+type ReceiptTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+const notFound = () => Response.json({ error: "Receipt not found." }, {
+  status: 404, headers: { "Cache-Control": "private, no-store" },
+});
 
-async function authorize(user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>,
-  claim: typeof expenseClaims.$inferSelect): Promise<Response | null> {
+/** A session's global employeeId does not grant receipts in another employer. */
+async function activeReceiptGrant(user: ReceiptUser, claim: ReceiptClaim) {
+  const [[employee], [membership]] = await Promise.all([
+    db.select({
+      id: employees.id, organizationId: employees.organizationId,
+      orgUnitId: employees.orgUnitId,
+    }).from(employees).where(and(
+      eq(employees.id, claim.employeeId),
+      eq(employees.organizationId, claim.organizationId),
+    )).limit(1),
+    db.select({
+      userId: userOrganizations.userId, organizationId: userOrganizations.organizationId,
+      role: userOrganizations.role, active: userOrganizations.active,
+      orgUnitId: userOrganizations.orgUnitId,
+      workerEmployeeId: userOrganizations.workerEmployeeId,
+    }).from(userOrganizations).where(and(
+      eq(userOrganizations.userId, user.id),
+      eq(userOrganizations.organizationId, claim.organizationId),
+      eq(userOrganizations.active, true),
+    )).limit(1),
+  ]);
+  return receiptGrantMatches({
+    userId: user.id, accountRole: user.role, accountEmployeeId: user.employeeId,
+    claim, employee: employee ?? null, membership: membership ?? null,
+  }, PEOPLE_PAYROLL_ROLES);
+}
+
+/** Recheck employee, employer, worker and staff scope under real DB row locks.
+ * The caller must check this before the first staged write and again before
+ * the final receipt attachment; revocation/reassignment cannot authorize a
+ * later committed SQL write based solely on the original request preflight.
+ */
+async function lockedReceiptGrant(tx: ReceiptTransaction, user: ReceiptUser, claim: ReceiptClaim) {
+  const [employee] = await tx.select({
+    id: employees.id, organizationId: employees.organizationId,
+    orgUnitId: employees.orgUnitId,
+  }).from(employees).where(and(
+    eq(employees.id, claim.employeeId),
+    eq(employees.organizationId, claim.organizationId),
+  )).for("share").limit(1);
+  if (!employee) return false;
+  const [membership] = await tx.select({
+    userId: userOrganizations.userId, organizationId: userOrganizations.organizationId,
+    role: userOrganizations.role, active: userOrganizations.active,
+    orgUnitId: userOrganizations.orgUnitId,
+    workerEmployeeId: userOrganizations.workerEmployeeId,
+  }).from(userOrganizations).where(and(
+    eq(userOrganizations.userId, user.id),
+    eq(userOrganizations.organizationId, claim.organizationId),
+    eq(userOrganizations.active, true),
+  )).for("share").limit(1);
+  return receiptGrantMatches({
+    userId: user.id, accountRole: user.role, accountEmployeeId: user.employeeId,
+    claim, employee, membership: membership ?? null,
+  }, PEOPLE_PAYROLL_ROLES);
+}
+
+async function authorize(user: ReceiptUser,
+  claim: ReceiptClaim): Promise<Response | null> {
   if (user.role === "employee") {
     if (!user.employeeId || user.employeeId !== claim.employeeId) {
-      return Response.json({ error: "Receipt not found." }, { status: 404 });
+      return notFound();
     }
     const denied = await assertMembership(user.id, claim.organizationId);
-    return denied ? Response.json({ error: "Receipt not found." }, { status: 404 }) : null;
+    if (denied) return notFound();
+    return await activeReceiptGrant(user, claim) ? null : notFound();
   }
   const denied = await assertOrganizationRole(user.id, claim.organizationId, PEOPLE_PAYROLL_ROLES);
   if (denied) return denied;
@@ -70,6 +135,10 @@ export async function GET(request: Request) {
   } catch {
     return Response.json({ error: "Private receipt storage is unavailable." }, { status: 503 });
   }
+  // External object storage may take time; do not return private bytes based
+  // on a membership that was revoked while those bytes were being fetched.
+  const readDenied = await authorize(user, core);
+  if (readDenied) return readDenied;
   await recordAuditEvent({
     organizationId: claim.organizationId, actor: user.name,
     action: "Expense receipt viewed", resource: String(claim.id),
@@ -132,6 +201,17 @@ export async function POST(request: Request) {
   let pendingDocumentId: number;
   try {
     pendingDocumentId = await db.transaction(async tx => {
+      // Do not stage a private object for a transferred/reassigned claim.
+      const [liveClaim] = await tx.select({
+        id: expenseClaims.id,
+      }).from(expenseClaims).where(and(
+        eq(expenseClaims.id, claim.id),
+        eq(expenseClaims.organizationId, claim.organizationId),
+        eq(expenseClaims.employeeId, claim.employeeId),
+      )).for("share").limit(1);
+      if (!liveClaim || !await lockedReceiptGrant(tx, user, claim)) {
+        throw new Error("RECEIPT_GRANT_CHANGED");
+      }
       const [intent] = await tx.insert(documents).values({
         organizationId: claim.organizationId, employeeId: claim.employeeId,
         kind: "expense_receipt",
@@ -181,7 +261,8 @@ export async function POST(request: Request) {
       const [freshCore] = await tx.select().from(expenseClaims).where(and(
         eq(expenseClaims.id, id), eq(expenseClaims.organizationId, claim.organizationId),
       )).for("update").limit(1);
-      if (!freshCore) throw new Error("CLAIM_ALREADY_CHANGED");
+      if (!freshCore || freshCore.employeeId !== claim.employeeId) throw new Error("CLAIM_ALREADY_CHANGED");
+      if (!await lockedReceiptGrant(tx, user, freshCore)) throw new Error("RECEIPT_GRANT_CHANGED");
       const [fresh] = await loadSpendClaimEvidence(tx, [freshCore]);
       if (!fresh || !claimCanAttachReceipt(fresh) || fresh.policyMatched !== true) throw new Error("CLAIM_ALREADY_CHANGED");
       const [updated] = await tx.update(expenseClaimEvidence).set({
