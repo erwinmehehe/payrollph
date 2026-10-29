@@ -101,6 +101,7 @@ jobs:
         run: |
           node --check scripts/qa/tenant-hcm-employment-decision-contract.mjs
           node --check scripts/qa/tenant-hcm-employment-decision-post.mjs
+          node --check scripts/qa/tenant-hcm-employment-decision-runner.mjs
           node --test tests/tenant-hcm-employment-decision-post.test.mjs
       - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
         run: |
@@ -192,6 +193,15 @@ jobs:
           TENANT_DL01_VAULT_PROOF: isolated-ci-only
           EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
         run: npx tsx scripts/qa/tenant-second-pass-http.mjs
+
+      # Run uncredited HCM POST acceptance as a distinct GitHub Actions step.
+      # Do not modify the historical tenant-second-pass-http runner: other
+      # methods are pinned to its reviewed byte hash and source line receipts.
+      - name: HCM decision POST own and cross-tenant real HTTP (fictional PG16, zero credit)
+        env:
+          CI: "true"
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+        run: npx tsx scripts/qa/tenant-hcm-employment-decision-runner.mjs
 
       - name: Show server log on failure
         if: failure()
