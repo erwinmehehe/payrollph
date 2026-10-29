@@ -3,6 +3,12 @@
  * not a permission to create global (organizationId = null) benefit plans.
  * Legacy globally configured templates remain visible through the GET path.
  */
+export function parseCatalogEmployerId(input: unknown): number | null {
+  const value = typeof input === "number" ? input :
+    typeof input === "string" && /^[1-9]\\d{0,9}$/.test(input) ? Number(input) : NaN;
+  return Number.isSafeInteger(value) && value >= 1 && value <= 2147483647 ? value : null;
+}
+
 export function defaultEmployerBenefitPlans(organizationId: number) {
   if (!Number.isSafeInteger(organizationId) || organizationId < 1 ||
       organizationId > 2147483647) {
