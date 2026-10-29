@@ -88,6 +88,6 @@ At the owner's instruction the DL-02 workflow was dispatched on `main`
 head `5a3c209df`, passed). `main` moved before the run finished, so Blocker 1 is
 **not satisfied as written**. The route, proof rows, runner, bootstrap and workflow
 blobs were compared and are byte-identical on the promotion base; the owner accepted
-that comparison for `POST /api/workforce/demand-observations/import` only. A separate
-review-only PR credits that one method (idempotent replay is not exercised). The other
-three DL-02 methods stay GAP, and Blocker 2 (exact-head `CI/check`) applies to that PR.
+that comparison for the three methods below. A separate
+review-only PR credits that method (idempotent replay is not exercised) plus `POST self/photo` and
+`GET web-bundy/evidence` from the same run. `POST web-bundy/evidence` stays GAP (one of four punch actions proven), and Blocker 2 (exact-head `CI/check`) applies to that PR.

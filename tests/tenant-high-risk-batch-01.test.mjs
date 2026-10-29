@@ -492,8 +492,9 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // tenant-isolation-coverage-inventory.test.mjs); keep it out of the historical 124/359 ledger.
   const dl02ImportCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" &&
-    method.testedBy?.file === "scripts/qa/tenant-dl02-rows/demand-import.mjs").length;
-  assert.equal(dl02ImportCredits, 1, "exactly the DL-02 demand-import POST is promoted");
+    ["scripts/qa/tenant-dl02-rows/demand-import.mjs", "scripts/qa/tenant-dl02-rows/self-photo.mjs",
+      "scripts/qa/tenant-dl02-rows/web-bundy.mjs"].includes(method.testedBy?.file)).length;
+  assert.equal(dl02ImportCredits, 3, "exactly demand-import POST, self/photo POST and web-bundy evidence GET are promoted");
   const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
