@@ -98,26 +98,34 @@ test("roster feature remains isolated to the synthetic flagged profile", () => {
   assert.deepEqual(roster.flags, ["WFM_ROSTER_SCALE_RULES_ENABLED"]);
 });
 
-test("eight Workforce scenarios preserve three provisional policy credits and five uncovered action families", () => {
+test("all eight Workforce scenarios are credited, and every multi-action route proves each of its actions", () => {
   const keys = [...rows.map(r => r.key), "GET workforce/roster-rules"];
   assert.equal(keys.length, 8);
   assert.equal(new Set(keys).size, 8);
-  const credited = new Set([
-    "GET workforce/roster-rules", "POST workforce/roster-rules", "POST workforce/schedule-guardrails",
-  ]);
+  // These five were held as GAP while only one action each was exercised. Each row now proves every action
+  // branch its route handles (the primary request plus `exercise`), so all eight are credited.
+  const multiAction = ["POST workforce/schedules", "POST workforce/overtime", "POST workforce/attendance-corrections",
+    "POST workforce/coverage", "POST workforce/schedule-swaps"];
   const catalog = [...tenantFamilyCatalog("write"), ...tenantFamilyCatalog("read")];
   for (const key of keys) assert.equal(catalog.filter(r => r.key === key).length, 1);
+  for (const key of multiAction) {
+    const row = rows.find(r => r.key === key);
+    assert.equal(typeof row.exercise, "function", key + " must execute its remaining action branches");
+    const source = readFileSync("src/app/api/" + key.split(" ")[1] + "/route.ts", "utf8");
+    const actions = [...new Set([...source.matchAll(/action === "([a-z_]+)"/g)].map(m => m[1]))];
+    assert.ok(actions.length >= 2, key + " is a multi-action route");
+    const text = catalog.find(r => r.key === key).text;
+    for (const action of actions) assert.ok(text.includes('action: "' + action + '"'), key + " must exercise action " + action);
+  }
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json";
   const text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
   for (const key of keys) {
     const [method, route] = key.split(" ");
     const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const entry = record.methods.find(m => m.name === method);
-    assert.equal(entry.status, credited.has(key) ? "COVERED" : "GAP", key);
-    if (credited.has(key)) assert.ok(entry.testedBy?.rowFile, key + " requires a source-pinned executable proof");
-    else assert.equal(entry.testedBy, null, key + " remains unresolved outside the single tested action");
+    assert.equal(entry.status, "COVERED", key);
+    assert.ok(entry.testedBy?.rowFile, key + " requires a source-pinned executable proof");
   }
-  assert.equal(keys.filter(key => credited.has(key)).length, 3);
   const report = JSON.parse(execFileSync(process.execPath,
     ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0);
