@@ -137,6 +137,52 @@ test("tenant and org-unit access fail closed; unauthorised switches cannot expos
   assert.equal(operationalDemandSiteAuthorized(owner, { organizationId: 2, orgUnitId: null, active: true }), false);
 });
 
+test("operational demand refuses incoherent access flags and malformed site ownership", () => {
+  const company = { organizationId: 1, companyWide: true, orgUnitId: null };
+  const ownSite = { organizationId: 1, orgUnitId: 3, active: true };
+  // The original truthy companyWide shortcut would have accepted these shapes.
+  const malformed: unknown[] = [
+    null, undefined,
+    { organizationId: 1, companyWide: true, orgUnitId: 3 },
+    { organizationId: 1, companyWide: "true", orgUnitId: null },
+    { organizationId: 1, companyWide: 1, orgUnitId: null },
+    { organizationId: 1, companyWide: false, orgUnitId: null },
+    { organizationId: 1, companyWide: false, orgUnitId: 0 },
+    { organizationId: 1, companyWide: false, orgUnitId: -3 },
+    { organizationId: 1, companyWide: false, orgUnitId: 3.5 },
+    { organizationId: 1, companyWide: false, orgUnitId: "3" },
+    { organizationId: 1, companyWide: "false", orgUnitId: 3 },
+    { organizationId: 0, companyWide: true, orgUnitId: null },
+    { organizationId: 1.5, companyWide: true, orgUnitId: null },
+    { organizationId: Number.MAX_SAFE_INTEGER + 1, companyWide: true, orgUnitId: null },
+  ];
+  for (const candidate of malformed) {
+    assert.equal(operationalDemandSiteAuthorized(
+      candidate as Parameters<typeof operationalDemandSiteAuthorized>[0], ownSite,
+    ), false, JSON.stringify(candidate));
+  }
+  const malformedSites: unknown[] = [
+    null, undefined,
+    { organizationId: 2, orgUnitId: 3, active: true },
+    { organizationId: 0, orgUnitId: 3, active: true },
+    { organizationId: 1, orgUnitId: 0, active: true },
+    { organizationId: 1, orgUnitId: -1, active: true },
+    { organizationId: 1, orgUnitId: 2.5, active: true },
+    { organizationId: 1, orgUnitId: Number.MAX_SAFE_INTEGER + 1, active: true },
+    { organizationId: 1, orgUnitId: 3, active: "true" },
+  ];
+  for (const candidate of malformedSites) {
+    assert.equal(operationalDemandSiteAuthorized(
+      company, candidate as Parameters<typeof operationalDemandSiteAuthorized>[1],
+    ), false, JSON.stringify(candidate));
+  }
+  // Legitimate company-wide and same-unit reads retain their existing results.
+  assert.equal(operationalDemandSiteAuthorized(company, ownSite), true);
+  assert.equal(operationalDemandSiteAuthorized(
+    { organizationId: 1, companyWide: false, orgUnitId: 3 }, ownSite,
+  ), true);
+});
+
 test("source routes are guarded, remain aggregation-only and never write roster or payroll", () => {
   const imp = readFileSync("src/app/api/workforce/demand-observations/import/route.ts", "utf8");
   const get = readFileSync("src/app/api/workforce/demand-observations/outlook/route.ts", "utf8");
