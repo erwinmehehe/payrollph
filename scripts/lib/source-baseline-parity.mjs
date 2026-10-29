@@ -181,6 +181,38 @@ function sourceBaselineCheck(expression, columnTypes, table) {
   return "varchar-in:" + column + ":" + JSON.stringify(literals);
 }
 
+function sourceBaselineIndexKey(key, columnTypes) {
+  if (typeof key !== "string" || !key.length || key.includes("\0")) {
+    throw new Error("SOURCE_BASELINE_INVALID_INDEX_KEY");
+  }
+  // The manifest stores a bare column name, while pg_get_indexdef quotes
+  // mixed-case, dotted, Unicode and space-containing physical names. Compare
+  // exact decoded identifiers, not lowercased SQL tokens or guessed aliases.
+  let column;
+  let trailing = "";
+  const quoted = /^"((?:[^"]|"")*)"(?=$|\s)(.*)$/.exec(key);
+  if (quoted) {
+    const physical = quoted[1].replaceAll('""', '"');
+    if (columnTypes.has(physical)) {
+      column = physical;
+      trailing = quoted[2];
+    }
+  }
+  if (column === undefined) {
+    const found = [...columnTypes.keys()]
+      .sort((a, b) => b.length - a.length)
+      .find((name) => key === name || key.startsWith(name + " "));
+    if (found !== undefined) {
+      column = found;
+      trailing = key.slice(found.length);
+    }
+  }
+  if (column !== undefined) {
+    return { column, modifiers: sourceBaselineSQL(trailing) };
+  }
+  return { expression: sourceBaselineSQL(key) };
+}
+
 function sourceBaselineSignature(kind, x, table, name, columnTypes) {
   const names = (value) => {
     if (!Array.isArray(value)) throw new Error("SOURCE_BASELINE_INVALID_OBJECT_COLUMNS");
@@ -220,7 +252,7 @@ function sourceBaselineSignature(kind, x, table, name, columnTypes) {
         throw new Error("SOURCE_BASELINE_INVALID_INDEX_METADATA");
       }
       return { unique: x.unique, method: x.method.toLowerCase(),
-        keys: names(x.keys).map((key) => sourceBaselineSQL(key)),
+        keys: names(x.keys).map((key) => sourceBaselineIndexKey(key, columnTypes)),
         predicate: sourceBaselineSQL(x.predicate), valid: x.valid !== false,
         ready: x.ready !== false };
     default:
