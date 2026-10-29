@@ -157,7 +157,9 @@ export async function proveTenantBenefitCatalogPut() {
       assert.ok(ownPlans.every(plan => plan.organizationId === owner.org.id));
       for (const other of employers.filter(x => x !== owner)) {
         assertNoForeignMarker(ownGet, other.marker);
-        assert.ok(!ownPlans.some(plan => (await snapshot(other.org.id)).plans.some(x => x.id === plan.id)));
+        const foreignPlanIds = new Set((await snapshot(other.org.id)).plans.map(row => row.id));
+        assert.ok(!ownPlans.some(plan => foreignPlanIds.has(plan.id)),
+          "GET must never expose another employer's persisted private plan");
       }
     }
 
