@@ -5,12 +5,6 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
-import { db } from "../../src/db";
-import {
-  auditEvents, employees, hcmEmploymentTerms, hcmEmploymentTermDecisions,
-  hcmEmploymentDecisionEvents, payrollRuns, userOrganizations,
-} from "../../src/db/schema";
 import {
   HCM_DECISION_POST, requireDisposableHcmDecisionEnv,
   assertVictimDecisionUnchanged, assertNoVictimDecisionLeak,
@@ -18,19 +12,6 @@ import {
 } from "./tenant-hcm-employment-decision-contract.mjs";
 
 const EFFECTIVE_DATE = "2026-12-02";
-
-async function tenantSnapshot(orgId) {
-  const forOrg = (table) => db.select().from(table)
-    .where(eq(table.organizationId, orgId)).orderBy(table.id);
-  return {
-    employees: await forOrg(employees),
-    terms: await forOrg(hcmEmploymentTerms),
-    decisions: await forOrg(hcmEmploymentTermDecisions),
-    decisionEvents: await forOrg(hcmEmploymentDecisionEvents),
-    auditEvents: await forOrg(auditEvents),
-    payrollRuns: await forOrg(payrollRuns),
-  };
-}
 
 function requestBody(orgId, employeeId, termId, reason) {
   return {
@@ -42,7 +23,30 @@ function requestBody(orgId, employeeId, termId, reason) {
 }
 
 export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus, makeSession }) {
-  requireDisposableHcmDecisionEnv();
+  requireDisposableHcmDecisionEnv(); // before any DB or schema import
+  // This proof can also be invoked without the wrapper runner. Validate first
+  // so even a direct import never creates an application DB pool beforehand.
+  const [{ db }, tables, { and, eq }] = await Promise.all([
+    import("../../src/db/index.ts"),
+    import("../../src/db/schema.ts"),
+    import("drizzle-orm"),
+  ]);
+  const {
+    auditEvents, employees, hcmEmploymentTerms, hcmEmploymentTermDecisions,
+    hcmEmploymentDecisionEvents, payrollRuns, userOrganizations,
+  } = tables;
+  async function tenantSnapshot(orgId) {
+    const forOrg = (table) => db.select().from(table)
+      .where(eq(table.organizationId, orgId)).orderBy(table.id);
+    return {
+      employees: await forOrg(employees),
+      terms: await forOrg(hcmEmploymentTerms),
+      decisions: await forOrg(hcmEmploymentTermDecisions),
+      decisionEvents: await forOrg(hcmEmploymentDecisionEvents),
+      auditEvents: await forOrg(auditEvents),
+      payrollRuns: await forOrg(payrollRuns),
+    };
+  }
   const nonce = randomUUID().replaceAll("-", "").slice(0, 12);
   const victim = f.orgs[0], attackerOrgs = [f.orgs[1], f.orgs[2]];
   assert.notEqual(attackerOrgs[0].id, attackerOrgs[1].id);
