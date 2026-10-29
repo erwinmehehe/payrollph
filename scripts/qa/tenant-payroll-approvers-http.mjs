@@ -52,7 +52,7 @@ async function stop(server) {
   if (server.exitCode === null) server.kill("SIGKILL");
 }
 
-function proveRows(body, expectedIds, unwantedMarkers = []) {
+export function proveRows(body, expectedIds, unwantedMarkers = []) {
   assert.ok(body && typeof body === "object" && !Array.isArray(body));
   assert.deepEqual(Object.keys(body).sort(), ["approvers"]);
   assert.ok(Array.isArray(body.approvers), "authorized source must expose an actual array");
