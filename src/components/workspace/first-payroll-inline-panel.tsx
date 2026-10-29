@@ -12,6 +12,7 @@ import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
 import { parseFirstPayrollProgressRead, readVerifiedFirstPayrollProgress, type SavedFirstPayrollProgress } from "@/lib/first-payroll-progress-read";
 import { isVerifiedFirstPayrollPreview, readVerifiedFirstPayrollPreview, type FirstPayrollPreview } from "@/lib/first-payroll-preview-read";
 import { readVerifiedFirstPayrollLegalEmployer } from "@/lib/first-payroll-legal-employer-read";
+import { completePayrollDraftBrowserKey, payrollDraftBrowserKey } from "@/lib/payroll-draft-intent";
 
 function firstPayrollStep(key: FirstPayrollKey) {
   const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
@@ -117,13 +118,24 @@ function ScopedFirstPayrollInlinePanel({
   if(!progressVerified){setError("Saved progress unavailable. Retry before acting.");return false;}
   setBusy(true);setError("");setNotice("");
   try {
-    const response=await fetch(url,{method,headers:{"Content-Type":"application/json"},
+    const headers: Record<string,string> = {"Content-Type":"application/json"};
+    if(url==="/api/payroll-runs"&&method==="POST") {
+      if(!data.user)throw Error("Sign in before creating payroll.");
+      headers["Idempotency-Key"]=payrollDraftBrowserKey(sessionStorage,data.user.id,{
+        organizationId,legalEntityId:null,scopeOrgUnitId:null,periodStart:start,periodEnd:end,payDate,processNow:false,
+      });
+    }
+    const response=await fetch(url,{method,headers,
       body:JSON.stringify({...body,organizationId})});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(result.error??"Could not complete action");
+    if(url==="/api/payroll-runs"&&method==="POST") {
+      if(!Number.isSafeInteger(result.run?.id)||result.run.id<=0||result.run.organizationId!==organizationId)throw Error("Payroll creation could not be verified. Retry the same details to recover the saved attempt.");
+      completePayrollDraftBrowserKey(sessionStorage,data.user!.id,organizationId,headers["Idempotency-Key"]);
+    }
     if(url==="/api/first-payroll/progress")setProgress(parseFirstPayrollProgressRead(result, organizationId));
     if(result.run?.id)setDraftId(result.run.id);
-    setNotice(message);
+    setNotice(result.idempotentReplay===true?"Existing draft recovered. Open the saved run to continue; no second draft was created.":message);
     // The mutation has already committed. A failed read refresh must not turn
     // it into an apparent failed write or leave an invitation ready to resend.
     try {
