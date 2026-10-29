@@ -22,7 +22,7 @@ deployment. `NEXT_CSP_ENABLED` remains **OFF** by default and in production.
 | Gate | Status | Why |
 | --- | --- | --- |
 | Identical code on two immutable hosted preview deployments | **UNVERIFIED** | No authorized OFF/ON hosted deployment pair has been attested |
-| Production isolation and no private employer data | **CONFIGURED TO FAIL CLOSED** | Mandatory Vercel metadata check rejects anything except READY previews in the dedicated fictional QA project |
+| Production isolation and no private employer data | **CONFIGURED TO FAIL CLOSED** | Mandatory immutable-preview check, existing Preview/Production env-target audit, and separate live read-only synthetic DB marker attestation; no hosted proof yet |
 | Repeated hosted nonces and CDN cache safety | **UNVERIFIED** | The protected manual workflow must execute |
 | Public login hydration and browser CSP violations | **UNVERIFIED** | The protected manual workflow must execute |
 | HTML metadata, TTFB p50/p95 and CDN cache comparison | **UNVERIFIED** | No valid hosted samples have been captured |
@@ -54,11 +54,23 @@ redirects, protected login pages, stale commits, reused origins, or API
 permission errors fail closed **before** sending application HTTP requests.
 
 The separate QA project must use only synthetic data and independent,
-nonproduction environment resources. This file does not certify database or
-external-service isolation by itself: the existing
-[`preview-isolation-guard.yml`](../../.github/workflows/preview-isolation-guard.yml)
-and HCM staging isolation attestation must also be reviewed before a preview
-is provisioned.
+nonproduction resources. The protected manual workflow reuses the existing
+[`auditPreviewIsolationMetadata`](../../scripts/verify-preview-isolation.mjs)
+to reject missing Preview-only credentials or any environment-variable
+assignment shared between Preview and Production. It then **queries only**
+`current_setting('payrollph.environment', true)`, `current_database()` and
+`transaction_read_only` through the existing
+[`verifyStagingDatabase`](../../scripts/verify-hcm-staging-isolation.mjs)
+with a separately configured **read-only** staging database credential. This
+second proof requires an explicit synthetic DB marker and a distinct
+production-DB URL fingerprint; it never scans employee or payroll tables.
+
+**Limit:** project-level env target metadata and one read-only DB connection
+do not independently certify every historical deployment override. The
+operator must also independently confirm that **both immutable preview
+builds** use the attested synthetic backend. The repository's separate
+[`preview isolation guard`](../../.github/workflows/preview-isolation-guard.yml)
+remains active; no deployment hold is relaxed by this PR.
 
 ## Provisioning and protected manual run
 
@@ -83,12 +95,21 @@ After a reviewed merge to `main`, configure GitHub's environment
 | `CSP_STAGE_ON_URL` | HTTPS immutable `.vercel.app` origin of the approved ON deployment |
 | `CSP_STAGE_OFF_DEPLOYMENT_ID` | OFF deployment's Vercel `dpl_...` ID |
 | `CSP_STAGE_ON_DEPLOYMENT_ID` | ON deployment's distinct Vercel `dpl_...` ID |
+| `CSP_STAGE_DB_MARKER` | The explicitly configured, nonproduction marker returned by the synthetic DB's `payrollph.environment` setting |
 
 And these protected secrets (never paste into code, PRs, reports or artifacts):
 
 - `CSP_STAGE_READ_TOKEN`: least-privilege Vercel **metadata read** token
   able to `GET /v13/deployments/{id}` for the QA project. It is **only**
   exposed to the attestation step and never to Playwright.
+- `CSP_STAGE_READONLY_DATABASE_URL`: independent synthetic-only PostgreSQL
+  **read-only** login. The workflow makes only three metadata reads using the
+  existing HCM staging attestation. The DB must return the expected marker.
+- `CSP_STAGE_PRODUCTION_DATABASE_URL_SHA256`: independently supplied SHA-256
+  fingerprint of the production URL for comparison **without using a
+  production DB connection**. A different credential string alone is not
+  definitive proof of separate physical data; review host, database and
+  isolation out of band.
 - `CSP_STAGE_BYPASS_SECRET` (optional): separate Vercel preview protection
   automation bypass token. The benchmark forwards it **only to the exact
   attested deployment origins**, never third-party hosts. If the preview does
@@ -100,8 +121,9 @@ on the reviewed **`main` branch**. Pull requests only run offline contract
 tests, with **no secrets and no external application traffic**.
 
 No automatic live benchmark, preview deployment, production
-`NEXT_CSP_ENABLED` switch, database writes, payroll actions or payment
-requests are part of this workflow.
+`NEXT_CSP_ENABLED` switch, database **writes**, payroll row reads/actions
+or payment requests are part of this workflow. The mandatory metadata-only
+read-only staging DB query is not a customer-data or production database test.
 
 ## Measurements and raw evidence on a successful hosted execution
 
@@ -134,7 +156,8 @@ It records and compares:
   a detected non-read request causes a fail-closed result.
 
 The uploaded **14-day** GitHub Actions artifact contains
-`qa-artifacts/csp-hosted-stage/attestation.json`, `result.json`,
+`qa-artifacts/csp-hosted-stage/attestation.json`,
+`db-readonly-attestation.json`, `result.json`,
 `report.md`, public-page screenshots and a source-SHA record. It does
 **not** include full HTML, cookies, auth state, external credentials,
 bypass secrets, customer records or private payroll.
@@ -146,7 +169,7 @@ If preflight fails, the artifact instead records an
 
 | Review area | Technical status after successful manual benchmark | Production requirement |
 | --- | --- | --- |
-| Exact hosted preview identity and nonce/HTML correctness | Can pass or fail based on raw artifacts | Independent reviewer must inspect metadata, matching nonce counts and per-response cache values |
+| Exact hosted preview identity and nonce/HTML correctness | Can pass or fail based on raw artifacts | Independent reviewer must inspect both deployment metadata records, sanitized Preview env targets, the read-only synthetic DB proof, matching nonces and cache values |
 | Public-page hydration and SEO parity | Can pass or fail for the tested pages | Review third-party integrations, actual forms and physical iOS/Android browser coverage |
 | Hosted TTFB/cache observations | Measured p50/p95 and cache state, **not a perf-budget approval** | Owners must define acceptable p95 latency and regression thresholds by route |
 | Production-scale memory/CPU/hosting cost | **NOT TESTED** | Separate approved realistic synthetic-load rehearsal, real cache-hit rates, region/edge p95/p99 and cost budget |
