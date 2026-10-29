@@ -21930,12 +21930,12 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "709c30b18af3044d4b3d7a3d064011022094d678",
+      "gitBlobSha": "a901d65d9a513be5474b1df3474ce172567efe64",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 30,
+          "line": 32,
           "status": "COVERED",
           "reason": "Signed-in own payroll run list 200, real victim list/register 403; separate flag-enabled F-04 seeded history 200 and victim history 403 with no cross-tenant rows.",
           "testedBy": {
@@ -21958,7 +21958,7 @@
         },
         {
           "name": "POST",
-          "line": 131,
+          "line": 133,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
