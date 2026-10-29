@@ -18,6 +18,8 @@ on:
       - 'tests/tenant-read-gap-recovery.test.mjs'
       - 'scripts/qa/tenant-write-table-http.mjs'
       - 'scripts/qa/tenant-performance-development-actions.mjs'
+      - 'scripts/qa/tenant-performance-core-*.mjs'
+      - 'tests/tenant-performance-core.test.mjs'
       - 'tests/tenant-performance-development.test.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
       - 'scripts/qa/tenant-table-allowlist-bootstrap.mjs'
@@ -138,6 +140,20 @@ jobs:
         env:
           HCM_CORRECTION_PG: "1"
         run: npx tsx --test tests/hcm-effective-corrections-pg.test.mjs
+      - name: Complete performance core actions with two attackers and immutable victim evidence
+        if: matrix.profile == 'default'
+        env:
+          TENANT_PERFORMANCE_CORE_MODE: fictional-disposable-only
+          WORKER_ENABLED: 'false'
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+        run: env -u NODE_ENV npx tsx scripts/qa/tenant-performance-core-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always() && matrix.profile == 'default'
+        with:
+          name: tenant-performance-core-pg16
+          path: outputs/performance-core-run.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Show isolated server log on failure
         if: failure()
         run: cat /tmp/tenant-table-server.log || true

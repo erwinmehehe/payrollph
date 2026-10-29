@@ -4,6 +4,7 @@ import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -2439,6 +2440,13 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(workflow, /run: npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
         assert.match(workflow, /TENANT_SECOND_PASS_MODE: isolated-ci-only/);
         assert.match(workflow, /image: postgres:16/);
+        continue;
+      }
+      if (proof?.file === "scripts/qa/tenant-performance-core-http.mjs") {
+        verifyPerformanceCoreCredit(method.name + " " + entry.route, method);
+        const workflow = readFileSync(".github/workflows/tenant-table-proof.yml", "utf8");
+        assert.ok(workflow.includes("env -u NODE_ENV npx tsx scripts/qa/tenant-performance-core-http.mjs"));
+        assert.ok(workflow.includes("image: postgres:16"));
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",

@@ -623,6 +623,11 @@ export async function POST(request: Request) {
       if (parentGoalId) return Response.json({ error: "Company goals are top-level and cannot have a parent." }, { status: 400 });
     } else if (scope === "team") {
       if (!Number.isInteger(orgUnitId)) return Response.json({ error: "Team goals require orgUnitId." }, { status: 400 });
+      const [team] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+        eq(orgUnits.id, orgUnitId!),
+        eq(orgUnits.organizationId, organizationId),
+      )).limit(1);
+      if (!team) return Response.json({ error: "Team not found in this workspace." }, { status: 404 });
       const scoped = assertScope(access, orgUnitId);
       if (!scoped.ok) return Response.json({ error: scoped.error }, { status: scoped.status });
       if (employeeId) return Response.json({ error: "Team goals cannot target an employee." }, { status: 400 });
