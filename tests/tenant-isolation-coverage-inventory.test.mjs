@@ -989,6 +989,57 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Salary preview's old company-wide People grant did not imply a
+  // legal-employer grant. Hold POST as GAP despite source hardening and
+  // candidate fictional PG16 HTTP checks; no independent sign-off yet.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/hcm/salary-corrections/preview/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "ca857b10a691534112fd66ca2a304897c3b3ac21",
+      "Salary-preview route changed again: repeat entity-grant review");
+    assert.deepEqual(reviewed, {
+      kind: "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
+      oldRouteBlobSha: "17539b569af050bb1568d17e783661ae19302561",
+      routeBlobSha: currentBlob,
+      testFile: "tests/hcm-salary-correction-entity-tenant.test.ts",
+      testBlobSha: "7781008004f48f3a5a8db068a5e0250d83ed3136",
+      contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
+      contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+      proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
+      proofBlobSha: "7a6f93fac8c2897d2bf87ba13a5d69e479a7b513",
+      workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
+      workflowBlobSha: "1b8e4f6a5a786e03ca5ad8d10550c97e3ba2f420",
+      coverageCredits: 0,
+      testedBy: null,
+      independentSecurityReview: "PENDING",
+      exactHeadHttpResult: "PENDING",
+    });
+    for (const [file, sha] of [
+      [reviewed.testFile, reviewed.testBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "New salary preview proof/source change requires renewed security review");
+    assert.equal(method.testedBy, null, "Salary preview POST remains GAP");
+    assert.equal(manifest.metrics.gap, 147);
+    const route = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
+    const permission = route.indexOf("assertOrganizationRole(");
+    const selected = route.indexOf("const entityScope = await resolveMultiEntityContext({");
+    const worker = route.indexOf("const [employee] = await db.select({");
+    const resource = route.indexOf("const employeeEntityDenied = assertEntityResource(");
+    const profile = route.indexOf("const [profile] = await db.select({");
+    assert.ok(permission >= 0 && permission < selected && selected < worker &&
+      worker < resource && resource < profile,
+      "Entity grant/actual employee entity required before payroll source reads");
+    assert.match(route, /requested: body\.legalEntityId/);
+    assert.match(route, /if \(!entityScope\.ok\) return entityScope\.response/);
+    assert.match(route, /assertEntityResource\(entityScope\.context, legalEntityId\)/);
+    assert.match(route, /assertEntityResource\(entityScope\.context, employee\.legalEntityId\)/);
+    assert.doesNotMatch(route, /\bdb\.(?:insert|update|delete|transaction)\(/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

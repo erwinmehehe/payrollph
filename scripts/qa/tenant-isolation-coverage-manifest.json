@@ -14930,15 +14930,32 @@
       ]
     },
     "src/app/api/hcm/salary-corrections/preview/route.ts": {
-      "gitBlobSha": "17539b569af050bb1568d17e783661ae19302561",
+      "gitBlobSha": "ca857b10a691534112fd66ca2a304897c3b3ac21",
       "route": "hcm/salary-corrections/preview",
       "methods": [
         {
           "name": "POST",
-          "line": 24,
+          "line": 25,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Provisional legal-employer grant containment of salary-preview POST. Two-attacker disposable PG16 real HTTP proof is only a candidate until exact-head checks and independent security acceptance. Still GAP, testedBy null; 0 method credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
+            "oldRouteBlobSha": "17539b569af050bb1568d17e783661ae19302561",
+            "routeBlobSha": "ca857b10a691534112fd66ca2a304897c3b3ac21",
+            "testFile": "tests/hcm-salary-correction-entity-tenant.test.ts",
+            "testBlobSha": "7781008004f48f3a5a8db068a5e0250d83ed3136",
+            "contractFile": "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
+            "contractBlobSha": "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+            "proofFile": "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
+            "proofBlobSha": "7a6f93fac8c2897d2bf87ba13a5d69e479a7b513",
+            "workflowFile": ".github/workflows/tenant-hcm-salary-correction-preview.yml",
+            "workflowBlobSha": "1b8e4f6a5a786e03ca5ad8d10550c97e3ba2f420",
+            "coverageCredits": 0,
+            "testedBy": null,
+            "independentSecurityReview": "PENDING",
+            "exactHeadHttpResult": "PENDING"
+          }
         }
       ],
       "employerSources": {
@@ -14962,103 +14979,115 @@
           "token": "getSessionUser"
         },
         {
-          "line": 8,
+          "line": 9,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 28,
+          "line": 29,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 30,
+          "line": 31,
           "token": "getSessionUser"
         },
         {
-          "line": 60,
+          "line": 61,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 65,
+          "line": 66,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 70,
+          "line": 71,
           "token": "getAccess"
+        },
+        {
+          "line": 7,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 89,
+          "token": "assertEntityResource(entityScope.context, legalEntityId)"
+        },
+        {
+          "line": 123,
+          "token": "assertEntityResource(entityScope.context, employee.legalEntityId)"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 40,
+          "line": 41,
           "token": "body.organizationId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "body.employeeId"
         },
         {
-          "line": 42,
+          "line": 43,
           "token": "body.legalEntityId"
         }
       ],
       "businessIds": [
         {
-          "line": 40,
-          "token": "organizationId"
-        },
-        {
-          "line": 40,
+          "line": 41,
           "token": "organizationId"
         },
         {
           "line": 41,
-          "token": "employeeId"
+          "token": "organizationId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "employeeId"
         },
         {
           "line": 42,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 42,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 45,
-          "token": "organizationId"
-        },
-        {
-          "line": 45,
           "token": "employeeId"
         },
         {
-          "line": 45,
+          "line": 43,
           "token": "legalEntityId"
         },
         {
-          "line": 61,
+          "line": 43,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 46,
           "token": "organizationId"
         },
         {
-          "line": 66,
-          "token": "organizationId"
-        },
-        {
-          "line": 70,
-          "token": "organizationId"
-        },
-        {
-          "line": 77,
+          "line": 46,
           "token": "employeeId"
         },
         {
-          "line": 95,
+          "line": 46,
           "token": "legalEntityId"
         },
         {
-          "line": 95,
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 71,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "employeeId"
+        },
+        {
+          "line": 111,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 111,
           "token": "legalEntityId"
         }
       ]
