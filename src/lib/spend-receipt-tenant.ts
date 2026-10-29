@@ -47,6 +47,7 @@ export function receiptGrantMatches(
   // A unit-scoped member cannot become company-wide by carrying a stale grant.
   return staffRoles.includes(membership.role) &&
     (membership.orgUnitId === null ||
-      (Number.isSafeInteger(membership.orgUnitId) && membership.orgUnitId > 0 &&
+      (membership.orgUnitId !== null && Number.isSafeInteger(membership.orgUnitId) &&
+       membership.orgUnitId > 0 &&
        membership.orgUnitId === employee.orgUnitId));
 }
