@@ -1,6 +1,6 @@
 # Salary-correction preview legal-employer isolation
 
-**Status:** proposed source-identified authorization fix. PG16 exact-head HTTP and independent security review are not yet confirmed passing.
+**Status:** proposed source-identified authorization fix. Exact-head disposable PG16 HTTP **passed** on commit `151470b` ([run 40864201403](https://github.com/erwinmehehe/payrollph/actions/runs/40864201403)); full CI and independent security/release acceptance remain pending.
 
 ## Defect and scope
 
@@ -56,6 +56,19 @@ explicit preview flag, exact CI-only markers and local PostgreSQL URL, no
 external provider keys or payment flags. Other HCM routes, other methods,
 and ordinary deployment environments remain blocked when multi-entity is ON.
 
+`STRIPE_SECRET_KEY` is a **guard-only credential marker** here, not a supported
+Stripe integration. The disposable salary-preview exception refuses requests
+if this provider secret is configured. Never configure a Stripe credential to
+run this proof and do not add money-moving provider credentials to the generic
+environment example. Its documentation belongs in this security proof runbook.
+
+The current-head PG18 post-cutover and DL-01 full-suite checks each failed
+`tests/env-secrets-documented.test.mjs` because the new guard-only variable was
+not documented. The security-owned, source-read secret inventory now includes
+this runbook as the required documentation; the hold and HTTP handler are
+unchanged by that documentation fix.
+
 This is **not production enablement**. The feature remains default OFF;
-exact-head PG16 success and independent security/release approval are still
-required before merging or considering activation.
+the dedicated PG16 proof has passed, while all other required CI checks and
+independent security/release approval are still required before merging or
+considering activation.
