@@ -1,3 +1,4 @@
+import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
@@ -817,6 +818,14 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // rather than silently promoting a successful synthetic run to COVERED.
   // This exact route, QA source, workflow and every required behavior are
   // pinned; any drift re-blocks this exception for renewed review.
+  if (isNewOrChanged && method.status === "COVERED" && [
+    "src/app/api/benefits/route.ts PUT",
+    "src/app/api/self/performance/action-items/route.ts PATCH",
+    "src/app/api/workforce-planning/demand-handoff/route.ts POST",
+  ].includes(key)) {
+    assert.equal(verifyPost1523Credits(manifest), 3);
+    return; // Exact identities and immutable PG16 source/workflow hashes.
+  }
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/self/performance/action-items/route.ts PATCH") {
     const reviewed = method.reviewedUncertified;
@@ -1962,6 +1971,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
+        assert.equal(verifyPost1523Credits(manifest), 3);
+        continue; // Exactly three independently source-pinned methods.
+      }
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
         assert.equal(verifyPromotionCredits(manifest), 16);
         continue;
