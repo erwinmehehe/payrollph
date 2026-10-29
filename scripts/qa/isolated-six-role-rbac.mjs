@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../../src/db";
 import { operationalSecret } from "../../src/lib/operational-secret";
-import { employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
+import { attendanceExceptionEvents, employees, organizations, payrollRuns, sessions, userOrganizations, users } from "../../src/db/schema";
 import { ensurePublicDemoTenant } from "../../src/db/public-demo";
 
 // Authenticated API proof against an EXCLUSIVELY DISPOSABLE PG16 + localhost
@@ -14,18 +14,20 @@ import { ensurePublicDemoTenant } from "../../src/db/public-demo";
 // provider action or official filing is ever contacted.
 const ORIGIN = "http://127.0.0.1:3000";
 const PERIOD = "periodStart=2026-10-01&periodEnd=2026-10-15";
+const ATTENDANCE_DATES = "startDate=2026-10-01&endDate=2026-10-15";
 const ROLES = ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"];
 const ACCESS = {
-  owner:      { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403 },
-  hr:         { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 403, payslips: 403 },
-  payroll:    { dashboard: 200, bi: 200, planning: 403, allocations: 403, timesheets: 403, payroll: 200, payslips: 403 },
-  checker:    { dashboard: 200, bi: 403, planning: 403, allocations: 403, timesheets: 403, payroll: 403, payslips: 403 },
-  bookkeeper: { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403 },
-  employee:   { dashboard: 403, bi: 403, planning: 403, allocations: 403, timesheets: 200, payroll: 403, payslips: 200 },
+  owner:      { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403, attendance: 200 },
+  hr:         { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 403, payslips: 403, attendance: 200 },
+  payroll:    { dashboard: 200, bi: 200, planning: 403, allocations: 403, timesheets: 403, payroll: 200, payslips: 403, attendance: 200 },
+  checker:    { dashboard: 200, bi: 403, planning: 403, allocations: 403, timesheets: 403, payroll: 403, payslips: 403, attendance: 403 },
+  bookkeeper: { dashboard: 200, bi: 200, planning: 200, allocations: 200, timesheets: 200, payroll: 200, payslips: 403, attendance: 200 },
+  employee:   { dashboard: 403, bi: 403, planning: 403, allocations: 403, timesheets: 200, payroll: 403, payslips: 200, attendance: 403 },
 };
 const observations = [];
 let errors = 0;
 let verifiedSourceSha = null;
+let seededAttendanceEventId = null;
 
 function guardEnvironment() {
   assert.equal(process.env.CI, "true");
@@ -47,6 +49,32 @@ function guardEnvironment() {
   assert.match(checkedOutSha, /^[0-9a-f]{40}$/);
   assert.equal(checkedOutSha, process.env.RBAC_SOURCE_SHA);
   verifiedSourceSha = checkedOutSha;
+}
+
+// #1015: only a disposable PG16 runner may create the fictional event.
+// A nonempty queue ensures GET really queries the repaired table rather
+// than returning 200 before touching it for an employer with no employees.
+async function seedAttendanceExceptionForDemo(org) {
+  guardEnvironment();
+  assert.equal(seededAttendanceEventId, null);
+  const [employee] = await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.organizationId, org)).limit(1);
+  assert.ok(Number.isSafeInteger(employee?.id) && employee.id > 0,
+    "Fictional demo must have a worker to test the actual attendance relation");
+  const [event] = await db.insert(attendanceExceptionEvents).values({
+    organizationId: org,
+    employeeId: employee.id,
+    workDate: "2026-10-12",
+    exceptionKind: "missing_time_in",
+    severity: "warning",
+    message: "Fictional issue 1015 attendance queue proof",
+    fingerprintSha256: createHash("sha256")
+      .update("issue1015-" + org + "-" + randomUUID()).digest("hex"),
+    status: "open",
+    slaDueAt: new Date("2026-10-13T00:00:00.000Z"),
+  }).returning({ id: attendanceExceptionEvents.id });
+  assert.ok(Number.isSafeInteger(event?.id) && event.id > 0);
+  seededAttendanceEventId = event.id;
 }
 
 function evidence(role, name, actual, expected, validShape = true) {
@@ -80,6 +108,18 @@ async function request(path, cookie = null, role = null) {
 
 function validRead(name, body, role, org) {
   if (body === null || typeof body !== "object" || Array.isArray(body)) return false;
+  if (name === "attendance") return seededAttendanceEventId !== null &&
+    body.organizationId === org &&
+    body.range?.startDate === "2026-10-01" &&
+    body.range?.endDate === "2026-10-15" &&
+    Number.isSafeInteger(body.summary?.open) && body.summary.open >= 1 &&
+    Number.isSafeInteger(body.summary?.unassigned) && body.summary.unassigned >= 1 &&
+    Array.isArray(body.ownerCandidates) && Array.isArray(body.exceptions) &&
+    body.exceptions.some(row => row.id === seededAttendanceEventId &&
+      row.organizationId === org && row.status === "open" &&
+      row.employee?.id === row.employeeId) &&
+    body.exceptions.every(row => row.organizationId === org &&
+      row.employee?.id === row.employeeId);
   if (name === "dashboard") return body.selectedOrganization?.id === org;
   if (name === "bi") return Array.isArray(body.datasets) && body.datasets.length > 0 &&
     Array.isArray(body.scopes?.legalEntities) && Array.isArray(body.scopes?.orgUnits) &&
@@ -249,6 +289,8 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
     ["cross-tenant-workforce", "/api/workforce-planning?organizationId=" + foreign.org],
     ["cross-tenant-payroll", "/api/payroll-runs?organizationId=" + foreign.org],
     ["cross-tenant-existing-run", "/api/payroll-runs?runId=" + foreign.run + "&include=entries"],
+    ["cross-tenant-attendance", "/api/workforce/attendance-exception-events?organizationId=" +
+      foreign.org + "&" + ATTENDANCE_DATES],
   ]) {
     await probe("owner", name, path, 403, demoOwner.cookie, demoOwner.org);
   }
@@ -284,6 +326,7 @@ async function run() {
     "/api/workforce-planning?organizationId=1",
     "/api/workforce-planning/allocations?organizationId=1",
     "/api/workforce/timesheets?organizationId=1&" + PERIOD,
+    "/api/workforce/attendance-exception-events?organizationId=1&" + ATTENDANCE_DATES,
     "/api/payroll-runs?organizationId=1"]) {
     await probe("anonymous", "deny-" + new URL(path, ORIGIN).pathname,
       path, 401, null, 1);
@@ -309,7 +352,10 @@ async function run() {
       evidence(role, "demo-session", 0, 200, false);
     }
     if (!session) continue;
-    if (role === "owner") demoOwner = session;
+    if (role === "owner") {
+      demoOwner = session;
+      await seedAttendanceExceptionForDemo(session.org);
+    }
 
     const org = session.org, cookie = session.cookie;
     const query = "organizationId=" + org;
@@ -319,6 +365,7 @@ async function run() {
       planning: "/api/workforce-planning?" + query,
       allocations: "/api/workforce-planning/allocations?" + query,
       timesheets: "/api/workforce/timesheets?" + query + "&" + PERIOD,
+      attendance: "/api/workforce/attendance-exception-events?" + query + "&" + ATTENDANCE_DATES,
       payroll: "/api/payroll-runs?" + query,
       payslips: "/api/self/payslips",
     };
@@ -330,8 +377,8 @@ async function run() {
   await verifyDuplicateDemoLabelDenied(demoOwner);
   await verifyExistingForeignEmployerDenials(demoOwner);
   // No role may silently drop out of the matrix and leave a green subset.
-  // 2 true victim-owned positives + 5 actual victim denials + unchanged DB.
-  const expected = 2 + 5 + ROLES.length * 8 + 2 + 3 + 5 + 1;
+  // 2 true victim-owned positives + 6 actual victim denials + unchanged DB.
+  const expected = 2 + 6 + ROLES.length * 9 + 2 + 3 + 6 + 1;
   assert.equal(observations.length, expected,
     "Every anonymous, login, role-route and cross-tenant probe must execute");
 }
