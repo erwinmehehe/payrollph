@@ -166,3 +166,28 @@ test("repository still blocks automatic preview/staging deploy and flag stays op
   assert.ok(nextConfig.includes('process.env.NEXT_CSP_ENABLED === "true"'));
   assert.deepEqual(ROUTES,["/","/hris","/pricing","/hcm","/login"]);
 });
+
+
+test("hosted workflow proves isolated Preview env and read-only DB before any browser GET",()=>{
+  const workflow=readFileSync(".github/workflows/csp-hosted-staging-benchmark.yml","utf8");
+  const attest=readFileSync("scripts/qa/csp-hosted-stage-attest.mjs","utf8");
+  const runner=readFileSync("scripts/qa/csp-hosted-stage-run.mjs","utf8");
+  assert.ok(workflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"));
+  assert.ok(workflow.includes("environment: csp-hosted-staging"));
+  assert.ok(workflow.includes("secrets.CSP_STAGE_READ_TOKEN"));
+  assert.ok(workflow.includes("secrets.CSP_STAGE_READONLY_DATABASE_URL"));
+  assert.ok(workflow.includes("secrets.CSP_STAGE_PRODUCTION_DATABASE_URL_SHA256"));
+  const metadata=workflow.indexOf("Read-only metadata attestation BEFORE contacting staging URL");
+  const db=workflow.indexOf("Independently attest synthetic staging DB identity and read-only user");
+  const app=workflow.indexOf("Read-only staging cache/TTFB/SEO/nonce and real public Chromium proof");
+  assert.ok(metadata>0 && db>metadata && app>db);
+  assert.ok(attest.includes("auditPreviewIsolationMetadata(sanitizedEnv)"));
+  assert.ok(runner.includes('db-readonly-attestation.json'));
+  assert.ok(runner.includes('assert.equal(dbProof.dbReadOnly,true)'));
+  assert.ok(runner.includes('assert.equal(approved.previewEnvTargetAuditPassed,true'));
+  assert.ok(runner.includes('method!=="GET" && method!=="HEAD"'));
+  assert.ok(runner.includes("blockedProductionRequests"));
+  assert.ok(!workflow.includes("vercel deploy"));
+  assert.ok(!workflow.includes("vercel --prod"));
+  assert.ok(!workflow.includes("NEXT_CSP_ENABLED=true"));
+});
