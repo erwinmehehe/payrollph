@@ -239,19 +239,33 @@ async function payrollEntryRows(organizationId: number, filters: BiExportFilters
     lastName: employees.lastName,
     legalEntityCode: legalEntities.code,
     orgUnitCode: orgUnits.code,
+    employeeOrganizationId: employees.organizationId,
+    declaredEntityId: payrollRuns.legalEntityId,
+    joinedEntityId: legalEntities.id,
+    declaredUnitId: payrollRuns.scopeOrgUnitId,
+    joinedUnitId: orgUnits.id,
     grossPay: payrollEntries.grossPay,
     deductions: payrollEntries.deductions,
     netPay: payrollEntries.netPay,
     status: payrollEntries.status,
   }).from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
-    .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
-    .leftJoin(legalEntities, eq(payrollRuns.legalEntityId, legalEntities.id))
-    .leftJoin(orgUnits, eq(payrollRuns.scopeOrgUnitId, orgUnits.id))
+    // Do not inner-join and silently drop a legacy entry pointing at an
+    // unowned/missing employee: reject the entire export before serialization.
+    .leftJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .leftJoin(legalEntities, and(
+      eq(payrollRuns.legalEntityId, legalEntities.id),
+      eq(legalEntities.organizationId, organizationId),
+    ))
+    .leftJoin(orgUnits, and(
+      eq(payrollRuns.scopeOrgUnitId, orgUnits.id),
+      eq(orgUnits.organizationId, organizationId),
+    ))
     .where(and(...conditions))
     .orderBy(desc(payrollRuns.payDate), payrollRuns.id, employees.employeeNo)
     .limit(BI_EXPORT_MAX_ROWS + 1);
 
+  assertBiSourceLinks(organizationId, rows);
   return rows.map((row) => ({
     payrollRunId: row.payrollRunId,
     payDate: row.payDate,
