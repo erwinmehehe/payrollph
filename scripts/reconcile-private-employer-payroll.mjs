@@ -113,13 +113,25 @@ export function comparePayrollCsv(referenceCsv,candidateCsv) {
     }
   }
   for (const key of candidate.byNo.keys()) if (!reference.byNo.has(key)) unexpectedCandidate++;
+  // Tiny per-employee differences may accumulate into a material pay-run error.
+  // Use integer cents and disclose only affected field names, never pay amounts.
+  const aggregateVarianceFields = [];
+  for (const key of money) {
+    let referenceTotal = 0n, candidateTotal = 0n;
+    for (const amounts of reference.byNo.values()) referenceTotal += amounts[key];
+    for (const amounts of candidate.byNo.values()) candidateTotal += amounts[key];
+    const delta = referenceTotal - candidateTotal;
+    if ((delta < 0n ? -delta : delta) > 1n) aggregateVarianceFields.push(key);
+  }
   return {
-    pass: compared > 0 && missingCandidate === 0 && unexpectedCandidate === 0 && varianceOverCent === 0,
+    pass: compared > 0 && missingCandidate === 0 && unexpectedCandidate === 0 &&
+      varianceOverCent === 0 && aggregateVarianceFields.length === 0,
     period: { start: reference.period[0], end: reference.period[1], payDate: reference.period[2] },
     referenceEmployees:reference.byNo.size,candidateEmployees:candidate.byNo.size,
     employeesCompared:compared,missingCandidate,unexpectedCandidate,varianceOverCent,
     maximumAbsoluteVariancePesos:(maxVarianceCents / 100n).toString() + "." + (maxVarianceCents % 100n).toString().padStart(2, "0"),
     differencesByField:fieldFailures,
+    aggregateVarianceFields,
     threshold:"PHP 0.01 absolute per employee per field",
     realEmployerDataSupplied: "not-attested-by-script",
     independentPayrollSignoff:false,
