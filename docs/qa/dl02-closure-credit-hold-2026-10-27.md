@@ -80,3 +80,14 @@ security/release acceptance is authorized by this document.
 **Environment restriction:** disposable PG16/PG18, synthetic identities,
 localhost HTTP only. No Neon, production, real employees, financial transfers
 or external provider calls.
+
+## Update 2026-10-29: demand-import POST promoted for review
+
+At the owner's instruction the DL-02 workflow was dispatched on `main`
+([run 40859482784](https://github.com/erwinmehehe/payrollph/actions/runs/40859482784),
+head `5a3c209df`, passed). `main` moved before the run finished, so Blocker 1 is
+**not satisfied as written**. The route, proof rows, runner, bootstrap and workflow
+blobs were compared and are byte-identical on the promotion base; the owner accepted
+that comparison for `POST /api/workforce/demand-observations/import` only. A separate
+review-only PR credits that one method (idempotent replay is not exercised). The other
+three DL-02 methods stay GAP, and Blocker 2 (exact-head `CI/check`) applies to that PR.
