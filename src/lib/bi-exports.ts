@@ -302,6 +302,11 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters, e
     lastName: employees.lastName,
     currentLegalEntityCode: legalEntities.code,
     currentOrgUnitCode: orgUnits.code,
+    employeeOrganizationId: employees.organizationId,
+    declaredEntityId: employees.legalEntityId,
+    joinedEntityId: legalEntities.id,
+    declaredUnitId: employees.orgUnitId,
+    joinedUnitId: orgUnits.id,
     periodStart: workforceTimesheets.periodStart,
     periodEnd: workforceTimesheets.periodEnd,
     version: workforceTimesheets.version,
@@ -313,13 +318,22 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters, e
     blockerCount: workforceTimesheets.blockerCount,
     snapshotHash: workforceTimesheets.snapshotHash,
   }).from(workforceTimesheets)
-    .innerJoin(employees, eq(workforceTimesheets.employeeId, employees.id))
-    .leftJoin(legalEntities, eq(employees.legalEntityId, legalEntities.id))
-    .leftJoin(orgUnits, eq(employees.orgUnitId, orgUnits.id))
+    // A timesheet's organization must match the referenced employee before
+    // worker identity or current legal-employer labels can be exported.
+    .leftJoin(employees, eq(workforceTimesheets.employeeId, employees.id))
+    .leftJoin(legalEntities, and(
+      eq(employees.legalEntityId, legalEntities.id),
+      eq(legalEntities.organizationId, organizationId),
+    ))
+    .leftJoin(orgUnits, and(
+      eq(employees.orgUnitId, orgUnits.id),
+      eq(orgUnits.organizationId, organizationId),
+    ))
     .where(and(...conditions))
     .orderBy(desc(workforceTimesheets.periodEnd), employees.employeeNo, desc(workforceTimesheets.version))
     .limit(BI_EXPORT_MAX_ROWS + 1);
 
+  assertBiSourceLinks(organizationId, rows);
   return rows.map((row) => ({
     timesheetId: row.id,
     employeeId: row.employeeId,
