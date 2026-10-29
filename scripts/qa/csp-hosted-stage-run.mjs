@@ -9,7 +9,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { chromium } from "playwright";
 import {
-  ROUTES, stageConfiguration, nonceEvidence, seoEvidence, seoParity,
+  ROUTES, PRODUCTION_HOSTNAME, stageConfiguration, nonceEvidence, seoEvidence, seoParity,
   cacheSafety, safeHeaderSet, htmlFingerprint, quantile,
 } from "./csp-hosted-stage-contract.mjs";
 
@@ -138,15 +138,29 @@ async function testBrowser(browser,stage,bypass,path) {
   // posts. Send optional protection bypass ONLY to the attested exact origin.
   // No password submit, payroll writes, POST telemetry or external tokens.
   let blockedNonReadRequests=0;
+  let blockedExternalDocuments=0;
+  let blockedProductionRequests=0;
   await context.route("**/*",async route=>{
-    const method=route.request().method().toUpperCase();
+    const request=route.request();
+    const method=request.method().toUpperCase();
     if (method!=="GET" && method!=="HEAD") {
       blockedNonReadRequests++;
       await route.abort("blockedbyclient");
       return;
     }
+    const target=new URL(request.url());
+    if (target.hostname===PRODUCTION_HOSTNAME) {
+      blockedProductionRequests++;
+      await route.abort("blockedbyclient");
+      return;
+    }
+    if (request.isNavigationRequest() && target.origin!==stage.origin) {
+      blockedExternalDocuments++;
+      await route.abort("blockedbyclient");
+      return;
+    }
     try {
-      if (bypass && new URL(route.request().url()).origin===stage.origin) {
+      if (bypass && target.origin===stage.origin) {
         const h={...route.request().headers(),"x-vercel-protection-bypass":bypass};
         await route.continue({headers:h});
       } else await route.continue();
@@ -197,8 +211,14 @@ async function testBrowser(browser,stage,bypass,path) {
     }
     entry.cspViolations=await page.evaluate(()=>window.__cspStageViolations||[]);
     entry.blockedNonReadRequests=blockedNonReadRequests;
+    entry.blockedExternalDocuments=blockedExternalDocuments;
+    entry.blockedProductionRequests=blockedProductionRequests;
     assert.equal(blockedNonReadRequests,0,
       stage.mode+" "+path+": browser attempted non-read request; review integration");
+    assert.equal(blockedExternalDocuments,0,
+      stage.mode+" "+path+": browser attempted an external document navigation");
+    assert.equal(blockedProductionRequests,0,
+      stage.mode+" "+path+": browser tried to contact production origin");
     const relevantErrors=[...entry.consoleErrors,...entry.pageErrors]
       .filter(text=>/content security policy|refused to (load|execute)|hydration|react error #|minified react error/i.test(text));
     assert.equal(entry.cspViolations.length,0,stage.mode+" "+path+" CSP violations");
