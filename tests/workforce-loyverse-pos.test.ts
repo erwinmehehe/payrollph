@@ -165,6 +165,39 @@ test("a failed scan-freshness receipt cannot misreport a committed aggregate as 
   assert.ok(panel.includes("aggregate import was recorded"));
 });
 
+test("oversized chunked provider JSON is cancelled before buffering its full body",async()=>{
+  let cancelled=false, reads=0, receiptRequests=0;
+  const request=(async(value:RequestInfo|URL,init?:RequestInit)=>{
+    assert.equal(init?.redirect,"error","Never forward bearer credentials to a redirected origin");
+    const url=new URL(String(value));
+    assert.equal(url.origin,"https://api.loyverse.com");
+    if(url.pathname==="/v1.0/stores")return Response.json({
+      stores:[{id:storeId,country:"PH",deleted_at:null}],
+    });
+    assert.equal(url.pathname,"/v1.0/receipts");
+    receiptRequests++;
+    // Provider omits Content-Length. The second chunk crosses the 2 MB cap,
+    // so the reader MUST cancel without awaiting a third chunk or parsing it.
+    // Prevent eager stream prefetch from closing this synthetic response
+    // before the consumer can cancel it at the byte limit.
+    const body=new ReadableStream<Uint8Array>({
+      pull(controller){
+        reads++;
+        if(reads===1)controller.enqueue(new TextEncoder().encode('{"receipts":['));
+        else if(reads===2)controller.enqueue(new Uint8Array(2_000_001));
+        else controller.close();
+      },
+      cancel(){cancelled=true;},
+    },{highWaterMark:0});
+    return new Response(body,{status:200,headers:{"Content-Type":"application/json"}});
+  }) as typeof fetch;
+  await assert.rejects(readLoyversePosDay({...conf,request}),
+    (error:unknown)=>error instanceof LoyverseSourceError&&error.code==="SOURCE_REVIEW");
+  assert.equal(receiptRequests,1,"The failure must occur in the mocked receipts stream");
+  assert.equal(cancelled,true,"Provider body must be cancelled on limit breach");
+  assert.equal(reads,2,"The oversized body must stop at the second chunk without requesting a third");
+});
+
 test("nonexistent calendar times and invalid offsets cannot become aggregate bins",async()=>{
   for(const stamp of [
     "2026-09-31T09:00:00+08:00",
