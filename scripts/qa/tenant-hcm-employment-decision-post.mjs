@@ -123,6 +123,8 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
     const cookie = privileged[index].cookie;
     const reason = "FICTIONAL-OWN-HCM-" + nonce + "-" + index;
     const beforeOwn = await tenantSnapshot(org.id);
+    const otherOrg = attackerOrgs[1 - index];
+    const peerBefore = await tenantSnapshot(otherOrg.id);
 
     const owned = expectStatus(await request(HCM_DECISION_POST, {
       cookie, method: "POST", body: requestBody(org.id, worker.id, term.id, reason),
@@ -159,10 +161,16 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
     assert.equal(audit.action, "HCM employment-term decision requested");
     assert.equal(audit.metadata?.employmentTermDecisionId, receipt.id);
     assert.equal(audit.metadata?.actorUserId, actor.id);
+    assert.deepEqual(afterOwn.employees, beforeOwn.employees,
+      "Request must not modify an employee master record");
+    assert.deepEqual(afterOwn.terms, beforeOwn.terms,
+      "Request must not activate, cancel, or alter employment terms");
     assert.deepEqual(afterOwn.payrollRuns, beforeOwn.payrollRuns,
       "Decision request must never create or change a payroll run");
     assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id),
       "owned POST of employer " + org.id);
+    assert.deepEqual(await tenantSnapshot(otherOrg.id), peerBefore,
+      "An owned request must not touch the peer attacker employer");
     created.push(receipt);
     positiveWrites++;
 
@@ -182,8 +190,10 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
       }), attack.status, "Cross-tenant " + attack.type);
       assertNoVictimDecisionLeak(denied, victimMarker, attack.type);
       assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id), attack.type);
-      assert.deepEqual((await tenantSnapshot(org.id)).decisions, afterOwn.decisions,
-        "Denied forged request cannot add own-org decision");
+      assert.deepEqual(await tenantSnapshot(org.id), afterOwn,
+        "Denied forged request cannot change any own-org business SQL or audit");
+      assert.deepEqual(await tenantSnapshot(otherOrg.id), peerBefore,
+        "Denied forged request cannot touch the peer attacker employer");
       if (attack.type === "victim-organization") foreignDenials++;
       else forgedDenials++;
     }
@@ -201,6 +211,7 @@ export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus
     result: "PASS", ownHttp201: positiveWrites, victimOrgHttp403: foreignDenials,
     forgedVictimHttp404: forgedDenials, victimActualHighId: victimTerm.id,
     newCredits: 0, independentlyAccepted: false, productionCertified: false,
-    providerTraffic: false, sourceMutation: false, payrollMutation: false,
+    providerTraffic: false, fictionalFixtureWrites: true,
+    productionSourceMutation: false, payrollMutation: false,
   }));
 }
