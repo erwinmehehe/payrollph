@@ -88,6 +88,81 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // Existing historical GET credit is preserved, not promoted. The new exact
+  // route source and dedicated disposable-PG16 proof are independently pinned
+  // for renewed human review. The old positive/victim receipt remains intact.
+  if (isNewOrChanged && method.status === "COVERED" &&
+      key === "src/app/api/organizations/[id]/payroll-approvers/route.ts GET") {
+    const routeFile = "src/app/api/organizations/[id]/payroll-approvers/route.ts";
+    const reviewed = method.reviewedUncertified;
+    const oldRouteSha = "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab";
+    const currentRouteSha = "ffb27f3797ecaba1fec8198cab04c0f691382743";
+    assert.equal(currentBlob, currentRouteSha,
+      "Payroll approver picker changed: renew exact-source tenant/privacy review");
+    assert.equal(baseline.api[routeFile], oldRouteSha,
+      "Original payroll approver source baseline changed");
+    assert.deepEqual(reviewed, {
+      kind: "payroll-approvers-active-grant-hardened-source-zero-new-credit",
+      oldRouteBlobSha: oldRouteSha,
+      routeBlobSha: currentRouteSha,
+      runnerFile: "scripts/qa/tenant-payroll-approvers-http.mjs",
+      runnerBlobSha: "bcdcefe33271811364d0b3878abdfc3a3c282346",
+      contractFile: "tests/tenant-payroll-approvers-contract.test.mjs",
+      contractBlobSha: "9dc730442d42d8b48025b9619b0b6b8ea9687c35",
+      workflowFile: ".github/workflows/tenant-payroll-approvers-http.yml",
+      workflowBlobSha: "f8577a357888bd3483840e3c59dbe9ffae082459",
+      syntheticPg16Run: "40849212540",
+      coverageCredits: 0,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Payroll approver hardening must retain exact uncredited review evidence");
+    for (const [path, sha] of [
+      [reviewed.runnerFile, reviewed.runnerBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(path)), sha,
+        "Payroll approver fixture/contract/workflow changed: renew security review " + path);
+    }
+    assert.equal(method.testedBy.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+      "Historical owned/victim HTTP proof must remain traceable");
+    assert.equal(method.testedBy.ownPositiveLine, 275);
+    assert.equal(method.testedBy.foreignDenialLine, 279);
+    const source = readFileSync(routeFile, "utf8");
+    for (const guard of [
+      'Number.isSafeInteger(organizationId)',
+      'getAccess(user.id, organizationId)',
+      'eq(userOrganizations.organizationId, organizationId)',
+      'eq(userOrganizations.active, true)',
+      'eq(users.active, true)',
+      'inArray(userOrganizations.role, [...PAYROLL_CHECKER_ROLES])',
+      'ne(userOrganizations.userId, user.id)',
+      'eq(userOrganizations.orgUnitId, candidateUnitId)',
+      '"Cache-Control": "private, no-store"',
+    ]) {
+      assert.ok(source.includes(guard),
+        "Payroll approver route missing reviewed pre-projection access guard: " + guard);
+    }
+    const scoped = source.indexOf("const access = await getAccess(user.id, organizationId)");
+    const names = source.indexOf("const rows = await db");
+    assert.ok(scoped > 0 && names > scoped,
+      "Payroll approver org/unit access must resolve before reading name and email");
+    const runner = readFileSync(reviewed.runnerFile, "utf8");
+    for (const proofStep of [
+      'seedEmployer("ATTA"',
+      'seedEmployer("ATTB"',
+      'seedEmployer("VICTIM"',
+      'revokedAndDisabledAccountsExcluded: true',
+      'crossEmployerDenials: 4',
+      'allBusinessAndAuditRowsUnchanged: true',
+      'methodCredits: 0, independentAcceptance: false',
+    ]) {
+      assert.ok(runner.includes(proofStep),
+        "The synthetic payroll approver tenant negative proof is no longer pinned: " + proofStep);
+    }
+    return;
+  }
+
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST") {
     // Sole SHA-pinned exclusion: a provider-disabled 501 is access-control
@@ -906,6 +981,66 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(workflow, /node --test tests\/tenant-account-email-verify-contract\.test\.mjs/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-account-email-verify-http\.mjs/);
     assert.match(contract, /requireDisposableIdentityAccount\(good\)/);
+    return;
+  }
+
+  // Source-only worker/employer grant hardening for a private receipt path.
+  // It is not a real two-attacker/victim PG16 proof and must not promote either
+  // method. The exact route, helper and both contract tests are pinned below;
+  // any drift requires independent source + security review again.
+  if (isNewOrChanged && method.status === "GAP" &&
+      (key === "src/app/api/expenses/receipts/route.ts GET" ||
+       key === "src/app/api/expenses/receipts/route.ts POST")) {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/expenses/receipts/route.ts";
+    const routeBlob = "42a0e56307ba0509c549d6c271a521f19231bb25";
+    assert.equal(currentBlob, routeBlob,
+      "Private Spend receipt route changed: renewed tenant security review required");
+    assert.deepEqual(review, {
+      kind: "private-spend-receipt-worker-grant-source-only-zero-credit",
+      oldRouteBlobSha: "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+      routeBlobSha: routeBlob,
+      helperFile: "src/lib/spend-receipt-tenant.ts",
+      helperBlobSha: "059881e91b629860a1aaa722a133f53e057edda7",
+      unitTestFile: "tests/spend-receipt-tenant-grant.test.ts",
+      unitTestBlobSha: "8cd86095ab4404eed572668e1823825c93bab716",
+      contractTestFile: "tests/tenant-spend-receipt-grant-source.test.mjs",
+      contractTestBlobSha: "67a10174328f9ddd9e828361ee0996764d458c41",
+      coverageCredits: 0,
+      realHttpPg16Proven: false,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Only the pinned receipt grant source-only change is reviewed as uncredited");
+    for (const [file, blob] of [
+      [review.helperFile, review.helperBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.contractTestFile, review.contractTestBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), blob,
+        "Private receipt review dependency changed without fresh security review: " + file);
+    }
+    assert.equal(method.testedBy, null, "Private receipt GAP may not borrow a source test credit");
+    assert.match(method.reason, /Still GAP.*real HTTP.*independent security review/i);
+    const source = readFileSync(routePath, "utf8");
+    assert.match(source, /return await activeReceiptGrant\(user, claim\) \? null : notFound\(\)/);
+    assert.match(source, /eq\(employees\.organizationId, claim\.organizationId\)/);
+    assert.match(source, /eq\(userOrganizations\.active, true\)/);
+    assert.match(source, /eq\(userOrganizations\.organizationId, claim\.organizationId\)/);
+    assert.match(source, /for\("share"\)\.limit\(1\)/);
+    assert.match(source, /if \(!liveClaim \|\| !await lockedReceiptGrant\(tx, user, claim\)\)/);
+    assert.match(source, /if \(!await lockedReceiptGrant\(tx, user, freshCore\)\)/);
+    assert.match(source, /freshCore\.employeeId !== claim\.employeeId/);
+    const afterPrivateRead = source.indexOf("const readDenied = await authorize(user, core);");
+    const bytesReturn = source.indexOf("return new Response(new Uint8Array(bytes)");
+    const stagingGuard = source.indexOf("if (!liveClaim || !await lockedReceiptGrant(tx, user, claim))");
+    const intent = source.indexOf("const [intent] = await tx.insert(documents)");
+    const finalGuard = source.indexOf("if (!await lockedReceiptGrant(tx, user, freshCore))");
+    const finalAttachment = source.indexOf("tx.update(expenseClaimEvidence)");
+    assert.ok(afterPrivateRead > 0 && afterPrivateRead < bytesReturn,
+      "Private receipt read must recheck current grant before returning bytes");
+    assert.ok(stagingGuard > 0 && stagingGuard < intent &&
+      finalGuard > intent && finalGuard < finalAttachment,
+      "Private receipt SQL writes must recheck locked worker grants on both sides of storage IO");
     return;
   }
 

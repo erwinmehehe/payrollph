@@ -10838,22 +10838,52 @@
       ]
     },
     "src/app/api/expenses/receipts/route.ts": {
-      "gitBlobSha": "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+      "gitBlobSha": "42a0e56307ba0509c549d6c271a521f19231bb25",
       "route": "expenses/receipts",
       "methods": [
         {
           "name": "GET",
           "line": 45,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: receipt worker/employer grant was source-hardened; real HTTP own/victim PostgreSQL 16 evidence and independent security review remain required. No tenant method credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "private-spend-receipt-worker-grant-source-only-zero-credit",
+            "oldRouteBlobSha": "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+            "routeBlobSha": "42a0e56307ba0509c549d6c271a521f19231bb25",
+            "helperFile": "src/lib/spend-receipt-tenant.ts",
+            "helperBlobSha": "059881e91b629860a1aaa722a133f53e057edda7",
+            "unitTestFile": "tests/spend-receipt-tenant-grant.test.ts",
+            "unitTestBlobSha": "8cd86095ab4404eed572668e1823825c93bab716",
+            "contractTestFile": "tests/tenant-spend-receipt-grant-source.test.mjs",
+            "contractTestBlobSha": "67a10174328f9ddd9e828361ee0996764d458c41",
+            "coverageCredits": 0,
+            "realHttpPg16Proven": false,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         },
         {
           "name": "POST",
           "line": 87,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: receipt worker/employer grant was source-hardened; real HTTP own/victim PostgreSQL 16 evidence and independent security review remain required. No tenant method credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "private-spend-receipt-worker-grant-source-only-zero-credit",
+            "oldRouteBlobSha": "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+            "routeBlobSha": "42a0e56307ba0509c549d6c271a521f19231bb25",
+            "helperFile": "src/lib/spend-receipt-tenant.ts",
+            "helperBlobSha": "059881e91b629860a1aaa722a133f53e057edda7",
+            "unitTestFile": "tests/spend-receipt-tenant-grant.test.ts",
+            "unitTestBlobSha": "8cd86095ab4404eed572668e1823825c93bab716",
+            "contractTestFile": "tests/tenant-spend-receipt-grant-source.test.mjs",
+            "contractTestBlobSha": "67a10174328f9ddd9e828361ee0996764d458c41",
+            "coverageCredits": 0,
+            "realHttpPg16Proven": false,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         }
       ],
       "employerSources": {
@@ -19410,7 +19440,7 @@
       ]
     },
     "src/app/api/organizations/[id]/payroll-approvers/route.ts": {
-      "gitBlobSha": "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab",
+      "gitBlobSha": "ffb27f3797ecaba1fec8198cab04c0f691382743",
       "route": "organizations/[id]/payroll-approvers",
       "methods": [
         {
@@ -19426,6 +19456,21 @@
             "unchangedDbLine": 349,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          },
+          "reviewedUncertified": {
+            "kind": "payroll-approvers-active-grant-hardened-source-zero-new-credit",
+            "oldRouteBlobSha": "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab",
+            "routeBlobSha": "ffb27f3797ecaba1fec8198cab04c0f691382743",
+            "runnerFile": "scripts/qa/tenant-payroll-approvers-http.mjs",
+            "runnerBlobSha": "bcdcefe33271811364d0b3878abdfc3a3c282346",
+            "contractFile": "tests/tenant-payroll-approvers-contract.test.mjs",
+            "contractBlobSha": "9dc730442d42d8b48025b9619b0b6b8ea9687c35",
+            "workflowFile": ".github/workflows/tenant-payroll-approvers-http.yml",
+            "workflowBlobSha": "f8577a357888bd3483840e3c59dbe9ffae082459",
+            "syntheticPg16Run": "40849212540",
+            "coverageCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
           }
         }
       ],
@@ -19450,6 +19495,10 @@
           "token": "getSessionUser"
         },
         {
+          "line": 18,
+          "token": "Number.isSafeInteger(organizationId)"
+        },
+        {
           "line": 22,
           "token": "getSessionUser"
         },
@@ -19458,8 +19507,40 @@
           "token": "assertOrganizationRole"
         },
         {
-          "line": 45,
+          "line": 33,
           "token": "getAccess"
+        },
+        {
+          "line": 37,
+          "token": "access.companyWide"
+        },
+        {
+          "line": 39,
+          "token": "Number.isSafeInteger(candidateUnitId)"
+        },
+        {
+          "line": 58,
+          "token": "eq(userOrganizations.active, true)"
+        },
+        {
+          "line": 59,
+          "token": "eq(users.active, true)"
+        },
+        {
+          "line": 60,
+          "token": "inArray(userOrganizations.role, [...PAYROLL_CHECKER_ROLES])"
+        },
+        {
+          "line": 61,
+          "token": "ne(userOrganizations.userId, user.id)"
+        },
+        {
+          "line": 62,
+          "token": "eq(userOrganizations.orgUnitId, candidateUnitId)"
+        },
+        {
+          "line": 69,
+          "token": "access.companyWide"
         }
       ],
       "callerSuppliedIds": [],
@@ -19477,31 +19558,27 @@
           "token": "organizationId"
         },
         {
-          "line": 39,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 39,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 43,
+          "line": 33,
           "token": "organizationId"
         },
         {
-          "line": 43,
-          "token": "organizationId"
-        },
-        {
-          "line": 45,
-          "token": "organizationId"
-        },
-        {
-          "line": 52,
+          "line": 37,
           "token": "orgUnitId"
         },
         {
           "line": 52,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 57,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 69,
           "token": "orgUnitId"
         }
       ]
