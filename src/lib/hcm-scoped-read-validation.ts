@@ -115,7 +115,7 @@ export function validOrgExplorerResponse(value: unknown, organizationId: number)
           (unit.parentId !== null || unit.depth !== 0))) return false;
     if (unit.relationship === "missing_parent" || unit.relationship === "cycle") brokenUnit = true;
     units.set(unit.id, {
-      parentId: unit.parentId, depth: unit.depth, relationship: unit.relationship,
+      parentId: unit.parentId, depth: unit.depth, relationship: String(unit.relationship),
       positionRecordCount: unit.positionRecordCount,
     });
   }
