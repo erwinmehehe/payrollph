@@ -10,7 +10,7 @@ test("salary preview authorizes raw body entity before employee or pay source re
   assert.match(source, /resolveMultiEntityContext\(\{\s*userId: user\.id, organizationId, request, requested: body\.legalEntityId as string \| number \| null \| undefined,/);
   assert.match(source, /assertEntityResource\(entityScope\.context, legalEntityId\)/);
   assert.match(source, /assertEntityResource\(entityScope\.context, employee\.legalEntityId\)/);
-  assert.match(source, /if \(entityScope\.context\.group\)/);
+  assert.match(source, /if \(entityScope\.context\.enabled && entityScope\.context\.group\)/);
   assert.ok(source.indexOf("assertOrganizationRole(") < source.indexOf("resolveMultiEntityContext({"));
   assert.ok(source.indexOf("requireSensitiveActionMfa(user)") < source.indexOf("resolveMultiEntityContext({"));
   assert.ok(source.indexOf("resolveMultiEntityContext({") < source.indexOf("db.select({\n      id: employees.id"));

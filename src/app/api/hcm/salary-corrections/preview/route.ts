@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     userId: user.id, organizationId, request, requested: body.legalEntityId as string | number | null | undefined,
   });
   if (!entityScope.ok) return entityScope.response;
-  if (entityScope.context.group) {
+  if (entityScope.context.enabled && entityScope.context.group) {
     return Response.json({ error: "Group-level accounts cannot preview an individual's salary corrections." }, { status: 403 });
   }
   const entityDenied = assertEntityResource(entityScope.context, legalEntityId);

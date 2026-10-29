@@ -995,14 +995,14 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/hcm/salary-corrections/preview/route.ts POST") {
     const reviewed = method.reviewedUncertified;
-    assert.equal(currentBlob, "bfda982bff566986d230849f114de0c444d098f3",
+    assert.equal(currentBlob, "8abc2b8059a403b81bf24c78108445651be4690a",
       "Salary-preview route changed again: repeat entity-grant review");
     assert.deepEqual(reviewed, {
       kind: "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
       oldRouteBlobSha: "17539b569af050bb1568d17e783661ae19302561",
       routeBlobSha: currentBlob,
       testFile: "tests/hcm-salary-correction-entity-tenant.test.ts",
-      testBlobSha: "52279dca1929f2f76b30a4db5d61fbb521559c9f",
+      testBlobSha: "cdd7cda3a66ed1e9a5a6420e09d917fae6b764da",
       contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
       contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
       proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
