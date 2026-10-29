@@ -1,12 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employees,
   performanceOneOnOneActionItemEvents,
   performanceOneOnOneActionItems,
+  userOrganizations,
+  users,
 } from "@/db/schema";
 import { assertMembership } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -68,59 +70,105 @@ export async function PATCH(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
-  const [existing] = await db.select().from(performanceOneOnOneActionItems).where(and(
-    eq(performanceOneOnOneActionItems.id, id),
-    eq(performanceOneOnOneActionItems.organizationId, context.employee.organizationId),
-    eq(performanceOneOnOneActionItems.employeeId, context.employee.id),
-  )).limit(1);
-  if (!existing) return Response.json({ error: "1:1 action item not found." }, { status: 404 });
+  // Re-check active employee identity and employer membership under a single
+  // transaction. SHARE locks serialize with account/membership revocation.
+  // Lock the action item before deciding whether it is still employee-owned.
+  // A concurrent manager reassignment, privacy change or completion may never
+  // turn a stale preflight lookup into an unscoped update or orphan audit.
+  const result = await db.transaction(async (tx) => {
+    const [principal] = await tx.select({ id: users.id }).from(users).where(and(
+      eq(users.id, context.session.id),
+      eq(users.employeeId, context.employee.id),
+      eq(users.role, "employee"),
+      eq(users.active, true),
+    )).for("share").limit(1);
+    const [membership] = await tx.select({ id: userOrganizations.id }).from(userOrganizations).where(and(
+      eq(userOrganizations.userId, context.session.id),
+      eq(userOrganizations.organizationId, context.employee.organizationId),
+      eq(userOrganizations.active, true),
+    )).for("share").limit(1);
+    const [worker] = await tx.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.id, context.employee.id),
+      eq(employees.organizationId, context.employee.organizationId),
+    )).for("share").limit(1);
+    if (!principal || !membership || !worker) return { kind: "denied" } as const;
 
-  if (existing.visibility !== "employee_shared"
-      || existing.ownerKind !== "employee"
-      || existing.ownerEmployeeId !== context.employee.id) {
+    const [existing] = await tx.select().from(performanceOneOnOneActionItems).where(and(
+      eq(performanceOneOnOneActionItems.id, id),
+      eq(performanceOneOnOneActionItems.organizationId, context.employee.organizationId),
+      eq(performanceOneOnOneActionItems.employeeId, context.employee.id),
+    )).for("update").limit(1);
+    if (!existing) return { kind: "not_found" } as const;
+
+    if (existing.visibility !== "employee_shared" ||
+        existing.ownerKind !== "employee" ||
+        existing.ownerEmployeeId !== context.employee.id) {
+      return { kind: "forbidden" } as const;
+    }
+    if (existing.status !== "open" && existing.status !== "in_progress") {
+      return { kind: "closed" } as const;
+    }
+
+    const before = snapshot(existing);
+    const completed = status === "completed";
+    const [row] = await tx.update(performanceOneOnOneActionItems).set({
+      status,
+      completedAt: completed ? new Date() : null,
+      completedByUserId: completed ? context.session.id : null,
+      completedByName: completed ? context.session.name : null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(performanceOneOnOneActionItems.id, id),
+      eq(performanceOneOnOneActionItems.organizationId, context.employee.organizationId),
+      eq(performanceOneOnOneActionItems.employeeId, context.employee.id),
+      eq(performanceOneOnOneActionItems.visibility, "employee_shared"),
+      eq(performanceOneOnOneActionItems.ownerKind, "employee"),
+      eq(performanceOneOnOneActionItems.ownerEmployeeId, context.employee.id),
+      inArray(performanceOneOnOneActionItems.status, ["open", "in_progress"]),
+    )).returning();
+    if (!row) return { kind: "closed" } as const;
+
+    await tx.insert(performanceOneOnOneActionItemEvents).values({
+      organizationId: row.organizationId,
+      actionItemId: row.id,
+      oneOnOneId: row.oneOnOneId,
+      employeeId: row.employeeId,
+      eventType: "status_changed",
+      actorUserId: context.session.id,
+      actorName: context.session.name,
+      beforeSnapshot: before,
+      afterSnapshot: snapshot(row),
+    });
+    // The status, event and audit must commit or roll back together.
+    await tx.insert(auditEvents).values({
+      organizationId: row.organizationId,
+      actor: context.session.name,
+      action: completed ? "Employee completed 1:1 action item" : "Employee progressed 1:1 action item",
+      resource: row.title,
+      metadata: {
+        actionItemId: row.id,
+        oneOnOneId: row.oneOnOneId,
+        employeeId: row.employeeId,
+        fromStatus: existing.status,
+        toStatus: row.status,
+      },
+    });
+    return { kind: "ok", row } as const;
+  });
+
+  if (result.kind === "denied") {
+    return Response.json({ error: "Employee identity or workspace membership changed. Sign in again." }, { status: 403 });
+  }
+  if (result.kind === "not_found") {
+    return Response.json({ error: "1:1 action item not found." }, { status: 404 });
+  }
+  if (result.kind === "forbidden") {
     return Response.json({
       error: "Employees can only update their own employee-visible 1:1 action items.",
     }, { status: 403 });
   }
-  if (existing.status === "completed" || existing.status === "cancelled") {
+  if (result.kind === "closed") {
     return Response.json({ error: "Closed action items can only be reopened by the manager or People administrator." }, { status: 409 });
   }
-
-  const before = snapshot(existing);
-  const completed = status === "completed";
-  const [row] = await db.update(performanceOneOnOneActionItems).set({
-    status,
-    completedAt: completed ? new Date() : null,
-    completedByUserId: completed ? context.session.id : null,
-    completedByName: completed ? context.session.name : null,
-    updatedAt: new Date(),
-  }).where(eq(performanceOneOnOneActionItems.id, id)).returning();
-
-  await db.insert(performanceOneOnOneActionItemEvents).values({
-    organizationId: row.organizationId,
-    actionItemId: row.id,
-    oneOnOneId: row.oneOnOneId,
-    employeeId: row.employeeId,
-    eventType: "status_changed",
-    actorUserId: context.session.id,
-    actorName: context.session.name,
-    beforeSnapshot: before,
-    afterSnapshot: snapshot(row),
-  });
-
-  await recordAuditEvent({
-    organizationId: row.organizationId,
-    actor: context.session.name,
-    action: completed ? "Employee completed 1:1 action item" : "Employee progressed 1:1 action item",
-    resource: row.title,
-    metadata: {
-      actionItemId: row.id,
-      oneOnOneId: row.oneOnOneId,
-      employeeId: row.employeeId,
-      fromStatus: existing.status,
-      toStatus: row.status,
-    },
-  });
-
-  return Response.json(row);
+  return Response.json(result.row);
 }

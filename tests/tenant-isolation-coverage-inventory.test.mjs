@@ -655,6 +655,75 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
+  // A changed employee-owned action-item handler has passing disposable PG16
+  // HTTP evidence but NO independent security acceptance. Preserve the GAP
+  // rather than silently promoting a successful synthetic run to COVERED.
+  // This exact route, QA source, workflow and every required behavior are
+  // pinned; any drift re-blocks this exception for renewed review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/self/performance/action-items/route.ts PATCH") {
+    const reviewed = method.reviewedUncertified;
+    const proofFile = "scripts/qa/tenant-self-action-items-http.mjs";
+    const proofWorkflow = ".github/workflows/tenant-self-action-items-http.yml";
+    assert.equal(currentBlob, "87da381fee787a65e1ae59c927a33bda5c9f0de4",
+      "Employee action-item route changed: independent tenant review required");
+    assert.deepEqual(reviewed, {
+      kind: "exact-head-PG16-HTTP-tenant-PATCH-unreviewed",
+      routeBlobSha: currentBlob,
+      file: proofFile,
+      proofBlobSha: "6d09b6f8a561b5c629e6a92afd8fff668b001d32",
+      workflow: proofWorkflow,
+      workflowBlobSha: "0f7d35a798604c14ccbb099b1cd5874dddf3fc43",
+      ownPositiveLine: 186,
+      foreignDenialLine: 201,
+      forgedSelectorLine: 209,
+      peerDenialLine: 215,
+      unchangedDbLine: 203,
+      concurrentLine: 258,
+      revokedMembershipLine: 274,
+      auditRollbackLine: 302,
+      provisionalPassedHead: "349833c6a8366f48e13e6fda42e6d817556e7b48",
+      provisionalPassedRun: "https://github.com/erwinmehehe/payrollph/actions/runs/40703159052",
+      creditedMethods: 0,
+      independentlyAccepted: false,
+      productionTested: false,
+    }, "Only one fully source-pinned unreviewed exception is allowed");
+    assert.equal(method.testedBy, null, "Unapproved synthetic HTTP is not a coverage credit");
+    assert.match(method.reason, /GAP.*independent security review/i,
+      "Explain why real HTTP evidence is not yet accepted");
+    assert.equal(gitBlobSha(readFileSync(proofFile)), reviewed.proofBlobSha);
+    assert.equal(gitBlobSha(readFileSync(proofWorkflow)), reviewed.workflowBlobSha);
+
+    const exact = [
+      [reviewed.ownPositiveLine, /const victimOwn = expectStatus\(await patch\(victim\.self\.cookie,/],
+      [reviewed.foreignDenialLine, /victimId, "completed"\), 404, "foreign higher-ID action item"/],
+      [reviewed.forgedSelectorLine, /404, "forged victim organization and employee"/],
+      [reviewed.peerDenialLine, /"same-employer peer employee denied"/],
+      [reviewed.unchangedDbLine, /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBaseline\)/],
+      [reviewed.concurrentLine, /const simultaneous = await Promise\.all\(\[/],
+      [reviewed.revokedMembershipLine, /"revoked membership blocks the employee"/],
+      [reviewed.auditRollbackLine, /assert\.deepEqual\(after, before, "audit insertion error rolls back status and event"\)/],
+    ];
+    for (const [line, expected] of exact) {
+      assert.match(evidenceLine(proofFile, line, key), expected,
+        "The cited real HTTP proof anchor changed");
+    }
+    const workflow = readFileSync(proofWorkflow, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.ok(workflow.includes("node --import tsx " + proofFile));
+    assert.ok(workflow.includes("node scripts/qa/apply-isolated-baseline.mjs"));
+    assert.match(workflow, /127\.0\.0\.1:3000/);
+    const route = readFileSync("src/app/api/self/performance/action-items/route.ts", "utf8");
+    assert.match(route, /await db\.transaction\(async \(tx\) => \{/);
+    assert.match(route, /eq\(userOrganizations\.active, true\)/);
+    assert.match(route, /eq\(performanceOneOnOneActionItems\.organizationId, context\.employee\.organizationId\)/);
+    assert.match(route, /eq\(performanceOneOnOneActionItems\.employeeId, context\.employee\.id\)/);
+    assert.match(route, /eq\(performanceOneOnOneActionItems\.ownerEmployeeId, context\.employee\.id\)/);
+    assert.match(route, /await tx\.insert\(performanceOneOnOneActionItemEvents\)/);
+    assert.match(route, /await tx\.insert\(auditEvents\)/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

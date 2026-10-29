@@ -26774,15 +26774,36 @@
       ]
     },
     "src/app/api/self/performance/action-items/route.ts": {
-      "gitBlobSha": "7ed5c8e01a6de43867a1fbb015643ab0992beee6",
+      "gitBlobSha": "87da381fee787a65e1ae59c927a33bda5c9f0de4",
       "route": "self/performance/action-items",
       "methods": [
         {
           "name": "PATCH",
-          "line": 48,
+          "line": 50,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "GAP pending independent security review: authentic fictional PG16 localhost HTTP own, peer and high-ID victim denial and atomic audit rollback passed on the provisional PR head, but no final-head acceptance or production certification",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "exact-head-PG16-HTTP-tenant-PATCH-unreviewed",
+            "routeBlobSha": "87da381fee787a65e1ae59c927a33bda5c9f0de4",
+            "file": "scripts/qa/tenant-self-action-items-http.mjs",
+            "proofBlobSha": "6d09b6f8a561b5c629e6a92afd8fff668b001d32",
+            "workflow": ".github/workflows/tenant-self-action-items-http.yml",
+            "workflowBlobSha": "0f7d35a798604c14ccbb099b1cd5874dddf3fc43",
+            "ownPositiveLine": 186,
+            "foreignDenialLine": 201,
+            "forgedSelectorLine": 209,
+            "peerDenialLine": 215,
+            "unchangedDbLine": 203,
+            "concurrentLine": 258,
+            "revokedMembershipLine": 274,
+            "auditRollbackLine": 302,
+            "provisionalPassedHead": "349833c6a8366f48e13e6fda42e6d817556e7b48",
+            "provisionalPassedRun": "https://github.com/erwinmehehe/payrollph/actions/runs/40703159052",
+            "creditedMethods": 0,
+            "independentlyAccepted": false,
+            "productionTested": false
+          }
         }
       ],
       "employerSources": {
@@ -26794,78 +26815,118 @@
       },
       "guards": [
         {
-          "line": 10,
-          "token": "getSessionUser"
+          "line": 11,
+          "token": "assertMembership"
         },
         {
           "line": 12,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 33,
           "token": "getSessionUser"
         },
         {
-          "line": 49,
+          "line": 14,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 35,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 44,
+          "token": "assertMembership"
+        },
+        {
+          "line": 51,
           "token": "enforceSameOriginMutation"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 35,
+          "line": 37,
           "token": "employeeId"
         },
         {
-          "line": 39,
+          "line": 41,
           "token": "employeeId"
         },
         {
-          "line": 42,
+          "line": 44,
           "token": "organizationId"
         },
         {
-          "line": 73,
-          "token": "organizationId"
-        },
-        {
-          "line": 73,
-          "token": "organizationId"
-        },
-        {
-          "line": 74,
+          "line": 81,
           "token": "employeeId"
         },
         {
-          "line": 100,
+          "line": 87,
           "token": "organizationId"
         },
         {
-          "line": 100,
+          "line": 87,
           "token": "organizationId"
         },
         {
-          "line": 103,
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 98,
+          "token": "organizationId"
+        },
+        {
+          "line": 98,
+          "token": "organizationId"
+        },
+        {
+          "line": 99,
           "token": "employeeId"
         },
         {
-          "line": 103,
-          "token": "employeeId"
-        },
-        {
-          "line": 112,
+          "line": 122,
           "token": "organizationId"
         },
         {
-          "line": 112,
+          "line": 122,
           "token": "organizationId"
         },
         {
-          "line": 119,
+          "line": 123,
           "token": "employeeId"
         },
         {
-          "line": 119,
+          "line": 132,
+          "token": "organizationId"
+        },
+        {
+          "line": 132,
+          "token": "organizationId"
+        },
+        {
+          "line": 135,
+          "token": "employeeId"
+        },
+        {
+          "line": 135,
+          "token": "employeeId"
+        },
+        {
+          "line": 144,
+          "token": "organizationId"
+        },
+        {
+          "line": 144,
+          "token": "organizationId"
+        },
+        {
+          "line": 151,
+          "token": "employeeId"
+        },
+        {
+          "line": 151,
           "token": "employeeId"
         }
       ]
