@@ -1,4 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
+import { canCreateScopedInvitation, invitationVisibleUnit, parseInvitationUnitId } from "@/lib/invitation-tenant-scope";
 import { db } from "@/db";
 import { invitations, orgUnits, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -27,9 +28,18 @@ export async function GET(request: Request) {
     "Only workspace administrators can view invitations.",
   );
   if (deniedInviteList) return deniedInviteList;
+  // Company-wide admins can list the tenant; unit admins can only list their unit.
+  const access = await getAccess(user.id, organizationId);
+  const visibleUnit = invitationVisibleUnit(access);
+  if (visibleUnit === undefined) {
+    return Response.json({ error: "An active administrator unit is required." }, { status: 403 });
+  }
   const [rows, memberRows] = await Promise.all([
     db.select().from(invitations)
-      .where(eq(invitations.organizationId, organizationId))
+      .where(and(
+        eq(invitations.organizationId, organizationId),
+        visibleUnit === null ? undefined : eq(invitations.orgUnitId, visibleUnit),
+      ))
       .orderBy(desc(invitations.id)),
     db.select({
       id: users.id,
@@ -40,7 +50,10 @@ export async function GET(request: Request) {
     })
       .from(userOrganizations)
       .innerJoin(users, eq(userOrganizations.userId, users.id))
-      .where(eq(userOrganizations.organizationId, organizationId)),
+      .where(and(
+        eq(userOrganizations.organizationId, organizationId),
+        visibleUnit === null ? undefined : eq(userOrganizations.orgUnitId, visibleUnit),
+      )),
   ]);
 
   return Response.json({
@@ -54,7 +67,7 @@ export async function GET(request: Request) {
       invitedBy: row.invitedBy,
       createdAt: row.createdAt,
     })),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -86,6 +99,28 @@ export async function POST(request: Request) {
   if (subscriptionDenied) return subscriptionDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "Current workspace grant is required." }, { status: 403 });
+
+  // Scope and role are checked before looking up other users, checking invites,
+  // queuing email, or creating a bearer invitation token.
+  const suppliedUnit = body.orgUnitId;
+  let orgUnitId: number | null = null;
+  if (suppliedUnit !== undefined && suppliedUnit !== null && suppliedUnit !== "") {
+    orgUnitId = parseInvitationUnitId(suppliedUnit);
+    if (orgUnitId === null) {
+      return Response.json({ error: "orgUnitId must be a canonical positive integer." }, { status: 422 });
+    }
+  }
+  if (!canCreateScopedInvitation(access, role, orgUnitId)) {
+    return Response.json({ error: "Only a company-wide administrator can invite privileged roles or grant company-wide access." }, { status: 403 });
+  }
+  if (orgUnitId !== null) {
+    const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits)
+      .where(and(eq(orgUnits.id, orgUnitId), eq(orgUnits.organizationId, organizationId)))
+      .limit(1);
+    if (!unit) return Response.json({ error: "Organization unit not found in this workspace." }, { status: 404 });
+  }
 
   const inviteLimit = await rateLimitDistributed(
     `invite-create:${user.id}:${organizationId}`,
@@ -95,10 +130,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Too many invitations created. Try again later." }, { status: 429 });
   }
 
-  const access = await getAccess(user.id, organizationId);
-  if (role === "owner" && access?.role !== "owner") {
-    return Response.json({ error: "Only an owner can invite another owner." }, { status: 403 });
-  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: "A valid email is required." }, { status: 422 });
 
   const [alreadyUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -114,21 +145,6 @@ export async function POST(request: Request) {
   )).limit(1);
   if (alreadyInvited && !alreadyInvited.acceptedAt && new Date(alreadyInvited.expiresAt).getTime() > Date.now()) {
     return Response.json({ error: "An open invitation for that email already exists." }, { status: 409 });
-  }
-
-  let orgUnitId: number | null = null;
-  if (body.orgUnitId !== undefined && body.orgUnitId !== null && body.orgUnitId !== "") {
-    const candidate = Number(body.orgUnitId);
-    if (!Number.isInteger(candidate)) {
-      return Response.json({ error: "orgUnitId must be an integer." }, { status: 422 });
-    }
-    const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits)
-      .where(and(eq(orgUnits.id, candidate), eq(orgUnits.organizationId, organizationId)))
-      .limit(1);
-    if (!unit) {
-      return Response.json({ error: "Organization unit not found in this workspace." }, { status: 404 });
-    }
-    orgUnitId = unit.id;
   }
 
   if (process.env.NODE_ENV === "production" && !deliveryCapable()) {

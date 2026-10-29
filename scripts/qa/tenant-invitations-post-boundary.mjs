@@ -284,6 +284,151 @@ async function main() {
       proveUnchanged(ownAfter,await snapshot(owner.org.id),
         "duplicate POST must not create an invitation, outbox or audit");
     }
+
+    // Unit-level tenant isolation: a real session with a COMPANY-restricted
+    // admin grant must not see sibling/global members or issue privileged
+    // company-wide invitations. The owner cases above prove that global
+    // administration still works.
+    const [siblingUnit]=await db.insert(s.orgUnits).values({
+      organizationId:a.org.id,legalEntityId:a.entity.id,type:"department",
+      code:a.marker+"-B",name:a.marker+" sibling department",
+    }).returning();
+    const siblingEmail=(a.marker+"-sibling-member@example.invalid").toLowerCase();
+    const [siblingUser]=await db.insert(s.users).values({
+      name:a.marker+" sibling member",email:siblingEmail,
+      passwordHash:"fictional-session-only",role:"employee",totpEnabled:true,
+    }).returning();
+    await db.insert(s.userOrganizations).values({
+      userId:siblingUser.id,organizationId:a.org.id,orgUnitId:siblingUnit.id,
+      role:"employee",active:true,
+    });
+    const [siblingInvite]=await db.insert(s.invitations).values({
+      organizationId:a.org.id,orgUnitId:siblingUnit.id,
+      email:(a.marker+"-sibling-invite@example.invalid").toLowerCase(),
+      role:"employee",tokenHash:randomUUID().replaceAll("-","").padEnd(64,"0"),
+      invitedBy:a.owner.name,expiresAt:new Date(Date.now()+86400000),
+    }).returning();
+    const [unitAdmin]=await db.insert(s.users).values({
+      name:a.marker+" unit admin",
+      email:(a.marker+"-unit-admin@example.invalid").toLowerCase(),
+      passwordHash:"fictional-session-only",role:"admin",totpEnabled:true,
+    }).returning();
+    const [unitGrant]=await db.insert(s.userOrganizations).values({
+      userId:unitAdmin.id,organizationId:a.org.id,orgUnitId:a.unit.id,
+      role:"admin",active:true,
+    }).returning();
+    const unitSession=await http.standaloneMakeSession(unitAdmin.id);
+    await db.update(s.sessions).set({mfaVerifiedAt:new Date()})
+      .where(eq(s.sessions.id,unitSession.id));
+    const unitCookie=unitSession.cookie;
+    const unitRead=await http.standaloneRequest(
+      "/api/invitations?organizationId="+a.org.id,{cookie:unitCookie});
+    assert.equal(unitRead.status,200,"active unit administrator can list same-unit invitations");
+    assert.ok(unitRead.json?.invitations?.some(row=>row.email===
+      (a.marker+"-foreign@example.invalid").toLowerCase()),
+      "real own-unit invitation must be returned");
+    assert.ok(unitRead.json.invitations.every(row=>
+      row.id!==a.invitationId&&row.id!==siblingInvite.id),
+      "company-wide and sibling-unit invitations must remain private");
+    assert.ok(unitRead.json.members.some(row=>row.id===unitAdmin.id),
+      "real same-unit account must remain visible");
+    assert.ok(unitRead.json.members.every(row=>row.orgUnitId===a.unit.id),
+      "no sibling-unit or company-wide member names, emails or roles can leak");
+    assert.ok(!unitRead.text.includes(siblingEmail));
+    assert.ok(!unitRead.text.includes(a.owner.email));
+    assert.ok(!unitRead.text.includes(victim.marker));
+    assert.ok(unitRead.headers.get("cache-control")?.includes("no-store"));
+
+    const unitBefore=await Promise.all(employers.map(e=>snapshot(e.org.id)));
+    const unitDeniedCases=[
+      {label:"company-wide employee",role:"employee",unit:null,status:403},
+      {label:"missing unit employee",role:"employee",status:403},
+      {label:"sibling-unit employee",role:"employee",unit:siblingUnit.id,status:403},
+      {label:"foreign-employer unit",role:"employee",unit:victim.unit.id,status:403},
+      {label:"unit admin invitation",role:"admin",unit:a.unit.id,status:403},
+      {label:"unit owner invitation",role:"owner",unit:a.unit.id,status:403},
+      {label:"unit bookkeeper invitation",role:"bookkeeper",unit:a.unit.id,status:403},
+      {label:"noncanonical unit",role:"employee",unit:String(a.unit.id).padStart(2,"0"),status:422},
+    ];
+    for(const [index,bad] of unitDeniedCases.entries()){
+      const body={
+        organizationId:a.org.id,
+        email:(a.marker+"-unit-denied-"+index+"@example.invalid").toLowerCase(),
+        role:bad.role,
+      };
+      if("unit" in bad)body.orgUnitId=bad.unit;
+      const response=await http.standaloneRequest("/api/invitations",{
+        method:"POST",cookie:unitCookie,body,
+      });
+      assert.equal(response.status,bad.status,bad.label+" denied before issuance");
+      assert.ok(!response.text.includes(siblingEmail));
+      assert.ok(!response.text.includes(victim.marker));
+      for(let i=0;i<employers.length;i++)
+        proveUnchanged(unitBefore[i],await snapshot(employers[i].org.id),
+          bad.label+" must not change "+employers[i].label);
+    }
+    const unitVictimGet=await http.standaloneRequest(
+      "/api/invitations?organizationId="+victim.org.id,{cookie:unitCookie});
+    assert.equal(unitVictimGet.status,403,"unit administrator cannot read foreign employer");
+    const unitVictimPost=await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:unitCookie,body:{
+        organizationId:victim.org.id,role:"employee",orgUnitId:victim.unit.id,
+        email:(a.marker+"-unit-cross-tenant@example.invalid").toLowerCase(),
+      },
+    });
+    assert.equal(unitVictimPost.status,403,"unit admin cannot issue foreign employer invitation");
+    for(let i=0;i<employers.length;i++)
+      proveUnchanged(unitBefore[i],await snapshot(employers[i].org.id),
+        "cross-tenant unit attempts preserve "+employers[i].label);
+
+    // A legitimate same-unit employee invitation still creates exactly one
+    // persisted invitation, one localhost-only mail and matching audit/outbox.
+    const ownUnitEmail=(a.marker+"-unit-allowed@example.invalid").toLowerCase();
+    const unitPositive=await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:unitCookie,body:{
+        organizationId:a.org.id,role:"employee",orgUnitId:a.unit.id,
+        email:ownUnitEmail,
+      },
+    });
+    assert.equal(unitPositive.status,201,"same-unit employee invitation succeeds");
+    const [unitSaved]=await db.select().from(s.invitations)
+      .where(eq(s.invitations.id,unitPositive.json?.id)).limit(1);
+    assert.equal(unitSaved?.organizationId,a.org.id);
+    assert.equal(unitSaved?.orgUnitId,a.unit.id);
+    assert.equal(unitSaved?.role,"employee");
+    assert.equal(unitSaved?.invitedBy,unitAdmin.name);
+    assert.equal(unitSaved?.email,ownUnitEmail);
+    const unitAfter=await snapshot(a.org.id);
+    assert.equal(unitAfter.invites.length,unitBefore[0].invites.length+1);
+    assert.equal(unitAfter.audits.length,unitBefore[0].audits.length+1);
+    assert.equal(unitAfter.outbox.length,unitBefore[0].outbox.length+1);
+    assert.ok(unitAfter.audits.some(row=>row.action==="Invitation created"&&
+      row.resource===ownUnitEmail&&row.actor===unitAdmin.name));
+    assert.ok(unitAfter.outbox.some(row=>row.recipient===ownUnitEmail&&
+      row.status==="sent"&&row.provider==="smtp"));
+    assert.equal(smtp.captured.filter(mail=>mail.recipient===ownUnitEmail).length,1);
+    for(const other of [b,victim])
+      proveUnchanged(unitBefore[employers.indexOf(other)],await snapshot(other.org.id),
+        "same-unit success must not touch another employer");
+
+    // Revocation of the actual active grant must deny the SAME live session;
+    // no stale unit scope may survive via an old cookie.
+    await db.update(s.userOrganizations).set({active:false})
+      .where(eq(s.userOrganizations.id,unitGrant.id));
+    const revokedBefore=await Promise.all(employers.map(e=>snapshot(e.org.id)));
+    assert.equal((await http.standaloneRequest(
+      "/api/invitations?organizationId="+a.org.id,{cookie:unitCookie})).status,403,
+      "revoked unit administrator cannot list invites");
+    assert.equal((await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:unitCookie,body:{
+        organizationId:a.org.id,role:"employee",orgUnitId:a.unit.id,
+        email:(a.marker+"-revoked-unit@example.invalid").toLowerCase(),
+      },
+    })).status,403,"revoked unit administrator cannot issue invites");
+    for(let i=0;i<employers.length;i++)
+      proveUnchanged(revokedBefore[i],await snapshot(employers[i].org.id),
+        "revoked same-session requests preserve "+employers[i].label);
+
     proveUnchanged(before[2],await snapshot(victim.org.id),
       "higher-ID victim unchanged after all authorized and denied attacker requests");
 
@@ -291,7 +436,10 @@ async function main() {
       independentAttackers:2,higherIdVictim:true,populatedOwnGets:3,
       foreignGetDenials:2,foreignPostDenials:2,forgedUnitDenied:true,
       legitimatePostCreationProved:true,ownOutboxAndAuditVerified:true,
-      localSmtpDelivered:2,victimUnchanged:true,
+      localSmtpDelivered:3,victimUnchanged:true,
+      unitAdminOwnGetScoped:true,unitAdminSameUnitEmployeePost:true,
+      unitAdminPrivilegeDenials:8,siblingAndGlobalHidden:true,
+      foreignEmployerUnitDenials:2,sameSessionRevocationDenied:true,
       methodFullyCovered:false,coverageCredits:0}));
   } finally {
     if(server&&server.exitCode===null){server.kill("SIGTERM");await Promise.race([
