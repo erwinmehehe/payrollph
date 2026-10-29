@@ -42,6 +42,11 @@ test("customer-scope production 404 is proved privately and never counts as role
 
 test("isolated role QA may contact only localhost and a disposable PostgreSQL 16 database", () => {
   assert.match(local, /const ORIGIN = "http:\/\/127\.0\.0\.1:3000"/);
+  assert.match(local, /assert\.equal\(url\.protocol, "postgresql:"\)/);
+  assert.match(local, /assert\.equal\(url\.username, "postgres"\)/);
+  assert.match(local, /assert\.equal\(url\.password, "postgres"\)/);
+  assert.match(local, /assert\.equal\(url\.search, ""\)/);
+  assert.match(local, /assert\.equal\(url\.hash, ""\)/);
   assert.match(local, /assert\.equal\(url\.hostname, "127\.0\.0\.1"\)/);
   assert.match(local, /assert\.equal\(process\.env\.DEMO_MODE, "true"\)/);
   assert.match(local, /assert\.equal\(process\.env\.PAYMONGO_DISBURSEMENTS_ENABLED, "false"\)/);
@@ -118,5 +123,37 @@ test("CI evidence attests the ACTUAL checked-out PR head, not GitHub's synthetic
   assert.match(local, /denied\?\.error === "Not found\."/);
   assert.match(local, /operationalSecret\("readiness"\)/);
   assert.match(local, /readiness\?\.demoProvisioning === "non_production"/);
-  assert.match(local, /const expected = 2 \+ 5 \+ ROLES\.length \* 8 \+ 2 \+ 3 \+ 5 \+ 1/);
+  assert.match(local, /const expected = 2 \+ 6 \+ ROLES\.length \* 9 \+ 4 \+ 2 \+ 4 \+ 6 \+ 2/);
+});
+
+test("#1015 uses a real seeded attendance event for authenticated six-role HTTP proof", () => {
+  const worker = local.indexOf("const [foreignEmployee] = await db.insert(employees)");
+  const profile = local.indexOf("await db.insert(employeePayProfiles).values({", worker);
+  const attendance = local.indexOf("const [foreignAttendance]", worker);
+  assert.ok(worker >= 0 && profile > worker && attendance > profile,
+    "Foreign worker needs an explicit fictional pay profile before dashboard reads");
+  assert.match(local, /async function seedAttendanceExceptionForDemo\(org\)/);
+  assert.match(local, /await db\.insert\(attendanceExceptionEvents\)/);
+  assert.match(local, /seededAttendanceEventId !== null/);
+  assert.match(local, /await seedAttendanceExceptionForDemo\(session\.org\)/);
+  assert.match(local, /attendance: "\/api\/workforce\/attendance-exception-events\?"/);
+  assert.match(local, /"cross-tenant-attendance"/);
+  assert.match(local, /"attendance-own-existing-event"/);
+  assert.match(local, /"attendance-unchanged-after-denials"/);
+  assert.match(local, /seededOutsideUnitEventId/);
+  assert.match(local, /verifyAttendanceRevocationAndUnitScope\(demoOwner, demoHr\)/);
+  assert.match(local, /"attendance-revoked-denied"/);
+  assert.match(local, /set\(\{ active: false \}\)/);
+  assert.match(local, /set\(\{ active: true \}\)/);
+  assert.match(local, /"attendance-unit-scope-only"/);
+  assert.match(local, /set\(\{ orgUnitId: seededScopedOrgUnitId \}\)/);
+  assert.match(local, /!body\.exceptions\.some\(row => row\.id === seededOutsideUnitEventId\)/);
+  assert.match(local, /"attendance-unit-scope-unchanged"/);
+  assert.match(local, /await verifyAttendanceRevocationAndUnitScope\(demoOwner, demoHr\)/);
+  assert.match(local, /"\/api\/workforce\/attendance-exception-events\?organizationId=1&"/);
+  assert.match(local, /owner:\s*\{[^\n]+attendance: 200/);
+  assert.match(local, /hr:\s*\{[^\n]+attendance: 200/);
+  assert.match(local, /payroll:\s*\{[^\n]+attendance: 200/);
+  assert.match(local, /checker:\s*\{[^\n]+attendance: 403/);
+  assert.match(local, /employee:\s*\{[^\n]+attendance: 403/);
 });
