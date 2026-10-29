@@ -1,4 +1,4 @@
-# HMO GET/POST tenant-isolation batch
+# HMO POST tenant-isolation proof reconciliation (provisional)
 
 Base: main `572740807`. Independent of #1355 expenses/de-minimis, #1370 identifier reviews, #1371 selector consistency, #1372 merged benefits/worksite receipt reconciliation and #1373 payroll variance. HMO is `/api/benefits/hmo`; ordinary enrolments in `/api/benefits` are a separate route.
 
@@ -14,6 +14,8 @@ Scoped HR in an empty unit receives a verified empty employee/enrolment/event re
 
 ## Acceptance and limits
 
-**Prepared only, exact-head HTTP CI pending.** These are two method candidates; both remain GAP until actual HTTP/PG16 execution succeeds and its precise source/receipt links are reviewed. No count changes or sibling-method credit borrowing. Local syntax/source checks are not HTTP acceptance. `tests/tenant-hmo-source.test.mjs` checks the action inventory against the route so a future new action cannot silently be omitted.
+**One POST-only provisional credit proposed; global acceptance remains NO-GO.** The HMO **GET** already had a separate source-pinned tenant-table PG16 proof and is unchanged. The full **POST** four-action suite successfully executed on the fictional PostgreSQL 16/localhost Security HTTP Smoke run [40675730756, job 122773670031](https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031), exact source head `b85715c76be9bf2c9f0ab0f08741853c8983d7d9`. The runner emitted `HMO_GET_POST_HTTP_CANDIDATE` with two independent attackers, four action branches, no provider traffic and zero credits at execution time. Route, runner and suite Git blobs on the reconciliation base are unchanged from that passing head. A later ledger review may now link precisely this **POST** method to the passed proof, without re-crediting GET or another benefits route.
 
-No runtime routes, tenant/audit guards, payroll arithmetic, feature flags, production SQL, Neon operations or provider integrations change. Provider statuses and coverage transitions are fictional local records, not proof of carrier acceptance or an external enrolment. No live carrier/email/bank traffic, real identity records or actual payroll. Rollback removes the additive QA suite, runner call and documentation.
+The proposed inventory moves **one HMO POST from GAP to source-pinned provisional COVERED**: **341 COVERED / 10 PUBLIC-BY-DESIGN / 147 GAP** across 498 API methods; 17 page/action gaps remain. Source-contract tests pin the HTTP proof line references, action names, persisted own mutations, victim-only denials, exact victim DB snapshots, and the prior CI job/source SHA. New exact-PR-head CI and independent security/privacy/owner review are still required before acceptance. No release, policy, provider integration or wider tenant certification is implied.
+
+No runtime routes, tenant/audit guards, payroll arithmetic, feature flags, production SQL, Neon operations or provider integrations change. Provider statuses and coverage transitions are fictional local records, not proof of carrier acceptance or an external enrolment. No live carrier/email/bank traffic, real identity records or actual payroll. Rollback reverts only this POST manifest credit, its source-pin tests and this documentation. The original test suite and separate GET credit remain intact.

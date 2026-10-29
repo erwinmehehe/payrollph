@@ -1,0 +1,122 @@
+name: ESS 1-to-1 action item PATCH isolation (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-self-action-items-http.yml'
+      - 'scripts/qa/tenant-self-action-items-http.mjs'
+      - 'tests/tenant-self-action-items-contract.test.mjs'
+      - 'src/app/api/self/performance/action-items/route.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/audit.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-self-performance-contract.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-self-action-items-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  self-action-items:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export fictional localhost-only environment and disable workers, billing and payouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_SELF_PERFORMANCE_MODE=fictional-only'
+            echo 'TENANT_SELF_ACTION_ITEMS_MODE=fictional-only'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
+            echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+          } >> "$GITHUB_ENV"
+      - name: Run static source, unsafe-environment and method guard tests
+        run: |
+          node --check scripts/qa/tenant-self-action-items-http.mjs
+          node --check tests/tenant-self-action-items-contract.test.mjs
+          node --test tests/tenant-self-action-items-contract.test.mjs
+      - name: Generate disposable encryption and localhost webhook material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Push schema to EMPTY isolated PostgreSQL 16 only
+        run: npm run db:push
+      - name: Apply reviewed disposable audit and schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Typecheck the changed application route
+        run: npx tsc --noEmit
+      - name: Build production-mode Next without production activation
+        run: npm run build
+      - name: Start fictional localhost-only HTTP app
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 \
+            > /tmp/tenant-self-action-items-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-self-action-items-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-self-action-items-next.log
+          exit 1
+      - name: Real own-success, high-ID victim and peer denial, concurrency and atomic rollback
+        run: node --import tsx scripts/qa/tenant-self-action-items-http.mjs
+      - name: Show isolated localhost errors only after a failure
+        if: failure()
+        run: cat /tmp/tenant-self-action-items-next.log || true

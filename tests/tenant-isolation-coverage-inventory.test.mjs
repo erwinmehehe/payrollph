@@ -655,6 +655,75 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
+  // A changed employee-owned action-item handler has passing disposable PG16
+  // HTTP evidence but NO independent security acceptance. Preserve the GAP
+  // rather than silently promoting a successful synthetic run to COVERED.
+  // This exact route, QA source, workflow and every required behavior are
+  // pinned; any drift re-blocks this exception for renewed review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/self/performance/action-items/route.ts PATCH") {
+    const reviewed = method.reviewedUncertified;
+    const proofFile = "scripts/qa/tenant-self-action-items-http.mjs";
+    const proofWorkflow = ".github/workflows/tenant-self-action-items-http.yml";
+    assert.equal(currentBlob, "87da381fee787a65e1ae59c927a33bda5c9f0de4",
+      "Employee action-item route changed: independent tenant review required");
+    assert.deepEqual(reviewed, {
+      kind: "exact-head-PG16-HTTP-tenant-PATCH-unreviewed",
+      routeBlobSha: currentBlob,
+      file: proofFile,
+      proofBlobSha: "6d09b6f8a561b5c629e6a92afd8fff668b001d32",
+      workflow: proofWorkflow,
+      workflowBlobSha: "0f7d35a798604c14ccbb099b1cd5874dddf3fc43",
+      ownPositiveLine: 186,
+      foreignDenialLine: 201,
+      forgedSelectorLine: 209,
+      peerDenialLine: 215,
+      unchangedDbLine: 203,
+      concurrentLine: 258,
+      revokedMembershipLine: 274,
+      auditRollbackLine: 302,
+      provisionalPassedHead: "349833c6a8366f48e13e6fda42e6d817556e7b48",
+      provisionalPassedRun: "https://github.com/erwinmehehe/payrollph/actions/runs/40703159052",
+      creditedMethods: 0,
+      independentlyAccepted: false,
+      productionTested: false,
+    }, "Only one fully source-pinned unreviewed exception is allowed");
+    assert.equal(method.testedBy, null, "Unapproved synthetic HTTP is not a coverage credit");
+    assert.match(method.reason, /GAP.*independent security review/i,
+      "Explain why real HTTP evidence is not yet accepted");
+    assert.equal(gitBlobSha(readFileSync(proofFile)), reviewed.proofBlobSha);
+    assert.equal(gitBlobSha(readFileSync(proofWorkflow)), reviewed.workflowBlobSha);
+
+    const exact = [
+      [reviewed.ownPositiveLine, /const victimOwn = expectStatus\(await patch\(victim\.self\.cookie,/],
+      [reviewed.foreignDenialLine, /victimId, "completed"\), 404, "foreign higher-ID action item"/],
+      [reviewed.forgedSelectorLine, /404, "forged victim organization and employee"/],
+      [reviewed.peerDenialLine, /"same-employer peer employee denied"/],
+      [reviewed.unchangedDbLine, /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBaseline\)/],
+      [reviewed.concurrentLine, /const simultaneous = await Promise\.all\(\[/],
+      [reviewed.revokedMembershipLine, /"revoked membership blocks the employee"/],
+      [reviewed.auditRollbackLine, /assert\.deepEqual\(after, before, "audit insertion error rolls back status and event"\)/],
+    ];
+    for (const [line, expected] of exact) {
+      assert.match(evidenceLine(proofFile, line, key), expected,
+        "The cited real HTTP proof anchor changed");
+    }
+    const workflow = readFileSync(proofWorkflow, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.ok(workflow.includes("node --import tsx " + proofFile));
+    assert.ok(workflow.includes("node scripts/qa/apply-isolated-baseline.mjs"));
+    assert.match(workflow, /127\.0\.0\.1:3000/);
+    const route = readFileSync("src/app/api/self/performance/action-items/route.ts", "utf8");
+    assert.match(route, /await db\.transaction\(async \(tx\) => \{/);
+    assert.match(route, /eq\(userOrganizations\.active, true\)/);
+    assert.match(route, /eq\(performanceOneOnOneActionItems\.organizationId, context\.employee\.organizationId\)/);
+    assert.match(route, /eq\(performanceOneOnOneActionItems\.employeeId, context\.employee\.id\)/);
+    assert.match(route, /eq\(performanceOneOnOneActionItems\.ownerEmployeeId, context\.employee\.id\)/);
+    assert.match(route, /await tx\.insert\(performanceOneOnOneActionItemEvents\)/);
+    assert.match(route, /await tx\.insert\(auditEvents\)/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -1232,6 +1301,78 @@ test("all credited proof links point to the claimed route and every recertified 
         // The #1524 self-profile route is a source-reviewed GAP; no stale credit.
         assert.equal(verifyMoreCredits(manifest), 3);
         continue;
+      }
+      if (proof?.file === "scripts/qa/tenant-hmo-http.mjs") {
+        // A passing candidate suite is not a blanket exception to the
+        // evidence-source allowlist. Admit only this exact HMO POST method,
+        // its four action branches and the already executed PG16 HTTP receipt.
+        assert.equal(path, "src/app/api/benefits/hmo/route.ts",
+          "HMO proof cannot certify any other tenant endpoint");
+        assert.equal(method.name, "POST",
+          "Existing HMO GET is independently credited by the table proof");
+        assert.equal(entry.methods.find(row => row.name === "GET")?.testedBy?.file,
+          "scripts/qa/tenant-table-http.mjs");
+        assert.deepEqual(proof.postActions,
+          ["create_plan", "add_dependent", "update_dependent", "update_enrollment"]);
+        const actionPins = {
+          create_plan: [121, 201, /const createdPlan = expectStatus\(await request\(PATH/],
+          add_dependent: [128, 201, /const createdDependent = expectStatus\(await request\(PATH/],
+          update_dependent: [138, 200, /const updatedDependent = expectStatus\(await request\(PATH/],
+          update_enrollment: [145, 200, /const updatedEnrollment = expectStatus\(await request\(PATH/],
+        };
+        assert.deepEqual(proof.postActionOwnLines,
+          Object.fromEntries(Object.entries(actionPins).map(([action, [line]]) => [action, line])));
+        assert.deepEqual(proof.ownStatusByAction,
+          Object.fromEntries(Object.entries(actionPins).map(([action, [, status]]) => [action, status])));
+        assert.deepEqual([
+          proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.forgedSelectorLine, proof.unchangedDbLine,
+          proof.victimIdOrderingLine, proof.foreignStatus,
+        ], [121, 121, 171, 174, 80, 66, 403],
+        "HMO POST own/foreign/forged/unchanged-DB evidence pins changed");
+        assert.equal(proof.reviewedHead, "b85715c76be9bf2c9f0ab0f08741853c8983d7d9");
+        assert.equal(proof.passedJob,
+          "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
+        assert.equal(proof.ciResultKind, "HMO_GET_POST_HTTP_CANDIDATE");
+        assert.equal(proof.routeBlobSha, "99e3fa0e48f6a8dde88b9505f49524898cdf957a");
+        assert.equal(proof.proofBlobSha, "45cc7499ec33cc44d6ec7b826c075262411ed657");
+        assert.equal(proof.runnerBlobSha, "3765c1923e137f68b75fd545348868672f3f2f5d");
+        const suite = readFileSync(proof.file, "utf8");
+        const suiteLines = suite.split("\n");
+        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        assert.equal(gitBlobSha(Buffer.from(suite)), proof.proofBlobSha,
+          "Changes to HMO HTTP scenarios require a new executed proof");
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha,
+          "Changes to the HMO route require renewed authorization review");
+        assert.equal(gitBlobSha(Buffer.from(runner)), proof.runnerBlobSha,
+          "Changes to the HTTP runner require a fresh receipt");
+        assert.match(runner,
+          /await \(await import\("\.\/tenant-hmo-http\.mjs"\)\)\.verifyHmoIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+        for (const [action, [line, status, requestPattern]] of Object.entries(actionPins)) {
+          assert.match(evidenceLine(proof.file, line, "HMO POST " + action), requestPattern);
+          assert.match(suiteLines.slice(line - 1, line + 6).join("\n"),
+            new RegExp("\\b" + status + ', "HMO POST ' + action + " "),
+            action + ": actual own HTTP response status must be checked");
+        }
+        assert.match(evidenceLine(proof.file, 171, "HMO foreign POST"),
+          /await denied\(PATH, \{ method: "POST", cookie, body \}, 403/);
+        assert.match(evidenceLine(proof.file, 174, "HMO foreign object"),
+          /await denied\(PATH, \{ method: "POST", cookie, body \}, 404/);
+        assert.match(evidenceLine(proof.file, 80, "HMO unchanged victim"),
+          /assert\.deepEqual\(await snapshot\(victim\.id\), before/);
+        assert.match(evidenceLine(proof.file, 66, "HMO high victim IDs"),
+          /target\[field\]\.id > 6 && owned\.every/);
+        assert.match(suite, /for \(const idx of \[1, 2\]\)/);
+        assert.match(suite, /for \(const body of actionBodies\(victim, target,/);
+        assert.match(suite, /for \(const body of actionBodies\(org, target,.*\.slice\(1\)/);
+        assert.match(suite, /process\.env\.TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
+        assert.match(suite, /process\.env\.CI, "true"/);
+        assert.match(suite, /actualProviderTraffic: false, inventoryCreditsAdded: 0/);
+        assert.match(method.reason, /independent security review/i);
+        const workflow = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /run: npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
+        continue; // Only the exact HMO POST source is admitted; no sibling credits.
       }
       if (proof?.file === "scripts/qa/tenant-self-development-http.mjs") {
         assert.equal(verifySelfDevelopmentCredits(manifest), 3);
