@@ -30,14 +30,20 @@ export function auditPreviewIsolationMetadata(payload) {
   for (const entry of envs) {
     const key = entry?.key;
     const targets = entry?.target;
+    // A branch-specific Preview override cannot cover other Preview branches.
+    // Treat absent/null gitBranch as the only unscoped Preview assignment.
+    const gitBranch = entry?.gitBranch ?? null;
+    const validBranch = gitBranch === null || (typeof gitBranch === "string"
+      && gitBranch.length > 0 && gitBranch.length <= 255
+      && gitBranch.trim() === gitBranch && !/[\x00-\x1f\x7f]/.test(gitBranch));
     if (typeof key !== "string" || !VALID_KEY_NAME.test(key)
       || !Array.isArray(targets) || targets.length === 0
-      || targets.some((target) => !VALID_TARGETS.has(target))) {
+      || targets.some((target) => !VALID_TARGETS.has(target)) || !validBranch) {
       errors.push("Malformed environment record: invalid variable name or targets");
       continue;
     }
     // Only retain metadata, never "value", "decrypted" or sensitive fields.
-    inventory.push({ key, targets, gitBranch: entry.gitBranch || null });
+    inventory.push({ key, targets, gitBranch });
     if (targets.includes("production") && targets.includes("preview")) {
       // Catch future auth/session/provider secrets too, not just current DB keys.
       errors.push(key + " is shared by Preview and Production");
@@ -46,7 +52,8 @@ export function auditPreviewIsolationMetadata(payload) {
 
   for (const key of REQUIRED_PREVIEW_KEYS) {
     const matches = inventory.filter((entry) => entry.key === key
-      && entry.targets.includes("preview") && !entry.targets.includes("production"));
+      && entry.targets.includes("preview") && !entry.targets.includes("production")
+      && entry.gitBranch === null);
     if (matches.length === 0) errors.push("Preview-only " + key + " is absent");
   }
 

@@ -40,6 +40,38 @@ test("previously unknown session or provider key shared across environments also
   assert.ok(result.errors.includes("FUTURE_PROVIDER_SESSION_KEY is shared by Preview and Production"));
 });
 
+test("branch-specific Preview overrides alone never satisfy required Preview-wide secrets", () => {
+  const scoped = required.map(key => ({ ...preview(key), gitBranch: "feature/sandbox" }));
+  const result = auditPreviewIsolationMetadata({ envs: [
+    ...required.map(production), ...scoped,
+  ] });
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.errors, required.map(key => "Preview-only " + key + " is absent"));
+  assert.match(result.message, /NO-GO/);
+});
+
+test("unscoped Preview-only assignments permit supplemental branch-specific overrides", () => {
+  const result = auditPreviewIsolationMetadata({ envs: [
+    ...required.map(production), ...required.map(preview),
+    ...required.map(key => ({ ...preview(key), gitBranch: "feature/sandbox" })),
+  ] });
+  assert.equal(result.ok, true, "A scoped override must not invalidate a safe unscoped Preview base");
+  assert.match(result.message, /STILL REQUIRED/);
+});
+
+test("malformed Git branch selectors fail closed without exposing record values", () => {
+  const secret = "private-secret-not-for-logs";
+  for (const gitBranch of ["", " sandbox ", "\nmain", 42, false, [], {}]) {
+    const result = auditPreviewIsolationMetadata({ envs: [
+      ...required.map(preview),
+      { key: "OPTIONAL_BRANCH_OVERRIDE", target: ["preview"], gitBranch, value: secret },
+    ] });
+    assert.equal(result.ok, false, "bad selector: " + JSON.stringify(gitBranch));
+    assert.ok(result.errors.some(error => error.startsWith("Malformed environment record")));
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  }
+});
+
 test("pagination or invalid response shape fails closed", () => {
   assert.throws(() => auditPreviewIsolationMetadata({ envs: [], pagination: { next: "cursor" } }), /paginated/);
   assert.throws(() => auditPreviewIsolationMetadata({ envs: "invalid" }), /envs array/);
