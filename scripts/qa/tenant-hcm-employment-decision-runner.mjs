@@ -9,15 +9,22 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { db, pool } from "../../src/db";
-import {
-  legalEntities, orgUnits, organizations, payrollRuns,
-  sessions, userOrganizations, users,
-} from "../../src/db/schema";
 import {
   HCM_DECISION_POST, requireDisposableHcmDecisionEnv,
 } from "./tenant-hcm-employment-decision-contract.mjs";
-import { verifyHcmEmploymentDecisionPost } from "./tenant-hcm-employment-decision-post.mjs";
+
+// Static imports execute before the first statement in this file. Refuse an
+// unsafe target BEFORE importing any application module that initializes DB.
+requireDisposableHcmDecisionEnv(); // before any DB module import
+const [{ db, pool }, schema, { verifyHcmEmploymentDecisionPost }] = await Promise.all([
+  import("../../src/db/index.ts"),
+  import("../../src/db/schema.ts"),
+  import("./tenant-hcm-employment-decision-post.mjs"),
+]);
+const {
+  legalEntities, orgUnits, organizations, payrollRuns,
+  sessions, userOrganizations, users,
+} = schema;
 
 const ORIGIN = "http://127.0.0.1:3000";
 
