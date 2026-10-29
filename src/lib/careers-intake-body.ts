@@ -6,6 +6,21 @@ export const MAX_PUBLIC_CAREERS_BODY_BYTES = 8192;
 const bad = (message: string, status: number) =>
   Response.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 
+/** Optional applicant contact fields must remain intact if accepted.
+ * Reject malformed or oversized values instead of silently discarding PII.
+ * The public form uses the same 32/1000-character limits.
+ */
+export function careersContactFields(body: Record<string, unknown>):
+  { phone: string; notes: string } | null {
+  if ((body.phone != null && typeof body.phone !== "string") ||
+      (body.notes != null && typeof body.notes !== "string")) return null;
+  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  const notes = typeof body.notes === "string" ? body.notes.trim() : "";
+  if (phone.length > 32 || notes.length > 1000 ||
+      /[\u0000-\u001f\u007f]/.test(phone) || /\u0000/.test(notes)) return null;
+  return { phone, notes };
+}
+
 export async function readCareersApplicationBody(
   request: Request,
 ): Promise<Record<string, unknown> | Response> {
