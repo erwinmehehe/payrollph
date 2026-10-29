@@ -5,6 +5,10 @@
  * Run only in an approved private workspace using two CSV exports:
  * node scripts/reconcile-private-employer-payroll.mjs reference.csv candidate.csv
  * Headers (both): legalEmployerId,periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net
+ * Exactly those headers, in any order; never extra columns with employee PII.
+ * Each file: at most 8 MiB and 50,000 employee rows. Individual money fields:
+ * at most nine whole digits and two decimals. No malformed CSV quoting.
+ * This simplified comparison is not the canonical multi-source #579 verifier.
  *
  * This is a mathematical acceptance gate, NOT a legal/agency filing, payroll
  * approval, payout authorization, or independent reviewer attestation.
