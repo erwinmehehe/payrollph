@@ -724,6 +724,109 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+
+  // #1552: single-use account email verification was hardened to lock the
+  // authentic account, worker and active worker grant before a tenant-scoped
+  // employee email UPDATE. The dedicated disposable PG16 test has passed, but
+  // it provides only one legitimate linked-worker positive plus two attacker
+  // denials. Do NOT promote this source-only change to full method coverage.
+  // Every reviewed source/fixture/workflow is SHA-pinned and drift fails closed.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/account/email/verify/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    const routePath = "src/app/api/account/email/verify/route.ts";
+    const newSha = "575f814a30ebce5112c228c6e3c73ac882b8fa97";
+    assert.equal(currentBlob, newSha,
+      "Account email verification changed: renew independent tenant and privacy review");
+    assert.deepEqual(reviewed, {
+      kind: "account-email-verify-linked-ESS-worker-PG16-source-only",
+      oldRouteBlobSha: "45617099f90ae486824f3de34cd769c34b229596",
+      routeBlobSha: newSha,
+      helperFile: "src/lib/account.ts",
+      helperBlobSha: "e9fd7448970b49fa10d97c67478a71ceb0b91c75",
+      regressionFile: "tests/account-email-tenant-boundary.test.ts",
+      regressionBlobSha: "cd4557251c8df461a6aeee28cc9ea16d206844bc",
+      proofFile: "scripts/qa/tenant-account-email-verify-http.mjs",
+      proofBlobSha: "7787f8c68f9b4f92779a51be6e871ec1150bacf2",
+      contractFile: "tests/tenant-account-email-verify-contract.test.mjs",
+      contractBlobSha: "737784e29bbbf6ff896050df3c6bfd14c74898e4",
+      workflowFile: ".github/workflows/tenant-account-email-verify-http.yml",
+      workflowBlobSha: "e210052a1beadd1c1476db6cfff0cd7bedbd6351",
+      disposableGuardFile: "scripts/qa/tenant-identity-account-proof.mjs",
+      disposableGuardBlobSha: "d6119b38a8cc55b56e18971b42ab2de38baa6a15",
+      previousSyntheticHead: "08d058d7d691f2ed4bc1148433b3ff0cb58b6843",
+      previousSyntheticRun: "https://github.com/erwinmehehe/payrollph/actions/runs/40800025745/job/123205629239",
+      sourceOnly: true,
+      creditedMethods: 0,
+      independentSecurityReview: "PENDING",
+      productionTested: false,
+    }, "Only this exact uncredited email verification source review is permitted");
+    assert.equal(method.testedBy, null, "Not a completed tenant method proof");
+    assert.match(method.reason, /^Still GAP: #1552/);
+    assert.equal(method.line, 14);
+    for (const [path, sha] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.regressionFile, reviewed.regressionBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+      [reviewed.disposableGuardFile, reviewed.disposableGuardBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(path)), sha,
+      "Account email proof/source changed without new security review: " + path);
+
+    const source = readFileSync(routePath, "utf8");
+    assert.equal(gitBlobSha(Buffer.from(source)), newSha);
+    const tokenLock = source.indexOf("const [liveToken] = await tx.select(");
+    const accountLock = source.indexOf("const [currentAccount] = await tx.select(");
+    const workerLock = source.indexOf("const [linkedEmployee] = await tx.select(");
+    const memberLock = source.indexOf("const [membership] = await tx.select(");
+    const tenantGate = source.indexOf("if (!canSyncLinkedEmployeeEmail({");
+    const employeeWrite = source.indexOf("const [updatedEmployee] = await tx.update(employees)");
+    const accountWrite = source.indexOf("const [updatedAccount] = await tx.update(users)");
+    assert.ok(0 < tokenLock && tokenLock < accountLock && accountLock < workerLock &&
+      workerLock < memberLock && memberLock < tenantGate &&
+      tenantGate < employeeWrite && employeeWrite < accountWrite,
+      "Identity/tenant checks must precede worker and account updates");
+    for (const guard of [
+      "eq(emailChangeTokens.tokenHash, sha256(token))",
+      "isNull(emailChangeTokens.usedAt)",
+      "gt(emailChangeTokens.expiresAt, new Date())",
+      "if (!currentAccount?.active)",
+      "eq(employees.id, currentAccount.employeeId)",
+      "eq(userOrganizations.userId, currentAccount.id)",
+      "eq(userOrganizations.organizationId, linkedEmployee.organizationId)",
+      "eq(userOrganizations.active, true)",
+      '}).for("share").limit(1)',
+      "eq(employees.organizationId, linkedEmployee.organizationId)",
+      "if (!updatedEmployee)",
+      "if (!updatedAccount)",
+      "await tx.update(emailChangeTokens)",
+    ]) assert.ok(source.includes(guard), "Linked-employee tenant guard missing: " + guard);
+    assert.doesNotMatch(source, /where\(eq\(employees\.id, account\.employeeId\)\)/);
+
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    const contract = readFileSync(reviewed.contractFile, "utf8");
+    assert.ok(proof.indexOf("requireDisposableIdentityAccount();") > 0 &&
+      proof.indexOf("requireDisposableIdentityAccount();") <
+      proof.indexOf('import("../../src/db/index.ts")'),
+      "PG16-only preflight must run before any app/database imports");
+    assert.match(proof, /const attackerA = await makeEss\("attacker-a", a, v\.worker\.id, a\.worker\.id\)/);
+    assert.match(proof, /const attackerB = await makeEss\("attacker-b", b, v\.worker\.id, b\.worker\.id\)/);
+    assert.match(proof, /const accepted = await verify\(ownToken, 200,/);
+    assert.match(proof, /const response = await verify\(token, 409,/);
+    assert.match(proof, /assert\.deepEqual\(await snapshot\(\), before,/);
+    assert.match(proof, /await verify\(revokedToken, 409,/);
+    assert.match(proof, /await verify\(mismatchedToken, 409,/);
+    assert.match(proof, /await verify\(ownToken, 400,/);
+    assert.match(proof, /credits: 0, independentReviewPending: true/);
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --test tests\/tenant-account-email-verify-contract\.test\.mjs/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-account-email-verify-http\.mjs/);
+    assert.match(contract, /requireDisposableIdentityAccount\(good\)/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
