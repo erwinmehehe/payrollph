@@ -5,6 +5,7 @@
  * Prints no connection strings, employee rows, names, or secrets.
  */
 import { Client } from "pg";
+import { pathToFileURL } from "node:url";
 
 function assertIsolatedEnvironment(env) {
   if (env.ISSUE1113_FICTIONAL_QA !== "I_CONFIRM_FICTIONAL_ISOLATED_DB") {
@@ -87,7 +88,7 @@ export async function verifyIssue1113Catalog(client) {
   }
 }
 
-const executing = process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href;
+const executing = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (executing) {
   try {
     assertIsolatedEnvironment(process.env);

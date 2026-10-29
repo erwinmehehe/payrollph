@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
 import { assertIsolatedEnvironment, verifyIssue1113Catalog } from "../scripts/qa/issue-1113-catalog-readonly.mjs";
+
+test("direct CLI invocation executes its refusal guard on native paths", () => {
+  const result = spawnSync(process.execPath, ["scripts/qa/issue-1113-catalog-readonly.mjs"], {
+    encoding: "utf8", env: { ...process.env, ISSUE1113_FICTIONAL_QA: "" },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /catalog preflight blocked or failed/);
+  assert.equal(result.stdout, "");
+});
 
 test("closure preflight refuses unconfirmed and production target environments", () => {
   assert.throws(() => assertIsolatedEnvironment({}), /CONFIRMATION_REQUIRED/);
