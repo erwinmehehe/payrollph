@@ -109,7 +109,14 @@ test("report source is tenant-isolated and rejects unscoped payroll attribution"
     await assert.rejects(
       () => db.update(employees).set({ legalEntityId: entityB.id })
         .where(eq(employees.id, workerA.id)),
-      /employees_tenant_employer_fk|foreign key constraint/,
+      (error: unknown) => {
+        // Drizzle wraps PostgreSQL errors. Inspect the actual SQLSTATE and
+        // constrained FK, not text in the outer "Failed query" message.
+        const cause = (error as { cause?: { code?: string; constraint?: string } })?.cause;
+        assert.equal(cause?.code, "23503", "Expected a real PostgreSQL FK rejection");
+        assert.equal(cause?.constraint, "employees_tenant_employer_fk");
+        return true;
+      },
       "Real PostgreSQL tenant/employer FK must reject a cross-company reference",
     );
 
