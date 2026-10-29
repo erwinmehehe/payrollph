@@ -189,6 +189,46 @@ test("publishing requires approved company-wide evidence and creates a locked ve
   assert.ok(route.includes("plannedAttritionBackfills"));
 });
 
+
+test("baseline publishing hides foreign scenario existence before state inspection", () => {
+  const src = readFileSync("src/app/api/workforce-planning/baselines/route.ts", "utf8");
+  const post = src.split("export async function POST(request: Request) {")[1];
+  assert.ok(post, "The baseline publisher POST must exist");
+
+  const indexes = [
+    "if (!Number.isSafeInteger(scenarioId) || scenarioId <= 0)",
+    "const [scenario] = await db.select().from(workforcePlanningScenarios)",
+    'if (!scenario) return Response.json({ error: "Staffing scenario not found." }, { status: 404 });',
+    "const access = await getAccess(user.id, scenario.organizationId);",
+    "if (!access || access.organizationId !== scenario.organizationId)",
+    "const denied = await assertOrganizationRole(",
+    "if (denied) return denied;",
+    "if (!access.companyWide)",
+    'if (scenario.status !== "approved")',
+    "if (!scenario.planId)",
+    "if (scenario.scopeOrgUnitId != null || scenario.worksiteId != null)",
+    "const [[plan], positionRows, assignmentRows] = await Promise.all([",
+  ].map(fragment => {
+    const at = post.indexOf(fragment);
+    assert.ok(at >= 0, "Required source gate was removed: " + fragment);
+    return at;
+  });
+  assert.ok(indexes.every((value, i) => i === 0 || indexes[i - 1] < value),
+    "No scenario business state or related employer query before authorization");
+  const foreign = post.indexOf("if (!access || access.organizationId !== scenario.organizationId)");
+  const status = post.indexOf('if (scenario.status !== "approved")');
+  assert.equal(post.slice(foreign, status).includes(
+    'Response.json({ error: "Staffing scenario not found." }, { status: 404 })'), true,
+  "Foreign and unknown IDs must use the exact same generic 404 response");
+  const earlier = post.slice(post.indexOf("const [scenario]"), status);
+  assert.doesNotMatch(earlier, /scenario\.(?:status|planId|scopeOrgUnitId|worksiteId|name|snapshot)/,
+    "Business-state properties must remain opaque until the caller is authorized");
+  assert.match(post, /eq\(workforcePlans\.organizationId, scenario\.organizationId\)/,
+    "Linked plan reads must retain the scenario's organization scope");
+  assert.match(post, /eq\(workforcePlanBaselines\.organizationId, scenario\.organizationId\)/,
+    "Baseline writes must retain the scenario's organization scope");
+});
+
 test("baseline reads reconcile locked plan evidence against current actuals with cost redaction", () => {
   const route = readFileSync("src/app/api/workforce-planning/baselines/route.ts", "utf8");
 

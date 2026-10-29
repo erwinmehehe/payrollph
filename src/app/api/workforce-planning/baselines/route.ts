@@ -267,14 +267,34 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const scenarioId = Number(body.scenarioId);
-  if (!Number.isInteger(scenarioId) || scenarioId <= 0) {
+  if (!Number.isSafeInteger(scenarioId) || scenarioId <= 0) {
     return Response.json({ error: "scenarioId is required." }, { status: 400 });
   }
 
   const [scenario] = await db.select().from(workforcePlanningScenarios)
     .where(eq(workforcePlanningScenarios.id, scenarioId))
     .limit(1);
+  // A scenario ID is not an authorization grant. Unknown and foreign-employer
+  // IDs must have the same response, before revealing approval, scope or plan
+  // linkage. Never use an unscoped scenario row for a second tenant's reads.
   if (!scenario) return Response.json({ error: "Staffing scenario not found." }, { status: 404 });
+  const access = await getAccess(user.id, scenario.organizationId);
+  if (!access || access.organizationId !== scenario.organizationId) {
+    return Response.json({ error: "Staffing scenario not found." }, { status: 404 });
+  }
+  const denied = await assertOrganizationRole(
+    user.id,
+    scenario.organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only company-wide People administrators can publish a workforce-plan baseline.",
+  );
+  if (denied) return denied;
+  if (!access.companyWide) {
+    return Response.json({ error: "Publishing the official headcount baseline requires company-wide access." }, { status: 403 });
+  }
+
+  // Only authorized, company-wide People admins may inspect business-state
+  // details of an existing scenario or load its related workforce plan.
   if (scenario.status !== "approved") {
     return Response.json({ error: "Only an approved staffing scenario can be published as the headcount baseline." }, { status: 409 });
   }
@@ -285,18 +305,6 @@ export async function POST(request: Request) {
     return Response.json({
       error: "Only a company-wide scenario can publish the official workforce-plan baseline. Keep scoped scenarios as what-if planning evidence.",
     }, { status: 409 });
-  }
-
-  const denied = await assertOrganizationRole(
-    user.id,
-    scenario.organizationId,
-    PEOPLE_ADMIN_ROLES,
-    "Only company-wide People administrators can publish a workforce-plan baseline.",
-  );
-  if (denied) return denied;
-  const access = await getAccess(user.id, scenario.organizationId);
-  if (!access?.companyWide) {
-    return Response.json({ error: "Publishing the official headcount baseline requires company-wide access." }, { status: 403 });
   }
 
 
