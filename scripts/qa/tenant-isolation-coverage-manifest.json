@@ -32366,12 +32366,12 @@
       ]
     },
     "src/app/api/workforce/attendance-exception-events/route.ts": {
-      "gitBlobSha": "b31b086aeed713b6e3bc7915ca74e74a65e2254f",
+      "gitBlobSha": "ea35f56f18add9af291a55c3767b2f388767d6e2",
       "route": "workforce/attendance-exception-events",
       "methods": [
         {
           "name": "GET",
-          "line": 43,
+          "line": 42,
           "status": "COVERED",
           "reason": "Executed synthetic disposable PG16 employer-owned GET success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
           "testedBy": {
@@ -32386,7 +32386,7 @@
         },
         {
           "name": "POST",
-          "line": 157,
+          "line": 159,
           "status": "COVERED",
           "reason": "Executed synthetic disposable PG16 employer-owned POST success, independently authenticated victim-org 403 and unchanged stored victim attendance evidence; source-pinned method proof, no production data.",
           "testedBy": {
@@ -32426,59 +32426,59 @@
           "token": "getSessionUser"
         },
         {
-          "line": 21,
+          "line": 22,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 44,
+          "line": 43,
           "token": "getSessionUser"
         },
         {
-          "line": 65,
+          "line": 63,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 73,
+          "line": 71,
           "token": "getAccess"
         },
         {
-          "line": 154,
+          "line": 160,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 157,
+          "line": 163,
           "token": "getSessionUser"
         },
         {
-          "line": 169,
+          "line": 175,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 204,
+          "line": 210,
           "token": "getAccess"
         },
         {
-          "line": 206,
+          "line": 212,
           "token": "assertScope"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 48,
+          "line": 47,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 161,
+          "line": 167,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 48,
+          "line": 47,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 47,
           "token": "organizationId"
         },
         {
@@ -32486,51 +32486,51 @@
           "token": "organizationId"
         },
         {
-          "line": 61,
+          "line": 59,
           "token": "organizationId"
         },
         {
-          "line": 67,
+          "line": 65,
           "token": "organizationId"
         },
         {
-          "line": 73,
+          "line": 71,
           "token": "organizationId"
         },
         {
-          "line": 81,
+          "line": 79,
           "token": "orgUnitId"
         },
         {
-          "line": 81,
+          "line": 79,
           "token": "orgUnitId"
         },
         {
-          "line": 82,
+          "line": 80,
           "token": "organizationId"
         },
         {
-          "line": 82,
+          "line": 80,
           "token": "organizationId"
         },
         {
-          "line": 86,
+          "line": 84,
           "token": "orgUnitId"
         },
         {
-          "line": 86,
+          "line": 84,
           "token": "orgUnitId"
         },
         {
-          "line": 92,
+          "line": 90,
           "token": "orgUnitId"
         },
         {
-          "line": 92,
+          "line": 90,
           "token": "orgUnitId"
         },
         {
-          "line": 98,
+          "line": 96,
           "token": "organizationId"
         }
       ]
