@@ -201,7 +201,11 @@ async function prove() {
       label + ": expected HTTP " + status + ", got " + response.status +
       " code " + (response.json?.code ?? "NONE") + " " +
       String(response.json?.error ?? "").slice(0, 140));
-    assert.match(response.headers.get("cache-control") ?? "", /no-store/i);
+    // Organization-role denials occur before the route's no-store response
+    // wrapper; never misclassify a correct foreign 403 as a tenant leak.
+    if (status === 200 || status === 201) {
+      assert.match(response.headers.get("cache-control") ?? "", /no-store/i);
+    }
     return response;
   };
   const deny = async (actor, body, status, label, cookie = actor.cookie) => {
