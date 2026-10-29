@@ -118,5 +118,20 @@ test("CI evidence attests the ACTUAL checked-out PR head, not GitHub's synthetic
   assert.match(local, /denied\?\.error === "Not found\."/);
   assert.match(local, /operationalSecret\("readiness"\)/);
   assert.match(local, /readiness\?\.demoProvisioning === "non_production"/);
-  assert.match(local, /const expected = 2 \+ 5 \+ ROLES\.length \* 8 \+ 2 \+ 3 \+ 5 \+ 1/);
+  assert.match(local, /const expected = 2 \+ 6 \+ ROLES\.length \* 9 \+ 2 \+ 3 \+ 6 \+ 1/);
+});
+
+test("#1015 uses a real seeded attendance event for authenticated six-role HTTP proof", () => {
+  assert.match(local, /async function seedAttendanceExceptionForDemo\(org\)/);
+  assert.match(local, /await db\.insert\(attendanceExceptionEvents\)/);
+  assert.match(local, /seededAttendanceEventId !== null/);
+  assert.match(local, /await seedAttendanceExceptionForDemo\(session\.org\)/);
+  assert.match(local, /attendance: "\/api\/workforce\/attendance-exception-events\?"/);
+  assert.match(local, /"cross-tenant-attendance"/);
+  assert.match(local, /"\/api\/workforce\/attendance-exception-events\?organizationId=1&"/);
+  assert.match(local, /owner:\s*\{[^\n]+attendance: 200/);
+  assert.match(local, /hr:\s*\{[^\n]+attendance: 200/);
+  assert.match(local, /payroll:\s*\{[^\n]+attendance: 200/);
+  assert.match(local, /checker:\s*\{[^\n]+attendance: 403/);
+  assert.match(local, /employee:\s*\{[^\n]+attendance: 403/);
 });
