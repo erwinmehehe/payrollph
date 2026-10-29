@@ -295,6 +295,20 @@ try {
   const approved=JSON.parse(await readFile(base+"/attestation.json","utf8"));
   assert.equal(approved.result,"ATTESTED_PREVIEW_ONLY");
   assert.equal(approved.sourceSha,config.sourceSha);
+  assert.equal(approved.previewEnvTargetAuditPassed,true,
+    "Preview environment targets must be isolated before any app GET");
+  // Existing HCM staging attestation queries ONLY marker, DB identity and
+  // transaction_read_only with an independent read-only credential.
+  // A preview project name alone never proves synthetic data isolation.
+  const dbProof=JSON.parse(await readFile(base+"/db-readonly-attestation.json","utf8"));
+  assert.equal(dbProof.gate,"PASS","Synthetic staging DB attestation required");
+  assert.equal(dbProof.projectMatched,true);
+  assert.equal(dbProof.productionUrlDifferent,true);
+  assert.equal(dbProof.databaseMarkerMatched,true);
+  assert.equal(dbProof.dbReadOnly,true);
+  assert.equal(dbProof.realEmployerAccepted,false);
+  assert.equal(dbProof.releaseApproved,false);
+  report.dbIsolation=dbProof;
   for (const stage of [config.off,config.on]) {
     const a=approved.deploymentTargets?.find(x=>x.mode===stage.mode);
     assert.equal(a?.origin,stage.origin,"Attested immutable origin mismatch");
