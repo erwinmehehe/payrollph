@@ -96,11 +96,19 @@ export async function getBuilderFacts(input: {
   const rows = await db.select({
     orgUnit: orgUnits.code, runStatus: payrollRuns.status,
     grossPay: payrollEntries.grossPay, lineItems: payrollEntries.lineItems,
+    employeeOrganizationId: employees.organizationId,
+    employeeLegalEntityId: employees.legalEntityId,
+    runLegalEntityId: payrollRuns.legalEntityId,
   }).from(payrollEntries)
     .innerJoin(payrollRuns, and(
       eq(payrollEntries.payrollRunId, payrollRuns.id),
       eq(payrollRuns.organizationId, organizationId),
-    )).leftJoin(orgUnits, and(
+    ))
+    // Payroll entry records have no independent organization_id. Never use
+    // a tenant-scoped run as evidence that its referenced employee is owned.
+    // A LEFT JOIN keeps missing or inconsistent links visible for rejection.
+    .leftJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .leftJoin(orgUnits, and(
       eq(payrollRuns.scopeOrgUnitId, orgUnits.id),
       eq(orgUnits.organizationId, organizationId),
     )).where(and(
@@ -110,6 +118,11 @@ export async function getBuilderFacts(input: {
       lte(payrollRuns.payDate, endDate),
     )).limit(5_001);
   if (rows.length > 5_000) throw new Error("Payroll scope exceeds 5,000 entries.");
+  if (rows.some(row => row.employeeOrganizationId !== organizationId
+    || (row.runLegalEntityId != null && row.employeeLegalEntityId !== row.runLegalEntityId))) {
+    // No worker identifiers, tenant names or wage amounts in report errors.
+    throw new Error("Payroll source attribution is inconsistent with its legal employer.");
+  }
   return rows.map(row => {
     const items = Array.isArray(row.lineItems) ? row.lineItems : [];
     const otLineCost = items.reduce((amount, item) => {
