@@ -32,6 +32,18 @@ evidence that a live account was exploited.
 - Both SQL lists and the returned JSON response remain employer-bound; private
   GET results are never cached.
 
+## Additional disposable HTTP proof candidate
+
+The existing `tenant-invitations-post-boundary.mjs` now also constructs a
+real unit-scoped administrator, a sibling-unit invitation and membership,
+and a higher-ID victim employer. It exercises a populated unit-filtered GET,
+eight denied same-employer escalation attempts, both real cross-employer
+denials, an authorized same-unit employee POST delivered only to a local SMTP
+sink, persisted invitation/audit/outbox evidence, and revoked-grant denial
+using the same session. Every denied request checks SQL snapshots for all
+three employers. This is **synthetic candidate evidence**, not independent
+security sign-off or live customer validation. Preserve zero method credits.
+
 ## Review and acceptance
 
 - Unit tests cover canonical unit IDs, same-unit employee success, foreign/global
