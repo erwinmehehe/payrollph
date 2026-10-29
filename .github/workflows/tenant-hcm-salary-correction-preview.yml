@@ -7,6 +7,9 @@ on:
     paths:
       - '.github/workflows/tenant-hcm-salary-correction-preview.yml'
       - 'src/app/api/hcm/salary-corrections/preview/**'
+      - 'src/proxy.ts'
+      - 'src/lib/multi-entity-hcm-hold.ts'
+      - 'tests/multi-entity-hcm-hold.test.ts'
       - 'src/lib/multi-entity-server.ts'
       - 'src/lib/multi-entity-policy.ts'
       - 'src/lib/multi-entity-selector-boundary.ts'
@@ -71,6 +74,7 @@ jobs:
           node --check tests/tenant-hcm-salary-correction-preview-contract.test.mjs
           node --test tests/tenant-hcm-salary-correction-preview-contract.test.mjs
           npx tsx --test tests/hcm-salary-correction-entity-tenant.test.ts
+          npx tsx --test tests/multi-entity-hcm-hold.test.ts
       - name: Disposable encryption material and webhook fixture
         shell: bash
         run: |

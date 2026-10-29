@@ -100,3 +100,12 @@ test("only exact disposable salary preview POST passes the global HCM proxy emba
   assert.match(proxy, /if \(guarded && multiEntityHcmRequestDeferred\(path, request\.method\)\)/);
   assert.match(proxy, /ENTITY_HCM_DEFERRED/);
 });
+
+test("disposable PG16 workflow reruns when the HCM proxy embargo changes", () => {
+  const workflow = readFileSync(".github/workflows/tenant-hcm-salary-correction-preview.yml", "utf8");
+  for (const dependency of [
+    "src/proxy.ts", "src/lib/multi-entity-hcm-hold.ts",
+    "tests/multi-entity-hcm-hold.test.ts",
+  ]) assert.ok(workflow.includes("- '" + dependency + "'"), dependency);
+  assert.match(workflow, /npx tsx --test tests\/multi-entity-hcm-hold\.test\.ts/);
+});
