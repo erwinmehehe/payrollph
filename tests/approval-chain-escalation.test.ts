@@ -24,6 +24,25 @@ test("missing maker audit metadata fail-closed only under new gate",()=>{
  assert.deepEqual(payrollMakerCheckerDecision({makerUserId:4,checkerUserId:9,
    declaredApproverUserId:9,namedApproverUsed:true}),{ok:true});
 });
+test("a named payroll checker requires an exact, valid assigned-user identity",()=>{
+ for(const declaredApproverUserId of [undefined,null,0,-1,NaN,Infinity,1.5]){
+   assert.deepEqual(payrollMakerCheckerDecision({
+     makerUserId:4,checkerUserId:9,declaredApproverUserId,namedApproverUsed:true,
+   }),{ok:false,code:"missing_assignee"});
+ }
+ assert.deepEqual(payrollMakerCheckerDecision({
+   makerUserId:4,checkerUserId:9,declaredApproverUserId:8,namedApproverUsed:true,
+ }),{ok:false,code:"different_assignee"});
+ assert.deepEqual(payrollMakerCheckerDecision({
+   makerUserId:4,checkerUserId:9,declaredApproverUserId:9,namedApproverUsed:true,
+ }),{ok:true});
+ // A delegate still needs separate live routing authorization; this helper
+ // only checks two-human separation, not the delegation/tenant membership.
+ assert.deepEqual(payrollMakerCheckerDecision({
+   makerUserId:4,checkerUserId:9,namedApproverUsed:false,
+ }),{ok:true});
+});
+
 test("maker identity must be authentic numeric audit evidence, not coercible input",()=>{
  for(const makerUserId of [true, false, "1", "9", "", [], {}, NaN, Infinity, -1, 0]) {
    assert.deepEqual(
