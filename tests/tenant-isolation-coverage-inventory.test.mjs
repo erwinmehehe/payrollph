@@ -1227,6 +1227,48 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Unit-scoped invitation hardening fixes a source-identified privilege gap.
+  // GET keeps existing employer-level PG16 proof. POST has NOT yet earned
+  // a successful real-HTTP persisted own/victim proof or reviewer acceptance.
+  // Strict source pins prevent this waiver from silently covering new behavior.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/invitations/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "59bdded07a33d7c4dbc394a84135ce99f9f04042",
+      "Invitation route changed: renew unit-scope security review");
+    assert.deepEqual(reviewed, {
+      kind: "unit-scoped-invitation-authorization-hardening-unreviewed",
+      originalRouteBlobSha: "ed6e94cef183e77d0c727aef54f898eef30eb3cc",
+      routeBlobSha: currentBlob,
+      helperFile: "src/lib/invitation-tenant-scope.ts",
+      helperBlobSha: "dbd9838871c9d1334995e43da1650dc37f9b9f8f",
+      testFile: "tests/invitation-tenant-scope.test.ts",
+      testBlobSha: "15e64c704f2b40aa5d05ed38f6f86c4d81629b58",
+      coverageCredits: 0,
+      realHttpPostAcceptance: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+    });
+    assert.equal(gitBlobSha(readFileSync(reviewed.helperFile)), reviewed.helperBlobSha);
+    assert.equal(gitBlobSha(readFileSync(reviewed.testFile)), reviewed.testBlobSha);
+    assert.equal(method.testedBy, null, "Unreviewed invitation POST must remain GAP");
+    const route = readFileSync("src/app/api/invitations/route.ts", "utf8");
+    const get = route.slice(route.indexOf("export async function GET("),
+      route.indexOf("export async function POST("));
+    const post = route.slice(route.indexOf("export async function POST("));
+    assert.match(get, /invitationVisibleUnit\(access\)/);
+    assert.match(get, /eq\(invitations\.orgUnitId, visibleUnit\)/);
+    assert.match(get, /eq\(userOrganizations\.orgUnitId, visibleUnit\)/);
+    assert.match(post, /canCreateScopedInvitation\(access, role, orgUnitId\)/);
+    assert.ok(post.indexOf("canCreateScopedInvitation(") < post.indexOf("createInvitation({"));
+    assert.ok(post.indexOf("canCreateScopedInvitation(") < post.indexOf("queueMessage({"));
+    const getMethod = manifest.allApiRouteFiles["src/app/api/invitations/route.ts"].methods
+      .find(item => item.name === "GET");
+    assert.equal(getMethod?.status, "COVERED",
+      "Keep prior employer-level GET proof separately credited");
+    assert.equal(getMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
