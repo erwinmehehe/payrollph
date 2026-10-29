@@ -10838,22 +10838,52 @@
       ]
     },
     "src/app/api/expenses/receipts/route.ts": {
-      "gitBlobSha": "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+      "gitBlobSha": "42a0e56307ba0509c549d6c271a521f19231bb25",
       "route": "expenses/receipts",
       "methods": [
         {
           "name": "GET",
           "line": 45,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: receipt worker/employer grant was source-hardened; real HTTP own/victim PostgreSQL 16 evidence and independent security review remain required. No tenant method credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "private-spend-receipt-worker-grant-source-only-zero-credit",
+            "oldRouteBlobSha": "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+            "routeBlobSha": "42a0e56307ba0509c549d6c271a521f19231bb25",
+            "helperFile": "src/lib/spend-receipt-tenant.ts",
+            "helperBlobSha": "059881e91b629860a1aaa722a133f53e057edda7",
+            "unitTestFile": "tests/spend-receipt-tenant-grant.test.ts",
+            "unitTestBlobSha": "8cd86095ab4404eed572668e1823825c93bab716",
+            "contractTestFile": "tests/tenant-spend-receipt-grant-source.test.mjs",
+            "contractTestBlobSha": "67a10174328f9ddd9e828361ee0996764d458c41",
+            "coverageCredits": 0,
+            "realHttpPg16Proven": false,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         },
         {
           "name": "POST",
           "line": 87,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: receipt worker/employer grant was source-hardened; real HTTP own/victim PostgreSQL 16 evidence and independent security review remain required. No tenant method credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "private-spend-receipt-worker-grant-source-only-zero-credit",
+            "oldRouteBlobSha": "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+            "routeBlobSha": "42a0e56307ba0509c549d6c271a521f19231bb25",
+            "helperFile": "src/lib/spend-receipt-tenant.ts",
+            "helperBlobSha": "059881e91b629860a1aaa722a133f53e057edda7",
+            "unitTestFile": "tests/spend-receipt-tenant-grant.test.ts",
+            "unitTestBlobSha": "8cd86095ab4404eed572668e1823825c93bab716",
+            "contractTestFile": "tests/tenant-spend-receipt-grant-source.test.mjs",
+            "contractTestBlobSha": "67a10174328f9ddd9e828361ee0996764d458c41",
+            "coverageCredits": 0,
+            "realHttpPg16Proven": false,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         }
       ],
       "employerSources": {
