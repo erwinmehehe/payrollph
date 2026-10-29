@@ -26,8 +26,27 @@ test("only active payroll runs can produce missing-timesheet automation", () => 
 
 test("expectations are frozen from the payroll cohort in the same creation transaction", () => {
   const route = read("src/app/api/payroll-runs/route.ts");
+  const draftCreation = read("src/lib/payroll-draft-creation.ts");
   const expectations = read("src/lib/workforce-timesheet-expectations.ts");
-  assert.ok(route.includes("db.transaction(async (tx) => {"));
+
+  // Idempotent creation now owns the DB transaction. The route's callback
+  // must persist the new run, frozen cohort and audit using the SAME tx.
+  assert.ok(draftCreation.includes("return db.transaction(async tx => {"));
+  assert.ok(draftCreation.includes("const run = await create(tx);"));
+  const callbackStart = route.indexOf("creation = await createPayrollDraftOnce(intent, user.id, intentKey, async (tx) => {");
+  const callbackEnd = route.indexOf("return created;" + String.fromCharCode(10) + "    });", callbackStart);
+  assert.ok(callbackStart >= 0 && callbackEnd > callbackStart,
+    "The helper's transaction callback must encompass payroll draft creation");
+  const callback = route.slice(callbackStart, callbackEnd);
+  const insertAt = callback.indexOf("await tx.insert(payrollRuns).values(");
+  const expectationAt = callback.indexOf("await createTimesheetExpectationsForPayrollRun({");
+  const auditAt = callback.indexOf("await recordAuditEvent({");
+  assert.ok(insertAt >= 0 && expectationAt > insertAt && auditAt > expectationAt,
+    "Run, frozen expectations and audit must share one transaction callback");
+  assert.ok(callback.slice(expectationAt, auditAt).includes("}, tx);"),
+    "Expectation rows must use the same transaction executor as their run");
+  assert.ok(callback.slice(auditAt).includes("}, tx);"),
+    "Draft audit must use the same transaction executor as its run");
   assert.ok(route.includes("createTimesheetExpectationsForPayrollRun({"));
   assert.ok(route.includes("employees: employeesInScope.map"));
   assert.ok(route.includes("orgUnitId: employee.orgUnitId"));
