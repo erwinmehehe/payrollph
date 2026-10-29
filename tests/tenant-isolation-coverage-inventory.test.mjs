@@ -1105,7 +1105,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       oldRouteBlobSha: "17539b569af050bb1568d17e783661ae19302561",
       routeBlobSha: currentBlob,
       testFile: "tests/hcm-salary-correction-entity-tenant.test.ts",
-      testBlobSha: "cdd7cda3a66ed1e9a5a6420e09d917fae6b764da",
+      testBlobSha: "b97a82be93fdc9dd3247ef84207b334fb40db735",
+      proxyFile: "src/proxy.ts",
+      proxyBlobSha: "8ed6591c4846cad3251bc1ee2444ceb3461b170a",
+      hcmHoldFile: "src/lib/multi-entity-hcm-hold.ts",
+      hcmHoldBlobSha: "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
       contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
       contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
       proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
@@ -1119,6 +1123,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     });
     for (const [file, sha] of [
       [reviewed.testFile, reviewed.testBlobSha],
+      [reviewed.proxyFile, reviewed.proxyBlobSha],
+      [reviewed.hcmHoldFile, reviewed.hcmHoldBlobSha],
       [reviewed.contractFile, reviewed.contractBlobSha],
       [reviewed.proofFile, reviewed.proofBlobSha],
       [reviewed.workflowFile, reviewed.workflowBlobSha],

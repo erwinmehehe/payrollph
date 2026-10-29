@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { decideEntityAccess, entityResourceAllowed } from "../src/lib/multi-entity-policy";
 import { resolveExplicitEntitySelection } from "../src/lib/multi-entity-selector-boundary";
+import { multiEntityHcmRequestDeferred } from "../src/lib/multi-entity-hcm-hold";
 
 const source = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
 
@@ -54,4 +55,48 @@ test("body, header and duplicate query selector conflicts fail closed", () => {
     { requested: "1e2" },
     { requested: 101, header: "all" },
   ]) assert.equal(resolveExplicitEntitySelection(invalid).ok, false);
+});
+
+test("only exact disposable salary preview POST passes the global HCM proxy embargo", () => {
+  const env: Record<string, string | undefined> = {
+    MULTI_ENTITY_ENABLED: "true", HCM_SALARY_CORRECTION_PREVIEW_ENABLED: "true",
+    GITHUB_ACTIONS: "true", CI: "true", NODE_ENV: "production",
+    TENANT_SECOND_PASS_MODE: "isolated-ci-only",
+    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    SECURITY_SMOKE_URL: "http://127.0.0.1:3000", DEMO_MODE: "false",
+    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+    XENDIT_PAYOUTS_ENABLED: "false", XENDIT_BILLING_ENABLED: "false",
+  };
+  const path = "/api/hcm/salary-corrections/preview";
+  assert.equal(multiEntityHcmRequestDeferred(path, "POST", env), false);
+  for (const pathname of [
+    "/api/hcm", "/api/hcm/employee", "/api/hcm/salary-corrections",
+    "/api/hcm/salary-corrections/preview/", "/api/hcm/salary-corrections/preview/anything",
+    "/hcm/worker-360",
+  ]) assert.equal(multiEntityHcmRequestDeferred(pathname, "POST", env), true, pathname);
+  for (const method of ["GET", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+    assert.equal(multiEntityHcmRequestDeferred(path, method, env), true, method);
+  }
+  for (const [name, value] of [
+    ["HCM_SALARY_CORRECTION_PREVIEW_ENABLED", "false"],
+    ["GITHUB_ACTIONS", undefined], ["CI", undefined], ["NODE_ENV", "development"],
+    ["TENANT_SECOND_PASS_MODE", "normal"],
+    ["DATABASE_URL", "postgresql://postgres:postgres@db.example/app_db"],
+    ["SECURITY_SMOKE_URL", "https://production.example"], ["DEMO_MODE", "true"],
+    ["PAYMONGO_DISBURSEMENTS_ENABLED", "true"],
+    ["XENDIT_PAYOUTS_ENABLED", "true"], ["XENDIT_BILLING_ENABLED", "true"],
+    ["PAYMONGO_SECRET_KEY", "secret"], ["XENDIT_SECRET_KEY", "secret"],
+    ["STRIPE_SECRET_KEY", "secret"], ["POSTMARK_SERVER_TOKEN", "secret"],
+    ["RESEND_API_KEY", "secret"],
+  ] as const) assert.equal(
+    multiEntityHcmRequestDeferred(path, "POST", {...env, [name]: value}), true, name,
+  );
+  for (const flag of [undefined, "false", "TRUE"]) {
+    assert.equal(multiEntityHcmRequestDeferred("/api/hcm/employee", "POST", {
+      ...env, MULTI_ENTITY_ENABLED: flag,
+    }), false);
+  }
+  const proxy = readFileSync("src/proxy.ts", "utf8");
+  assert.match(proxy, /if \(guarded && multiEntityHcmRequestDeferred\(path, request\.method\)\)/);
+  assert.match(proxy, /ENTITY_HCM_DEFERRED/);
 });

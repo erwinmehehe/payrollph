@@ -46,3 +46,16 @@ across 498 methods. This route must not merge or activate until exact-head
 CI and independent security/release-owner review. No database migration,
 production feature activation, payout, salary write or payroll posting is in
 this proposal.
+
+## Global HCM freeze and disposable-only proof exception
+
+The proxy's original `ENTITY_HCM_DEFERRED` embargo blocked even a legitimate
+salary-preview POST before its authorization checks. The test runner now
+reaches that exact POST only with the isolated GitHub Actions PG16 fixture:
+explicit preview flag, exact CI-only markers and local PostgreSQL URL, no
+external provider keys or payment flags. Other HCM routes, other methods,
+and ordinary deployment environments remain blocked when multi-entity is ON.
+
+This is **not production enablement**. The feature remains default OFF;
+exact-head PG16 success and independent security/release approval are still
+required before merging or considering activation.
