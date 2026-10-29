@@ -96,4 +96,4 @@ jobs:
       - name: Production CSP remains OFF
         if: always()
         run: |
-          echo "This workflow contains no vercel deploy, promote, project-env writes, feature-flag mutation or application POST."
+          echo "Read-only QA: no deployment, promotion, project settings change, feature-flag update, or application mutation."
