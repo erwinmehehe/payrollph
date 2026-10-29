@@ -740,7 +740,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       routeBlobSha: routeBlob,
       unchangedSiblingHandlersBlobSha: "0b7ff73dd8aa2532d1c333b7b43991286e86d202",
       helperFile: "src/lib/benefit-catalog-tenant.ts",
-      helperBlobSha: "a2b3a19a20e696def27c0107f0bf30e2e1d7ff18",
+      helperBlobSha: "d490d7b283642355bdd11aa33c2502e50e9b8913",
       contractFile: "scripts/qa/tenant-benefit-catalog-put-contract.mjs",
       contractBlobSha: "475d2592b20c696492ac55a8b5face9e2e2b5d98",
       runnerFile: "scripts/qa/tenant-benefit-catalog-put-http.mjs",
