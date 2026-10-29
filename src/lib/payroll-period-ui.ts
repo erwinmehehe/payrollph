@@ -1,3 +1,5 @@
+import { validIsoDate } from "./payroll-period-validation";
+
 /** Philippine-local dates for UI labels; approval policy remains enforced on the server. */
 export function manilaCalendarDate(now: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -16,7 +18,9 @@ export function isPreliminaryPayroll(
   calculated: boolean,
   now: Date = new Date(),
 ): boolean {
-  return calculated && /^\d{4}-\d{2}-\d{2}$/.test(periodEnd) && periodEnd > manilaCalendarDate(now);
+  // Use the same real-calendar rule as payroll creation and preview.
+  // An impossible date must never look like a valid future cutoff.
+  return calculated && validIsoDate(periodEnd) && periodEnd > manilaCalendarDate(now);
 }
 
 /**

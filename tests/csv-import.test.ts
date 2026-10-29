@@ -189,3 +189,48 @@ test("initial employee CSV requires explicit wage region instead of assuming NCR
   assert.equal(canonical.ok, true);
   if (canonical.ok) assert.equal(canonical.value.region, "IV-B");
 });
+
+
+test("employee CSV error and valid-row lines survive blank CRLF records", () => {
+  const csv = [
+    "Employee No,First Name,Last Name,Start Date,Monthly Basic,Region",
+    "",
+    "E1,Ana,Reyes,2025-05-17,20000,NCR",
+    "",
+    "E2,Ben,Santos,2026-02-30,21000,NCR",
+    "E3,Cora,Lopez,2025-05-18,22000,NCR",
+  ].join("\r\n") + "\r\n";
+  // Blank records remain ignored for import, as before this fix.
+  assert.equal(parseCsv(csv).length, 4);
+  const imported = parseEmployeeCsv(csv);
+  assert.deepEqual(imported.validRows.map((row) => [row.line, row.value.employeeNo]), [
+    [3, "E1"], [6, "E3"],
+  ]);
+  assert.deepEqual(imported.errors.map((row) => row.line), [5]);
+  assert.match(imported.errors[0].problems.join(" "), /startDate/);
+});
+
+test("employee CSV line numbers account for quoted CRLF without splitting records", () => {
+  const csv = "Employee No,First Name,Last Name,Start Date,Monthly Basic,Region,Notes\r\n"
+    + 'E1,Ana,Reyes,2025-05-17,20000,NCR,"shift\r\nassignment"\r\n'
+    + "E2,Ben,Santos,2026-02-30,21000,NCR,review\r\n";
+  assert.deepEqual(parseCsv(csv).map((row) => row[0]), [
+    "Employee No", "E1", "E2",
+  ]);
+  assert.equal(parseCsv(csv)[1][6], "shift\r\nassignment");
+  const imported = parseEmployeeCsv(csv);
+  assert.deepEqual(imported.validRows.map((row) => row.line), [2]);
+  assert.deepEqual(imported.errors.map((row) => row.line), [4]);
+});
+
+test("employee CSV line numbers account for standalone CR and blank records", () => {
+  const csv = [
+    "Employee No,First Name,Last Name,Start Date,Monthly Basic,Region",
+    "",
+    "E1,Ana,Reyes,2025-05-17,20000,NCR",
+    "E2,Ben,Santos,2026-02-30,21000,NCR",
+  ].join("\r") + "\r";
+  const imported = parseEmployeeCsv(csv);
+  assert.deepEqual(imported.validRows.map((row) => row.line), [3]);
+  assert.deepEqual(imported.errors.map((row) => row.line), [4]);
+});
