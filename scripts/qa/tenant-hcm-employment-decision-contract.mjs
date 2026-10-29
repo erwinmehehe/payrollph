@@ -27,9 +27,24 @@ export function requireDisposableHcmDecisionEnv(env = process.env) {
   // override the verified loopback target or point the CI test at Neon.
   assert.equal(database.search, "", "HCM_DECISION_REFUSED: database URL query parameters forbidden");
   assert.equal(database.hash, "", "HCM_DECISION_REFUSED: database URL fragment forbidden");
-  assert.notEqual(env.PAYMONGO_DISBURSEMENTS_ENABLED, "true");
-  assert.notEqual(env.XENDIT_PAYOUTS_ENABLED, "true");
-  for (const key of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "STRIPE_SECRET_KEY", "RESEND_API_KEY", "SMTP_PASSWORD"]) {
+  // A missing flag is not proof that money/worker/provider paths are OFF.
+  // The dedicated CI step sets all of these explicitly, never in production.
+  const mustBe = {
+    NODE_ENV: "production",
+    DEMO_MODE: "false",
+    WORKER_ENABLED: "false",
+    CENTRAL_SCHEDULER_ENABLED: "false",
+    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+    XENDIT_PAYOUTS_ENABLED: "false",
+    XENDIT_BILLING_ENABLED: "false",
+  };
+  for (const [key, value] of Object.entries(mustBe)) {
+    assert.equal(env[key], value, "HCM_DECISION_REFUSED: " + key);
+  }
+  for (const key of [
+    "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "STRIPE_SECRET_KEY",
+    "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN", "SMTP_PASSWORD", "SMTP_URL",
+  ]) {
     assert.ok(!env[key], "HCM_DECISION_REFUSED: live provider credential " + key);
   }
 }
