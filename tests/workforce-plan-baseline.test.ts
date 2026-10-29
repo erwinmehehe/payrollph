@@ -174,7 +174,8 @@ test("publishing requires approved company-wide evidence and creates a locked ve
   assert.ok(route.includes('scenario.status !== "approved"'));
   assert.ok(route.includes("scenario.scopeOrgUnitId != null || scenario.worksiteId != null"));
   assert.ok(route.includes("PEOPLE_ADMIN_ROLES"));
-  assert.ok(route.includes("access?.companyWide"));
+  assert.ok(route.includes("const access = await getAccess(user.id, scenario.organizationId);"));
+  assert.ok(route.includes("if (!access.companyWide)"));
   assert.ok(route.includes("for update"));
   assert.ok(route.includes("SCENARIO_ALREADY_PUBLISHED"));
   assert.ok(route.includes("current: false"));
