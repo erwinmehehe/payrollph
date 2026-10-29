@@ -24,6 +24,8 @@ import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 import { loadPayrollPreRunReadiness } from "@/lib/payroll-pre-run-readiness-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { payrollDraftPayoutReadiness } from "@/lib/payroll-draft-payout-readiness";
+import { validPayrollDraftKey, type PayrollDraftIntent } from "@/lib/payroll-draft-intent";
+import { createPayrollDraftOnce, findPayrollDraftReplay, PayrollDraftConflict } from "@/lib/payroll-draft-creation";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +142,10 @@ export async function POST(request: Request) {
   const rawScopeOrgUnitId = body.scopeOrgUnitId == null || body.scopeOrgUnitId === "" ? null : Number(body.scopeOrgUnitId);
   const requestedLegalEntityId = body.legalEntityId == null || body.legalEntityId === "" ? null : Number(body.legalEntityId);
   const processNow = body.processNow !== false;
+  const intentKey = request.headers.get("Idempotency-Key");
+  if (intentKey !== null && !validPayrollDraftKey(intentKey)) {
+    return Response.json({ error: "Invalid payroll creation attempt key." }, { status: 400 });
+  }
 
   if (
     !Number.isInteger(organizationId) ||
@@ -251,6 +257,21 @@ export async function POST(request: Request) {
     scopeLabel = scope.name;
   }
 
+  const intent: PayrollDraftIntent = { organizationId, legalEntityId: legalEntity.id, scopeOrgUnitId,
+    periodStart, periodEnd, payDate, processNow };
+  const replayResponse = (run: typeof payrollRuns.$inferSelect) => Response.json({
+    run, idempotentReplay: true, recoveryRequired: processNow && ["Draft", "Failed"].includes(run.status),
+  }, { headers: { "Cache-Control": "private, no-store" } });
+  if (intentKey) {
+    try {
+      const replay = await findPayrollDraftReplay(intent, user.id, intentKey);
+      if (replay) return replayResponse(replay);
+    } catch (error) {
+      if (error instanceof PayrollDraftConflict) return Response.json({ error: error.message, code: error.code }, { status: 409 });
+      throw error;
+    }
+  }
+
   const periodConflict = await findPayrollPeriodConflict({
     organizationId,
     legalEntityId: legalEntity.id,
@@ -259,6 +280,16 @@ export async function POST(request: Request) {
     periodEnd,
   });
   if (periodConflict) {
+    // Another identical request may have committed after the first replay read.
+    if (intentKey) {
+      try {
+        const replay = await findPayrollDraftReplay(intent, user.id, intentKey);
+        if (replay) return replayResponse(replay);
+      } catch (error) {
+        if (error instanceof PayrollDraftConflict) return Response.json({ error: error.message, code: error.code }, { status: 409 });
+        throw error;
+      }
+    }
     return Response.json({
       error: `Payroll overlaps existing run #${periodConflict.id} (${periodConflict.periodLabel}). Resolve or void the existing run before creating another payroll for the same population.`,
       code: "PAYROLL_PERIOD_CONFLICT",
@@ -366,68 +397,76 @@ export async function POST(request: Request) {
   }
 
   const periodLabel = formatPayrollPeriodLabel(periodStart, periodEnd);
-  const [run] = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(payrollRuns).values({
-      organizationId,
-      legalEntityId: legalEntity.id,
-      periodLabel,
-      periodStart,
-      periodEnd,
-      scopeLabel,
-      scopeOrgUnitId,
-      status: "Draft",
-      payDate,
-      employeeCount: 0,
-      grossPay: "0",
-      netPay: "0",
-      exceptions: 0,
-      ruleVersion: PAYROLL_RULE_VERSION,
-    }).returning();
-
-    if (timesheetGate.policy.active) {
-      await createTimesheetExpectationsForPayrollRun({
+  let creation;
+  try {
+    creation = await createPayrollDraftOnce(intent, user.id, intentKey, async (tx) => {
+      const [created] = await tx.insert(payrollRuns).values({
         organizationId,
-        payrollRunId: created.id,
+        legalEntityId: legalEntity.id,
+        periodLabel,
         periodStart,
         periodEnd,
-        enforcementMode: timesheetGate.policy.enforcementMode,
-        employees: employeesInScope.map((employee) => ({
-          id: employee.id,
-          orgUnitId: employee.orgUnitId,
-        })),
-      }, tx);
-    }
-    return [created];
-  });
+        scopeLabel,
+        scopeOrgUnitId,
+        status: "Draft",
+        payDate,
+        employeeCount: 0,
+        grossPay: "0",
+        netPay: "0",
+        exceptions: 0,
+        ruleVersion: PAYROLL_RULE_VERSION,
+      }).returning();
 
-  await recordAuditEvent({
-    organizationId,
-    actor,
-    action: "Payroll draft created",
-    resource: periodLabel,
-    metadata: {
-      periodStart,
-      periodEnd,
-      payDate,
-      scope: scopeLabel,
-      scopeOrgUnitId,
-      legalEntityId: legalEntity.id,
-      legalEntityCode: legalEntity.code,
-      legalEntityName: legalEntity.displayName,
-      ruleVersion: PAYROLL_RULE_VERSION,
-      attendanceCutoffPolicy: attendanceCutoffGate.policy,
-      ...(payoutReadiness.deferred ? {
-        payoutSetupDeferred: true,
-        payoutSetupMissingEmployeeCount: payoutReadiness.missingEmployeeIds.length,
-      } : {}),
-      attendanceCutoffGate: attendanceCutoffGate.gate,
-      timesheetPolicy: timesheetGate.policy,
-      timesheetGate: timesheetGate.gate,
-      timesheetExpectationCohort: timesheetGate.policy.active
-        ? { source: "payroll_run_creation", employeeCount: employeesInScope.length, historicalBackfill: false }
-        : null,
-    },
-  });
+      if (timesheetGate.policy.active) {
+        await createTimesheetExpectationsForPayrollRun({
+          organizationId,
+          payrollRunId: created.id,
+          periodStart,
+          periodEnd,
+          enforcementMode: timesheetGate.policy.enforcementMode,
+          employees: employeesInScope.map((employee) => ({
+            id: employee.id,
+            orgUnitId: employee.orgUnitId,
+          })),
+        }, tx);
+      }
+      await recordAuditEvent({
+        organizationId,
+        actor,
+        action: "Payroll draft created",
+        resource: periodLabel,
+        metadata: {
+          runId: created.id,
+          periodStart,
+          periodEnd,
+          payDate,
+          scope: scopeLabel,
+          scopeOrgUnitId,
+          legalEntityId: legalEntity.id,
+          legalEntityCode: legalEntity.code,
+          legalEntityName: legalEntity.displayName,
+          ruleVersion: PAYROLL_RULE_VERSION,
+          attendanceCutoffPolicy: attendanceCutoffGate.policy,
+          ...(payoutReadiness.deferred ? {
+            payoutSetupDeferred: true,
+            payoutSetupMissingEmployeeCount: payoutReadiness.missingEmployeeIds.length,
+          } : {}),
+          attendanceCutoffGate: attendanceCutoffGate.gate,
+          timesheetPolicy: timesheetGate.policy,
+          timesheetGate: timesheetGate.gate,
+          timesheetExpectationCohort: timesheetGate.policy.active
+            ? { source: "payroll_run_creation", employeeCount: employeesInScope.length, historicalBackfill: false }
+            : null,
+        },
+      }, tx);
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof PayrollDraftConflict) return Response.json({ error: error.message, code: error.code }, { status: 409 });
+    throw error;
+  }
+  const { run } = creation;
+  if (creation.replayed) return replayResponse(run);
 
   const automation = await runAutomationEventSafely({
     organizationId,

@@ -1,12 +1,13 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { assertOrganizationRole, assertScope, getAccess, ORG_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { getSessionUser } from "@/lib/auth";
 import { validateContribution, type BenefitPlanInput } from "@/lib/benefits";
-import { benefitEnrollments, benefitPlans, employees } from "@/db/schema";
+import { auditEvents, benefitEnrollments, benefitPlans, employees, userOrganizations } from "@/db/schema";
+import { defaultEmployerBenefitPlans, parseCatalogEmployerId } from "@/lib/benefit-catalog-tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -204,7 +205,7 @@ export async function DELETE(request: Request) {
   return Response.json({ ok: true });
 }
 
-/** Seeds the default PH benefit catalogue once per deployment. */
+/** Seed defaults for the signed-in employer only; never write shared catalog rows. */
 export async function PUT(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
@@ -213,9 +214,11 @@ export async function PUT(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId);
-  if (!Number.isInteger(organizationId)) {
-    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const organizationId = parseCatalogEmployerId(
+    body && typeof body === "object" && !Array.isArray(body) ? body.organizationId : null,
+  );
+  if (organizationId === null) {
+    return Response.json({ error: "Valid organizationId is required." }, { status: 400 });
   }
   const denied = await assertOrganizationRole(
     user.id,
@@ -229,16 +232,46 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Only company-wide administrators can seed the benefit catalogue." }, { status: 403 });
   }
 
-  const existing = await db.select({ value: benefitPlans.id }).from(benefitPlans);
-  if (existing.length > 0) return Response.json({ ok: true, seeded: false });
-
-  await db.insert(benefitPlans).values([
-    { name: "HMO, Maxicare Plan A", category: "hmo", employeeShare: "1500.00", employerShare: "2500.00", provider: "Maxicare", organizationId: null },
-    { name: "Group life & accident", category: "insurance", employeeShare: "0.00", employerShare: "600.00", provider: "Sun Life", organizationId: null },
-    { name: "Pag-IBIG MP2", category: "voluntary", employeeShare: "500.00", employerShare: "0.00", cap: "5000.00", provider: "Pag-IBIG", organizationId: null },
-    { name: "SSS Flexi-Fund", category: "voluntary", employeeShare: "0.00", employerShare: "0.00", provider: "SSS", organizationId: null },
-    { name: "Rice allowance", category: "allowance", employeeShare: "0.00", employerShare: "1000.00", organizationId: null },
-  ]);
-
-  return Response.json({ ok: true, seeded: true });
+  // Lock both the current actor grant and this employer's seed operation.
+  // Concurrent requests cannot duplicate the five plans, and a concurrently
+  // revoked/retargeted membership cannot authorize a late catalogue write.
+  const result = await db.transaction(async tx => {
+    const [grant] = await tx.select({ id: userOrganizations.id })
+      .from(userOrganizations).where(and(
+        eq(userOrganizations.userId, user.id),
+        eq(userOrganizations.organizationId, organizationId),
+        eq(userOrganizations.active, true),
+        inArray(userOrganizations.role, [...ORG_ADMIN_ROLES]),
+        isNull(userOrganizations.orgUnitId),
+      )).for("share").limit(1);
+    if (!grant) return { denied: true, seeded: false };
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(4459, ${organizationId})`);
+    // Existing global templates are read-only legacy content. A different
+    // tenant's plans must never suppress this employer's own initialization.
+    const [visible] = await tx.select({ id: benefitPlans.id })
+      .from(benefitPlans).where(or(
+        isNull(benefitPlans.organizationId),
+        eq(benefitPlans.organizationId, organizationId),
+      )).limit(1);
+    if (visible) return { denied: false, seeded: false };
+    const defaults = defaultEmployerBenefitPlans(organizationId);
+    await tx.insert(benefitPlans).values(defaults);
+    await tx.insert(auditEvents).values({
+      organizationId, actor: user.name,
+      action: "Employer benefit catalogue seeded",
+      resource: "Default benefit catalogue",
+      metadata: { seedCount: defaults.length, actorUserId: user.id, globalCatalogChanged: false },
+    });
+    return { denied: false, seeded: true };
+  }).catch(() => null);
+  if (!result) {
+    return Response.json({ error: "Benefit catalogue initialization unavailable." },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+  if (result.denied) {
+    return Response.json({ error: "Current employer administrator grant is required." },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
+  return Response.json({ ok: true, seeded: result.seeded },
+    { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -57,34 +57,94 @@
       ]
     },
     "src/app/api/account/email/verify/route.ts": {
-      "gitBlobSha": "45617099f90ae486824f3de34cd769c34b229596",
+      "gitBlobSha": "575f814a30ebce5112c228c6e3c73ac882b8fa97",
       "route": "account/email/verify",
       "methods": [
         {
           "name": "POST",
-          "line": 13,
+          "line": 14,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: #1552 scopes verified account email updates to a locked active employee membership in the linked worker employer, with a disposable PG16/localhost HTTP test of one valid victim-owned write, two forged foreign pointers, revoked grants, replay and mismatched links. This is source-only authorization hardening, not independently accepted complete two-attacker own-success/real-victim-negative method evidence; zero tenant credits and no production approval.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "account-email-verify-linked-ESS-worker-PG16-source-only",
+            "oldRouteBlobSha": "45617099f90ae486824f3de34cd769c34b229596",
+            "routeBlobSha": "575f814a30ebce5112c228c6e3c73ac882b8fa97",
+            "helperFile": "src/lib/account.ts",
+            "helperBlobSha": "e9fd7448970b49fa10d97c67478a71ceb0b91c75",
+            "regressionFile": "tests/account-email-tenant-boundary.test.ts",
+            "regressionBlobSha": "cd4557251c8df461a6aeee28cc9ea16d206844bc",
+            "proofFile": "scripts/qa/tenant-account-email-verify-http.mjs",
+            "proofBlobSha": "7787f8c68f9b4f92779a51be6e871ec1150bacf2",
+            "contractFile": "tests/tenant-account-email-verify-contract.test.mjs",
+            "contractBlobSha": "737784e29bbbf6ff896050df3c6bfd14c74898e4",
+            "workflowFile": ".github/workflows/tenant-account-email-verify-http.yml",
+            "workflowBlobSha": "e210052a1beadd1c1476db6cfff0cd7bedbd6351",
+            "disposableGuardFile": "scripts/qa/tenant-identity-account-proof.mjs",
+            "disposableGuardBlobSha": "d6119b38a8cc55b56e18971b42ab2de38baa6a15",
+            "previousSyntheticHead": "08d058d7d691f2ed4bc1148433b3ff0cb58b6843",
+            "previousSyntheticRun": "https://github.com/erwinmehehe/payrollph/actions/runs/40800025745/job/123205629239",
+            "sourceOnly": true,
+            "creditedMethods": 0,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false
+          }
         }
       ],
       "employerSources": [
         "BODY_CANDIDATE"
       ],
-      "guards": [],
+      "guards": [
+        {
+          "line": 15,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 54,
+          "token": "emailChangeTokens.userId"
+        },
+        {
+          "line": 30,
+          "token": "emailChangeTokens.expiresAt"
+        },
+        {
+          "line": 63,
+          "token": "active users row lock"
+        },
+        {
+          "line": 85,
+          "token": "userOrganizations.organizationId"
+        },
+        {
+          "line": 86,
+          "token": "userOrganizations.active"
+        },
+        {
+          "line": 89,
+          "token": "canSyncLinkedEmployeeEmail"
+        },
+        {
+          "line": 101,
+          "token": "employees.organizationId"
+        }
+      ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 49,
-          "text": "employeeId"
+          "line": 71,
+          "text": "currentAccount.employeeId"
         },
         {
-          "line": 50,
-          "text": "employeeId"
+          "line": 84,
+          "text": "currentAccount.id"
         },
         {
-          "line": 65,
-          "text": "organizationId"
+          "line": 85,
+          "text": "linkedEmployee.organizationId"
+        },
+        {
+          "line": 101,
+          "text": "linkedEmployee.organizationId"
         }
       ]
     },
@@ -1862,12 +1922,12 @@
       ]
     },
     "src/app/api/benefits/route.ts": {
-      "gitBlobSha": "679de68b5e7aac870a534eee8dd2376c18db2873",
+      "gitBlobSha": "f6a7f4803a8b0a72e6fbeb55c9cbead29c34c764",
       "route": "benefits",
       "methods": [
         {
           "name": "GET",
-          "line": 13,
+          "line": 14,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1886,7 +1946,7 @@
         },
         {
           "name": "POST",
-          "line": 60,
+          "line": 61,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1905,7 +1965,7 @@
         },
         {
           "name": "DELETE",
-          "line": 147,
+          "line": 148,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1924,10 +1984,32 @@
         },
         {
           "name": "PUT",
-          "line": 208,
+          "line": 209,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: employer-bound catalogue source correction has a separate proposed real HTTP PG16 fixture; independent review and exact-head CI acceptance remain pending. Zero new tenant-coverage credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "benefit-catalog-tenant-bootstrap-PUT-zero-credit",
+            "oldRouteBlobSha": "679de68b5e7aac870a534eee8dd2376c18db2873",
+            "routeBlobSha": "f6a7f4803a8b0a72e6fbeb55c9cbead29c34c764",
+            "unchangedSiblingHandlersBlobSha": "0b7ff73dd8aa2532d1c333b7b43991286e86d202",
+            "helperFile": "src/lib/benefit-catalog-tenant.ts",
+            "helperBlobSha": "d490d7b283642355bdd11aa33c2502e50e9b8913",
+            "contractFile": "scripts/qa/tenant-benefit-catalog-put-contract.mjs",
+            "contractBlobSha": "475d2592b20c696492ac55a8b5face9e2e2b5d98",
+            "runnerFile": "scripts/qa/tenant-benefit-catalog-put-http.mjs",
+            "runnerBlobSha": "633f6c75c531ab9d22ce33ea0ccf8e49be41e18b",
+            "unitTestFile": "tests/benefit-catalog-tenant.test.ts",
+            "unitTestBlobSha": "bc4f16666cc55392ffe75e42a34d2fe4921a238a",
+            "contractTestFile": "tests/tenant-benefit-catalog-put-contract.test.mjs",
+            "contractTestBlobSha": "97d21883705cb36c2e6d78c3dd6210f09387132f",
+            "workflowFile": ".github/workflows/tenant-benefit-catalog-put.yml",
+            "workflowBlobSha": "8f4fbc9df427dbb2b352b7bb292284ee2753ce47",
+            "coverageCredits": 0,
+            "realHttpPg16Accepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         }
       ],
       "employerSources": {
@@ -22026,12 +22108,12 @@
       ]
     },
     "src/app/api/payroll-runs/route.ts": {
-      "gitBlobSha": "709c30b18af3044d4b3d7a3d064011022094d678",
+      "gitBlobSha": "a901d65d9a513be5474b1df3474ce172567efe64",
       "route": "payroll-runs",
       "methods": [
         {
           "name": "GET",
-          "line": 30,
+          "line": 32,
           "status": "COVERED",
           "reason": "Signed-in own payroll run list 200, real victim list/register 403; separate flag-enabled F-04 seeded history 200 and victim history 403 with no cross-tenant rows.",
           "testedBy": {
@@ -22054,7 +22136,7 @@
         },
         {
           "name": "POST",
-          "line": 131,
+          "line": 133,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -40075,97 +40157,139 @@
     },
     {
       "path": "src/app/workspace/report-builder/page.tsx",
-      "blob": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
+      "blob": "4415282df5e859e004ae26662815d7b5f087657d",
       "ids": [
         {
-          "line": 6,
-          "token": "searchParams"
-        },
-        {
-          "line": 7,
-          "token": "searchParams"
-        },
-        {
-          "line": 7,
-          "token": "organizationId"
-        },
-        {
-          "line": 11,
-          "token": "searchParams"
-        },
-        {
-          "line": 12,
-          "token": "organizationId"
-        },
-        {
-          "line": 12,
-          "token": "params."
-        },
-        {
-          "line": 12,
-          "token": "organizationId"
-        },
-        {
-          "line": 13,
-          "token": "organizationId"
-        },
-        {
-          "line": 13,
-          "token": "organizationId"
-        },
-        {
           "line": 14,
+          "token": "searchParams"
+        },
+        {
+          "line": 15,
           "token": "organizationId"
         },
         {
-          "line": 14,
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
           "token": "organizationId"
         }
       ],
       "actions": [],
       "guards": [
         {
-          "line": 1,
+          "line": 16,
           "token": "getSessionUser"
         },
         {
-          "line": 8,
-          "token": "getSessionUser"
+          "line": 20,
+          "token": "criticalReleaseFlagEnabled"
+        },
+        {
+          "line": 23,
+          "token": "explicitReportBuilderEmployerId"
+        },
+        {
+          "line": 24,
+          "token": "notFound"
+        },
+        {
+          "line": 29,
+          "token": "getAccess"
+        },
+        {
+          "line": 30,
+          "token": "companyWide"
+        },
+        {
+          "line": 30,
+          "token": "roleAllowed"
+        },
+        {
+          "line": 31,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 32,
+          "token": "notFound"
         }
       ],
       "business": [
         {
-          "line": 7,
+          "line": 15,
           "token": "organizationId"
         },
         {
-          "line": 12,
+          "line": 23,
           "token": "organizationId"
         },
         {
-          "line": 12,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 13,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 13,
+          "line": 35,
           "token": "organizationId"
         },
         {
-          "line": 14,
-          "token": "organizationId"
-        },
-        {
-          "line": 14,
+          "line": 42,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: #1557 feature-ON report builder SSR now rejects malformed/cross-employer selectors and enforces active company-wide membership plus a deny-only role gate before client mount. Prior exact-head synthetic PG16 three-employer own-page/API and foreign/peer denial, unit scope, revoked grant and read-only SQL proof passed; independent security review, client interactions, API POST/CSV and multi-entity attribution remain unaccepted. Zero new page or method credits.",
+      "reviewedUncertified": {
+        "kind": "feature-on-report-builder-SSR-GET-PG16-unaccepted",
+        "originalPageBlobSha": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
+        "pageBlobSha": "4415282df5e859e004ae26662815d7b5f087657d",
+        "helperFile": "src/lib/tenant-report-builder.ts",
+        "helperBlobSha": "5d315afc085baad9ce2fc14946a34a6d738a773b",
+        "proofFile": "scripts/qa/tenant-report-builder-page-http.mjs",
+        "proofBlobSha": "48cc244d97e6b376c06be018d6a06e06dbc5d1f9",
+        "contractFile": "scripts/qa/tenant-report-builder-page-contract.mjs",
+        "contractBlobSha": "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
+        "contractTestFile": "tests/tenant-report-builder-page-contract.test.mjs",
+        "contractTestBlobSha": "6d88df59ca8bfc058bbc86004a3447a236d1ac19",
+        "unitTestFile": "tests/tenant-report-builder.test.ts",
+        "unitTestBlobSha": "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
+        "workflowFile": ".github/workflows/tenant-report-builder-page-qa.yml",
+        "workflowBlobSha": "2dbb81d60581fda30f9e8e77d31079ccf7cc32f5",
+        "priorPassedHead": "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
+        "priorPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
+        "ownPageLine": 106,
+        "ownApiLine": 107,
+        "foreignPageLine": 112,
+        "foreignApiLine": 114,
+        "unitScopeLine": 138,
+        "revokedPageLine": 169,
+        "revokedApiLine": 171,
+        "unchangedDbLine": 131,
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     }
   ],
   "sourceTraceCandidates": [
