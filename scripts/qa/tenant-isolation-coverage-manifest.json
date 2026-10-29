@@ -57,34 +57,94 @@
       ]
     },
     "src/app/api/account/email/verify/route.ts": {
-      "gitBlobSha": "45617099f90ae486824f3de34cd769c34b229596",
+      "gitBlobSha": "575f814a30ebce5112c228c6e3c73ac882b8fa97",
       "route": "account/email/verify",
       "methods": [
         {
           "name": "POST",
-          "line": 13,
+          "line": 14,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: #1552 scopes verified account email updates to a locked active employee membership in the linked worker employer, with a disposable PG16/localhost HTTP test of one valid victim-owned write, two forged foreign pointers, revoked grants, replay and mismatched links. This is source-only authorization hardening, not independently accepted complete two-attacker own-success/real-victim-negative method evidence; zero tenant credits and no production approval.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "account-email-verify-linked-ESS-worker-PG16-source-only",
+            "oldRouteBlobSha": "45617099f90ae486824f3de34cd769c34b229596",
+            "routeBlobSha": "575f814a30ebce5112c228c6e3c73ac882b8fa97",
+            "helperFile": "src/lib/account.ts",
+            "helperBlobSha": "e9fd7448970b49fa10d97c67478a71ceb0b91c75",
+            "regressionFile": "tests/account-email-tenant-boundary.test.ts",
+            "regressionBlobSha": "cd4557251c8df461a6aeee28cc9ea16d206844bc",
+            "proofFile": "scripts/qa/tenant-account-email-verify-http.mjs",
+            "proofBlobSha": "7787f8c68f9b4f92779a51be6e871ec1150bacf2",
+            "contractFile": "tests/tenant-account-email-verify-contract.test.mjs",
+            "contractBlobSha": "737784e29bbbf6ff896050df3c6bfd14c74898e4",
+            "workflowFile": ".github/workflows/tenant-account-email-verify-http.yml",
+            "workflowBlobSha": "e210052a1beadd1c1476db6cfff0cd7bedbd6351",
+            "disposableGuardFile": "scripts/qa/tenant-identity-account-proof.mjs",
+            "disposableGuardBlobSha": "d6119b38a8cc55b56e18971b42ab2de38baa6a15",
+            "previousSyntheticHead": "08d058d7d691f2ed4bc1148433b3ff0cb58b6843",
+            "previousSyntheticRun": "https://github.com/erwinmehehe/payrollph/actions/runs/40800025745/job/123205629239",
+            "sourceOnly": true,
+            "creditedMethods": 0,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false
+          }
         }
       ],
       "employerSources": [
         "BODY_CANDIDATE"
       ],
-      "guards": [],
+      "guards": [
+        {
+          "line": 15,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 54,
+          "token": "emailChangeTokens.userId"
+        },
+        {
+          "line": 30,
+          "token": "emailChangeTokens.expiresAt"
+        },
+        {
+          "line": 63,
+          "token": "active users row lock"
+        },
+        {
+          "line": 85,
+          "token": "userOrganizations.organizationId"
+        },
+        {
+          "line": 86,
+          "token": "userOrganizations.active"
+        },
+        {
+          "line": 89,
+          "token": "canSyncLinkedEmployeeEmail"
+        },
+        {
+          "line": 101,
+          "token": "employees.organizationId"
+        }
+      ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 49,
-          "text": "employeeId"
+          "line": 71,
+          "text": "currentAccount.employeeId"
         },
         {
-          "line": 50,
-          "text": "employeeId"
+          "line": 84,
+          "text": "currentAccount.id"
         },
         {
-          "line": 65,
-          "text": "organizationId"
+          "line": 85,
+          "text": "linkedEmployee.organizationId"
+        },
+        {
+          "line": 101,
+          "text": "linkedEmployee.organizationId"
         }
       ]
     },
