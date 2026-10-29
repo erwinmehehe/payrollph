@@ -2586,6 +2586,135 @@ test("page and server-action inventory cannot silently omit new or changed busin
     if (scopedCandidate && changed) {
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
+      // #1557 report builder PAGE: exact-source, GET-only, feature-ON
+      // disposable PG16 evidence. A passing synthetic job does not certify
+      // interactive reporting, private POST/CSV, or whole-page tenant coverage.
+      // Every source pin and guard is checked, while the page stays GAP.
+      if (path === "src/app/workspace/report-builder/page.tsx") {
+        assert.equal(entry.status, "GAP", "No unreviewed report-page promotion");
+        assert.equal(entry.testedBy, undefined, "Unreviewed synthetic GET is not a coverage credit");
+        const reviewed = entry.reviewedUncertified;
+        const oldSha = "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4";
+        const pageSha = "4415282df5e859e004ae26662815d7b5f087657d";
+        assert.equal(current, pageSha, "Report builder page changed; renew tenant review");
+        assert.deepEqual(reviewed, {
+          kind: "feature-on-report-builder-SSR-GET-PG16-unaccepted",
+          originalPageBlobSha: oldSha,
+          pageBlobSha: pageSha,
+          helperFile: "src/lib/tenant-report-builder.ts",
+          helperBlobSha: "5d315afc085baad9ce2fc14946a34a6d738a773b",
+          proofFile: "scripts/qa/tenant-report-builder-page-http.mjs",
+          proofBlobSha: "48cc244d97e6b376c06be018d6a06e06dbc5d1f9",
+          contractFile: "scripts/qa/tenant-report-builder-page-contract.mjs",
+          contractBlobSha: "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
+          contractTestFile: "tests/tenant-report-builder-page-contract.test.mjs",
+          contractTestBlobSha: "6d88df59ca8bfc058bbc86004a3447a236d1ac19",
+          unitTestFile: "tests/tenant-report-builder.test.ts",
+          unitTestBlobSha: "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
+          workflowFile: ".github/workflows/tenant-report-builder-page-qa.yml",
+          workflowBlobSha: "2dbb81d60581fda30f9e8e77d31079ccf7cc32f5",
+          priorPassedHead: "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
+          priorPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
+          ownPageLine: 106, ownApiLine: 107, foreignPageLine: 112,
+          foreignApiLine: 114, unitScopeLine: 138, revokedPageLine: 169,
+          revokedApiLine: 171, unchangedDbLine: 131,
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited PG16 page review is allowed");
+        assert.match(entry.reason, /^Still GAP: #1557/);
+        assert.equal(entry.blob, pageSha);
+        assert.equal(baseline.app[path], oldSha,
+          "Unreviewed report page change cannot be an alternate baseline");
+        for (const [file, sha] of [
+          [reviewed.helperFile, reviewed.helperBlobSha],
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractFile, reviewed.contractBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.unitTestFile, reviewed.unitTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Report page proof file changed without renewed review: " + file);
+        }
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          const sourceLines = actual.split("\n");
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": incorrect exact source line " + pin.line);
+          }
+        }
+        const accessChecks = [
+          "getSessionUser()",
+          'criticalReleaseFlagEnabled("tenantReportBuilder")',
+          "explicitReportBuilderEmployerId(params.organizationId)",
+          "if (!organizationId) notFound();",
+          "getAccess(user.id, organizationId)",
+          "if (!access?.companyWide || !roleAllowed(access.role, PEOPLE_PAYROLL_ROLES)) notFound();",
+          "assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES)",
+          "if (denied) notFound();",
+          "where(eq(organizations.id, organizationId)).limit(1)",
+          "if (!employer) notFound();",
+          "<TenantReportBuilder organizationId={organizationId} />",
+        ];
+        for (const check of accessChecks) {
+          assert.ok(actual.includes(check), "Report page guard missing: " + check);
+        }
+        const auth = actual.indexOf("getSessionUser()");
+        const flag = actual.indexOf('criticalReleaseFlagEnabled("tenantReportBuilder")');
+        const selector = actual.indexOf("explicitReportBuilderEmployerId(params.organizationId)");
+        const scope = actual.indexOf("getAccess(user.id, organizationId)");
+        const permission = actual.indexOf("assertOrganizationRole(user.id, organizationId");
+        const employer = actual.indexOf("where(eq(organizations.id, organizationId))");
+        const render = actual.indexOf("<TenantReportBuilder organizationId={organizationId} />");
+        assert.ok(0 < auth && auth < flag && flag < selector &&
+          selector < scope && scope < permission && permission < employer &&
+          employer < render,
+          "Report controls must never mount before active employer scope checks");
+
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        const proofLines = proof.split("\n");
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+          /assertOwnReportPage\(await readLocal\(pagePath\(actor\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownApiLine, path),
+          /assertOwnReportCapabilities\(await readLocal\(apiPath\(actor\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+          /assertForeignReportPage\(await readLocal\(pagePath\(other\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignApiLine, path),
+          /assertDeniedReportCapabilities\(/);
+        assert.match(proofLines[reviewed.foreignApiLine] ?? "", /403,/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unitScopeLine, path),
+          /assertForeignReportPage\(await readLocal\(pagePath\(a\.org\.id\), scopedSession\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedPageLine, path),
+          /assertForeignReportPage\(await readLocal\(pagePath\(a\.org\.id\), a\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedApiLine, path),
+          /assertDeniedReportCapabilities\(await readLocal\(apiPath\(a\.org\.id\), a\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+          /assertReadOnlyReportSnapshot\(before\.get\(employer\.org\.id\),/);
+        assert.ok(proof.indexOf("requireDisposableReportPageEnv();") > 0 &&
+          proof.indexOf("requireDisposableReportPageEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "CI-only local PG16 guard must execute before importing the app DB");
+        for (const text of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          "for (const actor of [a, b])", "assert.equal(ownSuccesses, 2)",
+          "assert.equal(foreignDenials, 4)", "assert.equal(changed.length, 1",
+          "assert.equal(stillSignedIn.status, 200", "assertReadOnlyReportSnapshot(",
+          "pageCreditDelta: 0, methodCreditDelta: 0", "productionCertified: false",
+        ]) assert.ok(proof.includes(text), "Synthetic PG16 negative control missing: " + text);
+        const contract = readFileSync(reviewed.contractFile, "utf8");
+        assert.match(contract, /assert\.equal\(response\.status, 200/);
+        assert.match(contract, /assert\.equal\(response\.status, 404/);
+        assert.match(contract, /assert\.deepEqual\(after, before/);
+        assert.match(contract, /GITHUB_ACTIONS: "true"/);
+        assert.match(contract, /DATABASE_URL: "postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db"/);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-report-builder-page-http\.mjs/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.equal(reviewed.credits, 0, "No page or API credit from feature-ON GET-only proof");
+        return; // Deliberate exact-source, zero-credit GAP exception, not blanket certification.
+      }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
       if (entry.status === "COVERED") {
