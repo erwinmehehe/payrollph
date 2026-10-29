@@ -3472,22 +3472,50 @@
       ]
     },
     "src/app/api/careers/route.ts": {
-      "gitBlobSha": "31a02823459f237d182235e2887fe4a7049fe48d",
+      "gitBlobSha": "271603f38d44a7be8f16045591e2d22374803187",
       "route": "careers",
       "methods": [
         {
           "name": "GET",
           "line": 26,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: public careers GET implementation is byte-for-byte unchanged by #1543; only a shared import changed. No new full own-employer, real-victim and unchanged-data HTTP proof is claimed. Public careers remains approval-gated.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "careers-contact-validation-source-only-zero-tenant-credit",
+            "oldRouteBlobSha": "31a02823459f237d182235e2887fe4a7049fe48d",
+            "routeBlobSha": "271603f38d44a7be8f16045591e2d22374803187",
+            "unchangedGetBodyBlobSha": "27fef370974a235848f93758c70fed754c63fafe",
+            "helperFile": "src/lib/careers-intake-body.ts",
+            "helperBlobSha": "66ac8cec8ff17b16ff0069e9db77dbae4c077bca",
+            "regressionFile": "tests/careers-split.test.ts",
+            "regressionBlobSha": "cb11df7a4c88be0052de16826417e39506bf12be",
+            "noPublicApplicantActivation": true,
+            "fullTenantMethodCoverageProven": false,
+            "coverageCredits": 0,
+            "independentPrivacyAndSecurityReview": "PENDING"
+          }
         },
         {
           "name": "POST",
           "line": 51,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: #1543 adds optional applicant phone/message type, length and NUL validation with 422 and no-store. It does not prove a complete legitimate submitted application and real foreign-tenant rejection with unchanged victim SQL and forged selector; zero tenant credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "careers-contact-validation-source-only-zero-tenant-credit",
+            "oldRouteBlobSha": "31a02823459f237d182235e2887fe4a7049fe48d",
+            "routeBlobSha": "271603f38d44a7be8f16045591e2d22374803187",
+            "unchangedGetBodyBlobSha": "27fef370974a235848f93758c70fed754c63fafe",
+            "helperFile": "src/lib/careers-intake-body.ts",
+            "helperBlobSha": "66ac8cec8ff17b16ff0069e9db77dbae4c077bca",
+            "regressionFile": "tests/careers-split.test.ts",
+            "regressionBlobSha": "cb11df7a4c88be0052de16826417e39506bf12be",
+            "noPublicApplicantActivation": true,
+            "fullTenantMethodCoverageProven": false,
+            "coverageCredits": 0,
+            "independentPrivacyAndSecurityReview": "PENDING"
+          }
         }
       ],
       "employerSources": {
