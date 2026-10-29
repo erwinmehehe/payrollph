@@ -3494,22 +3494,50 @@
       ]
     },
     "src/app/api/careers/route.ts": {
-      "gitBlobSha": "31a02823459f237d182235e2887fe4a7049fe48d",
+      "gitBlobSha": "271603f38d44a7be8f16045591e2d22374803187",
       "route": "careers",
       "methods": [
         {
           "name": "GET",
           "line": 26,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: public careers GET implementation is byte-for-byte unchanged by #1543; only a shared import changed. No new full own-employer, real-victim and unchanged-data HTTP proof is claimed. Public careers remains approval-gated.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "careers-contact-validation-source-only-zero-tenant-credit",
+            "oldRouteBlobSha": "31a02823459f237d182235e2887fe4a7049fe48d",
+            "routeBlobSha": "271603f38d44a7be8f16045591e2d22374803187",
+            "unchangedGetBodyBlobSha": "27fef370974a235848f93758c70fed754c63fafe",
+            "helperFile": "src/lib/careers-intake-body.ts",
+            "helperBlobSha": "66ac8cec8ff17b16ff0069e9db77dbae4c077bca",
+            "regressionFile": "tests/careers-split.test.ts",
+            "regressionBlobSha": "cb11df7a4c88be0052de16826417e39506bf12be",
+            "noPublicApplicantActivation": true,
+            "fullTenantMethodCoverageProven": false,
+            "coverageCredits": 0,
+            "independentPrivacyAndSecurityReview": "PENDING"
+          }
         },
         {
           "name": "POST",
           "line": 51,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: #1543 adds optional applicant phone/message type, length and NUL validation with 422 and no-store. It does not prove a complete legitimate submitted application and real foreign-tenant rejection with unchanged victim SQL and forged selector; zero tenant credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "careers-contact-validation-source-only-zero-tenant-credit",
+            "oldRouteBlobSha": "31a02823459f237d182235e2887fe4a7049fe48d",
+            "routeBlobSha": "271603f38d44a7be8f16045591e2d22374803187",
+            "unchangedGetBodyBlobSha": "27fef370974a235848f93758c70fed754c63fafe",
+            "helperFile": "src/lib/careers-intake-body.ts",
+            "helperBlobSha": "66ac8cec8ff17b16ff0069e9db77dbae4c077bca",
+            "regressionFile": "tests/careers-split.test.ts",
+            "regressionBlobSha": "cb11df7a4c88be0052de16826417e39506bf12be",
+            "noPublicApplicantActivation": true,
+            "fullTenantMethodCoverageProven": false,
+            "coverageCredits": 0,
+            "independentPrivacyAndSecurityReview": "PENDING"
+          }
         }
       ],
       "employerSources": {
@@ -8472,12 +8500,12 @@
       "businessIds": []
     },
     "src/app/api/developer/route.ts": {
-      "gitBlobSha": "c1b777dc9b290a9980e82549c6523a4811488fba",
+      "gitBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
       "route": "developer",
       "methods": [
         {
           "name": "GET",
-          "line": 20,
+          "line": 21,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8494,14 +8522,14 @@
         },
         {
           "name": "POST",
-          "line": 65,
+          "line": 66,
           "status": "GAP",
-          "reason": "Developer POST still GAP: no completed two-employer real HTTP owned success/real-victim denial proof across all create-key, revoke-key, create-webhook and test-webhook actions. Source-only reviewed transactional audit refactor does not earn API coverage or production acceptance.",
+          "reason": "Developer POST still GAP: no completed two-employer real HTTP owned success/real-victim denial proof across all create-key, revoke-key, create-webhook and test-webhook actions. Source-only reviewed transactional audit refactor does not earn API coverage or production acceptance. A source-only shared-rate-limit degradation guard has been added, without new tenant HTTP proof or coverage credits.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "developer-security-atomic-audit-only",
             "originalRouteBlobSha": "d703c535b5f15a57af6069b3248d08853e9fe234",
-            "routeBlobSha": "c1b777dc9b290a9980e82549c6523a4811488fba",
+            "routeBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
             "helperFile": "src/lib/developer-security-mutations.ts",
             "helperBlobSha": "d9e096588b9da32c066d5450865e87cc039e1e38",
             "dbTestFile": "tests/developer-security-atomic-audit-db.test.ts",
@@ -8516,7 +8544,11 @@
               "test-webhook"
             ],
             "coverageCredits": 0,
-            "notes": "Only transaction-scoped security mutation/audit refactor was reviewed, preserving existing route auth/MFA/tenant checks. POST remains GAP; separate authenticated real HTTP proof is required. Do not promote coverage, weaken status checks or activate production."
+            "notes": "Only transaction-scoped security mutation/audit refactor was reviewed, preserving existing route auth/MFA/tenant checks. POST remains GAP; separate authenticated real HTTP proof is required. Do not promote coverage, weaken status checks or activate production. 2026-10-29 scoped fix: developer mutation rate-limit fallback fails closed (503), shared denial stays 429; independent HTTP tenant review and security/DPO signoff still pending.",
+            "limiterFile": "src/lib/developer-rate-limit.ts",
+            "limiterBlobSha": "a9824d04b37f9af64cbc534e7b5eaf24ee3db62e",
+            "limiterTestFile": "tests/developer-rate-limit-gate.test.ts",
+            "limiterTestBlobSha": "d4e973242e905369305861ac704ff69c5d499f53"
           }
         }
       ],
@@ -8529,83 +8561,75 @@
       },
       "guards": [
         {
-          "line": 10,
+          "line": 11,
           "token": "getSessionUser"
-        },
-        {
-          "line": 14,
-          "token": "assertOrganizationRole"
-        },
-        {
-          "line": 14,
-          "token": "getAccess"
         },
         {
           "line": 15,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 21,
-          "token": "getSessionUser"
-        },
-        {
-          "line": 26,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 33,
+          "line": 15,
           "token": "getAccess"
         },
         {
-          "line": 66,
+          "line": 16,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 69,
+          "line": 22,
           "token": "getSessionUser"
         },
         {
-          "line": 81,
+          "line": 27,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 88,
+          "line": 34,
+          "token": "getAccess"
+        },
+        {
+          "line": 67,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 70,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 82,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 89,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 25,
+          "line": 26,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 76,
+          "line": 77,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 25,
+          "line": 26,
           "token": "organizationId"
         },
         {
-          "line": 25,
+          "line": 26,
           "token": "organizationId"
         },
         {
-          "line": 28,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 33,
-          "token": "organizationId"
-        },
-        {
-          "line": 39,
-          "token": "organizationId"
-        },
-        {
-          "line": 39,
+          "line": 34,
           "token": "organizationId"
         },
         {
@@ -8625,15 +8649,19 @@
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 42,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 42,
           "token": "organizationId"
         },
         {
-          "line": 78,
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
           "token": "organizationId"
         },
         {
@@ -8641,7 +8669,11 @@
           "token": "organizationId"
         },
         {
-          "line": 83,
+          "line": 80,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
           "token": "organizationId"
         }
       ]
@@ -28478,15 +28510,35 @@
       ]
     },
     "src/app/api/signup/route.ts": {
-      "gitBlobSha": "e2461cd23756b2b1c078f76c7c751d646e7e4f0f",
+      "gitBlobSha": "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc",
       "route": "signup",
       "methods": [
         {
           "name": "POST",
           "line": 21,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: signup POST creates a new employer, but the reviewed change only fails closed on non-distributed rate-limit fallback. Seat-type validation is separately tested. No signed-in own-employer success, cross-employer victim denial, unchanged-victim database proof or whole-method tenant-isolation credit is claimed. Paid registration and provider activation remain unapproved.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "signup-antiabuse-hardening-only-no-tenant-credit",
+            "originalRouteBlobSha": "e2461cd23756b2b1c078f76c7c751d646e7e4f0f",
+            "routeBlobSha": "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc",
+            "launchConfigBlobSha": "7bb9b9ca56a65c70330bf947e9eaa38c23916efe",
+            "pricingBlobSha": "142f8c9355d51b8ac98be0279dc8eb962e06339d",
+            "pilotTestBlobSha": "768525cb4701f3badaf0f1553f9f731af0f2882c",
+            "subscriptionTestBlobSha": "a33b7f52c1f95fe52e42bc9471bd92ffcb835198",
+            "coveredRateLimitKeys": [
+              "signup:ip",
+              "signup-domain",
+              "signup-email"
+            ],
+            "distributedMode": "distributed-postgres",
+            "fallbackResponseStatus": 503,
+            "authoritativeThrottleStatus": 429,
+            "fullMethodCoverageCredits": 0,
+            "ownForeignTenantProof": false,
+            "goLiveApproval": false
+          }
         }
       ],
       "employerSources": {
@@ -28509,47 +28561,47 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 98,
+          "line": 101,
           "token": "organizationId"
         },
         {
-          "line": 119,
+          "line": 122,
           "token": "organizationId"
         },
         {
-          "line": 125,
+          "line": 128,
           "token": "organizationId"
         },
         {
-          "line": 138,
+          "line": 141,
           "token": "organizationId"
         },
         {
-          "line": 144,
+          "line": 147,
           "token": "organizationId"
         },
         {
-          "line": 156,
+          "line": 159,
           "token": "organizationId"
         },
         {
-          "line": 156,
+          "line": 159,
           "token": "organizationId"
         },
         {
-          "line": 174,
+          "line": 177,
           "token": "organizationId"
         },
         {
-          "line": 174,
+          "line": 177,
           "token": "organizationId"
         },
         {
-          "line": 191,
+          "line": 194,
           "token": "organizationId"
         },
         {
-          "line": 191,
+          "line": 194,
           "token": "organizationId"
         }
       ]
