@@ -3,7 +3,7 @@ import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { privatePilotInviteReady, validPrivatePilotInvite } from "../src/lib/private-pilot-invite";
-import { signupMode } from "../src/lib/saas-launch-config";
+import { signupMode, signupRateLimitResponse } from "../src/lib/saas-launch-config";
 
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 const code = "a".repeat(48);
@@ -42,6 +42,22 @@ test("pilot can open with an unexpired private code even without an email sender
   assert.equal(signupMode({ ...env, PUBLIC_SIGNUP_MODE: "paid",
     XENDIT_BILLING_ENABLED: "true", SELF_SERVE_SIGNUP_ENABLED: "true",
     XENDIT_SECRET_KEY: "fake", XENDIT_CALLBACK_TOKEN: "fake", XENDIT_BUSINESS_ID: "fake" }), "disabled");
+});
+
+test("registration refuses per-process rate-limit fallback at all three gates", async () => {
+  assert.equal(signupRateLimitResponse({ allowed: true, mode: "distributed-postgres" }), null);
+  const throttled = signupRateLimitResponse({ allowed: false, mode: "distributed-postgres" });
+  assert.equal(throttled?.status, 429);
+  assert.equal(throttled?.headers.get("Cache-Control"), "no-store");
+  for (const allowed of [true, false]) {
+    const unavailable = signupRateLimitResponse({ allowed, mode: "single-instance" });
+    assert.equal(unavailable?.status, 503);
+    assert.equal(unavailable?.headers.get("Cache-Control"), "no-store");
+    assert.match((await unavailable!.json()).error, /temporarily unavailable/);
+  }
+  const api = readFileSync("src/app/api/signup/route.ts", "utf8");
+  assert.equal((api.match(/signupRateLimitResponse\(/g) ?? []).length, 3,
+    "IP, email-domain and email quota must all use the fail-closed decision");
 });
 
 test("one guarded signup endpoint never grants a public applicant unverified access", () => {

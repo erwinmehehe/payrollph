@@ -7,7 +7,7 @@ import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { resolveWorkflowUiFlags } from "../src/lib/workflow-ui-flags";
 import { readFileSync } from "node:fs";
 import { careersNoticeConfig, canManagePublicCareers } from "../src/lib/careers-privacy-gates";
-import { readCareersApplicationBody, MAX_PUBLIC_CAREERS_BODY_BYTES } from "../src/lib/careers-intake-body";
+import { careersContactFields, readCareersApplicationBody, MAX_PUBLIC_CAREERS_BODY_BYTES } from "../src/lib/careers-intake-body";
 import { requireApplicantConsent } from "../src/lib/recruitment-applicant-privacy";
 test("public careers is default OFF, exact-true and blocked for multi-entity",()=>{
  for(const value of [undefined,"","1","TRUE","true "])
@@ -103,6 +103,27 @@ test("public notice/consent gates require #925, exact flags and a usable HTTPS v
     privacyAccepted: false, privacyNoticeVersion: "2026.10",
     privacyEvidenceReference: "careers-web:synthetic-source-0001",
   }), /CANDIDATE_CONSENT_EVIDENCE_REQUIRED/);
+});
+
+test("public careers contact data is accepted intact or rejected, never truncated", () => {
+  assert.deepEqual(careersContactFields({}), { phone: "", notes: "" });
+  assert.deepEqual(careersContactFields({
+    phone: " +63 912 345 6789 ",
+    notes: " First line\nSecond line ",
+  }), { phone: "+63 912 345 6789", notes: "First line\nSecond line" });
+  assert.equal(careersContactFields({ phone: "1".repeat(32) })?.phone.length, 32);
+  assert.equal(careersContactFields({ notes: "a".repeat(1000) })?.notes.length, 1000);
+  for (const invalid of [
+    { phone: "1".repeat(33) }, { notes: "a".repeat(1001) },
+    { phone: 123456 }, { phone: [] }, { notes: ["message"] },
+    { phone: "12\u0000" }, { phone: "123\n456" },
+    { notes: "Valid\u0000message" },
+  ]) {
+    assert.equal(careersContactFields(invalid), null, JSON.stringify(invalid));
+  }
+  const route = readFileSync("src/app/api/careers/route.ts", "utf8");
+  assert.match(route, /careersContactFields\(body\)/);
+  assert.doesNotMatch(route, /\.slice\(0, (?:32|1000)\)/);
 });
 
 test("public JSON intake is bounded, type checked and rejects chunked oversized bodies", async () => {

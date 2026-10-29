@@ -4,6 +4,7 @@ import { legalEntities } from "@/db/schema";
 import { authenticateApiKey, requireScope } from "@/lib/api-auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
+import { publicApiV1RateGate } from "@/lib/public-api-v1-rate-guard";
 
 export type ExtendedApiAccess =
   | { ok: true; organizationId: number; legalEntityId: number; keyId: number }
@@ -14,7 +15,8 @@ export async function authorizeExtendedApi(request: Request, scope: string): Pro
     return { ok: false, response: Response.json({ error: "Not found." }, { status: 404 }) };
   }
   const limited = await rateLimitDistributed(`extended-api:${clientIp(request)}`, { limit: 120, windowMs: 60_000 });
-  if (!limited.allowed) return { ok: false, response: Response.json({ error: "Rate limit exceeded." }, { status: 429 }) };
+  const rateDenied = publicApiV1RateGate(limited);
+  if (rateDenied) return { ok: false, response: rateDenied };
   const auth = await authenticateApiKey(request);
   if (!auth.ok) return { ok: false, response: Response.json({ error: auth.error }, { status: auth.status }) };
   if (!requireScope(auth.scopes, scope)) {

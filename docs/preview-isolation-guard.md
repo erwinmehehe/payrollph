@@ -10,7 +10,7 @@ Metadata inspection identified two environment variables still assigned to **bot
 
 ## Automated verification
 
-The ordinary repository `npm test` command picks up `tests/verify-preview-isolation.test.mjs`. This workflow also runs the seven synthetic unit tests when the guard files are edited in a pull request. No Vercel token or customer data is available to pull-request jobs.
+The ordinary repository `npm test` command picks up `tests/verify-preview-isolation.test.mjs`. This workflow also runs the ten synthetic unit tests when the guard files are edited in a pull request. No Vercel token or customer data is available to pull-request jobs.
 
 For live Vercel metadata verification, a GitHub administrator must first configure a protected Actions environment named **preview-isolation**, with reviewer restrictions, and add:
 
@@ -19,6 +19,15 @@ For live Vercel metadata verification, a GitHub administrator must first configu
 - Environment secret `VERCEL_METADATA_READ_TOKEN`: dedicated least-privilege credential for reading project environment metadata.
 
 An authorized maintainer then manually dispatches **Preview DB Target Isolation Guard (No Deploy)** from `main`. The script issues only a GET request to Vercel's environment metadata endpoint; it does not print or persist returned secret values. It fails if a variable is assigned to both Preview and Production, if required Preview-only database/encryption assignments are missing, or if metadata is invalid or incomplete.
+
+**Branch-scoped override safety:** A required Preview DB/encryption variable must have an
+**unscoped Preview-only** metadata assignment (no `gitBranch`). An override
+restricted to `feature/sandbox`, for example, does not cover other or future
+Preview branches and cannot satisfy this requirement by itself. Branch-scoped
+overrides can coexist with a safe Preview-only base assignment. Invalid branch
+selector metadata also fails closed. This metadata-only check still **does not
+prove** the Preview credential resolves to a different database or that staging
+is authorized.
 
 Run the offline tests from the repository root with:
 
