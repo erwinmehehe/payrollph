@@ -66,6 +66,20 @@ jobs:
         env:
           CSP_STAGE_READ_TOKEN: ${{ secrets.CSP_STAGE_READ_TOKEN }}
         run: node scripts/qa/csp-hosted-stage-attest.mjs
+      - name: Install locked dependencies without any protected secrets
+        run: npm ci
+      - name: Independently attest synthetic staging DB identity and read-only user
+        env:
+          HCM_STAGING_GATE: "true"
+          HCM_STAGING_PROJECT_ID: ${{ vars.CSP_STAGE_PROJECT_ID }}
+          EXPECTED_HCM_STAGING_PROJECT_ID: ${{ vars.CSP_STAGE_PROJECT_ID }}
+          HCM_STAGING_EXPECTED_DB_MARKER: ${{ vars.CSP_STAGE_DB_MARKER }}
+          HCM_STAGING_DB_SSL: "true"
+          HCM_PEOPLE_HOME_ENABLED: "false"
+          NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "false"
+          DATABASE_URL: ${{ secrets.CSP_STAGE_READONLY_DATABASE_URL }}
+          PRODUCTION_DATABASE_URL_SHA256: ${{ secrets.CSP_STAGE_PRODUCTION_DATABASE_URL_SHA256 }}
+        run: node scripts/verify-hcm-staging-isolation.mjs > qa-artifacts/csp-hosted-stage/db-readonly-attestation.json
       - name: Install pinned headless Chromium, no external application login
         run: |
           npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
