@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations, subscriptions, userOrganizations, users } from "@/db/schema";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
-import { signupMode } from "@/lib/saas-launch-config";
+import { signupMode, signupRateLimitResponse } from "@/lib/saas-launch-config";
 import { validPrivatePilotInvite } from "@/lib/private-pilot-invite";
 import { deliveryCapable } from "@/lib/mail-provider";
 import { isSellablePlan, safeSeats, subscriptionQuote } from "@/lib/saas-pricing";
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   }
   const ip = clientIp(request);
   const limited = await rateLimitDistributed("signup:" + ip, { limit: 4, windowMs: 60 * 60_000 });
-  if (!limited.allowed) return Response.json({ error: "Too many registration attempts. Please try later." }, { status: 429 });
+  const ipRateGate = signupRateLimitResponse(limited);
+  if (ipRateGate) return ipRateGate;
 
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -67,11 +68,13 @@ export async function POST(request: Request) {
   if (proofDenied) return proofDenied;
   if (criticalReleaseFlagEnabled("publicIntakeProof")) {
     const byDomain = await rateLimitDistributed("signup-domain:" + sha256(email.split("@")[1]), { limit: 50, windowMs: 24 * 60 * 60_000 });
-    if (!byDomain.allowed) return Response.json({ error: "Too many registration requests. Please try later." }, { status: 429 });
+    const domainRateGate = signupRateLimitResponse(byDomain, "Too many registration requests. Please try later.");
+    if (domainRateGate) return domainRateGate;
   }
 
   const byEmail = await rateLimitDistributed("signup-email:" + sha256(email), { limit: 3, windowMs: 24 * 60 * 60_000 });
-  if (!byEmail.allowed) return Response.json({ error: "Too many registration requests. Please try later." }, { status: 429 });
+  const emailRateGate = signupRateLimitResponse(byEmail, "Too many registration requests. Please try later.");
+  if (emailRateGate) return emailRateGate;
   let origin: string;
   try { origin = canonicalAppOrigin(request); }
   catch { return Response.json({ error: "Registration URL is not configured." }, { status: 503 }); }

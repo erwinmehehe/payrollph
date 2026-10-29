@@ -56,14 +56,27 @@ function isCalendarDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-/** Minimal RFC-4180-ish CSV reader: quoted fields, doubled quotes and CRLF. */
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
+type CsvRecord = { cells: string[]; line: number };
+
+/**
+ * Minimal RFC-4180-ish CSV reader. Keep physical *source* line numbers before
+ * dropping blank records. A quoted CRLF is data but still advances one line;
+ * this matters when the next employee's validation error is reported.
+ */
+function parseCsvRecords(text: string): CsvRecord[] {
+  const records: CsvRecord[] = [];
   let field = "";
   let row: string[] = [];
   let quoted = false;
+  let sourceLine = 1;
+  let recordStartLine = 1;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
+    // CRLF is one physical line even inside quotes. An unquoted CRLF is
+    // consumed as one record boundary below, while quoted bytes stay intact.
+    if (char === "\r" || (char === "\n" && text[index - 1] !== "\r")) {
+      sourceLine += 1;
+    }
     if (quoted) {
       if (char === '"') {
         if (text[index + 1] === '"') { field += '"'; index += 1; }
@@ -73,17 +86,27 @@ export function parseCsv(text: string): string[][] {
     }
     if (char === '"') { quoted = true; continue; }
     if (char === ",") { row.push(field); field = ""; continue; }
-    // CRLF is one record boundary; standalone CR is also a boundary, never
-    // silently discarded from an employee number or other unquoted field.
     if (char === "\n" || char === "\r") {
-      row.push(field); rows.push(row); row = []; field = "";
+      row.push(field);
+      records.push({ cells: row, line: recordStartLine });
+      row = [];
+      field = "";
       if (char === "\r" && text[index + 1] === "\n") index += 1;
+      recordStartLine = sourceLine;
       continue;
     }
     field += char;
   }
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-  return rows.filter((entry) => entry.some((cell) => cell.trim() !== ""));
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    records.push({ cells: row, line: recordStartLine });
+  }
+  return records.filter((entry) => entry.cells.some((cell) => cell.trim() !== ""));
+}
+
+/** Preserve the existing public parser shape for all import callers. */
+export function parseCsv(text: string): string[][] {
+  return parseCsvRecords(text).map((record) => record.cells);
 }
 
 function headerKey(header: string) {
@@ -186,11 +209,12 @@ export function parseEmployeeRow(row: ImportRow): { ok: true; value: ParsedEmplo
 }
 
 /**
- * Keeps source CSV line numbers even when earlier lines fail validation.
+ * Keeps physical source CSV line numbers across blank and multiline records.
  * Unknown extra columns remain accepted for legacy spreadsheet compatibility.
  */
 export function parseEmployeeCsv(text: string) {
-  const rows = parseCsv(text);
+  const parsedRows = parseCsvRecords(text);
+  const rows = parsedRows.map((record) => record.cells);
   const headers = rows[0] ?? [];
   const mapping = mapHeaders(headers);
   const unmapped = headers.filter((header) => !IMPORT_COLUMNS[headerKey(header)] && header.trim() !== "");
@@ -220,9 +244,9 @@ export function parseEmployeeCsv(text: string) {
     const parsed = parseEmployeeRow(record);
     if (parsed.ok) {
       valid.push(parsed.value);
-      validRows.push({ line: index + 1, value: parsed.value });
+      validRows.push({ line: parsedRows[index].line, value: parsed.value });
     } else {
-      errors.push({ line: index + 1, problems: parsed.problems });
+      errors.push({ line: parsedRows[index].line, problems: parsed.problems });
     }
   }
   return { headers, mapped, valid, validRows, errors, unmapped };
