@@ -58,7 +58,7 @@ test("source negative controls reject removed download, staging or commit bounda
     "eq(userOrganizations.active, true)",
   ]) {
     assert.ok(original.includes(needle));
-    assert.throws(() => assertReceiptBoundary(original.replace(needle, "/* missing guard */")),
+    assert.throws(() => assertReceiptBoundary(original.replaceAll(needle, "/* missing guard */")),
       undefined, "removing " + needle + " must fail the guard");
   }
 });
