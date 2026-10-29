@@ -97,6 +97,11 @@ jobs:
           node --check scripts/qa/tenant-manifest-driven-http.mjs
           node --check scripts/qa/tenant-scoped-page-probes.mjs
           node --test tests/tenant-structural-access-guard.test.mjs tests/tenant-manifest-driven-http.test.mjs tests/tenant-scoped-pages.test.mjs
+      - name: Guard uncredited HCM employment-decision POST tenant candidate
+        run: |
+          node --check scripts/qa/tenant-hcm-employment-decision-contract.mjs
+          node --check scripts/qa/tenant-hcm-employment-decision-post.mjs
+          node --test tests/tenant-hcm-employment-decision-post.test.mjs
       - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
         run: |
           pii_key=$(openssl rand -hex 32)
