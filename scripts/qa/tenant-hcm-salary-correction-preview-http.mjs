@@ -29,7 +29,14 @@ export function requireDisposableSalaryPreview(env = process.env) {
 }
 
 export function proveOwnedSalaryPreview(result, owner) {
-  assert.equal(result.status, 200, "authorized own entity must return real 200");
+  // Log only generic failure code/message from the protected API, never
+  // salary or employee data. A bare 403 hid the failed gate in CI.
+  const denial = result.json && typeof result.json === "object"
+    ? [result.json.code, result.json.error].filter(x => typeof x === "string")
+      .map(x => x.slice(0, 160)).join(": ")
+    : "non-JSON response";
+  assert.equal(result.status, 200,
+    "authorized own entity must return real 200; response gate: " + denial);
   assert.equal(result.json?.status, "assessment_only");
   assert.equal(result.json?.tenantId, owner.org.id);
   assert.equal(result.json?.subjectEmployeeId, owner.worker.id);
