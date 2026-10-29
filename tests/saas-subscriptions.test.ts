@@ -27,10 +27,17 @@ test("subscription prices include the base and every selected employee seat", ()
   assert.throws(() => subscriptionQuote({ name: "Core", monthlyBase: "-1", perEmployee: "50", active: true }, 1));
 });
 
-test("seat counts reject fractions, negative values, overflow, and invalid strings", () => {
+test("seat counts accept only real numbers or decimal digit strings", () => {
   assert.equal(safeSeats("25"), 25);
-  for (const invalid of ["", "0", "-1", "1.5", "2500", "nan", "1e99", undefined]) {
-    assert.equal(safeSeats(invalid), null);
+  assert.equal(safeSeats("0025"), 25);
+  assert.equal(safeSeats(25), 25);
+  assert.equal(safeSeats(2_000), 2_000);
+  for (const invalid of [
+    "", "0", "-1", "1.5", "2500", "nan", "1e99", "1e2", "0x10",
+    " 25", "25 ", true, false, [10], [], {}, null, undefined,
+    Number.NaN, Infinity, 25.5,
+  ]) {
+    assert.equal(safeSeats(invalid), null, JSON.stringify(invalid));
   }
 });
 

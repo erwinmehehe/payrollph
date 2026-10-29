@@ -28456,15 +28456,35 @@
       ]
     },
     "src/app/api/signup/route.ts": {
-      "gitBlobSha": "e2461cd23756b2b1c078f76c7c751d646e7e4f0f",
+      "gitBlobSha": "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc",
       "route": "signup",
       "methods": [
         {
           "name": "POST",
           "line": 21,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: signup POST creates a new employer, but the reviewed change only fails closed on non-distributed rate-limit fallback. Seat-type validation is separately tested. No signed-in own-employer success, cross-employer victim denial, unchanged-victim database proof or whole-method tenant-isolation credit is claimed. Paid registration and provider activation remain unapproved.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "signup-antiabuse-hardening-only-no-tenant-credit",
+            "originalRouteBlobSha": "e2461cd23756b2b1c078f76c7c751d646e7e4f0f",
+            "routeBlobSha": "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc",
+            "launchConfigBlobSha": "7bb9b9ca56a65c70330bf947e9eaa38c23916efe",
+            "pricingBlobSha": "142f8c9355d51b8ac98be0279dc8eb962e06339d",
+            "pilotTestBlobSha": "768525cb4701f3badaf0f1553f9f731af0f2882c",
+            "subscriptionTestBlobSha": "a33b7f52c1f95fe52e42bc9471bd92ffcb835198",
+            "coveredRateLimitKeys": [
+              "signup:ip",
+              "signup-domain",
+              "signup-email"
+            ],
+            "distributedMode": "distributed-postgres",
+            "fallbackResponseStatus": 503,
+            "authoritativeThrottleStatus": 429,
+            "fullMethodCoverageCredits": 0,
+            "ownForeignTenantProof": false,
+            "goLiveApproval": false
+          }
         }
       ],
       "employerSources": {
@@ -28487,47 +28507,47 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 98,
+          "line": 101,
           "token": "organizationId"
         },
         {
-          "line": 119,
+          "line": 122,
           "token": "organizationId"
         },
         {
-          "line": 125,
+          "line": 128,
           "token": "organizationId"
         },
         {
-          "line": 138,
+          "line": 141,
           "token": "organizationId"
         },
         {
-          "line": 144,
+          "line": 147,
           "token": "organizationId"
         },
         {
-          "line": 156,
+          "line": 159,
           "token": "organizationId"
         },
         {
-          "line": 156,
+          "line": 159,
           "token": "organizationId"
         },
         {
-          "line": 174,
+          "line": 177,
           "token": "organizationId"
         },
         {
-          "line": 174,
+          "line": 177,
           "token": "organizationId"
         },
         {
-          "line": 191,
+          "line": 194,
           "token": "organizationId"
         },
         {
-          "line": 191,
+          "line": 194,
           "token": "organizationId"
         }
       ]
