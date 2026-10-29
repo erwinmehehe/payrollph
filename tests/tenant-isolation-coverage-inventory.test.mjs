@@ -806,6 +806,109 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+
+  // #1552: single-use account email verification was hardened to lock the
+  // authentic account, worker and active worker grant before a tenant-scoped
+  // employee email UPDATE. The dedicated disposable PG16 test has passed, but
+  // it provides only one legitimate linked-worker positive plus two attacker
+  // denials. Do NOT promote this source-only change to full method coverage.
+  // Every reviewed source/fixture/workflow is SHA-pinned and drift fails closed.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/account/email/verify/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    const routePath = "src/app/api/account/email/verify/route.ts";
+    const newSha = "575f814a30ebce5112c228c6e3c73ac882b8fa97";
+    assert.equal(currentBlob, newSha,
+      "Account email verification changed: renew independent tenant and privacy review");
+    assert.deepEqual(reviewed, {
+      kind: "account-email-verify-linked-ESS-worker-PG16-source-only",
+      oldRouteBlobSha: "45617099f90ae486824f3de34cd769c34b229596",
+      routeBlobSha: newSha,
+      helperFile: "src/lib/account.ts",
+      helperBlobSha: "e9fd7448970b49fa10d97c67478a71ceb0b91c75",
+      regressionFile: "tests/account-email-tenant-boundary.test.ts",
+      regressionBlobSha: "cd4557251c8df461a6aeee28cc9ea16d206844bc",
+      proofFile: "scripts/qa/tenant-account-email-verify-http.mjs",
+      proofBlobSha: "7787f8c68f9b4f92779a51be6e871ec1150bacf2",
+      contractFile: "tests/tenant-account-email-verify-contract.test.mjs",
+      contractBlobSha: "737784e29bbbf6ff896050df3c6bfd14c74898e4",
+      workflowFile: ".github/workflows/tenant-account-email-verify-http.yml",
+      workflowBlobSha: "e210052a1beadd1c1476db6cfff0cd7bedbd6351",
+      disposableGuardFile: "scripts/qa/tenant-identity-account-proof.mjs",
+      disposableGuardBlobSha: "d6119b38a8cc55b56e18971b42ab2de38baa6a15",
+      previousSyntheticHead: "08d058d7d691f2ed4bc1148433b3ff0cb58b6843",
+      previousSyntheticRun: "https://github.com/erwinmehehe/payrollph/actions/runs/40800025745/job/123205629239",
+      sourceOnly: true,
+      creditedMethods: 0,
+      independentSecurityReview: "PENDING",
+      productionTested: false,
+    }, "Only this exact uncredited email verification source review is permitted");
+    assert.equal(method.testedBy, null, "Not a completed tenant method proof");
+    assert.match(method.reason, /^Still GAP: #1552/);
+    assert.equal(method.line, 14);
+    for (const [path, sha] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.regressionFile, reviewed.regressionBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+      [reviewed.disposableGuardFile, reviewed.disposableGuardBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(path)), sha,
+      "Account email proof/source changed without new security review: " + path);
+
+    const source = readFileSync(routePath, "utf8");
+    assert.equal(gitBlobSha(Buffer.from(source)), newSha);
+    const tokenLock = source.indexOf("const [liveToken] = await tx.select(");
+    const accountLock = source.indexOf("const [currentAccount] = await tx.select(");
+    const workerLock = source.indexOf("const [linkedEmployee] = await tx.select(");
+    const memberLock = source.indexOf("const [membership] = await tx.select(");
+    const tenantGate = source.indexOf("if (!canSyncLinkedEmployeeEmail({");
+    const employeeWrite = source.indexOf("const [updatedEmployee] = await tx.update(employees)");
+    const accountWrite = source.indexOf("const [updatedAccount] = await tx.update(users)");
+    assert.ok(0 < tokenLock && tokenLock < accountLock && accountLock < workerLock &&
+      workerLock < memberLock && memberLock < tenantGate &&
+      tenantGate < employeeWrite && employeeWrite < accountWrite,
+      "Identity/tenant checks must precede worker and account updates");
+    for (const guard of [
+      "eq(emailChangeTokens.tokenHash, sha256(token))",
+      "isNull(emailChangeTokens.usedAt)",
+      "gt(emailChangeTokens.expiresAt, new Date())",
+      "if (!currentAccount?.active)",
+      "eq(employees.id, currentAccount.employeeId)",
+      "eq(userOrganizations.userId, currentAccount.id)",
+      "eq(userOrganizations.organizationId, linkedEmployee.organizationId)",
+      "eq(userOrganizations.active, true)",
+      ')).for("share").limit(1)',
+      "eq(employees.organizationId, linkedEmployee.organizationId)",
+      "if (!updatedEmployee)",
+      "if (!updatedAccount)",
+      "await tx.update(emailChangeTokens)",
+    ]) assert.ok(source.includes(guard), "Linked-employee tenant guard missing: " + guard);
+    assert.doesNotMatch(source, /where\(eq\(employees\.id, account\.employeeId\)\)/);
+
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    const contract = readFileSync(reviewed.contractFile, "utf8");
+    assert.ok(proof.indexOf("requireDisposableIdentityAccount();") > 0 &&
+      proof.indexOf("requireDisposableIdentityAccount();") <
+      proof.indexOf('import("../../src/db/index.ts")'),
+      "PG16-only preflight must run before any app/database imports");
+    assert.match(proof, /const attackerA = await makeEss\("attacker-a", a, v\.worker\.id, a\.worker\.id\)/);
+    assert.match(proof, /const attackerB = await makeEss\("attacker-b", b, v\.worker\.id, b\.worker\.id\)/);
+    assert.match(proof, /const accepted = await verify\(ownToken, 200,/);
+    assert.match(proof, /const response = await verify\(token, 409,/);
+    assert.match(proof, /assert\.deepEqual\(await snapshot\(\), before,/);
+    assert.match(proof, /await verify\(revokedToken, 409,/);
+    assert.match(proof, /await verify\(mismatchedToken, 409,/);
+    assert.match(proof, /await verify\(ownToken, 400,/);
+    assert.match(proof, /credits: 0, independentReviewPending: true/);
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --test tests\/tenant-account-email-verify-contract\.test\.mjs/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-account-email-verify-http\.mjs/);
+    assert.match(contract, /requireDisposableIdentityAccount\(good\)/);
+    return;
+  }
+
   // #1543: bounded public-applicant contact validation is NOT positive
   // three-employer POST evidence and does NOT authorize public careers launch.
   // Both GET and POST share a new route blob, though GET's actual handler is
@@ -900,6 +1003,91 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       const writes = route.indexOf("await db.transaction(async tx => {");
       assert.ok(validated > 0 && validated < rateLimit && rateLimit < proof && proof < writes,
         "Optional applicant contact rejection must occur before rate, proof and writes");
+    }
+    return;
+  }
+
+  // Narrow, uncredited tenant bootstrap correction. Ordinary tenants may
+  // not insert globally shared benefit-plan templates. The GET/POST/DELETE
+  // handlers were byte-identical to main; their independent HTTP receipts
+  // remain intact. Exact-source drift reopens the PUT gap for review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/benefits/route.ts PUT") {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/benefits/route.ts";
+    const routeBlob = "f6a7f4803a8b0a72e6fbeb55c9cbead29c34c764";
+    assert.equal(currentBlob, routeBlob, "Benefit catalogue PUT changed: re-review tenant isolation");
+    assert.deepEqual(review, {
+      kind: "benefit-catalog-tenant-bootstrap-PUT-zero-credit",
+      oldRouteBlobSha: "679de68b5e7aac870a534eee8dd2376c18db2873",
+      routeBlobSha: routeBlob,
+      unchangedSiblingHandlersBlobSha: "0b7ff73dd8aa2532d1c333b7b43991286e86d202",
+      helperFile: "src/lib/benefit-catalog-tenant.ts",
+      helperBlobSha: "d490d7b283642355bdd11aa33c2502e50e9b8913",
+      contractFile: "scripts/qa/tenant-benefit-catalog-put-contract.mjs",
+      contractBlobSha: "475d2592b20c696492ac55a8b5face9e2e2b5d98",
+      runnerFile: "scripts/qa/tenant-benefit-catalog-put-http.mjs",
+      runnerBlobSha: "633f6c75c531ab9d22ce33ea0ccf8e49be41e18b",
+      unitTestFile: "tests/benefit-catalog-tenant.test.ts",
+      unitTestBlobSha: "bc4f16666cc55392ffe75e42a34d2fe4921a238a",
+      contractTestFile: "tests/tenant-benefit-catalog-put-contract.test.mjs",
+      contractTestBlobSha: "97d21883705cb36c2e6d78c3dd6210f09387132f",
+      workflowFile: ".github/workflows/tenant-benefit-catalog-put.yml",
+      workflowBlobSha: "8f4fbc9df427dbb2b352b7bb292284ee2753ce47",
+      coverageCredits: 0,
+      realHttpPg16Accepted: false,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Unreviewed PUT may only use the exactly pinned zero-credit exception");
+    for (const [file, blob] of [
+      [review.helperFile, review.helperBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.runnerFile, review.runnerBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.contractTestFile, review.contractTestBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), blob,
+        "Benefit catalogue tenant proof dependency changed: " + file);
+    }
+    const route = readFileSync(routePath, "utf8");
+    const first = route.indexOf("export async function GET(");
+    const next = route.indexOf("/** Seed defaults for the signed-in employer");
+    assert.ok(first > 0 && next > first,
+      "Previously covered GET/POST/DELETE method boundaries must not change");
+    const unchanged = route.slice(first, next);
+    for (const verb of ["GET", "POST", "DELETE"]) {
+      assert.match(unchanged, new RegExp("export async function " + verb + "\\("));
+    }
+    assert.equal(gitBlobSha(Buffer.from(unchanged)), review.unchangedSiblingHandlersBlobSha,
+      "Previously covered benefit methods must remain byte-identical to main");
+    const put = route.slice(next);
+    for (const guard of [
+      "parseCatalogEmployerId(",
+      "assertOrganizationRole(",
+      "if (!access?.companyWide)",
+      "await db.transaction(async tx => {",
+      "eq(userOrganizations.organizationId, organizationId)",
+      "eq(userOrganizations.active, true)",
+      "inArray(userOrganizations.role, [...ORG_ADMIN_ROLES])",
+      "isNull(userOrganizations.orgUnitId)",
+      '.for("share").limit(1)',
+      "pg_advisory_xact_lock(4459,",
+      "isNull(benefitPlans.organizationId)",
+      "eq(benefitPlans.organizationId, organizationId)",
+      "defaultEmployerBenefitPlans(organizationId)",
+      "await tx.insert(benefitPlans).values(defaults)",
+      "await tx.insert(auditEvents).values({",
+    ]) assert.ok(put.includes(guard), "Benefit PUT tenant source guard changed: " + guard);
+    assert.doesNotMatch(put, /organizationId:\s*null/,
+      "tenant admin cannot write shared global benefit plans");
+    assert.equal(method.testedBy, null, "Source-only benefit PUT must remain GAP");
+    assert.match(method.reason, /Still GAP.*PG16.*independent review/i);
+    const siblingMethods = manifest.allApiRouteFiles[routePath].methods;
+    for (const verb of ["GET", "POST", "DELETE"]) {
+      const reviewedSibling = siblingMethods.find(x => x.name === verb);
+      assert.equal(reviewedSibling?.status, "COVERED");
+      assert.ok(reviewedSibling?.testedBy?.file === "scripts/qa/tenant-benefit-enrollments-http.mjs");
     }
     return;
   }
@@ -2808,6 +2996,135 @@ test("page and server-action inventory cannot silently omit new or changed busin
     if (scopedCandidate && changed) {
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
+      // #1557 report builder PAGE: exact-source, GET-only, feature-ON
+      // disposable PG16 evidence. A passing synthetic job does not certify
+      // interactive reporting, private POST/CSV, or whole-page tenant coverage.
+      // Every source pin and guard is checked, while the page stays GAP.
+      if (path === "src/app/workspace/report-builder/page.tsx") {
+        assert.equal(entry.status, "GAP", "No unreviewed report-page promotion");
+        assert.equal(entry.testedBy, undefined, "Unreviewed synthetic GET is not a coverage credit");
+        const reviewed = entry.reviewedUncertified;
+        const oldSha = "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4";
+        const pageSha = "4415282df5e859e004ae26662815d7b5f087657d";
+        assert.equal(current, pageSha, "Report builder page changed; renew tenant review");
+        assert.deepEqual(reviewed, {
+          kind: "feature-on-report-builder-SSR-GET-PG16-unaccepted",
+          originalPageBlobSha: oldSha,
+          pageBlobSha: pageSha,
+          helperFile: "src/lib/tenant-report-builder.ts",
+          helperBlobSha: "5d315afc085baad9ce2fc14946a34a6d738a773b",
+          proofFile: "scripts/qa/tenant-report-builder-page-http.mjs",
+          proofBlobSha: "48cc244d97e6b376c06be018d6a06e06dbc5d1f9",
+          contractFile: "scripts/qa/tenant-report-builder-page-contract.mjs",
+          contractBlobSha: "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
+          contractTestFile: "tests/tenant-report-builder-page-contract.test.mjs",
+          contractTestBlobSha: "6d88df59ca8bfc058bbc86004a3447a236d1ac19",
+          unitTestFile: "tests/tenant-report-builder.test.ts",
+          unitTestBlobSha: "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
+          workflowFile: ".github/workflows/tenant-report-builder-page-qa.yml",
+          workflowBlobSha: "2dbb81d60581fda30f9e8e77d31079ccf7cc32f5",
+          priorPassedHead: "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
+          priorPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
+          ownPageLine: 106, ownApiLine: 107, foreignPageLine: 112,
+          foreignApiLine: 114, unitScopeLine: 138, revokedPageLine: 169,
+          revokedApiLine: 171, unchangedDbLine: 131,
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited PG16 page review is allowed");
+        assert.match(entry.reason, /^Still GAP: #1557/);
+        assert.equal(entry.blob, pageSha);
+        assert.equal(baseline.app[path], oldSha,
+          "Unreviewed report page change cannot be an alternate baseline");
+        for (const [file, sha] of [
+          [reviewed.helperFile, reviewed.helperBlobSha],
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractFile, reviewed.contractBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.unitTestFile, reviewed.unitTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Report page proof file changed without renewed review: " + file);
+        }
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          const sourceLines = actual.split("\n");
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": incorrect exact source line " + pin.line);
+          }
+        }
+        const accessChecks = [
+          "getSessionUser()",
+          'criticalReleaseFlagEnabled("tenantReportBuilder")',
+          "explicitReportBuilderEmployerId(params.organizationId)",
+          "if (!organizationId) notFound();",
+          "getAccess(user.id, organizationId)",
+          "if (!access?.companyWide || !roleAllowed(access.role, PEOPLE_PAYROLL_ROLES)) notFound();",
+          "assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES)",
+          "if (denied) notFound();",
+          "where(eq(organizations.id, organizationId)).limit(1)",
+          "if (!employer) notFound();",
+          "<TenantReportBuilder organizationId={organizationId} />",
+        ];
+        for (const check of accessChecks) {
+          assert.ok(actual.includes(check), "Report page guard missing: " + check);
+        }
+        const auth = actual.indexOf("getSessionUser()");
+        const flag = actual.indexOf('criticalReleaseFlagEnabled("tenantReportBuilder")');
+        const selector = actual.indexOf("explicitReportBuilderEmployerId(params.organizationId)");
+        const scope = actual.indexOf("getAccess(user.id, organizationId)");
+        const permission = actual.indexOf("assertOrganizationRole(user.id, organizationId");
+        const employer = actual.indexOf("where(eq(organizations.id, organizationId))");
+        const render = actual.indexOf("<TenantReportBuilder organizationId={organizationId} />");
+        assert.ok(0 < auth && auth < flag && flag < selector &&
+          selector < scope && scope < permission && permission < employer &&
+          employer < render,
+          "Report controls must never mount before active employer scope checks");
+
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        const proofLines = proof.split("\n");
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+          /assertOwnReportPage\(await readLocal\(pagePath\(actor\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownApiLine, path),
+          /assertOwnReportCapabilities\(await readLocal\(apiPath\(actor\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+          /assertForeignReportPage\(await readLocal\(pagePath\(other\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignApiLine, path),
+          /assertDeniedReportCapabilities\(/);
+        assert.match(proofLines[reviewed.foreignApiLine] ?? "", /403,/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unitScopeLine, path),
+          /assertForeignReportPage\(await readLocal\(pagePath\(a\.org\.id\), scopedSession\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedPageLine, path),
+          /assertForeignReportPage\(await readLocal\(pagePath\(a\.org\.id\), a\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedApiLine, path),
+          /assertDeniedReportCapabilities\(await readLocal\(apiPath\(a\.org\.id\), a\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+          /assertReadOnlyReportSnapshot\(before\.get\(employer\.org\.id\),/);
+        assert.ok(proof.indexOf("requireDisposableReportPageEnv();") > 0 &&
+          proof.indexOf("requireDisposableReportPageEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "CI-only local PG16 guard must execute before importing the app DB");
+        for (const text of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          "for (const actor of [a, b])", "assert.equal(ownSuccesses, 2)",
+          "assert.equal(foreignDenials, 4)", "assert.equal(changed.length, 1",
+          "assert.equal(stillSignedIn.status, 200", "assertReadOnlyReportSnapshot(",
+          "pageCreditDelta: 0, methodCreditDelta: 0", "productionCertified: false",
+        ]) assert.ok(proof.includes(text), "Synthetic PG16 negative control missing: " + text);
+        const contract = readFileSync(reviewed.contractFile, "utf8");
+        assert.match(contract, /assert\.equal\(response\.status, 200/);
+        assert.match(contract, /assert\.equal\(response\.status, 404/);
+        assert.match(contract, /assert\.deepEqual\(after, before/);
+        assert.match(contract, /GITHUB_ACTIONS: "true"/);
+        assert.match(contract, /DATABASE_URL: "postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db"/);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-report-builder-page-http\.mjs/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.equal(reviewed.credits, 0, "No page or API credit from feature-ON GET-only proof");
+        continue; // Deliberate exact-source, zero-credit GAP exception, not blanket certification.
+      }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
       if (entry.status === "COVERED") {

@@ -101,6 +101,8 @@ All controls with a nonzero expected balance must be present. A zero-balance con
 
 These codes are normalized certification controls, not necessarily the employer's literal accounts. Preserve original journal files and a signed, independently reviewed mapping in the private evidence vault. Where one source account contains debit and credit postings, net to the correct side with documented proof; never omit entries, shift amounts between statutory categories, or insert a balancing suspense line to force a pass.
 
+**Closed account vocabulary:** The normalized journal must contain only the ten canonical account codes in the table. An extra account, even a balanced suspense debit/credit pair included by BOTH systems, blocks arithmetic reconciliation rather than being silently accepted. The independent reviewer must map legitimate payroll postings to the approved controls with documented original-source evidence and keep unrelated postings out of the normalized payroll export. Unmapped-account failures do not reveal the private account names or amounts. This guard does not replace checking original journals or independent financial sign-off.
+
 **Why this bridge matters:** Two journals can agree while both misclassify BIR withholding as SSS payable. The ten-control bridge blocks that outcome even when both books independently balance and gross/net pay match.
 
 ## Verification and release boundary
