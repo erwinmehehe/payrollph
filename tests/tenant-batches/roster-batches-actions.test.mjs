@@ -109,7 +109,7 @@ test("attacker forged references and maker self-approval cannot mutate any emplo
     'assert.deepEqual(await snapshot(e.orgId), expected.get(e.orgId)',
     'assert.deepEqual(after.batches.filter(batch => batch.id !== row.id)',
   ]) assert.ok(script.includes(exact), "Tenant/maker denial evidence missing: " + exact);
-  assert.match(script, /"roster, overrides and raw audit must stay byte-identical"/);
+  assert.ok(script.includes("roster, overrides and raw audit must stay byte-identical"));
   assert.match(script, /assert\.ok\(!result\.text\.includes\(victim\.marker\)/);
   assert.match(script, /await unchanged\(label\)/);
 });
