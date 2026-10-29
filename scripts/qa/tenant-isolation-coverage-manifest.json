@@ -1862,12 +1862,12 @@
       ]
     },
     "src/app/api/benefits/route.ts": {
-      "gitBlobSha": "679de68b5e7aac870a534eee8dd2376c18db2873",
+      "gitBlobSha": "f6a7f4803a8b0a72e6fbeb55c9cbead29c34c764",
       "route": "benefits",
       "methods": [
         {
           "name": "GET",
-          "line": 13,
+          "line": 14,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1886,7 +1886,7 @@
         },
         {
           "name": "POST",
-          "line": 60,
+          "line": 61,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1905,7 +1905,7 @@
         },
         {
           "name": "DELETE",
-          "line": 147,
+          "line": 148,
           "status": "COVERED",
           "reason": "Reviewed merged fictional two-attacker HTTP/PG16 proof: populated/persisted own success, actual victim denial, forged selector containment and exact unchanged victim rows. Partial synthetic evidence; no production or whole-system acceptance.",
           "testedBy": {
@@ -1924,10 +1924,32 @@
         },
         {
           "name": "PUT",
-          "line": 208,
+          "line": 209,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: employer-bound catalogue source correction has a separate proposed real HTTP PG16 fixture; independent review and exact-head CI acceptance remain pending. Zero new tenant-coverage credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "benefit-catalog-tenant-bootstrap-PUT-zero-credit",
+            "oldRouteBlobSha": "679de68b5e7aac870a534eee8dd2376c18db2873",
+            "routeBlobSha": "f6a7f4803a8b0a72e6fbeb55c9cbead29c34c764",
+            "unchangedSiblingHandlersBlobSha": "0b7ff73dd8aa2532d1c333b7b43991286e86d202",
+            "helperFile": "src/lib/benefit-catalog-tenant.ts",
+            "helperBlobSha": "d490d7b283642355bdd11aa33c2502e50e9b8913",
+            "contractFile": "scripts/qa/tenant-benefit-catalog-put-contract.mjs",
+            "contractBlobSha": "475d2592b20c696492ac55a8b5face9e2e2b5d98",
+            "runnerFile": "scripts/qa/tenant-benefit-catalog-put-http.mjs",
+            "runnerBlobSha": "633f6c75c531ab9d22ce33ea0ccf8e49be41e18b",
+            "unitTestFile": "tests/benefit-catalog-tenant.test.ts",
+            "unitTestBlobSha": "bc4f16666cc55392ffe75e42a34d2fe4921a238a",
+            "contractTestFile": "tests/tenant-benefit-catalog-put-contract.test.mjs",
+            "contractTestBlobSha": "97d21883705cb36c2e6d78c3dd6210f09387132f",
+            "workflowFile": ".github/workflows/tenant-benefit-catalog-put.yml",
+            "workflowBlobSha": "8f4fbc9df427dbb2b352b7bb292284ee2753ce47",
+            "coverageCredits": 0,
+            "realHttpPg16Accepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         }
       ],
       "employerSources": {
