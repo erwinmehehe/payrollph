@@ -1,0 +1,99 @@
+name: CSP hosted staging cache and TTFB verification (NO DEPLOY)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/csp-hosted-stage-*.mjs"
+      - "tests/csp-hosted-stage-contract.test.mjs"
+      - "docs/security/csp-hosted-staging-benchmark.md"
+      - ".github/workflows/csp-hosted-staging-benchmark.yml"
+  # Explicitly executed from reviewed main AFTER an owner has provisioned
+  # two isolated immutable preview deployments at the same exact Git SHA.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: csp-hosted-staging-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Verify fail-closed preview identity and the unchanged production flag
+        run: node --test tests/csp-hosted-stage-contract.test.mjs
+
+  hosted-evidence:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: offline-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Configure required reviewers for this environment before first dispatch.
+    # This job NEVER deploys, sets NEXT_CSP_ENABLED or reads a database.
+    environment: csp-hosted-staging
+    env:
+      CSP_STAGE_PROJECT_ID: ${{ vars.CSP_STAGE_PROJECT_ID }}
+      CSP_STAGE_TEAM_ID: ${{ vars.CSP_STAGE_TEAM_ID }}
+      CSP_STAGE_SOURCE_SHA: ${{ vars.CSP_STAGE_SOURCE_SHA }}
+      CSP_STAGE_OFF_URL: ${{ vars.CSP_STAGE_OFF_URL }}
+      CSP_STAGE_ON_URL: ${{ vars.CSP_STAGE_ON_URL }}
+      CSP_STAGE_OFF_DEPLOYMENT_ID: ${{ vars.CSP_STAGE_OFF_DEPLOYMENT_ID }}
+      CSP_STAGE_ON_DEPLOYMENT_ID: ${{ vars.CSP_STAGE_ON_DEPLOYMENT_ID }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Record exact source SHA, never disclose any protected variable values
+        run: |
+          mkdir -p qa-artifacts/csp-hosted-stage
+          echo "HEAD=$(git rev-parse HEAD)" > qa-artifacts/csp-hosted-stage/source.txt
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Git HEAD equals dispatched reviewed main commit."
+      - name: Read-only metadata attestation BEFORE contacting staging URL
+        env:
+          CSP_STAGE_READ_TOKEN: ${{ secrets.CSP_STAGE_READ_TOKEN }}
+        run: node scripts/qa/csp-hosted-stage-attest.mjs
+      - name: Install pinned headless Chromium, no external application login
+        run: |
+          npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
+      - name: Read-only staging cache/TTFB/SEO/nonce and real public Chromium proof
+        env:
+          CSP_STAGE_BYPASS_SECRET: ${{ secrets.CSP_STAGE_BYPASS_SECRET }}
+        run: node scripts/qa/csp-hosted-stage-run.mjs
+      - name: Publish evidence report to Actions summary
+        if: always()
+        shell: bash
+        run: |
+          if test -f qa-artifacts/csp-hosted-stage/report.md; then
+            cat qa-artifacts/csp-hosted-stage/report.md >> "$GITHUB_STEP_SUMMARY"
+          elif test -f qa-artifacts/csp-hosted-stage/attestation-blocked.json; then
+            echo "Hosted CSP check BLOCKED: preview identity not attested. NO-GO." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Hosted CSP check UNVERIFIED: no report produced. NO-GO." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload bounded raw timing, cache, nonce and public-page screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: csp-hosted-stage-${{ github.sha }}-${{ github.run_id }}
+          path: qa-artifacts/csp-hosted-stage/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Production CSP remains OFF
+        if: always()
+        run: |
+          echo "This workflow contains no vercel deploy, promote, project-env writes, feature-flag mutation or application POST."
