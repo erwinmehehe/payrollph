@@ -1,0 +1,109 @@
+name: Tenant Report Builder Page (Fictional PG16 Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/workspace/report-builder/**"
+      - "src/app/api/reports/builder/**"
+      - "src/lib/tenant-report-builder*.ts"
+      - "scripts/qa/tenant-report-builder-page-*.mjs"
+      - "tests/tenant-report-builder*.test.*"
+      - ".github/workflows/tenant-report-builder-page-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  report-page-tenant-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_REPORT_PAGE_PROOF: fictional-only
+      TENANT_REPORT_BUILDER_ENABLED: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact PR head (or dispatched main SHA)
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Reject unsafe proof environments and false-positive page authorization
+        run: |
+          node --check scripts/qa/tenant-report-builder-page-contract.mjs
+          node --check scripts/qa/tenant-report-builder-page-http.mjs
+          node --test tests/tenant-report-builder-page-contract.test.mjs
+          node --import tsx --test tests/tenant-report-builder.test.ts
+      - name: Create ephemeral fiction-only encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline (never production)
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build feature-ON synthetic-only Next application
+        run: npm run build
+      - name: Start localhost-only app
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-report-builder-page.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-report-builder-page.log
+          exit 1
+      - name: Assert real own, foreign, unit-scoped, malformed and revoked page/API
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-report-builder-page-http.mjs
+      - name: Show bounded localhost server log on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-report-builder-page.log || true

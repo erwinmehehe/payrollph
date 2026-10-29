@@ -1,5 +1,12 @@
 import { toCsv } from "@/lib/csv";
 
+/** Strict, explicit employer selector for private server-rendered report pages. */
+export function explicitReportBuilderEmployerId(raw: unknown): number | null {
+  if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) return null;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
 export type BuilderDataset = "people" | "time" | "payroll";
 export type BuilderField = "department" | "status" | "employmentType" |
   "headcount" | "separatedCount" | "turnoverCount" | "scheduledMinutes" | "workedMinutes" |

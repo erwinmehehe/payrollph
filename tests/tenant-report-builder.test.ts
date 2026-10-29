@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
-  validateBuilderSpec, runWhitelistedBuilder, builderRowsToCsv,
+  validateBuilderSpec, runWhitelistedBuilder, builderRowsToCsv, explicitReportBuilderEmployerId,
 } from "../src/lib/tenant-report-builder";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 
@@ -88,4 +88,13 @@ test("payroll aggregation preserves exact decimal centavos", () => {
   {department:"OPS",payrollCost:"0.20",otLineCost:"0.20"},
   {department:"OPS",payrollCost:"99999999.99",otLineCost:"0.01"},
  ],spec),[["OPS","100000000.29","0.31"]]);
+});
+
+test("report-builder page employer ID accepts only canonical positive safe integers", () => {
+  assert.equal(explicitReportBuilderEmployerId("1"), 1);
+  assert.equal(explicitReportBuilderEmployerId("9007199254740991"), Number.MAX_SAFE_INTEGER);
+  for (const value of [undefined, null, "", "0", "-1", "1.5", "1e2", "01",
+    " 1", "1 ", "+1", "1&organizationId=2", "9007199254740992", ["1"], 1, {}, NaN]) {
+    assert.equal(explicitReportBuilderEmployerId(value), null, String(value));
+  }
 });

@@ -237,6 +237,14 @@ function sourceJournalBridge(
     { account: "COMPANY_LOANS_PAYABLE", debit: 0, credit: sum("company_loans") },
     { account: "OTHER_DEDUCTIONS_PAYABLE", debit: 0, credit: sum("other_deductions") },
   ];
+  // Normalized journals are a closed set of the reviewed payroll controls above.
+  // Matching extra/suspense entries in BOTH source journals would otherwise pass
+  // a balanced, account-by-account comparison without any payroll explanation.
+  // Never echo source account codes, amounts or private rows in the report.
+  const canonicalAccounts = new Set(expected.map((control) => control.account));
+  if ([...journal.keys()].some((account) => !canonicalAccounts.has(account))) {
+    issues.push(period + " " + sourceName + ": normalized GL contains unmapped accounts. Reconcile to approved canonical payroll controls.");
+  }
   for (const control of expected) {
     // A net negative WHT/other-deductions balance is a refund/reversal.
     const net = control.credit - control.debit;
