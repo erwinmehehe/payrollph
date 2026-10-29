@@ -1115,7 +1115,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
       proofBlobSha: "243827a6b4481a25fc5a95259843862da117f5f0",
       workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
-      workflowBlobSha: "052b79f7437ae40016c1d3d75b4b2a6563468931",
+      workflowBlobSha: "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
       coverageCredits: 0,
       testedBy: null,
       independentSecurityReview: "PENDING",

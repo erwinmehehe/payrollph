@@ -18,6 +18,8 @@ on:
       - 'tests/hcm-salary-correction-entity-tenant.test.ts'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'tests/tenant-isolation-coverage-inventory.test.mjs'
+      - 'tests/env-secrets-documented.test.mjs'
+      - 'docs/qa/hcm-salary-correction-entity-tenant.md'
 
 permissions:
   contents: read
@@ -75,6 +77,7 @@ jobs:
           node --test tests/tenant-hcm-salary-correction-preview-contract.test.mjs
           npx tsx --test tests/hcm-salary-correction-entity-tenant.test.ts
           npx tsx --test tests/multi-entity-hcm-hold.test.ts
+          node --test tests/env-secrets-documented.test.mjs
       - name: Disposable encryption material and webhook fixture
         shell: bash
         run: |
