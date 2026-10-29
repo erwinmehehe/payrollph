@@ -47,6 +47,37 @@ export function emailChangeIssues(input: { email: string; currentEmail: string; 
   return problems;
 }
 
+/**
+ * An account-wide verified email can update an ESS worker's contact email only
+ * when the account's worker link still belongs to an active employee grant in
+ * that same employer. A separate employer membership is not a substitute.
+ * Legacy null workerEmployeeId grants use the account's ESS employeeId link.
+ */
+export function canSyncLinkedEmployeeEmail(input: {
+  userId: number;
+  role: string;
+  employeeId: number | null;
+  employee: { id: number; organizationId: number } | null;
+  membership: {
+    userId: number;
+    organizationId: number;
+    role: string;
+    active: boolean;
+    workerEmployeeId: number | null;
+  } | null;
+}) {
+  const { userId, role, employeeId, employee, membership } = input;
+  return role === "employee"
+    && Number.isSafeInteger(userId) && userId > 0
+    && Number.isSafeInteger(employeeId) && employeeId !== null && employeeId > 0
+    && employee !== null && employee.id === employeeId
+    && Number.isSafeInteger(employee.organizationId) && employee.organizationId > 0
+    && membership !== null && membership.userId === userId
+    && membership.organizationId === employee.organizationId
+    && membership.active === true && membership.role === "employee"
+    && (membership.workerEmployeeId === null || membership.workerEmployeeId === employeeId);
+}
+
 /** Coarse but honest device labelling, no external UA parser dependency. */
 export function describeUserAgent(ua: string | null): string {
   if (!ua) return "Unknown device";

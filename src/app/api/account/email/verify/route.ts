@@ -1,7 +1,8 @@
 import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { emailChangeTokens, employees, users } from "@/db/schema";
+import { emailChangeTokens, employees, userOrganizations, users } from "@/db/schema";
 import { primaryOrganizationId } from "@/lib/access";
+import { canSyncLinkedEmployeeEmail } from "@/lib/account";
 import { recordAuditEvent } from "@/lib/audit";
 import { revokeAllSessions } from "@/lib/auth";
 import { sha256 } from "@/lib/crypto";
@@ -45,18 +46,77 @@ export async function POST(request: Request) {
   const oldEmail = account.email;
   try {
     await db.transaction(async (tx) => {
-      await tx.update(users).set({ email: pending.newEmail }).where(eq(users.id, account.id));
-      if (account.employeeId) {
-        await tx.update(employees).set({ email: pending.newEmail }).where(eq(employees.id, account.employeeId));
+      // Lock and recheck the single-use token in the committing transaction.
+      // A second request or superseding link cannot reuse a stale preflight read.
+      const [liveToken] = await tx.select({ id: emailChangeTokens.id }).from(emailChangeTokens)
+        .where(and(
+          eq(emailChangeTokens.id, pending.id),
+          eq(emailChangeTokens.userId, account.id),
+          eq(emailChangeTokens.tokenHash, sha256(token)),
+          isNull(emailChangeTokens.usedAt),
+          gt(emailChangeTokens.expiresAt, new Date()),
+        )).for("update").limit(1);
+      if (!liveToken) throw new Error("Verification token already consumed.");
+
+      // A worker pointer can be stale, reassigned or from another employer.
+      // Lock the authoritative user and employee records before changing either.
+      const [currentAccount] = await tx.select({
+        id: users.id, role: users.role, employeeId: users.employeeId, active: users.active,
+      }).from(users).where(eq(users.id, account.id)).for("update").limit(1);
+      if (!currentAccount?.active) throw new Error("Account no longer active.");
+
+      if (currentAccount.employeeId != null) {
+        const [linkedEmployee] = await tx.select({
+          id: employees.id, organizationId: employees.organizationId,
+        }).from(employees).where(eq(employees.id, currentAccount.employeeId))
+          .for("update").limit(1);
+        if (!linkedEmployee) throw new Error("Linked employee unavailable.");
+
+        // Membership revocation must serialize with this write. Another active
+        // employer grant never authorizes a different employer's employee row.
+        const [membership] = await tx.select({
+          userId: userOrganizations.userId,
+          organizationId: userOrganizations.organizationId,
+          role: userOrganizations.role,
+          active: userOrganizations.active,
+          workerEmployeeId: userOrganizations.workerEmployeeId,
+        }).from(userOrganizations).where(and(
+          eq(userOrganizations.userId, currentAccount.id),
+          eq(userOrganizations.organizationId, linkedEmployee.organizationId),
+          eq(userOrganizations.active, true),
+        )).for("share").limit(1);
+
+        if (!canSyncLinkedEmployeeEmail({
+          userId: currentAccount.id,
+          role: currentAccount.role,
+          employeeId: currentAccount.employeeId,
+          employee: linkedEmployee,
+          membership: membership ?? null,
+        })) throw new Error("Linked employee employer grant invalid.");
+
+        const [updatedEmployee] = await tx.update(employees)
+          .set({ email: pending.newEmail })
+          .where(and(
+            eq(employees.id, currentAccount.employeeId),
+            eq(employees.organizationId, linkedEmployee.organizationId),
+          )).returning({ id: employees.id });
+        if (!updatedEmployee) throw new Error("Linked employee was not updated.");
       }
 
-      // Completing one email change invalidates every other outstanding link.
+      const [updatedAccount] = await tx.update(users)
+        .set({ email: pending.newEmail })
+        .where(eq(users.id, currentAccount.id))
+        .returning({ id: users.id });
+      if (!updatedAccount) throw new Error("Account no longer available.");
+
+      // Account, linked worker email and token consumption commit or roll back
+      // together, including on an invalid or revoked employer membership.
       await tx.update(emailChangeTokens)
         .set({ usedAt: new Date() })
-        .where(and(eq(emailChangeTokens.userId, account.id), isNull(emailChangeTokens.usedAt)));
+        .where(and(eq(emailChangeTokens.userId, currentAccount.id), isNull(emailChangeTokens.usedAt)));
     });
   } catch {
-    return Response.json({ error: "That email is no longer available. Request a new verification link." }, { status: 409 });
+    return Response.json({ error: "Email verification could not be completed. Request a new verification link or contact support." }, { status: 409 });
   }
 
   const sessionsRevoked = await revokeAllSessions(account.id);
