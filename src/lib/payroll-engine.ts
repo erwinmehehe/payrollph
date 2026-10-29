@@ -360,6 +360,10 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   return { runId, totalChunks, employeeCount: employeeRows.length };
 }
 
+// A bounded chunk can be reclaimed after a dead worker's lease expires.
+// Attempt fencing below prevents the original worker from committing later.
+export const PAYROLL_JOB_LEASE_SECONDS = 30 * 60;
+
 export async function processNextPayrollJob(
   workerId = `worker-${process.pid}`,
   targetRunId?: number,
@@ -367,39 +371,20 @@ export async function processNextPayrollJob(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const claim = targetRunId
-      ? await client.query<{
-          id: number;
-          payroll_run_id: number;
-          organization_id: number;
-          chunk_index: number;
-          chunk_size: number;
-          attempts: number;
-        }>(
-          `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
-           FROM payroll_jobs
-           WHERE status IN ('queued', 'failed')
-             AND payroll_run_id = $1
-           ORDER BY id
-           FOR UPDATE SKIP LOCKED
-           LIMIT 1`,
-          [targetRunId],
-        )
-      : await client.query<{
-          id: number;
-          payroll_run_id: number;
-          organization_id: number;
-          chunk_index: number;
-          chunk_size: number;
-          attempts: number;
-        }>(
-          `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
-           FROM payroll_jobs
-           WHERE status IN ('queued', 'failed')
-           ORDER BY id
-           FOR UPDATE SKIP LOCKED
-           LIMIT 1`,
-        );
+    const claim = await client.query<{
+      id: number; payroll_run_id: number; organization_id: number;
+      chunk_index: number; chunk_size: number; attempts: number; status: string;
+    }>(
+      `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts, status
+       FROM payroll_jobs
+       WHERE (status IN ('queued', 'failed') OR
+         (status = 'processing' AND COALESCE(locked_at, updated_at) < NOW() - ($2 * INTERVAL '1 second')))
+         AND ($1::int IS NULL OR payroll_run_id = $1)
+       ORDER BY id
+       FOR UPDATE SKIP LOCKED
+       LIMIT 1`,
+      [targetRunId ?? null, PAYROLL_JOB_LEASE_SECONDS],
+    );
 
     if (claim.rowCount === 0) {
       await client.query("COMMIT");
@@ -413,6 +398,16 @@ export async function processNextPayrollJob(
        WHERE id = $1`,
       [job.id, workerId],
     );
+    if (job.status === "processing") {
+      await client.query(
+        `INSERT INTO audit_events (organization_id, actor, action, resource, metadata)
+         VALUES ($1, 'System', 'Payroll worker lease recovered', $2, $3::jsonb)`,
+        [job.organization_id, `Payroll run #${job.payroll_run_id}`, JSON.stringify({
+          runId: job.payroll_run_id, jobId: job.id, previousAttempt: job.attempts,
+          attempt: job.attempts + 1, leaseSeconds: PAYROLL_JOB_LEASE_SECONDS,
+        })],
+      );
+    }
     await client.query("COMMIT");
 
     try {
@@ -422,23 +417,30 @@ export async function processNextPayrollJob(
         chunkIndex: job.chunk_index,
         chunkSize: job.chunk_size,
         payrollJobId: job.id,
+        payrollJobAttempt: job.attempts + 1,
+        payrollWorkerId: workerId,
       });
 
       // Chunk rows, history and job cursor were already committed atomically.
       return { processed: true as const, ...result };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown payroll error";
-      await db.update(payrollJobs).set({
-        status: "failed",
-        lastError: message,
-        lockedAt: null,
-        lockedBy: null,
-        updatedAt: new Date(),
-      }).where(and(eq(payrollJobs.id, job.id), eq(payrollJobs.status, "processing")));
-      await db.update(payrollRuns).set({ status: "Failed" }).where(and(
-        eq(payrollRuns.id, job.payroll_run_id),
-        inArray(payrollRuns.status, ["Queued", "Processing", "Failed"]),
-      ));
+      await db.transaction(async tx => {
+        const [failedJob] = await tx.update(payrollJobs).set({
+          status: "failed",
+          lastError: message,
+          lockedAt: null,
+          lockedBy: null,
+          updatedAt: new Date(),
+        }).where(and(eq(payrollJobs.id, job.id), eq(payrollJobs.status, "processing"),
+          eq(payrollJobs.attempts, job.attempts + 1), eq(payrollJobs.lockedBy, workerId)))
+          .returning({ id: payrollJobs.id });
+        // An expired worker must not fail its replacement's job or run.
+        if (failedJob) await tx.update(payrollRuns).set({ status: "Failed" }).where(and(
+          eq(payrollRuns.id, job.payroll_run_id),
+          inArray(payrollRuns.status, ["Queued", "Processing", "Failed"]),
+        ));
+      });
       throw error;
     }
   } catch (error) {
@@ -470,6 +472,8 @@ type PayrollChunkRequest = {
   chunkIndex: number;
   chunkSize: number;
   payrollJobId?: number;
+  payrollJobAttempt?: number;
+  payrollWorkerId?: string;
 };
 
 /** Same authoritative input assembly as the real worker, with a query-only
@@ -552,7 +556,9 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
 }) {
   // A persisted calculation must be linked to a real claimed queue attempt.
   if (!input.preview && (typeof input.payrollJobId !== "number" ||
-      !Number.isSafeInteger(input.payrollJobId) || input.payrollJobId <= 0)) {
+      !Number.isSafeInteger(input.payrollJobId) || input.payrollJobId <= 0 ||
+      !Number.isSafeInteger(input.payrollJobAttempt) || Number(input.payrollJobAttempt) <= 0 ||
+      typeof input.payrollWorkerId !== "string" || input.payrollWorkerId.length === 0)) {
     throw new Error("PAYROLL_HISTORY_REQUIRES_CLAIMED_JOB");
   }
   // Never invoke schema bootstrapping from a read-only financial projection.
@@ -1830,6 +1836,8 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
         lockedJob.organizationId !== input.organizationId ||
         lockedJob.status !== "processing" ||
         lockedJob.chunkIndex !== input.chunkIndex ||
+        lockedJob.attempts !== input.payrollJobAttempt ||
+        lockedJob.lockedBy !== input.payrollWorkerId ||
         lockedJob.chunkSize !== input.chunkSize) {
       throw new Error("PAYROLL_HISTORY_JOB_CLAIM_LOST");
     }
