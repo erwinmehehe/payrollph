@@ -8,7 +8,7 @@ export const fixtureOrder = {
   "PATCH hcm/lifecycle-policy": 11
 };
 
-export function createRows({ addWorker, asc, assert, db, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, workerEffectiveChanges, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, hcmSkills, jobProfiles, automationOperationalCases, pool, orgUnits }) {
+export function createRows({ addWorker, asc, assert, auditBusinessSnapshot, db, engagementSurveys, eq, hcmEmploymentTermDecisions, hcmEmploymentTerms, hcmLifecyclePolicies, hcmLifecyclePolicyEvents, workerEffectiveChanges, hcmEmploymentDecisionEvents, hcmBusinessProcessDefinitions, hcmBusinessProcessInstances, hcmJobProfileSkillRequirements, hcmSkills, jobProfiles, automationOperationalCases, pool, orgUnits }) {
   const added = (before, after, c, payload) => {
     assert.equal(after.length, before.length + 1);
     const rows = after.filter(r => !before.some(old => old.id === r.id));
@@ -141,11 +141,11 @@ export function createRows({ addWorker, asc, assert, db, engagementSurveys, eq, 
     } },
   { key: "POST hcm/capabilities",
     seed: async (e) => { const [profile] = await db.insert(jobProfiles).values({ organizationId: e.org.id, title: e.marker }).returning();
-      const [skill] = await db.insert(hcmSkills).values({ organizationId: e.org.id, code: e.marker + "-JOBSKILL", name: e.marker }).returning(); return { id: profile.id, skillId: skill.id }; },
+      const [skill] = await db.insert(hcmSkills).values({ organizationId: e.org.id, code: e.marker + "-JOBSKILL", name: e.marker }).returning(); const { hcmDocumentRequirements } = await import("../../../../src/db/schema.ts"); const [doc] = await db.insert(hcmDocumentRequirements).values({ organizationId: e.org.id, code: e.marker + "-DOC", name: e.marker + " document", kind: "license", createdByName: "Fictional fixture" }).returning(); return { id: profile.id, skillId: skill.id, docId: doc.id }; },
     state: (orgId) => db.select().from(hcmJobProfileSkillRequirements).where(eq(hcmJobProfileSkillRequirements.organizationId, orgId)).orderBy(asc(hcmJobProfileSkillRequirements.id)),
     ownBody: (c) => ({ organizationId: c.orgId, action: "set_job_skill", jobProfileId: c.seeded.id, skillId: c.seeded.skillId, minimumProficiency: 3, mandatory: true }),
     foreignBody: (c) => ({ organizationId: c.victim.org.id, action: "set_job_skill", jobProfileId: c.victimSeeded.id, skillId: c.victimSeeded.skillId, minimumProficiency: 3, mandatory: true }),
-    forged: { status: 404, body: (c) => ({ organizationId: c.orgId, action: "set_job_skill", jobProfileId: c.seeded.id, skillId: c.victimSeeded.skillId, minimumProficiency: 3 }) },
+    forged: { status: 404, body: (c) => ({ organizationId: c.orgId, action: "set_job_skill", jobProfileId: c.seeded.id, skillId: c.victimSeeded.skillId, minimumProficiency: 3 }) }, exercise: async (c, helpers) => (await import("../helpers/hcm-capabilities-actions.mjs")).capabilitiesActions({ assert, asc, auditBusinessSnapshot, db, eq }, c, helpers),
     expect: (before, after, c, response) => {
       const row = added(before, after, c, response.json?.requirement);
       assert.equal(row.jobProfileId, c.seeded.id); assert.equal(row.skillId, c.seeded.skillId);
