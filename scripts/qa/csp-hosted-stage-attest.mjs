@@ -3,6 +3,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { stageConfiguration, attestPreview } from "./csp-hosted-stage-contract.mjs";
+import { auditPreviewIsolationMetadata } from "../verify-preview-isolation.mjs";
 
 const dir = "qa-artifacts/csp-hosted-stage";
 await mkdir(dir,{recursive:true});
@@ -11,6 +12,26 @@ try {
   const config = stageConfiguration(process.env);
   const token = process.env.CSP_STAGE_READ_TOKEN || "";
   assert.ok(token.length >= 20, "Protected read-only Vercel metadata token missing");
+  // Reuse the repository's preview-vs-production env target audit BEFORE any
+  // application GET. Never log/store secret values returned by the API.
+  const envApi="https://api.vercel.com/v9/projects/"+
+    encodeURIComponent(config.projectId)+"/env?teamId="+encodeURIComponent(config.teamId);
+  const envResponse=await fetch(envApi,{
+    method:"GET",redirect:"error",
+    headers:{Authorization:"Bearer "+token},
+    signal:AbortSignal.timeout(20000),
+  });
+  assert.equal(envResponse.status,200,
+    "QA project Preview environment metadata unavailable (HTTP "+envResponse.status+")");
+  const envPayload=await envResponse.json();
+  const sanitizedEnv={
+    envs:(envPayload.envs||[]).map(entry=>({
+      key:entry.key,target:entry.target,gitBranch:entry.gitBranch,
+    })),
+    pagination:envPayload.pagination,
+  };
+  const isolation=auditPreviewIsolationMetadata(sanitizedEnv);
+  assert.ok(isolation.ok,"Preview env target audit failed: "+isolation.errors.join("; "));
   const attest = [];
   for (const stage of [config.off, config.on]) {
     const endpoint = "https://api.vercel.com/v13/deployments/" +
@@ -29,12 +50,17 @@ try {
   const output = {
     result:"ATTESTED_PREVIEW_ONLY", sourceSha:config.sourceSha,
     projectId:config.projectId, deploymentTargets:attest,
-    verifiedAt:new Date().toISOString(), productionTouched:false,
-    productionApproved:false, deploymentCreated:false,
+    verifiedAt:new Date().toISOString(),
+    previewAssignmentsAudited:isolation.auditedEntries,
+    previewEnvTargetAuditPassed:isolation.ok,
+    // A separate mandatory DB marker + read-only proof runs after this step.
+    databaseIdentityAttestedHere:false,
+    productionTouched:false,productionApproved:false, deploymentCreated:false,
   };
   await writeFile(dir+"/attestation.json",JSON.stringify(output,null,2)+"\n");
   attested = true;
   console.log("PASS: two distinct READY, Git-SHA-identical, immutable preview deployments in the fictional QA project.");
+  console.log("PASS: sanitized Preview environment assignments contain no shared Production targets.");
   console.log("PASS: neither target is production and no deployment or env setting was modified.");
 } catch (error) {
   const reason = error instanceof Error ? error.message : String(error);
