@@ -24,7 +24,11 @@ export function parseInvitationUnitId(value: unknown): number | null {
  */
 export function invitationVisibleUnit(access: InvitationInviterScope): number | null | undefined {
   if (!access) return undefined;
-  if (access.companyWide) return access.orgUnitId === null ? null : undefined;
+  // Never coerce a malformed companyWide flag into a company-wide grant.
+  if (access.companyWide === true) return access.orgUnitId === null ? null : undefined;
+  if (access.companyWide !== false || typeof access.orgUnitId !== "number") return undefined;
+  // Persisted access grants must use a numeric unit ID. String parsing is only
+  // permitted for explicit, validated invitation input, not membership scope.
   return parseInvitationUnitId(access.orgUnitId) ?? undefined;
 }
 

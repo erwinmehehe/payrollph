@@ -57,7 +57,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 Frozen subtotal: **270 COVERED + 2 PUBLIC-BY-DESIGN + 134 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
-### Three already merged #1591 methods — previously reviewed original evidence
+### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
 **Separate draft PR #1592 now proposes only WRK-01 staffing-policy POST and PATCH.** Both methods cite the previously executed fictional PG16 run [40647378457](https://github.com/erwinmehehe/payrollph/actions/runs/40647378457) with exact route, runner, contract and workflow hashes, own-employer success by two attackers, real foreign-employer denial, forged IDs and unchanged victim database state. **GET remains GAP.** The two credits remain pending security/coverage-owner review; a passing historical source run is not exact-head acceptance of this merged tree.
 

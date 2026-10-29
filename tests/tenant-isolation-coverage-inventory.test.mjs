@@ -1250,9 +1250,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: "ed6e94cef183e77d0c727aef54f898eef30eb3cc",
       routeBlobSha: currentBlob,
       helperFile: "src/lib/invitation-tenant-scope.ts",
-      helperBlobSha: "dbd9838871c9d1334995e43da1650dc37f9b9f8f",
+      helperBlobSha: "9d3ae70a3aef79e0f3c7ee40a4a6083786a32d68",
       testFile: "tests/invitation-tenant-scope.test.ts",
-      testBlobSha: "15e64c704f2b40aa5d05ed38f6f86c4d81629b58",
+      testBlobSha: "c8ac8f624e970acd228334de436747603122e737",
       coverageCredits: 0,
       realHttpPostAcceptance: "NOT_RUN",
       independentSecurityReview: "PENDING",
@@ -1334,6 +1334,78 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(route, /assertEntityResource\(entityScope\.context, legalEntityId\)/);
     assert.match(route, /assertEntityResource\(entityScope\.context, employee\.legalEntityId\)/);
     assert.doesNotMatch(route, /\bdb\.(?:insert|update|delete|transaction)\(/);
+    return;
+  }
+
+  // #1597: uncredited WFM baseline POST fix. A guessed foreign scenario ID
+  // must never disclose approval, plan linkage or scope before live membership.
+  // The read-only GET handler remains byte-identical to the credited version;
+  // changed POST needs fresh real-HTTP own/victim proof and human review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/workforce-planning/baselines/route.ts POST") {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/workforce-planning/baselines/route.ts";
+    const oldSha = "cf6173d80aa2211cfcf5c0f00c89bfc95610ceba";
+    const newSha = "21a1b50f86b3882fc11910e45bcd81e403662012";
+    assert.equal(currentBlob, newSha,
+      "WFM scenario publishing route changed: independent tenant security re-review required");
+    assert.deepEqual(review, {
+      kind: "wfm-baselines-foreign-scenario-404-source-only-zero-credit",
+      oldRouteBlobSha: oldSha,
+      routeBlobSha: newSha,
+      unchangedGetPrefixBlobSha: "4ea38d661f5ec8419b5f2e0a1f0fad97d213d9b5",
+      contractFile: "tests/workforce-plan-baseline.test.ts",
+      contractBlobSha: "ef8ff7a8430e02456959e80df46cee2bf0a8f804",
+      coverageCredits: 0,
+      exactHeadPostHttpProof: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "WFM baseline POST has no new credit, production approval or accepted HTTP proof");
+    assert.equal(method.testedBy, null, "Source-only POST fix must remain GAP");
+    assert.match(method.reason, /Still GAP:.*HTTP\/PG16.*Independent tenant-security review/);
+    const route = readFileSync(routePath, "utf8");
+    const getAt = route.indexOf("export async function GET(request: Request) {");
+    const postAt = route.indexOf("export async function POST(request: Request) {");
+    assert.ok(getAt >= 0 && postAt > getAt, "GET and POST handlers must remain distinct");
+    assert.equal(gitBlobSha(Buffer.from(route.slice(0, postAt))), review.unchangedGetPrefixBlobSha,
+      "Previously credited GET imports, helpers and handler must remain exactly unchanged");
+    const getMethod = manifest.allApiRouteFiles[routePath].methods
+      .find((entry) => entry.name === "GET");
+    assert.equal(getMethod?.status, "COVERED", "Original GET proof not downgraded or duplicated");
+    assert.equal(getMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    assert.equal(gitBlobSha(readFileSync(review.contractFile)), review.contractBlobSha,
+      "The source-order contract changed: repeat the zero-credit authorization review");
+    const post = route.slice(postAt);
+    const gates = [
+      "if (!Number.isSafeInteger(scenarioId) || scenarioId <= 0)",
+      "const [scenario] = await db.select().from(workforcePlanningScenarios)",
+      'if (!scenario) return Response.json({ error: "Staffing scenario not found." }, { status: 404 });',
+      "const access = await getAccess(user.id, scenario.organizationId);",
+      "if (!access || access.organizationId !== scenario.organizationId)",
+      "const denied = await assertOrganizationRole(",
+      "if (denied) return denied;",
+      "if (!access.companyWide)",
+      'if (scenario.status !== "approved")',
+      "if (!scenario.planId)",
+      "if (scenario.scopeOrgUnitId != null || scenario.worksiteId != null)",
+      'const advancedDenied = await denyOptInEnterpriseAdvancedPlan(scenario.organizationId, "planning");',
+      "const [[plan], positionRows, assignmentRows] = await Promise.all([",
+    ];
+    let previous = -1;
+    for (const gate of gates) {
+      const at = post.indexOf(gate);
+      assert.ok(at > previous, "A required authorization/source gate is missing or out of order: " + gate);
+      previous = at;
+    }
+    const generic404 = 'Response.json({ error: "Staffing scenario not found." }, { status: 404 })';
+    assert.equal(post.split(generic404).length - 1, 2,
+      "Unknown and foreign scenario IDs must share identical generic 404 response bodies");
+    const statusAt = post.indexOf('if (scenario.status !== "approved")');
+    assert.doesNotMatch(post.slice(0, statusAt),
+      /scenario\.(?:status|planId|scopeOrgUnitId|worksiteId|name|snapshot)\b/,
+      "No business-state disclosure or plan access before membership and People admin approval");
+    assert.match(post, /eq\(workforcePlans\.organizationId, scenario\.organizationId\)/);
+    assert.match(post, /eq\(workforcePlanBaselines\.organizationId, scenario\.organizationId\)/);
     return;
   }
 

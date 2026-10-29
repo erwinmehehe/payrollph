@@ -60,6 +60,30 @@ test("company-wide admin retains prior invitations except owner escalation", () 
   ), false);
 });
 
+test("malformed invitation membership grants cannot widen visibility or issuance", () => {
+  const malformed: unknown[] = [
+    { role: "owner", companyWide: "true", orgUnitId: null },
+    { role: "owner", companyWide: 1, orgUnitId: null },
+    { role: "admin", companyWide: "false", orgUnitId: 17 },
+    { role: "admin", companyWide: undefined, orgUnitId: 17 },
+    { role: "admin", companyWide: null, orgUnitId: 17 },
+    { role: "admin", companyWide: false, orgUnitId: "17" },
+    { role: "admin", companyWide: false, orgUnitId: 0 },
+    { role: "admin", companyWide: true, orgUnitId: 17 },
+  ];
+  for (const candidate of malformed) {
+    const access = candidate as Parameters<typeof invitationVisibleUnit>[0];
+    assert.equal(invitationVisibleUnit(access), undefined, JSON.stringify(candidate));
+    assert.equal(canCreateScopedInvitation(access, "owner", null), false);
+    assert.equal(canCreateScopedInvitation(access, "employee", 17), false);
+  }
+  // Input parsing remains unchanged; a canonical string is valid for a
+  // submitted unit ID, not for a persisted access scope.
+  assert.equal(parseInvitationUnitId("17"), 17);
+  assert.equal(invitationVisibleUnit(unitAdmin), 17);
+  assert.equal(invitationVisibleUnit(companyOwner), null);
+});
+
 test("the actual invitation route enforces both SQL read scope and pre-issuance write scope", () => {
   const route = readFileSync("src/app/api/invitations/route.ts", "utf8");
   const get = route.slice(route.indexOf("export async function GET("), route.indexOf("export async function POST("));
