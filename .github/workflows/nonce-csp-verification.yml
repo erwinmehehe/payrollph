@@ -1,0 +1,194 @@
+name: Nonce CSP served Chromium and SEO evidence (NO PROD)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/csp-nonce-*.mjs"
+      - "docs/security/csp-nonce-verification.md"
+      - ".github/workflows/nonce-csp-verification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: csp-verify-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  csp-browser-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CSP_EVIDENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CI: "true"
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
+      HCM_PEOPLE_HOME_ENABLED: "true"
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "true"
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2,3"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      OPENAI_API_KEY: ""
+      NEXT_CSP_ENABLED: "false"
+      PAYOUT_SUBMISSION_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Fetch origin main and record exact baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qa-artifacts/csp-verification/off qa-artifacts/csp-verification/on
+          git fetch origin main 2>&1 | tee qa-artifacts/csp-verification/git-fetch-main.log
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          {
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo "origin/main=$(git rev-parse origin/main)"
+            echo "merge_base=$(git merge-base origin/main HEAD)"
+            echo "src/proxy.ts sha=$(git hash-object src/proxy.ts)"
+            git status --short
+          } | tee -a qa-artifacts/csp-verification/git-fetch-main.log
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Disposable-only encryption keys, never production secrets
+        shell: bash
+        run: |
+          for env_var in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$env_var=$value" >> "$GITHUB_ENV"
+          done
+      - name: Apply schema to disposable PG16
+        run: npm run db:push
+      - name: Apply existing isolated CI baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Reuse existing fictional HCM fixture, no new real users
+        run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
+      - name: Install pinned headless Chromium for real-browser proof
+        run: |
+          npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
+      - name: Create temporary 500 route ONLY in disposable CI checkout
+        shell: bash
+        run: |
+          # Next.js reserves leading-underscore route folders as private.
+          # Use a normal public segment so this disposable route can return 500.
+          mkdir -p src/app/csp-qa-expected-500
+          cat > src/app/csp-qa-expected-500/page.tsx <<'TS'
+          import { connection } from "next/server";
+          export const dynamic = "force-dynamic";
+          export default async function Probe() {
+            await connection();
+            throw new Error("EXPECTED_CSP_QA_SYNTHETIC_500");
+          }
+          TS
+          echo "The synthetic error route is not committed or deployed."
+
+      - name: Production build with CSP OFF, baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEXT_CSP_ENABLED=false npm run build > qa-artifacts/csp-verification/off/build.log 2>&1 || {
+            tail -n 100 qa-artifacts/csp-verification/off/build.log; exit 1;
+          }
+          MODE=off node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const v = JSON.parse(readFileSync(".next/prerender-manifest.json","utf8"));
+            writeFileSync("qa-artifacts/csp-verification/off/build-routes.json",
+              JSON.stringify({ prerenderedPages:Object.keys(v.routes??{}), dynamicFallbacks:Object.keys(v.dynamicRoutes??{}) },null,2));
+          '
+      - name: Serve CSP OFF build on local loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEXT_CSP_ENABLED=false node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000 > qa-artifacts/csp-verification/off/server.log 2>&1 &
+          echo $! > /tmp/csp-qa-server.pid
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 15 http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 120 qa-artifacts/csp-verification/off/server.log
+          exit 1
+      - name: Actual OFF Chromium, nonce and timing evidence
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          NEXT_CSP_ENABLED=false node scripts/qa/csp-nonce-browser-verification.mjs off 2>&1 | tee qa-artifacts/csp-verification/off/harness.log
+      - name: Stop OFF server before re-building
+        if: always()
+        shell: bash
+        run: |
+          if test -f /tmp/csp-qa-server.pid; then kill "$(cat /tmp/csp-qa-server.pid)" 2>/dev/null || true; fi
+          sleep 3
+      - name: Independent production build with nonce CSP ON
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .next
+          NEXT_CSP_ENABLED=true npm run build > qa-artifacts/csp-verification/on/build.log 2>&1 || {
+            tail -n 100 qa-artifacts/csp-verification/on/build.log; exit 1;
+          }
+          MODE=on node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const v = JSON.parse(readFileSync(".next/prerender-manifest.json","utf8"));
+            writeFileSync("qa-artifacts/csp-verification/on/build-routes.json",
+              JSON.stringify({ prerenderedPages:Object.keys(v.routes??{}), dynamicFallbacks:Object.keys(v.dynamicRoutes??{}) },null,2));
+          '
+      - name: Serve nonce CSP ON build on same local loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEXT_CSP_ENABLED=true node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000 > qa-artifacts/csp-verification/on/server.log 2>&1 &
+          echo $! > /tmp/csp-qa-server.pid
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 15 http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 120 qa-artifacts/csp-verification/on/server.log
+          exit 1
+      - name: Actual ON Chromium, nonce and timing evidence
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          NEXT_CSP_ENABLED=true node scripts/qa/csp-nonce-browser-verification.mjs on 2>&1 | tee qa-artifacts/csp-verification/on/harness.log
+      - name: Produce exact-run PASS/FAIL table and owner recommendation
+        if: always()
+        shell: bash
+        run: |
+          node scripts/qa/csp-nonce-evidence-summary.mjs | tee qa-artifacts/csp-verification/summary.log
+      - name: Upload raw screenshots, headers, HTML hashes, timings and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: csp-nonce-verification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: qa-artifacts/csp-verification/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Never enable CSP on production
+        if: always()
+        shell: bash
+        run: |
+          echo "CI-only source verification; no deploy job, no external hosts, no production flag changes."
