@@ -62,6 +62,26 @@ test("result assertions discriminate nonempty own employee rows from wrong/extra
   }, [12]));
 });
 
+test("payroll approver path accepts canonical positive IDs and rejects ambiguous or unsafe selectors", () => {
+  const route = readFileSync("src/app/api/organizations/[id]/payroll-approvers/route.ts", "utf8");
+  // Extract the pattern actually used by the route. A double-escaped \d in
+  // a JS regex literal used to reject every positive ID with HTTP 400.
+  const match = route.match(/if \(!\/([^/\r\n]+)\/\.test\(id\) \|\| !Number\.isSafeInteger\(organizationId\)/);
+  assert.ok(match, "Route must validate both canonical path text and safe numeric range");
+  const pattern = new RegExp(match[1]);
+  const accepted = (value) => pattern.test(value) &&
+    Number.isSafeInteger(Number(value)) && Number(value) > 0;
+  for (const value of ["1", "2", "12", "1234", "9007199254740991"]) {
+    assert.equal(accepted(value), true, "Expected valid path ID: " + value);
+  }
+  for (const value of [
+    "", "0", "00", "-1", "+1", "01", "1e3", "1.0", " 1", "1 ",
+    "1d", "1\\d", "9007199254740992",
+  ]) {
+    assert.equal(accepted(value), false, "Unsafe/noncanonical path ID: " + value);
+  }
+});
+
 test("DB applies live membership, active user, role, peer and unit predicates before returning PII", () => {
   const s = readFileSync("src/app/api/organizations/[id]/payroll-approvers/route.ts", "utf8");
   assert.match(s, /getSessionUser\(\)/);
