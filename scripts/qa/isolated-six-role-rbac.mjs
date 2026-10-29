@@ -42,9 +42,16 @@ function guardEnvironment() {
   assert.equal(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "false");
   assert.equal(process.env.XENDIT_PAYOUTS_ENABLED, "false");
   const url = new URL(process.env.DATABASE_URL ?? "");
+  assert.equal(url.protocol, "postgresql:");
   assert.equal(url.hostname, "127.0.0.1");
   assert.equal(url.port, "5432");
   assert.equal(url.pathname, "/app_db");
+  assert.equal(url.username, "postgres");
+  assert.equal(url.password, "postgres");
+  // No libpq/connection-string query override may redirect this fixture
+  // to a hosted database even if the parsed URL hostname is loopback.
+  assert.equal(url.search, "");
+  assert.equal(url.hash, "");
   // pull_request GITHUB_SHA usually refers to GitHub's synthetic merge commit,
   // not the exact PR head checked out by actions/checkout. Attest the real HEAD.
   const checkedOutSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
