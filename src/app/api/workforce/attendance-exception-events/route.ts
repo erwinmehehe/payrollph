@@ -253,6 +253,8 @@ export async function POST(request: Request) {
       updatedAt: new Date(),
     }).where(and(
       eq(attendanceExceptionEvents.id, eventId),
+      eq(attendanceExceptionEvents.organizationId, organizationId),
+      eq(attendanceExceptionEvents.employeeId, event.employeeId),
       eq(attendanceExceptionEvents.status, "open"),
     )).returning();
     if (!updated) return Response.json({ error: "Attendance exception changed before assignment." }, { status: 409 });
@@ -299,6 +301,8 @@ export async function POST(request: Request) {
       updatedAt: now,
     }).where(and(
       eq(attendanceExceptionEvents.id, eventId),
+      eq(attendanceExceptionEvents.organizationId, organizationId),
+      eq(attendanceExceptionEvents.employeeId, event.employeeId),
       eq(attendanceExceptionEvents.status, "resolved"),
     )).returning();
     if (!updated) return Response.json({ error: "Attendance exception changed before resolution evidence was recorded." }, { status: 409 });
