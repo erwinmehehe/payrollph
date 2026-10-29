@@ -8,7 +8,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { enforceIntakeProof } from "@/lib/public-intake-proof-server";
 import { requireApplicantConsent } from "@/lib/recruitment-applicant-privacy";
 import { careersNoticeConfig, careersSchemaReady, publishedCareersPredicate } from "@/lib/careers-privacy-gates";
-import { readCareersApplicationBody } from "@/lib/careers-intake-body";
+import { careersContactFields, readCareersApplicationBody } from "@/lib/careers-intake-body";
 
 export const dynamic = "force-dynamic";
 const unavailable = () => Response.json({ error: "Careers portal not available." }, {
@@ -64,14 +64,16 @@ export async function POST(request: Request) {
   const requisitionId = Number(body.requisitionId);
   const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 32) : "";
-  const notes = typeof body.notes === "string" ? body.notes.trim().slice(0, 1000) : "";
   if (!validId(organizationId) || !validId(requisitionId) ||
     fullName.length < 4 || fullName.length > 160 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160 ||
     body.consent !== true || body.privacyNoticeVersion !== notice.version) {
     return Response.json({ error: "Name, valid email and documented data-processing consent are required." }, { status: 422 });
   }
+  const contact = careersContactFields(body);
+  if (!contact) return Response.json({
+    error: "Optional phone or message must be text within the allowed length.",
+  }, { status: 422, headers: { "Cache-Control": "no-store" } });
   // Reuse #925's canonical consent validation. The server assigns the source
   // reference and capture time; a browser cannot invent or backdate them.
   const consent = requireApplicantConsent({
@@ -127,8 +129,8 @@ export async function POST(request: Request) {
     )).limit(1);
     if (existing) return null;
     const [row] = await tx.insert(jobApplicants).values({
-      organizationId, requisitionId, fullName, email, phone: phone || null,
-      notes: notes || null, stage: "applied",
+      organizationId, requisitionId, fullName, email, phone: contact.phone || null,
+      notes: contact.notes || null, stage: "applied",
     }).returning({ id: jobApplicants.id });
     await tx.insert(applicantPrivacyEvidence).values({
       organizationId, applicantId: row.id, legalBasis: "consent",
