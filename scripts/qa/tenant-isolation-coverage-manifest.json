@@ -26903,7 +26903,7 @@
             "file": "scripts/qa/tenant-self-action-items-http.mjs",
             "line": 113,
             "ownPositiveLine": 232,
-            "secondaryOwnPositiveLine": 241,
+            "secondaryOwnPositiveLine": 242,
             "foreignDenialLine": 200,
             "unchangedDbLine": 203,
             "forgedSelectorLine": 206,
