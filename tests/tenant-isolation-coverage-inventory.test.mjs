@@ -724,6 +724,91 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Narrow, uncredited tenant bootstrap correction. Ordinary tenants may
+  // not insert globally shared benefit-plan templates. The GET/POST/DELETE
+  // handlers were byte-identical to main; their independent HTTP receipts
+  // remain intact. Exact-source drift reopens the PUT gap for review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/benefits/route.ts PUT") {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/benefits/route.ts";
+    const routeBlob = "f6a7f4803a8b0a72e6fbeb55c9cbead29c34c764";
+    assert.equal(currentBlob, routeBlob, "Benefit catalogue PUT changed: re-review tenant isolation");
+    assert.deepEqual(review, {
+      kind: "benefit-catalog-tenant-bootstrap-PUT-zero-credit",
+      oldRouteBlobSha: "679de68b5e7aac870a534eee8dd2376c18db2873",
+      routeBlobSha: routeBlob,
+      unchangedSiblingHandlersBlobSha: "0b7ff73dd8aa2532d1c333b7b43991286e86d202",
+      helperFile: "src/lib/benefit-catalog-tenant.ts",
+      helperBlobSha: "a2b3a19a20e696def27c0107f0bf30e2e1d7ff18",
+      contractFile: "scripts/qa/tenant-benefit-catalog-put-contract.mjs",
+      contractBlobSha: "475d2592b20c696492ac55a8b5face9e2e2b5d98",
+      runnerFile: "scripts/qa/tenant-benefit-catalog-put-http.mjs",
+      runnerBlobSha: "633f6c75c531ab9d22ce33ea0ccf8e49be41e18b",
+      unitTestFile: "tests/benefit-catalog-tenant.test.ts",
+      unitTestBlobSha: "bc4f16666cc55392ffe75e42a34d2fe4921a238a",
+      contractTestFile: "tests/tenant-benefit-catalog-put-contract.test.mjs",
+      contractTestBlobSha: "97d21883705cb36c2e6d78c3dd6210f09387132f",
+      workflowFile: ".github/workflows/tenant-benefit-catalog-put.yml",
+      workflowBlobSha: "8f4fbc9df427dbb2b352b7bb292284ee2753ce47",
+      coverageCredits: 0,
+      realHttpPg16Accepted: false,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Unreviewed PUT may only use the exactly pinned zero-credit exception");
+    for (const [file, blob] of [
+      [review.helperFile, review.helperBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.runnerFile, review.runnerBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.contractTestFile, review.contractTestBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), blob,
+        "Benefit catalogue tenant proof dependency changed: " + file);
+    }
+    const route = readFileSync(routePath, "utf8");
+    const first = route.indexOf("export async function GET(");
+    const next = route.indexOf("/** Seed defaults for the signed-in employer");
+    assert.ok(first > 0 && next > first,
+      "Previously covered GET/POST/DELETE method boundaries must not change");
+    const unchanged = route.slice(first, next);
+    for (const verb of ["GET", "POST", "DELETE"]) {
+      assert.match(unchanged, new RegExp("export async function " + verb + "\\("));
+    }
+    assert.equal(gitBlobSha(Buffer.from(unchanged)), review.unchangedSiblingHandlersBlobSha,
+      "Previously covered benefit methods must remain byte-identical to main");
+    const put = route.slice(next);
+    for (const guard of [
+      "parseCatalogEmployerId(",
+      "assertOrganizationRole(",
+      "if (!access?.companyWide)",
+      "await db.transaction(async tx => {",
+      "eq(userOrganizations.organizationId, organizationId)",
+      "eq(userOrganizations.active, true)",
+      "inArray(userOrganizations.role, [...ORG_ADMIN_ROLES])",
+      "isNull(userOrganizations.orgUnitId)",
+      '.for("share").limit(1)',
+      "pg_advisory_xact_lock(4459,",
+      "isNull(benefitPlans.organizationId)",
+      "eq(benefitPlans.organizationId, organizationId)",
+      "defaultEmployerBenefitPlans(organizationId)",
+      "await tx.insert(benefitPlans).values(defaults)",
+      "await tx.insert(auditEvents).values({",
+    ]) assert.ok(put.includes(guard), "Benefit PUT tenant source guard changed: " + guard);
+    assert.doesNotMatch(put, /organizationId:\s*null/,
+      "tenant admin cannot write shared global benefit plans");
+    assert.equal(method.testedBy, null, "Source-only benefit PUT must remain GAP");
+    assert.match(method.reason, /Still GAP.*PG16.*independent review/i);
+    const siblingMethods = manifest.allApiRouteFiles[routePath].methods;
+    for (const verb of ["GET", "POST", "DELETE"]) {
+      const reviewedSibling = siblingMethods.find(x => x.name === verb);
+      assert.equal(reviewedSibling?.status, "COVERED");
+      assert.ok(reviewedSibling?.testedBy?.file === "scripts/qa/tenant-benefit-enrollments-http.mjs");
+    }
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
