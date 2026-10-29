@@ -23,6 +23,10 @@ export function requireDisposableHcmDecisionEnv(env = process.env) {
   assert.equal(database.pathname, "/app_db");
   assert.equal(database.username, "postgres");
   assert.equal(database.password, "postgres");
+  // PostgreSQL connection-string parameters (e.g. ?host=...) must never
+  // override the verified loopback target or point the CI test at Neon.
+  assert.equal(database.search, "", "HCM_DECISION_REFUSED: database URL query parameters forbidden");
+  assert.equal(database.hash, "", "HCM_DECISION_REFUSED: database URL fragment forbidden");
   assert.notEqual(env.PAYMONGO_DISBURSEMENTS_ENABLED, "true");
   assert.notEqual(env.XENDIT_PAYOUTS_ENABLED, "true");
   for (const key of ["PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "STRIPE_SECRET_KEY", "RESEND_API_KEY", "SMTP_PASSWORD"]) {
@@ -37,4 +41,17 @@ export function assertVictimDecisionUnchanged(before, after, label) {
 export function assertNoVictimDecisionLeak(response, marker, label) {
   assert.ok(typeof response.text === "string", label + ": real HTTP body required");
   assert.ok(!response.text.includes(marker), label + ": foreign HCM decision marker leaked");
+}
+
+/** Denied HTTP requests must return an error JSON, not victim records or HTML. */
+export function assertDeniedHcmDecisionResponse(response, marker, label) {
+  assertNoVictimDecisionLeak(response, marker, label);
+  assert.ok(response.json && typeof response.json === "object" && !Array.isArray(response.json),
+    label + ": denied request must return a JSON object");
+  assert.ok(typeof response.json.error === "string" && response.json.error.length > 0,
+    label + ": denied request must include an error");
+  for (const key of ["decision", "employee", "term", "decisions", "employees", "terms"]) {
+    assert.equal(Object.hasOwn(response.json, key), false,
+      label + ": denial disclosed " + key + " data");
+  }
 }
