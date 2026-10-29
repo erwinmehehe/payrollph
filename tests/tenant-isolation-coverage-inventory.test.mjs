@@ -741,7 +741,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       oldRouteBlobSha: "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
       routeBlobSha: routeBlob,
       helperFile: "src/lib/spend-receipt-tenant.ts",
-      helperBlobSha: "6391bf203bb71acffab0baf3cc7601fc9f3c29ad",
+      helperBlobSha: "059881e91b629860a1aaa722a133f53e057edda7",
       unitTestFile: "tests/spend-receipt-tenant-grant.test.ts",
       unitTestBlobSha: "8cd86095ab4404eed572668e1823825c93bab716",
       contractTestFile: "tests/tenant-spend-receipt-grant-source.test.mjs",
