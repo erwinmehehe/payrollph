@@ -1,6 +1,7 @@
 import type { PayrollRun, Task } from "@/components/workspace/types";
 import type { PayrollPayoutState } from "@/lib/payroll-payout-state";
 import { isPreliminaryPayroll } from "@/lib/payroll-period-ui";
+import { storedMoneyCentavos, verifiedPesosFromCentavos } from "@/lib/stored-money-centavos";
 
 export const PAYROLL_WORKFLOW_STAGES = [
   { key: "prepare", label: "Prepare", detail: "Calculate and validate inputs" },
@@ -30,15 +31,23 @@ export function payrollRunPresentation(input: {
   const released = run.status === "Released";
   const processing = ["Queued", "Processing", "Recalculating", "Releasing"].includes(run.status);
   const failed = run.status === "Failed";
-  const calculated = Number(run.grossPay) > 0 &&
-    Number.isFinite(Number(run.grossPay)) &&
-    Number.isFinite(Number(run.netPay)) &&
-    !failed;
+  // A visually plausible payroll number must be proven to represent exact
+  // stored centavos. Do not let Number() coerce 1e3, whitespace, sub-centavos,
+  // null or unsafe amounts into an apparent completed payroll register.
+  const grossCents = storedMoneyCentavos(run.grossPay);
+  const netCents = storedMoneyCentavos(run.netPay);
+  const deductionCents = grossCents !== null && netCents !== null
+    ? grossCents - netCents : null;
+  const calculated = !failed &&
+    grossCents !== null && grossCents > 0 &&
+    netCents !== null &&
+    deductionCents !== null && Number.isSafeInteger(deductionCents) &&
+    verifiedPesosFromCentavos(deductionCents) !== null;
   const approvalPending = approvalTask?.status === "Pending";
   const approved = approvalTask?.status === "Approved";
   // A dated pay period that has not yet ended must not be described as final.
   const preliminary = !released && isPreliminaryPayroll(run.periodEnd, calculated, input.now);
-  const readyForRelease = run.status === "Ready for release" && approved;
+  const readyForRelease = run.status === "Ready for release" && approved && calculated;
   const blockers = checklist == null ? null : checklist.filter(
     (item) => item.blocking && !item.passed && !item.acknowledgeable,
   ).length;
@@ -70,6 +79,7 @@ export function payrollRunPresentation(input: {
     : readyForRelease ? "Independent approval was recorded. Check release gates before locking payroll."
     : approvalPending ? "Awaiting a separate checker's recorded decision. Payroll is not yet released."
     : approvalTask?.status === "Declined" ? "Checker returned this run. Resolve the findings and submit the corrected payroll for review."
+    : run.status === "Ready for release" && !calculated ? "Stored payroll amounts could not be verified. Review and recalculate before release."
     : preliminary ? "This pay period is still open. Verify time entries and recalculate after cutoff."
     : calculated ? "Review the stored register, exceptions and assurance findings before requesting a checker."
     : "Prepare the pay-period inputs and calculate the register before review.";
@@ -84,9 +94,9 @@ export function payrollRunPresentation(input: {
     blockerCount: blockers,
     acknowledgementCount: reviewsToAcknowledge,
     exceptionCount: Math.max(0, run.exceptions),
-    grossPay: calculated ? Number(run.grossPay) : null,
-    netPay: calculated ? Number(run.netPay) : null,
-    employeeDeductions: calculated ? Math.max(0, Number(run.grossPay) - Number(run.netPay)) : null,
+    grossPay: calculated ? verifiedPesosFromCentavos(grossCents!) : null,
+    netPay: calculated ? verifiedPesosFromCentavos(netCents!) : null,
+    employeeDeductions: calculated ? verifiedPesosFromCentavos(Math.max(0, deductionCents!)) : null,
     payoutState,
     payoutLabel: released ? payout.payout.label : "Not available before payroll release",
     message,
