@@ -8,9 +8,11 @@ const rosterRead = "scripts/qa/tenant-table-rows/read/workforce-rules.mjs";
 const cases = [
   { key: "GET workforce/roster-rules", rowFile: rosterRead, rowLine: 5,
     run: "121324440304", suite: "scripts/qa/tenant-table-http.mjs", own: 251, foreign: 260, unchanged: 280 },
-  { key: "POST workforce/roster-rules", rowFile: defaultWrite, rowLine: 103,
+  // Row bodies are unchanged since the reviewed head; they moved down when the five earlier workforce rows
+  // gained their remaining action branches.
+  { key: "POST workforce/roster-rules", rowFile: defaultWrite, rowLine: 486,
     run: "121324440304", suite: "scripts/qa/tenant-write-table-http.mjs", own: 112, foreign: 125, unchanged: 149 },
-  { key: "POST workforce/schedule-guardrails", rowFile: defaultWrite, rowLine: 92,
+  { key: "POST workforce/schedule-guardrails", rowFile: defaultWrite, rowLine: 475,
     run: "121324440138", suite: "scripts/qa/tenant-write-table-http.mjs", own: 112, foreign: 125, unchanged: 149 },
 ];
 
@@ -59,6 +61,6 @@ test("newly credited policy writes cannot imply activated enforcement or payroll
   assert.match(env, /PAYMONGO_DISBURSEMENTS_ENABLED: "false"/);
   assert.match(env, /XENDIT_PAYOUTS_ENABLED: "false"/);
   const docs = readFileSync("docs/qa/tenant-workforce-operations-family.md", "utf8");
-  assert.match(docs, /Five Workforce mutation routes remain GAP/);
+  assert.match(docs, /all eight Workforce scenarios are COVERED/);
   assert.match(docs, /NOT ACCEPTED/);
 });

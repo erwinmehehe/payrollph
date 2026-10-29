@@ -749,7 +749,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     "src/app/api/workforce-planning/demand-handoff/route.ts POST",
   ].includes(key)) {
     assert.equal(verifyPost1523Credits(manifest), 3);
-    return; // Exact receipts and source/workflow SHA pins, not a generic bypass.
+    return; // Exact identities and immutable PG16 source/workflow hashes.
   }
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/self/performance/action-items/route.ts PATCH") {
@@ -915,6 +915,66 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(workflow, /node --test tests\/tenant-account-email-verify-contract\.test\.mjs/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-account-email-verify-http\.mjs/);
     assert.match(contract, /requireDisposableIdentityAccount\(good\)/);
+    return;
+  }
+
+  // Source-only worker/employer grant hardening for a private receipt path.
+  // It is not a real two-attacker/victim PG16 proof and must not promote either
+  // method. The exact route, helper and both contract tests are pinned below;
+  // any drift requires independent source + security review again.
+  if (isNewOrChanged && method.status === "GAP" &&
+      (key === "src/app/api/expenses/receipts/route.ts GET" ||
+       key === "src/app/api/expenses/receipts/route.ts POST")) {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/expenses/receipts/route.ts";
+    const routeBlob = "42a0e56307ba0509c549d6c271a521f19231bb25";
+    assert.equal(currentBlob, routeBlob,
+      "Private Spend receipt route changed: renewed tenant security review required");
+    assert.deepEqual(review, {
+      kind: "private-spend-receipt-worker-grant-source-only-zero-credit",
+      oldRouteBlobSha: "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+      routeBlobSha: routeBlob,
+      helperFile: "src/lib/spend-receipt-tenant.ts",
+      helperBlobSha: "059881e91b629860a1aaa722a133f53e057edda7",
+      unitTestFile: "tests/spend-receipt-tenant-grant.test.ts",
+      unitTestBlobSha: "8cd86095ab4404eed572668e1823825c93bab716",
+      contractTestFile: "tests/tenant-spend-receipt-grant-source.test.mjs",
+      contractTestBlobSha: "67a10174328f9ddd9e828361ee0996764d458c41",
+      coverageCredits: 0,
+      realHttpPg16Proven: false,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Only the pinned receipt grant source-only change is reviewed as uncredited");
+    for (const [file, blob] of [
+      [review.helperFile, review.helperBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.contractTestFile, review.contractTestBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), blob,
+        "Private receipt review dependency changed without fresh security review: " + file);
+    }
+    assert.equal(method.testedBy, null, "Private receipt GAP may not borrow a source test credit");
+    assert.match(method.reason, /Still GAP.*real HTTP.*independent security review/i);
+    const source = readFileSync(routePath, "utf8");
+    assert.match(source, /return await activeReceiptGrant\(user, claim\) \? null : notFound\(\)/);
+    assert.match(source, /eq\(employees\.organizationId, claim\.organizationId\)/);
+    assert.match(source, /eq\(userOrganizations\.active, true\)/);
+    assert.match(source, /eq\(userOrganizations\.organizationId, claim\.organizationId\)/);
+    assert.match(source, /for\("share"\)\.limit\(1\)/);
+    assert.match(source, /if \(!liveClaim \|\| !await lockedReceiptGrant\(tx, user, claim\)\)/);
+    assert.match(source, /if \(!await lockedReceiptGrant\(tx, user, freshCore\)\)/);
+    assert.match(source, /freshCore\.employeeId !== claim\.employeeId/);
+    const afterPrivateRead = source.indexOf("const readDenied = await authorize(user, core);");
+    const bytesReturn = source.indexOf("return new Response(new Uint8Array(bytes)");
+    const stagingGuard = source.indexOf("if (!liveClaim || !await lockedReceiptGrant(tx, user, claim))");
+    const intent = source.indexOf("const [intent] = await tx.insert(documents)");
+    const finalGuard = source.indexOf("if (!await lockedReceiptGrant(tx, user, freshCore))");
+    const finalAttachment = source.indexOf("tx.update(expenseClaimEvidence)");
+    assert.ok(afterPrivateRead > 0 && afterPrivateRead < bytesReturn,
+      "Private receipt read must recheck current grant before returning bytes");
+    assert.ok(stagingGuard > 0 && stagingGuard < intent &&
+      finalGuard > intent && finalGuard < finalAttachment,
+      "Private receipt SQL writes must recheck locked worker grants on both sides of storage IO");
     return;
   }
 
@@ -1098,6 +1158,48 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       assert.equal(reviewedSibling?.status, "COVERED");
       assert.ok(reviewedSibling?.testedBy?.file === "scripts/qa/tenant-benefit-enrollments-http.mjs");
     }
+    return;
+  }
+
+  // Unit-scoped invitation hardening fixes a source-identified privilege gap.
+  // GET keeps existing employer-level PG16 proof. POST has NOT yet earned
+  // a successful real-HTTP persisted own/victim proof or reviewer acceptance.
+  // Strict source pins prevent this waiver from silently covering new behavior.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/invitations/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "59bdded07a33d7c4dbc394a84135ce99f9f04042",
+      "Invitation route changed: renew unit-scope security review");
+    assert.deepEqual(reviewed, {
+      kind: "unit-scoped-invitation-authorization-hardening-unreviewed",
+      originalRouteBlobSha: "ed6e94cef183e77d0c727aef54f898eef30eb3cc",
+      routeBlobSha: currentBlob,
+      helperFile: "src/lib/invitation-tenant-scope.ts",
+      helperBlobSha: "dbd9838871c9d1334995e43da1650dc37f9b9f8f",
+      testFile: "tests/invitation-tenant-scope.test.ts",
+      testBlobSha: "15e64c704f2b40aa5d05ed38f6f86c4d81629b58",
+      coverageCredits: 0,
+      realHttpPostAcceptance: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+    });
+    assert.equal(gitBlobSha(readFileSync(reviewed.helperFile)), reviewed.helperBlobSha);
+    assert.equal(gitBlobSha(readFileSync(reviewed.testFile)), reviewed.testBlobSha);
+    assert.equal(method.testedBy, null, "Unreviewed invitation POST must remain GAP");
+    const route = readFileSync("src/app/api/invitations/route.ts", "utf8");
+    const get = route.slice(route.indexOf("export async function GET("),
+      route.indexOf("export async function POST("));
+    const post = route.slice(route.indexOf("export async function POST("));
+    assert.match(get, /invitationVisibleUnit\(access\)/);
+    assert.match(get, /eq\(invitations\.orgUnitId, visibleUnit\)/);
+    assert.match(get, /eq\(userOrganizations\.orgUnitId, visibleUnit\)/);
+    assert.match(post, /canCreateScopedInvitation\(access, role, orgUnitId\)/);
+    assert.ok(post.indexOf("canCreateScopedInvitation(") < post.indexOf("createInvitation({"));
+    assert.ok(post.indexOf("canCreateScopedInvitation(") < post.indexOf("queueMessage({"));
+    const getMethod = manifest.allApiRouteFiles["src/app/api/invitations/route.ts"].methods
+      .find(item => item.name === "GET");
+    assert.equal(getMethod?.status, "COVERED",
+      "Keep prior employer-level GET proof separately credited");
+    assert.equal(getMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
     return;
   }
 
@@ -1665,7 +1767,7 @@ test("all credited proof links point to the claimed route and every recertified 
       const proof = method.testedBy;
       if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
         assert.equal(verifyPost1523Credits(manifest), 3);
-        continue; // Only these 3 SHA-pinned passing PG16 routes may use this receipt.
+        continue; // Exactly three independently source-pinned methods.
       }
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
         assert.equal(verifyPromotionCredits(manifest), 16);

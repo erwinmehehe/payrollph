@@ -30,9 +30,11 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 ## 2026-10-29 latest origin/main credit-promotion review — proposed, NOT MERGED
 
+> **2026-10-29 sync to main@90891dad01b3 (DRAFT, NOT ACCEPTED):** Current upstream main has six additional, disjoint Workforce WRK-01 provisional source/proof credits (347 COVERED / 10 PUBLIC-BY-DESIGN / 141 GAP). This review-only PR adds exactly three more SHA-pinned methods, producing **350 COVERED / 10 PUBLIC-BY-DESIGN / 138 GAP** of 498 methods and 17 page/action GAPs. Every frozen batch is still incomplete. Exact-head CI and independent security/coverage-owner review are mandatory before merging. No production acceptance or payroll release.
+
 **Authoritative proposed manifest snapshot:** fetched upstream `main@5a3c209dffb2198e8944d0781025c42b117024b0` immediately before constructing this one-branch proposal. The shell's `git fetch origin main` could not resolve github.com in the isolated runtime, so the GitHub connector's live upstream ref and Git tree were used instead. Re-check upstream main before committing. This section supersedes the **historical 2026-10-28** counts below; keep those historical receipts intact.
 
-**API ledger proposed:** 295 route files; **498 methods = 344 COVERED + 10 PUBLIC-BY-DESIGN + 144 GAP**. Previous 341/10/147. **Delta = +3 COVERED, -3 GAP, 0 re-credits, 0 release approvals.** Scoped page/action ledger stays **4 provisionally COVERED / 17 GAP** of 21. Tenant-wide isolation remains **NOT ACCEPTED**, and no batch is complete.
+**API ledger proposed after main sync:** 295 route files; **498 methods = 350 COVERED + 10 PUBLIC-BY-DESIGN + 138 GAP**. Latest upstream main 347/10/141, this PR adds +3 COVERED / -3 GAP, with zero double credits and zero release approvals. The earlier 341/10/147 proposal base is historical. Scoped page/action ledger stays **4 provisionally COVERED / 17 GAP** of 21. Tenant-wide isolation remains **NOT ACCEPTED**, and no batch is complete.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -47,13 +49,13 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 33 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 29 | 0 | 9 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 26 | 0 | 13 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 24 | 0 | 15 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **260 COVERED + 2 PUBLIC-BY-DESIGN + 144 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **266 COVERED + 2 PUBLIC-BY-DESIGN + 138 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — exact-final-head evidence
 

@@ -493,6 +493,27 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
   const post1523Credits = verifyPost1523Credits(manifest);
   assert.equal(post1523Credits, 3, "only the three post-#1523 proofs can change this historical baseline");
+  // These six newer mainline Workforce credits already contribute to tableMethods.length.
+  // Verify them explicitly, but do not double subtract from the historical 124/359 ledger.
+  const newMainWorkforce = [
+      "POST workforce/attendance-corrections",
+      "POST workforce/coverage",
+      "POST workforce/overtime",
+      "POST workforce/schedule-swaps",
+      "POST workforce/schedules",
+      "POST workforce/timesheets"
+  ];
+  for (const key of newMainWorkforce) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": main proof credit must be preserved");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+    assert.match(method?.testedBy?.rowFile ?? "", /^scripts\/qa\/tenant-table-rows\/write\//);
+    for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine"]) {
+      assert.ok(Number.isSafeInteger(method.testedBy[field]) && method.testedBy[field] > 0,
+        key + ": owned/denied/unchanged PostgreSQL source anchors must exist");
+    }
+    assert.equal(method.testedBy.postgresMajor, 16);
+  }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - post1523Credits, 124,
