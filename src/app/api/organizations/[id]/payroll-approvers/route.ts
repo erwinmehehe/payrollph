@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const organizationId = Number(id);
-  if (!/^[1-9]\\d*$/.test(id) || !Number.isSafeInteger(organizationId) || organizationId <= 0) {
+  if (!/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "Invalid organization id." }, { status: 400 });
   }
 
