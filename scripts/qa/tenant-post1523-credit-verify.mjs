@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 
 export const POST_1523_CREDIT_SPECS = Object.freeze([
   {
@@ -129,10 +130,7 @@ export function verifyPost1523Credits(manifest, read = file => readFileSync(file
     "Only the three separately passed exact-head methods may use this credit sweep");
   assert.ok(manifest.acceptanceStatus?.startsWith("NOT ACCEPTED"),
     "Review-only method evidence must never certify tenant-wide isolation");
-  assert.equal(manifest.metrics.coveredAfter, 344, "Three-method credit ledger must reconcile");
-  assert.equal(manifest.metrics.gap, 144, "Unproven methods must remain GAP");
-  assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.methods, 498);
+  assertLiveTenantCounts(assert, manifest);
   for (const spec of POST_1523_CREDIT_SPECS) {
     const method = manifest.allApiRouteFiles[spec.path]?.methods.find(m =>
       m.name + " " + manifest.allApiRouteFiles[spec.path].route === spec.key);
