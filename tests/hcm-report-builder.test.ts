@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildWhitelistedReport, validateReportSpecification } from "../src/lib/hcm-report-builder";
 
@@ -97,4 +98,18 @@ test("large department cohort aggregates in bounded linear grouping work", () =>
     "hr", people,
   );
   assert.deepEqual(report.rows, [{ department: "Operations", headcount: 20_000 }]);
+});
+
+test("HCM report route blocks unassigned or foreign legal-employer history before GET and POST", () => {
+  const route = readFileSync(new URL("../src/app/api/hcm-report-builder/route.ts", import.meta.url), "utf8");
+  assert.match(route, /entities\[0\]\.active !== true/);
+  for (const table of ["employees", "payrollRuns", "orgUnits"]) {
+    assert.ok(route.includes("isNull(" + table + ".legalEntityId)"), table + " null check");
+    assert.ok(route.includes("ne(" + table + ".legalEntityId, employerId)"), table + " foreign check");
+    assert.ok(route.includes("eq(" + table + ".organizationId, organizationId)"), table + " tenant check");
+  }
+  assert.match(route, /HCM_REPORT_ENTITY_ATTRIBUTION_REQUIRED/);
+  assert.equal((route.match(/await authorize\(session\.id, organizationId\)/g) ?? []).length, 2,
+    "both metadata GET and data POST must share the same attribution guard");
+  assert.match(route, /Cache-Control": "no-store"/);
 });
