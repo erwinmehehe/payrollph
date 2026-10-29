@@ -1,0 +1,82 @@
+name: Tenant payroll approver membership HTTP (fictional PG16 only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-payroll-approvers-http.yml'
+      - 'scripts/qa/tenant-payroll-approvers-http.mjs'
+      - 'tests/tenant-payroll-approvers-contract.test.mjs'
+      - 'src/app/api/organizations/**/payroll-approvers/**'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/tenant-identity-account-proof.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  payroll-approvers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export disposable Next and PostgreSQL configuration
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Force background work and external billing OFF
+        run: |
+          echo 'WORKER_ENABLED=false' >> "$GITHUB_ENV"
+          echo 'CENTRAL_SCHEDULER_ENABLED=false' >> "$GITHUB_ENV"
+          echo 'XENDIT_BILLING_ENABLED=false' >> "$GITHUB_ENV"
+      - name: Prove fixture refuses unsafe DB, URLs, provider secrets and scopes
+        run: node --test tests/tenant-payroll-approvers-contract.test.mjs
+      - name: Generate throwaway encryption and localhost webhook keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize fresh fictional PostgreSQL schema
+        run: npm run db:push
+      - name: Apply isolated reviewed schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build real Next production-mode source
+        run: npm run build
+      - name: Two independent owners, real higher-ID victim and revoked checker grants
+        run: node --import tsx scripts/qa/tenant-payroll-approvers-http.mjs

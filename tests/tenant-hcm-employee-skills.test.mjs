@@ -190,14 +190,15 @@ test("production branch enforces both resource identities and scope before writi
   assert.match(route, /status === "verified"/);
 });
 
-test("POST hcm/capabilities stays GAP; GET remains COVERED and no production credits are invented", () => {
+test("POST hcm/capabilities is credited only by its source-pinned table proof; GET remains COVERED", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const methods = manifest.allApiRouteFiles["src/app/api/hcm/capabilities/route.ts"].methods;
   const get = methods.find(m => m.name === "GET");
   const post = methods.find(m => m.name === "POST");
   assert.equal(get?.status, "COVERED");
-  assert.equal(post?.status, "GAP");
-  assert.equal(post?.testedBy ?? null, null);
+  assert.equal(post?.status, "COVERED");
+  assert.equal(post.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm.mjs");
+  assert.match(post.reason, /Provisional/);
 });
 
 test("dedicated action runner must not register a second shared-table method key", () => {

@@ -134,3 +134,19 @@ test("Analytics never displays or exports a response from a previous legal emplo
   assert.ok(analytics.includes('visibleState === "ready" && visibleResult && ('),
     "stale report table must never render as new employer data");
 });
+
+test("BI export sources refuse foreign employee, entity and unit joins before serializing results", () => {
+  const source = read("src/lib/bi-exports.ts");
+  const route = read("src/app/api/bi-exports/route.ts");
+  assert.equal((source.match(/assertBiSourceLinks\(organizationId, rows\);/g) ?? []).length, 3,
+    "payroll runs, payroll entries, and timesheets must all validate source links");
+  assert.match(source, /row\.employeeOrganizationId !== organizationId/);
+  assert.match(source, /row\.joinedEntityId !== row\.declaredEntityId/);
+  assert.match(source, /row\.joinedUnitId !== row\.declaredUnitId/);
+  assert.match(source, /eq\(legalEntities\.organizationId, organizationId\)/);
+  assert.match(source, /eq\(orgUnits\.organizationId, organizationId\)/);
+  assert.match(source, /\.leftJoin\(employees, eq\(payrollEntries\.employeeId, employees\.id\)\)/);
+  assert.match(source, /\.leftJoin\(employees, eq\(workforceTimesheets\.employeeId, employees\.id\)\)/);
+  assert.match(route, /BI_EXPORT_TENANT_SOURCE_MISMATCH/);
+  assert.match(route, /status: 409, headers: \{ "Cache-Control": "no-store" \}/);
+});

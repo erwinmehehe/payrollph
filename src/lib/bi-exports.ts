@@ -106,6 +106,29 @@ export type BiExportFilters = {
 
 type BiRow = Record<string, string | number | null>;
 
+// Payroll entries and timesheets have tenant-owned parent rows but only a
+// single-column FK to employees. Legacy/inconsistent links must never cause
+// another employer's names or pay to enter an authorized BI export.
+// Also fail closed on references to entity/unit records from another tenant.
+type BiSourceLinks = {
+  employeeOrganizationId?: number | null;
+  declaredEntityId?: number | null;
+  joinedEntityId?: number | null;
+  declaredUnitId?: number | null;
+  joinedUnitId?: number | null;
+};
+export function assertBiSourceLinks(organizationId: number, rows: BiSourceLinks[]) {
+  if (rows.some((row) =>
+    (row.employeeOrganizationId !== undefined
+      && row.employeeOrganizationId !== organizationId)
+    || (row.declaredEntityId != null && row.joinedEntityId !== row.declaredEntityId)
+    || (row.declaredUnitId != null && row.joinedUnitId !== row.declaredUnitId)
+  )) {
+    // No private employee, entity, organization-unit identifiers or wages.
+    throw new Error("BI_EXPORT_TENANT_SOURCE_MISMATCH");
+  }
+}
+
 function validIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -153,18 +176,29 @@ async function payrollRunRows(organizationId: number, filters: BiExportFilters):
     status: payrollRuns.status,
     legalEntityCode: legalEntities.code,
     orgUnitCode: orgUnits.code,
+    declaredEntityId: payrollRuns.legalEntityId,
+    joinedEntityId: legalEntities.id,
+    declaredUnitId: payrollRuns.scopeOrgUnitId,
+    joinedUnitId: orgUnits.id,
     employeeCount: payrollRuns.employeeCount,
     grossPay: payrollRuns.grossPay,
     netPay: payrollRuns.netPay,
     exceptions: payrollRuns.exceptions,
     ruleVersion: payrollRuns.ruleVersion,
   }).from(payrollRuns)
-    .leftJoin(legalEntities, eq(payrollRuns.legalEntityId, legalEntities.id))
-    .leftJoin(orgUnits, eq(payrollRuns.scopeOrgUnitId, orgUnits.id))
+    .leftJoin(legalEntities, and(
+      eq(payrollRuns.legalEntityId, legalEntities.id),
+      eq(legalEntities.organizationId, organizationId),
+    ))
+    .leftJoin(orgUnits, and(
+      eq(payrollRuns.scopeOrgUnitId, orgUnits.id),
+      eq(orgUnits.organizationId, organizationId),
+    ))
     .where(and(...conditions))
     .orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))
     .limit(BI_EXPORT_MAX_ROWS + 1);
 
+  assertBiSourceLinks(organizationId, rows);
   return rows.map((row) => ({
     payrollRunId: row.id,
     periodStart: row.periodStart,
@@ -205,19 +239,33 @@ async function payrollEntryRows(organizationId: number, filters: BiExportFilters
     lastName: employees.lastName,
     legalEntityCode: legalEntities.code,
     orgUnitCode: orgUnits.code,
+    employeeOrganizationId: employees.organizationId,
+    declaredEntityId: payrollRuns.legalEntityId,
+    joinedEntityId: legalEntities.id,
+    declaredUnitId: payrollRuns.scopeOrgUnitId,
+    joinedUnitId: orgUnits.id,
     grossPay: payrollEntries.grossPay,
     deductions: payrollEntries.deductions,
     netPay: payrollEntries.netPay,
     status: payrollEntries.status,
   }).from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
-    .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
-    .leftJoin(legalEntities, eq(payrollRuns.legalEntityId, legalEntities.id))
-    .leftJoin(orgUnits, eq(payrollRuns.scopeOrgUnitId, orgUnits.id))
+    // Do not inner-join and silently drop a legacy entry pointing at an
+    // unowned/missing employee: reject the entire export before serialization.
+    .leftJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .leftJoin(legalEntities, and(
+      eq(payrollRuns.legalEntityId, legalEntities.id),
+      eq(legalEntities.organizationId, organizationId),
+    ))
+    .leftJoin(orgUnits, and(
+      eq(payrollRuns.scopeOrgUnitId, orgUnits.id),
+      eq(orgUnits.organizationId, organizationId),
+    ))
     .where(and(...conditions))
     .orderBy(desc(payrollRuns.payDate), payrollRuns.id, employees.employeeNo)
     .limit(BI_EXPORT_MAX_ROWS + 1);
 
+  assertBiSourceLinks(organizationId, rows);
   return rows.map((row) => ({
     payrollRunId: row.payrollRunId,
     payDate: row.payDate,
@@ -254,6 +302,11 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters, e
     lastName: employees.lastName,
     currentLegalEntityCode: legalEntities.code,
     currentOrgUnitCode: orgUnits.code,
+    employeeOrganizationId: employees.organizationId,
+    declaredEntityId: employees.legalEntityId,
+    joinedEntityId: legalEntities.id,
+    declaredUnitId: employees.orgUnitId,
+    joinedUnitId: orgUnits.id,
     periodStart: workforceTimesheets.periodStart,
     periodEnd: workforceTimesheets.periodEnd,
     version: workforceTimesheets.version,
@@ -265,13 +318,22 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters, e
     blockerCount: workforceTimesheets.blockerCount,
     snapshotHash: workforceTimesheets.snapshotHash,
   }).from(workforceTimesheets)
-    .innerJoin(employees, eq(workforceTimesheets.employeeId, employees.id))
-    .leftJoin(legalEntities, eq(employees.legalEntityId, legalEntities.id))
-    .leftJoin(orgUnits, eq(employees.orgUnitId, orgUnits.id))
+    // A timesheet's organization must match the referenced employee before
+    // worker identity or current legal-employer labels can be exported.
+    .leftJoin(employees, eq(workforceTimesheets.employeeId, employees.id))
+    .leftJoin(legalEntities, and(
+      eq(employees.legalEntityId, legalEntities.id),
+      eq(legalEntities.organizationId, organizationId),
+    ))
+    .leftJoin(orgUnits, and(
+      eq(employees.orgUnitId, orgUnits.id),
+      eq(orgUnits.organizationId, organizationId),
+    ))
     .where(and(...conditions))
     .orderBy(desc(workforceTimesheets.periodEnd), employees.employeeNo, desc(workforceTimesheets.version))
     .limit(BI_EXPORT_MAX_ROWS + 1);
 
+  assertBiSourceLinks(organizationId, rows);
   return rows.map((row) => ({
     timesheetId: row.id,
     employeeId: row.employeeId,

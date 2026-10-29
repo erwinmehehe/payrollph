@@ -88,6 +88,81 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // Existing historical GET credit is preserved, not promoted. The new exact
+  // route source and dedicated disposable-PG16 proof are independently pinned
+  // for renewed human review. The old positive/victim receipt remains intact.
+  if (isNewOrChanged && method.status === "COVERED" &&
+      key === "src/app/api/organizations/[id]/payroll-approvers/route.ts GET") {
+    const routeFile = "src/app/api/organizations/[id]/payroll-approvers/route.ts";
+    const reviewed = method.reviewedUncertified;
+    const oldRouteSha = "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab";
+    const currentRouteSha = "ffb27f3797ecaba1fec8198cab04c0f691382743";
+    assert.equal(currentBlob, currentRouteSha,
+      "Payroll approver picker changed: renew exact-source tenant/privacy review");
+    assert.equal(baseline.api[routeFile], oldRouteSha,
+      "Original payroll approver source baseline changed");
+    assert.deepEqual(reviewed, {
+      kind: "payroll-approvers-active-grant-hardened-source-zero-new-credit",
+      oldRouteBlobSha: oldRouteSha,
+      routeBlobSha: currentRouteSha,
+      runnerFile: "scripts/qa/tenant-payroll-approvers-http.mjs",
+      runnerBlobSha: "bcdcefe33271811364d0b3878abdfc3a3c282346",
+      contractFile: "tests/tenant-payroll-approvers-contract.test.mjs",
+      contractBlobSha: "9dc730442d42d8b48025b9619b0b6b8ea9687c35",
+      workflowFile: ".github/workflows/tenant-payroll-approvers-http.yml",
+      workflowBlobSha: "f8577a357888bd3483840e3c59dbe9ffae082459",
+      syntheticPg16Run: "40849212540",
+      coverageCredits: 0,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Payroll approver hardening must retain exact uncredited review evidence");
+    for (const [path, sha] of [
+      [reviewed.runnerFile, reviewed.runnerBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(path)), sha,
+        "Payroll approver fixture/contract/workflow changed: renew security review " + path);
+    }
+    assert.equal(method.testedBy.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+      "Historical owned/victim HTTP proof must remain traceable");
+    assert.equal(method.testedBy.ownPositiveLine, 275);
+    assert.equal(method.testedBy.foreignDenialLine, 279);
+    const source = readFileSync(routeFile, "utf8");
+    for (const guard of [
+      'Number.isSafeInteger(organizationId)',
+      'getAccess(user.id, organizationId)',
+      'eq(userOrganizations.organizationId, organizationId)',
+      'eq(userOrganizations.active, true)',
+      'eq(users.active, true)',
+      'inArray(userOrganizations.role, [...PAYROLL_CHECKER_ROLES])',
+      'ne(userOrganizations.userId, user.id)',
+      'eq(userOrganizations.orgUnitId, candidateUnitId)',
+      '"Cache-Control": "private, no-store"',
+    ]) {
+      assert.ok(source.includes(guard),
+        "Payroll approver route missing reviewed pre-projection access guard: " + guard);
+    }
+    const scoped = source.indexOf("const access = await getAccess(user.id, organizationId)");
+    const names = source.indexOf("const rows = await db");
+    assert.ok(scoped > 0 && names > scoped,
+      "Payroll approver org/unit access must resolve before reading name and email");
+    const runner = readFileSync(reviewed.runnerFile, "utf8");
+    for (const proofStep of [
+      'seedEmployer("ATTA"',
+      'seedEmployer("ATTB"',
+      'seedEmployer("VICTIM"',
+      'revokedAndDisabledAccountsExcluded: true',
+      'crossEmployerDenials: 4',
+      'allBusinessAndAuditRowsUnchanged: true',
+      'methodCredits: 0, independentAcceptance: false',
+    ]) {
+      assert.ok(runner.includes(proofStep),
+        "The synthetic payroll approver tenant negative proof is no longer pinned: " + proofStep);
+    }
+    return;
+  }
+
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST") {
     // Sole SHA-pinned exclusion: a provider-disabled 501 is access-control
@@ -1191,6 +1266,65 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(getMethod?.status, "COVERED",
       "Keep prior employer-level GET proof separately credited");
     assert.equal(getMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    return;
+  }
+
+  // Salary preview's old company-wide People grant did not imply a
+  // legal-employer grant. Hold POST as GAP despite source hardening and
+  // candidate fictional PG16 HTTP checks; no independent sign-off yet.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/hcm/salary-corrections/preview/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "8abc2b8059a403b81bf24c78108445651be4690a",
+      "Salary-preview route changed again: repeat entity-grant review");
+    assert.deepEqual(reviewed, {
+      kind: "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
+      oldRouteBlobSha: "17539b569af050bb1568d17e783661ae19302561",
+      routeBlobSha: currentBlob,
+      testFile: "tests/hcm-salary-correction-entity-tenant.test.ts",
+      testBlobSha: "243d84d7eaab43d950b70fc9d89c56f23cc21dbe",
+      proxyFile: "src/proxy.ts",
+      proxyBlobSha: "8ed6591c4846cad3251bc1ee2444ceb3461b170a",
+      hcmHoldFile: "src/lib/multi-entity-hcm-hold.ts",
+      hcmHoldBlobSha: "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
+      contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
+      contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+      proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
+      proofBlobSha: "243827a6b4481a25fc5a95259843862da117f5f0",
+      workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
+      workflowBlobSha: "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
+      coverageCredits: 0,
+      testedBy: null,
+      independentSecurityReview: "PENDING",
+      exactHeadHttpResult: "PENDING",
+    });
+    for (const [file, sha] of [
+      [reviewed.testFile, reviewed.testBlobSha],
+      [reviewed.proxyFile, reviewed.proxyBlobSha],
+      [reviewed.hcmHoldFile, reviewed.hcmHoldBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "New salary preview proof/source change requires renewed security review");
+    assert.equal(method.testedBy, null, "Salary preview POST remains GAP");
+    // The global inventory test recomputes live totals from every current route.
+    // A focused uncredited GAP must not pin a historic repository-wide count.
+    assert.equal(reviewed.coverageCredits, 0);
+    const route = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
+    const permission = route.indexOf("assertOrganizationRole(");
+    const selected = route.indexOf("const entityScope = await resolveMultiEntityContext({");
+    const worker = route.indexOf("const [employee] = await db.select({");
+    const resource = route.indexOf("const employeeEntityDenied = assertEntityResource(");
+    const profile = route.indexOf("const [profile] = await db.select({");
+    assert.ok(permission >= 0 && permission < selected && selected < worker &&
+      worker < resource && resource < profile,
+      "Entity grant/actual employee entity required before payroll source reads");
+    assert.match(route, /requested: body\.legalEntityId/);
+    assert.match(route, /if \(!entityScope\.ok\) return entityScope\.response/);
+    assert.match(route, /assertEntityResource\(entityScope\.context, legalEntityId\)/);
+    assert.match(route, /assertEntityResource\(entityScope\.context, employee\.legalEntityId\)/);
+    assert.doesNotMatch(route, /\bdb\.(?:insert|update|delete|transaction)\(/);
     return;
   }
 

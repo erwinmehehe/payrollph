@@ -1,0 +1,256 @@
+/**
+ * Uncredited HCM decision POST candidate: two independent attacker employers,
+ * real high-ID victim rows, owned successful HTTP 201 and three foreign probes.
+ * Disposable PG16 and production-mode localhost HTTP only. Not release evidence.
+ */
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import {
+  HCM_DECISION_POST, requireDisposableHcmDecisionEnv,
+  assertVictimDecisionUnchanged, assertNoVictimDecisionLeak,
+  assertDeniedHcmDecisionResponse,
+} from "./tenant-hcm-employment-decision-contract.mjs";
+
+const EFFECTIVE_DATE = "2026-12-02";
+
+function requestBody(orgId, employeeId, termId, reason) {
+  return {
+    organizationId: orgId, employeeId, employmentTermId: termId,
+    decisionKind: "confirm_regular", effectiveDate: EFFECTIVE_DATE,
+    nextEmploymentType: "Regular", nextTermKind: "regular",
+    reason,
+  };
+}
+
+export async function verifyHcmEmploymentDecisionPost(f, { request, expectStatus, makeSession }) {
+  requireDisposableHcmDecisionEnv(); // before any DB or schema import
+  // This proof can also be invoked without the wrapper runner. Validate first
+  // so even a direct import never creates an application DB pool beforehand.
+  const [{ db }, tables, { and, eq }] = await Promise.all([
+    import("../../src/db/index.ts"),
+    import("../../src/db/schema.ts"),
+    import("drizzle-orm"),
+  ]);
+  const {
+    auditEvents, employees, hcmEmploymentTerms, hcmEmploymentTermDecisions,
+    hcmEmploymentDecisionEvents, payrollRuns, userOrganizations,
+  } = tables;
+  async function tenantSnapshot(orgId) {
+    const forOrg = (table) => db.select().from(table)
+      .where(eq(table.organizationId, orgId)).orderBy(table.id);
+    return {
+      employees: await forOrg(employees),
+      terms: await forOrg(hcmEmploymentTerms),
+      decisions: await forOrg(hcmEmploymentTermDecisions),
+      decisionEvents: await forOrg(hcmEmploymentDecisionEvents),
+      auditEvents: await forOrg(auditEvents),
+      payrollRuns: await forOrg(payrollRuns),
+    };
+  }
+  const nonce = randomUUID().replaceAll("-", "").slice(0, 12);
+  const victim = f.orgs[0], attackerOrgs = [f.orgs[1], f.orgs[2]];
+  assert.notEqual(attackerOrgs[0].id, attackerOrgs[1].id);
+
+  // Dedicated fictional employees avoid modifying any source fixture relied
+  // on by the other tests. Victim records are inserted LAST to give real IDs
+  // greater than both attacker-owned IDs, not guessed low-number probes.
+  const employeeInputs = [
+    ...attackerOrgs.map((org, index) => ({
+      organizationId: org.id, legalEntityId: f.entities[index + 1].id,
+      orgUnitId: f.ownedUnits[index + 1].id, employeeNo: "CI-DEC-" + nonce + "-A" + index,
+      firstName: "OwnDecision" + index, lastName: "Fictional",
+      title: "Synthetic probation worker", avatarInitials: "QA",
+      basicRate: "20000.00", startDate: "2026-01-01",
+    })),
+    ...Array.from({ length: 8 }, (_, index) => ({
+      organizationId: victim.id, legalEntityId: f.entities[0].id,
+      orgUnitId: f.ownedUnits[0].id, employeeNo: "CI-DEC-" + nonce + "-V" + index,
+      firstName: "VictimDecision" + index, lastName: "Fictional",
+      title: "Synthetic victim probation worker", avatarInitials: "QA",
+      basicRate: "20000.00", startDate: "2026-01-01",
+    })),
+  ];
+  const workers = await db.insert(employees).values(employeeInputs).returning();
+  const terms = await db.insert(hcmEmploymentTerms).values(workers.map((worker, index) => ({
+    organizationId: worker.organizationId, employeeId: worker.id,
+    employmentType: "Probationary", termKind: "probationary",
+    effectiveFrom: "2026-07-01", probationReviewDate: "2026-11-30",
+    status: "active", reason: "Fictional PG16 tenant isolation only",
+    requestedByUserId: f.owners[index < 2 ? index + 1 : 0].id,
+    requestedBy: f.owners[index < 2 ? index + 1 : 0].name,
+  }))).returning();
+  const victimEmployee = workers.at(-1), victimTerm = terms.at(-1);
+  assert.ok(victimEmployee && victimTerm && Number.isSafeInteger(victimEmployee.id)
+    && Number.isSafeInteger(victimTerm.id));
+  assert.ok(victimEmployee.id > Math.max(workers[0].id, workers[1].id, 6));
+  assert.ok(victimTerm.id > Math.max(terms[0].id, terms[1].id, 6));
+  assert.equal(victimEmployee.organizationId, victim.id);
+  assert.equal(victimTerm.organizationId, victim.id);
+  assert.equal(victimTerm.employeeId, victimEmployee.id);
+
+  // A populated victim is essential. Empty-DB comparisons are not evidence.
+  const victimMarker = "VICTIM-ONLY-HCM-" + nonce;
+  const victimDecisions = await db.insert(hcmEmploymentTermDecisions)
+    .values(terms.slice(2).map((term) => ({
+      organizationId: victim.id, employeeId: term.employeeId,
+      employmentTermId: term.id, decisionKind: "confirm_regular",
+      effectiveDate: EFFECTIVE_DATE, status: "cancelled",
+      reason: victimMarker,
+      requestedByUserId: f.owners[0].id, requestedBy: f.owners[0].name,
+    }))).returning();
+  assert.ok(victimDecisions.at(-1).id > 6, "Real victim decision ID must exceed six");
+  await db.insert(hcmEmploymentDecisionEvents).values(victimDecisions.map((decision) => ({
+    organizationId: victim.id, decisionId: decision.id,
+    employeeId: decision.employeeId, eventType: "requested",
+    actorUserId: f.owners[0].id, actorName: f.owners[0].name,
+    metadata: { marker: victimMarker },
+  })));
+  await db.insert(auditEvents).values({
+    organizationId: victim.id, actor: f.owners[0].name,
+    action: "Fictional victim HCM decision baseline",
+    resource: "Synthetic HCM source", metadata: { marker: victimMarker },
+  });
+  const victimBefore = await tenantSnapshot(victim.id);
+  assert.equal(victimBefore.decisions.length >= 8, true);
+  assert.ok(victimBefore.decisionEvents.some(row => row.metadata?.marker === victimMarker));
+
+  // Fresh MFA-authenticated owners in each attacker organization. The
+  // session cookie is not reused across tenants; no impersonation shortcut.
+  const privileged = await Promise.all([1, 2].map(index =>
+    makeSession(f.owners[index].id, { privileged: true })));
+  let positiveWrites = 0, foreignDenials = 0, forgedDenials = 0, revokedDenials = 0;
+  const created = [];
+
+  for (const index of [0, 1]) {
+    const org = attackerOrgs[index];
+    const actor = f.owners[index + 1];
+    const worker = workers[index], term = terms[index];
+    const cookie = privileged[index].cookie;
+    const reason = "FICTIONAL-OWN-HCM-" + nonce + "-" + index;
+    const beforeOwn = await tenantSnapshot(org.id);
+    const otherOrg = attackerOrgs[1 - index];
+    const peerBefore = await tenantSnapshot(otherOrg.id);
+
+    const owned = expectStatus(await request(HCM_DECISION_POST, {
+      cookie, method: "POST", body: requestBody(org.id, worker.id, term.id, reason),
+    }), 201, "Own employer must actually create a pending decision");
+    const receipt = owned.json?.decision;
+    assert.ok(Number.isSafeInteger(receipt?.id) && receipt.id > 0);
+    assert.equal(receipt.organizationId, org.id);
+    assert.equal(receipt.employeeId, worker.id);
+    assert.equal(receipt.employmentTermId, term.id);
+    assert.equal(receipt.decisionKind, "confirm_regular");
+    assert.equal(receipt.status, "pending_approval");
+    assert.equal(receipt.reason, reason);
+    assert.equal(receipt.requestedByUserId, actor.id);
+    assertNoVictimDecisionLeak(owned, victimMarker, "owned response");
+
+    const afterOwn = await tenantSnapshot(org.id);
+    const actual = afterOwn.decisions.find(row => row.id === receipt.id);
+    assert.ok(actual, "HTTP receipt must point to the persisted SQL row");
+    assert.equal(actual.organizationId, org.id);
+    assert.equal(actual.employeeId, worker.id);
+    assert.equal(actual.employmentTermId, term.id);
+    assert.equal(actual.reason, reason);
+    assert.equal(afterOwn.decisions.length, beforeOwn.decisions.length + 1);
+    assert.equal(afterOwn.decisionEvents.length, beforeOwn.decisionEvents.length + 1);
+    const event = afterOwn.decisionEvents.at(-1);
+    assert.equal(event.organizationId, org.id);
+    assert.equal(event.decisionId, receipt.id);
+    assert.equal(event.employeeId, worker.id);
+    assert.equal(event.eventType, "requested");
+    assert.equal(event.actorUserId, actor.id);
+    assert.equal(afterOwn.auditEvents.length, beforeOwn.auditEvents.length + 1);
+    const audit = afterOwn.auditEvents.at(-1);
+    assert.equal(audit.organizationId, org.id);
+    assert.equal(audit.action, "HCM employment-term decision requested");
+    assert.equal(audit.metadata?.employmentTermDecisionId, receipt.id);
+    assert.equal(audit.metadata?.actorUserId, actor.id);
+    assert.deepEqual(afterOwn.employees, beforeOwn.employees,
+      "Request must not modify an employee master record");
+    assert.deepEqual(afterOwn.terms, beforeOwn.terms,
+      "Request must not activate, cancel, or alter employment terms");
+    assert.deepEqual(afterOwn.payrollRuns, beforeOwn.payrollRuns,
+      "Decision request must never create or change a payroll run");
+    assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id),
+      "owned POST of employer " + org.id);
+    assert.deepEqual(await tenantSnapshot(otherOrg.id), peerBefore,
+      "An owned request must not touch the peer attacker employer");
+    created.push(receipt);
+    positiveWrites++;
+
+    const cases = [
+      { status: 403, type: "victim-organization", body:
+        requestBody(victim.id, victimEmployee.id, victimTerm.id, reason) },
+      { status: 404, type: "victim-employee-and-term", body:
+        requestBody(org.id, victimEmployee.id, victimTerm.id, reason) },
+      { status: 404, type: "victim-term-under-own-employee", body:
+        requestBody(org.id, worker.id, victimTerm.id, reason) },
+      { status: 404, type: "victim-employee-under-own-term", body:
+        requestBody(org.id, victimEmployee.id, term.id, reason) },
+    ];
+    for (const attack of cases) {
+      const denied = expectStatus(await request(HCM_DECISION_POST, {
+        cookie, method: "POST", body: attack.body,
+      }), attack.status, "Cross-tenant " + attack.type);
+      assertDeniedHcmDecisionResponse(denied, victimMarker, attack.type);
+      assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id), attack.type);
+      assert.deepEqual(await tenantSnapshot(org.id), afterOwn,
+        "Denied forged request cannot change any own-org business SQL or audit");
+      assert.deepEqual(await tenantSnapshot(otherOrg.id), peerBefore,
+        "Denied forged request cannot touch the peer attacker employer");
+      if (attack.type === "victim-organization") foreignDenials++;
+      else forgedDenials++;
+    }
+
+    // The same MFA-backed cookie must immediately lose POST access when its
+    // organization membership is revoked. Revoke and restore only the
+    // fictional CI owner; never alter production memberships.
+    const memberWhere = and(
+      eq(userOrganizations.userId, actor.id),
+      eq(userOrganizations.organizationId, org.id),
+    );
+    const revoked = await db.update(userOrganizations).set({ active: false })
+      .where(memberWhere).returning({ active: userOrganizations.active });
+    assert.equal(revoked.length, 1, "Expected exactly one fictional owner membership");
+    assert.equal(revoked[0].active, false);
+    try {
+      const ownWhileRevoked = await tenantSnapshot(org.id);
+      const peerWhileRevoked = await tenantSnapshot(otherOrg.id);
+      const denied = expectStatus(await request(HCM_DECISION_POST, {
+        cookie, method: "POST", body: requestBody(org.id, worker.id, term.id, reason),
+      }), 403, "Revoked fictional owner must not create an employment decision");
+      assertDeniedHcmDecisionResponse(denied, victimMarker, "revoked membership");
+      assert.deepEqual(await tenantSnapshot(org.id), ownWhileRevoked,
+        "Revoked-owner POST must leave own-org decisions and audit unchanged");
+      assert.deepEqual(await tenantSnapshot(otherOrg.id), peerWhileRevoked,
+        "Revoked-owner POST must not touch the peer employer");
+      assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id),
+        "revoked-owner POST victim isolation");
+      revokedDenials++;
+    } finally {
+      const restored = await db.update(userOrganizations).set({ active: true })
+        .where(memberWhere).returning({ active: userOrganizations.active });
+      assert.equal(restored.length, 1);
+      assert.equal(restored[0].active, true);
+    }
+  }
+  assert.equal(positiveWrites, 2);
+  assert.equal(foreignDenials, 2);
+  assert.equal(forgedDenials, 6);
+  assert.equal(revokedDenials, 2);
+  assert.notEqual(created[0].id, created[1].id);
+  assert.notEqual(created[0].employeeId, created[1].employeeId);
+  assertVictimDecisionUnchanged(victimBefore, await tenantSnapshot(victim.id),
+    "final victim SQL isolation");
+
+  console.log(JSON.stringify({
+    kind: "HCM_EMPLOYMENT_DECISION_POST_TENANT_CANDIDATE",
+    result: "PASS", ownHttp201: positiveWrites, victimOrgHttp403: foreignDenials,
+    forgedVictimHttp404: forgedDenials, revokedOwnerHttp403: revokedDenials,
+    victimActualHighId: victimTerm.id,
+    newCredits: 0, independentlyAccepted: false, productionCertified: false,
+    providerTraffic: false, fictionalFixtureWrites: true,
+    productionSourceMutation: false, payrollMutation: false,
+  }));
+}
