@@ -1,5 +1,6 @@
 /** Reviewed, bounded reconciliation of merged HTTP evidence. No generic count credits. */
 import assert from "node:assert/strict";
+import { verifyPost1523Credits } from "./tenant-post1523-credit-verify.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -57,7 +58,9 @@ export function verifyMergedProofCredits(manifest, read = file => readFileSync(f
   }
   const benefitPut = manifest.allApiRouteFiles["src/app/api/benefits/route.ts"].methods.find(m => m.name === "PUT");
   const worksitePost = manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"].methods.find(m => m.name === "POST");
-  assert.equal(benefitPut?.status, "GAP", "Catalogue seeding has no accepted proof");
+  assert.equal(benefitPut?.status, "COVERED", "Only the exact source-pinned benefit PUT may be credited");
+  assert.equal(verifyPost1523Credits(manifest, read), 3,
+    "No other route may borrow the new four-part receipts");
   assert.equal(worksitePost?.status, "GAP", "Three tested actions cannot certify every worksite POST action");
   return MERGED_PROOF_SPECS.length;
 }
