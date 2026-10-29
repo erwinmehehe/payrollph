@@ -1,0 +1,68 @@
+name: Tenant account email verification HTTP (fictional PG16)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'src/app/api/account/email/verify/route.ts'
+      - 'src/lib/account.ts'
+      - 'scripts/qa/tenant-account-email-verify-http.mjs'
+      - 'tests/tenant-account-email-verify-contract.test.mjs'
+      - '.github/workflows/tenant-account-email-verify-http.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  account-email-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export provider-off localhost-only proof environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Reject unsafe DB, providers and proof targets before schema creation
+        run: node --test tests/tenant-account-email-verify-contract.test.mjs
+      - name: Generate disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build exact-head Next source for real HTTP requests
+        run: npm run build
+      - name: Prove positive same-employer and negative foreign linked email writes
+        run: node --import tsx scripts/qa/tenant-account-email-verify-http.mjs
