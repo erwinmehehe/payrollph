@@ -267,15 +267,19 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
   assert.match(doc, /340 COVERED \/ 10 PUBLIC-BY-DESIGN \/ 148 GAP/);
   assert.match(doc, /tenant-isolation acceptance/i);
+  assert.match(doc, /498 methods = 344 COVERED \+ 10 PUBLIC-BY-DESIGN \+ 144 GAP/);
   const expected = new Map([
     ["DL-01", [26,19,2,5]], ["DL-02", [26,22,0,4]],
     ["MNY-01", [33,20,0,13]], ["MNY-02", [33,21,0,12]],
-    ["STA-01", [27,21,0,6]], ["PII-01", [39,32,0,7]],
-    ["PII-02", [38,28,0,10]], ["WRK-01", [39,20,0,19]],
-    ["WRK-02", [39,23,0,16]], ["WRK-03", [40,29,0,11]],
+    ["STA-01", [27,21,0,6]], ["PII-01", [39,33,0,6]],
+    ["PII-02", [38,29,0,9]], ["WRK-01", [39,20,0,19]],
+    ["WRK-02", [39,24,0,15]], ["WRK-03", [40,31,0,9]],
     ["EDG-01", [33,3,0,30]], ["EDG-02", [33,17,0,16]],
   ]);
-  const lines = doc.split("\n").filter(line => /^\| [1-6] \| \*\*/.test(line));
+  const latest = doc.split("### Current 406-method frozen batch queue — 2026-10-29")[1]
+    ?.split("### Three narrowly promoted API methods")[0];
+  assert.ok(latest, "The current dated batch reconciliation must exist");
+  const lines = latest.split("\n").filter(line => /^\| [1-6] \| \*\*/.test(line));
   assert.equal(lines.length, 12);
   for (const line of lines) {
     const m = line.match(/^\| [1-6] \| \*\*([A-Z]+-\d+)\*\* \| (\d+) \| (\d+) \| (\d+) \| (\d+) \| INCOMPLETE \|$/);
