@@ -103,21 +103,47 @@ test("report source is tenant-isolated and rejects unscoped payroll attribution"
       payroll, "original own-employer rows still work after foreign entry is removed",
     );
 
-    // The database has a reviewed tenant/employer composite FK. We must NOT
-    // disable that protection just to test legacy corruption: a worker from A
-    // may never be assigned directly to company B's employer.
-    await assert.rejects(
-      () => db.update(employees).set({ legalEntityId: entityB.id })
-        .where(eq(employees.id, workerA.id)),
-      (error: unknown) => {
-        // Drizzle wraps PostgreSQL errors. Inspect the actual SQLSTATE and
-        // constrained FK, not text in the outer "Failed query" message.
-        const cause = (error as { cause?: { code?: string; constraint?: string } })?.cause;
-        assert.equal(cause?.code, "23503", "Expected a real PostgreSQL FK rejection");
-        assert.equal(cause?.constraint, "employees_tenant_employer_fk");
-        return true;
-      },
-      "Real PostgreSQL tenant/employer FK must reject a cross-company reference",
+    // The reviewed production/cutover schema may enforce a tenant/employer
+    // composite FK that is absent from the disposable source-first PG16 schema.
+    // Never disable a real constraint or assume the PG16 fixture has one.
+    // When the DB allows a legacy cross-employer link, the report source MUST
+    // reject it without returning foreign wages.
+    let crossEmployerUpdateAllowed = false;
+    try {
+      const [updated] = await db.update(employees).set({ legalEntityId: entityB.id })
+        .where(eq(employees.id, workerA.id))
+        .returning({ id: employees.id, legalEntityId: employees.legalEntityId });
+      assert.equal(updated?.id, workerA.id);
+      assert.equal(updated?.legalEntityId, entityB.id);
+      crossEmployerUpdateAllowed = true;
+    } catch (error) {
+      // If the reviewed composite FK exists, require its exact PostgreSQL
+      // error instead of treating an unrelated database failure as a pass.
+      const cause = (error as { cause?: { code?: string; constraint?: string } })?.cause;
+      assert.equal(cause?.code, "23503", "Only the tenant/employer FK may reject this fixture");
+      assert.equal(cause?.constraint, "employees_tenant_employer_fk");
+    }
+    if (crossEmployerUpdateAllowed) {
+      try {
+        await assert.rejects(
+          () => loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+          /source attribution/,
+          "Source-first PG16 must reject cross-employer wages even without the composite FK",
+        );
+      } finally {
+        // Restore the synthetic worker even if the rejection assertion fails.
+        await db.update(employees).set({ legalEntityId: entityA.id })
+          .where(eq(employees.id, workerA.id));
+      }
+    } else {
+      const [unchanged] = await db.select({ legalEntityId: employees.legalEntityId })
+        .from(employees).where(eq(employees.id, workerA.id)).limit(1);
+      assert.equal(unchanged?.legalEntityId, entityA.id,
+        "A rejected foreign-employer update must preserve the original employee");
+    }
+    assert.deepEqual(
+      await loadAuthorizedReportRows({ organizationId: a.id, dataset: "payroll", ...range }),
+      payroll, "valid own-employer pay remains visible after the cross-employer probe",
     );
 
     // A second legal employer belonging to A is valid under that FK but
