@@ -94,17 +94,42 @@ export function validOrgExplorerResponse(value: unknown, organizationId: number)
       value.sources[2] !== "job_profiles" ||
       !["ready", "needs_review"].includes(String(value.integrity)) ||
       !count(value.unlinkedPositionRecords) ||
-      !Array.isArray(value.units) || !Array.isArray(value.positions)) return false;
+      // The server rejects larger source inventories rather than claiming a
+      // truncated organizational hierarchy is complete.
+      !Array.isArray(value.units) || value.units.length > 250 ||
+      !Array.isArray(value.positions) || value.positions.length > 500) return false;
 
-  const unitIds = new Set<number>();
+  const units = new Map<number, {
+    parentId: number | null; depth: number; relationship: string; positionRecordCount: number;
+  }>();
+  let brokenUnit = false;
   for (const unit of value.units as unknown[]) {
-    if (!object(unit) || !id(unit.id) || unitIds.has(unit.id) ||
+    if (!object(unit) || !id(unit.id) || units.has(unit.id) ||
         !optionalId(unit.parentId) || !text(unit.code) || !text(unit.name) ||
         !text(unit.type) || !count(unit.depth) || !count(unit.positionRecordCount) ||
         !["root", "linked", "missing_parent", "cycle"].includes(String(unit.relationship))) return false;
-    unitIds.add(unit.id);
+
+    if ((unit.relationship === "root" && (unit.parentId !== null || unit.depth !== 0)) ||
+        (unit.relationship === "linked" && (unit.parentId === null || unit.depth < 1)) ||
+        (["missing_parent", "cycle"].includes(String(unit.relationship)) &&
+          (unit.parentId !== null || unit.depth !== 0))) return false;
+    if (unit.relationship === "missing_parent" || unit.relationship === "cycle") brokenUnit = true;
+    units.set(unit.id, {
+      parentId: unit.parentId, depth: unit.depth, relationship: unit.relationship,
+      positionRecordCount: unit.positionRecordCount,
+    });
   }
+  // A linked unit must point to a parent from the same verified snapshot.
+  for (const unit of units.values()) {
+    if (unit.relationship !== "linked") continue;
+    const parent = units.get(unit.parentId!);
+    if (!parent || parent.relationship === "cycle" || parent.relationship === "missing_parent" ||
+        unit.depth !== parent.depth + 1) return false;
+  }
+
   const positionIds = new Set<number>();
+  const positionsByUnit = new Map<number, number>();
+  let unlinked = 0;
   for (const position of value.positions as unknown[]) {
     if (!object(position) || !id(position.id) || positionIds.has(position.id) ||
         !text(position.code) || !text(position.status) || !optionalText(position.jobTitle) ||
@@ -112,8 +137,31 @@ export function validOrgExplorerResponse(value: unknown, organizationId: number)
         !optionalId(position.reportingUnitId) ||
         !["linked", "no_unit", "unit_not_in_snapshot"].includes(String(position.relationship))) return false;
     positionIds.add(position.id);
+
+    // The projector redacts foreign/out-of-snapshot unit IDs. A positive
+    // reference in the returned JSON must always resolve inside this employer snapshot.
+    if ((position.orgUnitId !== null && !units.has(position.orgUnitId)) ||
+        (position.supervisoryOrgUnitId !== null && !units.has(position.supervisoryOrgUnitId))) return false;
+    if (position.relationship === "linked") {
+      if (!id(position.reportingUnitId) || !units.has(position.reportingUnitId) ||
+          position.reportingUnitId !== (position.supervisoryOrgUnitId ?? position.orgUnitId)) return false;
+      positionsByUnit.set(position.reportingUnitId,
+        (positionsByUnit.get(position.reportingUnitId) ?? 0) + 1);
+    } else {
+      if (position.reportingUnitId !== null ||
+          (position.relationship === "no_unit" &&
+            (position.orgUnitId !== null || position.supervisoryOrgUnitId !== null))) return false;
+      // "unit_not_in_snapshot" may have had a foreign supervisory unit
+      // redacted by the server, so do not infer it from the remaining IDs.
+      unlinked++;
+    }
   }
-  return true;
+
+  for (const [unitId, unit] of units) {
+    if (unit.positionRecordCount !== (positionsByUnit.get(unitId) ?? 0)) return false;
+  }
+  return value.unlinkedPositionRecords === unlinked &&
+    value.integrity === (brokenUnit || unlinked > 0 ? "needs_review" : "ready");
 }
 
 export function validPositionHistoryResponse(
@@ -169,6 +217,8 @@ export function validTeamLeaveResponse(
 
   let approved = 0, pending = 0;
   const ids = new Set<number>();
+  let previousStart: string | null = null;
+  let previousId = 0;
   for (const item of value.cases as unknown[]) {
     if (!object(item) || !id(item.requestId) || ids.has(item.requestId) ||
         !id(item.employeeId) || !text(item.employeeNo) || !text(item.employeeName) ||
@@ -176,6 +226,12 @@ export function validTeamLeaveResponse(
         !date(item.startDate) || !date(item.endDate) ||
         item.startDate > item.endDate || item.startDate > expectedDates.end ||
         item.endDate < expectedDates.start) return false;
+    // Same ordering as the tenant-scoped SQL: start date ASC, request ID ASC.
+    if (previousStart !== null &&
+        (item.startDate < previousStart ||
+          (item.startDate === previousStart && item.requestId <= previousId))) return false;
+    previousStart = item.startDate;
+    previousId = item.requestId;
     ids.add(item.requestId);
     if (item.status === "Approved") approved++; else pending++;
   }
