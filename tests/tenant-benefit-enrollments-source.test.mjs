@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 
 const suite = readFileSync("scripts/qa/tenant-benefit-enrollments-http.mjs", "utf8");
 const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -52,9 +53,13 @@ test("revocation uses the same authenticated session and preserves formerly owne
 
 test("reviewed methods cannot credit unexecuted catalogue/HMO siblings", () => {
   const methods = manifest.allApiRouteFiles["src/app/api/benefits/route.ts"].methods;
-  for (const method of ["GET", "POST", "DELETE", "PUT"]) {
-    assert.equal(methods.find(row => row.name === method)?.status, method === "PUT" ? "GAP" : "COVERED");
+  for (const method of ["GET", "POST", "DELETE"]) {
+    assert.equal(methods.find(row => row.name === method)?.status, "COVERED");
   }
+  const put = methods.find(row => row.name === "PUT");
+  assert.equal(put?.status, "COVERED", "PUT requires its independent, fully evidenced PG16 credit");
+  assert.equal(put?.testedBy?.file, "scripts/qa/tenant-benefit-catalog-put-http.mjs");
+  assert.equal(verifyPost1523Credits(manifest), 3, "Enrolment tests cannot confer the separate PUT credit");
   // GET may close only through the separate own-marker table proof, never through this candidate suite.
   const get = methods.find(row => row.name === "GET");
   assert.ok(get?.status === "GAP" || (get?.status === "COVERED" && ["scripts/qa/tenant-table-http.mjs", "scripts/qa/tenant-benefit-enrollments-http.mjs"].includes(get.testedBy?.file)),

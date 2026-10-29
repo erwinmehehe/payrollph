@@ -1,6 +1,7 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
+import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 /**
@@ -488,22 +489,46 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   assert.equal(hmoPostCredit?.testedBy?.passedJob,
     "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");
   const hmoPostCredits = 1;
-  // The WRK-01 staffing-policy POST/PATCH review promotion is a separate, source-pinned
-  // pair (guarded in tenant-isolation-coverage-inventory.test.mjs); keep it out of the
-  // historical 124/359 ledger rather than editing those constants.
-  const staffingPolicyCredits = [...methodsByKey.values()].filter(method =>
-    method.status === "COVERED" &&
-    method.testedBy?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs").length;
-  assert.equal(staffingPolicyCredits, 2, "exactly the staffing-policy POST and PATCH are promoted");
   const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
+  const post1523Credits = verifyPost1523Credits(manifest);
+  assert.equal(post1523Credits, 3, "only the three post-#1523 proofs can change this historical baseline");
+  // WRK-01 staffing-policy POST/PATCH are two additional, independently
+  // source-pinned fictional PG16 methods. Never count the unproven GET.
+  const staffingPolicyMethods = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods;
+  const staffingPolicyCredits = staffingPolicyMethods.filter(method =>
+    method.status === "COVERED" &&
+    method.testedBy?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs").length;
+  assert.equal(staffingPolicyCredits, 2, "only staffing-policy POST and PATCH can earn the WRK-01 proof");
+  assert.equal(staffingPolicyMethods.find(method => method.name === "GET")?.status, "GAP");
+  // These six newer mainline Workforce credits already contribute to tableMethods.length.
+  // Verify them explicitly, but do not double subtract from the historical 124/359 ledger.
+  const newMainWorkforce = [
+      "POST workforce/attendance-corrections",
+      "POST workforce/coverage",
+      "POST workforce/overtime",
+      "POST workforce/schedule-swaps",
+      "POST workforce/schedules",
+      "POST workforce/timesheets"
+  ];
+  for (const key of newMainWorkforce) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": main proof credit must be preserved");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-write-table-http.mjs");
+    assert.match(method?.testedBy?.rowFile ?? "", /^scripts\/qa\/tenant-table-rows\/write\//);
+    for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine"]) {
+      assert.ok(Number.isSafeInteger(method.testedBy[field]) && method.testedBy[field] > 0,
+        key + ": owned/denied/unchanged PostgreSQL source anchors must exist");
+    }
+    assert.equal(method.testedBy.postgresMajor, 16);
+  }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - staffingPolicyCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - post1523Credits - staffingPolicyCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + staffingPolicyCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + post1523Credits + staffingPolicyCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

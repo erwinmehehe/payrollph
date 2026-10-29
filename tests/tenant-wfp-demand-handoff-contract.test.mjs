@@ -1,4 +1,5 @@
 import test from "node:test";
+import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
@@ -146,8 +147,11 @@ test("source review: actual own create/update and foreign/forged tenant denials 
     .methods.find(row => row.name === "POST");
   assert.equal(HANDOFF_PATH, "/api/workforce-planning/demand-handoff");
   assert.equal(MANUAL_DATE, "2099-05-22");
-  assert.equal(method?.status, "GAP", "Partial unreviewed proof must not silently earn a credit");
-  assert.equal(method?.testedBy, null);
+  assert.equal(method?.status, "COVERED", "Only the separately reviewed full create/update proof is proposed");
+  assert.equal(method?.testedBy?.file, "scripts/qa/tenant-wfp-demand-handoff-http.mjs");
+  assert.equal(method?.testedBy?.productionCertified, false);
+  assert.match(method?.testedBy?.independentReview, /^PENDING:/);
+  assert.equal(verifyPost1523Credits(manifest), 3);
   assert.match(route, /eq\(workforcePlans\.organizationId, organizationId\)/);
   assert.match(route, /eq\(jobProfiles\.organizationId, organizationId\)/);
   assert.match(route, /eq\(worksites\.organizationId, organizationId\)/);
