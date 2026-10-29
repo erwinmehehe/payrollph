@@ -117,7 +117,7 @@ type BiSourceLinks = {
   declaredUnitId?: number | null;
   joinedUnitId?: number | null;
 };
-function assertBiSourceLinks(organizationId: number, rows: BiSourceLinks[]) {
+export function assertBiSourceLinks(organizationId: number, rows: BiSourceLinks[]) {
   if (rows.some((row) =>
     (row.employeeOrganizationId !== undefined
       && row.employeeOrganizationId !== organizationId)

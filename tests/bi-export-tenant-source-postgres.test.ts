@@ -6,10 +6,45 @@ import {
   employees, legalEntities, organizations, orgUnits, payrollEntries,
   payrollRuns, workforceTimesheets,
 } from "../src/db/schema";
-import { runBiExport, type BiExportKey } from "../src/lib/bi-exports";
+import { assertBiSourceLinks, runBiExport, type BiExportKey } from "../src/lib/bi-exports";
 
 const FILTERS = { startDate: "2026-10-01", endDate: "2026-10-31" };
 const TENANT_SOURCE_MISMATCH = /BI_EXPORT_TENANT_SOURCE_MISMATCH/;
+
+// The reviewed disposable baseline has composite employer FKs for workers and
+// runs. A synthetic cross-employer FK assignment is rejected by PostgreSQL
+// before the BI query can exercise its separate fail-closed source checks.
+async function expectTenantEmployerFk(write: () => Promise<void>, constraint: string) {
+  await assert.rejects(write, (error: unknown) => {
+    const cause = (error as { cause?: { code?: string; constraint?: string } }).cause;
+    assert.equal(cause?.code, "23503", "expected a PostgreSQL foreign-key violation");
+    assert.equal(cause?.constraint, constraint, "expected the existing tenant FK");
+    return true;
+  });
+}
+
+test("BI export validator rejects foreign and missing source joins without altering schema", () => {
+  const owned = {
+    employeeOrganizationId: 11, declaredEntityId: 21, joinedEntityId: 21,
+    declaredUnitId: 31, joinedUnitId: 31,
+  };
+  assert.doesNotThrow(() => assertBiSourceLinks(11, [
+    owned, { employeeOrganizationId: 11, declaredEntityId: null, joinedEntityId: null,
+      declaredUnitId: null, joinedUnitId: null },
+  ]));
+  const denied = [
+    { label: "foreign worker", row: { employeeOrganizationId: 12 } },
+    { label: "missing worker", row: { employeeOrganizationId: null } },
+    { label: "foreign legal entity", row: { declaredEntityId: 21, joinedEntityId: 22 } },
+    { label: "unresolved legal entity", row: { declaredEntityId: 21, joinedEntityId: null } },
+    { label: "foreign organization unit", row: { declaredUnitId: 31, joinedUnitId: 32 } },
+    { label: "unresolved organization unit", row: { declaredUnitId: 31, joinedUnitId: null } },
+  ];
+  for (const { label, row } of denied) {
+    assert.throws(() => assertBiSourceLinks(11, [owned, row]), TENANT_SOURCE_MISMATCH,
+      label + " must reject the entire dataset");
+  }
+});
 
 test("BI payroll and workforce exports reject inconsistent cross-tenant source links", async () => {
   // Only synthetic records in the disposable CI PostgreSQL service. The
@@ -75,13 +110,18 @@ test("BI payroll and workforce exports reject inconsistent cross-tenant source l
     assert.equal(ownTime[0].employeeNo, "BIA-01");
     assert.equal(ownTime[0].currentLegalEntityCode, "BI-A");
 
-    // Foreign legal-entity and unit identifiers can exist as valid single
-    // column FKs while still violating the source record's organization.
-    await db.update(payrollRuns).set({ legalEntityId: entityB.id })
-      .where(eq(payrollRuns.id, runA.id));
-    await assert.rejects(() => exported("payroll_runs"), TENANT_SOURCE_MISMATCH);
-    await assert.rejects(() => exported("payroll_entries"), TENANT_SOURCE_MISMATCH);
-    await db.update(payrollRuns).set({ legalEntityId: entityA.id, scopeOrgUnitId: unitB.id })
+    // Current PG16/18 baseline rejects foreign legal entities at the
+    // composite tenant FK, before any export query can run.
+    await expectTenantEmployerFk(async () => {
+      await db.update(payrollRuns).set({ legalEntityId: entityB.id })
+        .where(eq(payrollRuns.id, runA.id));
+    }, "payroll_runs_tenant_employer_fk");
+    assert.deepEqual((await exported("payroll_runs")).rows, ownRuns);
+    assert.deepEqual((await exported("payroll_entries")).rows, ownPay);
+
+    // Scope units still have a single-column FK. The real SQL dataset must
+    // reject an A-owned payroll run pointing to B's otherwise valid unit.
+    await db.update(payrollRuns).set({ scopeOrgUnitId: unitB.id })
       .where(eq(payrollRuns.id, runA.id));
     await assert.rejects(() => exported("payroll_runs"), TENANT_SOURCE_MISMATCH);
     await assert.rejects(() => exported("payroll_entries"), TENANT_SOURCE_MISMATCH);
@@ -109,12 +149,17 @@ test("BI payroll and workforce exports reject inconsistent cross-tenant source l
     await db.delete(workforceTimesheets).where(eq(workforceTimesheets.id, foreignSheet.id));
     assert.deepEqual((await exported("workforce_timesheets")).rows, ownTime);
 
-    // Same-org worker, mismatched cross-organization entity/unit FKs:
-    // keep foreign entity or unit codes out of current-dimension BI exports.
-    await db.update(employees).set({ legalEntityId: entityB.id })
-      .where(eq(employees.id, workerA.id));
-    await assert.rejects(() => exported("workforce_timesheets"), TENANT_SOURCE_MISMATCH);
-    await db.update(employees).set({ legalEntityId: entityA.id, orgUnitId: unitB.id })
+    // Employee legal entities are protected by the other composite tenant
+    // FK. Independently verify that the database refuses a foreign target.
+    await expectTenantEmployerFk(async () => {
+      await db.update(employees).set({ legalEntityId: entityB.id })
+        .where(eq(employees.id, workerA.id));
+    }, "employees_tenant_employer_fk");
+    assert.deepEqual((await exported("workforce_timesheets")).rows, ownTime);
+
+    // The employee's unit reference remains a single-column FK, so the
+    // application-level guard must reject the foreign unit code in real SQL.
+    await db.update(employees).set({ orgUnitId: unitB.id })
       .where(eq(employees.id, workerA.id));
     await assert.rejects(() => exported("workforce_timesheets"), TENANT_SOURCE_MISMATCH);
     await db.update(employees).set({ orgUnitId: unitA.id })
