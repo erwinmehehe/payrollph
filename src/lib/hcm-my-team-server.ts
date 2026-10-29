@@ -2,6 +2,7 @@ import {
   and, asc, count, eq, gt, ilike, inArray, isNull, lte, gte, or, sql,
 } from "drizzle-orm";
 import { db } from "@/db";
+import { isValidHcmReadScope } from "@/lib/hcm-read-scope-validation";
 import {
   attendanceCorrectionRequests, employees, leaveRequests, orgUnits,
   overtimeRequests, timePunches,
@@ -45,9 +46,8 @@ export async function loadHcmMyTeam(input: {
 }): Promise<MyTeamResponse> {
   const { organizationId, scope, cursor, query, statusFilter } = input;
   if (!Number.isSafeInteger(organizationId) || organizationId < 1 ||
-      !Number.isSafeInteger(cursor) || cursor < 0 || query.length > 70 ||
-      (scope.kind === "unit" &&
-        (!Number.isSafeInteger(scope.orgUnitId) || scope.orgUnitId < 1))) {
+      !isValidHcmReadScope(scope) ||
+      !Number.isSafeInteger(cursor) || cursor < 0 || query.length > 70) {
     throw new InvalidMyTeamScopeError();
   }
   const observedAt = new Date();
