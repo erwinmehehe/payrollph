@@ -17,11 +17,13 @@ test("tenant report builder refuses foreign payroll worker rows rather than disc
     ]).returning({ id: organizations.id });
     orgIds.push(orgA.id, orgB.id);
 
-    const [entityA, entityB] = await db.insert(legalEntities).values([
+    const [entityA, entityB, entityAAlternate] = await db.insert(legalEntities).values([
       { organizationId: orgA.id, code: "BLD-RPT-A", legalName: "Fictional builder entity A",
         displayName: "Fictional builder A", primaryEntity: true },
       { organizationId: orgB.id, code: "BLD-RPT-B", legalName: "Fictional builder entity B",
         displayName: "Fictional builder B", primaryEntity: true },
+      { organizationId: orgA.id, code: "BLD-RPT-A-ALT", legalName: "Fictional builder alternate entity A",
+        displayName: "Fictional builder A alternate", primaryEntity: false },
     ]).returning({ id: legalEntities.id });
     const [unitA, unitB] = await db.insert(orgUnits).values([
       { organizationId: orgA.id, legalEntityId: entityA.id,
@@ -73,9 +75,10 @@ test("tenant report builder refuses foreign payroll worker rows rather than disc
     await db.delete(payrollEntries).where(eq(payrollEntries.id, foreignEntry.id));
     assert.deepEqual(await getBuilderFacts(request), own);
 
-    // Even inside one organization, a payroll run cannot claim an employee
-    // currently attributed to a different legal employer.
-    await db.update(employees).set({ legalEntityId: entityB.id })
+    // A different legal entity within A must be rejected by the report builder.
+    // PostgreSQL already forbids assigning B's legal entity to an A employee,
+    // so that invalid fixture cannot reach this application-level guard.
+    await db.update(employees).set({ legalEntityId: entityAAlternate.id })
       .where(eq(employees.id, workerA.id));
     await assert.rejects(() => getBuilderFacts(request), /source attribution/);
     await db.update(employees).set({ legalEntityId: entityA.id })
