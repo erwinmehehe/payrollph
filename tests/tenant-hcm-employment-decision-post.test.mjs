@@ -8,7 +8,9 @@ import {
 } from "../scripts/qa/tenant-hcm-employment-decision-contract.mjs";
 
 const source = readFileSync("scripts/qa/tenant-hcm-employment-decision-post.mjs", "utf8");
-const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+const sharedRunner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+const isolatedRunner = readFileSync("scripts/qa/tenant-hcm-employment-decision-runner.mjs", "utf8");
+const workflow = readFileSync(".github/workflows/security-http-smoke.yml", "utf8");
 const route = readFileSync("src/app/api/hcm/employment-term-decisions/route.ts", "utf8");
 
 const safeEnv = {
@@ -70,7 +72,29 @@ test("actual production HCM POST tenant and MFA guards remain scoped", () => {
 });
 
 test("two real owned HTTP inserts and high-ID victim/forged SQL denial are executed in PG16 suite", () => {
-  assert.match(harness, /await \(await import\("\.\/tenant-hcm-employment-decision-post\.mjs"\)\)\.verifyHcmEmploymentDecisionPost\(f, \{ request, expectStatus, makeSession \}\)/);
+  // The historic second-pass runner is receipt-pinned by other COVERED methods.
+  // This provisional HCM case must run separately and never repin those receipts.
+  assert.doesNotMatch(sharedRunner, /verifyHcmEmploymentDecisionPost/);
+  assert.match(workflow, /npx tsx scripts\/qa\/tenant-hcm-employment-decision-runner\.mjs/);
+  assert.match(workflow, /node --check scripts\/qa\/tenant-hcm-employment-decision-runner\.mjs/);
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(isolatedRunner, /await verifyHcmEmploymentDecisionPost\(fixtures, \{ request, expectStatus, makeSession \}\)/);
+  for (const assertion of [
+    'requireDisposableHcmDecisionEnv();',
+    'await db.insert(organizations).values(',
+    'await db.insert(userOrganizations).values(',
+    'await db.insert(legalEntities).values(',
+    'await db.insert(orgUnits).values(',
+    'await db.insert(payrollRuns).values(',
+    'await db.insert(sessions).values({',
+    'mfaVerifiedAt: new Date(), authMethod: "oidc"',
+    'cookie: "__Host-linaw_session=" + token',
+    'const response = await fetch(url, {',
+    'assert.equal(method, "POST"',
+    'return { status: response.status, text, json };',
+    'await pool.end();',
+  ]) assert.ok(isolatedRunner.includes(assertion),
+    "Independent fictional PG16 HCM HTTP runner safeguard missing: " + assertion);
   for (const guard of [
     "requireDisposableHcmDecisionEnv();",
     "makeSession(f.owners[index].id, { privileged: true })",
