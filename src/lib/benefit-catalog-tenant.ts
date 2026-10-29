@@ -19,5 +19,5 @@ export function defaultEmployerBenefitPlans(organizationId: number) {
       employerShare: "0.00", provider: "SSS", organizationId },
     { name: "Rice allowance", category: "allowance", employeeShare: "0.00",
       employerShare: "1000.00", organizationId },
-  ] as const;
+  ];
 }
