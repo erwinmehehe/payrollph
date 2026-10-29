@@ -128,14 +128,29 @@ export function validPositionHistoryResponse(
       !object(value.history.preview) ||
       typeof value.history.preview.hasMore !== "boolean" ||
       typeof value.history.preview.partial !== "boolean" ||
-      !Array.isArray(value.history.preview.items) || value.history.preview.items.length > 50) return false;
+      !Array.isArray(value.history.preview.items) || value.history.preview.items.length > 50 ||
+      // The server and projector always set these flags together. A claimed
+      // truncated preview must contain the entire 50-row bounded page.
+      value.history.preview.hasMore !== value.history.preview.partial ||
+      (value.history.preview.hasMore && value.history.preview.items.length !== 50)) return false;
   const ids = new Set<number>();
+  let previousDate: string | null = null;
+  let previousId: number | null = null;
   for (const item of value.history.preview.items as unknown[]) {
     if (!object(item) || !id(item.id) || ids.has(item.id) ||
         !optionalId(item.employeeId) || !text(item.assignmentType) ||
         !date(item.effectiveFrom) ||
         !(item.effectiveUntil === null ||
           (date(item.effectiveUntil) && item.effectiveUntil >= item.effectiveFrom))) return false;
+
+    // SQL orders newest effective date first, then highest assignment ID.
+    // Reject a shuffled/stale JSON page rather than presenting its ordering
+    // or completeness as verified employer history.
+    if (previousDate !== null &&
+        (item.effectiveFrom > previousDate ||
+         (item.effectiveFrom === previousDate && previousId !== null && item.id >= previousId))) return false;
+    previousDate = item.effectiveFrom;
+    previousId = item.id;
     ids.add(item.id);
   }
   return true;
