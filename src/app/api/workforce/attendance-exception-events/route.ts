@@ -13,6 +13,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { validAttendanceOperationsWindow } from "@/lib/attendance-operations-window";
 import {
   attendanceExceptionAgeHours,
   attendanceExceptionSlaStatus,
@@ -26,8 +27,6 @@ import {
 export const dynamic = "force-dynamic";
 
 const OPERATOR_ROLES = ["owner", "admin", "bookkeeper", "hr", "manager", "payroll"] as const;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 function operationalView(row: typeof attendanceExceptionEvents.$inferSelect, now: Date) {
   return {
     ...row,
@@ -51,14 +50,13 @@ export async function GET(request: Request) {
   const status = String(url.searchParams.get("status") ?? "").trim();
 
   if (
-    !Number.isInteger(organizationId)
-    || !ISO_DATE.test(startDate)
-    || !ISO_DATE.test(endDate)
-    || endDate < startDate
+    !Number.isSafeInteger(organizationId)
+    || organizationId <= 0
+    || !validAttendanceOperationsWindow(startDate, endDate)
     || (status && !["open", "resolved"].includes(status))
   ) {
     return Response.json({
-      error: "organizationId and a valid startDate/endDate are required; status may be open or resolved.",
+      error: "A positive organizationId and a valid startDate/endDate range (up to 42 days) are required; status may be open or resolved.",
     }, { status: 400 });
   }
 
@@ -103,13 +101,17 @@ export async function GET(request: Request) {
     .orderBy(asc(users.name), asc(users.id));
 
   if (employeeIds.length === 0) {
+    // Zero visible employees is not proof the attendance exception schema exists.
+    // Resolve mapped columns without reading data before reporting healthy zeros.
+    await db.select().from(attendanceExceptionEvents)
+      .where(eq(attendanceExceptionEvents.organizationId, organizationId)).limit(0);
     return Response.json({
       organizationId,
       range: { startDate, endDate },
       summary: { open: 0, overdue: 0, unassigned: 0, resolved: 0 },
       exceptions: [],
       ownerCandidates: [],
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
   const predicates = [
@@ -151,7 +153,7 @@ export async function GET(request: Request) {
       || membership.orgUnitId == null
       || membership.orgUnitId === access.orgUnitId
     ),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
