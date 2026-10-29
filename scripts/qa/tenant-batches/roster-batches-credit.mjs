@@ -52,11 +52,13 @@ assert.equal(post.status, "GAP");
 assert.equal(post.testedBy, null);
 assert.equal(api.methods.find(x => x.name === "GET")?.status, "COVERED");
 
-const line = (source, fragment) => {
+const line = (source, fragment, expectedMatches = 1, chosen = 0) => {
   const matches = source.split("\n").flatMap((text, i) =>
     text.includes(fragment) ? [i + 1] : []);
-  assert.equal(matches.length, 1, "one unambiguous proof line required for " + fragment);
-  return matches[0];
+  assert.equal(matches.length, expectedMatches,
+    "exact source proof line count changed for " + fragment);
+  assert.ok(Number.isSafeInteger(chosen) && chosen >= 0 && chosen < matches.length);
+  return matches[chosen];
 };
 const testedBy = {
   file: ACTIONS,
@@ -65,7 +67,8 @@ const testedBy = {
   replayLine: line(actionSource, "const replay = check(await post(e, stageBody(e)), 200"),
   approveLine: line(actionSource, 'const result = check(await post(e, decideBody("approve", e.orgId,'),
   foreignDenialLine: line(actionSource, "organizationId: victim.orgId, employeeIds: [victim.workerId]"),
-  forgedSelectorLine: line(actionSource, "victim.stageBatchId, actor.decisionNote), 404"),
+  // Both forged approve and forged reject intentionally deny the real victim batch.
+  forgedSelectorLine: line(actionSource, "victim.stageBatchId, actor.decisionNote), 404", 2, 0),
   unchangedDbLine: line(actionSource, "assert.deepEqual(await snapshot(e.orgId), expected.get(e.orgId)"),
   legacyRejectLine: line(legacySource, "const victimReject = await reject(victim, victim.orgId, victim.batchId)"),
   legacyProofFile: LEGACY,
