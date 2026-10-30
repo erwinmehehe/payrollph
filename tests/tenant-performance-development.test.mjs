@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -37,7 +38,11 @@ test("generated four-method credits pin executable supplemental proof and leave 
     assert.equal(proof.sha256, createHash("sha256").update(source).digest("hex"));
     for (const [field, fragment] of [["ownPositiveLine", "const owned = io.expectStatus"], ["foreignDenialLine", "const victim = io.expectStatus"], ["forgedSelectorLine", "const denied = io.expectStatus"], ["unchangedDbLine", "all supplemental victim tables and audit remain unchanged"]]) assert.ok(source.split("\n")[proof[field]-1].includes(fragment));
   }
-  for (const route of ["performance/follow-through-governance", "performance/calibration"]) assert.equal(Object.values(manifest.allApiRouteFiles).find(r => r.route === route).methods.find(m => m.name === "PATCH").status, "GAP");
+  for (const route of ["performance/follow-through-governance", "performance/calibration"]) {
+    const method=Object.values(manifest.allApiRouteFiles).find(r=>r.route===route).methods.find(m=>m.name==="PATCH");
+    verifyPerformanceCoreCredit("PATCH "+route,method);
+    assert.notEqual(method.testedBy.file,file,"partial development proof cannot certify core actions");
+  }
 });
 test("supplemental actions cannot replace or shift the original shared own/foreign/victim proofs", () => {
   const file = "scripts/qa/tenant-write-table-http.mjs";

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
@@ -216,6 +217,11 @@ test("already credited and partial-action methods are not double-counted", () =>
     "POST web-bundy/consent",
   ];
   for (const key of excluded) {
+    if (key === "PATCH performance/follow-through-governance") {
+      verifyPerformanceCoreCredit(key, methods.get(key));
+      assert.notEqual(methods.get(key).testedBy.verifiedMainCommit, base, "new complete proof is not borrowed historical promotion evidence");
+      continue;
+    }
     assert.equal(methods.get(key)?.status, "GAP", key);
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
