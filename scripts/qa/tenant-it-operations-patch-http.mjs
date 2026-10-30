@@ -150,9 +150,9 @@ export async function proveItOperationsPatch() {
           organizationId: victim.org.id, action: "access",
           id: actor.data.grant.id, state: "active",
         }, 403],
-        ["missing employer selector", {
+        ["missing employer selector scopes to sole authorized membership", {
           action: "access", id: victim.data.grant.id, state: "active",
-        }, 422],
+        }, 404],
         ["invalid employer selector", {
           organizationId: 0, action: "device",
           id: victim.data.device.id, state: "return_requested",
