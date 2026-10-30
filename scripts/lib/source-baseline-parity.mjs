@@ -262,6 +262,11 @@ function sourceBaselineSignature(kind, x, table, name, columnTypes) {
       }
       return { unique: x.unique, method: x.method.toLowerCase(),
         keys: names(x.keys).map((key) => sourceBaselineIndexKey(key, columnTypes)),
+        include: names(x.include ?? x.included_columns ?? [])
+          .map((key) => sourceBaselineIndexKey(key, columnTypes)),
+        options: names(x.options ?? x.storage_options ?? []).sort(),
+        nullsNotDistinct: !!(x.nullsNotDistinct ?? x.nulls_not_distinct),
+        tablespace: x.tablespace ?? null,
         predicate: sourceBaselineSQL(x.predicate), valid: x.valid !== false,
         ready: x.ready !== false };
     default:
