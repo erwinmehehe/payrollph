@@ -112,6 +112,14 @@ export async function readSourceBaselineCatalog(client) {
                FROM generate_series(1, idx.indnkeyatts) AS k
               ORDER BY k
            ) AS keys,
+           ARRAY(
+             SELECT pg_catalog.pg_get_indexdef(idx.indexrelid, k, true)
+               FROM generate_series(idx.indnkeyatts + 1, idx.indnatts) AS k
+              ORDER BY k
+           ) AS included_columns,
+           COALESCE(ix.reloptions, ARRAY[]::text[]) AS storage_options,
+           idx.indnullsnotdistinct AS nulls_not_distinct,
+           CASE WHEN ix.reltablespace = 0 THEN NULL ELSE ts.spcname END AS tablespace,
            pg_catalog.pg_get_expr(idx.indpred, idx.indrelid) AS predicate,
            idx.indisvalid AS valid, idx.indisready AS ready
       FROM pg_catalog.pg_indexes AS pi
@@ -123,6 +131,7 @@ export async function readSourceBaselineCatalog(client) {
       JOIN pg_catalog.pg_index AS idx
         ON idx.indrelid = t.oid AND idx.indexrelid = ix.oid
       JOIN pg_catalog.pg_am AS am ON am.oid = ix.relam
+      LEFT JOIN pg_catalog.pg_tablespace AS ts ON ts.oid = ix.reltablespace
      WHERE pi.schemaname = 'public' AND t.relkind IN ('r', 'p')
        AND NOT EXISTS (
          SELECT 1 FROM pg_catalog.pg_constraint AS con
