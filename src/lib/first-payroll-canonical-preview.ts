@@ -1,7 +1,8 @@
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  attendanceCorrectionRequests, employeeCompensationComponents, employeeLoans,
+  attendanceCorrectionRequests, benefitEnrollments, employeeCompensationComponents, employeeLoans,
+  employeePayProfiles,
   expenseClaims, leaveRequests, legalEntities, overtimeRequests, payrollRuns,
   supplementaryEarnings, timePunches, workforceAttendanceLockPolicies,
   workforceAttendancePeriodLocks, workforceTimesheetPolicies, workforceTimesheets,
@@ -14,9 +15,8 @@ import { buildEmployeeTimesheetSnapshot } from "@/lib/workforce-timesheet-server
 
 /**
  * The existing preview gate validates organization identity, roles, onboarding
- * and whether the payroll engine needs complex input. This second stage removes
- * only those source blockers the *same canonical worker assembler* can now
- * reconcile. No data or response from the tentative simple estimate is used.
+ * and incomplete source evidence. The same canonical worker assembler then
+ * projects eligible employees. No alternative money calculator exists here.
  */
 type Input = { organizationId: number; periodStart: string; periodEnd: string; payDate: string };
 type ReadOnlyReader = Pick<typeof db, "select">;
@@ -56,6 +56,7 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
     .where(and(eq(legalEntities.organizationId, input.organizationId), eq(legalEntities.active, true)));
   const legal = legalRows.length === 1 && legalRows[0].primaryEntity ? legalRows[0] : null;
 
+  const warnings: string[] = [];
   const blockers = baseline.blockers.filter(message =>
     message !== "Resolve employee-level blockers before treating preview as ready."
     && !supportedGlobalBlocker(message),
@@ -90,7 +91,7 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
   // read-only snapshot as the canonical calculation. No schema ensure() calls.
   const employeeIds = baseline.rows.map(row => row.employeeId);
   if (employeeIds.length > 0) {
-    const [policyRows, timesheetRows, lockPolicies, lockRows, punchWorkerRows] = await Promise.all([
+    const [policyRows, timesheetRows, lockPolicies, lockRows, punchWorkerRows, payProfiles] = await Promise.all([
       reader.select().from(workforceTimesheetPolicies)
         .where(eq(workforceTimesheetPolicies.organizationId, input.organizationId)),
       reader.select().from(workforceTimesheets).where(and(
@@ -109,6 +110,11 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
         gte(timePunches.workDate, input.periodStart),
         lte(timePunches.workDate, input.periodEnd),
       )).groupBy(timePunches.employeeId),
+      reader.select({employeeId: employeePayProfiles.employeeId, payBasis: employeePayProfiles.payBasis})
+        .from(employeePayProfiles).where(and(
+          eq(employeePayProfiles.organizationId, input.organizationId),
+          inArray(employeePayProfiles.employeeId, employeeIds),
+        )),
     ]);
     const policy = {
       active: policyRows[0]?.active ?? true,
@@ -130,6 +136,18 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
     if (gate.blocking) {
       for (const employeeId of [...gate.missingEmployeeIds, ...gate.nonApprovedEmployeeIds]) {
         problems.get(employeeId)?.push("Approved timesheet required for this pay period.");
+      }
+    }
+    // Daily/hourly wages need a complete approved cutoff timesheet even if the
+    // employer's general timesheet policy is advisory or inactive. An empty
+    // punch set cannot be treated as silently verified zero hours.
+    for (const profile of payProfiles) {
+      if ((profile.payBasis === "daily" || profile.payBasis === "hourly") &&
+          latest.get(profile.employeeId)?.status !== "approved") {
+        const worker = problems.get(profile.employeeId);
+        if (worker && !worker.includes("Approved timesheet required for this pay period.")) {
+          worker.push("Approved timesheet required for this pay period.");
+        }
       }
     }
     // Even when policy is advisory, do not present punch-based monetary output
@@ -171,7 +189,9 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
     }
     if (lockPolicies[0]?.requirePayrollCutoffLock &&
       !payrollCutoffLockForPeriod(lockRows, input.periodStart, input.periodEnd)) {
-      blockers.push("Attendance payroll-cutoff lock is required for this exact period.");
+      // The employer explicitly asked to preview before cutoff locking.
+      // Do not perform the lock or claim the later real-run gate is satisfied.
+      warnings.push("Attendance payroll-cutoff lock is still required before the actual run. This preview does not lock or approve attendance.");
     }
 
     // Unapproved changes must not silently disappear simply because the normal
@@ -185,6 +205,11 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
         .from(overtimeRequests).where(and(eq(overtimeRequests.organizationId, input.organizationId),
           inArray(overtimeRequests.employeeId, employeeIds),
           gte(overtimeRequests.workDate, input.periodStart), lte(overtimeRequests.workDate, input.periodEnd)))],
+      ["pending benefit enrollment", await reader.select({employeeId: benefitEnrollments.employeeId, status: benefitEnrollments.status})
+        .from(benefitEnrollments).where(and(eq(benefitEnrollments.organizationId, input.organizationId),
+          inArray(benefitEnrollments.employeeId, employeeIds),
+          lte(benefitEnrollments.startedOn, input.periodEnd),
+          or(isNull(benefitEnrollments.endedOn), gte(benefitEnrollments.endedOn, input.periodStart))))],
       ["pending recurring compensation", await reader.select({employeeId: employeeCompensationComponents.employeeId, status: employeeCompensationComponents.status})
         .from(employeeCompensationComponents).where(and(eq(employeeCompensationComponents.organizationId, input.organizationId),
           inArray(employeeCompensationComponents.employeeId, employeeIds),
@@ -196,7 +221,9 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
           lte(supplementaryEarnings.effectiveDate, input.periodEnd)))],
       ["unapproved loan", await reader.select({employeeId: employeeLoans.employeeId, status: employeeLoans.status})
         .from(employeeLoans).where(and(eq(employeeLoans.organizationId, input.organizationId),
-          inArray(employeeLoans.employeeId, employeeIds)))],
+          inArray(employeeLoans.employeeId, employeeIds),
+          or(isNull(employeeLoans.startDate), lte(employeeLoans.startDate, input.periodEnd)),
+          or(isNull(employeeLoans.endDate), gte(employeeLoans.endDate, input.periodStart))))],
       ["incomplete punch", await reader.select({employeeId: timePunches.employeeId, status: timePunches.status})
         .from(timePunches).where(and(eq(timePunches.organizationId, input.organizationId),
           inArray(timePunches.employeeId, employeeIds),
@@ -207,7 +234,8 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
       for (const row of rows) {
         const status = row.status.toLowerCase();
         if (status === "pending" || status === "pending_approval" || status === "submitted"
-          || status === "under_review" || (source === "incomplete punch" && status !== "complete")) {
+          || status === "under_review" || status === "requested" ||
+          (source === "incomplete punch" && status !== "complete")) {
           const reason = "Resolve " + source + " before projecting payroll.";
           const worker = problems.get(row.employeeId);
           if (worker && !worker.includes(reason)) worker.push(reason);
@@ -255,6 +283,9 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
     } catch {
       // No partial amounts are returned if source history, migration lineage
       // or a canonical calculation cannot be read from this snapshot.
+      for (const id of eligibleIds) {
+        problems.get(id)?.push("Canonical payroll source assembly unavailable for this worker and cutoff. Reconcile pay history, approved attendance and source schema before retrying.");
+      }
       blockers.push("Canonical payroll sources could not be reconciled. Check source history and deployed schema.");
     }
   }
@@ -270,7 +301,10 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
       philHealth: issues.length === 0 && projectedRow ? projectedRow.philHealth : null,
       pagIbig: issues.length === 0 && projectedRow ? projectedRow.pagIbig : null,
       withholding: issues.length === 0 && projectedRow ? projectedRow.withholding : null,
+      statutoryDeductions: issues.length === 0 && projectedRow ? projectedRow.statutoryDeductions : null,
+      otherDeductions: issues.length === 0 && projectedRow ? projectedRow.otherDeductions : null,
       net: issues.length === 0 && projectedRow ? projectedRow.net : null,
+      sources: projectedRow?.sources ?? [],
       blockers: issues,
     };
   });
@@ -284,7 +318,8 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
     rows, blockers,
     warnings: [
       ...baseline.warnings,
-      "Complex previews reuse the authoritative payroll worker's input assembly inside a read-only transaction.",
+      ...warnings,
+      "Projections reuse the authoritative payroll worker input assembly and statutory calculator inside a read-only transaction.",
       "Preview calculations do not create, approve, release, export or submit payroll.",
     ],
   };
