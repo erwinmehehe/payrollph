@@ -99,7 +99,7 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         // New proof file or new citation (a credit added in this change): nothing to compare against.
         if (!before || !Number.isInteger(baseValue)) { newCitations += 1; continue; }
         const text = before[baseValue - 1];
-        if (text === undefined) { review.push(`${method.name} ${path} ${field}=${baseValue}: base citation pointed past the end of ${proof.file} at ${baseRef}`); continue; }
+        if (text === undefined) { review.push(`${method.name} ${path} ${field}=${baseValue}: base citation pointed past the end of ${oldFile} at ${baseRef}`); continue; }
         if (now[value - 1] === text) { unchanged += 1; continue; }
         const { hits, at } = relocate(before, now, baseValue);
         if (at !== undefined) {
