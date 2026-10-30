@@ -210,6 +210,28 @@ jobs:
           XENDIT_BILLING_ENABLED: "false"
         run: npx tsx scripts/qa/tenant-hcm-employment-decision-runner.mjs
 
+      # Fresh independent PII approval-path proof. The existing second-pass
+      # rejection runner is historical source-pinned evidence and is unchanged.
+      # This candidate awards zero new method credits or production acceptance.
+      - name: Guard PII identifier approval PG16 source-only contract
+        run: |
+          node --check scripts/qa/tenant-pii01-approval-contract.mjs
+          node --check scripts/qa/tenant-pii01-approval-http.mjs
+          node --test tests/tenant-pii01-approval-http.test.mjs
+
+      - name: PII identifier approval PG16 HTTP (fictional records, zero credit)
+        env:
+          CI: "true"
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          NODE_ENV: "production"
+          DEMO_MODE: "false"
+          WORKER_ENABLED: "false"
+          CENTRAL_SCHEDULER_ENABLED: "false"
+          PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+          XENDIT_PAYOUTS_ENABLED: "false"
+          XENDIT_BILLING_ENABLED: "false"
+        run: npx tsx scripts/qa/tenant-pii01-approval-http.mjs
+
       - name: Show server log on failure
         if: failure()
         run: cat /tmp/payrollph-security.log || true
