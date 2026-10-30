@@ -98,9 +98,12 @@ test("family keeps nine unique methods with reviewed calibration and complete de
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const developed = ["POST performance/competencies", "PATCH performance/competencies", "POST performance/continuous", "POST performance/development-plans"].includes(row.key);
     const entry = record.methods.find(m => m.name === method);
-    assert.equal(entry.status, row.key === "POST performance/calibration" || developed ? "COVERED" : "GAP");
+    if (coreMethods.includes(row.key)) verifyPerformanceCoreCredit(row.key,entry);
+    else assert.equal(entry.status, row.key === "POST performance/calibration" || developed ? "COVERED" : "GAP");
     if (developed) assert.equal(entry.testedBy.supplementalProof.file, "scripts/qa/tenant-performance-development-actions.mjs");
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
 });
+import { METHODS as coreMethods } from "../scripts/qa/tenant-performance-core-contract.mjs";
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";

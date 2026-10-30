@@ -28,13 +28,17 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 | 5 | Workforce and multi-entity | WRK-01, WRK-02, WRK-03 | 118 |
 | 6 | Auth, public edge and integrations | EDG-01, EDG-02 | 66 |
 
+## 2026-10-30 PR #1602 Performance API sync to main@de69f856 — DRAFT, NOT ACCEPTED
+
+**Proposed combined ledger: 498 methods = 362 COVERED + 10 PUBLIC-BY-DESIGN + 126 GAP.** Main's 358 COVERED, including its roster-batches POST and three previously merged #1593 DL-02 proofs remain intact; PR #1602 adds four independently source-bound Performance POST/PATCH methods. 17 page/action GAPs and all frozen batch gaps remain, with exact-head CI and independent security/coverage-owner review required. No payroll, provider, production or tenant-wide authorization.
+
 ## 2026-10-30 current main and #1593 DL-02 review-only reconciliation — DRAFT, NOT ACCEPTED
 
 > **2026-10-30 sync to main@90ffef4911b (DRAFT, NOT ACCEPTED):** Current main includes the separately source-pinned #1591 credits and the two WRK-01 staffing-policy POST/PATCH credits from #1592: **354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP**. This PR #1593 adds only three disjoint DL-02 provisional method credits (`POST workforce/demand-observations/import`, `POST self/photo`, `GET web-bundy/evidence`) for **357 COVERED / 10 PUBLIC-BY-DESIGN / 131 GAP** across 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Exact-new-head CI and independent security/coverage-owner review are still required; no tenant-wide, production, provider or payroll certification.
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 358 COVERED + 10 PUBLIC-BY-DESIGN + 130 GAP**. Current main is **354/10/134**; PR #1593 contributes only +3 COVERED / -3 GAP, retaining #1592's separate +2, without double-counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED** and all twelve frozen batches remain incomplete.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 362 COVERED + 10 PUBLIC-BY-DESIGN + 126 GAP**. Current `main@de69f856` has 358/10/130, including its distinct roster-batches POST proof; PR #1602 adds only four Performance POST/PATCH method credits without double-counting mainline #1593 DL-02. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED**; every frozen batch remains incomplete.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -50,12 +54,12 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 29 | 0 | 10 | INCOMPLETE |
-| 5 | **WRK-02** | 39 | 24 | 0 | 15 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 28 | 0 | 11 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **278 COVERED + 2 PUBLIC-BY-DESIGN + 126 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
