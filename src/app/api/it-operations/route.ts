@@ -125,10 +125,11 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   let org = Number(body.organizationId);
+  const inferredOrganization = body.organizationId === undefined;
   // The pre-existing tenant-table write fixture uses an ID-only PATCH.
   // Preserve that single-employer legacy request without ever using a resource
   // record to choose a tenant. Multi-employer sessions MUST supply organizationId.
-  if (body.organizationId === undefined) {
+  if (inferredOrganization) {
     const memberships = await db.select({ organizationId: userOrganizations.organizationId })
       .from(userOrganizations)
       .where(and(eq(userOrganizations.userId, user.id), eq(userOrganizations.active, true)))
@@ -142,8 +143,9 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Valid id and organizationId required." }, { status: 422 });
   }
   // Authorize the selected tenant (or the sole ACTIVE session membership) before
-  // querying any grant or device ID. Foreign and nonexistent IDs share the same
-  // 404 response when a caller provides only an authorized employer.
+  // querying any grant or device ID. On ID-only legacy requests, BOTH real
+  // foreign IDs and missing IDs return identical generic 403 responses; scoped
+  // explicit-employer requests retain their 404-not-found behavior.
   const auth = await context(user.id, org);
   if (auth.denied) return auth.denied;
   const mfaDenied = requireSensitiveActionMfa(user);
@@ -158,7 +160,10 @@ export async function PATCH(request: Request) {
       eq(itAccessGrants.id, id),
       eq(itAccessGrants.organizationId, org),
     )).limit(1);
-    if (!grant) return Response.json({ error: "Access record not found." }, { status: 404 });
+    if (!grant) return Response.json(
+      { error: inferredOrganization ? "Access denied." : "Access record not found." },
+      { status: inferredOrganization ? 403 : 404 },
+    );
     const employeeCheck = await checkEmployee(grant.organizationId, grant.employeeId, auth.access!);
     if (employeeCheck.error) return employeeCheck.error;
     const next = String(body.state);
@@ -188,7 +193,10 @@ export async function PATCH(request: Request) {
       eq(itManagedDevices.id, id),
       eq(itManagedDevices.organizationId, org),
     )).limit(1);
-    if (!device) return Response.json({ error: "Device not found." }, { status: 404 });
+    if (!device) return Response.json(
+      { error: inferredOrganization ? "Access denied." : "Device not found." },
+      { status: inferredOrganization ? 403 : 404 },
+    );
     const access = auth.access!;
     if (device.employeeId != null) { const check = await checkEmployee(device.organizationId, device.employeeId, access); if (check.error) return check.error; }
     else if (!access.companyWide) return Response.json({ error: "Company inventory outside unit scope." }, { status: 403 });
