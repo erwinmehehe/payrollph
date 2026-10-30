@@ -2762,6 +2762,83 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(workflow, /image: postgres:16/);
         continue;
       }
+      // WRK-01 staffing-policy POST/PATCH: only these two methods on this route may
+      // claim the dedicated fictional PG16 proof, and only while the route, proof,
+      // contract and workflow stay byte-identical to the passing exact-head run.
+      if (proof?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs") {
+        assert.equal(path, "src/app/api/workforce/demand-staffing/policies/route.ts",
+          "No unrelated route may reuse the staffing-policy write evidence");
+        const spec = {
+          POST: {
+            own: 251, second: 263, foreign: 297, forged: 299, ordering: 238,
+            ownPattern: /e\.approve = await positive\(e, "POST", e\.approveBody, "draft",/,
+            secondPattern: /e\.reject = await positive\(e, "POST", e\.rejectBody, "draft",/,
+            foreignPattern: /await denied\("POST", foreign, actor\.cookie, 403,/,
+            forgedPattern: /await denied\("POST", \{[\s\S]*?worksiteId: victim\.site\.id[\s\S]*?403,/,
+            actions: ["create", "idempotent replay"],
+          },
+          PATCH: {
+            own: 342, second: 367, foreign: 315, forged: 318, ordering: 269,
+            ownPattern: /const approved = await positive\(e, "PATCH",/,
+            secondPattern: /const rejected = await positive\(e, "PATCH",/,
+            foreignPattern: /await denied\("PATCH", \{[\s\S]*?transition\(victim, victim\.approve\.row\.id, "submit"\)[\s\S]*?403,/,
+            forgedPattern: /await denied\("PATCH", \{[\s\S]*?transition\(actor, victim\.approve\.row\.id, "submit"\)[\s\S]*?409,/,
+            actions: ["submit", "approve", "reject"],
+          },
+        }[method.name];
+        assert.ok(spec, path + ": only staffing-policy POST and PATCH are in this batch");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.secondaryOwnPositiveLine,
+          proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine,
+          proof.victimIdOrderingLine],
+        [spec.own, spec.own, spec.second, spec.foreign, spec.forged, 79, spec.ordering],
+        method.name + ": staffing-policy evidence pins changed without review");
+        assert.deepEqual(proof.methodActions, spec.actions);
+        assert.equal(proof.reviewedHead, "fc5219fa4147c11e0b3d76b35c82754a4d875f4e");
+        assert.equal(proof.passedJob,
+          "https://github.com/erwinmehehe/payrollph/actions/runs/40647378457/job/122679238079");
+        assert.equal(proof.workflowRunId, 40647378457);
+        assert.equal(proof.postgresMajor, 16);
+        const script = readFileSync(proof.file, "utf8");
+        const contract = readFileSync("scripts/qa/tenant-wrk01-staffing-writes-contract.mjs", "utf8");
+        const workflowFile = ".github/workflows/tenant-wrk01-staffing-writes-http.yml";
+        const workflow = readFileSync(workflowFile, "utf8");
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha,
+          "Changes to the staffing-policy route require renewed authorization review");
+        assert.equal(gitBlobSha(Buffer.from(script)), proof.proofBlobSha,
+          "Changes to the staffing-policy HTTP scenarios require a new executed proof");
+        assert.equal(gitBlobSha(Buffer.from(contract)), proof.contractBlobSha,
+          "Changes to the staffing-policy contract require a new executed proof");
+        assert.equal(gitBlobSha(Buffer.from(workflow)), proof.workflowBlobSha,
+          "Changes to the staffing-policy workflow require a new executed proof");
+        const lines = script.split("\n");
+        const span = (line, length = 6) => lines.slice(line - 1, line - 1 + length).join("\n");
+        assert.match(span(spec.own), spec.ownPattern);
+        assert.match(span(spec.second), spec.secondPattern);
+        assert.match(span(spec.foreign), spec.foreignPattern);
+        assert.match(span(spec.forged), spec.forgedPattern);
+        assert.match(lines[78], /await unchangedEverywhere\(before, context\);/);
+        assert.match(span(spec.ordering, 3), /victim\.(?:site|job|worker)\.id > a\.|victim\.approve\.row\.id > a\.reject\.row\.id/);
+        if (method.name === "PATCH") {
+          assert.match(span(337, 3), /await positive\(e, "PATCH",\s*\n?\s*transition\(e, e\.approve\.row\.id, "submit"\)/);
+        }
+        assert.match(script, /for \(const actor of \[a, b\]\)/);
+        assert.match(script, /for \(const e of \[a, b, victim\]\)/);
+        assert.match(script, /assertImmutableStaffingSql\(allBefore\.get\(other\.org\.id\)/);
+        assert.match(script, /requireDisposableStaffingWrites\(\)/);
+        assert.match(contract, /assert\.equal\(env\.GITHUB_ACTIONS, "true"\)/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wrk01-staffing-writes-http\.mjs/);
+        const policyRoute = readFileSync(path, "utf8");
+        assert.match(policyRoute, /export async function POST\(/);
+        assert.match(policyRoute, /export async function PATCH\(/);
+        assert.match(readFileSync("src/lib/workforce-demand-staffing-policy.ts", "utf8"),
+          /!\["submit","approve","reject"\]\.includes\(input\.action as string\)/,
+          "PATCH gained or lost an action; every action needs its own proof");
+        assert.match(method.reason, /Independent security\/coverage-owner review/);
+        assert.equal(proof.productionCertified, false);
+        assert.match(proof.independentReview, /^PENDING/);
+        continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
