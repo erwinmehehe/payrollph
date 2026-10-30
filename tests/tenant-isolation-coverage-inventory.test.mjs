@@ -6,6 +6,7 @@ import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -1414,6 +1415,50 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // WRK-02 source-only hardening. These changed route blobs add stricter
+  // final SQL predicates, but have NO new own/victim PG16 HTTP proof.
+  const wrk02Boundaries = {
+    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "12ea2979c8a7282236b375183e39e63d32a42e74", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
+    "src/app/api/workforce-planning/position-executions/route.ts": { previous: "0c7ddf8ba2db323aea03c152612eced44c31aea2", current: "142797be0cfa4f64849b20958869c12147ccf792", prefix: "e18416e827678a1e62a1e891201df027ba20c48e", methods: ["GET","POST","PATCH"] },
+    "src/app/api/workforce-planning/transfer/route.ts": { previous: "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153", current: "fc17024c47d013b28213abe89c7784254e3b2bc1", prefix: null, methods: ["POST"] },
+  };
+  const wrk02Path = key.slice(0, key.lastIndexOf(" "));
+  const wrk02 = wrk02Boundaries[wrk02Path];
+  if (isNewOrChanged && wrk02) {
+    assert.equal(currentBlob, wrk02.current,
+      "WRK-02 write boundary changed again: require independent source/security review");
+    assert.ok(wrk02.methods.includes(method.name), "Unexpected WRK-02 method");
+    const code = readFileSync(wrk02Path, "utf8");
+    if (wrk02.prefix) {
+      const start = code.indexOf("export async function POST(request: Request) {");
+      assert.ok(start > 0, "Original GET must precede mutations");
+      assert.equal(gitBlobSha(Buffer.from(code.slice(0, start))), wrk02.prefix,
+        "Previously covered WRK-02 GET imports/helpers/handler changed");
+    }
+    if (method.name === "GET") {
+      assert.equal(method.status, "COVERED", "The historical GET proof must not be downgraded");
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+      return;
+    }
+    assert.equal(method.status, "GAP", "Source-only WRK-02 changes earn zero new method credits");
+    assert.equal(method.testedBy, null);
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "wrk02-planning-write-boundaries-source-only-zero-credit",
+      originalRouteBlobSha: wrk02.previous,
+      routeBlobSha: wrk02.current,
+      contractFile: "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
+      contractBlobSha: "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+      originalGetPrefixSha: wrk02.prefix,
+      coverageCredits: 0,
+      exactHeadPg16Http: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    });
+    assert.equal(gitBlobSha(readFileSync("tests/tenant-wrk02-planning-write-boundaries.test.mjs")),
+      "e3eb602b4667c578e5a7f559d67ce4ed5111ceda", "WRK-02 source contract changed without renewed review");
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -2551,7 +2596,7 @@ test("all credited proof links point to the claimed route and every recertified 
           spec.pins[0], spec.pins[1], spec.pins[2], spec.pins[3], spec.pins[4], spec.pins[5]],
         proof.file + ": DL-02 evidence pins changed without review");
         assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
-        assert.equal(proof.victimUnchangedLine, 196);
+        assert.equal(proof.victimUnchangedAt, 196);
         assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
         assert.equal(proof.workflowRunId, 40859482784);
         assert.equal(proof.passedJob,
@@ -2600,7 +2645,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(method.name, "POST");
         assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
           proof.forgedSelectorLine, proof.unchangedDbLine, proof.victimIdOrderingLine,
-          proof.victimUnchangedLine],
+          proof.victimUnchangedAt],
         [39, 39, 73, 84, 90, 64, 196], "demand-import evidence pins changed without review");
         assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
         assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
@@ -2905,6 +2950,13 @@ test("all credited proof links point to the claimed route and every recertified 
       // WRK-01 staffing-policy POST/PATCH: only these two methods on this route may
       // claim the dedicated fictional PG16 proof, and only while the route, proof,
       // contract and workflow stay byte-identical to the passing exact-head run.
+      if (proof?.file === "scripts/qa/tenant-performance-core-http.mjs") {
+        verifyPerformanceCoreCredit(method.name + " " + entry.route, method);
+        const workflow = readFileSync(".github/workflows/tenant-table-proof.yml", "utf8");
+        assert.ok(workflow.includes("env -u NODE_ENV npx tsx scripts/qa/tenant-performance-core-http.mjs"));
+        assert.ok(workflow.includes("image: postgres:16"));
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs") {
         assert.equal(path, "src/app/api/workforce/demand-staffing/policies/route.ts",
           "No unrelated route may reuse the staffing-policy write evidence");
