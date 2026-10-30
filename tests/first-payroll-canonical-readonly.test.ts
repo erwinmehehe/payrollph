@@ -49,7 +49,7 @@ test("canonical read-only projection assembles five workers without issuing a wr
     benefit_plans:[{id:201,active:true,name:"Fictional Wellness Benefit",category:"hmo",
       employeeShare:"250.00",employerShare:"500.00",cap:null}],
     benefit_enrollments:[{id:202,organizationId:org,employeeId:5,planId:201,status:"active",
-      monthlyContribution:"100.00"}],
+      monthlyContribution:"100.00",startedOn:"2026-09-01",endedOn:null}],
     employee_compensation_components:[{assignmentId:203,employeeId:5,amount:"200.00",
       effectiveFrom:"2026-09-01",effectiveUntil:null,status:"active",componentId:204,
       componentCode:"ALLOWANCE",componentName:"Fictional Recurring Allowance",
