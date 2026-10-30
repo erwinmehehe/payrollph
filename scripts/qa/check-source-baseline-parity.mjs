@@ -49,6 +49,7 @@ export async function readSourceBaselineCatalog(client) {
 
   // information_schema.table_constraints identifies the visible constraints;
   // pg_constraint provides exact owning relation, key ordinals and expressions.
+  // Cast pg_catalog.name[] keys to text[] so node-postgres decodes JS arrays.
   const constraints = await client.query(String.raw`
     SELECT tc.table_name, tc.constraint_name AS object_name,
            CASE con.contype
@@ -58,7 +59,7 @@ export async function readSourceBaselineCatalog(client) {
              WHEN 'c' THEN 'check'
            END AS kind,
            ARRAY(
-             SELECT att.attname
+             SELECT att.attname::text
                FROM unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord)
                JOIN pg_catalog.pg_attribute AS att
                  ON att.attrelid = con.conrelid AND att.attnum = k.attnum
@@ -66,7 +67,7 @@ export async function readSourceBaselineCatalog(client) {
            ) AS columns,
            ref.relname AS ref_table,
            ARRAY(
-             SELECT att.attname
+             SELECT att.attname::text
                FROM unnest(con.confkey) WITH ORDINALITY AS k(attnum, ord)
                JOIN pg_catalog.pg_attribute AS att
                  ON att.attrelid = con.confrelid AND att.attnum = k.attnum
