@@ -4,7 +4,7 @@
 
 ## Why this work is isolated
 
-This is a **single EDG-02 hardening** PR for `PATCH /api/it-operations`. The current separate open PRs concern EDG-01 careers publishing, WRK-02 workforce planning, worksites, Performance, HCM definitions/employment terms, onboarding, loans, prior-employer statutory evidence, and the common manifest repin. This change does **not** edit any of those families, the manifest, batch totals, global coverage metrics or the existing feature gates.
+This is a **single EDG-02 hardening** PR for `PATCH /api/it-operations`. The current separate open PRs concern EDG-01 careers publishing, WRK-02 workforce planning, worksites, Performance, HCM definitions/employment terms, onboarding, loans, prior-employer statutory evidence, and the common manifest repin. This change does **not** edit any of those families, batch totals, global coverage metrics, historical method statuses, proof citations or the existing feature gates. The sole shared-manifest change is a SHA-only repin of `src/app/api/it-operations/route.ts` after the fail-closed security inventory flagged the source modification; it claims no new coverage.
 
 ## Tenant isolation defect and mitigation
 
@@ -42,4 +42,4 @@ No one should run the HTTP proof against a production database, an existing deve
 
 ## Release / accounting decision
 
-**Zero method credits; `PATCH it-operations` stays GAP** in the tenant-isolation ledger. The PR's proof covers representative grant and device transitions but is not a claim that *every* possible PATCH action/state combination is proven. Do not mark the method COVERED or change any manifest totals based on this PR. Passing exact-head CI and independent owner/security review are still required before any merge. This is not a tenant-wide certification or production/payout approval.
+**Zero new method credits and no new acceptance.** The existing shared manifest historically classifies `PATCH it-operations` as `COVERED`; this PR does not alter that historical row or its original proof citations, and the SHA-only repin must not be mistaken for renewed certification of the hardened source. The dedicated proof covers representative grant and device transitions but is not a claim that *every* possible PATCH action/state combination is proven. Do not promote any coverage status or change manifest totals based on this PR. Passing exact-head CI and independent owner/security review are still required before any merge. This is not a tenant-wide certification or production/payout approval.
