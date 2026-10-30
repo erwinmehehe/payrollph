@@ -80,7 +80,7 @@ export function assertSourceBaselineParity(sourceTables, catalogRows) {
  */
 function sourceBaselineType(v) {
   if (typeof v !== "string" || v.length === 0) throw new Error("SOURCE_BASELINE_INVALID_TYPE");
-  let type = v.trim().replace(/\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/g, "($1,$2)")
+  const type = v.trim().replace(/\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/g, "($1,$2)")
     .replace(/\s*\(\s*(\d+)\s*\)/g, "($1)");
   if (/^serial$/i.test(type)) return "integer";
   if (/^bigserial$/i.test(type)) return "bigint";
@@ -220,26 +220,6 @@ function sourceBaselineDefault(column, table, name) {
   return value;
 }
 
-function sourceBaselineCheck(expression, columnTypes, table) {
-  const value = sourceBaselineSQL(expression);
-  if (value === null) throw new Error("SOURCE_BASELINE_INVALID_CHECK");
-  // Only recognize the proven PostgreSQL VARCHAR IN-list deparse form.
-  // Do not simplify arbitrary expressions or case-fold quoted identifiers.
-  const source = /^(?:([a-z_][a-z0-9_]*)\.)?([a-z_][a-z0-9_]*) in \(([^()]*)\)$/.exec(value);
-  const catalog = /^\(\(([a-z_][a-z0-9_]*)\)::text = any \(\(array\[([^\]]*)\]\)::text\[\]\)\)$/.exec(value);
-  if (!source && !catalog) return value;
-  if (source?.[1] && source[1] !== table) return value;
-  const column = source ? source[2] : catalog[1];
-  if (!/^character varying(?:\(\d+\))?$/.test(sourceBaselineType(columnTypes.get(column) ?? "unknown"))) return value;
-  const values = (source ? source[3] : catalog[2]).split(",").map((s) => s.trim());
-  if (values.length < 2) return value;
-  const literals = values.map((v) => catalog && v.endsWith("::character varying")
-    ? v.slice(0, -"::character varying".length) : v);
-  if (literals.some((v, i) => !/^'(?:[^']|'')*'$/.test(v) ||
-    (catalog && !values[i].endsWith("::character varying")))) return value;
-  return "varchar-in:" + column + ":" + JSON.stringify(literals);
-}
-
 function sourceBaselineIndexKey(key, columnTypes, table, indexOrder) {
   if (typeof key !== "string" || !key.length || key.includes("\0")) {
     throw new Error("SOURCE_BASELINE_INVALID_INDEX_KEY");
@@ -268,7 +248,6 @@ function sourceBaselineIndexKey(key, columnTypes, table, indexOrder) {
   const modifiers = sourceBaselineSQL(trailing) ?? "";
   const declaredDesc = /(?:^|\s)desc(?:\s|$)/.test(modifiers);
   const declaredFirst = /(?:^|\s)nulls first(?:\s|$)/.test(modifiers);
-  const declaredLast = /(?:^|\s)nulls last(?:\s|$)/.test(modifiers);
   const desc = indexOrder?.desc ?? declaredDesc;
   // Drizzle's source index-column builder uses NULLS LAST unless the
   // declaration explicitly calls nullsFirst(), including with desc().
@@ -280,10 +259,6 @@ function sourceBaselineIndexKey(key, columnTypes, table, indexOrder) {
     const opclass = modifiers.replace(/(?:^|\s)(?:asc|desc)(?=\s|$)/g, " ")
       .replace(/(?:^|\s)nulls (?:first|last)(?=\s|$)/g, " ").trim();
     return { column, opclass, desc, nullsFirst };
-  }
-  if (indexOrder === undefined) {
-    return { expression: canonicalSourceBaselineExpression(key, table, columnTypes),
-      desc, nullsFirst };
   }
   return { expression: canonicalSourceBaselineExpression(key, table, columnTypes),
     desc, nullsFirst };
