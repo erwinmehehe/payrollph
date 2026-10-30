@@ -113,6 +113,16 @@ export async function readSourceBaselineCatalog(client) {
                FROM generate_series(1, idx.indnkeyatts) AS k
               ORDER BY k
            ) AS keys,
+           -- pg_get_indexdef(indexrelid, key-number) omits B-tree DESC /
+           -- NULLS FIRST flags. pg_index.indoption has their actual values.
+           ARRAY(
+             SELECT COALESCE((idx.indoption[k - 1] & 1) <> 0, false)
+               FROM generate_series(1, idx.indnkeyatts) AS k ORDER BY k
+           ) AS key_desc,
+           ARRAY(
+             SELECT COALESCE((idx.indoption[k - 1] & 2) <> 0, false)
+               FROM generate_series(1, idx.indnkeyatts) AS k ORDER BY k
+           ) AS key_nulls_first,
            ARRAY(
              SELECT pg_catalog.pg_get_indexdef(idx.indexrelid, k, true)
                FROM generate_series(idx.indnkeyatts + 1, idx.indnatts) AS k
