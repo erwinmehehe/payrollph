@@ -64,9 +64,10 @@ Local verification: 1,003 tenant tests passed / 7 skipped / zero failures;
 32 focused receipt/inventory tests passed. Full lint has zero errors and 10
 existing warnings; TypeScript, YAML, source-size and proof-pin checks pass.
 Repin reports 1,737 unchanged citations, 25 new, zero repinned/requiring review.
-An existing mainline repin test referred to the obsolete `victimUnchangedAt`
-field; it now verifies the canonical `victimUnchangedLine` against the same
-companion file and actual assertion, without changing historical receipts.
+An existing mainline repin test assumed only `victimUnchangedAt`; it now verifies
+either named citation schema against the same companion file and actual assertion,
+and rejects conflicting aliases. This is compatible with #1625's separate metadata
+normalization. This PR does not change those historical receipt fields.
 
 The dedicated `tenant-clock-lifecycle.yml` provisions fresh PG16, generates
 ephemeral keys, bootstraps fictional employers, exports only their allowlist IDs,

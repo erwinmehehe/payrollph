@@ -63,13 +63,18 @@ test("separate proof-file citations resolve their own exact source lines", () =>
     assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
     const primaryLines = readFileSync(proof.file, "utf8").split("\n");
     const companionLines = readFileSync(proof.victimUnchangedFile, "utf8").split("\n");
-    // Canonical promoted entries use the explicit *Line/*File pair. Legacy
-    // victimUnchangedAt compatibility remains separately checked above.
-    assert.ok(Number.isInteger(proof.victimUnchangedLine),
+    // Both named citation schemas resolve the same companion file. Keep this
+    // compatible with the separate metadata-only normalization in #1625.
+    const unchangedLine = proof.victimUnchangedLine ?? proof.victimUnchangedAt;
+    if (proof.victimUnchangedLine !== undefined && proof.victimUnchangedAt !== undefined) {
+      assert.equal(proof.victimUnchangedLine, proof.victimUnchangedAt,
+        "conflicting companion aliases must fail closed: " + route);
+    }
+    assert.ok(Number.isInteger(unchangedLine),
       "the DL-02 renamed proof citation must remain an actual line number: " + route);
-    assert.ok(proof.victimUnchangedLine > primaryLines.length,
+    assert.ok(unchangedLine > primaryLines.length,
       "the citation must not be resolved against the primary proof module: " + route);
-    assert.match(companionLines[proof.victimUnchangedLine - 1], /victimSnapshot/,
+    assert.match(companionLines[unchangedLine - 1], /victimSnapshot/,
       "the companion citation must point to an actual unchanged-victim assertion: " + route);
   }
 });
