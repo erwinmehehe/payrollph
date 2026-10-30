@@ -112,10 +112,21 @@ export function generateSchemaManifest(): SchemaManifest {
     const indexes = named(config.indexes.map((index) => {
       const c = index.config;
       if (!c.name) throw new Error("Unnamed index on " + name + "; cannot compare catalog by name");
+      // Retain optional definition fields too: otherwise an INCLUDE or
+      // storage-option drift could evade the source/index ratchet.
+      const extended = c as typeof c & {
+        include?: { name: string }[];
+        with?: Record<string, string | number | boolean>;
+        nullsNotDistinct?: boolean;
+      };
       return {
         name: c.name,
         unique: c.unique,
         method: c.method ?? "btree",
+        include: (extended.include ?? []).map((col) => col.name),
+        options: Object.entries(extended.with ?? {})
+          .map(([key, value]) => key + "=" + String(value)).sort(),
+        nullsNotDistinct: extended.nullsNotDistinct ?? false,
         keys: c.columns.map((col) => {
           if (is(col, SQL)) return sqlText(col);
           const indexed = col as { name?: string; indexConfig?: { opClass?: string; order?: string; nulls?: string } };

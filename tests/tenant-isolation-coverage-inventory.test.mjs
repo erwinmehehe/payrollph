@@ -2525,6 +2525,120 @@ test("all credited proof links point to the claimed route and every recertified 
         }
         continue;
       }
+      // DL-02 self/photo POST and web-bundy evidence GET: only these two methods may claim these
+      // row files, with every proof input byte-identical to the passing dispatch run. POST
+      // web-bundy/evidence proves one of four punch actions and stays GAP.
+      if (["scripts/qa/tenant-dl02-rows/self-photo.mjs", "scripts/qa/tenant-dl02-rows/web-bundy.mjs"].includes(proof?.file)) {
+        const specs = {
+          "scripts/qa/tenant-dl02-rows/self-photo.mjs": {
+            path: "src/app/api/self/photo/route.ts", name: "POST",
+            pins: [22, 22, 57, 39, 61, 32], status: [200, 403, 200],
+            patterns: [/ctx\.exact\(await form\(ctx, e\), 200,/, /const denied = ctx\.exact\(await form\(ctx, e, \{/, /const forged = ctx\.exact\(await form\(ctx, e, \{/],
+            proofBlob: "e76bbe4dd82f4f5514b1518dcc438b84e2261739", routeBlob: "9451f4e37d3b0088ed08106dce5e5bd0e748e64e",
+          },
+          "scripts/qa/tenant-dl02-rows/web-bundy.mjs": {
+            path: "src/app/api/web-bundy/evidence/route.ts", name: "GET",
+            pins: [58, 58, 78, 68, 95, 51], status: [200, 403, 200],
+            patterns: [/const get = ctx\.exact\(await ctx\.request\("\/api\/web-bundy\/evidence\?organizationId=" \+ e\.org\.id/, /const getForeign = ctx\.exact\(await ctx\.request\(/, /const getForged = ctx\.exact\(await ctx\.request\(/],
+            proofBlob: "2b482e1e247b8c79b48a52f565af6cd5cb917953", routeBlob: "7e3e91268e820923c98dcc2f730f7779825cf926",
+          },
+        };
+        const spec = specs[proof.file];
+        assert.equal(path, spec.path, "No unrelated route may reuse the DL-02 evidence");
+        assert.equal(method.name, spec.name, "Only the reviewed method may claim this proof");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.forgedSelectorLine, proof.unchangedDbLine, proof.victimIdOrderingLine], [
+          spec.pins[0], spec.pins[1], spec.pins[2], spec.pins[3], spec.pins[4], spec.pins[5]],
+        proof.file + ": DL-02 evidence pins changed without review");
+        assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
+        assert.equal(proof.victimUnchangedLine, 196);
+        assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
+        assert.equal(proof.workflowRunId, 40859482784);
+        assert.equal(proof.passedJob,
+          "https://github.com/erwinmehehe/payrollph/actions/runs/40859482784/job/123398767736");
+        const rows = readFileSync(proof.file, "utf8");
+        const runnerFile = readFileSync(proof.victimUnchangedFile, "utf8");
+        const bootstrap = readFileSync("scripts/qa/tenant-dl02-closure-bootstrap.mjs", "utf8");
+        const workflow = readFileSync(".github/workflows/tenant-dl02-closure.yml", "utf8");
+        assert.equal(gitBlobSha(readFileSync(path)), spec.routeBlob, path + ": route changed; renewed review required");
+        assert.equal(proof.routeBlobSha, spec.routeBlob);
+        assert.equal(gitBlobSha(Buffer.from(rows)), spec.proofBlob, proof.file + ": scenarios changed; new DL-02 run required");
+        assert.equal(proof.proofBlobSha, spec.proofBlob);
+        assert.equal(gitBlobSha(Buffer.from(runnerFile)), proof.runnerBlobSha);
+        assert.equal(gitBlobSha(Buffer.from(bootstrap)), proof.bootstrapBlobSha);
+        assert.equal(gitBlobSha(Buffer.from(workflow)), proof.workflowBlobSha);
+        const lines = rows.split("\n");
+        const span = (line, length = 6) => lines.slice(line - 1, line - 1 + length).join("\n");
+        assert.match(span(spec.pins[1]), spec.patterns[0]);
+        assert.match(span(spec.pins[2], 6), spec.patterns[1]);
+        assert.match(span(spec.pins[3], 6), spec.patterns[2]);
+        assert.match(span(spec.pins[1], 6), new RegExp("\\b" + spec.status[0] + ","));
+        assert.match(span(spec.pins[2], 6), new RegExp("\\b" + spec.status[1] + ","));
+        assert.match(runnerFile.split("\n")[195], /assert\.deepEqual\(await victimSnapshot\(victim\), victimBefore/);
+        assert.match(runnerFile, /for \(const family of \[punch, demand, photo\]\)/);
+        assert.match(rows, /for \(const e of ctx\.attackers\)/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(method.reason, /NOT an exact-head pass/);
+        assert.equal(proof.productionCertified, false);
+        assert.match(proof.independentReview, /^PENDING/);
+        if (spec.name === "POST") {
+          assert.match(rows, /Revoked linked employee photo POST denied/);
+          assert.match(method.testedBy.scope, /revoked-membership evidence, not a victim-selector denial/);
+        } else {
+          assert.match(readFileSync("src/lib/workforce-punch-evidence.ts", "utf8"),
+            /PUNCH_ACTIONS = \["clock_in", "break_start", "break_end", "clock_out"\]/);
+          const bundy = entry.methods.find(candidate => candidate.name === "POST");
+          assert.equal(bundy.status, "GAP", "POST web-bundy/evidence proves one of four actions and stays GAP");
+        }
+        continue;
+      }
+      // DL-02 demand import POST: only this method may claim the whole-batch DL-02 proof,
+      // and only while every proof input stays byte-identical to the passing dispatch run.
+      if (proof?.file === "scripts/qa/tenant-dl02-rows/demand-import.mjs") {
+        assert.equal(path, "src/app/api/workforce/demand-observations/import/route.ts",
+          "No unrelated route may reuse the DL-02 demand-import evidence");
+        assert.equal(method.name, "POST");
+        assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
+          proof.forgedSelectorLine, proof.unchangedDbLine, proof.victimIdOrderingLine,
+          proof.victimUnchangedLine],
+        [39, 39, 73, 84, 90, 64, 196], "demand-import evidence pins changed without review");
+        assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
+        assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
+        assert.equal(proof.workflowRunId, 40859482784);
+        assert.equal(proof.passedJob,
+          "https://github.com/erwinmehehe/payrollph/actions/runs/40859482784/job/123398767736");
+        assert.equal(proof.postgresMajor, 16);
+        const rows = readFileSync(proof.file, "utf8");
+        const runnerFile = readFileSync(proof.victimUnchangedFile, "utf8");
+        const bootstrap = readFileSync("scripts/qa/tenant-dl02-closure-bootstrap.mjs", "utf8");
+        const workflow = readFileSync(".github/workflows/tenant-dl02-closure.yml", "utf8");
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha,
+          "Changes to the demand-import route require renewed authorization review");
+        assert.equal(gitBlobSha(Buffer.from(rows)), proof.proofBlobSha,
+          "Changes to the demand-import scenarios require a new executed DL-02 run");
+        assert.equal(gitBlobSha(Buffer.from(runnerFile)), proof.runnerBlobSha,
+          "Changes to the DL-02 runner require a new executed run");
+        assert.equal(gitBlobSha(Buffer.from(bootstrap)), proof.bootstrapBlobSha,
+          "Changes to the DL-02 bootstrap require a new executed run");
+        assert.equal(gitBlobSha(Buffer.from(workflow)), proof.workflowBlobSha,
+          "Changes to the DL-02 workflow require a new executed run");
+        const lines = rows.split("\n");
+        const span = (line, length = 5) => lines.slice(line - 1, line - 1 + length).join("\n");
+        assert.match(span(39), /const result = ctx\.exact\(await ctx\.request\(\s*\n\s*"\/api\/workforce\/demand-observations\/import"[\s\S]*?201,/);
+        assert.match(span(73, 7), /const foreign = ctx\.exact\(await ctx\.request\([\s\S]*?victim\.org\.id[\s\S]*?403,/);
+        assert.match(span(84, 6), /const forged = ctx\.exact\(await ctx\.request\([\s\S]*?worksiteId: ctx\.victim\.site\.id[\s\S]*?403,/);
+        assert.match(span(90, 2), /assert\.deepEqual\(await saved\(ctx, e\.demand\.batchId\), e\.demand\.row/);
+        assert.match(span(64, 2), /ctx\.victim\.demand\.batchId > 6/);
+        assert.match(runnerFile.split("\n")[195], /assert\.deepEqual\(await victimSnapshot\(victim\), victimBefore/);
+        assert.match(runnerFile, /for \(const family of \[punch, demand, photo\]\)/);
+        assert.match(rows, /for \(const e of ctx\.attackers\)/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /tenant-dl02-closure-http\.mjs/);
+        assert.match(method.reason, /NOT an exact-head pass/);
+        assert.equal(proof.productionCertified, false);
+        assert.match(proof.independentReview, /^PENDING/);
+        continue; // The other three DL-02 methods keep their own status; no sibling credit.
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
