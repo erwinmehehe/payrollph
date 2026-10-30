@@ -23,6 +23,12 @@ import { METHODS as developmentMethods } from "./tenant-performance-development-
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
 
+if (process.argv.includes("--clock")) {
+  const { credit } = await import("./tenant-clock-credit.mjs");
+  credit(process.argv.slice(2));
+  process.exit(0);
+}
+
 if (process.argv.includes("--performance-core")) {
   const { credit } = await import("./tenant-performance-core-credit.mjs");
   credit(process.argv.slice(2));

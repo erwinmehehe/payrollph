@@ -1,0 +1,84 @@
+name: Web Bundy lifecycle (fictional PG16 HTTP)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/tenant-clock-lifecycle.yml'
+      - 'scripts/qa/tenant-clock-*.mjs'
+      - 'tests/tenant-clock-*.test.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'src/app/api/web-bundy/**'
+      - 'src/lib/**'
+      - 'src/db/**'
+permissions:
+  contents: read
+concurrency:
+  group: tenant-clock-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  clock:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/qa/tenant-clock-env.mjs >> "$GITHUB_ENV"
+      - name: Disposable process keys only
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY PUNCH_DEVICE_HASH_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - run: node --import tsx --test tests/tenant-clock-contract.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Real employers before server startup; exact enhanced allowlist
+        run: |
+          env -u NODE_ENV node --import tsx scripts/qa/tenant-clock-seed.mjs
+          cat outputs/clock-allowlist.env >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Start disposable localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/clock-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/clock-server.log
+          exit 1
+      - name: Clock, break, consent, evidence, independent review, two attackers
+        run: env -u NODE_ENV node --import tsx scripts/qa/tenant-clock-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: clock-lifecycle-summary
+          path: outputs/clock-run.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/clock-server.log || true

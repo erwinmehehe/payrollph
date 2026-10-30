@@ -1,0 +1,313 @@
+{
+  "schema": "clock-local-pg16-v1",
+  "ci": "NOT_RUN",
+  "productionTested": false,
+  "runLabel": "Executed native disposable PG16.14 localhost3015: 36 own / 36 victim / 30 forged / 40 negative / 18 discrimination; outputs/proof-final.log",
+  "mutation": {
+    "rejected": true,
+    "message": "Missing expected exception: proof accepts another employer's data"
+  },
+  "sources": [
+    {
+      "file": "scripts/qa/tenant-clock-http.mjs",
+      "sha256": "bcf49a96e554eb875024196de33b1261035c0d18e33cebaef67103f56bccc49b"
+    },
+    {
+      "file": "scripts/qa/tenant-clock-contract.mjs",
+      "sha256": "a0062247c0dc1d22cd1083a361830d35288c9f1e4b50d5bb29bf17ff9ce50f91"
+    },
+    {
+      "file": "scripts/qa/tenant-clock-env.mjs",
+      "sha256": "1de4bff9f1f107e147bec80e9d0399bbc93e70c7109591b80b37b58530136dd0"
+    },
+    {
+      "file": "scripts/qa/tenant-clock-seed.mjs",
+      "sha256": "9ce264c8b09f39d81e9eaaf51f7db8b555eedc5239057a1504dcafddb4ddb15e"
+    },
+    {
+      "file": "scripts/qa/tenant-clock-credit.mjs",
+      "sha256": "c71cb14a21b0a5c432b9bb9de8ccbfd79659acd98d23df1c0d55cb9eadffabb5"
+    },
+    {
+      "file": ".github/workflows/tenant-clock-lifecycle.yml",
+      "sha256": "1524f6e73b1c4999566acae4406133f1ccdaea4412eac92226368a4487126ac9"
+    },
+    {
+      "file": "src/app/api/web-bundy/route.ts",
+      "sha256": "dbed91cd1d683db1d71e41c9922d43a4cf1d79b108a67b0774088605a15543e5"
+    },
+    {
+      "file": "src/app/api/web-bundy/consent/route.ts",
+      "sha256": "f414ce13579c8d691ce4b8ee64ee97c1d21c679e87d0bb1f86242ca7b9d61b64"
+    },
+    {
+      "file": "src/app/api/web-bundy/evidence/route.ts",
+      "sha256": "b4f0f37480febeed2a48aaf4e6c7d430def0d62a547c50c5f2e87e79475b9855"
+    },
+    {
+      "file": "src/app/api/web-bundy/review/route.ts",
+      "sha256": "2afbff5b39685ef47a282d19f7585932840462dc306a4674ef1007e8cfd9fd22"
+    },
+    {
+      "file": "src/lib/workforce-punch-evidence.ts",
+      "sha256": "a40b562c9e2f571af24445cc634eb81776ace8d9988307851b72cd545bf81652"
+    },
+    {
+      "file": "src/lib/workforce-punch-photo-crypto.ts",
+      "sha256": "cf4cceae9703da9ce6d7bcf2f0e40889b306cc669d97813b306c9715f539e5e4"
+    },
+    {
+      "file": "src/lib/workforce-attendance-lock.ts",
+      "sha256": "7dd0215f83acd476c01252fb929751bc10b85ef460c2318510e7273c9971ce7c"
+    },
+    {
+      "file": "src/lib/web-bundy-overnight-anchor.ts",
+      "sha256": "1ea3471e0402a0d51f0c749419471315cf0f019245446ebe81be7d5abc0d3304"
+    },
+    {
+      "file": "scripts/qa/tenant-table-http.mjs",
+      "sha256": "27f005f33791cb8f80f2d1a4f0cf82d625d6a0c490ef0cc4baa59b8dce3a291b"
+    },
+    {
+      "file": "scripts/qa/tenant-table-invariants.mjs",
+      "sha256": "bd1f5471386ba4a443fedb7b2cf4445eaef343f05ba50a204baedd20e9226d1e"
+    }
+  ],
+  "run": {
+    "kind": "clock-lifecycle-http-v1",
+    "methods": [
+      "POST web-bundy",
+      "POST web-bundy/consent",
+      "POST web-bundy/evidence",
+      "GET web-bundy/review",
+      "POST web-bundy/review"
+    ],
+    "own": 36,
+    "denied": 36,
+    "forged": 30,
+    "negative": 40,
+    "discrimination": 18,
+    "actions": [
+      {
+        "key": "POST web-bundy",
+        "label": "clock_in",
+        "attacker": "ATTA",
+        "status": 201
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "break_start",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "break_end",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "clock_out",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "clock_in",
+        "attacker": "ATTB",
+        "status": 201
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "break_start",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "break_end",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy",
+        "label": "clock_out",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "GET web-bundy/review",
+        "label": "photo",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/consent",
+        "label": "accepted",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/consent",
+        "label": "declined",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/consent",
+        "label": "first-declined",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "clock_in",
+        "attacker": "ATTA",
+        "status": 202
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "break_start",
+        "attacker": "ATTA",
+        "status": 202
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "break_end",
+        "attacker": "ATTA",
+        "status": 202
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "clock_out",
+        "attacker": "ATTA",
+        "status": 202
+      },
+      {
+        "key": "GET web-bundy/review",
+        "label": "list",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-clock_in",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-break_start",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-break_end",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-clock_out",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "reject",
+        "attacker": "ATTA",
+        "status": 200
+      },
+      {
+        "key": "GET web-bundy/review",
+        "label": "photo",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/consent",
+        "label": "accepted",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/consent",
+        "label": "declined",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/consent",
+        "label": "first-declined",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "clock_in",
+        "attacker": "ATTB",
+        "status": 202
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "break_start",
+        "attacker": "ATTB",
+        "status": 202
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "break_end",
+        "attacker": "ATTB",
+        "status": 202
+      },
+      {
+        "key": "POST web-bundy/evidence",
+        "label": "clock_out",
+        "attacker": "ATTB",
+        "status": 202
+      },
+      {
+        "key": "GET web-bundy/review",
+        "label": "list",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-clock_in",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-break_start",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-break_end",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "approve-clock_out",
+        "attacker": "ATTB",
+        "status": 200
+      },
+      {
+        "key": "POST web-bundy/review",
+        "label": "reject",
+        "attacker": "ATTB",
+        "status": 200
+      }
+    ],
+    "coverageCredits": 0,
+    "productionTested": false,
+    "postgresMajor": 16,
+    "victimUnchanged": true
+  }
+}
