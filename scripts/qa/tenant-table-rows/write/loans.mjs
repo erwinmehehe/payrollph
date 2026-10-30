@@ -52,7 +52,7 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
           startDate: "2099-01-01", endDate: "2099-12-31", activated: false,
         });
       } },
-    { key: "PATCH loans", state,
+    { key: "PATCH loans", profile: "flagged-reads", flags: ["PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED"], state: state,
       seed: async e => {
         // This is an already-approved *fictional* historical source record,
         // not a live approval endpoint. A distinct checker with an actual
@@ -77,7 +77,7 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
           reviewReason: e.marker + " fictitious historical reviewer acceptance",
           deductionAuthorizationReference: e.marker + " fictional historical authority", startDate: "2026-01-05", notes: e.marker + " pause fixture" }).returning();
         await db.insert(loanPayments).values({ loanId: loan.id, amount: "500.00", paymentDate: "2026-01-05", reference: e.marker + " fictional historical receipt" });
-        return loan;
+        return { ...loan, extras: await (await import("../helpers/loans-actions.mjs")).seedActionLoans({ db, employeeLoans, loanPayments }, e, checker.id) };
       },
       ownBody: c => ({ id: c.seeded.id, action: "pause", reviewReason: c.marker + " fictional precautionary pause" }),
       foreignBody: c => ({ id: c.victimSeeded.id, action: "pause", reviewReason: c.marker + " fictional precautionary pause" }),
@@ -98,6 +98,7 @@ export function createRows({ assert, db, eq, asc, employeeLoans, loanPayments, p
         audit(before, after, c, "Employee loan: pause", `${row.loanType} #${row.id}`, { loanId: row.id, employeeId: c.workerId,
           previousStatus: "active", actorUserId: c.owner.id, makerUserId: old.requestedByUserId, originalAuthorizationReference: old.deductionAuthorizationReference,
           pauseReason: c.marker + " fictional precautionary pause", nextStatus: "paused" });
-      } },
+      },
+      exercise: async (c, helpers) => (await import("../helpers/loans-actions.mjs")).loanActions({ assert, asc, auditBusinessSnapshot, db, eq }, c, helpers) },
   ];
 }
