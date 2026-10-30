@@ -16,6 +16,17 @@ export function firstPayrollRunHref(organizationId: number, runId: number): stri
   return `/app?organizationId=${organizationId}&workspacePage=Payroll&focusPayrollRunId=${runId}`;
 }
 
+/** Links to evidence workspaces only. Source IDs are displayed alongside these
+ * links; no navigation link grants a record read or a payroll mutation. */
+export function firstPayrollPreviewSourceHref(
+  organizationId: number, page: import("./first-payroll-preview-read").FirstPayrollPreviewSource["page"],
+): string {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
+    throw new Error("Invalid payroll source navigation scope");
+  }
+  return `/app?organizationId=${organizationId}&workspacePage=${encodeURIComponent(page)}`;
+}
+
 export function resolveFirstPayrollRunFocus(input: {
   enabled: boolean; demoMode: boolean; requestedPage: string | null;
   requestedOrganizationId: string | null; requestedRunId: string | null;
