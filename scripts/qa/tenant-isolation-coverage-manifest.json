@@ -7794,7 +7794,7 @@
       ]
     },
     "src/app/api/contractors/route.ts": {
-      "gitBlobSha": "2bce94c0943d55b0d2c1419461cab80afdf6cfbf",
+      "gitBlobSha": "a16fa4416fda7c45102d7e56d1840b5c8a899517",
       "route": "contractors",
       "methods": [
         {
@@ -7853,7 +7853,7 @@
         },
         {
           "name": "DELETE",
-          "line": 167,
+          "line": 175,
           "status": "COVERED",
           "reason": "Provisional: MNY-02 contractor and EWT source-linked two-attacker real-HTTP/PG16 own-success, foreign-denial, forged-selector and unchanged-victim proof; no real payment, production acceptance or full batch closure. Requires exact-head CI and independent review.",
           "testedBy": {
@@ -7939,19 +7939,19 @@
           "token": "getAccess"
         },
         {
-          "line": 168,
+          "line": 176,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 171,
+          "line": 179,
           "token": "getSessionUser"
         },
         {
-          "line": 180,
+          "line": 188,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 187,
+          "line": 195,
           "token": "getAccess"
         }
       ],
@@ -7965,7 +7965,7 @@
           "token": "body.organizationId"
         },
         {
-          "line": 174,
+          "line": 182,
           "token": "searchParams.get(\"id\")"
         }
       ],
