@@ -581,7 +581,7 @@
       ]
     },
     "src/app/api/assets/route.ts": {
-      "gitBlobSha": "adfea71f5668526ce9d3c7d8dde70ab82cc8799b",
+      "gitBlobSha": "255824f2ea67ad618461f85c03c13b30e3c958b9",
       "route": "assets",
       "methods": [
         {
@@ -627,7 +627,7 @@
         },
         {
           "name": "DELETE",
-          "line": 188,
+          "line": 193,
           "status": "COVERED",
           "reason": "Owned asset DELETE 200 and victim-only asset DELETE denied 403, DB invariant",
           "testedBy": {
@@ -711,19 +711,19 @@
           "text": "assertScope"
         },
         {
-          "line": 192,
+          "line": 197,
           "text": "getSessionUser"
         },
         {
-          "line": 201,
+          "line": 206,
           "text": "assertOrganizationRole"
         },
         {
-          "line": 208,
+          "line": 213,
           "text": "getAccess"
         },
         {
-          "line": 215,
+          "line": 220,
           "text": "assertScope"
         }
       ],
@@ -769,7 +769,7 @@
           "text": "body.employeeId"
         },
         {
-          "line": 195,
+          "line": 200,
           "text": "searchParams.get(\"id\")"
         }
       ],
