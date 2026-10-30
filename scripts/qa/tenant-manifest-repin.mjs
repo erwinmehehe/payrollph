@@ -79,7 +79,10 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
       if (!proof || typeof proof !== "object" || typeof proof.file !== "string") continue;
       const cited = baseCitation(path, method.name, kind, proof.file);
       for (const [field, value] of Object.entries(proof)) {
-        if (!/Line$|^line$/.test(field) || !Number.isInteger(value) || ROUTE_SOURCE_FIELDS.has(field)) continue;
+        // DL-02 names its shared victim assertion *At (not *Line), but it is
+        // still an exact proof-line citation and must never bypass the repin check.
+        const isProofLine = /Line$|^line$/.test(field) || field === "victimUnchangedAt";
+        if (!isProofLine || !Number.isInteger(value) || ROUTE_SOURCE_FIELDS.has(field)) continue;
         // Family rows and shared HTTP assertions have separate source files. The
         // initial split moves the old row citation to rowFile/rowLine; `line`
         // becomes the shared own-positive execution pin, checked by the inventory guard.
@@ -87,7 +90,8 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         // A *Line citation can name its own *File (rowLine/rowFile or
         // victimUnchangedLine/victimUnchangedFile). Never pin it against the
         // primary proof file when the manifest declares a companion file.
-        const companionFile = field === "line" ? null : field.replace(/Line$/, "File");
+        const companionFile = field === "victimUnchangedAt"
+          ? "victimUnchangedFile" : field === "line" ? null : field.replace(/Line$/, "File");
         const file = companionFile && typeof proof[companionFile] === "string"
           ? proof[companionFile] : proof.file;
         const oldFile = companionFile && typeof cited?.[companionFile] === "string"
