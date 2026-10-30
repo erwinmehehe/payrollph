@@ -88,8 +88,13 @@ function sourceBaselineType(v) {
   if (/^int8$/i.test(type)) return "bigint";
   if (/^bool$/i.test(type)) return "boolean";
   if (/^varchar(?:\(\d+\))?$/i.test(type)) return type.replace(/^varchar/i, "character varying");
-  if (/^timestamptz(?:\(\d+\))?$/i.test(type)) return type.replace(/^timestamptz/i, "timestamp with time zone");
-  if (/^timestamp(?:\(\d+\))?$/i.test(type)) return type.replace(/^timestamp/i, "timestamp without time zone");
+  const withZone = /^timestamptz(?:\((\d+)\))?$/i.exec(type);
+  if (withZone) return "timestamp" + (withZone[1] ? "(" + withZone[1] + ")" : "") + " with time zone";
+  const withoutZone = /^timestamp(?:\((\d+)\))?$/i.exec(type);
+  if (withoutZone) return "timestamp" + (withoutZone[1] ? "(" + withoutZone[1] + ")" : "") + " without time zone";
+  if (/^time$/i.test(type)) return "time without time zone";
+  if (/^timetz$/i.test(type)) return "time with time zone";
+  if (/^char(?:\(\d+\))?$/i.test(type)) return type.replace(/^char/i, "character");
   if (/^timestamp(?:\(\d+\))? with time zone$/i.test(type)) return type.toLowerCase();
   if (/^timestamp(?:\(\d+\))? without time zone$/i.test(type)) return type.toLowerCase();
   if (/^(?:numeric|decimal)(?:\(\d+,\d+\))?$/i.test(type)) return type.replace(/^decimal/i, "numeric").toLowerCase();
@@ -166,6 +171,24 @@ function sourceBaselineDefault(column, table, name) {
   if (/^numeric(?:\(\d+,\d+\))?$/.test(type)) {
     const bare = value.endsWith("::numeric") ? value.slice(0, -"::numeric".length) : value;
     if (/^'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'$/.test(bare)) return bare + "::numeric";
+  }
+  // PostgreSQL's deparser appends the *column's own* type to bare string
+  // literals. Accept only identical values and a matching built-in cast.
+  // This never erases a different literal or an unrelated ::text cast.
+  const typedLiterals = {
+    text: ["text"],
+    uuid: ["uuid"],
+    date: ["date"],
+    "time without time zone": ["time without time zone"],
+    "time with time zone": ["time with time zone"],
+    "timestamp without time zone": ["timestamp without time zone"],
+    "timestamp with time zone": ["timestamp with time zone"],
+  };
+  const castType = type.replace(/\(\d+\)/, "");
+  for (const cast of typedLiterals[castType] ?? []) {
+    const suffix = "::" + cast;
+    const bare = value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+    if (literal.test(bare)) return bare + suffix;
   }
   return value;
 }
