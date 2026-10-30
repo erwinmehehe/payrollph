@@ -262,7 +262,13 @@ export async function POST(request: Request) {
       const [reopened] = await db.update(workforcePlanPositionExecutions).set({
         status: "preview",
         result: {},
-      }).where(eq(workforcePlanPositionExecutions.id, existing.id)).returning();
+      }).where(and(
+        eq(workforcePlanPositionExecutions.id, existing.id),
+        eq(workforcePlanPositionExecutions.organizationId, organizationId),
+        eq(workforcePlanPositionExecutions.executionHash, executionHash),
+        eq(workforcePlanPositionExecutions.status, "cancelled"),
+      )).returning();
+      if (!reopened) return Response.json({ error: "Execution preview changed before reopen." }, { status: 409 });
       await recordAuditEvent({
         organizationId,
         actor: user.name,
@@ -355,6 +361,8 @@ export async function PATCH(request: Request) {
       },
     }).where(and(
       eq(workforcePlanPositionExecutions.id, executionId),
+      eq(workforcePlanPositionExecutions.organizationId, execution.organizationId),
+      eq(workforcePlanPositionExecutions.executionHash, execution.executionHash),
       eq(workforcePlanPositionExecutions.status, "preview"),
     )).returning();
     if (!cancelled) return Response.json({ error: "Execution preview changed before cancellation." }, { status: 409 });
@@ -395,10 +403,18 @@ export async function PATCH(request: Request) {
       await tx.execute(sql`select id from workforce_plan_position_executions where id = ${executionId} for update`);
 
       const [freshExecution] = await tx.select().from(workforcePlanPositionExecutions)
-        .where(eq(workforcePlanPositionExecutions.id, executionId))
-        .limit(1);
+        .where(and(
+          eq(workforcePlanPositionExecutions.id, executionId),
+          eq(workforcePlanPositionExecutions.organizationId, execution.organizationId),
+        )).limit(1);
       if (!freshExecution || freshExecution.status !== "preview") {
         throw new Error("POSITION_EXECUTION_ALREADY_DECIDED");
+      }
+      if (freshExecution.planId !== execution.planId
+        || freshExecution.baselineId !== execution.baselineId
+        || freshExecution.baselineSnapshotHash !== execution.baselineSnapshotHash
+        || freshExecution.executionHash !== execution.executionHash) {
+        throw new Error("POSITION_EXECUTION_STATE_CHANGED");
       }
 
       const [[plan], [baseline]] = await Promise.all([
@@ -551,6 +567,8 @@ export async function PATCH(request: Request) {
         appliedAt,
       }).where(and(
         eq(workforcePlanPositionExecutions.id, executionId),
+        eq(workforcePlanPositionExecutions.organizationId, execution.organizationId),
+        eq(workforcePlanPositionExecutions.executionHash, execution.executionHash),
         eq(workforcePlanPositionExecutions.status, "preview"),
       )).returning();
       if (!applied) throw new Error("POSITION_EXECUTION_ALREADY_DECIDED");
