@@ -89,3 +89,15 @@ check exact-PR-head:
 Do not infer that tests run simply from workflow creation. Do not run this
 fixture against Neon/production, real payroll workers, bank accounts, service
 providers, or real money. Keep the PR draft and the method manifest untouched.
+
+## Review-only credit promotion (2026-10-29)
+
+The two methods above were held at GAP while this evidence waited for review. A
+separate review-only PR now promotes `POST` and `PATCH /api/workforce/demand-staffing/policies`
+to provisionally COVERED, citing the passing fictional-PG16 run 40647378457 (head
+`fc5219fa4`, merged #1522). The route, runner, contract and workflow blobs are
+unchanged from that run, and the same blobs passed run 40723387488 on #1547's head.
+`tests/tenant-isolation-coverage-inventory.test.mjs` pins those blobs, the proof lines
+and the PATCH action list, so any drift fails closed. The route's GET stays GAP
+(manage mode is unproven). Independent security/coverage-owner review and exact-head
+CI on the promotion PR are still required; this is not production acceptance.

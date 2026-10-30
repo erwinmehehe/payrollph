@@ -167,7 +167,7 @@ test("foreign denial and real PostgreSQL immutability assertions detect accident
     { policies: [1], audit: [] }, { policies: [1, 2], audit: [] }, "victim"));
 });
 
-test("manifest keeps both WRK-01 write methods GAP without invented exact-head credits", () => {
+test("manifest credits both WRK-01 write methods only through the source-pinned review promotion", () => {
   assert.deepEqual(STAFFING_WRITE_METHODS, [
     "POST workforce/demand-staffing/policies",
     "PATCH workforce/demand-staffing/policies",
@@ -180,9 +180,15 @@ test("manifest keeps both WRK-01 write methods GAP without invented exact-head c
   assert.equal(route.route, "workforce/demand-staffing/policies");
   for (const name of ["POST", "PATCH"]) {
     const method = route.methods.find(x => x.name === name);
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy.file, "scripts/qa/tenant-wrk01-staffing-writes-http.mjs");
+    assert.equal(method.testedBy.reviewedHead, "fc5219fa4147c11e0b3d76b35c82754a4d875f4e");
+    assert.match(method.testedBy.passedJob, /\/actions\/runs\/40647378457\/job\/122679238079$/);
+    assert.match(method.testedBy.independentReview, /^PENDING/);
+    assert.equal(method.testedBy.productionCertified, false);
   }
+  // The uncovered read stays GAP: manage-mode GET has no own/foreign proof here.
+  assert.equal(route.methods.find(x => x.name === "GET").status, "GAP");
 });
 
 test("actual HTTP source covers creation, all PATCH decisions, real target IDs and SQL snapshots", () => {
