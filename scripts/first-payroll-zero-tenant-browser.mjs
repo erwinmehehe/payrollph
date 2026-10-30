@@ -246,6 +246,14 @@ try{
   await closeStep(timeStep);
 
   const payroll=await enter("hcm-payroll@example.test");
+  // This panel is a projection only. Observe actual browser traffic, not a
+  // mocked button result, so an accidental draft mutation fails this scenario.
+  const unexpectedPayrollWrites = [];
+  active.on("request", request => {
+    if (request.method() !== "GET" && new URL(request.url()).pathname === "/api/payroll-runs") {
+      unexpectedPayrollWrites.push(request.method());
+    }
+  });
   const payrollStep=payroll.steps.nth(4);
   const panel=await captureStep("payroll","payroll",payrollStep,"Prepare payroll");
   await panel.getByLabel("Period start").fill("2026-10-01");
@@ -269,14 +277,12 @@ try{
   report.steps.push("payroll: read-only preview ready with all statutory deduction columns");
   await screenshotCompleted("payroll","payroll");
 
-  const [draftResponse]=await Promise.all([
-    active.waitForResponse(res=>res.url().endsWith("/api/payroll-runs") && res.request().method()==="POST",{timeout:45000}),
-    panel.getByRole("button",{name:"Create actual draft payroll (writes a draft record)"}).click(),
-  ]);
-  assert.ok([200,201].includes(draftResponse.status()),
-    "Explicit draft creation did not succeed; only HTTP status may be logged.");
-  assert.equal(new URL(active.url()).pathname,"/app","Payroll draft action remained inline");
-  report.steps.push("payroll: explicit, separately confirmed draft run; no release or money movement");
+  assert.equal(await panel.getByRole("button",{name:"Create actual draft payroll (writes a draft record)"}).count(),0,
+    "The canonical preview must not offer draft creation in the first-payroll panel");
+  assert.deepEqual(unexpectedPayrollWrites,[],
+    "Read-only first-payroll preview must never create a payroll run");
+  assert.equal(new URL(active.url()).pathname,"/app","Payroll preview remains inline");
+  report.steps.push("payroll: canonical GET-only preview verified, no draft, release or money movement");
   await closeStep(payrollStep);
   const checker = await enter("hcm-checker@example.test");
   const approvalStep = checker.steps.nth(5);
