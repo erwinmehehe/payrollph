@@ -201,6 +201,32 @@ test("real disposable PG18: index storage-option drift is detected",
     assert.deepEqual(report.driftedIndexes.map((x) => x.name), [child + "_amount_idx"]);
   }));
 
+test("real disposable PG18: a DESC index with different NULLS order is drift",
+  { skip: !disposableCI }, async () => withFixture("desc", async ({ client, child, source, before }) => {
+    const beforeIndex = before.objects.find((x) =>
+      x.kind === "index" && x.object_name === child + "_amount_idx");
+    assert.deepEqual(beforeIndex.key_desc, [false]);
+    assert.deepEqual(beforeIndex.key_nulls_first, [false]);
+    await client.query('DROP INDEX public."' + child + '_amount_idx"');
+    await client.query('CREATE INDEX "' + child + '_amount_idx" ON public."' +
+      child + '" USING btree ("Amount" DESC NULLS FIRST)');
+    const changed = (await readSourceBaselineCatalog(client)).objects;
+    const actualIndex = changed.find((x) =>
+      x.kind === "index" && x.object_name === child + "_amount_idx");
+    assert.deepEqual(actualIndex.key_desc, [true]);
+    assert.deepEqual(actualIndex.key_nulls_first, [true]);
+    const report = expectDrift(source, changed);
+    assert.deepEqual(report.driftedIndexes.map((x) => x.name), [child + "_amount_idx"]);
+  }));
+
+test("real disposable PG18: Drizzle-qualified CHECK SQL matches deparsed catalog",
+  { skip: !disposableCI }, async () => withFixture("qualified", async ({ child, source, before }) => {
+    const check = source.find((table) => table.name === child)
+      .checks.find((x) => x.name === child + "_status_check");
+    check.expression = '"' + child + '"."Id" > 0';
+    assert.equal(assertSourceBaselineConstraintParity(source, before.objects).driftedChecks.length, 0);
+  }));
+
 test("real disposable PG18: default and nullability changes are detected",
   { skip: !disposableCI }, async () => withFixture("defaults", async ({ client, child, source }) => {
     await client.query('ALTER TABLE public."' + child +
