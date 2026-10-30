@@ -178,10 +178,15 @@ export async function PATCH(request: Request) {
       if (worker?.status !== "Active") throw new Error("Equipment may be assigned only to active employees.");
     }
     const [row] = await tx.update(assets).set(updates)
-      .where(and(eq(assets.id, id), eq(assets.organizationId, target.organizationId))).returning();
+      .where(and(
+        eq(assets.id, id),
+        eq(assets.organizationId, target.organizationId),
+        ...(access.companyWide ? [] : [eq(assets.employeeId, target.employeeId!)]),
+      )).returning();
     return row;
   }).catch(e => e instanceof Error ? e : new Error("Could not update asset."));
   if (updated instanceof Error) return Response.json({ error: updated.message }, { status: 409 });
+  if (!updated) return Response.json({ error: "Asset changed during authorization. Retry." }, { status: 409 });
   return Response.json(updated);
 }
 
@@ -229,6 +234,11 @@ export async function DELETE(request: Request) {
       error: "Equipment issued to a separating or separated employee must be recovered and kept as offboarding evidence, not deleted.",
     }, { status: 409 });
   }
-  await db.delete(assets).where(and(eq(assets.id, id), eq(assets.organizationId, target.organizationId)));
+  const [deleted] = await db.delete(assets).where(and(
+    eq(assets.id, id),
+    eq(assets.organizationId, target.organizationId),
+    ...(access.companyWide ? [] : [eq(assets.employeeId, target.employeeId!)]),
+  )).returning({ id: assets.id });
+  if (!deleted) return Response.json({ error: "Asset changed during authorization. Retry." }, { status: 409 });
   return Response.json({ success: true });
 }

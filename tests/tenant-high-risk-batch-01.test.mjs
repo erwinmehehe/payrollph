@@ -496,6 +496,14 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
   const post1523Credits = verifyPost1523Credits(manifest);
   assert.equal(post1523Credits, 3, "only the three post-#1523 proofs can change this historical baseline");
+  // WRK-01 staffing-policy POST/PATCH are two additional, independently
+  // source-pinned fictional PG16 methods. Never count the unproven GET.
+  const staffingPolicyMethods = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods;
+  const staffingPolicyCredits = staffingPolicyMethods.filter(method =>
+    method.status === "COVERED" &&
+    method.testedBy?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs").length;
+  assert.equal(staffingPolicyCredits, 2, "only staffing-policy POST and PATCH can earn the WRK-01 proof");
+  assert.equal(staffingPolicyMethods.find(method => method.name === "GET")?.status, "GAP");
   // These six newer mainline Workforce credits already contribute to tableMethods.length.
   // Verify them explicitly, but do not double subtract from the historical 124/359 ledger.
   const newMainWorkforce = [
@@ -519,11 +527,11 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - post1523Credits - performanceCoreCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - post1523Credits - staffingPolicyCredits - performanceCoreCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + post1523Credits + performanceCoreCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + post1523Credits + staffingPolicyCredits + performanceCoreCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

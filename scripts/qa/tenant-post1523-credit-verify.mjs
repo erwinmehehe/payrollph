@@ -106,6 +106,30 @@ export const POST_1523_CREDIT_SPECS = Object.freeze([
 ]);
 
 const MAIN_AT_REVIEW = "5a3c209dffb2198e8944d0781025c42b117024b0";
+/**
+ * PR #1592's independent WRK-01 POST/PATCH receipts happen to share the same
+ * reviewed-main SHA as PR #1591. That SHA denotes a review baseline, NOT an
+ * exclusive proof owner. Explicitly recognize only these separately pinned
+ * method identities; never allow arbitrary methods to borrow #1591's three
+ * receipts or silently count staffing GET as covered.
+ */
+const COLOCATED_STAFFING_CREDIT_SPECS = Object.freeze([
+  { key: "POST workforce/demand-staffing/policies", verb: "POST",
+    actions: ["create", "idempotent replay"] },
+  { key: "PATCH workforce/demand-staffing/policies", verb: "PATCH",
+    actions: ["submit", "approve", "reject"] },
+]);
+const STAFFING_ROUTE = "src/app/api/workforce/demand-staffing/policies/route.ts";
+const STAFFING_PROOF = "scripts/qa/tenant-wrk01-staffing-writes-http.mjs";
+const STAFFING_CONTRACT = "scripts/qa/tenant-wrk01-staffing-writes-contract.mjs";
+const STAFFING_WORKFLOW = ".github/workflows/tenant-wrk01-staffing-writes-http.yml";
+const STAFFING_HASHES = Object.freeze({
+  route: "513975b118713becbf98caffa7d813a5b8c33c71",
+  proof: "b7b2d8941c40d264f734dd3fec5e69a5dc453ae2",
+  contract: "a3360332c2d9e8b502dc952931ead719cc349201",
+  workflow: "1be21bad4a1a7c150c28c9f6c2f51d776de0da7e",
+});
+
 const REVIEW_PENDING = "PENDING: this credit-promotion PR must be reviewed before merge";
 const REASON = "Provisional source-pinned four-part tenant isolation evidence: distinct owned success, real higher-ID victim denial, unchanged victim PostgreSQL and forged selector containment across all supported method actions. Independent security/coverage-owner review and this PR's exact-head CI remain mandatory; NOT a production or whole-batch certification.";
 const blobSha = content => {
@@ -125,9 +149,47 @@ export function verifyPost1523Credits(manifest, read = file => readFileSync(file
   const promoted = Object.values(manifest.allApiRouteFiles).flatMap(row =>
     row.methods.filter(method => method.testedBy?.verifiedMainCommit === MAIN_AT_REVIEW)
       .map(method => method.name + " " + row.route)).sort();
-  const expected = POST_1523_CREDIT_SPECS.map(spec => spec.key).sort();
-  assert.deepEqual(promoted, expected,
-    "Only the three separately passed exact-head methods may use this credit sweep");
+  const expected = POST_1523_CREDIT_SPECS.map(spec => spec.key);
+  const staffing = manifest.allApiRouteFiles[STAFFING_ROUTE];
+  assert.equal(staffing?.route, "workforce/demand-staffing/policies");
+  assert.equal(staffing.methods.find(method => method.name === "GET")?.status, "GAP",
+    "Unproven staffing-policy GET must remain a GAP");
+  const staffingWrites = staffing.methods.filter(method =>
+    ["POST", "PATCH"].includes(method.name) && method.status === "COVERED");
+  assert.ok(staffingWrites.length === 0 || staffingWrites.length === 2,
+    "Independent WRK-01 POST/PATCH credits must be all-or-nothing");
+  const extra = staffingWrites.length === 2 ? COLOCATED_STAFFING_CREDIT_SPECS : [];
+  assert.deepEqual(promoted, [...expected, ...extra.map(spec => spec.key)].sort(),
+    "Only three #1591 methods plus separately owned, fully credited WRK-01 POST/PATCH may share the historical review SHA");
+  if (extra.length) {
+    for (const spec of extra) {
+      const method = staffing.methods.find(item => item.name === spec.verb);
+      const proof = method?.testedBy;
+      assert.equal(method.status, "COVERED", spec.key);
+      assert.equal(proof?.file, STAFFING_PROOF, spec.key + ": separate proof owner required");
+      assert.equal(proof.verifiedMainCommit, MAIN_AT_REVIEW);
+      assert.equal(proof.reviewedHead, "fc5219fa4147c11e0b3d76b35c82754a4d875f4e");
+      assert.equal(proof.prNumber, 1522);
+      assert.equal(proof.workflowRunId, 40647378457);
+      assert.equal(proof.passedJob,
+        "https://github.com/erwinmehehe/payrollph/actions/runs/40647378457/job/122679238079");
+      assert.equal(proof.postgresMajor, 16);
+      assert.equal(proof.routeBlobSha, STAFFING_HASHES.route);
+      assert.equal(proof.proofBlobSha, STAFFING_HASHES.proof);
+      assert.equal(proof.contractBlobSha, STAFFING_HASHES.contract);
+      assert.equal(proof.workflowBlobSha, STAFFING_HASHES.workflow);
+      assert.deepEqual(proof.methodActions, spec.actions);
+      assert.equal(proof.productionCertified, false);
+      assert.match(proof.independentReview, /^PENDING/);
+    }
+    for (const [path, sha] of [
+      [STAFFING_ROUTE, STAFFING_HASHES.route],
+      [STAFFING_PROOF, STAFFING_HASHES.proof],
+      [STAFFING_CONTRACT, STAFFING_HASHES.contract],
+      [STAFFING_WORKFLOW, STAFFING_HASHES.workflow],
+    ]) assert.equal(blobSha(read(path)), sha,
+      "WRK-01 co-located receipt requires byte-identical source: " + path);
+  }
   assert.ok(manifest.acceptanceStatus?.startsWith("NOT ACCEPTED"),
     "Review-only method evidence must never certify tenant-wide isolation");
   assertLiveTenantCounts(assert, manifest);

@@ -28,17 +28,13 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 | 5 | Workforce and multi-entity | WRK-01, WRK-02, WRK-03 | 118 |
 | 6 | Auth, public edge and integrations | EDG-01, EDG-02 | 66 |
 
-## 2026-10-29 latest origin/main credit-promotion review — proposed, NOT MERGED
+## 2026-10-30 PR #1602 sync with main — DRAFT, NOT ACCEPTED
 
-> **2026-10-29 sync to main@cc0c0f989eba (DRAFT, NOT ACCEPTED):** Current upstream main has **349 COVERED / 10 PUBLIC-BY-DESIGN / 139 GAP**, including two separately proof-credited HCM methods merged via #1595. This review-only PR adds only three disjoint PG16 method receipts, yielding **352 COVERED / 10 PUBLIC-BY-DESIGN / 136 GAP** of 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Require new exact-head CI and independent security/coverage-owner review before merging. No payroll or tenant-wide certification.
+> **Latest base:** `main@90ffef4911b32b1f23b9e498079aec8735cea919` contains 354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP among 498 API methods, including #1592's two independently source-pinned WRK-01 staffing-policy POST/PATCH credits. This draft PR #1602 adds exactly **four disjoint Performance complete-action methods** (POST/PATCH performance, PATCH performance/calibration and PATCH performance/follow-through-governance), for **358 COVERED / 10 PUBLIC-BY-DESIGN / 130 GAP**. There are still 17 page/action GAPs and all 12 frozen batches remain INCOMPLETE.
 
-**Authoritative proposed manifest snapshot:** exact `main@cc0c0f989ebaeb65452ac227c3f15ae143bc9f5b` plus this PR's three additional SHA-pinned, previously uncredited method receipts. Newer upstream HCM, attendance, reporting, and approver source protections are retained. The earlier 341/10/147 and 347/10/141 snapshots below are historical; re-fetch main before accepting the sweep.
+**Evidence boundary:** Preserve #1592's original fictional PG16 source-pinned staffing write proof for create/replay and submit/approve/reject; staffing-policy GET remains GAP. PR #1602 retains its independently executed 27-action / two-attacker Performance PG16 receipt and source pins; no new HTTP execution is claimed by the merge. The four Performance credits require exact merged-head CI and independent security/coverage-owner acceptance. No production, provider, payroll, or global tenant-isolation approval.
 
-**API ledger proposed after main sync:** 295 route files; **498 methods = 352 COVERED + 10 PUBLIC-BY-DESIGN + 136 GAP**. Upstream main has 349/10/139; this PR adds +3 COVERED / -3 GAP without double counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Tenant-wide isolation is NOT ACCEPTED and all batches remain incomplete.
-
-## Performance core reconciliation — 2026-10-30
-
-Current source-linked manifest: **498 methods = 356 COVERED + 10 PUBLIC-BY-DESIGN + 132 GAP**. This branch preserves main's 352 credits and proposes four additional provisional Performance credits. Exact-head CI and reviewer acceptance remain pending; tenant-wide isolation is NOT ACCEPTED. Earlier dated promotion snapshots above remain historical.
+**API ledger after main sync:** **498 = 358 COVERED + 10 PUBLIC-BY-DESIGN + 130 GAP**, 295 route files. Frozen 406-method queue: 274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP. Other 92 API methods: 84 COVERED + 8 PUBLIC-BY-DESIGN. Earlier snapshots are historical.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -53,15 +49,17 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 26 | 0 | 13 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 28 | 0 | 11 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 28 | 0 | 11 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **272 COVERED + 2 PUBLIC-BY-DESIGN + 132 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
-### Three narrowly promoted API methods — exact-final-head evidence
+### Three narrowly promoted API methods — already merged via #1591 (original evidence)
+
+**Merged #1592 contributes the separate WRK-01 staffing-policy POST and PATCH provisional credits.** Both methods cite the previously executed fictional PG16 run [40647378457](https://github.com/erwinmehehe/payrollph/actions/runs/40647378457) with exact route, runner, contract and workflow hashes, own-employer success by two attackers, real foreign-employer denial, forged IDs and unchanged victim database state. **GET remains GAP.** The two credits remain pending security/coverage-owner review; a passing historical source run is not exact-head acceptance of this merged tree.
 
 Each row has a currently uncredited method before this proposal, the current `main` route blob equals the dedicated green test head's route blob, and both A/B live fictional own results, higher-ID victim denials, forged selectors and unchanged victim database records are asserted. For multi-action handlers the runner executes every supported nonnegative action variant listed in its `testedBy.methodActions`; no proof of one variant is credited as a complete method.
 
@@ -121,11 +119,11 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 26 | 0 | 13 | INCOMPLETE |
-| 5 | **WRK-02** | 39 | 28 | 0 | 11 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 28 | 0 | 10 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 

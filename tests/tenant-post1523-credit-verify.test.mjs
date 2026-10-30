@@ -65,3 +65,70 @@ test("manifest counts and acceptance gate are part of the fail-closed review", (
   notAccepted.acceptanceStatus = "ACCEPTED";
   assert.throws(() => verifyPost1523Credits(notAccepted));
 });
+
+
+test("WRK-01's separate two-method proof can share the review SHA without borrowing #1591 credits", () => {
+  const manifest = load();
+  const staffing = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"];
+  assert.deepEqual(staffing.methods.map(m => [m.name, m.status]), [
+    ["GET", "GAP"], ["POST", "COVERED"], ["PATCH", "COVERED"],
+  ]);
+  assert.equal(verifyPost1523Credits(manifest), 3,
+    "#1591 continues to own exactly three proofs despite the separate staffing pair");
+  for (const name of ["POST", "PATCH"]) {
+    const evidence = staffing.methods.find(m => m.name === name).testedBy;
+    assert.equal(evidence.file, "scripts/qa/tenant-wrk01-staffing-writes-http.mjs");
+    assert.match(evidence.independentReview, /^PENDING/);
+    assert.equal(evidence.productionCertified, false);
+  }
+});
+
+test("co-located credits reject fake owners, partial promotion, modified pins and broadened scope", () => {
+  const fixture = load();
+  const route = "src/app/api/workforce/demand-staffing/policies/route.ts";
+  const clone = () => structuredClone(fixture);
+  const verifyReject = (mutate, what) => {
+    const m = clone();
+    mutate(m.allApiRouteFiles[route].methods, m);
+    assert.throws(() => verifyPost1523Credits(m), what);
+  };
+  verifyReject(methods => {
+    methods.find(m => m.name === "POST").status = "GAP";
+  }, "partial staffing promotion cannot silently pass");
+  verifyReject(methods => {
+    methods.find(m => m.name === "PATCH").testedBy.reviewedHead = "0".repeat(40);
+  }, "staffing source receipt cannot be rewritten");
+  verifyReject(methods => {
+    methods.find(m => m.name === "POST").testedBy.routeBlobSha = "0".repeat(40);
+  }, "staffing route blob cannot be altered");
+  verifyReject(methods => {
+    methods.find(m => m.name === "PATCH").testedBy.methodActions = ["approve"];
+  }, "all staffing PATCH transitions are required");
+  verifyReject(methods => {
+    methods.find(m => m.name === "POST").testedBy.independentReview = "APPROVED";
+  }, "independent review may not be self-certified");
+  verifyReject(methods => {
+    methods.find(m => m.name === "POST").testedBy.productionCertified = true;
+  }, "production certification may not be inferred");
+  verifyReject(methods => {
+    methods.find(m => m.name === "GET").status = "COVERED";
+  }, "staffing GET may not receive a sibling credit");
+  verifyReject(methods => {
+    methods.find(m => m.name === "POST").testedBy.verifiedMainCommit = "0".repeat(40);
+  }, "original reviewed-main SHA cannot be rewritten");
+  verifyReject((_methods, m) => {
+    m.allApiRouteFiles["src/app/api/invitations/route.ts"].methods
+      .find(x => x.name === "POST").testedBy = {
+        verifiedMainCommit: "5a3c209dffb2198e8944d0781025c42b117024b0",
+        file: "scripts/qa/tenant-wrk01-staffing-writes-http.mjs",
+      };
+  }, "arbitrary fourth/sixth credits must fail despite copied proof file");
+  for (const path of [
+    "src/app/api/workforce/demand-staffing/policies/route.ts",
+    "scripts/qa/tenant-wrk01-staffing-writes-http.mjs",
+    "scripts/qa/tenant-wrk01-staffing-writes-contract.mjs",
+    ".github/workflows/tenant-wrk01-staffing-writes-http.yml",
+  ]) assert.throws(() => verifyPost1523Credits(clone(), name =>
+    readFileSync(name,"utf8") + (name === path ? "\n// forged proof modification" : "")
+  ), path + " source modification must fail closed");
+});
