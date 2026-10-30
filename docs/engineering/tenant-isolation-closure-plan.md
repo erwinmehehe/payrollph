@@ -34,7 +34,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Evidence boundary:** Preserve #1592's original fictional PG16 source-pinned staffing write proof for create/replay and submit/approve/reject; staffing-policy GET remains GAP. PR #1602 retains its independently executed 27-action / two-attacker Performance PG16 receipt and source pins; no new HTTP execution is claimed by the merge. The four Performance credits require exact merged-head CI and independent security/coverage-owner acceptance. No production, provider, payroll, or global tenant-isolation approval.
 
-**API ledger after main sync:** **498 = 358 COVERED + 10 PUBLIC-BY-DESIGN + 130 GAP**, 295 route files. Frozen 406-method queue: 274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP. Other 92 API methods: 84 COVERED + 8 PUBLIC-BY-DESIGN. Earlier snapshots are historical.
+**API ledger after main sync:** **498 methods = 358 COVERED + 10 PUBLIC-BY-DESIGN + 130 GAP**, 295 route files. Frozen 406-method queue: 274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP. Other 92 API methods: 84 COVERED + 8 PUBLIC-BY-DESIGN. Earlier snapshots are historical.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
