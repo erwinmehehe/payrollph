@@ -146,30 +146,49 @@ export async function POST(request: Request) {
         return { error: "The entered ID does not match the submitted request. Check the trusted record.", status: 422 };
       }
 
-      // Only approved values can affect the authoritative employee record.
-      if (row.kind === "sssNo") await tx.update(employees).set({ sssNo: row.proposedEncrypted }).where(eq(employees.id, row.employeeId));
-      else if (row.kind === "tin") await tx.update(employees).set({ tin: row.proposedEncrypted }).where(eq(employees.id, row.employeeId));
-      else if (row.kind === "tinBranchCode") await tx.update(employees).set({ tinBranchCode: row.proposedEncrypted }).where(eq(employees.id, row.employeeId));
-      else if (row.kind === "philHealthNo") await tx.update(employees).set({ philHealthNo: row.proposedEncrypted }).where(eq(employees.id, row.employeeId));
-      else if (row.kind === "pagIbigNo") await tx.update(employees).set({ pagIbigNo: row.proposedEncrypted }).where(eq(employees.id, row.employeeId));
-      else {
-        await tx.insert(essOtherIdentifiers).values({
+      // Re-assert the authorized employer and employee at the final write,
+      // even though the joined request and employee were locked for review.
+      const employeePatch =
+        row.kind === "sssNo" ? { sssNo: row.proposedEncrypted } :
+        row.kind === "tin" ? { tin: row.proposedEncrypted } :
+        row.kind === "tinBranchCode" ? { tinBranchCode: row.proposedEncrypted } :
+        row.kind === "philHealthNo" ? { philHealthNo: row.proposedEncrypted } :
+        row.kind === "pagIbigNo" ? { pagIbigNo: row.proposedEncrypted } : null;
+      if (employeePatch) {
+        const [updated] = await tx.update(employees).set(employeePatch).where(and(
+          eq(employees.id, row.employeeId),
+          eq(employees.organizationId, organizationId),
+        )).returning({ id: employees.id });
+        // Throw inside the transaction so a changed target cannot be approved or audited.
+        if (updated?.id !== row.employeeId) throw new Error("Identifier review employee scope changed.");
+      } else {
+        const [updated] = await tx.insert(essOtherIdentifiers).values({
           organizationId, employeeId: row.employeeId, kind: row.kind,
           encryptedValue: row.proposedEncrypted, verifiedByUserId: ctx.user.id, updatedAt: new Date(),
         }).onConflictDoUpdate({
           target: [essOtherIdentifiers.employeeId, essOtherIdentifiers.kind],
           set: { encryptedValue: row.proposedEncrypted, verifiedByUserId: ctx.user.id, updatedAt: new Date() },
-        });
+          // EmployeeId/kind is globally unique. A conflicting row belonging
+          // to another employer must never be silently overwritten.
+          setWhere: eq(essOtherIdentifiers.organizationId, organizationId),
+        }).returning({ id: essOtherIdentifiers.id });
+        if (!updated) throw new Error("Identifier review optional identity scope changed.");
       }
     }
 
-    await tx.update(essIdentifierRequests)
+    const [decision] = await tx.update(essIdentifierRequests)
       .set({
         status: action === "approve" ? "approved" : "rejected",
         reviewedByUserId: ctx.user.id,
         reviewedAt: new Date(),
         reviewNote: reviewNote || null,
-      }).where(eq(essIdentifierRequests.id, row.id));
+      }).where(and(
+        eq(essIdentifierRequests.id, row.id),
+        eq(essIdentifierRequests.organizationId, organizationId),
+        eq(essIdentifierRequests.employeeId, row.employeeId),
+        eq(essIdentifierRequests.status, "pending"),
+      )).returning({ id: essIdentifierRequests.id });
+    if (decision?.id !== row.id) throw new Error("Identifier request scope or state changed.");
     return {
       ok: true, employeeNo: row.employeeNo, employeeId: row.employeeId,
       kind: row.kind, status: action === "approve" ? "approved" : "rejected",
