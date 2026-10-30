@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertSourceBaselineParity } from "../scripts/lib/source-baseline-parity.mjs";
+import { canonicalSourceBaselineExpression } from "../scripts/lib/source-baseline-sql-expression.mjs";
 
 const source = [
   { name: "organizations", columns: [{ name: "id" }, { name: "name" }] },
@@ -75,4 +76,31 @@ test("empty or null-byte names are rejected, not silently skipped", () => {
   assert.throws(() => assertSourceBaselineParity([
     { name: "organizations\0suffix", columns: [{ name: "id" }] },
   ], catalog), /INVALID_TABLE/);
+});
+
+
+test("bounded expression comparison honors real identifier spelling and SQL precedence", () => {
+  const columns = new Map([["Mixed.Col", "text"], ["amount", "numeric(12,2)"],
+    ["status", "varchar(24)"], ["employee_id", "integer"]]);
+  const equivalent = (a, b) =>
+    canonicalSourceBaselineExpression(a, "Quoted.Table", columns) ===
+    canonicalSourceBaselineExpression(b, "Quoted.Table", columns);
+
+  assert.ok(equivalent('"Quoted.Table"."Mixed.Col" = \'Open\'',
+    '("Mixed.Col" = \'Open\'::text)'));
+  assert.ok(equivalent('"Quoted.Table".amount between 0 and 100',
+    '((amount >= (0)::numeric) and (amount <= (100)::numeric))'));
+  assert.ok(equivalent('"Quoted.Table".status in (\'pending\',\'approved\')',
+    '((status)::text = any ((array[\'pending\'::character varying, ' +
+    '\'approved\'::character varying])::text[]))'));
+  assert.equal(equivalent('"Quoted.Table"."Mixed.Col" = \'Open\'',
+    '("mixed.col" = \'Open\'::text)'), false, "quoted identifier case must not fold");
+  assert.equal(equivalent('"Quoted.Table".status = \'approved\'',
+    '(status = \'Approved\'::text)'), false, "literal case must not fold");
+  assert.equal(equivalent('"Quoted.Table".amount > 0', '(amount >= 0)'), false);
+  assert.equal(equivalent('status = \'a\' or (employee_id > 0 and amount > 0)',
+    '(status = \'a\' or employee_id > 0) and amount > 0'), false);
+  assert.equal(equivalent('status in (\'a\',\'b\')',
+    '((status)::text = any ((array[\'b\'::character varying, ' +
+    '\'a\'::character varying])::text[]))'), false, "IN list order stays tracked");
 });
