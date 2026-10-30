@@ -32,7 +32,7 @@ export function requireDisposableItPatch(env = process.env) {
   }
 }
 
-function assertDenied(response, expected, victimMarker, label) {
+export function assertDenied(response, expected, victimMarker, label) {
   assert.equal(response.status, expected,
     label + ": unexpected status " + response.status + " " + response.text.slice(0, 150));
   assert.ok(!response.text.includes(victimMarker), label + ": victim body leak");
