@@ -55,6 +55,17 @@ async function withFixture(label, run) {
       '" USING btree ("Amount")'
     );
     const before = await readSourceBaselineCatalog(client);
+    const fixtureConstraints = before.objects.filter((row) =>
+      [parent, child].includes(row.table_name) &&
+      ["primary_key", "foreign_key", "unique_constraint", "check"].includes(row.kind)
+    );
+    assert.ok(fixtureConstraints.length >= 5);
+    for (const constraint of fixtureConstraints) {
+      assert.ok(Array.isArray(constraint.columns),
+        "PG18 constraint catalog keys must be decoded as text[]: " + constraint.object_name);
+      assert.ok(Array.isArray(constraint.ref_columns),
+        "PG18 reference columns must be decoded as text[]: " + constraint.object_name);
+    }
     const source = fixtureManifest(before.objects, [parent, child]);
     const childSource = source.find((t) => t.name === child);
     assert.equal(childSource.columns.find((c) => c.name === "Amount").type, "numeric(12,2)");
