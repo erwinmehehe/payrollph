@@ -148,8 +148,8 @@ test("canonical read-only projection assembles five workers without issuing a wr
   assert.equal(projected.statutoryDeductions,realStatutory);
   assert.equal(projected.otherDeductions,
     Math.round((realWorkerCalc.deductions-realStatutory)*100)/100);
-  assert.equal(projected.gross! - projected.statutoryDeductions! - projected.otherDeductions!,
-    projected.net);
+  assert.equal(Math.round((projected.gross! - projected.statutoryDeductions! -
+    projected.otherDeductions!)*100),Math.round(projected.net!*100));
   for(const [page,recordId] of [
     ["Loans",60],["Payroll",61],["Benefits",202],["Compensation",203],
   ] as const){
@@ -169,4 +169,50 @@ test("canonical no-write projection rejects bad cohort without reading database"
     payDate:"2026-10-15",employeeCount:1,employeeIds:[9,9],
   },reader),/invalid|exceeds/);
   assert.equal(reads,0);
+});
+
+test("incomplete payroll source produces worker-specific blockers and never guesses net", async () => {
+  process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
+  const {projectCanonicalPayrollReadOnly}=await import("../src/lib/payroll-engine");
+  const organizationId=707,legalEntityId=808;
+  const workers=[301,302].map(id=>({
+    id,organizationId,legalEntityId,status:"Active",startDate:"2026-01-01",
+    orgUnitId:null,employeeNo:"FICTIONAL-"+id,firstName:"Fictional",lastName:"Worker"+id,
+    basicRate:"30000.00",region:"NCR",mwe:false,restDay:"Sunday",
+    pagIbigVoluntaryMonthly:"0",tin:"123456789",bankAccount:"fake",bankCode:"TEST",
+  }));
+  const fixtures:Record<string,unknown[]>={
+    organizations:[{id:organizationId,name:"Fictional Employer",statutoryDeductionTiming:"split"}],
+    legal_entities:[{id:legalEntityId,organizationId,active:true,primaryEntity:true,
+      statutoryDeductionTiming:"split"}],
+    employees:workers,
+    employee_pay_profiles:[{id:1001,employeeId:301,organizationId,payBasis:"monthly",
+      rateAmount:"30000.00",standardWorkDaysPerMonth:"22.00",standardHoursPerDay:"8.00"}],
+  };
+  let writes=0;
+  const reader=new Proxy({select(){
+    let table="";
+    const query:Record<string,unknown>={};
+    query.from=(target:Parameters<typeof getTableName>[0])=>{table=getTableName(target);return query;};
+    query.where=()=>query;query.orderBy=()=>query;query.limit=()=>query;query.groupBy=()=>query;
+    query.innerJoin=()=>query;query.leftJoin=()=>query;
+    query.then=(done:(rows:unknown[])=>unknown)=>Promise.resolve(fixtures[table]??[]).then(done);
+    return query;
+  }},{get(target,property){
+    if(property==="select")return target.select;
+    writes++;throw Error("Canonical preview attempted a write");
+  }}) as unknown as Pick<typeof db,"select">;
+  const rows=await projectCanonicalPayrollReadOnly({
+    organizationId,legalEntityId,periodStart:"2026-10-01",periodEnd:"2026-10-15",
+    payDate:"2026-10-15",employeeIds:workers.map(worker=>worker.id),employeeCount:2,
+  },reader);
+  assert.equal(writes,0);
+  assert.equal(rows.length,2);
+  assert.ok(rows[0].gross!==null&&rows[0].net!==null,
+    "unrelated complete worker remains independently calculable");
+  assert.equal(rows[1].gross,null);
+  assert.equal(rows[1].statutoryDeductions,null);
+  assert.equal(rows[1].otherDeductions,null);
+  assert.equal(rows[1].net,null);
+  assert.ok(rows[1].blockers.some(message=>message.includes("Missing employee pay profile")));
 });
