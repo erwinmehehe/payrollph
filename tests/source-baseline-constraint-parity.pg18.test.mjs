@@ -174,6 +174,22 @@ test("real disposable PG18: changing an index definition is detected",
     assert.deepEqual(report.driftedIndexes.map((x) => x.name), [child + "_amount_idx"]);
   }));
 
+test("real disposable PG18: a changed index INCLUDE definition is detected",
+  { skip: !disposableCI }, async () => withFixture("include", async ({ client, child, source }) => {
+    await client.query('DROP INDEX public."' + child + '_amount_idx"');
+    await client.query('CREATE INDEX "' + child + '_amount_idx" ON public."' +
+      child + '" USING btree ("Amount") INCLUDE ("Status")');
+    const report = expectDrift(source, (await readSourceBaselineCatalog(client)).objects);
+    assert.deepEqual(report.driftedIndexes.map((x) => x.name), [child + "_amount_idx"]);
+  }));
+
+test("real disposable PG18: index storage-option drift is detected",
+  { skip: !disposableCI }, async () => withFixture("options", async ({ client, child, source }) => {
+    await client.query('ALTER INDEX public."' + child + '_amount_idx" SET (fillfactor = 80)');
+    const report = expectDrift(source, (await readSourceBaselineCatalog(client)).objects);
+    assert.deepEqual(report.driftedIndexes.map((x) => x.name), [child + "_amount_idx"]);
+  }));
+
 test("real disposable PG18: default and nullability changes are detected",
   { skip: !disposableCI }, async () => withFixture("defaults", async ({ client, child, source }) => {
     await client.query('ALTER TABLE public."' + child +
