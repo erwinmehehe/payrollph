@@ -1,7 +1,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, auditEvents, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks } from "@/db/schema";
+import { assets, auditEvents, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks, userOrganizations } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
@@ -124,19 +124,46 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
-  if (!valid(id)) return Response.json({ error: "Valid id required." }, { status: 422 });
+  let org = Number(body.organizationId);
+  const inferredOrganization = body.organizationId === undefined;
+  // The pre-existing tenant-table write fixture uses an ID-only PATCH.
+  // Preserve that single-employer legacy request without ever using a resource
+  // record to choose a tenant. Multi-employer sessions MUST supply organizationId.
+  if (inferredOrganization) {
+    const memberships = await db.select({ organizationId: userOrganizations.organizationId })
+      .from(userOrganizations)
+      .where(and(eq(userOrganizations.userId, user.id), eq(userOrganizations.active, true)))
+      .limit(2);
+    if (memberships.length !== 1) {
+      return Response.json({ error: "Explicit organizationId required for this session." }, { status: 422 });
+    }
+    org = memberships[0].organizationId;
+  }
+  if (!valid(id) || !valid(org)) {
+    return Response.json({ error: "Valid id and organizationId required." }, { status: 422 });
+  }
+  // Authorize the selected tenant (or the sole ACTIVE session membership) before
+  // querying any grant or device ID. On ID-only legacy requests, BOTH real
+  // foreign IDs and missing IDs return identical generic 403 responses; scoped
+  // explicit-employer requests retain their 404-not-found behavior.
+  const auth = await context(user.id, org);
+  if (auth.denied) return auth.denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id, action: "it-custody-access-decision",
-    resourceId: String(id), limit: 20, windowMs: 15 * 60_000,
+    resourceId: org + ":" + id, limit: 20, windowMs: 15 * 60_000,
   });
   if (rateDenied) return rateDenied;
   if (body.action === "access") {
-    const [grant] = await db.select().from(itAccessGrants).where(eq(itAccessGrants.id, id)).limit(1);
-    if (!grant) return Response.json({ error: "Access record not found." }, { status: 404 });
-    const auth = await context(user.id, grant.organizationId);
-    if (auth.denied) return auth.denied;
+    const [grant] = await db.select().from(itAccessGrants).where(and(
+      eq(itAccessGrants.id, id),
+      eq(itAccessGrants.organizationId, org),
+    )).limit(1);
+    if (!grant) return Response.json(
+      { error: inferredOrganization ? "Access denied." : "Access record not found." },
+      { status: inferredOrganization ? 403 : 404 },
+    );
     const employeeCheck = await checkEmployee(grant.organizationId, grant.employeeId, auth.access!);
     if (employeeCheck.error) return employeeCheck.error;
     const next = String(body.state);
@@ -162,10 +189,14 @@ export async function PATCH(request: Request) {
     return Response.json(updated);
   }
   if (body.action === "device") {
-    const [device] = await db.select().from(itManagedDevices).where(eq(itManagedDevices.id, id)).limit(1);
-    if (!device) return Response.json({ error: "Device not found." }, { status: 404 });
-    const auth = await context(user.id, device.organizationId);
-    if (auth.denied) return auth.denied;
+    const [device] = await db.select().from(itManagedDevices).where(and(
+      eq(itManagedDevices.id, id),
+      eq(itManagedDevices.organizationId, org),
+    )).limit(1);
+    if (!device) return Response.json(
+      { error: inferredOrganization ? "Access denied." : "Device not found." },
+      { status: inferredOrganization ? 403 : 404 },
+    );
     const access = auth.access!;
     if (device.employeeId != null) { const check = await checkEmployee(device.organizationId, device.employeeId, access); if (check.error) return check.error; }
     else if (!access.companyWide) return Response.json({ error: "Company inventory outside unit scope." }, { status: 403 });

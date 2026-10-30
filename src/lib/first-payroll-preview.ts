@@ -10,14 +10,14 @@ import {
   leaveRequests, organizations, payPolicies, payrollRuns, supplementaryEarnings,
   timePunches, userOrganizations, employeePayRetroAdjustments,
 } from "@/db/schema";
-import { calculateEmployeePay } from "./payroll-engine";
 import { decryptGovernmentId } from "./government-id-crypto";
 import { isCanonicalPhSemiMonthlyPeriod } from "./payroll-calendar";
 import { statutoryRuleVersionsForDate } from "./ph-statutory-rule-packs";
-import { nationalHolidayCalendarForDate } from "./wage-orders";
 
 /** A query-only reader is required. Unlike the payroll worker, this function has no
- * mutation capability and never bootstraps a run, employer, audit or payroll entry. */
+ * mutation capability and never bootstraps a run, employer, audit or payroll entry.
+ * This is readiness/source discovery ONLY. Monetary results come exclusively
+ * from the canonical worker assembler in first-payroll-canonical-preview.ts. */
 export async function loadReadOnlyFirstPayrollPreview(
   input:{organizationId:number;periodStart:string;periodEnd:string;payDate:string},
   reader:Pick<typeof db,"select">=db,
@@ -51,12 +51,8 @@ export async function loadReadOnlyFirstPayrollPreview(
  if(!memberRows.some(r=>r.role==="checker"))blockers.push("No active independent Checker role is assigned.");
  if(!people.length)blockers.push("No active employees in the selected period.");
 
- // The canonical payroll worker reads employee-specific attendance, compensation,
- // leave, benefit, WFM and statutory history. The lightweight GET cannot price
- // those sources until the worker's *same* assembler is factored into a query-
- // only shared function. In the meantime, check the actual selected employee
- // cohort and cutoff. An unrelated worker's loan/punch must not suppress an
- // otherwise simple worker's estimate, but an affected worker receives NO money.
+ // Discover period-specific sources without pricing or assuming their approval.
+ // The canonical worker assembler alone resolves completed sources into amounts.
  const employeeIds=people.map(employee=>employee.id);
  const scopedChecks=[
   ["time punches",()=>reader.select({employeeId:timePunches.employeeId}).from(timePunches).where(and(
@@ -185,7 +181,6 @@ export async function loadReadOnlyFirstPayrollPreview(
   if(source.present)blockers.push("Full payroll-context reconciliation required: "+source.name+" is recorded.");
  }
  const asOf=statutoryRuleVersionsForDate(payDate);
- const holidayCalendar=nationalHolidayCalendarForDate(periodEnd);
  const byEmployee=new Map(profiles.map(p=>[p.employeeId,p]));
  const rows=people.map(employee=>{
    const problems:string[]=[];
@@ -196,38 +191,12 @@ export async function loadReadOnlyFirstPayrollPreview(
        if(!raw||!/^\d{9}$/.test(raw.replace(/-/g,"")))problems.push("Invalid TIN format");
      } catch { problems.push("TIN encryption cannot be verified with configured keys"); }
    }
-   if(!employee.bankAccount||!employee.bankCode)problems.push("Missing bank payout destination");
    if(legal&&employee.legalEntityId!==legal.id)problems.push("Employee belongs to another legal employer.");
-   if(employee.mwe)problems.push("MWE treatment requires an individually reviewed wage classification.");
    const profile=byEmployee.get(employee.id);
    if(!profile)problems.push("Missing employee pay profile");
-   if(profile&&profile.payBasis!=="monthly")problems.push("Daily/hourly payroll requires approved worked-time inputs.");
    let gross:number|null=null,sss:number|null=null,philHealth:number|null=null,
        pagIbig:number|null=null,withholding:number|null=null,net:number|null=null;
    problems.push(...(workerBlockers.get(employee.id)??[]));
-   if(blockers.length===0&&problems.length===0&&profile&&profile.payBasis==="monthly"&&legal){
-     try{
-       const calc=calculateEmployeePay({
-         employee,punches:[],advisories:[],unitName:"Unassigned",
-         periodLabel:periodStart+" - "+periodEnd,
-         payProfile:{
-          payBasis:profile.payBasis,rateAmount:profile.rateAmount,
-          standardWorkDaysPerMonth:profile.standardWorkDaysPerMonth,
-          standardHoursPerDay:profile.standardHoursPerDay,
-         },
-         statutoryDeductionTiming:legal.statutoryDeductionTiming,
-         periodStart,periodEnd,payDate,statutoryRuleVersions:asOf,
-         holidayCalendar,
-       });
-       const deduction=(code:string)=>Math.abs(Number(calc.lineItems.find(line=>line.code===code)?.amount??0));
-       gross=calc.gross;sss=deduction("SSS");philHealth=deduction("PHIC");
-       pagIbig=deduction("HDMF");withholding=deduction("WHT");net=calc.net;
-       if(calc.status==="Exception"){
-         problems.push("Payroll engine calculation requires human exception review.");
-         gross=null;sss=null;philHealth=null;pagIbig=null;withholding=null;net=null;
-       }
-     }catch{problems.push("Payroll calculator cannot safely resolve these employee inputs.");}
-   }
    return {employeeId:employee.id,employeeNo:employee.employeeNo,name:employee.firstName+" "+employee.lastName,
     gross,sss,philHealth,pagIbig,withholding,net,blockers:problems};
  });
@@ -236,8 +205,8 @@ export async function loadReadOnlyFirstPayrollPreview(
  const warnings=[
   "First-payroll preview is provisional, read-only and not a payslip, approval, ledger entry or payment instruction.",
   "A ready preview does not replace per-period timesheet, attendance-lock, statutory, assurance or independent release checks.",
-  "Per-worker simple estimates are withheld where complex inputs are recorded; they are not certified payroll amounts.",
+  "Source discovery never calculates net pay. Only the canonical read-only payroll projection may supply amounts.",
  ];
- return {dryRun:true as const,persisted:false as const,previewReady:allBlockers.length===0,
+ return {dryRun:true as const,persisted:false as const,previewReady:false,
    rows,blockers:allBlockers,warnings,statutoryRuleVersions:asOf};
 }

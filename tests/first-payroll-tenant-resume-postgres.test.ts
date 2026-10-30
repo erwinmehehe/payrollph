@@ -112,16 +112,17 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
     assert.equal(canonicalResult.persisted, false);
     assert.equal(canonicalResult.previewReady, true, JSON.stringify(canonicalResult.blockers));
     assert.equal(canonicalResult.rows.length, 1);
-    assert.equal(canonicalResult.rows[0].gross, result.rows[0].gross);
-    assert.equal(canonicalResult.rows[0].net, result.rows[0].net);
+    assert.equal(result.rows[0].gross, null, "source scanner cannot calculate a simple estimate");
+    assert.equal(result.rows[0].net, null);
+    assert.ok((canonicalResult.rows[0].gross ?? 0) > 0);
+    assert.ok((canonicalResult.rows[0].net ?? 0) >= 0);
+    assert.ok(canonicalResult.rows[0].sources.some(source => source.page === "People"));
     const after = await snapshot();
     assert.deepEqual(after,before,"Read-only preview must leave payroll, payslips, progress and audit unchanged");
     assert.equal(result.dryRun,true);
     assert.equal(result.persisted,false);
     assert.equal(result.rows.length,1);
-    assert.equal(result.previewReady,true,JSON.stringify(result.blockers));
-    assert.ok((result.rows[0].gross??0)>0);
-    assert.ok((result.rows[0].net??0)>=0);
+    assert.equal(result.previewReady,false,"source scanner supplies no monetary estimate");
     assert.equal((await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId,tenant.id))).length,0);
     assert.equal((await db.select().from(payrollEntries)).length,before.entries.length);
     assert.equal(payroll.role,"payroll");
@@ -273,6 +274,11 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
     assert.equal(preview.previewReady,true,
       JSON.stringify(preview.blockers)+JSON.stringify(preview.rows.map(row=>row.blockers)));
     assert.ok(preview.rows.every(row=>row.gross!==null&&row.net!==null));
+    assert.ok(preview.rows.every(row=>row.sources.some(source=>source.page==="People")));
+    assert.ok(preview.rows.some(row=>row.sources.some(source=>source.page==="Time & attendance")));
+    assert.ok(preview.rows.some(row=>row.sources.some(source=>source.page==="Leave")));
+    assert.ok(preview.rows.some(row=>row.sources.some(source=>source.page==="Loans")));
+    assert.ok(preview.rows.some(row=>row.sources.some(source=>source.page==="Payroll")));
     assert.deepEqual([await countRuns(),await countSlips(),await countAudit()],before,
       "read-only preview must not create payroll, payslip or audit records");
     // Simulate a direct punch mutation after approval (outside normal
@@ -323,6 +329,16 @@ test("disposable PG16: five-worker canonical parity versus a no-release payroll 
         const deduction=Math.abs(Number(lines.find(line=>line.code===code)?.amount??0));
         assert.equal(deduction.toFixed(2),amount!.toFixed(2),code);
       }
+      const statutory=lines.filter(line=>["SSS","PHIC","HDMF","WHT"].includes(line.code??"")
+        || (line.code??"").startsWith("YE-TAX"))
+        .reduce((sum,line)=>sum-Number(line.amount??0),0);
+      const statutoryCents=Math.round(statutory*100);
+      const totalDeductionsCents=Math.round((Number(entry.grossPay)-Number(entry.netPay))*100);
+      assert.equal(Math.round(projected.statutoryDeductions!*100),statutoryCents);
+      assert.equal(Math.round(projected.otherDeductions!*100),totalDeductionsCents-statutoryCents,
+        "other deductions exactly reconcile the real persisted payroll run");
+      assert.equal(Math.round(projected.gross!*100)-Math.round(projected.statutoryDeductions!*100)-
+        Math.round(projected.otherDeductions!*100),Math.round(projected.net!*100));
     }
   } finally {
     await db.delete(organizations).where(eq(organizations.id,orgA.id));

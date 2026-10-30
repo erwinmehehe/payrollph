@@ -43,7 +43,7 @@ test("first-payroll preview never exposes a write-capable database dependency", 
   assert.equal(writes, 0);
 });
 
-test("first-time fixed-salary tenant can reach preview-ready with only read operations",async()=>{
+test("simple fixed-salary source discovery never calculates an unapproved net",async()=>{
   process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
   const {loadReadOnlyFirstPayrollPreview}=await import("../src/lib/first-payroll-preview");
   const rows:Record<string,unknown[]>={
@@ -73,8 +73,9 @@ test("first-time fixed-salary tenant can reach preview-ready with only read oper
   assert.deepEqual(rows,before);
   assert.equal(writes,0);
   assert.equal(result.rows.length,1);
-  assert.ok((result.rows[0].gross??0)>0);
-  assert.equal(result.previewReady,true,JSON.stringify(result.blockers));
+  assert.equal(result.rows[0].gross,null);
+  assert.equal(result.rows[0].net,null);
+  assert.equal(result.previewReady,false,"only canonical input assembly may price payroll");
 });
 
 test("multi-employer preview refuses unscoped worker disclosure",async()=>{
@@ -177,12 +178,11 @@ test("first-payroll simple preview scopes punch guard to selected tenant and inc
     }, reader);
     assert.equal(punchWhereChecked, true, scenario.name);
     assert.equal(writes, 0, scenario.name);
-    assert.equal(preview.previewReady, scenario.expectedReady, scenario.name + ": " +
-      JSON.stringify(preview.blockers));
+    assert.equal(preview.previewReady, false, "source discovery cannot calculate any wages");
     assert.equal(preview.persisted, false, scenario.name);
     if (scenario.expectedReady) {
-      assert.ok((preview.rows[0].gross ?? 0) > 0, scenario.name);
-      assert.ok((preview.rows[0].net ?? 0) >= 0, scenario.name);
+      assert.equal(preview.rows[0].gross, null, scenario.name);
+      assert.equal(preview.rows[0].net, null, scenario.name);
       assert.ok(!preview.blockers.some(b => b.includes("time punches")), scenario.name);
     } else {
       assert.equal(preview.rows[0].gross, null, scenario.name);
@@ -262,8 +262,8 @@ test("future-only optional payroll records cannot block an earlier cutoff, while
       assert.equal(checked, true, table + " on " + date);
       assert.equal(writes, 0);
       assert.equal(result.persisted, false);
-      assert.equal(result.previewReady, !shouldBlock, table + " on " + date);
-      assert.equal(result.rows[0].gross === null, shouldBlock, table + " on " + date);
+      assert.equal(result.previewReady, false, "source discovery never marks monetary output ready");
+      assert.equal(result.rows[0].gross, null, table + " on " + date);
       const messages = table === "holidays" ? result.blockers : result.rows[0].blockers;
       assert.equal(messages.some(b => b.includes({
         leave_requests: "leave requests",
@@ -368,8 +368,8 @@ test("complex sources block only the affected worker within the authenticated em
   const complex=preview.rows.find(row=>row.employeeId===6);
   assert.ok(simple);
   assert.ok(complex);
-  assert.ok((simple.gross??0)>0,"unrelated worker keeps simple canonical calculator preview");
-  assert.ok((simple.net??0)>=0);
+  assert.equal(simple.gross,null,"readiness scan never guesses an unrelated worker\u0027s net");
+  assert.equal(simple.net,null);
   assert.deepEqual(simple.blockers,[]);
   assert.equal(complex.gross,null);
   assert.equal(complex.net,null);
