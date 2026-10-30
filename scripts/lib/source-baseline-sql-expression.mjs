@@ -117,7 +117,13 @@ function parseExpressionSql(input, table, columnTypes) {
         }
         need(")");
       }
-      return { kind: "call", name: parts.join("."), args };
+      // Only recognized, unquoted PostgreSQL built-ins are case-insensitive.
+      // Preserve arbitrary function names and quoted physical identifiers.
+      const builtins = new Set(["coalesce", "trim"]);
+      const canonicalName = parts.length === 1 && !token.quoted &&
+        builtins.has(parts[0].toLowerCase())
+        ? parts[0].toLowerCase() : parts.join(".");
+      return { kind: "call", name: canonicalName, args };
     }
     if (parts.length === 1 && columnTypes.has(parts[0]))
       return { kind: "column", name: parts[0] };
