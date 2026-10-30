@@ -1414,6 +1414,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   }> = [];
 
   for (const employee of chunk) {
+    try {
     const employeeHolidayScopeIds = orgUnitAncestors(employee.orgUnitId, unitMap);
 
     const workforceAssignments = (workforceAssignmentsByEmployee.get(employee.id) ?? []).map((assignment) => ({
@@ -1883,6 +1884,20 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       payslipText: calc.payslipText,
     });
 
+    } catch (error) {
+      if (!input.preview) throw error;
+      // This worker's assembly can be invalid even when other employees have
+      // complete source histories. Never replace it with a simplified figure.
+      const detail = error instanceof Error ? error.message : "";
+      previewRows.push({
+        employeeId: employee.id,
+        gross: null, sss: null, philHealth: null, pagIbig: null, withholding: null,
+        statutoryDeductions: null, otherDeductions: null, net: null, sources: [],
+        blockers: [detail.includes("has no pay profile")
+          ? "Missing employee pay profile for this pay period. Complete it in People."
+          : "Cannot assemble authoritative payroll inputs for this worker and cutoff. Review approved attendance, pay revisions, leave, benefits and loan records."],
+      });
+    }
   }
 
   // This is the sole exit from the projection before all run updates,
