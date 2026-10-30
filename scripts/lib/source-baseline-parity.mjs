@@ -144,8 +144,17 @@ function sourceBaselineSQL(value) {
 function sourceBaselineDefault(column, table, name) {
   if (column.default === "__serial__") return "serial:" + table + "_" + name + "_seq";
   const value = sourceBaselineSQL(column.default);
-  const serial = value?.match(/^nextval\('(?:public\.)?([a-z_][a-z0-9_]*)'::regclass\)$/);
-  if (serial) return "serial:" + serial[1];
+  const serial = value?.match(/^nextval\('((?:[^']|'')+)'::regclass\)$/);
+  if (serial) {
+    // regclass quotes physical mixed-case/dotted names INSIDE the string.
+    // Strip only the explicit public schema and SQL identifier delimiters.
+    let sequence = serial[1].replaceAll("''", "'");
+    if (sequence.startsWith("public.")) sequence = sequence.slice(7);
+    if (sequence.startsWith('"') && sequence.endsWith('"')) {
+      sequence = sequence.slice(1, -1).replaceAll('""', '"');
+    }
+    return "serial:" + sequence;
+  }
   if (value === null) return null;
   const type = sourceBaselineType(column.type);
   const literal = /^'(?:[^']|'')*'$/;
