@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contractors } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
@@ -160,7 +160,15 @@ export async function PATCH(request: Request) {
   if (body.contractStart !== undefined) updates.contractStart = body.contractStart ? String(body.contractStart) : null;
   if (body.contractEnd !== undefined) updates.contractEnd = body.contractEnd ? String(body.contractEnd) : null;
 
-  const [row] = await db.update(contractors).set(updates).where(eq(contractors.id, id)).returning();
+  // Reassert employer ownership at the final mutation, not only at the
+  // authorization read. A reassigned contractor must not be overwritten.
+  const [row] = await db.update(contractors).set(updates).where(and(
+    eq(contractors.id, id),
+    eq(contractors.organizationId, target.organizationId),
+  )).returning();
+  if (!row) return Response.json({
+    error: "Contractor changed during authorization. Retry.",
+  }, { status: 409 });
   return Response.json({ ...row, tin: maskGovernmentId(row.tin) });
 }
 
@@ -189,6 +197,14 @@ export async function DELETE(request: Request) {
     return Response.json({ error: "Contractor records require company-wide People access." }, { status: 403 });
   }
 
-  await db.delete(contractors).where(eq(contractors.id, id));
+  // The same employer predicate is required for deletion. A zero-row
+  // result is a stale authorization, never a successful delete.
+  const [deleted] = await db.delete(contractors).where(and(
+    eq(contractors.id, id),
+    eq(contractors.organizationId, target.organizationId),
+  )).returning({ id: contractors.id });
+  if (!deleted) return Response.json({
+    error: "Contractor changed during authorization. Retry.",
+  }, { status: 409 });
   return Response.json({ success: true });
 }
