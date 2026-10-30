@@ -39,22 +39,35 @@ test("separate proof-file citations resolve their own exact source lines", () =>
   const source = readFileSync("scripts/qa/tenant-manifest-repin.mjs", "utf8");
   assert.ok(source.includes('field.replace(/Line$/, "File")'),
     "every explicitly named *Line/*File pair must resolve the companion file");
+  assert.ok(source.includes('field === "victimUnchangedAt"'),
+    "renamed DL-02 victim-snapshot citations remain checked as real proof lines");
+  assert.ok(source.includes('"victimUnchangedFile" : field === "line"'),
+    "renamed DL-02 citations must use the actual shared companion proof file");
   assert.ok(source.includes('typeof proof[companionFile] === "string"'),
     "the current citation must use its declared source file");
   assert.ok(source.includes('typeof cited?.[companionFile] === "string"'),
     "the base citation must use its own declared source file");
 
-  // Real committed proof, not a mock: line 196 belongs to the shared
-  // victim-snapshot runner, not the smaller self-photo proof module.
+  // Real committed proof, not a mock: the whole DL-02 batch shares one
+  // unchanged-victim snapshot citation in its large runner. Never resolve its
+  // line number against a smaller per-route proof module or silently skip it.
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const photo = manifest.allApiRouteFiles["src/app/api/self/photo/route.ts"]
-    .methods.find((method) => method.name === "POST").testedBy;
-  assert.equal(photo.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
-  const primaryLines = readFileSync(photo.file, "utf8").split("\n");
-  const companionLines = readFileSync(photo.victimUnchangedFile, "utf8").split("\n");
-  assert.ok(photo.victimUnchangedLine > primaryLines.length,
-    "the citation must not be resolved against the primary proof module");
-  assert.match(companionLines[photo.victimUnchangedLine - 1], /victimSnapshot/,
-    "the companion citation must point to the actual unchanged-victim assertion");
+  for (const [route, name] of [
+    ["src/app/api/self/photo/route.ts", "POST"],
+    ["src/app/api/web-bundy/evidence/route.ts", "GET"],
+    ["src/app/api/workforce/demand-observations/import/route.ts", "POST"],
+  ]) {
+    const proof = manifest.allApiRouteFiles[route]
+      .methods.find((method) => method.name === name).testedBy;
+    assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
+    const primaryLines = readFileSync(proof.file, "utf8").split("\n");
+    const companionLines = readFileSync(proof.victimUnchangedFile, "utf8").split("\n");
+    assert.ok(Number.isInteger(proof.victimUnchangedAt),
+      "the DL-02 renamed proof citation must remain an actual line number: " + route);
+    assert.ok(proof.victimUnchangedAt > primaryLines.length,
+      "the citation must not be resolved against the primary proof module: " + route);
+    assert.match(companionLines[proof.victimUnchangedAt - 1], /victimSnapshot/,
+      "the companion citation must point to an actual unchanged-victim assertion: " + route);
+  }
 });
