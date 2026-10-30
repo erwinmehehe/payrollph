@@ -479,6 +479,12 @@ type PayrollChunkRequest = {
 /** Same authoritative input assembly as the real worker, with a query-only
  * dependency and a synthetic nonpersisted run. The response deliberately
  * excludes payslip text, individual source rows and payout details. */
+export type CanonicalPayrollPreviewSource = {
+  page: "People" | "Time & attendance" | "Workforce" | "Leave" | "Loans" |
+    "Benefits" | "Compensation" | "De minimis" | "Payroll";
+  recordId: number;
+  label: string;
+};
 export type CanonicalPayrollPreviewRow = {
   employeeId: number;
   gross: number | null;
@@ -486,7 +492,10 @@ export type CanonicalPayrollPreviewRow = {
   philHealth: number | null;
   pagIbig: number | null;
   withholding: number | null;
+  statutoryDeductions: number | null;
+  otherDeductions: number | null;
   net: number | null;
+  sources: CanonicalPayrollPreviewSource[];
   blockers: string[];
 };
 
@@ -1405,6 +1414,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   }> = [];
 
   for (const employee of chunk) {
+    try {
     const employeeHolidayScopeIds = orgUnitAncestors(employee.orgUnitId, unitMap);
 
     const workforceAssignments = (workforceAssignmentsByEmployee.get(employee.id) ?? []).map((assignment) => ({
@@ -1575,7 +1585,9 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     );
     const unit = employee.orgUnitId ? unitMap.get(employee.orgUnitId) : null;
     const reimbursementInputs = reimbursementPayrollInputs(claimsByEmployee.get(employee.id) ?? [], spendPayrollEnabled());
-    const calc = calculateEmployeePay({
+    let calc: ReturnType<typeof calculateEmployeePay>;
+    try {
+      calc = calculateEmployeePay({
       employee,
       punches,
       advisories,
@@ -1729,6 +1741,21 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       priorStatutory: priorStatutoryByEmployee.get(employee.id),
       isFinalCutoffOfMonth,
     });
+    } catch (error) {
+      if (!input.preview) throw error;
+      // A bad worker must not receive guessed money or suppress unrelated,
+      // independently complete workers from the same cutoff.
+      const missingProfile = error instanceof Error && error.message.includes("has no pay profile");
+      previewRows.push({
+        employeeId: employee.id,
+        gross: null, sss: null, philHealth: null, pagIbig: null, withholding: null,
+        statutoryDeductions: null, otherDeductions: null, net: null, sources: [],
+        blockers: [missingProfile
+          ? "Missing employee pay profile for this pay period. Complete it in People."
+          : "Canonical payroll input could not be reconciled for this worker and cutoff. Review approved time, pay history, leave, benefits and deductions."],
+      });
+      continue;
+    }
 
     // This is the identical calculateEmployeePay(input) call used by the live
     // worker: all effective salary, attendance, leave, premiums, policies,
@@ -1736,13 +1763,62 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     // DO NOT persist source data, audit events, entries, payslips or snapshots
     // when the projection is running inside its read-only transaction.
     if (input.preview) {
-      const moneyValues = [calc.gross, calc.net];
-      const exception = calc.status === "Exception" || moneyValues.some(
-        amount => !Number.isFinite(amount),
-      );
+      // Presentation-only grouping of the exact real-run line items. This does
+      // not change payroll eligibility, contributions, rounding or loan rules.
+      const statutoryCodes = new Set(["SSS", "PHIC", "HDMF", "WHT"]);
+      const statutoryDeductions = roundToCents(calc.lineItems
+        .filter(line => statutoryCodes.has(line.code) || line.code.startsWith("YE-TAX"))
+        .reduce((total, line) => total - Number(line.amount), 0));
+      const otherDeductions = roundToCents(calc.deductions - statutoryDeductions);
       const deduction = (code: string) => Math.abs(Number(
         calc.lineItems.find(item => item.code === code)?.amount ?? 0,
       ));
+      const amounts = [calc.gross, calc.deductions, calc.net, statutoryDeductions, otherDeductions];
+      const exception = calc.status === "Exception" || amounts.some(
+        amount => !Number.isFinite(amount),
+      ) || roundToCents(calc.gross - statutoryDeductions - otherDeductions) !== calc.net;
+
+      // Source identifiers are taken only from records this same payroll worker
+      // actually assembled. Links navigate to existing authorized workspaces;
+      // no payout data, payslip, mutable object or financial input is exposed.
+      const sources: CanonicalPayrollPreviewSource[] = [];
+      const addSource = (page: CanonicalPayrollPreviewSource["page"], label: string, recordId: number | undefined) => {
+        if (typeof recordId === "number" && Number.isSafeInteger(recordId) && recordId > 0) {
+          sources.push({ page, recordId, label });
+        }
+      };
+      addSource("People", "Pay profile", payProfileByEmployee.get(employee.id)?.id);
+      for (const punch of punches) addSource("Time & attendance", "Time punch " + String(punch.workDate), punch.id);
+      for (const leave of employeeApprovedLeaveRows) {
+        if (String(leave.startDate) <= String(run.periodEnd) && String(leave.endDate) >= String(run.periodStart)) {
+          addSource("Leave", "Approved leave", leave.id);
+        }
+      }
+      for (const overtime of overtimeRequestsByEmployee.get(employee.id) ?? []) {
+        addSource("Time & attendance", "Overtime request", overtime.id);
+      }
+      for (const loan of loansByEmployee.get(employee.id) ?? []) {
+        if ((!loan.startDate || String(loan.startDate) <= String(run.periodEnd)) &&
+            (!loan.endDate || String(loan.endDate) >= String(run.periodStart))) {
+          addSource("Loans", "Active loan", loan.id);
+        }
+      }
+      for (const enrollment of enrolments.filter(row => row.employeeId === employee.id && planById.has(row.planId))) {
+        addSource("Benefits", "Active benefit enrollment", enrollment.id);
+      }
+      for (const earning of supplementaryByEmployee.get(employee.id) ?? []) addSource("Payroll", "Approved earning", earning.id);
+      for (const component of recurringCompByEmployee.get(employee.id) ?? []) addSource("Compensation", "Recurring pay", component.assignmentId);
+      for (const grant of deMinimisByEmployee.get(employee.id) ?? []) {
+        if (String(grant.effectiveOn) <= String(run.payDate) &&
+            (!grant.endedOn || String(grant.endedOn) >= String(run.payDate))) {
+          addSource("De minimis", "Allowance grant", grant.id);
+        }
+      }
+      for (const revision of payRevisionsByEmployee.get(employee.id) ?? []) addSource("People", "Pay revision", revision.id);
+      for (const revision of restDayRevisionsByEmployee.get(employee.id) ?? []) addSource("Workforce", "Rest-day revision", revision.id);
+      for (const classification of mweClassificationsByEmployee.get(employee.id) ?? []) {
+        addSource("People", "Approved wage classification", classification.id);
+      }
       previewRows.push({
         employeeId: employee.id,
         gross: exception ? null : calc.gross,
@@ -1750,8 +1826,15 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
         philHealth: exception ? null : deduction("PHIC"),
         pagIbig: exception ? null : deduction("HDMF"),
         withholding: exception ? null : deduction("WHT"),
+        statutoryDeductions: exception ? null : statutoryDeductions,
+        otherDeductions: exception ? null : otherDeductions,
         net: exception ? null : calc.net,
-        blockers: exception ? ["Canonical payroll calculation has unresolved exceptions."] : [],
+        sources,
+        blockers: exception
+          ? (calc.trace.flags.length > 0
+            ? calc.trace.flags.map(flag => "Resolve cutoff payroll exception: " + flag)
+            : ["Canonical payroll calculation has unresolved deductions or source exceptions."])
+          : [],
       });
       continue;
     }
@@ -1801,6 +1884,20 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       payslipText: calc.payslipText,
     });
 
+    } catch (error) {
+      if (!input.preview) throw error;
+      // This worker's assembly can be invalid even when other employees have
+      // complete source histories. Never replace it with a simplified figure.
+      const detail = error instanceof Error ? error.message : "";
+      previewRows.push({
+        employeeId: employee.id,
+        gross: null, sss: null, philHealth: null, pagIbig: null, withholding: null,
+        statutoryDeductions: null, otherDeductions: null, net: null, sources: [],
+        blockers: [detail.includes("has no pay profile")
+          ? "Missing employee pay profile for this pay period. Complete it in People."
+          : "Cannot assemble authoritative payroll inputs for this worker and cutoff. Review approved attendance, pay revisions, leave, benefits and loan records."],
+      });
+    }
   }
 
   // This is the sole exit from the projection before all run updates,

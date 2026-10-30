@@ -209,7 +209,6 @@ test("already credited and partial-action methods are not double-counted", () =>
       "preexisting method must retain original owner: " + key);
   }
   const excluded = [
-    "PATCH loans",
     "PATCH approvals/[id]",
     "PATCH performance/follow-through-governance",
     "PATCH careers/admin", "POST workforce-planning/allocations",

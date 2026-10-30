@@ -23,6 +23,9 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     APPLICANT_PRIVACY_CONTROLS_ENABLED: "true",
     // Synthetic configured-policy GET/POST only; published rosters are not exercised.
     WFM_ROSTER_SCALE_RULES_ENABLED: "true",
+    // Money-bearing release gates, enabled ONLY here on fictional disposable employers so write rows can prove
+    // every action of routes that are locked in the default shape. Never a production or staging value.
+    PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "true",
   },
   // Actual disposable employer IDs are inserted by the pre-server bootstrap.
   // Never provide a wildcard, hard-coded employer ID, or production allowlist.

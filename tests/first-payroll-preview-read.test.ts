@@ -27,3 +27,31 @@ test("first-payroll preview handles HTTP failure, invalid JSON and explicit retr
   assert.deepEqual(await readVerifiedFirstPayrollPreview(scope,fetcher),empty);
   assert.equal(calls,4);
 });
+
+test("verified source-linked preview requires exact gross to statutory to other to net cents", () => {
+  const row = {
+    employeeId: 701, employeeNo: "FICTIONAL-701", name: "Fictional Employee",
+    gross: 15000, sss: 400, philHealth: 220, pagIbig: 100, withholding: 280,
+    statutoryDeductions: 1000, otherDeductions: 750, net: 13250,
+    sources: [
+      { page: "People", recordId: 101, label: "Pay profile" },
+      { page: "Time & attendance", recordId: 202, label: "Time punch 2026-10-07" },
+      { page: "Loans", recordId: 303, label: "Active loan" },
+    ],
+    blockers: [] as string[],
+  };
+  const valid = {...empty, previewReady: true, blockers: [], rows: [row]};
+  assert.equal(isVerifiedFirstPayrollPreview(valid, scope), true);
+  assert.equal(isVerifiedFirstPayrollPreview({...valid, rows:[{...row, net:13250.01}]}, scope), false);
+  assert.equal(isVerifiedFirstPayrollPreview({...valid, rows:[{...row, otherDeductions:null}]}, scope), false);
+  assert.equal(isVerifiedFirstPayrollPreview({...valid, rows:[{...row, sources:[]}]}, scope), false);
+  assert.equal(isVerifiedFirstPayrollPreview({...valid, rows:[{...row, sources:[{page:"Approval",recordId:99,label:"Unsafe"}]}]}, scope), false);
+  assert.equal(isVerifiedFirstPayrollPreview({...valid, rows:[{...row, sources:[{page:"Loans",recordId:-1,label:"Invalid"}]}]}, scope), false);
+  const blocked = {...valid, previewReady:false, blockers:["Resolve worker source evidence."],
+    rows:[{...row, gross:null, sss:null, philHealth:null, pagIbig:null,
+      withholding:null, statutoryDeductions:null, otherDeductions:null, net:null,
+      sources:[],blockers:["Approved timesheet required for this pay period."]}]};
+  assert.equal(isVerifiedFirstPayrollPreview(blocked, scope), true, "explicit blockers may suppress all figures");
+  assert.equal(isVerifiedFirstPayrollPreview({...blocked, rows:[{...blocked.rows[0], net:123}]}, scope), false,
+    "partial figures must not leak when source data is incomplete");
+});
