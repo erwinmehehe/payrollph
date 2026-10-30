@@ -12,8 +12,11 @@ on:
       - "drizzle.config.ts"
       - "scripts/qa/fresh-pg18-development-schema.mjs"
       - "scripts/lib/source-baseline-parity.mjs"
+      - "scripts/lib/source-baseline-sql-expression.mjs"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
       - "scripts/qa/check-source-baseline-parity.mjs"
       - "tests/source-baseline-parity.test.mjs"
+      - "tests/source-baseline-constraint-parity.pg18.test.mjs"
       - "tests/migration-table-creator-coverage.test.ts"
       - "scripts/qa/verified-pg18-bootstrap.mjs"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
@@ -38,8 +41,11 @@ on:
       - "drizzle.config.ts"
       - "scripts/qa/fresh-pg18-development-schema.mjs"
       - "scripts/lib/source-baseline-parity.mjs"
+      - "scripts/lib/source-baseline-sql-expression.mjs"
+      - "scripts/lib/issue-1031-schema-manifest.ts"
       - "scripts/qa/check-source-baseline-parity.mjs"
       - "tests/source-baseline-parity.test.mjs"
+      - "tests/source-baseline-constraint-parity.pg18.test.mjs"
       - "tests/migration-table-creator-coverage.test.ts"
       - "scripts/qa/verified-pg18-bootstrap.mjs"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
@@ -138,9 +144,9 @@ jobs:
         run: node scripts/qa/apply-source-baseline-supplement.mjs
       - name: Confirm numbered migration creators (known gaps may only shrink)
         run: ./node_modules/.bin/tsx --test tests/migration-table-creator-coverage.test.ts
-      - name: Read-only source versus clean-baseline table and column guard
+      - name: Read-only source presence plus types, constraints and indexes on disposable PG18
         run: |
-          node --test tests/source-baseline-parity.test.mjs
+          node --test tests/source-baseline-parity.test.mjs tests/source-baseline-constraint-parity.pg18.test.mjs
           ./node_modules/.bin/tsx scripts/qa/check-source-baseline-parity.mjs
       - name: pg_dump SCHEMA ONLY from empty-before-first-push local service
         env:

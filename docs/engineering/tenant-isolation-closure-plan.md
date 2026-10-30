@@ -28,13 +28,13 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 | 5 | Workforce and multi-entity | WRK-01, WRK-02, WRK-03 | 118 |
 | 6 | Auth, public edge and integrations | EDG-01, EDG-02 | 66 |
 
-## 2026-10-30 mainline and #1592 staffing-policy credit reconciliation — DRAFT, NOT ACCEPTED
+## 2026-10-30 current main and #1593 DL-02 review-only reconciliation — DRAFT, NOT ACCEPTED
 
-> **2026-10-30 sync to main@2fdc17b954b7 (DRAFT, NOT ACCEPTED):** Upstream main includes merged #1591's three independent source-pinned provisional credits and has **352 COVERED / 10 PUBLIC-BY-DESIGN / 136 GAP**. PR #1592 proposes only two *additional, disjoint* staffing-policy methods (`POST` create/replay and `PATCH` submit/approve/reject), producing **354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP** across 498 methods, plus 17 page/action GAPs. Staffing-policy GET remains GAP. All 12 frozen batches remain INCOMPLETE; new exact-head CI and independent coverage/security-owner acceptance are still mandatory. No production or payroll permission is implied.
+> **2026-10-30 sync to main@90ffef4911b (DRAFT, NOT ACCEPTED):** Current main includes the separately source-pinned #1591 credits and the two WRK-01 staffing-policy POST/PATCH credits from #1592: **354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP**. This PR #1593 adds only three disjoint DL-02 provisional method credits (`POST workforce/demand-observations/import`, `POST self/photo`, `GET web-bundy/evidence`) for **357 COVERED / 10 PUBLIC-BY-DESIGN / 131 GAP** across 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Exact-new-head CI and independent security/coverage-owner review are still required; no tenant-wide, production, provider or payroll certification.
 
-**Authoritative proposed manifest snapshot:** exact `main@2fdc17b954b76a1910d2945e3d44e2431f039eab` includes the three formerly review-only #1591 credits, now merged. This PR proposes only the two distinct source-pinned WRK-01 staffing-policy receipts from earlier passing fictional PG16 tests. All other method classifications and fingerprints remain current-main truth. Earlier 341/10/147, 347/10/141 and 352/10/136 proposals below are historical checkpoints, not present acceptance.
+**Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 355 COVERED + 10 PUBLIC-BY-DESIGN + 133 GAP**. Current main is **352/10/136**, this PR contributes only +2 COVERED / -2 GAP without double counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED** and all twelve frozen batches remain incomplete.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 358 COVERED + 10 PUBLIC-BY-DESIGN + 130 GAP**. Current main is **354/10/134**; PR #1593 contributes only +3 COVERED / -3 GAP, retaining #1592's separate +2, without double-counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED** and all twelve frozen batches remain incomplete.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -43,7 +43,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
-| 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 25 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
@@ -55,11 +55,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **271 COVERED + 2 PUBLIC-BY-DESIGN + 133 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
-**Separate draft PR #1592 now proposes only WRK-01 staffing-policy POST and PATCH.** Both methods cite the previously executed fictional PG16 run [40647378457](https://github.com/erwinmehehe/payrollph/actions/runs/40647378457) with exact route, runner, contract and workflow hashes, own-employer success by two attackers, real foreign-employer denial, forged IDs and unchanged victim database state. **GET remains GAP.** The two credits remain pending security/coverage-owner review; a passing historical source run is not exact-head acceptance of this merged tree.
+**Already merged #1592 provides the two separate WRK-01 staffing-policy POST/PATCH provisional credits**, citing earlier fictional PG16 [run 40647378457](https://github.com/erwinmehehe/payrollph/actions/runs/40647378457). The source-pinned write proof covers create/replay and submit/approve/reject, while staffing-policy GET remains GAP. Those credits are already included in current `main` and must not be counted again for #1593; independent security/coverage-owner review is still required.
 
 Each row has a currently uncredited method before this proposal, the current `main` route blob equals the dedicated green test head's route blob, and both A/B live fictional own results, higher-ID victim denials, forged selectors and unchanged victim database records are asserted. For multi-action handlers the runner executes every supported nonnegative action variant listed in its `testedBy.methodActions`; no proof of one variant is credited as a complete method.
 
