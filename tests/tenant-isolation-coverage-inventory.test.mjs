@@ -1,3 +1,4 @@
+import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
@@ -1778,8 +1779,8 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   assert.equal(payroll.methods.find((method) => method.name === "GET")?.status, "COVERED",
     "Retain the real three-employer HTTP GET proof, subject to current-head CI");
   const bundy = manifest.allApiRouteFiles["src/app/api/web-bundy/review/route.ts"];
-  assert.ok(bundy.methods.length === 2 && bundy.methods.every((method) => method.status === "GAP"),
-    "Web Bundy photo/review response-scoping changes do not prove authorization for GET or POST");
+  assert.equal(bundy.methods.length, 2);
+  for (const method of bundy.methods) verifyClockCredit(method.name + " web-bundy/review", method);
   const offline = manifest.allApiRouteFiles["src/app/api/attendance/offline-claims/route.ts"];
   const offlineRead = offline.methods.find((method) => method.name === "GET");
   assert.equal(offlineRead?.status, "COVERED", "Offline read requires the executed employer-scoped proof");
@@ -1971,6 +1972,13 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.file === "scripts/qa/tenant-clock-http.mjs") {
+        verifyClockCredit(method.name + " " + entry.route, method);
+        const workflow = readFileSync(".github/workflows/tenant-clock-lifecycle.yml", "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /env -u NODE_ENV node --import tsx scripts\/qa\/tenant-clock-http.mjs/);
+        continue; // Five exact source-bound methods, never the older one-action receipt.
+      }
       if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
         assert.equal(verifyPost1523Credits(manifest), 3);
         continue; // Exactly three independently source-pinned methods.
@@ -2575,7 +2583,9 @@ test("all credited proof links point to the claimed route and every recertified 
           assert.match(readFileSync("src/lib/workforce-punch-evidence.ts", "utf8"),
             /PUNCH_ACTIONS = \["clock_in", "break_start", "break_end", "clock_out"\]/);
           const bundy = entry.methods.find(candidate => candidate.name === "POST");
-          assert.equal(bundy.status, "GAP", "POST web-bundy/evidence proves one of four actions and stays GAP");
+          assert.equal(bundy.status, "COVERED", "Separate new receipt must execute all four punch actions");
+          assert.notEqual(bundy.testedBy?.file, proof.file, "Old one-action DL-02 evidence cannot credit POST");
+          verifyClockCredit("POST web-bundy/evidence", bundy);
         }
         continue;
       }
