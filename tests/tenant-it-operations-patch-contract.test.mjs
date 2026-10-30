@@ -51,6 +51,14 @@ test("PATCH tenant authorization precedes either resource lookup and both lookup
   const route = readFileSync("src/app/api/it-operations/route.ts", "utf8");
   const patch = route.slice(route.indexOf("export async function PATCH(request: Request)"));
   assert.ok(patch.startsWith("export async function PATCH("));
+  const singleMembership = patch.indexOf("if (body.organizationId === undefined)");
+  assert.ok(singleMembership > 0 && singleMembership < patch.indexOf("const auth = await context(user.id, org);"),
+    "Legacy missing employer selector must be resolved before tenant-scoped lookup");
+  assert.ok(patch.includes("eq(userOrganizations.userId, user.id)") &&
+    patch.includes("eq(userOrganizations.active, true)") &&
+    patch.includes(".limit(2)") &&
+    patch.includes("memberships.length !== 1"),
+    "Only one active, server-resolved employer may authorize a legacy ID-only request");
   const validate = patch.indexOf("if (!valid(id) || !valid(org))");
   const authorize = patch.indexOf("const auth = await context(user.id, org);");
   const grantLookup = patch.indexOf("const [grant] = await db.select().from(itAccessGrants)");
