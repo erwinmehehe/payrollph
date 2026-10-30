@@ -8,11 +8,10 @@ import { INVITABLE_ROLES } from "@/lib/roles";
 import { ApprovalsView } from "./approvals";
 import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
-import { firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
+import { firstPayrollPreviewSourceHref, firstPayrollRunHref } from "@/lib/first-payroll-run-navigation";
 import { parseFirstPayrollProgressRead, readVerifiedFirstPayrollProgress, type SavedFirstPayrollProgress } from "@/lib/first-payroll-progress-read";
 import { isVerifiedFirstPayrollPreview, readVerifiedFirstPayrollPreview, type FirstPayrollPreview } from "@/lib/first-payroll-preview-read";
 import { readVerifiedFirstPayrollLegalEmployer } from "@/lib/first-payroll-legal-employer-read";
-import { completePayrollDraftBrowserKey, payrollDraftBrowserKey } from "@/lib/payroll-draft-intent";
 
 function firstPayrollStep(key: FirstPayrollKey) {
   const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
@@ -68,12 +67,11 @@ function ScopedFirstPayrollInlinePanel({
  const [acknowledged,setAcknowledged]=useState(false);
  const [previewResult,setPreview]=useState<FirstPayrollPreview|null>(null);
  // A response may be valid for the request that started it but obsolete for
- // the dates currently on screen. Never offer a draft from that older preview.
+ // the dates currently on screen. Never display financial figures from an earlier scope.
  const preview=previewResult&&isVerifiedFirstPayrollPreview(previewResult,{
    organizationId,periodStart:start,periodEnd:end,payDate,
  })?previewResult:null;
  const [previewUnavailable,setPreviewUnavailable]=useState(false);
- const [draftId,setDraftId]=useState<number|null>(null);
  useEffect(()=>{
   let cancelled=false;
   void readVerifiedFirstPayrollProgress(organizationId, fetch)
@@ -119,23 +117,12 @@ function ScopedFirstPayrollInlinePanel({
   setBusy(true);setError("");setNotice("");
   try {
     const headers: Record<string,string> = {"Content-Type":"application/json"};
-    if(url==="/api/payroll-runs"&&method==="POST") {
-      if(!data.user)throw Error("Sign in before creating payroll.");
-      headers["Idempotency-Key"]=payrollDraftBrowserKey(sessionStorage,data.user.id,{
-        organizationId,legalEntityId:null,scopeOrgUnitId:null,periodStart:start,periodEnd:end,payDate,processNow:false,
-      });
-    }
     const response=await fetch(url,{method,headers,
       body:JSON.stringify({...body,organizationId})});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(result.error??"Could not complete action");
-    if(url==="/api/payroll-runs"&&method==="POST") {
-      if(!Number.isSafeInteger(result.run?.id)||result.run.id<=0||result.run.organizationId!==organizationId)throw Error("Payroll creation could not be verified. Retry the same details to recover the saved attempt.");
-      completePayrollDraftBrowserKey(sessionStorage,data.user!.id,organizationId,headers["Idempotency-Key"]);
-    }
     if(url==="/api/first-payroll/progress")setProgress(parseFirstPayrollProgressRead(result, organizationId));
-    if(result.run?.id)setDraftId(result.run.id);
-    setNotice(result.idempotentReplay===true?"Existing draft recovered. Open the saved run to continue; no second draft was created.":message);
+    setNotice(message);
     // The mutation has already committed. A failed read refresh must not turn
     // it into an apparent failed write or leave an invitation ready to resend.
     try {
@@ -164,7 +151,7 @@ function ScopedFirstPayrollInlinePanel({
   },"Legal employer and pay schedule confirmed.");
  }
  async function dryRun() {
-  setBusy(true);setError("");setPreview(null);setPreviewUnavailable(false);setDraftId(null);
+  setBusy(true);setError("");setPreview(null);setPreviewUnavailable(false);
   try {
     const result=await readVerifiedFirstPayrollPreview({organizationId,periodStart:start,periodEnd:end,payDate},fetch);
    setPreview(result);
@@ -184,7 +171,6 @@ function ScopedFirstPayrollInlinePanel({
  const reviewersCanEdit=companyWide&&["owner","admin"].includes(activeRole);
  const canAddPeople=companyWide&&["owner","admin","bookkeeper","hr"].includes(activeRole);
  const canPreviewPayroll=companyWide&&["owner","admin","bookkeeper","payroll","checker"].includes(activeRole);
- const canDraftPayroll=companyWide&&["owner","admin","bookkeeper","payroll"].includes(activeRole);
  const currentOwner=progress?.stepOwners?.[step]??defaultOwner;
  const canHandoff=companyWide&&(reviewersCanEdit||currentOwner===activeRole);
  const handoff=<div className="mt-4 flex flex-wrap items-center gap-2">
@@ -309,27 +295,41 @@ function ScopedFirstPayrollInlinePanel({
          <span>Open payroll run #{run.id}</span><span>{run.periodLabel} · {run.status}</span>
        </a>)}
      </section>}
-     <p>First payroll preview reads actual employer records and reuses the payroll calculator. It never creates a run or a ledger entry. Creating a draft is a separate, explicit action.</p>
-     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
-     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
-     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay date</span><input className="block min-w-0 w-full" type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <p>This preview uses the same approved payroll inputs and calculator as the real run. It is strictly read-only and cannot lock attendance, create a draft, approve, release or pay anyone. Use the separate Payroll workspace for the gated workflow.</p>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay date</span><input className="block min-w-0 w-full" type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);}}/></label>
      <button type="button" className="primary-button" style={{minWidth:0,maxWidth:"100%",height:"auto",whiteSpace:"normal"}} disabled={busy||!progressVerified||!canPreviewPayroll||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
      {!canPreviewPayroll&&<p role="status">Only company-wide payroll viewers can inspect calculated preview amounts.</p>}
-     {previewResult&&!preview&&<p role="status">Pay-period details changed. Preview this period again before creating a draft.</p>}
+     {previewResult&&!preview&&<p role="status">Pay-period details changed. Recalculate this read-only preview before relying on any figures.</p>}
      {previewUnavailable&&<p role="alert">Payroll preview unavailable. No counts or amounts are verified. <button type="button" className="secondary-button" disabled={busy||!progressVerified} onClick={()=>void dryRun()}>Retry payroll preview</button></p>}
-     {preview&&<>
+     {preview&&canPreviewPayroll&&<>
        <p role="status">{preview.previewReady?"Preview ready for reconciliation":"Preview has blockers"}</p>
        {preview.blockers.map((b,i)=><p key={i} role="alert">{b}</p>)}
        {preview.warnings?.map((b,i)=><p key={i}>{b}</p>)}
-       <div className="min-w-0 w-full max-w-full overflow-x-auto" role="region" aria-label="First payroll per-employee preview" tabIndex={0}><table className="min-w-[700px]"><thead><tr>{["Employee","Gross","SSS","PhilHealth","Pag-IBIG","Withholding","Net","Blockers"].map(h=><th key={h}>{h}</th>)}</tr></thead>
-       <tbody>{preview.rows.map(row=><tr key={row.employeeId}>
-         <td>{row.name}</td>{[row.gross,row.sss,row.philHealth,row.pagIbig,row.withholding,row.net].map((n,i)=><td key={i}>{n==null?"—":n.toFixed(2)}</td>)}
-         <td>{row.blockers.join("; ")||"None"}</td></tr>)}</tbody></table></div>
-       {preview.previewReady&&<button type="button" className="secondary-button" style={{minWidth:0,maxWidth:"100%",height:"auto",whiteSpace:"normal"}} disabled={busy||!progressVerified||!canDraftPayroll||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
-         periodStart:start,periodEnd:end,payDate,processNow:false,
-       },"A draft payroll record was created. It is not calculated, approved or released.")}>Create actual draft payroll (writes a draft record)</button>}
-       {preview.previewReady&&!canDraftPayroll&&<p role="status">A payroll operator must create the draft. Preview access does not grant maker privileges.</p>}
-       {draftId&&<p role="status">Draft run #{draftId} created. Existing independent calculation and approval gates still apply.</p>}
+       <div className="min-w-0 w-full max-w-full overflow-x-auto" role="region" aria-label="First payroll per-employee preview" tabIndex={0}>
+          <table className="min-w-[850px]">
+            <thead><tr>{["Employee", "Gross", "Statutory deductions", "Other deductions", "Net", "Source records", "Blockers"].map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>{preview.rows.map(row => <tr key={row.employeeId}>
+              <td>{row.name} <small>({row.employeeNo})</small></td>
+              <td>{row.gross == null ? "—" : row.gross.toFixed(2)}</td>
+              <td>{row.statutoryDeductions == null ? "—" : <>
+                <strong>{row.statutoryDeductions.toFixed(2)}</strong>
+                <small className="block">SSS {row.sss?.toFixed(2)} · PhilHealth {row.philHealth?.toFixed(2)} · Pag-IBIG {row.pagIbig?.toFixed(2)} · WHT {row.withholding?.toFixed(2)}</small>
+              </>}</td>
+              <td>{row.otherDeductions == null ? "—" : row.otherDeductions.toFixed(2)}</td>
+              <td>{row.net == null ? "—" : <strong>{row.net.toFixed(2)}</strong>}</td>
+              <td><div className="flex flex-col gap-1">{row.sources.length === 0 ? "—" : row.sources.map(source =>
+                <a key={source.page + "-" + source.recordId} className="first-payroll-link"
+                  href={firstPayrollPreviewSourceHref(organizationId, source.page)}
+                  title={source.page + " source record #" + source.recordId}>
+                  {source.label} #{source.recordId}
+                </a>)}</div></td>
+              <td>{row.blockers.join("; ") || "None"}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <p className="text-sm">Preview only. Source links open existing workspaces with their own authorization checks. No actions in this preview create or change a payroll run.</p>
      </>}
    </div>}
    {step==="approval"&&<div>
