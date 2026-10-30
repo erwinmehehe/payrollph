@@ -1782,8 +1782,8 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       // no payout data, payslip, mutable object or financial input is exposed.
       const sources: CanonicalPayrollPreviewSource[] = [];
       const addSource = (page: CanonicalPayrollPreviewSource["page"], label: string, recordId: number | undefined) => {
-        if (Number.isSafeInteger(recordId) && (recordId ?? 0) > 0) {
-          sources.push({ page, recordId: recordId!, label });
+        if (typeof recordId === "number" && Number.isSafeInteger(recordId) && recordId > 0) {
+          sources.push({ page, recordId, label });
         }
       };
       addSource("People", "Pay profile", payProfileByEmployee.get(employee.id)?.id);
