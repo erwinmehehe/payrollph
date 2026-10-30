@@ -5,6 +5,7 @@ import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -2892,6 +2893,13 @@ test("all credited proof links point to the claimed route and every recertified 
       // WRK-01 staffing-policy POST/PATCH: only these two methods on this route may
       // claim the dedicated fictional PG16 proof, and only while the route, proof,
       // contract and workflow stay byte-identical to the passing exact-head run.
+      if (proof?.file === "scripts/qa/tenant-performance-core-http.mjs") {
+        verifyPerformanceCoreCredit(method.name + " " + entry.route, method);
+        const workflow = readFileSync(".github/workflows/tenant-table-proof.yml", "utf8");
+        assert.ok(workflow.includes("env -u NODE_ENV npx tsx scripts/qa/tenant-performance-core-http.mjs"));
+        assert.ok(workflow.includes("image: postgres:16"));
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs") {
         assert.equal(path, "src/app/api/workforce/demand-staffing/policies/route.ts",
           "No unrelated route may reuse the staffing-policy write evidence");
