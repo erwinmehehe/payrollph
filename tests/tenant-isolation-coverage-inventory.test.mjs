@@ -1441,7 +1441,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: wrk02.previous,
       routeBlobSha: wrk02.current,
       contractFile: "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
-      contractBlobSha: "b225de06597dcf957f77a17a046d6f19f92355cd",
+      contractBlobSha: "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
       originalGetPrefixSha: wrk02.prefix,
       coverageCredits: 0,
       exactHeadPg16Http: "NOT_RUN",
@@ -1449,7 +1449,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       productionCertified: false,
     });
     assert.equal(gitBlobSha(readFileSync("tests/tenant-wrk02-planning-write-boundaries.test.mjs")),
-      "b225de06597dcf957f77a17a046d6f19f92355cd", "WRK-02 source contract changed without renewed review");
+      "e3eb602b4667c578e5a7f559d67ce4ed5111ceda", "WRK-02 source contract changed without renewed review");
     return;
   }
 

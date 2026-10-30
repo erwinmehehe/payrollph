@@ -66,7 +66,7 @@ test("scenario submission revalidates tenant, unit scope, plan and hash under lo
   ]);
   assert.ok(code.indexOf("if (!fresh || fresh.status") < code.indexOf("tx.insert(approvalChainInstances)"),
     "No approval instance may be inserted before the fresh authorization guard");
-  assert.throws(() => hasGuards(submit.replace(
+  assert.throws(() => hasGuards(submit.replaceAll(
     "eq(workforcePlans.organizationId, scenario.organizationId)", ""),
   ["eq(workforcePlans.organizationId, scenario.organizationId)"]), /missing/);
 });
