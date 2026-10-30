@@ -51,7 +51,9 @@ test("PATCH tenant authorization precedes either resource lookup and both lookup
   const route = readFileSync("src/app/api/it-operations/route.ts", "utf8");
   const patch = route.slice(route.indexOf("export async function PATCH(request: Request)"));
   assert.ok(patch.startsWith("export async function PATCH("));
-  const singleMembership = patch.indexOf("if (body.organizationId === undefined)");
+  assert.ok(patch.includes("const inferredOrganization = body.organizationId === undefined;"),
+    "Only an omitted selector, never null/zero or a foreign id, may enter the single-tenant fallback");
+  const singleMembership = patch.indexOf("if (inferredOrganization)");
   assert.ok(singleMembership > 0 && singleMembership < patch.indexOf("const auth = await context(user.id, org);"),
     "Legacy missing employer selector must be resolved before tenant-scoped lookup");
   assert.ok(patch.includes("eq(userOrganizations.userId, user.id)") &&
@@ -84,6 +86,10 @@ test("PATCH tenant authorization precedes either resource lookup and both lookup
   }
   assert.ok(patch.includes('resourceId: org + ":" + id'),
     "rate limit may not share an ID-only bucket between employers");
+  assert.equal((patch.match(/\{ status: inferredOrganization \? 403 : 404 \}/g) ?? []).length, 2,
+    "Both grant and device must return generic 403 for legacy missing and foreign IDs, explicit scoped 404 otherwise");
+  assert.equal((patch.match(/inferredOrganization \? "Access denied\." :/g) ?? []).length, 2,
+    "Both legacy missing and real foreign IDs must return exactly the same denial body");
 });
 
 test("existing IT UI sends explicit selected employer on every write", () => {
