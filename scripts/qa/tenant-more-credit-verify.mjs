@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyCredit as verifyClockCredit } from "./tenant-clock-credit.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -170,6 +171,10 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     ["src/app/api/web-bundy/consent/route.ts", "POST"],
   ]) {
     const method = manifest.allApiRouteFiles[path]?.methods.find(m => m.name === verb);
+    if (path === "src/app/api/web-bundy/consent/route.ts" && method?.status === "COVERED") {
+      verifyClockCredit("POST web-bundy/consent", method);
+      continue; // Independently executed consent lifecycle; cannot borrow this historical promotion.
+    }
     assert.equal(method?.status, "GAP", path + " " + verb + ": incomplete proof");
     assert.equal(method?.testedBy, null, path + " " + verb + ": borrowed method evidence");
   }

@@ -1,0 +1,3 @@
+import {TENANT_TABLE_BASE_ENV} from './tenant-table-env.mjs';
+export const clockEnv=()=>({...TENANT_TABLE_BASE_ENV,TENANT_CLOCK_MODE:'fictional-disposable-only',WFM_PUNCH_EVIDENCE_ENABLED:'true',WORKER_ENABLED:'false',CENTRAL_SCHEDULER_ENABLED:'false',FINAL_PAY_MANUAL_RELEASE_ENABLED:'false',DOCUMENT_UPLOADS_ENABLED:'false',MULTI_ENTITY_ENABLED:'false',XENDIT_CALLBACK_TOKEN:'',XENDIT_SECRET_KEY:'',PAYMONGO_SECRET_KEY:'',MALWARE_SCAN_URL:'',MALWARE_SCAN_TOKEN:''});
+if(process.argv[1]?.replaceAll('\\','/').endsWith('/tenant-clock-env.mjs'))for(const[k,v]of Object.entries(clockEnv()))console.log(k+'='+v);

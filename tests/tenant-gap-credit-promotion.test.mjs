@@ -1,3 +1,4 @@
+import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import assert from "node:assert/strict";
@@ -215,7 +216,6 @@ test("already credited and partial-action methods are not double-counted", () =>
     "GET year-end", "GET workforce/demand-staffing/policies",
     "PATCH self/profile",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
-    "POST web-bundy/consent",
   ];
   for (const key of excluded) {
     if (key === "PATCH performance/follow-through-governance") {
@@ -227,6 +227,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
   }
+  verifyClockCredit("POST web-bundy/consent", methods.get("POST web-bundy/consent"));
   // HMO POST is distinct from the sixteen historical promotion credits.
   // Its separate executed four-action HTTP receipt must be preserved, never
   // borrowed by the source-only HMO fixture or an unrelated method.
@@ -321,8 +322,8 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
     assert.deepEqual([Number(columns[3]), Number(columns[4]), Number(columns[5]), Number(columns[6])],
       [expectedSize, count.COVERED, count["PUBLIC-BY-DESIGN"], count.GAP],
       id + ": documented batch status must match source-linked live method records");
-    assert.equal(columns[7], "INCOMPLETE", id + ": cannot claim an accepted batch");
-    assert.ok(count.GAP > 0, id + ": still has unproven methods");
+    assert.equal(columns[7], count.GAP > 0 ? "INCOMPLETE" : "PROVISIONAL — NOT ACCEPTED",
+      id + ": zero method gaps do not confer batch acceptance");
   }
   assert.equal(seen.size, 406, "The historic 406-method queue cannot shrink or grow");
   assert.equal(total.COVERED + total["PUBLIC-BY-DESIGN"] + total.GAP, seen.size);
