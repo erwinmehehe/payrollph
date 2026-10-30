@@ -46,6 +46,15 @@ test("canonical read-only projection assembles five workers without issuing a wr
     employee_loans:[{id:60,organizationId:org,employeeId:5,status:"active",
       remainingBalance:"2000.00",cutoffDeduction:"250.00",
       loanType:"Company Emergency Loan",referenceNo:"FICTIONAL",startDate:"2026-01-01",endDate:null}],
+    benefit_plans:[{id:201,active:true,name:"Fictional Wellness Benefit",category:"hmo",
+      employeeShare:"250.00",employerShare:"500.00",cap:null}],
+    benefit_enrollments:[{id:202,organizationId:org,employeeId:5,planId:201,status:"active",
+      monthlyContribution:"100.00"}],
+    employee_compensation_components:[{assignmentId:203,employeeId:5,amount:"200.00",
+      effectiveFrom:"2026-09-01",effectiveUntil:null,status:"active",componentId:204,
+      componentCode:"ALLOWANCE",componentName:"Fictional Recurring Allowance",
+      kind:"allowance",amountFrequency:"per_cutoff",taxable:true,
+      includeInSssBase:true,includeInPagIbigBase:true}],
     supplementary_earnings:[{id:61,organizationId:org,employeeId:5,status:"approved",
       payrollRunId:null,effectiveDate:"2026-10-15",amount:"500.00",earningType:"allowance",
       label:"Approved Allowance",taxable:true,includeInSssBase:true,includeInPagIbigBase:true}],
@@ -102,6 +111,52 @@ test("canonical read-only projection assembles five workers without issuing a wr
   });
   assert.equal(result[0].gross,ordinary.gross);
   assert.equal(result[0].net,ordinary.net);
+  // The real payroll worker calls exactly this calculator with the same
+  // assembled loan, benefit, recurring compensation and supplementary inputs.
+  // No test database or provider is involved.
+  const fullInputs: Parameters<typeof calculateEmployeePay>[0] = {
+    employee:people[4] as Parameters<typeof calculateEmployeePay>[0]["employee"],
+    punches:[],advisories:[],unitName:"Unassigned",periodLabel:formatPayrollPeriodLabel(start,end),
+    payProfile:{payBasis:"monthly",rateAmount:"30000.00",
+      standardWorkDaysPerMonth:"22.00",standardHoursPerDay:"8.00"},
+    periodStart:start,periodEnd:end,payDate,
+    statutoryRuleVersions:statutoryRuleVersionsForDate(payDate),
+    statutoryDeductionTiming:"split",holidayCalendar:nationalHolidayCalendarForDate(end),
+    isFinalCutoffOfMonth:false,
+    loans:[{id:60,loanType:"Company Emergency Loan",referenceNo:"FICTIONAL",
+      cutoffDeduction:250,remainingBalance:2000}],
+    supplementaryEarnings:[
+      {id:61,earningType:"allowance",label:"Approved Allowance",amount:500,
+        taxable:true,includeInSssBase:true,includeInPagIbigBase:true},
+      {id:203,code:"COMP-203",earningType:"recurring_allowance",
+        label:"Fictional Recurring Allowance",amount:200,taxable:true,
+        includeInSssBase:true,includeInPagIbigBase:true,
+        notes:["Recurring component ALLOWANCE","Frequency: per_cutoff",
+          "Effective 2026-09-01"]},
+    ],
+    benefits:[{plan:{id:201,name:"Fictional Wellness Benefit",category:"hmo",
+      employeeShare:250,employerShare:500,cap:null},monthlyContribution:100,active:true}],
+  };
+  const realWorkerCalc=calculateEmployeePay(fullInputs);
+  assert.equal(realWorkerCalc.status,"Ready","fictional approved inputs should be complete");
+  const projected=result[4];
+  assert.equal(projected.gross,realWorkerCalc.gross,"gross equals the real calculator exactly");
+  assert.equal(projected.net,realWorkerCalc.net,"net equals the real calculator exactly");
+  const realStatutory=Math.round(realWorkerCalc.lineItems
+    .filter(line=>["SSS","PHIC","HDMF","WHT"].includes(line.code)||line.code.startsWith("YE-TAX"))
+    .reduce((sum,line)=>sum-Number(line.amount),0)*100)/100;
+  assert.equal(projected.statutoryDeductions,realStatutory);
+  assert.equal(projected.otherDeductions,
+    Math.round((realWorkerCalc.deductions-realStatutory)*100)/100);
+  assert.equal(projected.gross! - projected.statutoryDeductions! - projected.otherDeductions!,
+    projected.net);
+  for(const [page,recordId] of [
+    ["Loans",60],["Payroll",61],["Benefits",202],["Compensation",203],
+  ] as const){
+    assert.ok(projected.sources.some(source=>source.page===page&&source.recordId===recordId),
+      page+" approved source must be linked");
+  }
+  assert.equal(projected.blockers.length,0);
 });
 
 test("canonical no-write projection rejects bad cohort without reading database",async()=>{
