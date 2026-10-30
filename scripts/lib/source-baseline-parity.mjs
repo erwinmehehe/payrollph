@@ -270,8 +270,10 @@ function sourceBaselineIndexKey(key, columnTypes, table, indexOrder) {
   const declaredFirst = /(?:^|\s)nulls first(?:\s|$)/.test(modifiers);
   const declaredLast = /(?:^|\s)nulls last(?:\s|$)/.test(modifiers);
   const desc = indexOrder?.desc ?? declaredDesc;
-  const nullsFirst = indexOrder?.nullsFirst ??
-    (declaredFirst ? true : declaredLast ? false : desc);
+  // Drizzle's source index-column builder uses NULLS LAST unless the
+  // declaration explicitly calls nullsFirst(), including with desc().
+  // PostgreSQL's actual indoption flags always win on the catalog side.
+  const nullsFirst = indexOrder?.nullsFirst ?? declaredFirst;
   if (column !== undefined) {
     // Preserve any operator class rather than dropping it along with sort
     // modifiers. No identifier case folding or normalization occurs.
