@@ -2538,7 +2538,7 @@ test("all credited proof links point to the claimed route and every recertified 
           spec.pins[0], spec.pins[1], spec.pins[2], spec.pins[3], spec.pins[4], spec.pins[5]],
         proof.file + ": DL-02 evidence pins changed without review");
         assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
-        assert.equal(proof.victimUnchangedLine, 196);
+        assert.equal(proof.victimUnchangedAt, 196);
         assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
         assert.equal(proof.workflowRunId, 40859482784);
         assert.equal(proof.passedJob,
@@ -2587,7 +2587,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(method.name, "POST");
         assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
           proof.forgedSelectorLine, proof.unchangedDbLine, proof.victimIdOrderingLine,
-          proof.victimUnchangedLine],
+          proof.victimUnchangedAt],
         [39, 39, 73, 84, 90, 64, 196], "demand-import evidence pins changed without review");
         assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
         assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
@@ -2625,6 +2625,19 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // The other three DL-02 methods keep their own status; no sibling credit.
+      }
+      // Roster batches POST: only this method may claim the all-action proof file. Every anchor, blob pin,
+      // action and the PENDING review flag is checked by the dedicated roster-batches test below.
+      if (proof?.file === "scripts/qa/tenant-batches/roster-batches-actions-http.mjs") {
+        assert.equal(path, "src/app/api/workforce/roster-batches/route.ts",
+          "No unrelated route may reuse the roster all-action evidence");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "fdfd1059ede7521662c7c5bc9217eaba885a348d");
+        assert.equal(proof.workflowRunId, 40915010977);
+        assert.equal(proof.workflowJobId, 123592788790);
+        continue;
       }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"

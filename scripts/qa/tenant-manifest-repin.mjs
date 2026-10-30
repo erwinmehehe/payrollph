@@ -84,8 +84,14 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         // initial split moves the old row citation to rowFile/rowLine; `line`
         // becomes the shared own-positive execution pin, checked by the inventory guard.
         if (field === "line" && proof.rowFile && !cited?.rowFile) { newCitations += 1; continue; }
-        const file = field === "rowLine" ? proof.rowFile : proof.file;
-        const oldFile = field === "rowLine" ? (cited?.rowFile ?? cited?.file) : proof.file;
+        // A *Line citation can name its own *File (rowLine/rowFile or
+        // victimUnchangedLine/victimUnchangedFile). Never pin it against the
+        // primary proof file when the manifest declares a companion file.
+        const companionFile = field === "line" ? null : field.replace(/Line$/, "File");
+        const file = companionFile && typeof proof[companionFile] === "string"
+          ? proof[companionFile] : proof.file;
+        const oldFile = companionFile && typeof cited?.[companionFile] === "string"
+          ? cited[companionFile] : cited?.file;
         const before = oldFile ? baseLines(oldFile) : null;
         const now = nowLines(file);
         if (!now) { review.push(`${method.name} ${path}: evidence file ${file} no longer exists`); continue; }
@@ -93,7 +99,7 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         // New proof file or new citation (a credit added in this change): nothing to compare against.
         if (!before || !Number.isInteger(baseValue)) { newCitations += 1; continue; }
         const text = before[baseValue - 1];
-        if (text === undefined) { review.push(`${method.name} ${path} ${field}=${baseValue}: base citation pointed past the end of ${proof.file} at ${baseRef}`); continue; }
+        if (text === undefined) { review.push(`${method.name} ${path} ${field}=${baseValue}: base citation pointed past the end of ${oldFile} at ${baseRef}`); continue; }
         if (now[value - 1] === text) { unchanged += 1; continue; }
         const { hits, at } = relocate(before, now, baseValue);
         if (at !== undefined) {
