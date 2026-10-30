@@ -2670,6 +2670,19 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(proof.independentReview, /^PENDING/);
         continue; // The other three DL-02 methods keep their own status; no sibling credit.
       }
+      // Roster batches POST: only this method may claim the all-action proof file. Every anchor, blob pin,
+      // action and the PENDING review flag is checked by the dedicated roster-batches test below.
+      if (proof?.file === "scripts/qa/tenant-batches/roster-batches-actions-http.mjs") {
+        assert.equal(path, "src/app/api/workforce/roster-batches/route.ts",
+          "No unrelated route may reuse the roster all-action evidence");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "fdfd1059ede7521662c7c5bc9217eaba885a348d");
+        assert.equal(proof.workflowRunId, 40915010977);
+        assert.equal(proof.workflowJobId, 123592788790);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
