@@ -197,6 +197,9 @@ test("the proof does not grant method credit or change production authorization"
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const routeRecord = Object.values(manifest.allApiRouteFiles)
     .find(x => x.route === "performance/follow-through-governance");
-  assert.equal(routeRecord?.methods?.find(x => x.name === "PATCH")?.status, "GAP",
-    "this incomplete action-only proof may not grant method-level coverage");
+  const method=routeRecord?.methods?.find(x=>x.name==="PATCH");
+  verifyPerformanceCoreCredit("PATCH performance/follow-through-governance",method);
+  assert.notEqual(method.testedBy.file,"scripts/qa/tenant-performance-governance-http.mjs",
+    "the incomplete action-only proof still cannot grant method-level coverage");
 });
+import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
