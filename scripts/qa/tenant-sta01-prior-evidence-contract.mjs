@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 
 export const PRIOR_PATH = "/api/year-end/prior-evidence";
-export const PRIOR_YEAR = 2025;
+export const PRIOR_YEAR = 2026;
 
 const expected = Object.freeze({
   CI: "true",
@@ -55,9 +55,11 @@ export function assertOwnPriorRead(response, employer, revision, approved) {
   assert.ok(result?.evidence, employer.label + ": null/empty read is NOT a positive");
   assert.equal(result.evidence.sourceReference, employer.reference);
   assert.equal(result.evidence.sourceSha256, employer.sha);
-  assert.equal(result.evidence.status, "none-confirmed");
-  assert.equal(result.evidence.taxableIncome, "0.00");
-  assert.equal(result.evidence.taxWithheld, "0.00");
+  assert.equal(result.evidence.status, "verified");
+  assert.equal(result.evidence.taxableIncome, employer.income);
+  assert.equal(result.evidence.taxWithheld, employer.withheld);
+  assert.equal(result.evidence.employerName, employer.priorEmployerName);
+  assert.equal(result.evidence.employerTin, "123456789-0000");
   assert.equal(result.evidence.peraCredit, "0.00");
   assert.equal(result.revision, revision);
   assert.equal(result.approved, approved);
