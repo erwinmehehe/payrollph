@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertSourceBaselineParity } from "../scripts/lib/source-baseline-parity.mjs";
+import { canonicalSourceBaselineExpression } from "../scripts/lib/source-baseline-sql-expression.mjs";
 
 const source = [
   { name: "organizations", columns: [{ name: "id" }, { name: "name" }] },
@@ -77,7 +78,6 @@ test("empty or null-byte names are rejected, not silently skipped", () => {
   ], catalog), /INVALID_TABLE/);
 });
 
-import { canonicalSourceBaselineExpression } from "../scripts/lib/source-baseline-sql-expression.mjs";
 
 test("bounded expression comparison honors real identifier spelling and SQL precedence", () => {
   const columns = new Map([["Mixed.Col", "text"], ["amount", "numeric(12,2)"],
