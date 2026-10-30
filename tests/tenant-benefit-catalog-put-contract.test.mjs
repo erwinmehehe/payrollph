@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
@@ -119,7 +120,7 @@ test("synthetic response or foreign/global plans never count as real own success
   assert.throws(() => assertCatalogUnchanged({ plans: [41] }, { plans: [99] }, "foreign"));
 });
 
-test("candidate runner uses real HTTP/SQL and never promotes unreviewed coverage", () => {
+test("candidate runner remains provisional while the separate three-method ledger is source-pinned", () => {
   const runner = readFileSync("scripts/qa/tenant-benefit-catalog-put-http.mjs", "utf8");
   assert.ok(runner.indexOf("requireDisposableBenefitCatalog();") >
     runner.indexOf("export async function proveTenantBenefitCatalogPut()"));
@@ -143,8 +144,10 @@ test("candidate runner uses real HTTP/SQL and never promotes unreviewed coverage
     assert.equal(methods.find(row => row.name === method)?.status, "COVERED");
   }
   const put = methods.find(row => row.name === "PUT");
-  assert.equal(put.status, "GAP");
-  assert.equal(put.testedBy, null);
-  assert.equal(put.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(put.reviewedUncertified?.independentSecurityReview, "PENDING");
+  assert.equal(put.status, "COVERED");
+  assert.equal(put.testedBy?.file, "scripts/qa/tenant-benefit-catalog-put-http.mjs");
+  assert.equal(put.testedBy?.workflowRunId, 40839189888);
+  assert.equal(put.testedBy?.productionCertified, false);
+  assert.match(put.testedBy?.independentReview, /^PENDING:/);
+  assert.equal(verifyPost1523Credits(manifest), 3);
 });

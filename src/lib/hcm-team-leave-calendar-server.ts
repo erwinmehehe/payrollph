@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
+import { isValidHcmReadScope } from "@/lib/hcm-read-scope-validation";
 import { employees, leaveRequests, orgUnits } from "@/db/schema";
 import {
   isPermittedTeamLeaveMonth,
@@ -43,8 +44,7 @@ export async function loadTeamLeaveMonth(input: {
 }): Promise<TeamLeaveMonthResponse> {
   const { organizationId, scope, month } = input;
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
-      (scope.kind === "unit" &&
-        (!Number.isSafeInteger(scope.orgUnitId) || scope.orgUnitId <= 0))) {
+      !isValidHcmReadScope(scope)) {
     throw new TeamLeaveScopeError();
   }
   const now = input.now ?? new Date();

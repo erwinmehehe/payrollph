@@ -28,7 +28,89 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 | 5 | Workforce and multi-entity | WRK-01, WRK-02, WRK-03 | 118 |
 | 6 | Auth, public edge and integrations | EDG-01, EDG-02 | 66 |
 
-## Current live-manifest batch reconciliation — 2026-10-28
+## 2026-10-29 latest origin/main credit-promotion review — proposed, NOT MERGED
+
+> **2026-10-29 sync to main@cc0c0f989eba (DRAFT, NOT ACCEPTED):** Current upstream main has **349 COVERED / 10 PUBLIC-BY-DESIGN / 139 GAP**, including two separately proof-credited HCM methods merged via #1595. This review-only PR adds only three disjoint PG16 method receipts, yielding **352 COVERED / 10 PUBLIC-BY-DESIGN / 136 GAP** of 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Require new exact-head CI and independent security/coverage-owner review before merging. No payroll or tenant-wide certification.
+
+**Authoritative proposed manifest snapshot:** exact `main@cc0c0f989ebaeb65452ac227c3f15ae143bc9f5b` plus this PR's three additional SHA-pinned, previously uncredited method receipts. Newer upstream HCM, attendance, reporting, and approver source protections are retained. The earlier 341/10/147 and 347/10/141 snapshots below are historical; re-fetch main before accepting the sweep.
+
+**API ledger proposed after main sync:** 295 route files; **498 methods = 352 COVERED + 10 PUBLIC-BY-DESIGN + 136 GAP**. Upstream main has 349/10/139; this PR adds +3 COVERED / -3 GAP without double counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Tenant-wide isolation is NOT ACCEPTED and all batches remain incomplete.
+
+## Performance core reconciliation — 2026-10-30
+
+Current source-linked manifest: **498 methods = 356 COVERED + 10 PUBLIC-BY-DESIGN + 132 GAP**. This branch preserves main's 352 credits and proposes four additional provisional Performance credits. Exact-head CI and reviewer acceptance remain pending; tenant-wide isolation is NOT ACCEPTED. Earlier dated promotion snapshots above remain historical.
+
+### Current 406-method frozen batch queue — 2026-10-29
+
+The frozen twelve-batch queue is a **406-method subset**, not the entire 498-method live API. These rows are recalculated from the exact methods listed below, not copied from the previous dated table.
+
+| Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
+|---:|---|---:|---:|---:|---:|---|
+| 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 26 | 0 | 13 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 28 | 0 | 11 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
+
+Frozen subtotal: **272 COVERED + 2 PUBLIC-BY-DESIGN + 132 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+
+### Three narrowly promoted API methods — exact-final-head evidence
+
+Each row has a currently uncredited method before this proposal, the current `main` route blob equals the dedicated green test head's route blob, and both A/B live fictional own results, higher-ID victim denials, forged selectors and unchanged victim database records are asserted. For multi-action handlers the runner executes every supported nonnegative action variant listed in its `testedBy.methodActions`; no proof of one variant is credited as a complete method.
+
+| Newly COVERED | Merged source PR | Exact final-head PG16 CI | Executable four-part source anchors |
+|---|---|---|---|
+| `PUT benefits` | [#1560](https://github.com/erwinmehehe/payrollph/pull/1560) | [run 40839189888](https://github.com/erwinmehehe/payrollph/actions/runs/40839189888) (head `e3229c1cbcd4`) | [own L101](https://github.com/erwinmehehe/payrollph/blob/e3229c1cbcd4f61f88a622074f45dccf18fab43d/scripts/qa/tenant-benefit-catalog-put-http.mjs#L101), [foreign L169](https://github.com/erwinmehehe/payrollph/blob/e3229c1cbcd4f61f88a622074f45dccf18fab43d/scripts/qa/tenant-benefit-catalog-put-http.mjs#L169), [unchanged L172](https://github.com/erwinmehehe/payrollph/blob/e3229c1cbcd4f61f88a622074f45dccf18fab43d/scripts/qa/tenant-benefit-catalog-put-http.mjs#L172), [forged L180](https://github.com/erwinmehehe/payrollph/blob/e3229c1cbcd4f61f88a622074f45dccf18fab43d/scripts/qa/tenant-benefit-catalog-put-http.mjs#L180) |
+| `POST workforce-planning/demand-handoff` | [#1544](https://github.com/erwinmehehe/payrollph/pull/1544) | [run 40798739712](https://github.com/erwinmehehe/payrollph/actions/runs/40798739712) (head `81e6a5918d6c`) | [own L225](https://github.com/erwinmehehe/payrollph/blob/81e6a5918d6cc9aae79b0fc2311c19ec600fd211/scripts/qa/tenant-wfp-demand-handoff-http.mjs#L225), [foreign L192](https://github.com/erwinmehehe/payrollph/blob/81e6a5918d6cc9aae79b0fc2311c19ec600fd211/scripts/qa/tenant-wfp-demand-handoff-http.mjs#L192), [unchanged L208](https://github.com/erwinmehehe/payrollph/blob/81e6a5918d6cc9aae79b0fc2311c19ec600fd211/scripts/qa/tenant-wfp-demand-handoff-http.mjs#L208), [forged L193](https://github.com/erwinmehehe/payrollph/blob/81e6a5918d6cc9aae79b0fc2311c19ec600fd211/scripts/qa/tenant-wfp-demand-handoff-http.mjs#L193) |
+| `PATCH self/performance/action-items` | [#1541](https://github.com/erwinmehehe/payrollph/pull/1541) | [run 40798614855](https://github.com/erwinmehehe/payrollph/actions/runs/40798614855) (head `d528eb30e501`) | [progress L232](https://github.com/erwinmehehe/payrollph/blob/d528eb30e5019190f68b40fae43595eabbe4cc3a/scripts/qa/tenant-self-action-items-http.mjs#L232), [completed L242](https://github.com/erwinmehehe/payrollph/blob/d528eb30e5019190f68b40fae43595eabbe4cc3a/scripts/qa/tenant-self-action-items-http.mjs#L242), [foreign L200](https://github.com/erwinmehehe/payrollph/blob/d528eb30e5019190f68b40fae43595eabbe4cc3a/scripts/qa/tenant-self-action-items-http.mjs#L200), [unchanged L203](https://github.com/erwinmehehe/payrollph/blob/d528eb30e5019190f68b40fae43595eabbe4cc3a/scripts/qa/tenant-self-action-items-http.mjs#L203), [forged L206](https://github.com/erwinmehehe/payrollph/blob/d528eb30e5019190f68b40fae43595eabbe4cc3a/scripts/qa/tenant-self-action-items-http.mjs#L206) |
+
+Proposed receipts are **method authorization evidence only**; the new credit PR must pass its own protected checks and be independently reviewed before merging. No customer database, payroll, payout, bank or external provider was accessed.
+
+### Exhaustive post-#1523 merge screen and open-GAP draft screen
+
+Merged window: **28 actual merged PRs after #1523 at 2026-10-28 15:44:18 UTC**. Scanned every merged PR's changed-file list: `#1552, #1562, #1557, #1560, #1553, #1575, #1570, #1567, #1569, #1574, #1572, #1566, #1559, #1555, #1543, #1556, #1551, #1542, #1550, #1549, #1547, #1544, #1541, #1537, #1546, #1548, #1545, #1536`. Non-API changes and QA-only/nav/page-only changes cannot earn an HTTP method credit. The page-only SSR [#1557](https://github.com/erwinmehehe/payrollph/pull/1557) is still an unaccepted page/action GAP; it does not change the API ledger. Also screened the then-open zero-credit drafts including #1554, #1558, #1576, #1577, #1578, #1582, #1585 and #1589.
+
+**Audited claims: 29 distinct route-method candidates. Promoted 3, skipped 26**: 13 already COVERED elsewhere, 3 partial-action/mode, 5 incomplete four-part evidence, 4 required CI pending, 1 failed exact-head dedicated CI. **Stale-head credited: 0. CI-failed credited: 0.** Methods not shown below were not promoted; out-of-scope PRs aren't counted as an arbitrary API skip.
+
+| Skipped method | PR | Reason category | Exact deficiency / duplicate |
+|---|---|---|---|
+| `GET benefits` | [#1560](https://github.com/erwinmehehe/payrollph/pull/1560) | ALREADY COVERED | Separate prior enrollment GET receipt retained. |
+| `POST benefits` | [#1560](https://github.com/erwinmehehe/payrollph/pull/1560) | ALREADY COVERED | Separate prior enrollment POST receipt retained. |
+| `DELETE benefits` | [#1560](https://github.com/erwinmehehe/payrollph/pull/1560) | ALREADY COVERED | Separate prior enrollment DELETE receipt retained. |
+| `POST benefits/hmo` | [#1537](https://github.com/erwinmehehe/payrollph/pull/1537) | ALREADY COVERED | All four HMO POST actions already credited from previous four-part proof. |
+| `GET workforce-planning/allocations` | [#1536](https://github.com/erwinmehehe/payrollph/pull/1536) | ALREADY COVERED | Prior tenant-table GET proof retained; no double count. |
+| `POST payroll-runs` | [#1553](https://github.com/erwinmehehe/payrollph/pull/1553) | ALREADY COVERED | Prior payroll approved-exit POST proof; idempotency fix changes no credit. |
+| `GET hcm-report-builder` | [#1576](https://github.com/erwinmehehe/payrollph/pull/1576) | ALREADY COVERED | Prior DL-02 GET proof; draft unmerged. |
+| `POST hcm-report-builder` | [#1576](https://github.com/erwinmehehe/payrollph/pull/1576) | ALREADY COVERED | Prior DL-02 POST proof; draft unmerged. |
+| `GET reports/builder` | [#1577](https://github.com/erwinmehehe/payrollph/pull/1577) | ALREADY COVERED | Prior DL-02 GET proof; draft unmerged. |
+| `POST reports/builder` | [#1577](https://github.com/erwinmehehe/payrollph/pull/1577) | ALREADY COVERED | Prior DL-02 POST proof; draft unmerged. |
+| `GET bi-exports` | [#1582](https://github.com/erwinmehehe/payrollph/pull/1582) | ALREADY COVERED | Prior DL-01 batch credit; draft changes unmerged. |
+| `GET organizations/[id]/payroll-approvers` | [#1589](https://github.com/erwinmehehe/payrollph/pull/1589) | ALREADY COVERED | Prior GET tenant-table credit; draft unmerged. |
+| `GET invitations` | [#1578](https://github.com/erwinmehehe/payrollph/pull/1578) | ALREADY COVERED | Prior tenant-table GET proof; draft GET unit-scope changes not merged. |
+| `GET workforce/demand-staffing/policies` | [#1545](https://github.com/erwinmehehe/payrollph/pull/1545) | PARTIAL ACTION | PG16 proof exercises approved mode only; manage-mode GET unproven. |
+| `POST workforce-planning/allocations` | [#1536](https://github.com/erwinmehehe/payrollph/pull/1536) | PARTIAL ACTION | Owned allocation create and manager draft, but existing-allocation update and budget/version races unproven. |
+| `PATCH workforce-planning/allocations` | [#1536](https://github.com/erwinmehehe/payrollph/pull/1536) | PARTIAL ACTION | Submit/accept/reject positives exist, but all decision-race and flag combinations remain unproven per pinned contract. |
+| `POST account/email/verify` | [#1552](https://github.com/erwinmehehe/payrollph/pull/1552) | EVIDENCE INCOMPLETE | Exact-head PG16 green, but two A/B foreign-worker 409 cases and only one legitimate victim-owned 200; no independent A/B owned-success discrimination. |
+| `GET careers` | [#1543](https://github.com/erwinmehehe/payrollph/pull/1543) | EVIDENCE INCOMPLETE | Input validation only; no four-part nonempty own/foreign/forged/DB proof for GET. |
+| `POST careers` | [#1543](https://github.com/erwinmehehe/payrollph/pull/1543) | EVIDENCE INCOMPLETE | Contact-field validation only; no persisted own-positive with real victim denial, forged ID and unchanged victim SQL. |
+| `POST developer` | [#1556](https://github.com/erwinmehehe/payrollph/pull/1556) | EVIDENCE INCOMPLETE | Limiter fallback regression only; no complete create/revoke/manage POST-action proof. |
+| `POST signup` | [#1542](https://github.com/erwinmehehe/payrollph/pull/1542) | EVIDENCE INCOMPLETE | Seat-count/limiter hardening, not complete cross-employer 4-part method proof. |
+| `GET expenses/receipts` | [#1554](https://github.com/erwinmehehe/payrollph/pull/1554) | CI PENDING | Draft exact-head required checks queued/pending; no passing complete PG16 proof. |
+| `POST expenses/receipts` | [#1554](https://github.com/erwinmehehe/payrollph/pull/1554) | CI PENDING | Draft exact-head required checks queued/pending; no passing complete PG16 proof. |
+| `POST invitations` | [#1578](https://github.com/erwinmehehe/payrollph/pull/1578) | CI PENDING | Dedicated PG16 HTTP green but required CI on exact draft head still queued; unmerged and no independent review. |
+| `POST hcm/employment-term-decisions` | [#1558](https://github.com/erwinmehehe/payrollph/pull/1558) | CI PENDING | Draft required CI queued; complete four-part current-head proof not accepted. |
+| `POST hcm/salary-corrections/preview` | [#1585](https://github.com/erwinmehehe/payrollph/pull/1585) | CI FAILED | Dedicated PG16 run 40841015653 failed: legitimate own employer returned HTTP 403, expected 200; required CI also pending. |
+
+**Next work:** #1552 needs independent A/B owned-positive account-token verifications as well as real victim and forged proof. #1536 needs update + race/version cases across full POST/PATCH. #1545 needs `mode=manage`. #1578 must clear queued CI. #1585 must fix [PG16 run 40841015653](https://github.com/erwinmehehe/payrollph/actions/runs/40841015653), where the legitimate owned 200 assertion actually got **403**. The other pending drafts must clear fresh exact-head CI, with independent review. This proposal is deliberately **NOT MERGED**.
+
+## Historical live-manifest batch reconciliation — 2026-10-28
 
 Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028b9626d1833f2794c1e71156`, which already includes merged #1519's six independently proven methods, merged #1524's atomic self-profile **source hardening without method credit**, and #1526's single independently credited manager-attestation POST. This PR adds **three disjoint provisional methods** with complete merged-source PG16/localhost HTTP receipts from #1520 and #1514. The proposed combined ledger is **340 COVERED / 10 PUBLIC-BY-DESIGN / 148 GAP** out of **498 API methods**, with **17 page/action GAPs**. The original 2026-10-21 twelve-batch closure queue remains frozen. All batches are INCOMPLETE. None of these provisional credits establishes independent security/privacy, production, payroll, bank, payout or tenant-wide acceptance; source drift fails closed.
 
@@ -39,11 +121,11 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 28 | 0 | 10 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
-| 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 26 | 0 | 13 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 28 | 0 | 11 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 

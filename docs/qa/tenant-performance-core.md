@@ -59,6 +59,12 @@ other partial methods. Against the starting main inventory this proposes
 341 → 345 COVERED and 147 → 143 GAP of 498; these are provisional PR counts, not
 merged totals. Unrelated open workforce and credit-promotion PRs are separate.
 
+After syncing main `b018fabb6443a19501a9b2b33528d41ce9296d12`, the same four
+disjoint methods propose 352 → 356 COVERED and 136 → 132 GAP of 498. The executed
+proof's source fingerprints are unchanged by this sync; newer upstream receipts
+and their provenance are preserved. Closure-plan tables are recalculated from
+the live manifest rather than the historical starting snapshot.
+
 ## CI and safety
 
 The default-profile disposable PG16 table workflow executes the independent runner

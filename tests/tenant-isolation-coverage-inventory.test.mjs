@@ -1,3 +1,4 @@
+import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
@@ -89,6 +90,81 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // Existing historical GET credit is preserved, not promoted. The new exact
+  // route source and dedicated disposable-PG16 proof are independently pinned
+  // for renewed human review. The old positive/victim receipt remains intact.
+  if (isNewOrChanged && method.status === "COVERED" &&
+      key === "src/app/api/organizations/[id]/payroll-approvers/route.ts GET") {
+    const routeFile = "src/app/api/organizations/[id]/payroll-approvers/route.ts";
+    const reviewed = method.reviewedUncertified;
+    const oldRouteSha = "50924a54ce2442bbc9fbd5adb5f4495d99e5d2ab";
+    const currentRouteSha = "ffb27f3797ecaba1fec8198cab04c0f691382743";
+    assert.equal(currentBlob, currentRouteSha,
+      "Payroll approver picker changed: renew exact-source tenant/privacy review");
+    assert.equal(baseline.api[routeFile], oldRouteSha,
+      "Original payroll approver source baseline changed");
+    assert.deepEqual(reviewed, {
+      kind: "payroll-approvers-active-grant-hardened-source-zero-new-credit",
+      oldRouteBlobSha: oldRouteSha,
+      routeBlobSha: currentRouteSha,
+      runnerFile: "scripts/qa/tenant-payroll-approvers-http.mjs",
+      runnerBlobSha: "bcdcefe33271811364d0b3878abdfc3a3c282346",
+      contractFile: "tests/tenant-payroll-approvers-contract.test.mjs",
+      contractBlobSha: "9dc730442d42d8b48025b9619b0b6b8ea9687c35",
+      workflowFile: ".github/workflows/tenant-payroll-approvers-http.yml",
+      workflowBlobSha: "f8577a357888bd3483840e3c59dbe9ffae082459",
+      syntheticPg16Run: "40849212540",
+      coverageCredits: 0,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Payroll approver hardening must retain exact uncredited review evidence");
+    for (const [path, sha] of [
+      [reviewed.runnerFile, reviewed.runnerBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(path)), sha,
+        "Payroll approver fixture/contract/workflow changed: renew security review " + path);
+    }
+    assert.equal(method.testedBy.file, "scripts/qa/tenant-high-risk-01-http.mjs",
+      "Historical owned/victim HTTP proof must remain traceable");
+    assert.equal(method.testedBy.ownPositiveLine, 275);
+    assert.equal(method.testedBy.foreignDenialLine, 279);
+    const source = readFileSync(routeFile, "utf8");
+    for (const guard of [
+      'Number.isSafeInteger(organizationId)',
+      'getAccess(user.id, organizationId)',
+      'eq(userOrganizations.organizationId, organizationId)',
+      'eq(userOrganizations.active, true)',
+      'eq(users.active, true)',
+      'inArray(userOrganizations.role, [...PAYROLL_CHECKER_ROLES])',
+      'ne(userOrganizations.userId, user.id)',
+      'eq(userOrganizations.orgUnitId, candidateUnitId)',
+      '"Cache-Control": "private, no-store"',
+    ]) {
+      assert.ok(source.includes(guard),
+        "Payroll approver route missing reviewed pre-projection access guard: " + guard);
+    }
+    const scoped = source.indexOf("const access = await getAccess(user.id, organizationId)");
+    const names = source.indexOf("const rows = await db");
+    assert.ok(scoped > 0 && names > scoped,
+      "Payroll approver org/unit access must resolve before reading name and email");
+    const runner = readFileSync(reviewed.runnerFile, "utf8");
+    for (const proofStep of [
+      'seedEmployer("ATTA"',
+      'seedEmployer("ATTB"',
+      'seedEmployer("VICTIM"',
+      'revokedAndDisabledAccountsExcluded: true',
+      'crossEmployerDenials: 4',
+      'allBusinessAndAuditRowsUnchanged: true',
+      'methodCredits: 0, independentAcceptance: false',
+    ]) {
+      assert.ok(runner.includes(proofStep),
+        "The synthetic payroll approver tenant negative proof is no longer pinned: " + proofStep);
+    }
+    return;
+  }
+
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST") {
     // Sole SHA-pinned exclusion: a provider-disabled 501 is access-control
@@ -743,6 +819,14 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // rather than silently promoting a successful synthetic run to COVERED.
   // This exact route, QA source, workflow and every required behavior are
   // pinned; any drift re-blocks this exception for renewed review.
+  if (isNewOrChanged && method.status === "COVERED" && [
+    "src/app/api/benefits/route.ts PUT",
+    "src/app/api/self/performance/action-items/route.ts PATCH",
+    "src/app/api/workforce-planning/demand-handoff/route.ts POST",
+  ].includes(key)) {
+    assert.equal(verifyPost1523Credits(manifest), 3);
+    return; // Exact identities and immutable PG16 source/workflow hashes.
+  }
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/self/performance/action-items/route.ts PATCH") {
     const reviewed = method.reviewedUncertified;
@@ -907,6 +991,66 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(workflow, /node --test tests\/tenant-account-email-verify-contract\.test\.mjs/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-account-email-verify-http\.mjs/);
     assert.match(contract, /requireDisposableIdentityAccount\(good\)/);
+    return;
+  }
+
+  // Source-only worker/employer grant hardening for a private receipt path.
+  // It is not a real two-attacker/victim PG16 proof and must not promote either
+  // method. The exact route, helper and both contract tests are pinned below;
+  // any drift requires independent source + security review again.
+  if (isNewOrChanged && method.status === "GAP" &&
+      (key === "src/app/api/expenses/receipts/route.ts GET" ||
+       key === "src/app/api/expenses/receipts/route.ts POST")) {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/expenses/receipts/route.ts";
+    const routeBlob = "42a0e56307ba0509c549d6c271a521f19231bb25";
+    assert.equal(currentBlob, routeBlob,
+      "Private Spend receipt route changed: renewed tenant security review required");
+    assert.deepEqual(review, {
+      kind: "private-spend-receipt-worker-grant-source-only-zero-credit",
+      oldRouteBlobSha: "bc7b1a09d2c8d0e55859dc212627f6b5bca5cf50",
+      routeBlobSha: routeBlob,
+      helperFile: "src/lib/spend-receipt-tenant.ts",
+      helperBlobSha: "059881e91b629860a1aaa722a133f53e057edda7",
+      unitTestFile: "tests/spend-receipt-tenant-grant.test.ts",
+      unitTestBlobSha: "8cd86095ab4404eed572668e1823825c93bab716",
+      contractTestFile: "tests/tenant-spend-receipt-grant-source.test.mjs",
+      contractTestBlobSha: "67a10174328f9ddd9e828361ee0996764d458c41",
+      coverageCredits: 0,
+      realHttpPg16Proven: false,
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    }, "Only the pinned receipt grant source-only change is reviewed as uncredited");
+    for (const [file, blob] of [
+      [review.helperFile, review.helperBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.contractTestFile, review.contractTestBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), blob,
+        "Private receipt review dependency changed without fresh security review: " + file);
+    }
+    assert.equal(method.testedBy, null, "Private receipt GAP may not borrow a source test credit");
+    assert.match(method.reason, /Still GAP.*real HTTP.*independent security review/i);
+    const source = readFileSync(routePath, "utf8");
+    assert.match(source, /return await activeReceiptGrant\(user, claim\) \? null : notFound\(\)/);
+    assert.match(source, /eq\(employees\.organizationId, claim\.organizationId\)/);
+    assert.match(source, /eq\(userOrganizations\.active, true\)/);
+    assert.match(source, /eq\(userOrganizations\.organizationId, claim\.organizationId\)/);
+    assert.match(source, /for\("share"\)\.limit\(1\)/);
+    assert.match(source, /if \(!liveClaim \|\| !await lockedReceiptGrant\(tx, user, claim\)\)/);
+    assert.match(source, /if \(!await lockedReceiptGrant\(tx, user, freshCore\)\)/);
+    assert.match(source, /freshCore\.employeeId !== claim\.employeeId/);
+    const afterPrivateRead = source.indexOf("const readDenied = await authorize(user, core);");
+    const bytesReturn = source.indexOf("return new Response(new Uint8Array(bytes)");
+    const stagingGuard = source.indexOf("if (!liveClaim || !await lockedReceiptGrant(tx, user, claim))");
+    const intent = source.indexOf("const [intent] = await tx.insert(documents)");
+    const finalGuard = source.indexOf("if (!await lockedReceiptGrant(tx, user, freshCore))");
+    const finalAttachment = source.indexOf("tx.update(expenseClaimEvidence)");
+    assert.ok(afterPrivateRead > 0 && afterPrivateRead < bytesReturn,
+      "Private receipt read must recheck current grant before returning bytes");
+    assert.ok(stagingGuard > 0 && stagingGuard < intent &&
+      finalGuard > intent && finalGuard < finalAttachment,
+      "Private receipt SQL writes must recheck locked worker grants on both sides of storage IO");
     return;
   }
 
@@ -1090,6 +1234,179 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       assert.equal(reviewedSibling?.status, "COVERED");
       assert.ok(reviewedSibling?.testedBy?.file === "scripts/qa/tenant-benefit-enrollments-http.mjs");
     }
+    return;
+  }
+
+  // Unit-scoped invitation hardening fixes a source-identified privilege gap.
+  // GET keeps existing employer-level PG16 proof. POST has NOT yet earned
+  // a successful real-HTTP persisted own/victim proof or reviewer acceptance.
+  // Strict source pins prevent this waiver from silently covering new behavior.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/invitations/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "59bdded07a33d7c4dbc394a84135ce99f9f04042",
+      "Invitation route changed: renew unit-scope security review");
+    assert.deepEqual(reviewed, {
+      kind: "unit-scoped-invitation-authorization-hardening-unreviewed",
+      originalRouteBlobSha: "ed6e94cef183e77d0c727aef54f898eef30eb3cc",
+      routeBlobSha: currentBlob,
+      helperFile: "src/lib/invitation-tenant-scope.ts",
+      helperBlobSha: "9d3ae70a3aef79e0f3c7ee40a4a6083786a32d68",
+      testFile: "tests/invitation-tenant-scope.test.ts",
+      testBlobSha: "c8ac8f624e970acd228334de436747603122e737",
+      coverageCredits: 0,
+      realHttpPostAcceptance: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+    });
+    assert.equal(gitBlobSha(readFileSync(reviewed.helperFile)), reviewed.helperBlobSha);
+    assert.equal(gitBlobSha(readFileSync(reviewed.testFile)), reviewed.testBlobSha);
+    assert.equal(method.testedBy, null, "Unreviewed invitation POST must remain GAP");
+    const route = readFileSync("src/app/api/invitations/route.ts", "utf8");
+    const get = route.slice(route.indexOf("export async function GET("),
+      route.indexOf("export async function POST("));
+    const post = route.slice(route.indexOf("export async function POST("));
+    assert.match(get, /invitationVisibleUnit\(access\)/);
+    assert.match(get, /eq\(invitations\.orgUnitId, visibleUnit\)/);
+    assert.match(get, /eq\(userOrganizations\.orgUnitId, visibleUnit\)/);
+    assert.match(post, /canCreateScopedInvitation\(access, role, orgUnitId\)/);
+    assert.ok(post.indexOf("canCreateScopedInvitation(") < post.indexOf("createInvitation({"));
+    assert.ok(post.indexOf("canCreateScopedInvitation(") < post.indexOf("queueMessage({"));
+    const getMethod = manifest.allApiRouteFiles["src/app/api/invitations/route.ts"].methods
+      .find(item => item.name === "GET");
+    assert.equal(getMethod?.status, "COVERED",
+      "Keep prior employer-level GET proof separately credited");
+    assert.equal(getMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    return;
+  }
+
+  // Salary preview's old company-wide People grant did not imply a
+  // legal-employer grant. Hold POST as GAP despite source hardening and
+  // candidate fictional PG16 HTTP checks; no independent sign-off yet.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/hcm/salary-corrections/preview/route.ts POST") {
+    const reviewed = method.reviewedUncertified;
+    assert.equal(currentBlob, "8abc2b8059a403b81bf24c78108445651be4690a",
+      "Salary-preview route changed again: repeat entity-grant review");
+    assert.deepEqual(reviewed, {
+      kind: "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
+      oldRouteBlobSha: "17539b569af050bb1568d17e783661ae19302561",
+      routeBlobSha: currentBlob,
+      testFile: "tests/hcm-salary-correction-entity-tenant.test.ts",
+      testBlobSha: "243d84d7eaab43d950b70fc9d89c56f23cc21dbe",
+      proxyFile: "src/proxy.ts",
+      proxyBlobSha: "8ed6591c4846cad3251bc1ee2444ceb3461b170a",
+      hcmHoldFile: "src/lib/multi-entity-hcm-hold.ts",
+      hcmHoldBlobSha: "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
+      contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
+      contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+      proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
+      proofBlobSha: "243827a6b4481a25fc5a95259843862da117f5f0",
+      workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
+      workflowBlobSha: "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
+      coverageCredits: 0,
+      testedBy: null,
+      independentSecurityReview: "PENDING",
+      exactHeadHttpResult: "PENDING",
+    });
+    for (const [file, sha] of [
+      [reviewed.testFile, reviewed.testBlobSha],
+      [reviewed.proxyFile, reviewed.proxyBlobSha],
+      [reviewed.hcmHoldFile, reviewed.hcmHoldBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "New salary preview proof/source change requires renewed security review");
+    assert.equal(method.testedBy, null, "Salary preview POST remains GAP");
+    // The global inventory test recomputes live totals from every current route.
+    // A focused uncredited GAP must not pin a historic repository-wide count.
+    assert.equal(reviewed.coverageCredits, 0);
+    const route = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
+    const permission = route.indexOf("assertOrganizationRole(");
+    const selected = route.indexOf("const entityScope = await resolveMultiEntityContext({");
+    const worker = route.indexOf("const [employee] = await db.select({");
+    const resource = route.indexOf("const employeeEntityDenied = assertEntityResource(");
+    const profile = route.indexOf("const [profile] = await db.select({");
+    assert.ok(permission >= 0 && permission < selected && selected < worker &&
+      worker < resource && resource < profile,
+      "Entity grant/actual employee entity required before payroll source reads");
+    assert.match(route, /requested: body\.legalEntityId/);
+    assert.match(route, /if \(!entityScope\.ok\) return entityScope\.response/);
+    assert.match(route, /assertEntityResource\(entityScope\.context, legalEntityId\)/);
+    assert.match(route, /assertEntityResource\(entityScope\.context, employee\.legalEntityId\)/);
+    assert.doesNotMatch(route, /\bdb\.(?:insert|update|delete|transaction)\(/);
+    return;
+  }
+
+  // #1597: uncredited WFM baseline POST fix. A guessed foreign scenario ID
+  // must never disclose approval, plan linkage or scope before live membership.
+  // The read-only GET handler remains byte-identical to the credited version;
+  // changed POST needs fresh real-HTTP own/victim proof and human review.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/workforce-planning/baselines/route.ts POST") {
+    const review = method.reviewedUncertified;
+    const routePath = "src/app/api/workforce-planning/baselines/route.ts";
+    const oldSha = "cf6173d80aa2211cfcf5c0f00c89bfc95610ceba";
+    const newSha = "21a1b50f86b3882fc11910e45bcd81e403662012";
+    assert.equal(currentBlob, newSha,
+      "WFM scenario publishing route changed: independent tenant security re-review required");
+    assert.deepEqual(review, {
+      kind: "wfm-baselines-foreign-scenario-404-source-only-zero-credit",
+      oldRouteBlobSha: oldSha,
+      routeBlobSha: newSha,
+      unchangedGetPrefixBlobSha: "4ea38d661f5ec8419b5f2e0a1f0fad97d213d9b5",
+      contractFile: "tests/workforce-plan-baseline.test.ts",
+      contractBlobSha: "ef8ff7a8430e02456959e80df46cee2bf0a8f804",
+      coverageCredits: 0,
+      exactHeadPostHttpProof: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "WFM baseline POST has no new credit, production approval or accepted HTTP proof");
+    assert.equal(method.testedBy, null, "Source-only POST fix must remain GAP");
+    assert.match(method.reason, /Still GAP:.*HTTP\/PG16.*Independent tenant-security review/);
+    const route = readFileSync(routePath, "utf8");
+    const getAt = route.indexOf("export async function GET(request: Request) {");
+    const postAt = route.indexOf("export async function POST(request: Request) {");
+    assert.ok(getAt >= 0 && postAt > getAt, "GET and POST handlers must remain distinct");
+    assert.equal(gitBlobSha(Buffer.from(route.slice(0, postAt))), review.unchangedGetPrefixBlobSha,
+      "Previously credited GET imports, helpers and handler must remain exactly unchanged");
+    const getMethod = manifest.allApiRouteFiles[routePath].methods
+      .find((entry) => entry.name === "GET");
+    assert.equal(getMethod?.status, "COVERED", "Original GET proof not downgraded or duplicated");
+    assert.equal(getMethod?.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+    assert.equal(gitBlobSha(readFileSync(review.contractFile)), review.contractBlobSha,
+      "The source-order contract changed: repeat the zero-credit authorization review");
+    const post = route.slice(postAt);
+    const gates = [
+      "if (!Number.isSafeInteger(scenarioId) || scenarioId <= 0)",
+      "const [scenario] = await db.select().from(workforcePlanningScenarios)",
+      'if (!scenario) return Response.json({ error: "Staffing scenario not found." }, { status: 404 });',
+      "const access = await getAccess(user.id, scenario.organizationId);",
+      "if (!access || access.organizationId !== scenario.organizationId)",
+      "const denied = await assertOrganizationRole(",
+      "if (denied) return denied;",
+      "if (!access.companyWide)",
+      'if (scenario.status !== "approved")',
+      "if (!scenario.planId)",
+      "if (scenario.scopeOrgUnitId != null || scenario.worksiteId != null)",
+      'const advancedDenied = await denyOptInEnterpriseAdvancedPlan(scenario.organizationId, "planning");',
+      "const [[plan], positionRows, assignmentRows] = await Promise.all([",
+    ];
+    let previous = -1;
+    for (const gate of gates) {
+      const at = post.indexOf(gate);
+      assert.ok(at > previous, "A required authorization/source gate is missing or out of order: " + gate);
+      previous = at;
+    }
+    const generic404 = 'Response.json({ error: "Staffing scenario not found." }, { status: 404 })';
+    assert.equal(post.split(generic404).length - 1, 2,
+      "Unknown and foreign scenario IDs must share identical generic 404 response bodies");
+    const statusAt = post.indexOf('if (scenario.status !== "approved")');
+    assert.doesNotMatch(post.slice(0, statusAt),
+      /scenario\.(?:status|planId|scopeOrgUnitId|worksiteId|name|snapshot)\b/,
+      "No business-state disclosure or plan access before membership and People admin approval");
+    assert.match(post, /eq\(workforcePlans\.organizationId, scenario\.organizationId\)/);
+    assert.match(post, /eq\(workforcePlanBaselines\.organizationId, scenario\.organizationId\)/);
     return;
   }
 
@@ -1655,6 +1972,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
+        assert.equal(verifyPost1523Credits(manifest), 3);
+        continue; // Exactly three independently source-pinned methods.
+      }
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
         assert.equal(verifyPromotionCredits(manifest), 16);
         continue;
@@ -3184,4 +3505,71 @@ test("real-HTTP login audit for the public credential exchange cannot target a f
   assert.ok(audit > 0 && cookie > audit,
     "Sign-in audit must commit before browser session delivery");
   assert.match(route, /await revokeSession\(session\.token\)\.catch\(\(\) => \{\}\)/);
+});
+
+test("roster-batches POST credit requires independent HTTP stage, replay, approve AND reject", () => {
+  const routePath = "src/app/api/workforce/roster-batches/route.ts";
+  const api = manifest.allApiRouteFiles[routePath];
+  const post = api.methods.find(method => method.name === "POST");
+  const get = api.methods.find(method => method.name === "GET");
+  assert.equal(get.status, "COVERED", "prior GET proof and receipt are preserved");
+  const actionFile = "scripts/qa/tenant-batches/roster-batches-actions-http.mjs";
+  const legacyFile = "scripts/qa/tenant-batches/roster-batches-http.mjs";
+  const script = readFileSync(actionFile, "utf8");
+  const legacy = readFileSync(legacyFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-roster-batches-http.yml", "utf8");
+  // A directly inserted pending batch cannot pass for successful stage or
+  // approve. All three real HTTP paths are independent of old reject receipts.
+  for (const evidence of [
+    'const response = check(await post(e, stageBody(e)), 201',
+    'const replay = check(await post(e, stageBody(e)), 200',
+    'assert.equal(replay.json?.replayed, true)',
+    'assert.equal(row.requestSha256, requestDigest',
+    'assert.equal(receipt.action, "WFM bulk roster batch staged")',
+    'const result = check(await post(e, decideBody("approve", e.orgId,',
+    'assert.equal(row.decidedByUserId, e.checkerId)',
+    'assert.equal(override.employeeId, e.workerId)',
+    'assert.equal(receipt.action, "WFM governed bulk roster published")',
+    'assert.deepEqual(await snapshot(e.orgId), expected.get(e.orgId)',
+    'await deny(actor, stageBody(actor, {',
+    'victim.stageBatchId, actor.decisionNote), 404',
+    'victim.stageBatchId, actor.decisionNote), 403',
+    'independentReview: "PENDING", newCredits: 0',
+  ]) assert.ok(script.includes(evidence), "new roster POST receipt lacks " + evidence);
+  assert.match(legacy, /const victimReject = await reject\(victim, victim\.orgId, victim\.batchId\)/);
+  assert.match(legacy, /assertRejectedRosterMutation\(oldVictim,/);
+  const oldProve = workflow.indexOf("roster-batches-http.mjs prove");
+  const newProve = workflow.indexOf("roster-batches-actions-http.mjs prove");
+  assert.ok(oldProve >= 0 && newProve > oldProve,
+    "New tests must not replace signed rejection receipts");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /node --test tests\/tenant-\*\.test\.mjs/);
+  assert.match(workflow, /npm run lint/);
+  if (post.status === "GAP") {
+    assert.equal(post.testedBy, null, "untested stage/approve cannot be credited");
+    return;
+  }
+  assert.equal(post.status, "COVERED");
+  const proof = post.testedBy;
+  assert.equal(proof?.file, actionFile);
+  assert.equal(proof?.independentSecurityReview, "PENDING");
+  assert.equal(proof?.postgresMajor, 16);
+  assert.equal(proof?.productionTested, false);
+  assert.match(proof?.runLabel ?? "", /GitHub Actions .*PG16/);
+  assert.ok(Number.isSafeInteger(proof?.workflowRunId) && proof.workflowRunId > 0);
+  assert.equal(proof?.proofBlobSha, gitBlobSha(Buffer.from(script)));
+  assert.equal(proof?.legacyProofBlobSha, gitBlobSha(Buffer.from(legacy)));
+  const anchors = {
+    ownPositiveLine: /const response = check\(await post\(e, stageBody\(e\)\), 201/,
+    replayLine: /const replay = check\(await post\(e, stageBody\(e\)\), 200/,
+    approveLine: /const result = check\(await post\(e, decideBody\("approve", e\.orgId,/,
+    foreignDenialLine: /organizationId: victim\.orgId, employeeIds: \[victim\.workerId\]/,
+    forgedSelectorLine: /victim\.stageBatchId, actor\.decisionNote\), 404/,
+    unchangedDbLine: /assert\.deepEqual\(await snapshot\(e\.orgId\), expected\.get\(e\.orgId\)/,
+  };
+  for (const [field, re] of Object.entries(anchors)) {
+    assert.match(evidenceLine(actionFile, proof[field], field), re);
+  }
+  assert.match(evidenceLine(legacyFile, proof.legacyRejectLine, "positive reject"),
+    /const victimReject = await reject\(victim, victim\.orgId, victim\.batchId\)/);
 });
