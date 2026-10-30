@@ -1,0 +1,112 @@
+name: EDG-01 careers publishing tenant isolation (fictional PG16 HTTP)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-edg01-careers-publication-http.yml'
+      - 'scripts/qa/tenant-edg01-careers-publication-*.mjs'
+      - 'tests/tenant-edg01-careers-publication-*.test.mjs'
+      - 'docs/qa/tenant-edg01-careers-publication-http.md'
+      - 'src/app/api/careers/admin/**'
+      - 'src/lib/careers-privacy-gates.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/db/**'
+      - 'docs/engineering/migration-proposals/careers-published.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edg01-careers-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  careers-publication-http:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MULTI_ENTITY_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      RECRUITMENT_JOURNEY_UI_ENABLED: 'true'
+      PUBLIC_INTAKE_PROOF_ENABLED: 'true'
+      APPLICANT_PRIVACY_CONTROLS_ENABLED: 'true'
+      CAREERS_PRIVACY_NOTICE_VERSION: '2026.10-ci'
+      CAREERS_PRIVACY_NOTICE_URL: 'https://payroll.example.test/privacy/recruitment'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Export strictly fictional localhost-only environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Reject unsafe targets, assert the method remains GAP, and check source syntax
+        run: |
+          node --check scripts/qa/tenant-edg01-careers-publication-contract.mjs
+          node --check scripts/qa/tenant-edg01-careers-publication-http.mjs
+          node --check tests/tenant-edg01-careers-publication-contract.test.mjs
+          node --test tests/tenant-edg01-careers-publication-contract.test.mjs
+      - name: One-time synthetic encryption keys only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Apply fresh disposable PostgreSQL 16 Drizzle schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline to the disposable schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Rehearse the unnumbered reviewed careers column ONLY in disposable PostgreSQL
+        run: node --import tsx scripts/qa/tenant-edg01-careers-publication-http.mjs --migrate
+      - name: Build production-mode Next on disposable CI flags
+        run: npm run build
+      - name: Start real HTTP app bound only to localhost
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/edg01-careers-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/edg01-careers-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/edg01-careers-next.log
+          exit 1
+      - name: Verify two attackers, higher-ID victim, publish and unpublish, immutable payroll
+        run: node --import tsx scripts/qa/tenant-edg01-careers-publication-http.mjs --prove
+      - name: Synthetic server diagnostics on failure
+        if: failure()
+        run: cat /tmp/edg01-careers-next.log || true

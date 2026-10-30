@@ -1,0 +1,111 @@
+name: STA-01 prior-employer tax evidence tenant proof (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-sta01-prior-evidence-http.yml'
+      - 'scripts/qa/tenant-sta01-prior-evidence-*.mjs'
+      - 'tests/tenant-sta01-prior-evidence-*.test.mjs'
+      - 'docs/qa/tenant-sta01-prior-evidence-http.md'
+      - 'src/app/api/year-end/prior-evidence/**'
+      - 'src/lib/year-end-prior-evidence*'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/government-id-crypto.ts'
+      - 'src/lib/multi-entity-server.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-sta01-prior-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prior-evidence-http:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: 'true'
+      MULTI_ENTITY_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export reviewed fictional localhost-only environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Static syntax, refusal and no-credit contracts
+        run: |
+          node --check scripts/qa/tenant-sta01-prior-evidence-contract.mjs
+          node --check scripts/qa/tenant-sta01-prior-evidence-http.mjs
+          node --check tests/tenant-sta01-prior-evidence-contract.test.mjs
+          node --test tests/tenant-sta01-prior-evidence-contract.test.mjs
+      - name: One-time synthetic encryption and webhook material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Push Drizzle to fresh disposable PostgreSQL
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next with synthetic CI flags
+        run: npm run build
+      - name: Start production-mode localhost-only server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/sta01-prior-evidence-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/sta01-prior-evidence-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/sta01-prior-evidence-next.log
+          exit 1
+      - name: Prove real GET, POST save and POST approve for two attackers and victim
+        run: node --import tsx scripts/qa/tenant-sta01-prior-evidence-http.mjs
+      - name: Disposable Next server diagnostics on failure
+        if: failure()
+        run: cat /tmp/sta01-prior-evidence-next.log || true
