@@ -1,0 +1,555 @@
+{
+  "schema": "performance-core-local-pg16-receipt-v1",
+  "postgresMajor": 16,
+  "ci": "NOT_RUN",
+  "productionTested": false,
+  "runLabel": "Executed local disposable PG16.14 localhost3013: 54 owned actions / 54 victim denials / 56 forged denials / 27 discrimination; outputs/proof-final.log",
+  "mutation": {
+    "rejected": true,
+    "message": "proof accepts another employer's data"
+  },
+  "sources": [
+    {
+      "file": "scripts/qa/tenant-performance-core-http.mjs",
+      "sha256": "440eb30e01cf5d5429edde4cf9b9b85ce9a7b00183dd6025e405e4412ae1a7a4"
+    },
+    {
+      "file": "scripts/qa/tenant-performance-core-contract.mjs",
+      "sha256": "919f0edacb5a9745543131ad94b49d7291592970a78261d07d65fd2a73fff3a2"
+    },
+    {
+      "file": "scripts/qa/tenant-performance-core-credit.mjs",
+      "sha256": "f669659711494d3c7b4c97fe1f8d2d76df45ecee1d15abb180ccb673e70e9712"
+    },
+    {
+      "file": ".github/workflows/tenant-table-proof.yml",
+      "sha256": "37907011e4ecccb17b1c2c6d11c555e2b0442060c2483dc774cdde57d16c8216"
+    },
+    {
+      "file": "scripts/qa/tenant-table-http.mjs",
+      "sha256": "27f005f33791cb8f80f2d1a4f0cf82d625d6a0c490ef0cc4baa59b8dce3a291b"
+    },
+    {
+      "file": "scripts/qa/tenant-table-invariants.mjs",
+      "sha256": "bd1f5471386ba4a443fedb7b2cf4445eaef343f05ba50a204baedd20e9226d1e"
+    },
+    {
+      "file": "src/app/api/performance/route.ts",
+      "sha256": "c9eca50fc9253109abf437c7102cf5e964ca6de675b505ddc360b686176bb67d"
+    },
+    {
+      "file": "src/app/api/performance/calibration/route.ts",
+      "sha256": "9f8e8fd3887f495a5967320c72de6669f574ba66899e94fc3e53f3dfbe534a61"
+    },
+    {
+      "file": "src/app/api/performance/follow-through-governance/route.ts",
+      "sha256": "18e2d43be4b07cefadb120461fd2829417e8cd45df97ad6f42f01b3ab9885781"
+    }
+  ],
+  "run": {
+    "kind": "performance-core-http-v1",
+    "methods": [
+      "POST performance",
+      "PATCH performance",
+      "PATCH performance/calibration",
+      "PATCH performance/follow-through-governance"
+    ],
+    "serverVersionNum": 160014,
+    "actions": [
+      {
+        "key": "POST performance",
+        "label": "cycle",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "template",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "cycle_template",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "goal-company",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "goal-team",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "goal-employee",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "review",
+        "attacker": "ATTA",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance",
+        "label": "goal",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance",
+        "label": "review_item",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance",
+        "label": "review-in-progress",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance",
+        "label": "review-completed",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance",
+        "label": "cycle",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "policy-create",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "policy-update",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "flag-accepted",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "flag-resolved",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "score",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "finalize",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "action_reminder_policy-create",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "action_reminder_policy-update",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "evidence_policy-create",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "evidence_policy-update",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "seal_cycle",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "verify_cycle",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "legal_hold-on",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "legal_hold-off",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": false
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "amend_seal",
+        "attacker": "ATTA",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": false
+      },
+      {
+        "key": "POST performance",
+        "label": "cycle",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "POST performance",
+        "label": "template",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "POST performance",
+        "label": "cycle_template",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "POST performance",
+        "label": "goal-company",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "POST performance",
+        "label": "goal-team",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "POST performance",
+        "label": "goal-employee",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "POST performance",
+        "label": "review",
+        "attacker": "ATTB",
+        "own": 201,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance",
+        "label": "goal",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance",
+        "label": "review_item",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance",
+        "label": "review-in-progress",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance",
+        "label": "review-completed",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance",
+        "label": "cycle",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "policy-create",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "policy-update",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "flag-accepted",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "flag-resolved",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "score",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/calibration",
+        "label": "finalize",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "action_reminder_policy-create",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "action_reminder_policy-update",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "evidence_policy-create",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "evidence_policy-update",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 0,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "seal_cycle",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "verify_cycle",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "legal_hold-on",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "legal_hold-off",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 1,
+        "discrimination": true
+      },
+      {
+        "key": "PATCH performance/follow-through-governance",
+        "label": "amend_seal",
+        "attacker": "ATTB",
+        "own": 200,
+        "foreign": 403,
+        "forged": 2,
+        "discrimination": true
+      }
+    ],
+    "own": 54,
+    "denied": 54,
+    "forged": 56,
+    "discriminating": 27,
+    "victimDatabaseUnchanged": true,
+    "coverageCredits": 0,
+    "productionTested": false,
+    "certified": false
+  }
+}

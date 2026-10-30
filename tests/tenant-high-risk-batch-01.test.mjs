@@ -1,4 +1,5 @@
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { verifyCredits as verifyPerformanceCoreCredits } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -502,6 +503,8 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
       "scripts/qa/tenant-dl02-rows/web-bundy.mjs"].includes(method.testedBy?.file)).length;
   assert.equal(dl02ImportCredits, 3, "exactly demand-import POST, self/photo POST and web-bundy evidence GET are promoted");
   const selfDevelopmentCredits = verifySelfDevelopmentCredits(manifest);
+  const performanceCoreCredits = verifyPerformanceCoreCredits(manifest);
+  assert.equal(performanceCoreCredits, 4, "four complete-action Performance proofs remain separate from previous credits");
   assert.equal(selfDevelopmentCredits, 3, "new credits require their exact executed receipt and source anchors");
   const post1523Credits = verifyPost1523Credits(manifest);
   assert.equal(post1523Credits, 3, "only the three post-#1523 proofs can change this historical baseline");
@@ -536,11 +539,11 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
