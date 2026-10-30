@@ -9,7 +9,13 @@ import { readSourceBaselineCatalog } from "../scripts/qa/check-source-baseline-p
 import { assertDisposablePG18Environment } from "../scripts/qa/fresh-pg18-development-schema.mjs";
 
 const URL = "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
-const disposableCI = process.env.CI === "true" && process.env.GITHUB_ACTIONS === "true";
+// The generic CI and post-cutover suites also set CI/GITHUB_ACTIONS, but do
+// not authorize this separate disposable PG18 source-parity database. Skip
+// fixtures there; when explicitly selected, withFixture still runs the full
+// fail-closed target, secret, flag and server-identity assertions.
+const disposableCI = process.env.CI === "true" &&
+  process.env.GITHUB_ACTIONS === "true" &&
+  process.env.FRESH_PG18_DEV_REHEARSAL === "disposable-ci-only";
 
 /**
  * Real PG18 catalog fixtures, NOT mocked query responses.
