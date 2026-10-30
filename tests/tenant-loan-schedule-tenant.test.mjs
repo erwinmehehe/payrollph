@@ -155,12 +155,12 @@ test("actual authenticated loan previews must be non-cacheable", () => {
   }
 });
 
-test("Loan family credits complete schedule-preview types but keeps action-incomplete PATCH at GAP", () => {
+test("Loan family credits schedule-preview types and the all-action PATCH, each by its own receipt", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const values = Object.values(manifest.allApiRouteFiles).flatMap(x =>
     x.methods.map(m => ({ key: m.name + " " + x.route, status: m.status, testedBy: m.testedBy })));
-  assert.equal(values.find(x => x.key === "PATCH loans")?.status, "GAP");
-  assert.equal(values.find(x => x.key === "PATCH loans")?.testedBy, null);
+  assert.equal(values.find(x => x.key === "PATCH loans")?.status, "COVERED");
+  assert.equal(values.find(x => x.key === "PATCH loans")?.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/loans.mjs");
   const preview = values.find(x => x.key === "POST loans/schedule-preview");
   assert.equal(preview?.status, "COVERED");
   assert.equal(preview?.testedBy?.file, "scripts/qa/tenant-loan-schedule-tenant-http.mjs");

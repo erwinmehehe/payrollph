@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRows } from "../scripts/qa/tenant-table-rows/write/loans.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 import { verifyRecoveryReceipt } from "../scripts/qa/tenant-read-gap-recovery.mjs";
+import { TENANT_TABLE_PROFILES } from "../scripts/qa/tenant-table-env.mjs";
 
 const rows = createRows({ assert });
 const c = { orgId: 11, workerId: 21, owner: { id: 31, name: "Fictional owner" }, marker: "Fictional-own",
@@ -104,7 +105,10 @@ test("pause seed binds real returned loan/payment IDs to the employer/worker wit
   const seed = await row.seed({ org: { id: 11 }, worker: { id: 21 }, owner: c.owner, marker: c.marker });
   assert.equal(seed.id, 41); assert.equal(seed.organizationId, 11); assert.equal(seed.employeeId, 21);
   assert.equal(seed.status, "active"); assert.equal(seed.remainingBalance, "1000.00"); assert.equal(seed.totalPaid, "500.00");
-  assert.equal(inserts.length, 4);
+  // The row's own four inserts, then one fictional loan per other action (six loans) and two payment receipts.
+  assert.equal(inserts.length, 12);
+  assert.deepEqual(Object.keys(seed.extras).sort(), ["approve", "close", "payment", "reject", "resume", "self"]);
+  assert.ok(inserts.slice(4).every(item => [employeeLoans, loanPayments].includes(item.table)), "extras are loans and receipts only");
   assert.equal(inserts[0].table, users); assert.equal(inserts[0].value.role, "checker");
   assert.equal(inserts[0].value.localPasswordEnabled, false,
     "historical fictional checker must not be an MFA-unready local-password member");
@@ -121,16 +125,29 @@ test("pause seed binds real returned loan/payment IDs to the employer/worker wit
   assert.equal(row.ownBody(c).action, "pause");
 });
 
-test("loan creation is receipt-bound, loan actions stay GAP, and activation flags remain unchanged", () => {
+test("loan creation and all PATCH actions are receipt-bound, and the activation flag exists only in the disposable flagged profile", () => {
   const receipt = verifyRecoveryReceipt();
   const catalog = tenantFamilyCatalog("write"), manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const row of rows) {
     assert.equal(catalog.filter(item => item.key === row.key).length, 1);
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
     const proof = record.methods.find(item => item.name === method);
-    assert.equal(proof.status, row.key === "POST loans" ? "COVERED" : "GAP");
-    if (row.key === "POST loans") assert.ok(proof.testedBy.evidence.includes(receipt.runLabel));
-    assert.equal(row.flags, undefined);
+    assert.equal(proof.status, "COVERED");
+    if (row.key === "POST loans") { assert.ok(proof.testedBy.evidence.includes(receipt.runLabel)); assert.equal(row.flags, undefined); }
+    else {
+      // PATCH loans proves approve, reject, resume, record_payment and close only with the deduction-activation gate on,
+      // which is a disposable fictional-employer profile and never the default shape.
+      assert.deepEqual(row.flags, ["PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED"]);
+      assert.equal(row.profile, "flagged-reads");
+      assert.equal(proof.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/loans.mjs");
+    }
   }
-  assert.doesNotMatch(readFileSync("scripts/qa/tenant-table-rows/write/loans.mjs", "utf8"), /process\.env|action:\s*["'](?:approve|resume|record_payment)["']/);
+  assert.equal(TENANT_TABLE_PROFILES.default.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED, undefined, "the default shape never enables loan deductions");
+  assert.equal(TENANT_TABLE_PROFILES["multi-entity"].PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED, undefined);
+  assert.equal(TENANT_TABLE_PROFILES["allowlisted-reads"].PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED, undefined);
+  assert.equal(TENANT_TABLE_PROFILES["flagged-reads"].PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED, "true");
+  assert.doesNotMatch(readFileSync("scripts/qa/tenant-table-rows/write/loans.mjs", "utf8"), /process\.env/, "rows never read or set the environment");
+  const helper = readFileSync("scripts/qa/tenant-table-rows/helpers/loans-actions.mjs", "utf8");
+  for (const action of ["approve", "reject", "resume", "record_payment", "close"]) assert.ok(helper.includes('"' + action + '"'), action + " must be exercised");
+  assert.doesNotMatch(helper, /process\.env/, "the helper never touches the environment either");
 });
