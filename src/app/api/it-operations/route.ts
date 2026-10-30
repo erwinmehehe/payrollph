@@ -124,19 +124,28 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
-  if (!valid(id)) return Response.json({ error: "Valid id required." }, { status: 422 });
+  const org = Number(body.organizationId);
+  if (!valid(id) || !valid(org)) {
+    return Response.json({ error: "Valid id and organizationId required." }, { status: 422 });
+  }
+  // Authorize the caller-selected tenant BEFORE querying any resource ID.
+  // Otherwise an existing foreign ID returns 403 while a nonexistent ID returns
+  // 404, leaking the existence of another employer's grant or device.
+  const auth = await context(user.id, org);
+  if (auth.denied) return auth.denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id, action: "it-custody-access-decision",
-    resourceId: String(id), limit: 20, windowMs: 15 * 60_000,
+    resourceId: org + ":" + id, limit: 20, windowMs: 15 * 60_000,
   });
   if (rateDenied) return rateDenied;
   if (body.action === "access") {
-    const [grant] = await db.select().from(itAccessGrants).where(eq(itAccessGrants.id, id)).limit(1);
+    const [grant] = await db.select().from(itAccessGrants).where(and(
+      eq(itAccessGrants.id, id),
+      eq(itAccessGrants.organizationId, org),
+    )).limit(1);
     if (!grant) return Response.json({ error: "Access record not found." }, { status: 404 });
-    const auth = await context(user.id, grant.organizationId);
-    if (auth.denied) return auth.denied;
     const employeeCheck = await checkEmployee(grant.organizationId, grant.employeeId, auth.access!);
     if (employeeCheck.error) return employeeCheck.error;
     const next = String(body.state);
@@ -162,10 +171,11 @@ export async function PATCH(request: Request) {
     return Response.json(updated);
   }
   if (body.action === "device") {
-    const [device] = await db.select().from(itManagedDevices).where(eq(itManagedDevices.id, id)).limit(1);
+    const [device] = await db.select().from(itManagedDevices).where(and(
+      eq(itManagedDevices.id, id),
+      eq(itManagedDevices.organizationId, org),
+    )).limit(1);
     if (!device) return Response.json({ error: "Device not found." }, { status: 404 });
-    const auth = await context(user.id, device.organizationId);
-    if (auth.denied) return auth.denied;
     const access = auth.access!;
     if (device.employeeId != null) { const check = await checkEmployee(device.organizationId, device.employeeId, access); if (check.error) return check.error; }
     else if (!access.companyWide) return Response.json({ error: "Company inventory outside unit scope." }, { status: 403 });
