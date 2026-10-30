@@ -246,3 +246,68 @@ test("real disposable PG18: default and nullability changes are detected",
     assert.notEqual(report.driftedColumns[0].expected.default,
       report.driftedColumns[0].actual.default);
   }));
+
+
+test("real disposable PG18: extra migration-only columns, constraints and indexes stay informational",
+  { skip: !disposableCI }, async () => withFixture("unmodeled", async ({ client, child, source }) => {
+    // Extend only the throwaway catalog: never mutate the frozen Drizzle/source
+    // expectation. This is the existing presence ratchet's unmodeledColumns policy.
+    await client.query('ALTER TABLE public."' + child +
+      '" ADD COLUMN "SupplementOnly" boolean NOT NULL DEFAULT true');
+    await client.query('ALTER TABLE public."' + child +
+      '" ADD CONSTRAINT "' + child + '_supplement_check" CHECK ("SupplementOnly" OR "Id" > 0)');
+    await client.query('ALTER TABLE public."' + child +
+      '" ADD CONSTRAINT "' + child + '_supplement_unique" UNIQUE ("SupplementOnly", "Id")');
+    await client.query('CREATE INDEX "' + child + '_supplement_idx" ON public."' +
+      child + '" USING btree ("SupplementOnly")');
+
+    const after = await readSourceBaselineCatalog(client);
+    const presence = assertSourceBaselineParity(source, after.columns);
+    const structure = assertSourceBaselineConstraintParity(source, after.objects);
+    assert.deepEqual(presence.unmodeledColumns, [child + ".SupplementOnly"]);
+    assert.deepEqual(structure.unmodeledColumns, [{ table: child, name: "SupplementOnly" }]);
+    assert.deepEqual(structure.unmodeledChecks,
+      [{ table: child, name: child + "_supplement_check" }]);
+    assert.deepEqual(structure.unmodeledUniqueConstraints,
+      [{ table: child, name: child + "_supplement_unique" }]);
+    assert.deepEqual(structure.unmodeledIndexes,
+      [{ table: child, name: child + "_supplement_idx" }]);
+    // The UNIQUE backing index must not be counted twice as an independent index.
+    assert.equal(structure.unmodeledIndexes.length, 1);
+    for (const field of [
+      "missingTables", "missingColumns", "driftedColumns",
+      "missingPrimaryKeys", "driftedPrimaryKeys",
+      "missingForeignKeys", "driftedForeignKeys",
+      "missingUniqueConstraints", "driftedUniqueConstraints",
+      "missingChecks", "driftedChecks",
+      "missingIndexes", "driftedIndexes",
+    ]) {
+      assert.deepEqual(structure[field], [], field + ": source declarations remain intact");
+    }
+    assert.equal(structure.productionCertified, false);
+    assert.match(structure.scope, /disposable PG18/);
+    assert.match(structure.scope, /not applied migration, receipt, production, or Neon certification/);
+  }));
+
+test("real disposable PG18: unmodeled replacements cannot conceal missing modeled check or index",
+  { skip: !disposableCI }, async () => withFixture("extrasmask", async ({ client, child, source }) => {
+    await client.query('ALTER TABLE public."' + child +
+      '" DROP CONSTRAINT "' + child + '_status_check"');
+    await client.query('ALTER TABLE public."' + child +
+      '" ADD CONSTRAINT "' + child + '_replacement_check" CHECK ("Id" > 0)');
+    await client.query('DROP INDEX public."' + child + '_amount_idx"');
+    await client.query('CREATE INDEX "' + child + '_replacement_idx" ON public."' +
+      child + '" USING btree ("Amount")');
+
+    // The replacement objects intentionally have IDENTICAL definitions with
+    // DIFFERENT physical names. They cannot mask missing source-named objects.
+    const report = expectDrift(source, (await readSourceBaselineCatalog(client)).objects);
+    assert.deepEqual(report.missingChecks,
+      [{ table: child, name: child + "_status_check" }]);
+    assert.deepEqual(report.unmodeledChecks,
+      [{ table: child, name: child + "_replacement_check" }]);
+    assert.deepEqual(report.missingIndexes,
+      [{ table: child, name: child + "_amount_idx" }]);
+    assert.deepEqual(report.unmodeledIndexes,
+      [{ table: child, name: child + "_replacement_idx" }]);
+  }));
