@@ -2551,7 +2551,7 @@ test("all credited proof links point to the claimed route and every recertified 
           spec.pins[0], spec.pins[1], spec.pins[2], spec.pins[3], spec.pins[4], spec.pins[5]],
         proof.file + ": DL-02 evidence pins changed without review");
         assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
-        assert.equal(proof.victimUnchangedLine, 196);
+        assert.equal(proof.victimUnchangedAt, 196);
         assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
         assert.equal(proof.workflowRunId, 40859482784);
         assert.equal(proof.passedJob,
@@ -2600,7 +2600,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(method.name, "POST");
         assert.deepEqual([proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
           proof.forgedSelectorLine, proof.unchangedDbLine, proof.victimIdOrderingLine,
-          proof.victimUnchangedLine],
+          proof.victimUnchangedAt],
         [39, 39, 73, 84, 90, 64, 196], "demand-import evidence pins changed without review");
         assert.equal(proof.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
         assert.equal(proof.reviewedHead, "5a3c209dffb2198e8944d0781025c42b117024b0");
