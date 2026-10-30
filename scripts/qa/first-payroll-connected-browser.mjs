@@ -40,7 +40,7 @@ const results=[];
 try{for(const width of [1280,390]){
  const page=await browser.newPage({viewport:{width,height:900}}),errors=[],writes=[];
  let rejectRegisterOnce=true;
- const draftKeys=[];
+
  let releasePreview;const previewReady=new Promise(resolve=>{releasePreview=resolve;});
  let releaseEmployerB;const employerBReady=new Promise(resolve=>{releaseEmployerB=resolve;});
  page.on('pageerror',e=>{errors.push(e.message);console.error('COMPONENT_ERROR '+e.stack);});
@@ -60,15 +60,10 @@ try{for(const width of [1280,390]){
    }
    if(url.pathname==='/api/first-payroll/progress')return route.fulfill({json:{organizationId:1,progress:null}});
    if(url.pathname==='/api/invitations'&&req.method()==='POST')return route.fulfill({json:{invitation:{id:1}}});
-   if(url.pathname==='/api/payroll-runs'&&req.method()==='POST'){
-     draftKeys.push(req.headers()['idempotency-key']);
-     if(draftKeys.length===1)return route.abort('connectionfailed');
-     return route.fulfill({json:{run:{id:44,organizationId:1,status:'Draft'},idempotentReplay:true}});
-   }
    if(url.pathname==='/api/first-payroll/preview'){
      await previewReady;
      return route.fulfill({json:{organizationId:1,periodStart:url.searchParams.get('periodStart'),periodEnd:url.searchParams.get('periodEnd'),payDate:url.searchParams.get('payDate'),
-       dryRun:true,persisted:false,previewReady:true,blockers:[],warnings:[],rows:[{employeeId:1,employeeNo:'EMP-1',name:'Fictional employee',gross:15000,sss:500,philHealth:250,pagIbig:100,withholding:0,net:14150,blockers:[]}]}});
+       dryRun:true,persisted:false,previewReady:true,blockers:[],warnings:[],rows:[{employeeId:1,employeeNo:'EMP-1',name:'Fictional employee',gross:15000,sss:500,philHealth:250,pagIbig:100,withholding:0,statutoryDeductions:850,otherDeductions:0,net:14150,sources:[{page:'Payroll',recordId:42,label:'Fictional approved cutoff source'}],blockers:[]}]}});
    }
    if(url.pathname==='/api/payroll-runs'){
      const runId=Number(url.searchParams.get('runId'));
@@ -122,30 +117,23 @@ try{for(const width of [1280,390]){
      await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Preview first payroll (no writes)'&&!b.disabled));
      assert.equal(await page.getByText('Preview ready for reconciliation',{exact:true}).count(),0,'A delayed preview for the old cutoff cannot authorize the newly selected cutoff');
      assert.equal(await page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true}).count(),0);
-     await page.getByText('Pay-period details changed. Preview this period again before creating a draft.',{exact:true}).waitFor();
+     // The previous request returned for an old period. Its amounts and authorizations stay hidden.
+     assert.equal(await page.getByRole('region',{name:'First payroll per-employee preview',exact:true}).count(),0,
+       'A delayed old-cutoff response cannot show stale employee amounts');
      await previewButton.click();await page.getByText('Preview ready for reconciliation',{exact:true}).waitFor();
-     assert.equal(await page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true}).isEnabled(),true,'A fresh preview of the current cutoff restores the explicit draft action');
+     assert.equal(await page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true}).count(),0,
+       'Read-only preview must not expose a payroll-draft mutation');
      const table=page.getByRole('region',{name:'First payroll per-employee preview',exact:true});
+     await table.getByText('14150.00',{exact:true}).waitFor();
+     await table.getByRole('link',{name:'Fictional approved cutoff source #42',exact:true}).waitFor();
      if(width===390)assert.equal(await table.evaluate(e=>e.scrollWidth>e.clientWidth),true,'Wide payroll evidence must scroll inside its own region on mobile');
-     const createDraft=page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true});
-     await createDraft.click();
-     await page.getByRole('alert').filter({hasText:/Failed to fetch|Load failed|NetworkError/}).waitFor();
-     // Reload the actual component to prove recovery does not depend on a retained React ref.
-     await page.reload();
-     await page.getByRole('button',{name:'Prepare payroll',exact:true}).click();
-     await page.getByLabel('Period start',{exact:true}).fill('2026-10-01');await page.getByLabel('Period end',{exact:true}).fill('2026-10-31');await page.getByLabel('Pay date',{exact:true}).fill('2026-10-31');
-     await page.getByRole('button',{name:'Preview first payroll (no writes)',exact:true}).click();
-     await page.getByText('Preview ready for reconciliation',{exact:true}).waitFor();
-     await page.getByRole('button',{name:'Create actual draft payroll (writes a draft record)',exact:true}).click();
-     await page.getByText('Existing draft recovered. Open the saved run to continue; no second draft was created.',{exact:true}).waitFor();
-     assert.ok(typeof draftKeys[0]==='string'&&draftKeys[0].length>=16);
-     assert.equal(draftKeys[1],draftKeys[0],'A lost response and page reload must retry the same creation intent');
+     assert.deepEqual(writes,[], 'Read-only preview and cutoff re-preview must issue GET requests only');
    }
    await page.screenshot({path:output+'/journey-'+kind+'-'+width+'.png',fullPage:true});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,kind+' journey must fit the viewport');
  }catch(error){journeyFailures.push(kind+': '+error.message);}
  releasePreview();assert.deepEqual(journeyFailures,[],'First-payroll product journey regressions');
- assert.deepEqual(writes,['POST /api/payroll-runs','POST /api/payroll-runs','POST /api/invitations'],'Only explicit draft attempts and invitation buttons write during journey repair checks');writes.length=0;
+ assert.deepEqual(writes,['POST /api/invitations'],'Only the explicitly requested reviewer invitation may write; first payroll preview is GET-only');writes.length=0;
  await page.goto(base+'/?mode=off');
  await page.getByRole('button',{name:'Open payroll',exact:true}).click();
  await page.getByRole('button',{name:'Preview first payroll (no writes)',exact:true}).waitFor();
@@ -204,6 +192,6 @@ try{for(const width of [1280,390]){
  releaseEmployerB();await page.getByText('Private employer 2',{exact:true}).waitFor();
  assert.equal(await page.getByText('Private employer 1',{exact:true}).count(),0);
  assert.deepEqual(errors,[]);results.push({width,pass:true,cases:['flag-off legacy behavior','keyboard resume','exact saved run','foreign register blocks payroll workflow until Retry','failed read is not empty success','GET-only read retry','explicit Sync required','foreign employer denied','unknown run denied','flag-off focus denied'],navigationWrites:0,explicitSyncWrites:1});await page.close();
-}await writeFile(output+'/results.json',JSON.stringify({result:'PASS',sourceHead:process.env.PR_HEAD_SHA??'local',journeyRepairs:['existing employee payout edit navigation','attendance date change resets acknowledgment','late cutoff preview cannot enable draft','committed invitation survives refresh failure','mobile preview table and actions fit their panel','lost draft response and reload retain the same intent key'],results,
+}await writeFile(output+'/results.json',JSON.stringify({result:'PASS',sourceHead:process.env.PR_HEAD_SHA??'local',journeyRepairs:['existing employee payout edit navigation','attendance date change resets acknowledgment','old-cutoff preview hides all stale values','read-only preview cannot create a draft','committed invitation survives refresh failure','mobile source-linked payroll table fits its panel'],results,
  boundary:'Actual UI components and navigation resolver with fictional authorized snapshots and mocked API responses, including invitation POST; not authenticated API, financial calculation, physical-device or live deployment proof.'},null,2));console.log('PASS first-payroll connected components: desktop + 390px, flag-off and negative navigation cases');}
 finally{await browser.close();await new Promise(r=>server.close(r));}
