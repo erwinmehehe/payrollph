@@ -1,0 +1,364 @@
+{
+  "schema": "onboarding-pg16-receipt-v1",
+  "productionTested": false,
+  "ci": "NOT_RUN",
+  "runLabel": "Executed local disposable PG16.14 localhost3014 legacy+preview: 38 owned / 38 victim / 30 forged / 64 negative / 19 discrimination; outputs/proof-legacy.log and outputs/proof-preview.log",
+  "mutation": {
+    "rejected": true,
+    "message": "Missing expected exception: proof accepts another employer's data"
+  },
+  "sources": [
+    {
+      "file": "scripts/qa/tenant-onboarding-http.mjs",
+      "sha256": "040aaf332fbca792acc7fde8d6e55f4e59459b77a67b4697c0df3e0f94e6f103"
+    },
+    {
+      "file": "scripts/qa/tenant-onboarding-contract.mjs",
+      "sha256": "11281a6a4f803443ced0675d971d880d6d122fe34a952703a5266c41c98213d0"
+    },
+    {
+      "file": "scripts/qa/tenant-onboarding-env.mjs",
+      "sha256": "f90f47851b76fc39fe6c068e7e3f727a740c9d8cc6f1742bc86ea79374ec441e"
+    },
+    {
+      "file": "scripts/qa/tenant-onboarding-credit.mjs",
+      "sha256": "8c5b99d00aec95f5fc707cfb92746d48c08e8516b5cadeb70f2e3f12aef22a34"
+    },
+    {
+      "file": ".github/workflows/tenant-onboarding-http.yml",
+      "sha256": "a418f581bbcbf2a1e71fd4448167dd73c9adc46d8c95e11a997e09c2f135e30f"
+    },
+    {
+      "file": "src/app/api/employees/route.ts",
+      "sha256": "725be18fb84d77207466837cc10551d2ede8a79162bede7740104576371e493c"
+    },
+    {
+      "file": "src/app/api/employees/import/route.ts",
+      "sha256": "605ad2eac1a900f6228b163b3a1b628c06037b36a10df0df2631fb127c703be8"
+    },
+    {
+      "file": "src/app/api/recruitment/hire/route.ts",
+      "sha256": "2123dfdf91b8d3010375db576b320a551b6bc4139532fd57443782c00fb45535"
+    },
+    {
+      "file": "src/app/api/approvals/[id]/route.ts",
+      "sha256": "76029d05afeb8eff2e062bd488aefc01b70435041377941be31d610f7c69a5a3"
+    },
+    {
+      "file": "src/lib/payroll-period-validation.ts",
+      "sha256": "130c9f144e060b9ac631c27913dab7fd898c4395c046112aade89a29723a8ac3"
+    },
+    {
+      "file": "src/lib/hcm-hire-business-process.ts",
+      "sha256": "6745f67f79568bb649cca692769f561e1dca26c670df27951416f35e082fdec8"
+    },
+    {
+      "file": "src/lib/hcm-business-process.ts",
+      "sha256": "d10fcd0ad532672cdc5151c318b654f4aa50212f038875c51dbc9a73ed478d1c"
+    },
+    {
+      "file": "src/lib/employee-import-preview.ts",
+      "sha256": "28d812e780fd7fa3670420fd8f405e91055b112e92e7e7502ba4fa78072407e6"
+    },
+    {
+      "file": "src/lib/employee-import-request.ts",
+      "sha256": "70b4f5e67af6365aa51b986882deed717f9592be3e071d98d28249ac88d42a51"
+    },
+    {
+      "file": "src/lib/employee-import-batch-server.ts",
+      "sha256": "c4d792787da26f978f1f71d2678ca8ea70edc1d489093fc75937d166d2d8ad9e"
+    },
+    {
+      "file": "src/lib/csv-import.ts",
+      "sha256": "2f102d96f702be71d3c3428e9a2d4f3fed20eaaedf0ab05edbd7e5363dc76a59"
+    },
+    {
+      "file": "src/lib/first-payroll-preview.ts",
+      "sha256": "1333e731e5e3bc76c7fb786852829e9a5e5267aded5e555d7a47e3c890d89f22"
+    },
+    {
+      "file": "src/lib/first-payroll-canonical-preview.ts",
+      "sha256": "c9341b082195118cbc1c52c391c51346331f79e37726c1b0697649920634d60f"
+    },
+    {
+      "file": "scripts/qa/tenant-table-http.mjs",
+      "sha256": "27f005f33791cb8f80f2d1a4f0cf82d625d6a0c490ef0cc4baa59b8dce3a291b"
+    },
+    {
+      "file": "scripts/qa/tenant-table-invariants.mjs",
+      "sha256": "bd1f5471386ba4a443fedb7b2cf4445eaef343f05ba50a204baedd20e9226d1e"
+    }
+  ],
+  "runs": [
+    {
+      "kind": "onboarding-http-v1",
+      "profile": "legacy",
+      "methods": [
+        "POST employees/import",
+        "POST employees",
+        "PATCH employees",
+        "POST recruitment/hire"
+      ],
+      "own": 20,
+      "denied": 20,
+      "forged": 14,
+      "negative": 30,
+      "discrimination": 10,
+      "actions": [
+        {
+          "key": "POST employees",
+          "label": "direct-create",
+          "attacker": "ATTA",
+          "status": 201
+        },
+        {
+          "key": "PATCH employees",
+          "label": "identity",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "start-date",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "rest-day",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "pay-profile",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "initial-payout",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "POST employees/import",
+          "label": "commit",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "POST employees/import",
+          "label": "dry-run",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "submit",
+          "attacker": "ATTA",
+          "status": 202
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "convert",
+          "attacker": "ATTA",
+          "status": 201
+        },
+        {
+          "key": "POST employees",
+          "label": "direct-create",
+          "attacker": "ATTB",
+          "status": 201
+        },
+        {
+          "key": "PATCH employees",
+          "label": "identity",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "start-date",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "rest-day",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "pay-profile",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "initial-payout",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "POST employees/import",
+          "label": "commit",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "POST employees/import",
+          "label": "dry-run",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "submit",
+          "attacker": "ATTB",
+          "status": 202
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "convert",
+          "attacker": "ATTB",
+          "status": 201
+        }
+      ],
+      "coverageCredits": 0,
+      "productionTested": false,
+      "postgresMajor": 16,
+      "victimUnchanged": true
+    },
+    {
+      "kind": "onboarding-http-v1",
+      "profile": "preview",
+      "methods": [
+        "POST employees/import",
+        "POST employees",
+        "PATCH employees",
+        "POST recruitment/hire"
+      ],
+      "own": 18,
+      "denied": 18,
+      "forged": 16,
+      "negative": 34,
+      "discrimination": 9,
+      "actions": [
+        {
+          "key": "POST employees",
+          "label": "direct-create",
+          "attacker": "ATTA",
+          "status": 201
+        },
+        {
+          "key": "PATCH employees",
+          "label": "identity",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "start-date",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "rest-day",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "pay-profile",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "initial-payout",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "POST employees/import",
+          "label": "commit",
+          "attacker": "ATTA",
+          "status": 200
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "submit",
+          "attacker": "ATTA",
+          "status": 202
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "convert",
+          "attacker": "ATTA",
+          "status": 201
+        },
+        {
+          "key": "POST employees",
+          "label": "direct-create",
+          "attacker": "ATTB",
+          "status": 201
+        },
+        {
+          "key": "PATCH employees",
+          "label": "identity",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "start-date",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "rest-day",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "pay-profile",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "PATCH employees",
+          "label": "initial-payout",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "POST employees/import",
+          "label": "commit",
+          "attacker": "ATTB",
+          "status": 200
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "submit",
+          "attacker": "ATTB",
+          "status": 202
+        },
+        {
+          "key": "POST recruitment/hire",
+          "label": "convert",
+          "attacker": "ATTB",
+          "status": 201
+        }
+      ],
+      "coverageCredits": 0,
+      "productionTested": false,
+      "postgresMajor": 16,
+      "victimUnchanged": true
+    }
+  ]
+}

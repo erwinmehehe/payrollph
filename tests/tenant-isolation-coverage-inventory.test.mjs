@@ -1,3 +1,4 @@
+import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
@@ -79,6 +80,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const proof = method.testedBy;
     assert.ok(proof && typeof proof === "object", key + ": COVERED requires a valid proof reference");
     evidenceLine(proof.file, proof.line, key);
+    if (proof.file === "scripts/qa/tenant-onboarding-http.mjs") {
+      const route = manifest.allApiRouteFiles[key.slice(0, key.lastIndexOf(" "))].route;
+      verifyOnboardingCredit(method.name + " " + route, method);
+    }
   if (isNewOrChanged) {
       // Newly introduced or changed code cannot borrow a single anonymous/invalid-request
       // status assertion as proof of actual cross-employer isolation.
@@ -1971,6 +1976,14 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (proof?.file === "scripts/qa/tenant-onboarding-http.mjs") {
+        verifyOnboardingCredit(method.name + " " + entry.route, method);
+        const workflow = readFileSync(".github/workflows/tenant-onboarding-http.yml", "utf8");
+        assert.match(workflow, /profile: \[legacy, preview\]/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /env -u NODE_ENV node --import tsx scripts\/qa\/tenant-onboarding-http.mjs/);
+        continue; // Exactly four executed, source-bound methods; not a generic allowlist.
+      }
       if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
         assert.equal(verifyPost1523Credits(manifest), 3);
         continue; // Exactly three independently source-pinned methods.

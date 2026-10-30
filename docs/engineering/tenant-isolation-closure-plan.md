@@ -36,26 +36,30 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **API ledger proposed after main sync:** 295 API routes, **498 methods = 354 COVERED + 10 PUBLIC-BY-DESIGN + 134 GAP**. Current main is **352/10/136**, this PR contributes only +2 COVERED / -2 GAP without double counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED** and all twelve frozen batches remain incomplete.
 
+## Onboarding proof reconciliation — proposed, NOT ACCEPTED
+
+Current generated manifest: **498 methods = 358 COVERED + 10 PUBLIC-BY-DESIGN + 130 GAP**. Exactly four provisional onboarding methods; real fictional PG16 receipts, final-head CI and review still required. Earlier dated counts remain historical.
+
 ### Current 406-method frozen batch queue — 2026-10-29
 
 The frozen twelve-batch queue is a **406-method subset**, not the entire 498-method live API. These rows are recalculated from the exact methods listed below, not copied from the previous dated table.
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 28 | 0 | 11 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 24 | 0 | 15 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **270 COVERED + 2 PUBLIC-BY-DESIGN + 134 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **274 COVERED + 2 PUBLIC-BY-DESIGN + 130 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -114,16 +118,16 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 28 | 0 | 10 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
-| 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 28 | 0 | 11 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 24 | 0 | 15 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 31 | 0 | 9 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
