@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { crossSiteConsentProbe } from "../scripts/qa/tenant-photo-consent-http.mjs";
@@ -244,12 +245,14 @@ test("dedicated workflow seeds dynamic allowlist between disposable schema and l
     "do not hardcode employer IDs in the new PR");
 });
 
-test("the exact POST remains a manifest GAP without synthetic coverage credits", () => {
+test("consent POST cannot borrow the older isolated consent receipt for a new method credit", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = Object.values(manifest.allApiRouteFiles)
     .find(row => row.route === "web-bundy/consent");
-  assert.equal(entry?.methods.find(m => m.name === "POST")?.status, "GAP");
+  const method = entry?.methods.find(m => m.name === "POST");
+  verifyClockCredit("POST web-bundy/consent", method);
+  assert.notEqual(method.testedBy?.file, "scripts/qa/tenant-photo-consent-http.mjs");
 });
 
 test("first refusal is a distinct owned POST with no photos or fixture-file network cookie", () => {
