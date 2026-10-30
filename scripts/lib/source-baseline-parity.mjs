@@ -1,3 +1,5 @@
+import { canonicalSourceBaselineExpression } from "./source-baseline-sql-expression.mjs";
+
 /**
  * Source -> isolated clean-baseline table/column coverage ratchet.
  * A separate additive type/constraint/index assertion follows below.
@@ -162,6 +164,19 @@ function sourceBaselineDefault(column, table, name) {
   }
   if (value === null) return null;
   const type = sourceBaselineType(column.type);
+  // The PG jsonb deparser sorts object keys and changes JSON whitespace.
+  // Compare parsed JSON values, never the spelling/order of object keys.
+  if (type === "jsonb") {
+    const json = /^'((?:[^']|'')*)'::jsonb$/.exec(value);
+    if (json) {
+      const stable = (item) => Array.isArray(item) ? item.map(stable) :
+        item !== null && typeof item === "object" ?
+          Object.fromEntries(Object.entries(item).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => [k, stable(v)])) : item;
+      try { return "jsonb:" + JSON.stringify(stable(JSON.parse(json[1].replaceAll("''", "'")))); }
+      catch { return value; } // malformed default never passes by guessing
+    }
+  }
   const literal = /^'(?:[^']|'')*'$/;
   if (/^character varying(?:\(\d+\))?$/.test(type)) {
     const bare = value.endsWith("::character varying")
@@ -169,8 +184,20 @@ function sourceBaselineDefault(column, table, name) {
     if (literal.test(bare)) return bare + "::character varying";
   }
   if (/^numeric(?:\(\d+,\d+\))?$/.test(type)) {
-    const bare = value.endsWith("::numeric") ? value.slice(0, -"::numeric".length) : value;
-    if (/^'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'$/.test(bare)) return bare + "::numeric";
+    const bare = value.endsWith("::numeric")
+      ? value.slice(0, -"::numeric".length) : value;
+    const numeric = bare.startsWith("'") && bare.endsWith("'")
+      ? bare.slice(1, -1) : bare;
+    if (/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(numeric)) {
+      // PostgreSQL emits both '60.00'::numeric and 60.00 for numeric defaults.
+      // Compare the exact finite decimal value without JS floating-point loss.
+      const sign = numeric.startsWith("-") ? "-" : "";
+      const pieces = numeric.replace(/^[-+]/, "").split(".");
+      const whole = (pieces[0] || "0").replace(/^0+(?=\d)/, "");
+      const fraction = (pieces[1] || "").replace(/0+$/, "");
+      const positive = whole + (fraction ? "." + fraction : "");
+      return "numeric:" + (positive === "0" ? "" : sign) + positive;
+    }
   }
   // PostgreSQL's deparser appends the *column's own* type to bare string
   // literals. Accept only identical values and a matching built-in cast.
@@ -213,15 +240,14 @@ function sourceBaselineCheck(expression, columnTypes, table) {
   return "varchar-in:" + column + ":" + JSON.stringify(literals);
 }
 
-function sourceBaselineIndexKey(key, columnTypes) {
+function sourceBaselineIndexKey(key, columnTypes, table, indexOrder) {
   if (typeof key !== "string" || !key.length || key.includes("\0")) {
     throw new Error("SOURCE_BASELINE_INVALID_INDEX_KEY");
   }
-  // The manifest stores a bare column name, while pg_get_indexdef quotes
-  // mixed-case, dotted, Unicode and space-containing physical names. Compare
-  // exact decoded identifiers, not lowercased SQL tokens or guessed aliases.
-  let column;
-  let trailing = "";
+  // Identifier parsing is exact: quoted table/column names are decoded, not
+  // lowercased. PostgreSQL default ordering is ASC NULLS LAST or DESC NULLS
+  // FIRST; compare effective B-tree order, not optional spelling of defaults.
+  let column, trailing = "";
   const quoted = /^"((?:[^"]|"")*)"(?=$|\s)(.*)$/.exec(key);
   if (quoted) {
     const physical = quoted[1].replaceAll('""', '"');
@@ -239,10 +265,26 @@ function sourceBaselineIndexKey(key, columnTypes) {
       trailing = key.slice(found.length);
     }
   }
+  const modifiers = sourceBaselineSQL(trailing) ?? "";
+  const declaredDesc = /(?:^|\s)desc(?:\s|$)/.test(modifiers);
+  const declaredFirst = /(?:^|\s)nulls first(?:\s|$)/.test(modifiers);
+  const declaredLast = /(?:^|\s)nulls last(?:\s|$)/.test(modifiers);
+  const desc = indexOrder?.desc ?? declaredDesc;
+  const nullsFirst = indexOrder?.nullsFirst ??
+    (declaredFirst ? true : declaredLast ? false : desc);
   if (column !== undefined) {
-    return { column, modifiers: sourceBaselineSQL(trailing) };
+    // Preserve any operator class rather than dropping it along with sort
+    // modifiers. No identifier case folding or normalization occurs.
+    const opclass = modifiers.replace(/(?:^|\s)(?:asc|desc)(?=\s|$)/g, " ")
+      .replace(/(?:^|\s)nulls (?:first|last)(?=\s|$)/g, " ").trim();
+    return { column, opclass, desc, nullsFirst };
   }
-  return { expression: sourceBaselineSQL(key) };
+  if (indexOrder === undefined) {
+    return { expression: canonicalSourceBaselineExpression(key, table, columnTypes),
+      desc, nullsFirst };
+  }
+  return { expression: canonicalSourceBaselineExpression(key, table, columnTypes),
+    desc, nullsFirst };
 }
 
 function sourceBaselineSignature(kind, x, table, name, columnTypes) {
@@ -277,20 +319,24 @@ function sourceBaselineSignature(kind, x, table, name, columnTypes) {
         nullsNotDistinct: !!(x.nullsNotDistinct ?? x.nulls_not_distinct),
         validated: x.validated !== false };
     case "check":
-      return { expression: sourceBaselineCheck(x.expression, columnTypes, table),
+      return { expression: canonicalSourceBaselineExpression(x.expression, table, columnTypes),
         validated: x.validated !== false };
     case "index":
       if (typeof x.unique !== "boolean" || typeof x.method !== "string") {
         throw new Error("SOURCE_BASELINE_INVALID_INDEX_METADATA");
       }
       return { unique: x.unique, method: x.method.toLowerCase(),
-        keys: names(x.keys).map((key) => sourceBaselineIndexKey(key, columnTypes)),
+        keys: names(x.keys).map((key, i) => sourceBaselineIndexKey(key, columnTypes, table,
+          Array.isArray(x.key_desc) && Array.isArray(x.key_nulls_first)
+            ? { desc: x.key_desc[i], nullsFirst: x.key_nulls_first[i] } : undefined)),
         include: names(x.include ?? x.included_columns ?? [])
-          .map((key) => sourceBaselineIndexKey(key, columnTypes)),
+          .map((key) => sourceBaselineIndexKey(key, columnTypes, table)),
         options: names(x.options ?? x.storage_options ?? []).sort(),
         nullsNotDistinct: !!(x.nullsNotDistinct ?? x.nulls_not_distinct),
         tablespace: x.tablespace ?? null,
-        predicate: sourceBaselineSQL(x.predicate), valid: x.valid !== false,
+        predicate: x.predicate == null ? null :
+          canonicalSourceBaselineExpression(x.predicate, table, columnTypes),
+        valid: x.valid !== false,
         ready: x.ready !== false };
     default:
       throw new Error("SOURCE_BASELINE_INVALID_OBJECT_KIND");
