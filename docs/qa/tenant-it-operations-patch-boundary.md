@@ -10,7 +10,7 @@ This is a **single EDG-02 hardening** PR for `PATCH /api/it-operations`. The cur
 
 Previously, PATCH looked up `itAccessGrants.id` or `itManagedDevices.id` without a tenant predicate before checking whether the caller could administer the row's organization. An attacker could tell an existing **foreign** object (403) from a nonexistent object (404), an ID-existence oracle. The UI already passes the selected `organizationId`.
 
-The handler now requires a positive `organizationId` and resource `id` (422 on absent or invalid inputs), authenticates the current session and authorizes that **selected employer** before retrieving either resource, and applies `organizationId` to both lookups. A real foreign ID paired with a caller-owned employer yields 404; a request naming an unauthorized employer yields 403. The existing final transaction writes remain restricted by both object ID and employer ID. The sensitive mutation rate-limit resource key includes employer plus object ID to prevent cross-employer collisions.
+The handler requires a positive resource `id` and normally a positive, explicit `organizationId` (422 on malformed inputs). For compatibility with an existing separately evidenced ID-only caller, an **omitted** selector is accepted only if the signed-in actor has **exactly one active employer membership**. Zero or multiple active memberships fail 422 before any resource-ID lookup. The handler authorizes that employer before retrieving either resource, and applies the authorized `organizationId` to both lookups. A real foreign ID paired with a caller-owned employer yields 404; a request naming an unauthorized employer yields 403. The existing final transaction writes remain restricted by both object ID and employer ID. The sensitive mutation rate-limit resource key includes employer plus object ID to prevent cross-employer collisions.
 
 The endpoint remains a human-confirmed IT lifecycle record, not a remote device-management or identity-provider execution.
 
@@ -22,8 +22,8 @@ The dedicated workflow `.github/workflows/tenant-it-operations-patch-http.yml` p
 
 - Two independent signed-in employers A and B, each with real owned app grants, assigned and available devices, and employee records.
 - A third populated victim employer with higher SQL IDs for every tested victim object, including IDs above six. These are **persisted records**, never invented missing IDs.
-- Exact 404 for victim grant/device IDs passed with the attacker's authorized organization; 403 for a forged victim organization; 422 for missing/invalid employer; 404 for a forged victim employee assignment. Responses and headers must not contain the victim marker.
-- Signed-in valid **200 own mutations**, including grant activation, available-device assignment and assigned-device return request, followed by PostgreSQL verification of the changed access/device/asset rows and the expected audit/event records.
+- Exact 404 for victim grant/device IDs under the attacker's authorized organization, **including a real foreign grant ID with an omitted selector and sole active membership**; 403 for a forged victim organization; 422 for an explicitly invalid organizationId or an ambiguous membership; 404 for a forged victim employee assignment. Responses and headers must not contain the victim marker.
+- Signed-in valid **200 own mutations**, including grant activation, available-device assignment and assigned-device return request, followed by PostgreSQL verification of changed access/device/asset rows and the expected audit/event records. Existing frozen tenant-table coverage also requires a legitimate single-employer ID-only access decision to succeed; do not weaken or repin that fixture.
 - Exact before/after PostgreSQL snapshots of victim grants, apps, devices, assets, events, employees, memberships and audit rows for every denial and after successful attacker-owned transitions.
 
 ### Commands in isolated GitHub Actions only
