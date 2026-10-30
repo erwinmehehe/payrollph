@@ -1,7 +1,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, auditEvents, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks } from "@/db/schema";
+import { assets, auditEvents, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks, userOrganizations } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
@@ -124,13 +124,26 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
-  const org = Number(body.organizationId);
+  let org = Number(body.organizationId);
+  // The pre-existing tenant-table write fixture uses an ID-only PATCH.
+  // Preserve that single-employer legacy request without ever using a resource
+  // record to choose a tenant. Multi-employer sessions MUST supply organizationId.
+  if (body.organizationId === undefined) {
+    const memberships = await db.select({ organizationId: userOrganizations.organizationId })
+      .from(userOrganizations)
+      .where(and(eq(userOrganizations.userId, user.id), eq(userOrganizations.active, true)))
+      .limit(2);
+    if (memberships.length !== 1) {
+      return Response.json({ error: "Explicit organizationId required for this session." }, { status: 422 });
+    }
+    org = memberships[0].organizationId;
+  }
   if (!valid(id) || !valid(org)) {
     return Response.json({ error: "Valid id and organizationId required." }, { status: 422 });
   }
-  // Authorize the caller-selected tenant BEFORE querying any resource ID.
-  // Otherwise an existing foreign ID returns 403 while a nonexistent ID returns
-  // 404, leaking the existence of another employer's grant or device.
+  // Authorize the selected tenant (or the sole ACTIVE session membership) before
+  // querying any grant or device ID. Foreign and nonexistent IDs share the same
+  // 404 response when a caller provides only an authorized employer.
   const auth = await context(user.id, org);
   if (auth.denied) return auth.denied;
   const mfaDenied = requireSensitiveActionMfa(user);
