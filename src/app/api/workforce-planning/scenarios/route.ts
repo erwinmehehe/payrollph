@@ -444,11 +444,22 @@ export async function PATCH(request: Request) {
 
   try {
     const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`select id from workforce_planning_scenarios where id = ${scenarioId} for update`);
+      await tx.execute(sql`select id from workforce_planning_scenarios where id = ${scenarioId} and organization_id = ${scenario.organizationId} for update`);
       const [fresh] = await tx.select().from(workforcePlanningScenarios)
-        .where(eq(workforcePlanningScenarios.id, scenarioId))
+        .where(and(
+          eq(workforcePlanningScenarios.id, scenarioId),
+          eq(workforcePlanningScenarios.organizationId, scenario.organizationId),
+        ))
         .limit(1);
-      if (!fresh || fresh.status !== "draft") {
+      // Approval routing was calculated from the authorized scenario. Recheck
+      // both the employee-unit boundary and the exact immutable evidence under
+      // the row lock before creating any approval or audit records.
+      if (!fresh || fresh.status !== "draft"
+        || !scenarioVisibleToAccess(fresh, access)
+        || fresh.planId !== scenario.planId
+        || fresh.scopeOrgUnitId !== scenario.scopeOrgUnitId
+        || fresh.worksiteId !== scenario.worksiteId
+        || fresh.snapshotHash !== scenario.snapshotHash) {
         throw new Error("SCENARIO_SUBMISSION_CONFLICT");
       }
 
@@ -510,18 +521,27 @@ export async function PATCH(request: Request) {
         updatedAt: new Date(),
       }).where(and(
         eq(workforcePlanningScenarios.id, scenarioId),
+        eq(workforcePlanningScenarios.organizationId, scenario.organizationId),
         eq(workforcePlanningScenarios.status, "draft"),
       )).returning();
       if (!updated) throw new Error("SCENARIO_SUBMISSION_CONFLICT");
 
       if (updated.planId && updated.scopeOrgUnitId == null && updated.worksiteId == null) {
         const [linkedPlan] = await tx.select({ status: workforcePlans.status }).from(workforcePlans)
-          .where(eq(workforcePlans.id, updated.planId))
-          .limit(1);
-        if (linkedPlan && linkedPlan.status !== "published") {
-          await tx.update(workforcePlans)
+          .where(and(
+            eq(workforcePlans.id, updated.planId),
+            eq(workforcePlans.organizationId, scenario.organizationId),
+          )).limit(1);
+        if (!linkedPlan) throw new Error("SCENARIO_SUBMISSION_CONFLICT");
+        if (linkedPlan.status !== "published") {
+          const [updatedPlan] = await tx.update(workforcePlans)
             .set({ status: "submitted", updatedAt: new Date() })
-            .where(eq(workforcePlans.id, updated.planId));
+            .where(and(
+              eq(workforcePlans.id, updated.planId),
+              eq(workforcePlans.organizationId, scenario.organizationId),
+              eq(workforcePlans.status, linkedPlan.status),
+            )).returning({ id: workforcePlans.id });
+          if (!updatedPlan) throw new Error("SCENARIO_SUBMISSION_CONFLICT");
         }
       }
 

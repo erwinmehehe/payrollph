@@ -31928,7 +31928,7 @@
       ]
     },
     "src/app/api/workforce-planning/position-executions/route.ts": {
-      "gitBlobSha": "0c7ddf8ba2db323aea03c152612eced44c31aea2",
+      "gitBlobSha": "142797be0cfa4f64849b20958869c12147ccf792",
       "route": "workforce-planning/position-executions",
       "methods": [
         {
@@ -31952,15 +31952,39 @@
           "name": "POST",
           "line": 184,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: WRK-02 final-write tenant/state predicates hardened without a fresh signed-in two-attacker/victim PostgreSQL 16 HTTP proof. Existing GET proof remains separate and unchanged. Do not count as coverage; exact-PR-head CI and independent security/coverage-owner review required.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
+            "originalRouteBlobSha": "0c7ddf8ba2db323aea03c152612eced44c31aea2",
+            "routeBlobSha": "142797be0cfa4f64849b20958869c12147ccf792",
+            "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
+            "contractBlobSha": "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+            "originalGetPrefixSha": "e18416e827678a1e62a1e891201df027ba20c48e",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
-          "line": 318,
+          "line": 324,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: WRK-02 final-write tenant/state predicates hardened without a fresh signed-in two-attacker/victim PostgreSQL 16 HTTP proof. Existing GET proof remains separate and unchanged. Do not count as coverage; exact-PR-head CI and independent security/coverage-owner review required.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
+            "originalRouteBlobSha": "0c7ddf8ba2db323aea03c152612eced44c31aea2",
+            "routeBlobSha": "142797be0cfa4f64849b20958869c12147ccf792",
+            "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
+            "contractBlobSha": "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+            "originalGetPrefixSha": "e18416e827678a1e62a1e891201df027ba20c48e",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -32332,7 +32356,7 @@
       ]
     },
     "src/app/api/workforce-planning/scenarios/route.ts": {
-      "gitBlobSha": "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7",
+      "gitBlobSha": "12ea2979c8a7282236b375183e39e63d32a42e74",
       "route": "workforce-planning/scenarios",
       "methods": [
         {
@@ -32356,15 +32380,39 @@
           "name": "POST",
           "line": 195,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: WRK-02 final-write tenant/state predicates hardened without a fresh signed-in two-attacker/victim PostgreSQL 16 HTTP proof. Existing GET proof remains separate and unchanged. Do not count as coverage; exact-PR-head CI and independent security/coverage-owner review required.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
+            "originalRouteBlobSha": "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7",
+            "routeBlobSha": "12ea2979c8a7282236b375183e39e63d32a42e74",
+            "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
+            "contractBlobSha": "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+            "originalGetPrefixSha": "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
           "line": 356,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: WRK-02 final-write tenant/state predicates hardened without a fresh signed-in two-attacker/victim PostgreSQL 16 HTTP proof. Existing GET proof remains separate and unchanged. Do not count as coverage; exact-PR-head CI and independent security/coverage-owner review required.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
+            "originalRouteBlobSha": "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7",
+            "routeBlobSha": "12ea2979c8a7282236b375183e39e63d32a42e74",
+            "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
+            "contractBlobSha": "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+            "originalGetPrefixSha": "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -32502,15 +32550,27 @@
       ]
     },
     "src/app/api/workforce-planning/transfer/route.ts": {
-      "gitBlobSha": "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153",
+      "gitBlobSha": "fc17024c47d013b28213abe89c7784254e3b2bc1",
       "route": "workforce-planning/transfer",
       "methods": [
         {
           "name": "POST",
           "line": 23,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: WRK-02 final-write tenant/state predicates hardened without a fresh signed-in two-attacker/victim PostgreSQL 16 HTTP proof. Existing GET proof remains separate and unchanged. Do not count as coverage; exact-PR-head CI and independent security/coverage-owner review required.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
+            "originalRouteBlobSha": "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153",
+            "routeBlobSha": "fc17024c47d013b28213abe89c7784254e3b2bc1",
+            "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
+            "contractBlobSha": "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+            "originalGetPrefixSha": null,
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

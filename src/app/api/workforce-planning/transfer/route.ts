@@ -104,6 +104,7 @@ export async function POST(request: Request) {
 
   const [targetIncumbent] = await db.select({ id: positionAssignments.id }).from(positionAssignments).where(and(
     eq(positionAssignments.positionId, targetPosition.id),
+    eq(positionAssignments.organizationId, organizationId),
     isNull(positionAssignments.effectiveUntil),
   )).limit(1);
   if (targetIncumbent) return Response.json({ error: "The target position already has an active incumbent." }, { status: 409 });
@@ -142,9 +143,12 @@ export async function POST(request: Request) {
       effectiveUntil: previousDate(effectiveFrom),
     }).where(and(
       eq(positionAssignments.id, currentAssignment.id),
+      eq(positionAssignments.organizationId, organizationId),
+      eq(positionAssignments.employeeId, employeeId),
+      eq(positionAssignments.positionId, currentPosition.id),
       isNull(positionAssignments.effectiveUntil),
     )).returning();
-    if (!closed) throw new Error("The current position assignment changed before transfer.");
+    if (!closed) throw new Error("POSITION_TRANSFER_CONFLICT");
 
     const [newAssignment] = await tx.insert(positionAssignments).values({
       organizationId,
@@ -157,19 +161,28 @@ export async function POST(request: Request) {
       createdByUserId: user.id,
     }).returning();
 
-    await tx.update(positions).set({
+    const [openedCurrent] = await tx.update(positions).set({
       status: "open",
       updatedAt: new Date(),
-    }).where(eq(positions.id, currentPosition.id));
+    }).where(and(
+      eq(positions.id, currentPosition.id),
+      eq(positions.organizationId, organizationId),
+      eq(positions.status, currentPosition.status),
+    )).returning({ id: positions.id });
+    if (!openedCurrent) throw new Error("POSITION_TRANSFER_CONFLICT");
 
     const [filledTarget] = await tx.update(positions).set({
       status: "filled",
       updatedAt: new Date(),
     }).where(and(
       eq(positions.id, targetPosition.id),
+      eq(positions.organizationId, organizationId),
+      ...(targetPosition.orgUnitId == null
+        ? [isNull(positions.orgUnitId)]
+        : [eq(positions.orgUnitId, targetPosition.orgUnitId)]),
       eq(positions.status, targetPosition.status),
     )).returning();
-    if (!filledTarget) throw new Error("The target position changed before transfer.");
+    if (!filledTarget) throw new Error("POSITION_TRANSFER_CONFLICT");
 
     const [updatedEmployee] = await tx.update(employees).set({
       orgUnitId: targetPosition.orgUnitId,
@@ -179,7 +192,12 @@ export async function POST(request: Request) {
     }).where(and(
       eq(employees.id, employeeId),
       eq(employees.organizationId, organizationId),
+      eq(employees.status, "Active"),
+      ...(employee.orgUnitId == null
+        ? [isNull(employees.orgUnitId)]
+        : [eq(employees.orgUnitId, employee.orgUnitId)]),
     )).returning();
+    if (!updatedEmployee) throw new Error("POSITION_TRANSFER_CONFLICT");
 
     await tx.insert(workerEmploymentEvents).values({
       organizationId,
@@ -212,7 +230,13 @@ export async function POST(request: Request) {
     });
 
     return { closedAssignment: closed, assignment: newAssignment, employee: updatedEmployee };
+  }).catch((error: unknown) => {
+    if (error instanceof Error && error.message === "POSITION_TRANSFER_CONFLICT") return null;
+    throw error;
   });
+  if (!result) {
+    return Response.json({ error: "Position transfer changed during authorization. Retry." }, { status: 409 });
+  }
 
   await recordAuditEvent({
     organizationId,
