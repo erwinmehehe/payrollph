@@ -224,7 +224,8 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
           inArray(employeeLoans.employeeId, employeeIds),
           or(isNull(employeeLoans.startDate), lte(employeeLoans.startDate, input.periodEnd)),
           or(isNull(employeeLoans.endDate), gte(employeeLoans.endDate, input.periodStart))))],
-      ["incomplete punch", await reader.select({employeeId: timePunches.employeeId, status: timePunches.status})
+      ["incomplete punch", await reader.select({employeeId: timePunches.employeeId,
+        status: timePunches.status, timeIn: timePunches.timeIn, timeOut: timePunches.timeOut})
         .from(timePunches).where(and(eq(timePunches.organizationId, input.organizationId),
           inArray(timePunches.employeeId, employeeIds),
           gte(timePunches.workDate, input.periodStart),
@@ -233,9 +234,10 @@ export async function loadCanonicalFirstPayrollPreview(input: Input, reader: Rea
     for (const [source, rows] of pendingSources) {
       for (const row of rows) {
         const status = row.status.toLowerCase();
+        const incompletePunch = source === "incomplete punch" &&
+          (status !== "complete" || ("timeIn" in row && (!row.timeIn || !row.timeOut)));
         if (status === "pending" || status === "pending_approval" || status === "submitted"
-          || status === "under_review" || status === "requested" ||
-          (source === "incomplete punch" && status !== "complete")) {
+          || status === "under_review" || status === "requested" || incompletePunch) {
           const reason = "Resolve " + source + " before projecting payroll.";
           const worker = problems.get(row.employeeId);
           if (worker && !worker.includes(reason)) worker.push(reason);
