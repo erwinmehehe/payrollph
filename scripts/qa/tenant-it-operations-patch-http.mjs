@@ -150,9 +150,18 @@ export async function proveItOperationsPatch() {
           organizationId: victim.org.id, action: "access",
           id: actor.data.grant.id, state: "active",
         }, 403],
-        ["missing employer selector scopes to sole authorized membership", {
+        ["legacy foreign grant with omitted employer", {
           action: "access", id: victim.data.grant.id, state: "active",
-        }, 404],
+        }, 403],
+        ["legacy missing grant with omitted employer", {
+          action: "access", id: 99999999, state: "active",
+        }, 403],
+        ["legacy foreign device with omitted employer", {
+          action: "device", id: victim.data.device.id, state: "return_requested",
+        }, 403],
+        ["legacy missing device with omitted employer", {
+          action: "device", id: 99999999, state: "return_requested",
+        }, 403],
         ["invalid employer selector", {
           organizationId: 0, action: "device",
           id: victim.data.device.id, state: "return_requested",
@@ -166,14 +175,22 @@ export async function proveItOperationsPatch() {
           id: actor.data.available.id, state: "assigned", employeeId: victim.worker.id,
         }, 404],
       ];
+      const legacyDenials = new Map();
       for (const [label, body, status] of deniedProbes) {
         const res = await patch(actor, body);
         assertDenied(res, status, victim.marker, actor.label + " " + label);
+        if (label.startsWith("legacy ")) legacyDenials.set(label, { status: res.status, text: res.text });
         assert.deepEqual(await snapshot(victim.org.id), victimBefore,
           label + ": victim grants, devices, assets, audit and events unchanged");
         assert.deepEqual(await snapshot(actor.org.id), ownBefore,
           label + ": denials must not change the attacker's own records either");
       }
+      assert.deepEqual(legacyDenials.get("legacy foreign grant with omitted employer"),
+        legacyDenials.get("legacy missing grant with omitted employer"),
+        "Legacy grant requests must reveal neither foreign ID existence nor absence");
+      assert.deepEqual(legacyDenials.get("legacy foreign device with omitted employer"),
+        legacyDenials.get("legacy missing device with omitted employer"),
+        "Legacy device requests must reveal neither foreign ID existence nor absence");
 
       // Valid controls prove the gate did not merely turn the route off.
       const grantRes = await patch(actor, {
@@ -214,7 +231,22 @@ export async function proveItOperationsPatch() {
       assert.deepEqual(await snapshot(victim.org.id), victimBefore,
         "victim remains identical after real successful attacker-owned transitions");
     }
-    console.log("PASS EDG-02 IT PATCH employer-first lookup: two attackers, higher-ID victim, real own writes, foreign/missing/forged denies, unchanged victim DB; ZERO METHOD CREDITS");
+    // An account belonging to two employers must never silently infer an
+    // employer from a legacy ID-only request, even when its own object exists.
+    await db.insert(s.userOrganizations).values({
+      userId: a.owner.id, organizationId: b.org.id, role: "owner", active: true,
+    });
+    const secondEmployerBefore = await snapshot(b.org.id);
+    const ambiguous = await patch(a, {
+      action: "access", id: a.data.grant.id, state: "revoke_requested",
+    });
+    assertDenied(ambiguous, 422, victim.marker, "multi-employer omitted selector");
+    assert.deepEqual(await snapshot(b.org.id), secondEmployerBefore,
+      "ambiguous employer must not change the other employer");
+    assert.deepEqual(await snapshot(victim.org.id), victimBefore,
+      "ambiguous employer must leave the victim unchanged");
+
+    console.log("PASS EDG-02 IT PATCH employer-first lookup: two attackers, higher-ID victim, real own writes, uniform legacy denies, ambiguous employer rejected, unchanged victim DB; ZERO METHOD CREDITS");
   } finally {
     await pool.end();
   }
