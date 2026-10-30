@@ -163,10 +163,12 @@ test("two real owned HTTP inserts and high-ID victim/forged SQL denial are execu
   ]) assert.ok(source.includes(guard), "Proof safeguard missing: " + guard);
 });
 
-test("source-only candidate cannot falsely promote HCM POST from GAP to COVERED", () => {
+test("HCM decision POST is credited only through its all-kind table proof, never the source-only candidate", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const row = manifest.allApiRouteFiles["src/app/api/hcm/employment-term-decisions/route.ts"];
   const method = row?.methods.find(item => item.name === "POST");
-  assert.equal(method?.status, "GAP");
-  assert.equal(method?.testedBy, null);
+  assert.equal(method?.status, "COVERED");
+  assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/hcm.mjs");
+  assert.match(method.reason, /Provisional/);
+  assert.ok(method.testedBy.evidence, "an executed run label is required");
 });

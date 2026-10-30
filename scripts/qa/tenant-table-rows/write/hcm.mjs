@@ -103,13 +103,13 @@ export function createRows({ addWorker, asc, assert, auditBusinessSnapshot, db, 
       assert.equal(row.approvedByUserId, null); assert.equal(row.activatedAt, null);
     } },
   { key: "POST hcm/employment-term-decisions", status: 201,
-    seed: async (e) => (await db.insert(hcmEmploymentTerms).values({ organizationId: e.org.id, employeeId: (await addWorker(e, "NEWDEC")).id,
-      employmentType: "Regular", termKind: "regular", effectiveFrom: "2026-01-05", status: "active", reason: e.marker, requestedBy: e.owner.name }).returning())[0],
+    seed: async (e) => { const base = (await db.insert(hcmEmploymentTerms).values({ organizationId: e.org.id, employeeId: (await addWorker(e, "NEWDEC")).id,
+      employmentType: "Regular", termKind: "regular", effectiveFrom: "2026-01-05", status: "active", reason: e.marker, requestedBy: e.owner.name }).returning())[0]; return (await import("../helpers/hcm-term-decisions-actions.mjs")).withDecisionTerms({ addWorker, db, hcmEmploymentTerms }, e, base); },
     state: async (orgId) => ({ decisions: await db.select().from(hcmEmploymentTermDecisions).where(eq(hcmEmploymentTermDecisions.organizationId, orgId)).orderBy(asc(hcmEmploymentTermDecisions.id)),
       events: await db.select().from(hcmEmploymentDecisionEvents).where(eq(hcmEmploymentDecisionEvents.organizationId, orgId)).orderBy(asc(hcmEmploymentDecisionEvents.id)) }),
     ownBody: (c) => ({ organizationId: c.orgId, employeeId: c.seeded.employeeId, employmentTermId: c.seeded.id, decisionKind: "continue_current", effectiveDate: "2026-07-05", reason: c.marker }),
     foreignBody: (c) => ({ organizationId: c.victim.org.id, employeeId: c.victimSeeded.employeeId, employmentTermId: c.victimSeeded.id, decisionKind: "continue_current", effectiveDate: "2026-07-05", reason: c.marker }),
-    forged: { status: 404, body: (c) => ({ organizationId: c.orgId, employeeId: c.seeded.employeeId, employmentTermId: c.victimSeeded.id, decisionKind: "continue_current", effectiveDate: "2026-07-05", reason: c.marker }) },
+    forged: { status: 404, body: (c) => ({ organizationId: c.orgId, employeeId: c.seeded.employeeId, employmentTermId: c.victimSeeded.id, decisionKind: "continue_current", effectiveDate: "2026-07-05", reason: c.marker }) }, exercise: async (c, helpers) => (await import("../helpers/hcm-term-decisions-actions.mjs")).termDecisionActions({ assert, asc, auditBusinessSnapshot, db, eq }, c, helpers),
     expect: (before, after, c, response) => {
       const row = added(before.decisions, after.decisions, c, response.json?.decision);
       assert.equal(row.employeeId, c.seeded.employeeId); assert.equal(row.employmentTermId, c.seeded.id); assert.equal(row.reason, c.marker);
@@ -157,7 +157,7 @@ export function createRows({ addWorker, asc, assert, auditBusinessSnapshot, db, 
     state: (orgId) => db.select().from(hcmBusinessProcessDefinitions).where(eq(hcmBusinessProcessDefinitions.organizationId, orgId)).orderBy(asc(hcmBusinessProcessDefinitions.id)),
     ownBody: (c) => ({ organizationId: c.orgId, action: "set-active", id: c.seeded.id, active: false }),
     foreignBody: (c) => ({ organizationId: c.victim.org.id, action: "set-active", id: c.victimSeeded.id, active: false }),
-    forged: { status: 404, body: (c) => ({ organizationId: c.orgId, action: "set-active", id: c.victimSeeded.id, active: false }) },
+    forged: { status: 404, body: (c) => ({ organizationId: c.orgId, action: "set-active", id: c.victimSeeded.id, active: false }) }, exercise: async (c, helpers) => (await import("../helpers/hcm-definitions-actions.mjs")).definitionActions({ assert, asc, auditBusinessSnapshot, db, eq }, c, helpers),
     expect: (before, after, c, response) => {
       assert.equal(after.length, before.length); const old = before.find(r => r.id === c.seeded.id), row = after.find(r => r.id === c.seeded.id);
       assert.ok(old && row); assert.equal(old.organizationId, c.orgId); assert.equal(row.organizationId, c.orgId);
