@@ -34,3 +34,27 @@ test("the repin tool only moves line numbers, never statuses, SHAs or route-sour
   assert.ok(source.includes('anchorMoves.set(file + "#L" + value, at);'));
   assert.ok(source.includes("const at = anchorMoves.get(file + \"#L\" + line);"));
 });
+
+test("separate proof-file citations resolve their own exact source lines", () => {
+  const source = readFileSync("scripts/qa/tenant-manifest-repin.mjs", "utf8");
+  assert.ok(source.includes('field.replace(/Line$/, "File")'),
+    "every explicitly named *Line/*File pair must resolve the companion file");
+  assert.ok(source.includes('typeof proof[companionFile] === "string"'),
+    "the current citation must use its declared source file");
+  assert.ok(source.includes('typeof cited?.[companionFile] === "string"'),
+    "the base citation must use its own declared source file");
+
+  // Real committed proof, not a mock: line 196 belongs to the shared
+  // victim-snapshot runner, not the smaller self-photo proof module.
+  const manifest = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const photo = manifest.allApiRouteFiles["src/app/api/self/photo/route.ts"]
+    .methods.find((method) => method.name === "POST").testedBy;
+  assert.equal(photo.victimUnchangedFile, "scripts/qa/tenant-dl02-closure-http.mjs");
+  const primaryLines = readFileSync(photo.file, "utf8").split("\n");
+  const companionLines = readFileSync(photo.victimUnchangedFile, "utf8").split("\n");
+  assert.ok(photo.victimUnchangedLine > primaryLines.length,
+    "the citation must not be resolved against the primary proof module");
+  assert.match(companionLines[photo.victimUnchangedLine - 1], /victimSnapshot/,
+    "the companion citation must point to the actual unchanged-victim assertion");
+});
