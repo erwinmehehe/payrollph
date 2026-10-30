@@ -5,7 +5,8 @@
 export const EVIDENCE = "CATALOG_ONLY_NOT_MIGRATION_RECEIPT_OR_RELEASE_APPROVAL" as const;
 export type Column = {name:string;type:string;nullable:boolean;default:string|null;identity:string|null};
 export type ForeignKey = {name:string;columns:string[];refTable:string;refColumns:string[];onDelete:string;onUpdate:string};
-export type Index = {name:string;unique:boolean;method:string;keys:string[];predicate:string|null};
+export type Index = {name:string;unique:boolean;method:string;keys:string[];predicate:string|null;
+  include?:string[];options?:string[];nullsNotDistinct?:boolean;tablespace?:string|null};
 export type Check = {name:string;expression:string};
 export type Key = {name:string;columns:string[]};
 export type Unique = Key & {nullsNotDistinct:boolean};

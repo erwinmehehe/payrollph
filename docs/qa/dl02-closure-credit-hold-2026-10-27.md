@@ -80,3 +80,14 @@ security/release acceptance is authorized by this document.
 **Environment restriction:** disposable PG16/PG18, synthetic identities,
 localhost HTTP only. No Neon, production, real employees, financial transfers
 or external provider calls.
+
+## Update 2026-10-29: demand-import POST promoted for review
+
+At the owner's instruction the DL-02 workflow was dispatched on `main`
+([run 40859482784](https://github.com/erwinmehehe/payrollph/actions/runs/40859482784),
+head `5a3c209df`, passed). `main` moved before the run finished, so Blocker 1 is
+**not satisfied as written**. The route, proof rows, runner, bootstrap and workflow
+blobs were compared and are byte-identical on the promotion base; the owner accepted
+that comparison for the three methods below. A separate
+review-only PR credits that method (idempotent replay is not exercised) plus `POST self/photo` and
+`GET web-bundy/evidence` from the same run. `POST web-bundy/evidence` stays GAP (one of four punch actions proven), and Blocker 2 (exact-head `CI/check`) applies to that PR.
