@@ -102,9 +102,10 @@ test("executed selected HCM methods are receipt-bound while partial methods stay
   for (const key of [...keys, "GET hcm/work-items/events"]) {
     const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const proof = record.methods.find(m => m.name === method);
-    // POST hcm/capabilities is credited separately by its own all-action table proof (rowFile pinned below).
-    assert.equal(proof.status, RECOVERY_METHODS.includes(key) || key === "POST hcm/capabilities" ? "COVERED" : "GAP");
-    if (key === "POST hcm/capabilities") assert.equal(proof.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/hcm.mjs");
+    // These rows are credited separately by their own all-action table proofs (rowFile pinned below).
+    const allActionRow = ["POST hcm/capabilities", "POST hcm/business-processes/definitions", "POST hcm/employment-term-decisions"].includes(key);
+    assert.equal(proof.status, RECOVERY_METHODS.includes(key) || allActionRow ? "COVERED" : "GAP");
+    if (allActionRow) assert.equal(proof.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/hcm.mjs");
     if (RECOVERY_METHODS.includes(key)) assert.ok(proof.testedBy.evidence.includes(receipt.runLabel));
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
