@@ -1,0 +1,96 @@
+name: IT operations PATCH tenant scope (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-it-operations-patch-http.yml'
+      - 'scripts/qa/tenant-it-operations-patch-http.mjs'
+      - 'tests/tenant-it-operations-patch-contract.test.mjs'
+      - 'docs/qa/tenant-it-operations-patch-boundary.md'
+      - 'src/app/api/it-operations/route.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edg02-it-patch-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  it-patch-tenant-isolation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Set strict fictional localhost-only environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo "XENDIT_BILLING_ENABLED=false" >> "$GITHUB_ENV"
+      - name: Verify source guard and fail-closed negative tests
+        run: |
+          node --check scripts/qa/tenant-it-operations-patch-http.mjs
+          node --test tests/tenant-it-operations-patch-contract.test.mjs
+      - name: Ephemeral encryption keys, never real credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Prepare fresh disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply pre-reviewed isolated baseline including audit chain
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next.js on disposable database
+        run: npm run build
+      - name: Start localhost-only server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/it-patch-tenant-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL/login" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/it-patch-tenant-server.log
+          exit 1
+      - name: Prove real own writes, foreign IDs, forged selectors and unchanged victim
+        run: npx tsx scripts/qa/tenant-it-operations-patch-http.mjs
+      - name: Print local server diagnostic if proof fails
+        if: failure()
+        run: cat /tmp/it-patch-tenant-server.log || true
