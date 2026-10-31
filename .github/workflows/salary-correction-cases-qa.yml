@@ -12,6 +12,8 @@ on:
       - 'src/app/api/payroll-underpayments/**'
       - 'drizzle/0135_salary_correction_cases.sql'
       - 'tests/hcm-salary-correction-cases*'
+      - 'tests/hcm-salary-correction-entity-scope.test.mjs'
+      - 'tests/hcm-salary-correction-selector-regression.test.ts'
       - 'scripts/qa/salary-correction-case-tenant-proof.mjs'
       - 'scripts/qa/tenant-second-pass-http.mjs'
       - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
@@ -77,6 +79,8 @@ jobs:
         run: node --test tests/hcm-salary-correction-cases-workflow.test.mjs
       - name: Salary correction legal-employer route scope regression
         run: node --test tests/hcm-salary-correction-entity-scope.test.mjs
+      - name: Salary correction selector fallback and foreign-grant regression
+        run: npx tsx --test tests/hcm-salary-correction-selector-regression.test.ts
       - name: Ephemeral encryption key for disposable CI only
         shell: bash
         run: |
