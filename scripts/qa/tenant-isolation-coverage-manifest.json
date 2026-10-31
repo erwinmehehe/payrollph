@@ -11620,7 +11620,7 @@
       ]
     },
     "src/app/api/governed-handoffs/route.ts": {
-      "gitBlobSha": "85e937e999a10afd30348e748c510b2a55f160be",
+      "gitBlobSha": "fa7039cee62df7624e3124e75e6566294de32c68",
       "route": "governed-handoffs",
       "methods": [
         {
@@ -11644,8 +11644,19 @@
           "name": "POST",
           "line": 130,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: governed-handoffs POST now redacts internal chain/SQL errors; source and tenant checks unchanged. Actual PG16 denial and audit integrity review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "governed-handoffs-POST-error-redaction-source-only",
+            "priorRouteBlobSha": "85e937e999a10afd30348e748c510b2a55f160be",
+            "routeBlobSha": "fa7039cee62df7624e3124e75e6566294de32c68",
+            "contractFile": "tests/tenant-governed-handoff-post-error-boundary.test.mjs",
+            "contractBlobSha": "8e839b7197203d3ea6b32281af78aaf0a5b3753b",
+            "credits": 0,
+            "actualPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
