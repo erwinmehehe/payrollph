@@ -89,14 +89,14 @@ const url="http://127.0.0.1:"+server.address().port;
 mkdirSync("qa-artifacts",{recursive:true});
 const report={sha:process.env.PR_HEAD_SHA??"local",baselineSha,screenWidths:[1280,390],
   modes:["loading","error","empty"],variants:["legacy","off","on"],
-  checks:[],flagOffMatchesLegacy:false,synthetic:true};
+  checks:[],flagOffMatchesLegacy:false,parityScope:"unchanged read-state markup; intentional planner controls and empty notice excluded",synthetic:true};
 const browser=await chromium.launch({headless:true,
   ...(process.env.QA_CHROMIUM_EXECUTABLE
     ? {executablePath:process.env.QA_CHROMIUM_EXECUTABLE} : {}),
 });
 try {
   for(const width of report.screenWidths) for(const mode of report.modes){
-    const html={};
+    const html={}, sharedReadStateHtml={};
     for(const variant of report.variants){
       const page=await browser.newPage({viewport:{width,height:900}});
       const errors=[];page.on("pageerror",e=>errors.push(e.message));
@@ -114,6 +114,18 @@ try {
         throw cause;
       }
       html[variant]=await page.locator("#root").innerHTML();
+      // The planner deliberately adds controls and replaces the misleading green
+      // empty notice. Compare the rest of the exact pre-flag read-state DOM,
+      // not those explicit feature changes. All existing loading/error semantics
+      // and the separate payment-proof component remain in this parity check.
+      sharedReadStateHtml[variant]=await page.locator("#root").evaluate(node => {
+        const copy=node.cloneNode(true);
+        copy.querySelector('[aria-label="Compliance deadline planner"]')?.remove();
+        for (const notice of copy.querySelectorAll("[data-compliance-calendar] .notice")) {
+          if (/No (?:calendar items need attention|obligations match the selected filters)/.test(notice.textContent ?? "")) notice.remove();
+        }
+        return copy.innerHTML;
+      });
       const txt=await page.locator("#root").innerText();
       assert.deepEqual(errors,[],variant+" "+width+"px "+mode+" page errors");
       const metrics=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
@@ -130,18 +142,29 @@ try {
           assert.doesNotMatch(txt,/No all-clear is implied/);
         }
       }
-      if(mode==="empty") assert.match(txt,/No calendar items need attention/);
+      if(mode==="empty"){
+        if(variant==="legacy"){
+          assert.match(txt,/No calendar items need attention/);
+        } else {
+          assert.match(txt,/No obligations match the selected filters/);
+          assert.match(txt,/This does not certify filing or remittance completion/);
+          assert.doesNotMatch(txt,/No calendar items need attention/);
+          assert.equal(await page.getByRole("group",{name:"Compliance deadline planner"}).count(),1,
+            "new read-only planner must remain visible on verified empty state");
+        }
+      }
       if(mode==="loading") assert.match(txt,/Loading compliance obligations/);
       await page.screenshot({path:"qa-artifacts/compliance-read-"+mode+"-"+variant+"-"+width+".png",fullPage:true});
       report.checks.push({width,mode,variant,overflow:false,pageErrors:0});
       await page.close();
     }
-    assert.equal(html.off,html.legacy,mode+" "+width+"px: flag-OFF markup changed");
+    assert.equal(sharedReadStateHtml.off,sharedReadStateHtml.legacy,
+      mode+" "+width+"px: non-planner flag-OFF read-state markup changed");
     if(mode!=="error") assert.equal(html.on,html.off,mode+" "+width+"px: flag must affect error explanation only");
   }
   report.flagOffMatchesLegacy=true;
   report.result="PASS";
-  console.log("PASS: exact flag-off DOM parity vs pre-flag #1303, actual React error/loading/empty UI at desktop/390px, no overflow/errors.");
+  console.log("PASS: flag-off legacy read-state parity outside intentional planner controls/empty notice, and actual React error/loading/empty UI at desktop/390px, no overflow/errors.");
 } finally {
   writeFileSync("qa-artifacts/compliance-read-state-browser-report.json",JSON.stringify(report,null,2)+"\n");
   await browser.close();
