@@ -581,12 +581,12 @@
       ]
     },
     "src/app/api/assets/route.ts": {
-      "gitBlobSha": "255824f2ea67ad618461f85c03c13b30e3c958b9",
+      "gitBlobSha": "4d7bcb301697c69f261f5e114c90dad36091aca6",
       "route": "assets",
       "methods": [
         {
           "name": "GET",
-          "line": 8,
+          "line": 24,
           "status": "COVERED",
           "reason": "Seeded own asset GET 200, foreign employer GET 403, victim-only assets excluded",
           "testedBy": {
@@ -599,7 +599,7 @@
         },
         {
           "name": "POST",
-          "line": 38,
+          "line": 54,
           "status": "COVERED",
           "reason": "Owned asset created 201 and victim-tenant POST denied 403, DB invariant",
           "testedBy": {
@@ -613,7 +613,7 @@
         },
         {
           "name": "PATCH",
-          "line": 104,
+          "line": 120,
           "status": "COVERED",
           "reason": "Owned asset PATCH 200 and victim-only asset PATCH denied 403, DB invariant",
           "testedBy": {
@@ -627,7 +627,7 @@
         },
         {
           "name": "DELETE",
-          "line": 193,
+          "line": 209,
           "status": "COVERED",
           "reason": "Owned asset DELETE 200 and victim-only asset DELETE denied 403, DB invariant",
           "testedBy": {
@@ -663,171 +663,171 @@
           "text": "getSessionUser"
         },
         {
-          "line": 9,
+          "line": 25,
           "text": "getSessionUser"
         },
         {
-          "line": 16,
+          "line": 32,
           "text": "assertOrganizationRole"
         },
         {
-          "line": 23,
+          "line": 39,
           "text": "getAccess"
         },
         {
-          "line": 42,
+          "line": 58,
           "text": "getSessionUser"
         },
         {
-          "line": 50,
+          "line": 66,
           "text": "assertOrganizationRole"
         },
         {
-          "line": 57,
+          "line": 73,
           "text": "getAccess"
         },
         {
-          "line": 72,
+          "line": 88,
           "text": "assertScope"
         },
         {
-          "line": 108,
+          "line": 124,
           "text": "getSessionUser"
         },
         {
-          "line": 118,
+          "line": 134,
           "text": "assertOrganizationRole"
         },
         {
-          "line": 125,
+          "line": 141,
           "text": "getAccess"
         },
         {
-          "line": 132,
+          "line": 148,
           "text": "assertScope"
         },
         {
-          "line": 161,
+          "line": 177,
           "text": "assertScope"
-        },
-        {
-          "line": 197,
-          "text": "getSessionUser"
-        },
-        {
-          "line": 206,
-          "text": "assertOrganizationRole"
         },
         {
           "line": 213,
+          "text": "getSessionUser"
+        },
+        {
+          "line": 222,
+          "text": "assertOrganizationRole"
+        },
+        {
+          "line": 229,
           "text": "getAccess"
         },
         {
-          "line": 220,
+          "line": 236,
           "text": "assertScope"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 12,
+          "line": 28,
           "text": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 46,
+          "line": 62,
           "text": "body.organizationId"
         },
         {
-          "line": 61,
+          "line": 77,
           "text": "body.employeeId"
         },
         {
-          "line": 61,
+          "line": 77,
           "text": "body.employeeId"
         },
         {
-          "line": 61,
+          "line": 77,
           "text": "body.employeeId"
         },
         {
-          "line": 62,
+          "line": 78,
           "text": "body.employeeId"
         },
         {
-          "line": 146,
+          "line": 162,
           "text": "body.employeeId"
         },
         {
-          "line": 147,
+          "line": 163,
           "text": "body.employeeId"
         },
         {
-          "line": 147,
+          "line": 163,
           "text": "body.employeeId"
         },
         {
-          "line": 151,
+          "line": 167,
           "text": "body.employeeId"
         },
         {
-          "line": 200,
+          "line": 216,
           "text": "searchParams.get(\"id\")"
         }
       ],
       "businessIds": [
         {
-          "line": 12,
+          "line": 28,
           "text": "organizationId"
         },
         {
-          "line": 12,
+          "line": 28,
           "text": "organizationId"
         },
         {
-          "line": 13,
+          "line": 29,
           "text": "organizationId"
         },
         {
-          "line": 14,
-          "text": "organizationId"
-        },
-        {
-          "line": 18,
-          "text": "organizationId"
-        },
-        {
-          "line": 23,
-          "text": "organizationId"
-        },
-        {
-          "line": 27,
-          "text": "organizationId"
-        },
-        {
-          "line": 27,
-          "text": "organizationId"
-        },
-        {
-          "line": 31,
-          "text": "orgUnitId"
-        },
-        {
-          "line": 31,
-          "text": "orgUnitId"
-        },
-        {
-          "line": 33,
-          "text": "organizationId"
-        },
-        {
-          "line": 33,
+          "line": 30,
           "text": "organizationId"
         },
         {
           "line": 34,
+          "text": "organizationId"
+        },
+        {
+          "line": 39,
+          "text": "organizationId"
+        },
+        {
+          "line": 43,
+          "text": "organizationId"
+        },
+        {
+          "line": 43,
+          "text": "organizationId"
+        },
+        {
+          "line": 47,
           "text": "orgUnitId"
         },
         {
-          "line": 34,
+          "line": 47,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 49,
+          "text": "organizationId"
+        },
+        {
+          "line": 49,
+          "text": "organizationId"
+        },
+        {
+          "line": 50,
+          "text": "orgUnitId"
+        },
+        {
+          "line": 50,
           "text": "orgUnitId"
         }
       ]
