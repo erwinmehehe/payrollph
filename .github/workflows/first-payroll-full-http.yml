@@ -1,0 +1,81 @@
+name: First payroll reconciliation (fictional PG16 HTTP)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/qa/first-payroll-full-*.mjs'
+      - 'tests/first-payroll-*.test.*'
+      - 'src/components/workspace/production-pilot-signoff.tsx'
+      - 'src/app/api/employees/**'
+      - 'src/app/api/workforce/timesheets/**'
+      - 'src/app/api/payroll-runs/**'
+      - 'src/app/api/approvals/**'
+      - 'src/lib/payroll-*.ts'
+      - 'src/lib/exporters.ts'
+      - '.github/workflows/first-payroll-full-http.yml'
+permissions:
+  contents: read
+concurrency:
+  group: first-payroll-full-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  journey:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/qa/first-payroll-full-env.mjs >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          echo "FIRST_PAYROLL_SOURCE_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
+      - run: node --import tsx --test tests/first-payroll-full-contract.test.mjs tests/first-payroll-pilot-centavos.test.ts
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Start disposable localhost server
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/first-payroll-full.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/first-payroll-full.log
+          exit 1
+      - run: env -u NODE_ENV node --import tsx scripts/qa/first-payroll-full-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: first-payroll-full-reconciliation
+          path: |
+            outputs/first-payroll-full.json
+            outputs/first-payroll-*.png
+          retention-days: 7
+      - if: failure()
+        run: cat /tmp/first-payroll-full.log || true
