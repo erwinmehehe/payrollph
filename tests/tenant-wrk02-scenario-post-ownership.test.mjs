@@ -48,13 +48,33 @@ test("candidate HTTP write-table scenario uses two attackers, immutable state an
     "The dedicated POST row must follow the historical PATCH proof row");
   const candidate = table.slice(start, end);
   for (const proof of [
-    "status: 201", "state: scenarioState", "ownBody:", "foreignBody:",
-    "forged:", "status: 404", "expect:", "exercise:",
+    "status: 201", 'seed: async (e) => plan(e, "scenario plan")', "state: scenarioState",
+    "ownBody:", "foreignBody:", "forged:", "status: 404", "expect:", "exercise:",
     "added(before.scenarios, after.scenarios",
     "await scenarioState(c.victim.org.id)",
-    "assert.deepEqual(foreign.json, nonexistent.json",
-    "assert.deepEqual(await scenarioState(c.orgId), ownBefore",
+    "assert.equal(refusals[0], refusals[1]",
+    "assert.deepEqual(await scenarioState(c.orgId), own",
     "assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore",
-    'SQLFaultInjection: "NOT_RUN"', "methodCoverageCredit: false",
-  ]) assert.ok(candidate.includes(proof), "Missing separate runtime-acceptance step: " + proof);
+    "own org unit scope", "second version",
+    "scopeOrgUnitId: c.unitId", "row.scopeOrgUnitId, c.unitId", "row.snapshot?.scope?.orgUnitId, c.unitId",
+    'SQLFaultInjection: "SYNTHETIC_PG16_HTTP"', "methodCoverageCredit: false",
+    "requireTenantTableDisposable()", "CREATE TRIGGER qa_wfp_scenario_post_fault_1655",
+    "QA1655_PRIVATE_SQL_SENTINEL", "own pre-fault positive control",
+    "CREATE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn() RETURNS trigger AS $qa1655$",
+    "\"END;\"", "$qa1655$ LANGUAGE plpgsql",
+    'denied.json, { error: "Scenario could not be calculated." }',
+    "assert.deepEqual(await scenarioState(c.orgId), ownBeforeFault",
+    "DROP TRIGGER IF EXISTS qa_wfp_scenario_post_fault_1655",
+    "DROP FUNCTION IF EXISTS public.qa_wfp_scenario_post_fault_1655_fn()",
+  ]) assert.ok(candidate.includes(proof), "Missing additional scenario POST isolation control: " + proof);
+  assert.ok(!candidate.includes('RETURNS trigger AS $"'),
+    "A lone dollar sign is invalid PostgreSQL function syntax");
+  assert.ok(candidate.indexOf("RETURNS trigger AS $qa1655$") < candidate.indexOf("$qa1655$ LANGUAGE plpgsql"),
+    "PL/pgSQL function body must use matching tagged-dollar delimiters");
+  assert.equal((table.match(/key: "POST workforce-planning\/scenarios"/g) ?? []).length, 1,
+    "A merge must not duplicate the scenarios POST family row");
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const post = manifest.allApiRouteFiles["src/app/api/workforce-planning/scenarios/route.ts"].methods.find(method => method.name === "POST");
+  assert.equal(post.status, "GAP", "Current main requires SQL-error injection and independent review before a method credit");
+  assert.equal(post.testedBy, null);
 });
