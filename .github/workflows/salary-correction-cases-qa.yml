@@ -75,6 +75,8 @@ jobs:
       - run: npm ci
       - name: Guard isolated login-audit prerequisite
         run: node --test tests/hcm-salary-correction-cases-workflow.test.mjs
+      - name: Salary correction legal-employer route scope regression
+        run: node --test tests/hcm-salary-correction-entity-scope.test.mjs
       - name: Ephemeral encryption key for disposable CI only
         shell: bash
         run: |

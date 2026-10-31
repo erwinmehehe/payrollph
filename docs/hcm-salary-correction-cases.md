@@ -29,7 +29,7 @@ money.** Released payroll is never edited.
 | Employee belongs to the employer and the selected legal employer | create, plus every query scoped by `organization_id` |
 | Pay history did not change since the preview (`expectedLatestRevisionId`) | create (`STALE_PAY_HISTORY`) |
 | Every affected Released run is listed, at most 50, one entry each, same legal employer | create and refresh |
-| Retrying with the same idempotency key returns the same case; a different correction with that key is refused | create, unique index |
+| Retrying with the same idempotency key returns the same case **only for the original maker, legal employer, evidence, rationale and rate**; other requests are refused | create, unique index |
 | One open case per employee | partial unique index |
 | Each run is either linked to an underpayment request or marked "no shortfall" with a 20-500 character reason | submit and approve (`CASE_INCOMPLETE`), table CHECK |
 | A request is linked to at most one case run, for the same employee, run, entry and entry fingerprint | link, partial unique index |
@@ -42,7 +42,7 @@ money.** Released payroll is never edited.
 | The approver is not the person who opened the case | approve (`SELF_REVIEW`) and table CHECK |
 
 Statuses: `draft` → `submitted` → `approved`, or back to `changes_requested`
-when the reviewer returns it. Open cases can be `cancelled`. Cancelling
+when the reviewer returns it. Open cases can be `cancelled` **only by the original maker**. Cancelling
 withdraws every link so the requests can be reused, and the audit event keeps
 the previous links. Every action writes an audit event.
 
@@ -52,11 +52,15 @@ the previous links. Every action writes an audit event.
 company-wide access):
 
 - `GET ?organizationId=` lists cases with their runs and linked request status
-  (payroll view roles).
+  (payroll view roles). With multi-entity governance enabled, pass `legalEntityId`
+  (or use the authorized selected employer); only that legal employer's cases
+  are returned, and group-level aggregate access is denied.
 - `POST` opens a case: `organizationId, legalEntityId, employeeId,
   effectiveDate, correctedPayBasis, correctedRateAmount, evidenceReference,
   reason, idempotencyKey, expectedLatestRevisionId?` (payroll operator roles).
-- `PATCH` with `organizationId, caseId, action`:
+- `PATCH` with `organizationId, caseId, action` (include the authorized
+  `legalEntityId` selector when working across legal employers). The server
+  verifies the **actual stored case employer** before allowing any action:
   - maker (payroll operator roles, and only the person who opened the case for edits):
     `link_underpayment` (`caseRunId, underpaymentRequestId`),
     `mark_no_shortfall` (`caseRunId, reason`), `clear_run` (`caseRunId`),
