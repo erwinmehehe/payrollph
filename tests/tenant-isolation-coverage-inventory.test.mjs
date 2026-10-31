@@ -1441,6 +1441,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
       return;
     }
+    if ((wrk02Path.endsWith("/transfer/route.ts") && method.name === "POST") || (wrk02Path.endsWith("/scenarios/route.ts") && method.name === "PATCH")) {
+      // Real two-attacker PG16 HTTP proof now exists for these two through the write table; nothing else here is credited.
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/workforce-planning.mjs");
+      assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
+      return;
+    }
     assert.equal(method.status, "GAP", "Source-only WRK-02 changes earn zero new method credits");
     assert.equal(method.testedBy, null);
     assert.deepEqual(method.reviewedUncertified, {
@@ -1448,7 +1455,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: wrk02.previous,
       routeBlobSha: wrk02.current,
       contractFile: "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
-      contractBlobSha: "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+      contractBlobSha: "7f4b794ce84742f410721b8d702de9ba713fc621",
       originalGetPrefixSha: wrk02.prefix,
       coverageCredits: 0,
       exactHeadPg16Http: "NOT_RUN",
@@ -1456,8 +1463,182 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       productionCertified: false,
     });
     assert.equal(gitBlobSha(readFileSync("tests/tenant-wrk02-planning-write-boundaries.test.mjs")),
-      "e3eb602b4667c578e5a7f559d67ce4ed5111ceda", "WRK-02 source contract changed without renewed review");
+      "7f4b794ce84742f410721b8d702de9ba713fc621", "WRK-02 source contract changed without renewed review");
     return;
+  }
+
+  // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
+  // These changes preserve the historical POST/PATCH handlers byte-for-byte,
+  // preserve all existing method credits, and do NOT promote the open GET GAP.
+  if (isNewOrChanged && (
+    key.startsWith("src/app/api/workforce/demand-observations/issued/route.ts ") ||
+    key.startsWith("src/app/api/workforce/demand-staffing/policies/route.ts ")
+  )) {
+    const issued = key.startsWith("src/app/api/workforce/demand-observations/issued/route.ts ");
+    const routePath = key.slice(0, key.lastIndexOf(" "));
+    const before = issued
+      ? "d9e6ae99e687b691ca428e58c6c34ff077769a41"
+      : "513975b118713becbf98caffa7d813a5b8c33c71";
+    const after = issued
+      ? "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0"
+      : "e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c";
+    assert.equal(currentBlob, after, "WFM demand GET change requires renewed exact-source review");
+    assert.equal(baseline.api[routePath], before, "Original WFM demand baseline must remain stable");
+    const expectedStatuses = issued
+      ? { GET: "COVERED", POST: "GAP" }
+      : { GET: "GAP", POST: "COVERED", PATCH: "COVERED" };
+    assert.equal(method.status, expectedStatuses[method.name],
+      "WFM permission fix cannot silently promote, downgrade or omit another method");
+    if (method.status === "GAP") assert.equal(method.testedBy, null,
+      "Unreviewed method cannot borrow a feature-OFF or static proof credit");
+    else {
+      assert.equal(method.testedBy?.routeBlobSha, before,
+        "Historical covered method evidence must keep its original source hash");
+      assert.equal(method.testedBy?.file, issued
+        ? "scripts/qa/tenant-demand-governance-recovery-http.mjs"
+        : "scripts/qa/tenant-wrk01-staffing-writes-http.mjs",
+        "Historical method credit cannot borrow the new GET-only proof");
+    }
+
+    const reviewed = method.reviewedUncertified;
+    assert.deepEqual(reviewed, {
+      kind: "wfm-demand-reads-workforce-permission-overlay-unaccepted",
+      previousRouteBlobSha: before,
+      routeBlobSha: after,
+      onlyReadHandlerChanged: true,
+      changedMethod: "GET",
+      statusBefore: method.status,
+      runnerFile: "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
+      runnerBlobSha: "595539e672a3dc121f709b44ce045f432d7d9d92",
+      contractFile: "tests/tenant-wfm-demand-read-overlay.test.mjs",
+      contractBlobSha: "d03d2814cc989a3743ac520827d45b6a2b43b396",
+      workflowFile: ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
+      workflowBlobSha: "a7b23d7680e9a36a35d1d736e7a8bd2b9d01ccfc",
+      ownPositiveLine: 105,
+      foreignDenialLine: 117,
+      overlayDenialLine: 158,
+      revokedDenialLine: 212,
+      unchangedDbLine: 217,
+      methodCredits: 0,
+      independentlyAccepted: false,
+      productionCertified: false,
+    }, "WFM demand exemption is exact-source, exact-proof and zero-credit only");
+    for (const [file, sha] of [
+      [reviewed.runnerFile, reviewed.runnerBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "WFM demand proof, contract or workflow changed without renewed security review: " + file);
+    assert.match(evidenceLine(reviewed.runnerFile, reviewed.ownPositiveLine, key),
+      /const own = await request\(endpoint\(row, actor\.org\.id/);
+    assert.match(evidenceLine(reviewed.runnerFile, reviewed.foreignDenialLine, key),
+      /const foreign = await request\(endpoint\(row, victim\.org\.id/);
+    assert.match(evidenceLine(reviewed.runnerFile, reviewed.overlayDenialLine, key),
+      /const denied = await request\(endpoint\(row, a\.org\.id/);
+    assert.match(evidenceLine(reviewed.runnerFile, reviewed.revokedDenialLine, key),
+      /const denied = await request\(endpoint\(row, b\.org\.id/);
+    assert.match(evidenceLine(reviewed.runnerFile, reviewed.unchangedDbLine, key),
+      /assertImmutableDemandSources\(beforeReads\.get\(victim\.org\.id\)/);
+    const runner = readFileSync(reviewed.runnerFile, "utf8");
+    for (const required of [
+      "requireDisposableDemandRecovery();",
+      "for (const actor of [a, b])",
+      "assertBoundDemandRead(kind, own, c, persisted)",
+      "assertDemandDenial(foreign, 403",
+      "assertDemandDenial(stolenSite, 403",
+      "permissions: [\"people.admin\"]",
+      "assert.equal(stillSignedIn.status, 200",
+      "methodCredits: 0, independentlyAccepted: false, productionCertified: false",
+    ]) assert.ok(runner.includes(required), "WFM demand PG16 proof guard missing: " + required);
+    assert.ok(runner.indexOf("requireDisposableDemandRecovery();") >
+      runner.indexOf("export async function proveWorkforceDemandReadPermissionOverlay()") &&
+      runner.indexOf("requireDisposableDemandRecovery();") <
+        runner.indexOf('import("../../src/db/index.ts")'),
+      "PG16 hard refusal must execute before importing any application database module");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /tenant-table-allowlist-bootstrap\.mjs/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wfm-demand-read-overlay-http\.mjs/);
+    assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+
+    // Reconstruct the exact historical source from ONLY the reviewed import
+    // and GET-body edits; the resulting whole-file SHA proves that historical
+    // POST and PATCH handlers, imports and every other byte are unchanged.
+    const code = readFileSync(routePath, "utf8");
+    const oldImport = 'import { getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";';
+    const newImport = 'import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";';
+    const oldGet = issued
+      ? [
+        '  if (!issuedDemandPilotAllowed(organizationId)) {',
+        '    return Response.json({ error: "Issued workload forecasting is not enabled for this employer." }, { status: 404 });',
+        '  }',
+        '  const access = await getAccess(user.id, organizationId);',
+        '  if (!access || !WORKFORCE_MANAGER_ROLES.some(role => role === access.role)) {',
+        '    return Response.json({ error: "Workforce manager access is required." }, { status: 403 });',
+        '  }',
+      ].join("\n")
+      : [
+        '  if(!staffingPolicyPilotAllowed(organizationId,issuedDemandPilotAllowed(organizationId))){',
+        '    return Response.json({error:"Demand staffing policies unavailable for employer."},{status:404,headers});',
+        '  }',
+        '  const access=await getAccess(user.id,organizationId);',
+        '  if(!access||!WORKFORCE_MANAGER_ROLES.some(role=>role===access.role)||',
+        '    (mode==="manage"&&(!access.companyWide||',
+        '       !PEOPLE_ADMIN_ROLES.some(role=>role===access.role)))) {',
+        '    return Response.json({error:"Workforce policy review requires scoped manager access."},{status:403,headers});',
+        '  }',
+      ].join("\n");
+    const newGet = issued
+      ? [
+        '  // Authorize the active employer, session policy and deny-only custom',
+        '  // workforce permission BEFORE disclosing any tenant pilot configuration.',
+        '  const roleDenied = await assertOrganizationRole(',
+        '    user.id, organizationId, WORKFORCE_MANAGER_ROLES,',
+        '    "Workforce manager access is required.",',
+        '  );',
+        '  if (roleDenied) return roleDenied;',
+        '  const access = await getAccess(user.id, organizationId);',
+        '  if (!access) {',
+        '    return Response.json({ error: "Workforce manager access is required." }, { status: 403 });',
+        '  }',
+        '  if (!issuedDemandPilotAllowed(organizationId)) {',
+        '    return Response.json({ error: "Issued workload forecasting is not enabled for this employer." }, { status: 404 });',
+        '  }',
+      ].join("\n")
+      : [
+        '  // Deny a revoked session or a custom workforce permission restriction',
+        '  // before inspecting tenant pilot flags, sites, roles or policy evidence.',
+        '  const roleDenied=await assertOrganizationRole(',
+        '    user.id,organizationId,WORKFORCE_MANAGER_ROLES,',
+        '    "Workforce policy review requires scoped manager access.");',
+        '  if(roleDenied)return roleDenied;',
+        '  const access=await getAccess(user.id,organizationId);',
+        '  if(!access||(mode==="manage"&&(!access.companyWide||',
+        '       !PEOPLE_ADMIN_ROLES.some(role=>role===access.role)))) {',
+        '    return Response.json({error:"Workforce policy review requires scoped manager access."},{status:403,headers});',
+        '  }',
+        '  if(!staffingPolicyPilotAllowed(organizationId,issuedDemandPilotAllowed(organizationId))){',
+        '    return Response.json({error:"Demand staffing policies unavailable for employer."},{status:404,headers});',
+        '  }',
+      ].join("\n");
+    assert.equal(code.split(newImport).length, 2, "Reviewed import change must be unique");
+    assert.equal(code.split(newGet).length, 2, "Reviewed GET-body replacement must be unique");
+    const reconstructed = code.replace(newImport, oldImport).replace(newGet, oldGet);
+    assert.equal(gitBlobSha(Buffer.from(reconstructed)), before,
+      "WFM read hardening must not change unreviewed POST/PATCH or any unrelated route code");
+    const get = code.slice(code.indexOf("export async function GET("),
+      code.indexOf("export async function POST("));
+    const session = get.indexOf("getSessionUser()");
+    const gate = get.indexOf("await assertOrganizationRole(");
+    const access = get.indexOf("await getAccess(");
+    const flag = get.indexOf(issued ? "issuedDemandPilotAllowed(organizationId)" :
+      "staffingPolicyPilotAllowed(organizationId,issuedDemandPilotAllowed(organizationId))");
+    const source = get.indexOf(issued ? "await fetchIssuedDemandForecasts(" :
+      "await readStaffingPolicies(");
+    assert.ok(session >= 0 && gate > session && access > gate &&
+      flag > access && source > flag,
+      "WFM private demand GET must check active tenant/session/deny overlay before pilot and SQL");
+    return; // Narrow, source-reconstructed, zero-credit method-GAP exception only.
   }
 
   if (isNewOrChanged) {
