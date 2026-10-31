@@ -165,11 +165,11 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
         assert.equal(position.response.json?.approvalRequired, true);
         const instanceId = position.response.json?.businessProcess?.id;
         assert.ok(Number.isSafeInteger(instanceId) && instanceId > 0);
-        const process = created(position.before.processes, position.after.processes, "position review process", c.orgId);
-        assert.equal(process.id, instanceId);
-        assert.equal(process.sourceType, "position_creation");
-        assert.equal(process.processType, "create_position");
-        assert.equal(process.status, "in_progress");
+        const approvalProcess = created(position.before.processes, position.after.processes, "position review process", c.orgId);
+        assert.equal(approvalProcess.id, instanceId);
+        assert.equal(approvalProcess.sourceType, "position_creation");
+        assert.equal(approvalProcess.processType, "create_position");
+        assert.equal(approvalProcess.status, "in_progress");
         assert.ok(position.after.processSteps.some(r => r.instanceId === instanceId));
         await denyAndPreserve(c, "POST", base(c, "org_unit", {
           code: "X-PARENT-" + c.marker, name: c.marker + " foreign parent", type: "department",
