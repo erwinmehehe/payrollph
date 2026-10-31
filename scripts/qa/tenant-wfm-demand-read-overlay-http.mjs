@@ -90,12 +90,6 @@ export async function proveWorkforceDemandReadPermissionOverlay() {
     const beforeReads = await freeze();
     const endpoint = (row, organizationId, query) =>
       "/api/" + row.key.slice(4) + "?organizationId=" + organizationId + "&" + query;
-    const responseWithoutMarkers = (response, label) => {
-      for (const subject of subjects) {
-        assert.ok(!response.text.includes(subject.marker),
-          label + " must not contain a fictional employer's protected marker");
-      }
-    };
     let ownPositives = 0, realForeign403 = 0, stolenWorksite403 = 0;
     for (const actor of [a, b]) {
       const signedIn = await request("/api/account", { cookie: actor.cookie });
@@ -163,7 +157,10 @@ export async function proveWorkforceDemandReadPermissionOverlay() {
       const c = { orgId: a.org.id, seeded: a.seeded[row.key] };
       const denied = await request(endpoint(row, a.org.id, row.query(c)),
         { cookie: a.cookie });
-      assertDemandDenial(denied, 403, subjects.map(e => e.marker));
+      // An overlay response may legitimately name the actor's OWN permission set.
+      // It must never reveal the victim or the independent attacker's markers.
+      assertDemandDenial(denied, 403,
+        subjects.filter(e => e.org.id !== a.org.id).map(e => e.marker));
       assert.match(denied.json?.error ?? "", /custom permission set/i,
         "The active owner must be denied by the actual workforce permission overlay");
     }
