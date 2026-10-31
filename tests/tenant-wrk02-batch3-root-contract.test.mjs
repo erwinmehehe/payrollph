@@ -74,6 +74,18 @@ test("foreign and missing root PATCH IDs are hidden before role checks", () => {
   assert.match(family, /key: "PATCH workforce-planning", status: 200, deny: 404/);
 });
 
+test("out-of-range PostgreSQL int4 position IDs return neutral missing 404 before SQL", () => {
+  const patch = route.split("export async function PATCH(request: Request) {")[1] ?? "";
+  const validated = patch.indexOf("!Number.isInteger(id)");
+  const range = patch.indexOf("if (id <= 0 || id > 2_147_483_647)");
+  const neutral = patch.indexOf('return Response.json({ error: "Position not found." }, { status: 404 });', range);
+  const lookup = patch.indexOf("const [position] = await db.select().from(positions)");
+  assert.ok(validated !== -1 && validated < range && range < neutral && neutral < lookup,
+    "Out-of-range numeric IDs must return the same 404 without querying Postgres int4");
+  assert.match(family, /Number\.MAX_SAFE_INTEGER, status: "approved"/,
+    "The live HTTP fixture must send an out-of-range missing ID and expect 404");
+});
+
 test("simultaneous vacancy freezes cannot double-write; coverage remains uncredited", () => {
   assert.match(family, /Promise\.all\(\[1, 2\]\.map/);
   assert.match(family, /raceAudit.length, 1/);
