@@ -52,7 +52,7 @@ try{
  const body={organizationId:e.org.id,legalEntityId:e.entity.id,...period,processNow:true};
  // Real idempotency header, not a fabricated saved run or approval status.
  const key=`first-payroll-${nonce}`;
- async function create(){const response=await fetch(new URL('/api/payroll-runs',base),{method:'POST',headers:{cookie:payroll.cookie,origin:base.origin,'content-type':'application/json','idempotency-key':key},body:JSON.stringify(body)});const json=await response.json();assert.ok(response.ok,JSON.stringify(json));return json;}
+ async function create(){const response=await fetch(new URL('/api/payroll-runs',base),{method:'POST',headers:{cookie:payroll.cookie,origin:base.origin,'sec-fetch-site':'same-origin','content-type':'application/json','idempotency-key':key},body:JSON.stringify(body)});const json=await response.json();assert.ok(response.ok,JSON.stringify(json));return json;}
  const created=await create(),runId=created.run?.id??created.id;assert.ok(runId,JSON.stringify(created));
  const replay=await create();assert.equal(replay.run?.id??replay.id,runId);
  const [run]=await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id,runId));
