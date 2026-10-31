@@ -26,7 +26,7 @@
     },
     {
       "file": ".github/workflows/tenant-onboarding-http.yml",
-      "sha256": "e96e4660062153f577bd884b505e6e18c2ca5568612d039f30d06d709df4514c"
+      "sha256": "928d1cee02c28bd75248a7bc4b89b0967db747bb4ecddf0f6b129b06dd4b5788"
     },
     {
       "file": "src/app/api/employees/route.ts",
@@ -393,6 +393,10 @@
       "actionsEqualHistoricalReceipt": true,
       "victimUnchanged": true
     },
-    "caveat": "Both real HTTP proof stages succeeded but the workflow run's final receipt-source gate failed on the previously stale hashes. This commit refreshes those three pins; a new full exact-head CI pass is required. No release or tenant-wide authorization."
+    "caveat": "Both real HTTP proof stages succeeded but the workflow run's final receipt-source gate failed on the previously stale hashes. This commit refreshes those three pins; a new full exact-head CI pass is required. No release or tenant-wide authorization.",
+    "workflowTriggerFix": {
+      "commit": "1ea2ddb1c2a4d4ed7ac41798e45f3847b70b6c57",
+      "details": "The dedicated workflow now watches its receipt file, so source repins trigger fresh exact-head PG16 proof. The extra path filter does not change HTTP proof implementation; final tests are still mandatory."
+    }
   }
 }
