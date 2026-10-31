@@ -136,7 +136,7 @@ const cases = Object.freeze([
   { key: PAYROLL_PATH_METHODS[0], route: "submit-review", method: "POST", run: "draft", body: () => ({ approverUserId: -1 }), own: 409 },
   { key: PAYROLL_PATH_METHODS[1], route: "exports", method: "POST", run: "draft", body: () => ({ mode: "preflight" }), own: 409 },
   { key: PAYROLL_PATH_METHODS[2], route: "pilot-signoff", method: "POST", run: "draft", body: () => ({}), own: 409 },
-  { key: PAYROLL_PATH_METHODS[3], route: "release", method: "POST", run: "draft", body: () => ({}), own: 409 },
+  { key: PAYROLL_PATH_METHODS[3], route: "release", method: "POST", run: "draft", body: (actor) => ({ confirmLegalEntityName: actor.entity.legalName }), own: 409 },
   { key: PAYROLL_PATH_METHODS[4], route: "xendit-payout", method: "GET", run: "released", own: 200 },
   { key: PAYROLL_PATH_METHODS[5], route: "xendit-payout", method: "POST", run: "released", body: () => ({ action: "preflight" }), own: 409 },
   { key: PAYROLL_PATH_METHODS[6], route: "payout-reconciliation", method: "POST", run: "released", body: () => ({ action: "reconcile" }), own: 501 },

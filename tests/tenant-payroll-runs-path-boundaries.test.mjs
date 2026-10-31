@@ -105,3 +105,12 @@ test("provider-disabled replies are never counted as successful money movement o
   assert.match(runner, /blockedPreconditionOnlyMutations: uncreditedDenials/);
   assert.match(runner, /providersContacted: 0, moneyMoved: false/);
 });
+
+test("release keeps exact legal-employer confirmation even in no-money negative fixtures", () => {
+  const source = route("release");
+  assert.match(source, /requireConfirmation: true/);
+  assert.match(source, /confirmationBody\.confirmLegalEntityName/);
+  assert.match(runner, /body: \(actor\) => \(\{ confirmLegalEntityName: actor\.entity\.legalName \}\)/);
+  assert.match(runner, /run: "draft"/);
+  assert.match(runner, /own: 409/);
+});
