@@ -58,9 +58,11 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) return Response.json({ error: "Company-wide payroll evidence access required." }, { status: 403 });
+  // The shared resolver reads the URL/header selectors itself. Passing
+  // searchParams.get() here converts an absent selector into null, which
+  // means an explicit "all" request and incorrectly denies granted users.
   const entityScope = await resolveMultiEntityContext({
     userId: user.id, organizationId, request,
-    requested: new URL(request.url).searchParams.get("legalEntityId"),
   });
   if (!entityScope.ok) return entityScope.response;
   if (entityScope.context.enabled && (entityScope.context.group || entityScope.context.legalEntityId === null)) {
@@ -150,9 +152,19 @@ export async function PATCH(request: Request) {
   if (entityScope.context.enabled && (entityScope.context.group || entityScope.context.legalEntityId === null)) {
     return Response.json({ error: "Select an authorized legal employer to change salary correction cases." }, { status: 403, headers: NO_STORE });
   }
+  // Filter by the already authorized legal employer BEFORE resolving the
+  // case ID. A foreign employer's existing case must be indistinguishable
+  // from a missing case; an org-only lookup leaks its existence.
+  const caseScope = and(
+    eq(salaryCorrectionCases.organizationId, organizationId),
+    eq(salaryCorrectionCases.id, caseId),
+    entityScope.context.enabled
+      ? eq(salaryCorrectionCases.legalEntityId, entityScope.context.legalEntityId!)
+      : undefined,
+  );
   const [caseEmployer] = await db.select({ legalEntityId: salaryCorrectionCases.legalEntityId })
     .from(salaryCorrectionCases)
-    .where(and(eq(salaryCorrectionCases.organizationId, organizationId), eq(salaryCorrectionCases.id, caseId)))
+    .where(caseScope)
     .limit(1);
   if (!caseEmployer) return Response.json({ error: "Correction case not found." }, { status: 404, headers: NO_STORE });
   const entityDenied = assertEntityResource(entityScope.context, caseEmployer.legalEntityId);
