@@ -94,11 +94,21 @@ test("refusal fixture uses real returned proposal, band and cycle IDs scoped to 
   assert.equal(seeded.id, 102); assert.equal(seeded.bandId, 100); assert.equal(seeded.cycleId, 101); assert.equal(seeded.employeeId, 21);
 });
 
-test("Compensation targets are unique and stay GAP until executed action-complete proof", () => {
+test("Compensation targets are unique; POST is credited only with its all-entity-type proof and PATCH stays GAP until its own", () => {
   const catalog = tenantFamilyCatalog("write"), manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const row of rows) {
     assert.equal(catalog.filter(item => item.key === row.key).length, 1);
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
-    assert.equal(record.methods.find(item => item.name === method).status, "GAP");
+    const entry = record.methods.find(item => item.name === method);
+    if (row.key === "POST compensation") {
+      // component is the row's own entity type; cycle, band, component_assignment and proposal come from its exercise.
+      assert.equal(entry.status, "COVERED");
+      assert.equal(entry.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/compensation.mjs");
+      assert.equal(typeof row.exercise, "function", "the other four entity types must be executed, not assumed");
+      const helper = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-post-actions.mjs", "utf8");
+      for (const type of ["cycle", "band", "component_assignment", "proposal"]) assert.ok(helper.includes('entityType: "' + type + '"'), type + " must be exercised");
+    } else {
+      assert.equal(entry.status, "GAP", row.key + " stays GAP until action-complete proof (assignment approve/decline/cancel, proposal cancel/retry/approved)");
+    }
   }
 });

@@ -1,7 +1,7 @@
 // Fictional catalogue creation and proposal refusal only; no pay is scheduled or applied.
 export const fixtureOrder = {};
 
-export function createRows({ assert, db, eq, asc, compensationComponents, compensationProposals, compensationBands,
+export function createRows({ assert, db, eq, asc, jobProfiles, compensationComponents, compensationProposals, compensationBands,
   compensationCycles, employeeCompensationComponents, compensationEvents, employeePayProfiles, employeePayRevisions,
   payrollRuns, employees, auditEvents, auditBusinessSnapshot, hcmBusinessProcessInstances }) {
   const read = (table, organizationId) => db.select().from(table).where(eq(table.organizationId, organizationId)).orderBy(asc(table.id));
@@ -26,7 +26,9 @@ export function createRows({ assert, db, eq, asc, compensationComponents, compen
     assert.deepEqual(after.audits.filter(row => row.id !== event.id), before.audits);
   };
   return [
-    { key: "POST compensation", status: 201, state,
+    { key: "POST compensation", status: 201, state: state,
+      // Grade, graded profile, component and a primary position for the worker, so the other entity types can reference real own objects.
+      seed: async e => (await import("../helpers/compensation-post-actions.mjs")).seedCompensation({ db, jobProfiles }, e),
       ownBody: c => ({ organizationId: c.orgId, entityType: "component", code: c.marker + "-COMP", name: c.marker + " component", kind: "allowance", amountFrequency: "monthly", taxable: true, includeInSssBase: true, includeInPagIbigBase: true }),
       foreignBody: c => ({ organizationId: c.victim.org.id, entityType: "component", code: c.marker + "-COMP", name: c.marker + " component", kind: "allowance", amountFrequency: "monthly", taxable: true, includeInSssBase: true, includeInPagIbigBase: true }),
       expect: (before, after, c, response) => {
@@ -41,7 +43,8 @@ export function createRows({ assert, db, eq, asc, compensationComponents, compen
         assert.deepEqual(after.components.filter(item => item.id !== row.id), before.components);
         assert.deepEqual(response.json, row);
         audited(before, after, c, "Compensation component created", row.name, { componentId: row.id, code: row.code, kind: "allowance", amountFrequency: "monthly" });
-      } },
+      },
+      exercise: async (c, helpers) => (await import("../helpers/compensation-post-actions.mjs")).compensationPostActions({ assert, state }, c, helpers) },
     { key: "PATCH compensation", state,
       seed: async e => {
         const [band] = await db.insert(compensationBands).values({ organizationId: e.org.id, legalEntityId: e.entity.id,
