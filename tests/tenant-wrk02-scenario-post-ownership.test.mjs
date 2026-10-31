@@ -40,8 +40,12 @@ test("scenarios POST sends no raw SQL or unexpected exception text to clients", 
 test("candidate HTTP write-table scenario uses two attackers, immutable state and equal unknown/foreign denials", () => {
   const table = readFileSync("scripts/qa/tenant-table-rows/write/workforce-planning.mjs", "utf8");
   const start = table.indexOf('key: "POST workforce-planning/scenarios"');
-  const end = table.indexOf('key: "PATCH workforce-planning/scenarios"', start);
-  assert.ok(start >= 0 && end > start, "The dedicated POST row must exist");
+  // POST remains after the historical PATCH row so previously reviewed line
+  // pins in the tenant method inventory do not drift.
+  const patch = table.indexOf('key: "PATCH workforce-planning/scenarios"');
+  const end = table.indexOf("\n  ];", start);
+  assert.ok(patch >= 0 && patch < start && end > start,
+    "The dedicated POST row must follow the historical PATCH proof row");
   const candidate = table.slice(start, end);
   for (const proof of [
     "status: 201", "state: scenarioState", "ownBody:", "foreignBody:",
