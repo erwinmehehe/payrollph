@@ -1466,8 +1466,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const routeFile = "src/app/api/hcm/salary-corrections/cases/route.ts";
     const oldRouteSha = "26993c273d5482f602f420cd95cf9007616f6954";
     const hardenedRouteSha = "9293d95f76f1bb31caa2e3de6e6219be057d616a";
-    assert.equal(baseline.api[routeFile], oldRouteSha,
-      "#641 original case route SHA must remain the reviewed baseline");
+    // The 288-route original baseline predates the #641 cases endpoint.
+    // Do NOT misrepresent its previous HEAD blob as baseline-audited proof.
+    // Instead, pin the exact pre-hardening SHA in reviewedUncertified below
+    // and verify the historical HTTP fixture plus every changed source blob.
+    assert.equal(Object.hasOwn(baseline.api, routeFile), false,
+      "#641 case route is post-baseline; it must not claim old inventory acceptance");
     assert.equal(currentBlob, hardenedRouteSha,
       "#641 changed case route requires renewed security/tenant evidence review");
     assert.ok(["GET", "POST", "PATCH"].includes(method.name),
