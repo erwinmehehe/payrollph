@@ -1874,6 +1874,78 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // PATCH /api/payout-profiles: the historical GET is byte-identical to the
+  // previously accepted own/foreign PG16 read. New PATCH audit atomicity and
+  // two-attacker HTTP evidence are a ZERO-credit candidate pending review.
+  if (isNewOrChanged && key === "src/app/api/payout-profiles/route.ts PATCH") {
+    const routeFile = "src/app/api/payout-profiles/route.ts";
+    const reviewed = method.reviewedUncertified;
+    const expected = {
+      kind: "payout-profile-PATCH-atomic-audit-and-foreign-denial-PG16-zero-credit",
+      originalRouteBlobSha: "91d402d92ea03e66fa56951fef09187001f5f3ed",
+      routeBlobSha: "087457e69765c38f76c1d66e01c895351e2a5dc0",
+      priorGetPrefixFnv64: "4417b941777ae2cd",
+      proofFile: "scripts/qa/tenant-payout-profiles-patch-http.mjs",
+      proofBlobSha: "ad51a1be9b47a59bd458c207391412dc03d52ec1",
+      contractFile: "tests/tenant-payout-profiles-patch-audit.test.mjs",
+      contractBlobSha: "3304e1ef98bac98399eaabdb65981074b7fb64d7",
+      workflowFile: ".github/workflows/tenant-payout-profiles-patch-http.yml",
+      workflowBlobSha: "d96c7761993fb5ed40414250ed7d717411bef217",
+      credits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP", "A source fix cannot self-credit the PATCH method");
+    assert.equal(method.testedBy, null, "Prior GET read proof does not cover payout profile mutations");
+    assert.match(method.reason, /^Still GAP: payout-profile PATCH/);
+    assert.equal(currentBlob, expected.routeBlobSha, "Payout profile source changed; renew independent review");
+    assert.equal(baseline.api[routeFile], expected.originalRouteBlobSha,
+      "Unreviewed source must preserve original audited GET baseline");
+    assert.deepEqual(reviewed, expected, "Only exact uncredited payout PATCH evidence is allowed");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Payout write evidence changed; renew exact-source review: " + file);
+    const source = readFileSync(routeFile, "utf8");
+    const prefix = source.slice(0, source.indexOf("export async function PATCH"));
+    assert.equal(prefix.length, 4945, "GET section changed from reviewed source");
+    let fnv = 0xcbf29ce484222325n;
+    for (const ch of prefix) fnv =
+      ((fnv ^ BigInt(ch.charCodeAt(0))) * 0x100000001b3n) & 0xffffffffffffffffn;
+    assert.equal(fnv.toString(16).padStart(16, "0"), expected.priorGetPrefixFnv64,
+      "PATCH-only fix cannot alter GET employer-scoped read");
+    const patch = source.slice(source.indexOf("export async function PATCH"));
+    for (const token of [
+      "requireCompanyAdmin(user.id, organizationId)",
+      "requireSensitiveActionMfa(user)",
+      "eq(legalEntities.organizationId, organizationId)",
+      "const saved = await db.transaction(async (tx) => {",
+      "await recordAuditEvent({", "}, tx);",
+      'error: "Company payout profile could not be saved."',
+    ]) assert.ok(patch.includes(token), "Missing atomic payout audit tenant guard: " + token);
+    assert.ok(patch.indexOf("const saved = await db.transaction") <
+      patch.indexOf("await recordAuditEvent({"),
+      "Payout receipt must be committed or rolled back in the same transaction");
+    assert.ok(!patch.includes("error instanceof Error ? error.message"),
+      "SQL error details cannot leak to the tenant");
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    for (const marker of [
+      '["GITHUB_ACTIONS", "true"]',
+      '["SECURITY_SMOKE_URL", "http://127.0.0.1:3000"]',
+      '["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db"]',
+      "for (const actor of [a, b])",
+      "CREATE TRIGGER ci_reject_payout_profile_audit",
+      "assert.deepEqual(await profileSnapshot(a.org.id), originalProfiles",
+      "assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles",
+      "methodCredits: 0, independentSecurityReview: \"PENDING\"",
+    ]) assert.ok(proof.includes(marker), "Missing payout PATCH negative control: " + marker);
+    const wf = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(wf, /image: postgres:16/);
+    assert.match(wf, /node --import tsx scripts\/qa\/tenant-payout-profiles-patch-http\.mjs/);
+    return;
+  }
+
   // WRK-02 Batch 3 root privacy hardening: a narrowly scoped, exact-source,
   // zero-credit candidate. Neither POST nor PATCH becomes COVERED. GET retains
   // only the historical source-pinned read proof. Any source or fixture drift
@@ -4288,6 +4360,80 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
         assert.equal(reviewed.credits, 0);
         continue; // Narrow exact-source, zero-credit GAP evidence exception.
+      }
+      // #1658 HR Work Queue is a client-only shell: it contains no server
+      // employer data. All rows flow through a separately authorized GET.
+      // This exact, uncredited PG16 candidate is not a COVERED promotion.
+      if (path === "src/app/hcm/work-items/page.tsx") {
+        const reviewed = entry.reviewedUncertified;
+        const pageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
+        const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
+        assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
+        assert.equal(entry.testedBy, undefined, "No premature page coverage credit");
+        assert.equal(current, pageSha, "Changed HR Work Queue must renew its exact review");
+        assert.equal(entry.blob, pageSha);
+        assert.equal(baseline.app[path], originalPageSha);
+        assert.match(entry.reason, /^Still GAP: #1658/);
+        assert.deepEqual(reviewed, {
+          kind: "hcm-work-items-client-GET-PG16-unaccepted",
+          pageBlobSha: pageSha,
+          originalPageBlobSha: originalPageSha,
+          helperFile: "src/lib/hcm-work-queue-summary.ts",
+          helperBlobSha: "1e6fb2ab6fd10324ee06bf382d6050098a6482de",
+          unitTestFile: "tests/hcm-work-queue-summary.test.ts",
+          unitTestBlobSha: "eb33b1057cba28ea860828c773faed4e1c70fbe2",
+          proofFile: "scripts/qa/hcm-work-queue-http.mjs",
+          proofBlobSha: "5d3710f91b0e5d6b06010102566141beba86ca1d",
+          harnessFile: "scripts/qa/tenant-second-pass-http.mjs",
+          harnessBlobSha: "3765c1923e137f68b75fd545348868672f3f2f5d",
+          workflowFile: ".github/workflows/security-http-smoke.yml",
+          workflowBlobSha: "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+          ownPageLine: 145, foreignPageLine: 153,
+          ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
+        for (const [file, sha] of [
+          [reviewed.helperFile, reviewed.helperBlobSha],
+          [reviewed.unitTestFile, reviewed.unitTestBlobSha],
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.harnessFile, reviewed.harnessBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "Unreviewed HR Work Queue evidence changed without renewed proof: " + file);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+          /const ownPage = expectStatus\(await request\("\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+          /const foreignPage = await request\("\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPositiveLine, path),
+          /const ownApi = expectStatus\(await request\("\/api\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignDenialLine, path),
+          /const foreignApi = expectStatus\(await request\("\/api\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+          /assert\.deepEqual\(await victimCaseSnapshot\(\), beforeCases/);
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        for (const claim of [
+          'assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only")',
+          'assert.equal(process.env.SECURITY_SMOKE_URL, "http://127.0.0.1:3000")',
+          'assert.equal(process.env.DATABASE_URL, "postgresql://postgres:postgres@127.0.0.1:5432/app_db")',
+          "await verifyHcmWorkItemsPageTenantBoundary(f, { request, expectStatus })",
+          "for (const idx of [1, 2])", "assert.equal(ownPositives, 2)",
+          "assert.equal(foreignDenials, 4)", "assert.deepEqual(await victimWorkerSnapshot()",
+          "assert.deepEqual(await victimPayrollSnapshot()", "assert.deepEqual(await victimAuditSnapshot()",
+        ]) assert.ok(proof.includes(claim), "Missing HR work-queue negative control: " + claim);
+        const page = readFileSync(path, "utf8");
+        assert.match(page, /"use client"/);
+        assert.match(page, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
+        assert.match(page, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
+        const route = readFileSync("src/app/api/hcm/work-items/route.ts", "utf8");
+        assert.match(route, /const auth = await authorize\(organizationId\)/);
+        assert.match(route, /WHERE c\.organization_id = \$1/);
+        assert.match(route, /if \(!access\?\.companyWide\)/);
+        const runner = readFileSync(reviewed.harnessFile, "utf8");
+        assert.match(runner, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
+        assert.equal(reviewed.credits, 0);
+        continue; // Source-pinned, real-HTTP uncredited candidate, not blanket COVERED.
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");

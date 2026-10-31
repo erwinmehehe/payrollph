@@ -230,43 +230,56 @@ export async function PATCH(request: Request) {
       updatedAt: new Date(),
     };
 
-    const [saved] = await db.insert(payoutProfiles).values({
-      ...values,
-      createdByUserId: user.id,
-    }).onConflictDoUpdate({
-      target: payoutProfiles.legalEntityId,
-      set: values,
-    }).returning();
+    // The payout profile must never commit without its organization-bound
+    // audit receipt. A failure anywhere in this transaction rolls back both.
+    const saved = await db.transaction(async (tx) => {
+      const [persisted] = await tx.insert(payoutProfiles).values({
+        ...values,
+        createdByUserId: user.id,
+      }).onConflictDoUpdate({
+        target: payoutProfiles.legalEntityId,
+        set: values,
+      }).returning();
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Company payout profile updated",
-      resource: entity.displayName,
-      metadata: {
-        legalEntityId,
-        payoutProfileId: saved.id,
-        defaultMethod,
-        active,
-        bankTemplateId,
-        bankTemplateName: adapter?.name ?? null,
-        bankTemplateVersion: adapter?.version ?? null,
-        bankProduct: saved.bankProduct,
-        sourceAccountType: saved.sourceAccountType,
-        companyCodeConfigured: Boolean(saved.companyCode),
-        presentingOfficeConfigured: Boolean(saved.presentingOffice),
-        branchCodeConfigured: Boolean(saved.branchCode),
-        maxAmountPerFile: saved.maxAmountPerFile,
-        maxRowsPerFile: saved.maxRowsPerFile,
-        transactionLimit: saved.transactionLimit,
-        dailyLimit: saved.dailyLimit,
-      },
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Company payout profile updated",
+        resource: entity.displayName,
+        metadata: {
+          legalEntityId,
+          payoutProfileId: persisted.id,
+          defaultMethod,
+          active,
+          bankTemplateId,
+          bankTemplateName: adapter?.name ?? null,
+          bankTemplateVersion: adapter?.version ?? null,
+          bankProduct: persisted.bankProduct,
+          sourceAccountType: persisted.sourceAccountType,
+          companyCodeConfigured: Boolean(persisted.companyCode),
+          presentingOfficeConfigured: Boolean(persisted.presentingOffice),
+          branchCodeConfigured: Boolean(persisted.branchCode),
+          maxAmountPerFile: persisted.maxAmountPerFile,
+          maxRowsPerFile: persisted.maxRowsPerFile,
+          transactionLimit: persisted.transactionLimit,
+          dailyLimit: persisted.dailyLimit,
+        },
+      }, tx);
+      return persisted;
     });
-
     return Response.json({ profile: saved });
   } catch (error) {
-    return Response.json({
-      error: error instanceof Error ? error.message : "Company payout profile could not be saved.",
-    }, { status: 422 });
+    // User validation gets a precise, fixed message. Database/constraint
+    // failures must never expose SQL, column names or tenant details.
+    const inputErrors = new Set([
+      "Maximum amount per file must be greater than zero.",
+      "Maximum rows per file must be a positive whole number.",
+      "Transaction limit must be greater than zero.",
+      "Daily limit must be greater than zero.",
+    ]);
+    if (error instanceof Error && inputErrors.has(error.message)) {
+      return Response.json({ error: error.message }, { status: 422 });
+    }
+    return Response.json({ error: "Company payout profile could not be saved." }, { status: 500 });
   }
 }
