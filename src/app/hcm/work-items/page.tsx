@@ -122,15 +122,21 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
       {[[summary?.total ?? null,"Items in current view"],[summary?.overdue ?? null,"Overdue"],[summary?.unassigned ?? null,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value === null ? "—" : value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
     </section>
     {!summary && <p role="status" className="mb-4 text-sm text-slate-600">Queue counts are unavailable until the selected employer’s work items load successfully.</p>}
-    <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full min-w-[850px] text-left text-sm">
-      <thead className="bg-slate-100"><tr>{["Work item","Accountable team","Named owner","SLA due","Status","Action"].map(s=><th key={s} className="p-3">{s}</th>)}</tr></thead>
-      <tbody>{items.map(i=><tr key={i.id} className="border-t">
-        <td className="p-3"><strong>{i.title}</strong><p className="text-slate-500">#{i.id} · {i.caseType}</p></td>
-        <td className="p-3">{i.ownerTeam}</td><td className="p-3">{i.ownerName??"Unassigned"}</td>
-        <td className="p-3">{i.dueAt?new Date(i.dueAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"}):"Not set"}{i.overdue&&<span className="ml-2 font-semibold text-rose-700">Overdue</span>}{i.escalationLevel>0&&<span className="ml-2 font-semibold text-amber-700">Escalated</span>}</td>
-        <td className="p-3 capitalize">{i.status}</td><td className="p-3"><button className="font-semibold text-emerald-800 underline disabled:opacity-50" disabled={i.status==="resolved"} onClick={()=>edit(i)}>Assign / SLA</button></td>
-      </tr>)}</tbody>
-    </table>{activeQueue&&!loadError&&items.length===0&&<p className="p-8 text-center text-slate-500">No work items found for this filter.</p>}</div>
+    {summary ? (
+      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full min-w-[850px] text-left text-sm">
+        <thead className="bg-slate-100"><tr>{["Work item","Accountable team","Named owner","SLA due","Status","Action"].map(s=><th key={s} className="p-3">{s}</th>)}</tr></thead>
+        <tbody>{items.map(i=><tr key={i.id} className="border-t">
+          <td className="p-3"><strong>{i.title}</strong><p className="text-slate-500">#{i.id} · {i.caseType}</p></td>
+          <td className="p-3">{i.ownerTeam}</td><td className="p-3">{i.ownerName??"Unassigned"}</td>
+          <td className="p-3">{i.dueAt?new Date(i.dueAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"}):"Not set"}{i.overdue&&<span className="ml-2 font-semibold text-rose-700">Overdue</span>}{i.escalationLevel>0&&<span className="ml-2 font-semibold text-amber-700">Escalated</span>}</td>
+          <td className="p-3 capitalize">{i.status}</td><td className="p-3"><button className="font-semibold text-emerald-800 underline disabled:opacity-50" disabled={i.status==="resolved"} onClick={()=>edit(i)}>Assign / SLA</button></td>
+        </tr>)}</tbody>
+      </table>{items.length===0&&<p className="p-8 text-center text-slate-500">No work items found for this filter.</p>}</div>
+    ) : (
+      <div role="status" className="rounded-xl border bg-white p-8 text-center text-slate-600">
+        {loading ? "Work items are loading…" : loadError ? "Work items could not be loaded. Use Refresh to retry." : "Select a valid organization to see work items."}
+      </div>
+    )}
     {selected&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="work-item-edit-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
       <h2 id="work-item-edit-title" className="text-xl font-bold">Assign #{selected.id}</h2><p className="mb-4 text-slate-600">{selected.title}</p>
       {error&&<p role="alert" className="mb-3 rounded border border-rose-300 p-2 text-rose-700">{error}</p>}
