@@ -36,9 +36,19 @@ test("source drift and changed synthetic evidence fail closed instead of borrowi
     ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
     "scripts/qa/tenant-demand-governance-recovery-http.mjs",
   ]) {
-    assert.throws(() => verifyMoreCredits(manifest, file =>
-      read(file) + (file === path ? "\n// unauthorized modification" : "")),
-      "Any changed route or independently pinned evidence must fail: " + path);
+    const changedRead = file => read(file) +
+      (file === path ? "\n// unauthorized modification" : "");
+    if (path === staffingRoute) {
+      // Staffing POST/PATCH historical proof belongs to the independent
+      // WRK-01 verifier, not #1514's issued-demand GET sweep. Exercise its
+      // exact-source reconstruction guard directly for this negative control.
+      assert.throws(() => assertHistoricalDemandSourceCompatible(
+        staffingRoute, manifest.allApiRouteFiles[staffingRoute], changedRead),
+      "Staffing historical proof must refuse a changed route: " + path);
+    } else {
+      assert.throws(() => verifyMoreCredits(manifest, changedRead),
+        "Issued GET or pinned evidence must fail: " + path);
+    }
   }
 });
 
