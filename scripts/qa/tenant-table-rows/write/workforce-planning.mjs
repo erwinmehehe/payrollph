@@ -221,9 +221,11 @@ export function createRows(deps) {
         // The caller's own org unit is accepted as the scope.
         {
           const own = await scenarioState(c.orgId);
-          await post(scenarioBody(c.orgId, c.seeded.id, c.marker + " own scope", { scopeOrgUnitId: c.unit?.id ?? c.seeded.orgUnitId }), 201, "own org unit scope");
+          await post(scenarioBody(c.orgId, c.seeded.id, c.marker + " own scope", { scopeOrgUnitId: c.unitId }), 201, "own org unit scope");
           const row = added(own.scenarios, (await scenarioState(c.orgId)).scenarios, c, "own-scope scenario");
           assert.equal(row.name, c.marker + " own scope");
+          assert.equal(row.scopeOrgUnitId, c.unitId, "Own organization-unit scope must actually persist");
+          assert.equal(row.snapshot?.scope?.orgUnitId, c.unitId, "Saved scenario forecast must use the owned organization unit");
         }
         // Saving the same name again is a new immutable version, never an overwrite.
         const before = await scenarioState(c.orgId);
@@ -250,14 +252,14 @@ export function createRows(deps) {
         await pool.query("DROP TRIGGER IF EXISTS qa_wfp_scenario_post_fault_1655 ON workforce_planning_scenarios");
         try {
           await pool.query([
-            "CREATE OR REPLACE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn() RETURNS trigger AS $",
+            "CREATE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn() RETURNS trigger AS $qa1655$",
             "BEGIN",
             "  IF strpos(NEW.name, 'QA1655_SQL_FAULT_PROBE') > 0 THEN",
             "    RAISE EXCEPTION 'QA1655_PRIVATE_SQL_SENTINEL: SELECT worker_pii FROM confidential_employers' USING ERRCODE = 'P0001';",
             "  END IF;",
             "  RETURN NEW;",
-            "END",
-            "$ LANGUAGE plpgsql",
+            "END;",
+            "$qa1655$ LANGUAGE plpgsql",
           ].join("\n"));
           await pool.query("CREATE TRIGGER qa_wfp_scenario_post_fault_1655 BEFORE INSERT ON workforce_planning_scenarios FOR EACH ROW EXECUTE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn()");
           const installed = await pool.query("SELECT 1 FROM pg_trigger WHERE tgname = $1 AND NOT tgisinternal", ["qa_wfp_scenario_post_fault_1655"]);
