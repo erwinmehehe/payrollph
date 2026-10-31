@@ -21,6 +21,7 @@ The scenario/plan/job/position prerequisites are real, synthetic SQL fixtures, i
 - Own `PATCH cancel` persists cancelled, rejects double decision, and an authorized `POST` reopens the exact-hash preview.
 - Own `PATCH apply` updates the actual intended position to approved and records the expected execution and audit. A second apply is rejected, not replayed as a new write.
 - A newer owned approved synthetic scenario publishes version 2; applying the **old** preview fails 409 with every business, payroll and audit record unchanged. An execution preview created from the new baseline succeeds and applies.
+- A genuinely authenticated unit-scoped HR user is denied all three company-wide writes, even with a valid People-admin base role. A still-signed-in owner assigned a deny-only permission overlay that excludes `people.admin` is also denied all three.
 - Revoked employer membership is denied across all three methods while the same user account session remains active.
 - Every cross-company denial is checked against real persisted victim/peer payroll, position, baseline, preview, employee and audit records. Controlled own success is checked to leave other employers untouched.
 - Exact source Git blobs are pinned in the contract test, together with the existing zero-credit manifest statuses.
