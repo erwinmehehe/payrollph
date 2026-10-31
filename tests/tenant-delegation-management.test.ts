@@ -45,6 +45,7 @@ test("GET and POST use tenant-qualified active memberships and unique actor name
   assert.match(route, /async function activeDelegationMembers\(organizationId: number\)/);
   assert.match(route, /eq\(userOrganizations.organizationId, organizationId\)/);
   assert.match(route, /eq\(userOrganizations.active, true\)/);
+  assert.match(route, /eq\(users.active, true\)/);
   const get = route.split("export async function GET")[1].split("export async function POST")[0];
   const post = route.split("export async function POST")[1].split("export async function PATCH")[0];
   assert.match(get, /uniqueDelegationMember\(await activeDelegationMembers\(organizationId\), user.name\)/);
