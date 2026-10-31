@@ -103,7 +103,7 @@ try {
       ...body(actor, "forged victim legal entity"), legalEntityId: victim.entity.id,
     }), 404, "A real foreign legal entity forged into an own org is not found");
     exact(await patch(actor, {
-      ...body(b, "forged peer legal entity"), legalEntityId: (actor === a ? b : a).entity.id,
+      ...body(actor, "forged peer legal entity"), legalEntityId: (actor === a ? b : a).entity.id,
     }), 404, "Another attacker entity forged into own employer is not found");
   }
   assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
