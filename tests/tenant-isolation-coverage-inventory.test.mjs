@@ -4149,13 +4149,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
           unitTestFile: "tests/hcm-work-queue-summary.test.ts",
           unitTestBlobSha: "eb33b1057cba28ea860828c773faed4e1c70fbe2",
           proofFile: "scripts/qa/hcm-work-queue-http.mjs",
-          proofBlobSha: "634c48f9cafd3f56848dad9e1641ba30494567a5",
+          proofBlobSha: "5d3710f91b0e5d6b06010102566141beba86ca1d",
           harnessFile: "scripts/qa/tenant-second-pass-http.mjs",
           harnessBlobSha: "3765c1923e137f68b75fd545348868672f3f2f5d",
           workflowFile: ".github/workflows/security-http-smoke.yml",
           workflowBlobSha: "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
-          ownPageLine: 146, foreignPageLine: 154,
-          ownPositiveLine: 159, foreignDenialLine: 171, unchangedDbLine: 183,
+          ownPageLine: 145, foreignPageLine: 153,
+          ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
         for (const [file, sha] of [
