@@ -3682,6 +3682,99 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(reviewed.credits, 0, "No page or API credit from feature-ON GET-only proof");
         continue; // Deliberate exact-source, zero-credit GAP exception, not blanket certification.
       }
+      // #1631 billing setup PAGE: exact-source, real-HTTP PG16 synthetic
+      // proof candidate. Like #1557, this remains a GAP until independent
+      // review; changing the page may never silently become a coverage credit.
+      if (path === "src/app/billing/setup/page.tsx") {
+        assert.equal(entry.status, "GAP", "No unreviewed billing page promotion");
+        assert.equal(entry.testedBy, undefined, "A proof candidate is not a coverage credit");
+        const reviewed = entry.reviewedUncertified;
+        const originalPageBlobSha = "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381";
+        const pageBlobSha = "c5830a95d2c13063c43a36629690010220d99d31";
+        assert.equal(current, pageBlobSha, "Billing page changed; renew tenant review");
+        assert.deepEqual(reviewed, {
+          kind: "billing-setup-SSR-GET-PG16-unaccepted",
+          originalPageBlobSha, pageBlobSha,
+          proofFile: "scripts/qa/tenant-billing-setup-page-http.mjs",
+          proofBlobSha: "d0047d905a95ef6c33d63065d3404db114b102f3",
+          contractTestFile: "tests/tenant-billing-setup-boundary.test.mjs",
+          contractTestBlobSha: "b31437f6707036393404cc8ddad824dee56fd58d",
+          workflowFile: ".github/workflows/tenant-billing-setup-page-qa.yml",
+          workflowBlobSha: "a2b3bbe665e27d973d491426d9109853958ff425",
+          ownPageLine: 153, foreignPageLine: 161, revokedPageLine: 206,
+          unchangedDbLine: 210,
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only this exact uncredited PG16 billing page proof is allowed");
+        assert.match(entry.reason, /^Still GAP: #1631/);
+        assert.equal(entry.blob, pageBlobSha);
+        assert.equal(baseline.app[path], originalPageBlobSha);
+        for (const [file, sha] of [
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Billing proof changed without renewed review: " + file);
+        }
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          const sourceLines = actual.split("\n");
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": incorrect exact source line " + pin.line);
+          }
+        }
+        const session = actual.indexOf("await getSessionUser()");
+        const selector = actual.indexOf("const selected = params.organizationId");
+        const role = actual.indexOf("await assertOrganizationRole(");
+        const scope = actual.indexOf("await getAccess(");
+        const employer = actual.indexOf("await db.select(");
+        const render = actual.indexOf("<SubscriptionManager");
+        assert.ok(0 < session && session < selector && selector < role &&
+          role < scope && scope < employer && employer < render,
+          "Billing page must authenticate, select, authorize and scope before employer SSR read");
+        for (const required of [
+          'typeof selected === "string"', '/^[1-9]\\d*$/.test(selected)',
+          "Number.isSafeInteger(Number(selected))",
+          "primaryCompanyOrganizationId(user.id)",
+          "BILLING_ADMIN_ROLES", "if (denied) notFound();",
+          "if (!access?.companyWide) notFound();", "if (!org) notFound();",
+          "companyName={org.name}", "dynamic = \"force-dynamic\"",
+        ]) assert.ok(actual.includes(required),
+          "Billing page tenant gate missing: " + required);
+
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        const proofLines = proof.split("\n");
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+          /assertOwnBillingPage\(await readLocal\(ownPath\(actor\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+          /assertDeniedBillingPage\(denied, subjects/);
+        assert.match(proofLines[reviewed.foreignPageLine - 2] ?? "",
+          /readLocal\(ownPath\(other\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedPageLine, path),
+          /assertDeniedBillingPage\(await readLocal\(ownPath\(a\.org\.id\), a\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+          /assert\.deepEqual\(await snapshot\(other\.org\.id\), before\.get\(other\.org\.id\)/);
+        assert.ok(proof.indexOf("requireDisposableBillingPageEnv();") > 0 &&
+          proof.indexOf("requireDisposableBillingPageEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "Billing CI environment hard refusal must precede importing the app database");
+        for (const required of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          "for (const actor of [a, b])", "assert.equal(ownSuccesses, 2)",
+          "assert.equal(foreignDenials, 4)", "assert.equal(revoked.length, 1",
+          "assert.equal(stillSignedIn.status, 200", "assert.deepEqual(",
+          "pageCredits: 0, methodCredits: 0", "productionCertified: false",
+        ]) assert.ok(proof.includes(required),
+          "Billing PG16 negative control missing: " + required);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-billing-setup-page-http\.mjs/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.equal(reviewed.credits, 0);
+        continue; // Narrow exact-source, zero-credit GAP evidence exception.
+      }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
       if (entry.status === "COVERED") {
