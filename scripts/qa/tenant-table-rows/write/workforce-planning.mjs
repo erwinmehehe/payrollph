@@ -1,8 +1,8 @@
 /**
  * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
- * from a published baseline, and scenario submission for approval. Scenario POST was previously excluded because
- * an employer could forge another employer's org-unit scope (#1644). The candidate now checks signed-in own, foreign
- * and nonexistent scopes using two attackers and a higher-ID victim with unchanged DB/audit snapshots. No payroll, schedules,
+ * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
+ * employer's org unit as its scope (see the PR description), so its proof cannot pass until the route validates ownership. The shared write runner adds
+ * two attackers, the victim denial, a discrimination check and an unchanged victim. Nothing here touches payroll, schedules,
  * providers or money, and no approval is decided.
  */
 import { createHash } from "node:crypto";
@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 export const fixtureOrder = {};
 
 export function createRows(deps) {
-  const { addWorker, assert, asc, auditBusinessSnapshot, auditEvents, db, employees, eq, jobProfiles, approvalChainPolicies } = deps;
+  const { addWorker, assert, asc, auditBusinessSnapshot, auditEvents, db, employees, eq, jobProfiles, approvalChainPolicies, pool } = deps;
   // The shared runner's dependency list is bound by reviewed receipts, so tables it does not pass come from the schema.
   let schema;
   const s = async () => (schema ??= await import("../../../../src/db/schema.ts"));
@@ -188,77 +188,105 @@ export function createRows(deps) {
         return { actions: ["submit"], controls: 3, victimScenarioDenials: 1 };
       } },
 
-    // #1644: method-specific signed-in HTTP evidence. This stays GAP until
-    // exact-head PG16 CI, SQL-failure injection and security-owner acceptance.
     { key: "POST workforce-planning/scenarios", status: 201,
+      seed: async (e) => plan(e, "scenario plan"),
       state: scenarioState,
-      ownBody: (c) => ({
-        organizationId: c.orgId, name: c.marker + " scoped scenario",
-        startDate: "2026-01-01", endDate: "2026-12-31",
-        scopeOrgUnitId: c.unitId, demandGrowthPercent: 0,
-        vacancyFillPercent: 100, employerLoadPercent: 0,
-      }),
-      foreignBody: (c) => ({
-        organizationId: c.victim.org.id, name: c.marker + " victim employer scenario",
-        startDate: "2026-01-01", endDate: "2026-12-31",
-        scopeOrgUnitId: c.victim.unit.id,
-      }),
-      forged: {
-        status: 404,
-        body: (c) => ({
-          organizationId: c.orgId, name: c.marker + " forged org-unit scenario",
-          startDate: "2026-01-01", endDate: "2026-12-31",
-          scopeOrgUnitId: c.victim.unit.id,
-        }),
-      },
+      ownBody: (c) => scenarioBody(c.orgId, c.seeded.id, c.marker + " staffing scenario"),
+      foreignBody: (c) => scenarioBody(c.victim.org.id, c.victimSeeded.id, c.marker + " staffing scenario"),
+      forged: { status: 404, body: (c) => scenarioBody(c.orgId, c.victimSeeded.id, c.marker + " staffing scenario") },
       expect: (before, after, c, response) => {
-        const row = added(before.scenarios, after.scenarios, c, "scoped forecast scenario");
-        assert.equal(row.name, c.marker + " scoped scenario");
-        assert.equal(row.status, "draft");
-        assert.equal(row.scopeOrgUnitId, c.unitId);
-        assert.equal(row.createdByUserId, c.owner.id);
-        assert.equal(row.snapshot?.scope?.orgUnitId, c.unitId);
-        assert.match(row.snapshotHash, /^[a-f0-9]{64}$/);
+        const row = added(before.scenarios, after.scenarios, c, "scenario");
+        assert.equal(row.planId, c.seeded.id); assert.equal(row.name, c.marker + " staffing scenario"); assert.equal(row.version, 1);
+        assert.equal(row.status, "draft"); assert.equal(row.createdByUserId, c.owner.id);
+        assert.equal(Number(row.demandGrowthPercent), 5); assert.equal(Number(row.vacancyFillPercent), 90); assert.equal(Number(row.annualAttritionPercent), 10);
+        assert.equal(row.snapshot.linkedPlan.id, c.seeded.id); assert.match(row.snapshotHash, /^[a-f0-9]{64}$/);
+        assert.deepEqual(after.plans, before.plans); assert.deepEqual(after.instances, before.instances);
         assert.equal(response.json?.scenario?.id, row.id);
-        assert.equal(response.json?.scenario?.organizationId, c.orgId);
-        assert.deepEqual(after.plans, before.plans, "scenario save must not change workforce plans");
-        assert.deepEqual(after.instances, before.instances, "save must not start an approval chain");
-        assert.deepEqual(after.steps, before.steps, "save must not advance approvers");
-        assert.deepEqual(after.tasks, before.tasks, "save must not create approval tasks");
-        const receipt = oneAudit(before, after, c, "Workforce staffing scenario saved");
-        assert.equal(receipt.metadata.scenarioId, row.id);
-        assert.equal(receipt.metadata.scopeOrgUnitId, c.unitId);
+        assert.equal(oneAudit(before, after, c, "Workforce staffing scenario saved").resource, row.name + " v1");
       },
       exercise: async (c, { request, expectStatus, cookie }) => {
         const url = "/api/workforce-planning/scenarios";
-        const ownBefore = await scenarioState(c.orgId);
         const victimBefore = await scenarioState(c.victim.org.id);
-        const requestScoped = (unit) => request(url, { method: "POST", cookie, body: {
-          organizationId: c.orgId, name: c.marker + " rejected unit scenario",
-          startDate: "2026-01-01", endDate: "2026-12-31",
-          scopeOrgUnitId: unit,
-        } });
-        const foreign = expectStatus(await requestScoped(c.victim.unit.id), 404,
-          "foreign org unit must be denied before forecast/save");
-        const nonexistent = expectStatus(await requestScoped(c.victim.unit.id + 100000), 404,
-          "nonexistent org unit must match foreign denial");
-        assert.deepEqual(foreign.json, nonexistent.json,
-          "foreign and unknown global unit IDs must be indistinguishable");
-        assert.deepEqual(foreign.json, { error: "Organization unit not found." });
-        assert.ok(!foreign.text.includes(c.victim.marker));
-        assert.ok(!nonexistent.text.includes(c.victim.marker));
-        assert.deepEqual(await scenarioState(c.orgId), ownBefore,
-          "neither rejected POST may write scenarios, approvals or audit to own employer");
-        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore,
-          "neither rejected POST may change victim employer state");
-        return {
-          actions: ["create scoped draft"],
-          refusedOrgUnitReferences: ["foreign", "nonexistent"],
-          denialPayloadEqual: true,
-          SQLFaultInjection: "NOT_RUN",
-          methodCoverageCredit: false,
-        };
-      },
-    },
+        const post = async (body, status, label) => expectStatus(await request(url, { method: "POST", cookie, body }), status, label);
+        // A victim's org unit and a nonexistent one must get the identical refusal (no existence oracle), and write nothing.
+        const refusals = [];
+        for (const [label, scopeOrgUnitId] of [["victim org unit", c.victim.unit.id], ["missing org unit", 2147483000]]) {
+          const own = await scenarioState(c.orgId);
+          const response = await expectStatus(await request(url, { method: "POST", cookie, body: scenarioBody(c.orgId, c.seeded.id, c.marker + " scoped", { scopeOrgUnitId }) }), 404, label);
+          assert.ok(!response.text.includes(c.victim.marker) && !/select |insert |from "/i.test(response.text), "a refusal leaks no victim data or SQL");
+          assert.deepEqual(await scenarioState(c.orgId), own, label + " writes nothing"); assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
+          refusals.push(response.text);
+        }
+        assert.equal(refusals[0], refusals[1], "a victim unit and a missing unit are indistinguishable");
+        // The caller's own org unit is accepted as the scope.
+        {
+          const own = await scenarioState(c.orgId);
+          await post(scenarioBody(c.orgId, c.seeded.id, c.marker + " own scope", { scopeOrgUnitId: c.unitId }), 201, "own org unit scope");
+          const row = added(own.scenarios, (await scenarioState(c.orgId)).scenarios, c, "own-scope scenario");
+          assert.equal(row.name, c.marker + " own scope");
+          assert.equal(row.scopeOrgUnitId, c.unitId, "Own organization-unit scope must actually persist");
+          assert.equal(row.snapshot?.scope?.orgUnitId, c.unitId, "Saved scenario forecast must use the owned organization unit");
+        }
+        // Saving the same name again is a new immutable version, never an overwrite.
+        const before = await scenarioState(c.orgId);
+        await post(scenarioBody(c.orgId, c.seeded.id, c.marker + " staffing scenario", { demandGrowthPercent: 8 }), 201, "second version");
+        const after = await scenarioState(c.orgId);
+        const second = added(before.scenarios, after.scenarios, c, "scenario version");
+        assert.equal(second.version, 2); assert.equal(Number(second.demandGrowthPercent), 8);
+        assert.deepEqual(after.scenarios.filter((row) => row.id !== second.id), before.scenarios, "the first version is untouched");
+        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, "creating scenarios leaves the victim unchanged");
+        // First prove the same valid request can INSERT before the synthetic SQL
+        // fault is enabled. A generic response from an earlier validation path
+        // is not evidence that a PostgreSQL exception was sanitized.
+        const faultName = c.marker + " QA1655_SQL_FAULT_PROBE";
+        const beforeControl = await scenarioState(c.orgId);
+        await post(scenarioBody(c.orgId, c.seeded.id, faultName), 201, "own pre-fault positive control");
+        const afterControl = await scenarioState(c.orgId);
+        assert.equal(added(beforeControl.scenarios, afterControl.scenarios, c, "fault-positive control").name, faultName);
+        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
+        // Defense in depth before temporary SQL DDL: production and external DBs
+        // cannot satisfy this already-enforced shared-runner disposable guard.
+        const { requireTenantTableDisposable } = await import("../../tenant-table-http.mjs");
+        requireTenantTableDisposable();
+        assert.equal(typeof pool?.query, "function", "PG16 fault proof needs the disposable SQL pool");
+        await pool.query("DROP TRIGGER IF EXISTS qa_wfp_scenario_post_fault_1655 ON workforce_planning_scenarios");
+        try {
+          await pool.query([
+            "CREATE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn() RETURNS trigger AS $qa1655$",
+            "BEGIN",
+            "  IF strpos(NEW.name, 'QA1655_SQL_FAULT_PROBE') > 0 THEN",
+            "    RAISE EXCEPTION 'QA1655_PRIVATE_SQL_SENTINEL: SELECT worker_pii FROM confidential_employers' USING ERRCODE = 'P0001';",
+            "  END IF;",
+            "  RETURN NEW;",
+            "END;",
+            "$qa1655$ LANGUAGE plpgsql",
+          ].join("\n"));
+          await pool.query("CREATE TRIGGER qa_wfp_scenario_post_fault_1655 BEFORE INSERT ON workforce_planning_scenarios FOR EACH ROW EXECUTE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn()");
+          const installed = await pool.query("SELECT 1 FROM pg_trigger WHERE tgname = $1 AND NOT tgisinternal", ["qa_wfp_scenario_post_fault_1655"]);
+          assert.equal(installed.rowCount, 1, "synthetic PostgreSQL trigger must really be installed");
+          const ownBeforeFault = await scenarioState(c.orgId);
+          const denied = await post(scenarioBody(c.orgId, c.seeded.id, faultName, { demandGrowthPercent: 12 }), 422, "injected PostgreSQL INSERT failure");
+          assert.deepEqual(denied.json, { error: "Scenario could not be calculated." }, "SQL failure must return only the generic public error");
+          assert.ok(!/QA1655_PRIVATE_SQL_SENTINEL|SELECT worker_pii|confidential_employers|P0001/i.test(denied.text),
+            "synthetic SQL error details must never appear in the HTTP response");
+          assert.deepEqual(await scenarioState(c.orgId), ownBeforeFault,
+            "failed PostgreSQL INSERT cannot create an own scenario or audit event");
+          assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore,
+            "failed PostgreSQL INSERT cannot affect victim scenario, planning or audit tables");
+        } finally {
+          try {
+            await pool.query("DROP TRIGGER IF EXISTS qa_wfp_scenario_post_fault_1655 ON workforce_planning_scenarios");
+          } finally {
+            await pool.query("DROP FUNCTION IF EXISTS public.qa_wfp_scenario_post_fault_1655_fn()");
+          }
+        }
+        return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2,
+          SQLFaultInjection: "SYNTHETIC_PG16_HTTP", methodCoverageCredit: false };
+      } },
   ];
 }
+
+// Keep credited historical family-row line numbers unchanged; this pure helper
+// serves only the newly added fictional scoped-scenario POST evidence.
+const scenarioBody = (organizationId, planId, name, extra) => ({ organizationId, planId, name, startDate: "2026-01-01", endDate: "2026-03-31",
+    demandGrowthPercent: 5, vacancyFillPercent: 90, employerLoadPercent: 0, annualAttritionPercent: 10, attritionBackfillPercent: 80, ...extra });
