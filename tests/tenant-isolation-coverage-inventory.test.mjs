@@ -652,7 +652,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.originalRouteBlobSha, "f8477326b6a64f45e554f70d9b297b5f20f9bf84");
     assert.equal(reviewed?.routeBlobSha, routeSha);
     assert.equal(reviewed?.file, "scripts/qa/tenant-wfp-allocations-http.mjs");
-    assert.equal(reviewed?.proofBlobSha, "7afbaf74355ebeeab989608a7d3c939b794cabc5");
+    assert.equal(reviewed?.proofBlobSha, "4891fb6b2bc7b4ed180f7dc6650015d974e1aa20");
     assert.equal(reviewed?.testFile, "tests/tenant-wfp-allocations-contract.test.mjs");
     assert.equal(reviewed?.testBlobSha, "793cb13ac69febeeb19503ca99bc9eaa6fa100eb");
     assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-wfp-allocations-http.yml");
