@@ -1,6 +1,7 @@
 /**
  * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
- * from a published baseline, staffing scenario creation, and scenario submission for approval. The shared write runner adds
+ * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
+ * employer's org unit as its scope (see the PR description), so its proof cannot pass until the route validates ownership. The shared write runner adds
  * two attackers, the victim denial, a discrimination check and an unchanged victim. Nothing here touches payroll, schedules,
  * providers or money, and no approval is decided.
  */
@@ -73,8 +74,6 @@ export function createRows(deps) {
   const scenarioState = async (orgId) => { const t = await s(); return plain({ scenarios: await read(t.workforcePlanningScenarios, orgId), plans: await read(t.workforcePlans, orgId),
     instances: await read(t.approvalChainInstances, orgId), tasks: await read(t.approvalTasks, orgId), steps: await read(t.approvalChainInstanceSteps, orgId),
     audit: auditBusinessSnapshot(await read(auditEvents, orgId)) }); };
-  const scenarioBody = (organizationId, planId, name, extra) => ({ organizationId, planId, name, startDate: "2026-01-01", endDate: "2026-03-31",
-    demandGrowthPercent: 5, vacancyFillPercent: 90, employerLoadPercent: 0, annualAttritionPercent: 10, attritionBackfillPercent: 80, ...extra });
   const draftSnapshot = (e) => ({ version: "wfm-staffing-scenario-v3", forecast: { summary: { annualRunRateLaborCost: 600000, annualizedBasePayroll: 0,
     currentPeriodStatutoryEmployerCost: 0, currentPeriodBenefitEmployerCost: 0, currentPeriodRecurringCompensationCost: 0 }, assumptions: { windowDays: 30 } },
   scope: { orgUnitId: null }, assumptions: {}, linkedPlan: null, boundary: "fictional " + e.marker });
@@ -146,6 +145,49 @@ export function createRows(deps) {
         assert.equal(oneAudit(before, after, c, "Workforce forecast revision created").resource, row.name + " v1");
       } },
 
+    { key: "PATCH workforce-planning/scenarios",
+      seed: async (e) => {
+        const t = await s();
+        const p = await plan(e, "submission plan");
+        await db.insert(approvalChainPolicies).values({ organizationId: e.org.id, code: ("wfp-" + e.marker).toLowerCase().slice(0, 48), name: e.marker + " plan approval", purpose: "workforce_plan",
+          active: true, version: 1, steps: [{ label: "Fictional plan review", approver: e.owner.name }] });
+        const make = async (name, planId) => (await db.insert(t.workforcePlanningScenarios).values({ organizationId: e.org.id, planId, name: e.marker + " " + name, status: "draft",
+          startDate: "2026-01-01", endDate: "2026-12-31", snapshot: draftSnapshot(e), snapshotHash: hex(e.marker + name), createdByUserId: e.owner.id }).returning())[0];
+        const main = await make("submit", p.id), unlinked = await make("unlinked", null);
+        return { id: main.id, planId: p.id, unlinkedId: unlinked.id };
+      },
+      state: scenarioState,
+      ownBody: (c) => ({ scenarioId: c.seeded.id, action: "submit" }),
+      foreignBody: (c) => ({ scenarioId: c.victimSeeded.id, action: "submit" }),
+      expect: (before, after, c, response) => {
+        const row = after.scenarios.find((s2) => s2.id === c.seeded.id), old = before.scenarios.find((s2) => s2.id === c.seeded.id);
+        assert.equal(old.status, "draft"); assert.equal(row.status, "submitted"); assert.equal(row.organizationId, c.orgId); assert.equal(row.submittedByUserId, c.owner.id);
+        assert.deepEqual(after.scenarios.filter((s2) => s2.id !== row.id), before.scenarios.filter((s2) => s2.id !== row.id), "only the submitted scenario changes");
+        const instance = added(before.instances, after.instances, c, "approval instance");
+        assert.equal(instance.sourceType, "workforce_plan_scenario"); assert.equal(instance.sourceKey, String(row.id)); assert.equal(instance.status, "pending");
+        const task = added(before.tasks, after.tasks, c, "approval task"); assert.equal(task.approvalChainInstanceId, instance.id);
+        const step = added(before.steps, after.steps, c, "approval step"); assert.equal(step.instanceId, instance.id); assert.equal(step.approvalTaskId, task.id);
+        assert.equal(after.plans.find((p) => p.id === c.seeded.planId).status, "submitted", "the whole-plan scenario moves the plan to submitted");
+        assert.equal(response.json?.scenario?.id, row.id); assert.equal(response.json?.approvalProcess?.instanceId, instance.id);
+        assert.equal(oneAudit(before, after, c, "Workforce staffing scenario submitted").metadata.approvalChainInstanceId, instance.id);
+      },
+      exercise: async (c, { request, expectStatus, cookie }) => {
+        const url = "/api/workforce-planning/scenarios";
+        const victimBefore = await scenarioState(c.victim.org.id);
+        const refused = async (body, status, label) => {
+          const own = await scenarioState(c.orgId);
+          const response = expectStatus(await request(url, { method: "PATCH", cookie, body }), status, label);
+          assert.ok(!response.text.includes(c.victim.marker), label + ": a refusal leaks no victim data");
+          assert.deepEqual(await scenarioState(c.orgId), own, label + ": writes nothing in the own employer");
+          assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, label + ": leaves the victim unchanged");
+        };
+        await refused({ scenarioId: c.seeded.id, action: "submit" }, 409, "a second submit of an already submitted scenario");
+        await refused({ scenarioId: c.seeded.unlinkedId, action: "submit" }, 409, "a scenario with no linked plan");
+        await refused({ scenarioId: c.seeded.unlinkedId, action: "approve" }, 400, "an unsupported action");
+        await refused({ scenarioId: c.victimSeeded.unlinkedId, action: "submit" }, 403, "the victim's other scenario");
+        return { actions: ["submit"], controls: 3, victimScenarioDenials: 1 };
+      } },
+
     { key: "POST workforce-planning/scenarios", status: 201,
       seed: async (e) => plan(e, "scenario plan"),
       state: scenarioState,
@@ -193,48 +235,10 @@ export function createRows(deps) {
         assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, "creating scenarios leaves the victim unchanged");
         return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2 };
       } },
-
-    { key: "PATCH workforce-planning/scenarios",
-      seed: async (e) => {
-        const t = await s();
-        const p = await plan(e, "submission plan");
-        await db.insert(approvalChainPolicies).values({ organizationId: e.org.id, code: ("wfp-" + e.marker).toLowerCase().slice(0, 48), name: e.marker + " plan approval", purpose: "workforce_plan",
-          active: true, version: 1, steps: [{ label: "Fictional plan review", approver: e.owner.name }] });
-        const make = async (name, planId) => (await db.insert(t.workforcePlanningScenarios).values({ organizationId: e.org.id, planId, name: e.marker + " " + name, status: "draft",
-          startDate: "2026-01-01", endDate: "2026-12-31", snapshot: draftSnapshot(e), snapshotHash: hex(e.marker + name), createdByUserId: e.owner.id }).returning())[0];
-        const main = await make("submit", p.id), unlinked = await make("unlinked", null);
-        return { id: main.id, planId: p.id, unlinkedId: unlinked.id };
-      },
-      state: scenarioState,
-      ownBody: (c) => ({ scenarioId: c.seeded.id, action: "submit" }),
-      foreignBody: (c) => ({ scenarioId: c.victimSeeded.id, action: "submit" }),
-      expect: (before, after, c, response) => {
-        const row = after.scenarios.find((s2) => s2.id === c.seeded.id), old = before.scenarios.find((s2) => s2.id === c.seeded.id);
-        assert.equal(old.status, "draft"); assert.equal(row.status, "submitted"); assert.equal(row.organizationId, c.orgId); assert.equal(row.submittedByUserId, c.owner.id);
-        assert.deepEqual(after.scenarios.filter((s2) => s2.id !== row.id), before.scenarios.filter((s2) => s2.id !== row.id), "only the submitted scenario changes");
-        const instance = added(before.instances, after.instances, c, "approval instance");
-        assert.equal(instance.sourceType, "workforce_plan_scenario"); assert.equal(instance.sourceKey, String(row.id)); assert.equal(instance.status, "pending");
-        const task = added(before.tasks, after.tasks, c, "approval task"); assert.equal(task.approvalChainInstanceId, instance.id);
-        const step = added(before.steps, after.steps, c, "approval step"); assert.equal(step.instanceId, instance.id); assert.equal(step.approvalTaskId, task.id);
-        assert.equal(after.plans.find((p) => p.id === c.seeded.planId).status, "submitted", "the whole-plan scenario moves the plan to submitted");
-        assert.equal(response.json?.scenario?.id, row.id); assert.equal(response.json?.approvalProcess?.instanceId, instance.id);
-        assert.equal(oneAudit(before, after, c, "Workforce staffing scenario submitted").metadata.approvalChainInstanceId, instance.id);
-      },
-      exercise: async (c, { request, expectStatus, cookie }) => {
-        const url = "/api/workforce-planning/scenarios";
-        const victimBefore = await scenarioState(c.victim.org.id);
-        const refused = async (body, status, label) => {
-          const own = await scenarioState(c.orgId);
-          const response = expectStatus(await request(url, { method: "PATCH", cookie, body }), status, label);
-          assert.ok(!response.text.includes(c.victim.marker), label + ": a refusal leaks no victim data");
-          assert.deepEqual(await scenarioState(c.orgId), own, label + ": writes nothing in the own employer");
-          assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, label + ": leaves the victim unchanged");
-        };
-        await refused({ scenarioId: c.seeded.id, action: "submit" }, 409, "a second submit of an already submitted scenario");
-        await refused({ scenarioId: c.seeded.unlinkedId, action: "submit" }, 409, "a scenario with no linked plan");
-        await refused({ scenarioId: c.seeded.unlinkedId, action: "approve" }, 400, "an unsupported action");
-        await refused({ scenarioId: c.victimSeeded.unlinkedId, action: "submit" }, 403, "the victim's other scenario");
-        return { actions: ["submit"], controls: 3, victimScenarioDenials: 1 };
-      } },
   ];
 }
+
+// Keep credited historical family-row line numbers unchanged; this pure helper
+// serves only the newly added fictional scoped-scenario POST evidence.
+const scenarioBody = (organizationId, planId, name, extra) => ({ organizationId, planId, name, startDate: "2026-01-01", endDate: "2026-03-31",
+    demandGrowthPercent: 5, vacancyFillPercent: 90, employerLoadPercent: 0, annualAttritionPercent: 10, attritionBackfillPercent: 80, ...extra });
