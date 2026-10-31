@@ -12,6 +12,10 @@ import type {
 } from "@/lib/hcm-manager-decision-contract";
 import { nextManagerDecisionTab } from "@/lib/hcm-manager-decision-tabs";
 import { readVerifiedManagerDecisionPage } from "@/lib/hcm-manager-decision-read";
+import {
+  managerDecisionPreferenceKey, readManagerDecisionPreferences,
+  selectManagerDecisionItems, type ManagerDecisionQuickFilter, type ManagerDecisionOrder,
+} from "@/lib/manager-decision-quick-filters";
 
 const SOURCES: Array<{
   key: DecisionSource; label: string; hint: string;
@@ -66,10 +70,40 @@ export function HcmManagerDecisionInbox({
   const [cursors, setCursors] = useState<Array<number | null>>([null]);
   const [refresh, setRefresh] = useState(0);
   const [loaded, setLoaded] = useState<LoadState | null>(null);
+  const [viewPrefs, setViewPrefs] = useState<{
+    key: string; filter: ManagerDecisionQuickFilter; order: ManagerDecisionOrder;
+  } | null>(null);
 
   const beforeId = cursors[cursors.length - 1] ?? null;
   const scopeKey = [expectedScope.kind, expectedScope.orgUnitId ?? "company"].join(":");
   const requestKey = [organizationId, scopeKey, source, beforeId ?? "first", refresh].join(":");
+  const preferenceKey = managerDecisionPreferenceKey(organizationId, expectedScope);
+  const filter = viewPrefs?.key === preferenceKey ? viewPrefs.filter : "all";
+  const order = viewPrefs?.key === preferenceKey ? viewPrefs.order : "source";
+
+  useEffect(() => {
+    let saved: unknown = null;
+    try {
+      const raw = window.sessionStorage.getItem(preferenceKey);
+      saved = raw ? JSON.parse(raw) : null;
+    } catch { /* Storage may be disabled; the unsaved defaults still work. */ }
+    const preferences = readManagerDecisionPreferences(saved);
+    // Browser storage is optional external state. Hydrate after this effect
+    // rather than synchronously cascading a render (react-hooks/set-state-in-effect).
+    // Cancel pending hydration on employer/scope changes. Do not overwrite a
+    // filter the operator chose before the scheduled hydration runs.
+    const pending = window.setTimeout(() => {
+      setViewPrefs((current) => current?.key === preferenceKey
+        ? current : { key: preferenceKey, ...preferences });
+    }, 0);
+    return () => window.clearTimeout(pending);
+  }, [preferenceKey]);
+
+  function changeView(nextFilter: ManagerDecisionQuickFilter, nextOrder: ManagerDecisionOrder) {
+    const settings = { filter: nextFilter, order: nextOrder };
+    setViewPrefs({ key: preferenceKey, ...settings });
+    try { window.sessionStorage.setItem(preferenceKey, JSON.stringify(settings)); } catch { /* Optional view preference only. */ }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,6 +134,7 @@ export function HcmManagerDecisionInbox({
 
   const active = loaded?.key === requestKey ? loaded : null;
   const page = active?.status === "ready" ? active.payload : null;
+  const filteredItems = page ? selectManagerDecisionItems(page.items, filter, order) : [];
   function changeSource(next: DecisionSource) {
     setSource(next);
     setCursors([null]);
@@ -235,6 +270,38 @@ export function HcmManagerDecisionInbox({
                   Read only
                 </span>
               </div>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                  <div role="group" aria-label="Filter verified assignments on this page" className="flex flex-wrap gap-2">
+                    {([
+                      ["all", "All"],
+                      ["overdue", "Overdue"],
+                      ["upcoming", "Upcoming"],
+                      ["unscheduled", "No deadline"],
+                    ] as const).map(([value, label]) => (
+                      <button key={value} type="button"
+                        aria-pressed={filter === value}
+                        onClick={() => changeView(value, order)}
+                        className={"min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 " +
+                          (filter === value ? "border-emerald-800 bg-emerald-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50")}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="text-sm font-medium text-slate-700">
+                    Order
+                    <select value={order} onChange={(event) => changeView(filter, event.target.value as ManagerDecisionOrder)}
+                      className="ml-2 min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
+                      <option value="source">Source order</option>
+                      <option value="deadline">Earliest deadline</option>
+                    </select>
+                  </label>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-600">
+                  Showing {filteredItems.length} of {page.items.length} verified assignments on this source page.
+                  Filters never search other pages. Only the filter preference is kept for this employer and scope in this browser session.
+                </p>
+              </div>
               {page.items.length === 0 && (
                 <div className="mt-3 rounded-xl border border-slate-200 bg-white p-6">
                   <div className="flex items-center gap-2 text-slate-800">
@@ -248,8 +315,13 @@ export function HcmManagerDecisionInbox({
                 </div>
               )}
 
+              {page.items.length > 0 && filteredItems.length === 0 && (
+                <p role="status" className="mt-3 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+                  No assignments match this filter on the current source page. Try All or check another page.
+                </p>
+              )}
               <ul aria-label="Assigned HCM workflow source records" className="mt-3 space-y-3">
-                {page.items.map((item) => (
+                {filteredItems.map((item) => (
                   <li key={item.source + ":" + item.id}
                     className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-4">
