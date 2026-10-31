@@ -1,0 +1,81 @@
+name: Payroll overpayment preflight POST tenant HTTP (fictional PG16)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/payroll/overpayment-preflight/route.ts"
+      - "scripts/qa/tenant-overpayment-preflight-post-http.mjs"
+      - "tests/tenant-overpayment-preflight-post-contract.test.mjs"
+      - ".github/workflows/tenant-overpayment-preflight-post-http.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight-post-tenant:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Load fictional-only localhost configuration
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Source contract and runner syntax
+        run: |
+          node --check scripts/qa/tenant-overpayment-preflight-post-http.mjs
+          node --test tests/tenant-overpayment-preflight-post-contract.test.mjs
+      - name: Rotate fictional encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize disposable PG16 baseline
+        run: |
+          npm run db:push
+          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual production Next.js server
+        run: npm run build
+      - name: Run own/foreign HTTP, then stop server
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1 > /tmp/overpayment-preflight-post.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for n in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then ready=true; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then tail -n 45 /tmp/overpayment-preflight-post.log; exit 1; fi
+          node --import tsx scripts/qa/tenant-overpayment-preflight-post-http.mjs
+      - name: Bounded diagnostics on failure
+        if: failure()
+        run: tail -n 45 /tmp/overpayment-preflight-post.log || true
