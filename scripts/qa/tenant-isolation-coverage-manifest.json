@@ -8742,7 +8742,7 @@
       ]
     },
     "src/app/api/discipline/route.ts": {
-      "gitBlobSha": "9d5250e34a86116b5afae61b3f254256dce78a73",
+      "gitBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
       "route": "discipline",
       "methods": [
         {
@@ -8764,7 +8764,7 @@
         },
         {
           "name": "POST",
-          "line": 52,
+          "line": 55,
           "status": "COVERED",
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8781,7 +8781,7 @@
         },
         {
           "name": "PATCH",
-          "line": 112,
+          "line": 115,
           "status": "COVERED",
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8838,43 +8838,43 @@
           "token": "getAccess"
         },
         {
-          "line": 53,
+          "line": 56,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 56,
+          "line": 59,
           "token": "getSessionUser"
         },
         {
-          "line": 66,
+          "line": 69,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 73,
+          "line": 76,
           "token": "getAccess"
         },
         {
-          "line": 84,
+          "line": 87,
           "token": "assertScope"
         },
         {
-          "line": 113,
+          "line": 116,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 116,
+          "line": 119,
           "token": "getSessionUser"
         },
         {
-          "line": 128,
+          "line": 142,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 135,
+          "line": 149,
           "token": "getAccess"
         },
         {
-          "line": 141,
+          "line": 155,
           "token": "assertScope"
         }
       ],
@@ -8888,11 +8888,11 @@
           "token": "searchParams.get(\"employeeId\")"
         },
         {
-          "line": 60,
+          "line": 63,
           "token": "body.organizationId"
         },
         {
-          "line": 61,
+          "line": 64,
           "token": "body.employeeId"
         }
       ],
@@ -8950,11 +8950,11 @@
           "token": "organizationId"
         },
         {
-          "line": 38,
+          "line": 39,
           "token": "employeeId"
         },
         {
-          "line": 39,
+          "line": 42,
           "token": "orgUnitId"
         }
       ]
