@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { summarizeVerifiedWorkQueue } from "@/lib/hcm-work-queue-summary";
+import { isVerifiedHcmWorkQueueResponse, summarizeVerifiedWorkQueue, type HcmWorkQueueItem, type HcmWorkQueueOwner } from "@/lib/hcm-work-queue-summary";
 
-type Item = { id:number; title:string; detail:string; caseType:string; status:string; ownerTeam:string; ownerUserId:number|null; ownerName:string|null; dueAt:string|null; escalateAt:string|null; escalationLevel:number; overdue:boolean };
-type Owner = { id:number; name:string };
+type Item = HcmWorkQueueItem;
+type Owner = HcmWorkQueueOwner;
 type History = { id:number; eventType:string; actorName:string|null; createdAt:string };
 const teams = ["HR Operations","Payroll","Timekeeping","Compliance","Employee Relations","Benefits","People Operations"];
 function localInput(date:string|null) { if (!date) return ""; const d = new Date(date); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
@@ -61,7 +61,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
         const response=await fetch(`/api/hcm/work-items?organizationId=${encodeURIComponent(organizationId)}&status=${filter}`,{cache:"no-store",signal:controller.signal});
         const data=await response.json();
         if(!response.ok) throw new Error(data.error ?? "Unable to load work items");
-        if(!Array.isArray(data.items) || !Array.isArray(data.owners)) throw new Error("Invalid work queue response.");
+        if(!isVerifiedHcmWorkQueueResponse(data, Number(organizationId))) throw new Error("Invalid or mixed-employer work queue response.");
         if (!controller.signal.aborted) setQueue({revision,items:data.items,owners:data.owners,error:""});
       } catch(e) {
         if (!controller.signal.aborted) setQueue({revision,items:[],owners:[],error:e instanceof Error?e.message:"Unable to load"});
