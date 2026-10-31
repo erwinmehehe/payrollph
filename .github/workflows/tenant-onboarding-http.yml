@@ -56,7 +56,9 @@ jobs:
             echo "::add-mask::$key"
             echo "$name=$key" >> "$GITHUB_ENV"
           done
-      - run: node --import tsx --test tests/tenant-onboarding-contract.test.mjs
+      # Preserve the final source-bound proof gate, but run fresh PG16 HTTP before checking stale historical receipt hashes.
+      - name: Onboarding source contracts before live proof (no historical receipt acceptance)
+        run: node --import tsx --test --test-name-pattern='^(?!executed receipts reject)' tests/tenant-onboarding-contract.test.mjs
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
       - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
@@ -74,6 +76,8 @@ jobs:
           exit 1
       - name: Two attackers, independent hire checker, real victim, database invariants
         run: env -u NODE_ENV node --import tsx scripts/qa/tenant-onboarding-http.mjs
+      - name: Verify source-bound receipt after real PG16 HTTP (fail closed)
+        run: node --import tsx --test tests/tenant-onboarding-contract.test.mjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
