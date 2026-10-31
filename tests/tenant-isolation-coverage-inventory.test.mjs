@@ -1414,7 +1414,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // WRK-02 source-only hardening. These changed route blobs add stricter
   // final SQL predicates, but have NO new own/victim PG16 HTTP proof.
   const wrk02Boundaries = {
-    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "12ea2979c8a7282236b375183e39e63d32a42e74", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
+    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "1cd751964b13cd2192ec10c6f80e75ec1abba6b8", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/position-executions/route.ts": { previous: "0c7ddf8ba2db323aea03c152612eced44c31aea2", current: "142797be0cfa4f64849b20958869c12147ccf792", prefix: "e18416e827678a1e62a1e891201df027ba20c48e", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/transfer/route.ts": { previous: "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153", current: "fc17024c47d013b28213abe89c7784254e3b2bc1", prefix: null, methods: ["POST"] },
   };

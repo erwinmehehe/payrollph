@@ -347,7 +347,15 @@ export async function POST(request: Request) {
       costVisible: result.canViewCost,
     }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Scenario could not be calculated.";
+    // Only deliberate loader refusals and plain calculation validation errors
+    // are echoed; driver/ORM errors carry SQL text and must never reach the client.
+    const clientSafe = error instanceof Error
+      && !("cause" in error)
+      && (error.name === "Error" || error.name === "WorkforceForecastScopeError");
+    if (!clientSafe) {
+      return Response.json({ error: "Scenario could not be calculated." }, { status: 422 });
+    }
+    const message = error.message;
     const status = /access|required|outside your assigned/i.test(message) ? 403 : 422;
     return Response.json({ error: message }, { status });
   }
