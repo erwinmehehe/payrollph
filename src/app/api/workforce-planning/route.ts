@@ -792,6 +792,11 @@ export async function PATCH(request: Request) {
   const [position] = await db.select().from(positions).where(eq(positions.id, id)).limit(1);
   if (!position) return Response.json({ error: "Position not found." }, { status: 404 });
 
+  // A user outside this employer must not learn whether a global position ID
+  // exists. Own-employer role, unit, and MFA checks still run below.
+  const membership = await getAccess(user.id, position.organizationId);
+  if (!membership) return Response.json({ error: "Position not found." }, { status: 404 });
+
   const denied = await assertOrganizationRole(user.id, position.organizationId, WORKFORCE_MANAGER_ROLES);
   if (denied) return denied;
   const unitScope = await scopedUnit(user.id, position.organizationId, position.orgUnitId);
