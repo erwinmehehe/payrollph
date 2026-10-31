@@ -31318,7 +31318,7 @@
             "originalRouteBlobSha": "f8477326b6a64f45e554f70d9b297b5f20f9bf84",
             "routeBlobSha": "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9",
             "file": "scripts/qa/tenant-wfp-allocations-http.mjs",
-            "proofBlobSha": "7afbaf74355ebeeab989608a7d3c939b794cabc5",
+            "proofBlobSha": "4891fb6b2bc7b4ed180f7dc6650015d974e1aa20",
             "testFile": "tests/tenant-wfp-allocations-contract.test.mjs",
             "testBlobSha": "793cb13ac69febeeb19503ca99bc9eaa6fa100eb",
             "workflowFile": ".github/workflows/tenant-wfp-allocations-http.yml",
@@ -31339,7 +31339,8 @@
               "existing_allocation_update",
               "budget_race_and_version_conflict"
             ],
-            "newCredits": 0
+            "newCredits": 0,
+            "candidateBatch4": "expanded real-HTTP update, duplicate-version and budget/decision race controls; exact-head CI and security review pending"
           }
         },
         {
@@ -31353,7 +31354,7 @@
             "originalRouteBlobSha": "f8477326b6a64f45e554f70d9b297b5f20f9bf84",
             "routeBlobSha": "a7fe9733d2c1bfc3b6cab171eb7ba302fa5b77c9",
             "file": "scripts/qa/tenant-wfp-allocations-http.mjs",
-            "proofBlobSha": "7afbaf74355ebeeab989608a7d3c939b794cabc5",
+            "proofBlobSha": "4891fb6b2bc7b4ed180f7dc6650015d974e1aa20",
             "testFile": "tests/tenant-wfp-allocations-contract.test.mjs",
             "testBlobSha": "793cb13ac69febeeb19503ca99bc9eaa6fa100eb",
             "workflowFile": ".github/workflows/tenant-wfp-allocations-http.yml",
@@ -31374,7 +31375,8 @@
             "remainingGaps": [
               "all_decision_race_and_flag_combinations"
             ],
-            "newCredits": 0
+            "newCredits": 0,
+            "candidateBatch4": "expanded real-HTTP update, duplicate-version and budget/decision race controls; exact-head CI and security review pending"
           }
         }
       ],
