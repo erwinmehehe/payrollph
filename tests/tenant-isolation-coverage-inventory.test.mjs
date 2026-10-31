@@ -1946,6 +1946,82 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // WRK-02 Batch 3 root privacy hardening: a narrowly scoped, exact-source,
+  // zero-credit candidate. Neither POST nor PATCH becomes COVERED. GET retains
+  // only the historical source-pinned read proof. Any source or fixture drift
+  // returns to the fail-closed generic inventory path until re-reviewed.
+  if (isNewOrChanged && key.startsWith("src/app/api/workforce-planning/route.ts ")) {
+    const routeFile = "src/app/api/workforce-planning/route.ts";
+    const prior = "0535a1bb935bc61c777b33c1ea01f161a314e8d2";
+    const current = "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1";
+    assert.equal(currentBlob, current, "WRK-02 root route changed; redo tenant review");
+    const expected = {
+      "kind": "wrk02-batch3-root-privacy-assignment-race-zero-new-credit",
+      "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
+      "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
+      "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
+      "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+      "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
+      "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+      "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
+      "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+      "previousDedicatedPg16Run": "41203115190",
+      "newMethodCredits": 0,
+      "uncreditedMethods": [
+        "POST",
+        "PATCH"
+      ],
+      "exactHeadPg16": "PENDING",
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false
+    };
+    assert.deepEqual(method.reviewedUncertified, expected,
+      "WRK-02 method lacks its exact uncredited proof review");
+    assert.ok(["GET", "POST", "PATCH"].includes(method.name));
+    assert.equal(expected.originalRouteBlobSha, prior);
+    if (method.name === "GET") {
+      assert.equal(method.status, "COVERED", "Do not change historical root GET credit");
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+        "Keep the independently executed historical root GET proof");
+    } else {
+      assert.equal(method.status, "GAP", "No provisional root write credit");
+      assert.equal(method.testedBy, null, "Security hardening is not method coverage");
+    }
+    for (const [file, sha] of [
+      [expected.fixtureFile, expected.fixtureBlobSha],
+      [expected.contractFile, expected.contractBlobSha],
+      [expected.workflowFile, expected.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "WRK-02 fixture/contract/workflow changed; renew independent review: " + file);
+    }
+    const source = readFileSync(routeFile, "utf8");
+    const patch = source.split("export async function PATCH(request: Request) {")[1] ?? "";
+    const missing = patch.indexOf('if (!position) return Response.json({ error: "Position not found." }, { status: 404 });');
+    const scoped = patch.indexOf("const membership = await getAccess(user.id, position.organizationId);");
+    const masked = patch.indexOf('if (!membership) return Response.json({ error: "Position not found." }, { status: 404 });');
+    const role = patch.indexOf("const denied = await assertOrganizationRole(user.id, position.organizationId");
+    assert.ok(missing >= 0 && missing < scoped && scoped < masked && masked < role,
+      "PATCH must conceal foreign and nonexistent positions before role checks");
+    const fixture = readFileSync(expected.fixtureFile, "utf8");
+    const contract = readFileSync(expected.contractFile, "utf8");
+    const workflow = readFileSync(expected.workflowFile, "utf8");
+    for (const token of [
+      'TENANT_TABLE_FAMILY === "workforce-planning-root"',
+      "isGovernedPositionAssignmentWorkspace(c.orgId)",
+      "directAssignmentProofs = 1",
+      "foreignPosition.text, missingPosition.text",
+      "raceAudit.length, 1",
+      "certifiedMethod: false",
+    ]) assert.ok(fixture.includes(token), "WRK-02 synthetic proof lost: " + token);
+    assert.match(contract, /simultaneous vacancy freezes cannot double-write/);
+    assert.match(contract, /coverage remains uncredited/);
+    assert.match(workflow, /TENANT_TABLE_FAMILY: workforce-planning-root/);
+    assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED/);
+    assert.match(workflow, /XENDIT_PAYOUTS_ENABLED/);
+    return; // Only this exact three-method unaccepted source review.
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
