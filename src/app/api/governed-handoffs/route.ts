@@ -239,9 +239,12 @@ export async function POST(request: Request) {
       },
       boundary: "This is a human review request only. No claim, schedule, clearance, payroll approval or money movement was changed.",
     }, { status: 201 });
-  } catch (error) {
+  } catch {
+    // Policy validation, SQL, source-hash and approval-chain internals must
+    // never be echoed to an authenticated but potentially untrusted caller.
     return Response.json({
-      error: error instanceof Error ? error.message : "Unable to route the governed approval handoff.",
-    }, { status: 409 });
+      code: "GOVERNED_HANDOFF_UNAVAILABLE",
+      error: "The governed approval handoff could not be completed. Refresh the source and policy before retrying.",
+    }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
   }
 }

@@ -1946,6 +1946,27 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  if (isNewOrChanged && key === "src/app/api/governed-handoffs/route.ts POST") {
+    const expected = {
+      kind: "governed-handoffs-POST-error-redaction-source-only",
+      priorRouteBlobSha: "85e937e999a10afd30348e748c510b2a55f160be", routeBlobSha: "fa7039cee62df7624e3124e75e6566294de32c68",
+      contractFile: "tests/tenant-governed-handoff-post-error-boundary.test.mjs", contractBlobSha: "8e839b7197203d3ea6b32281af78aaf0a5b3753b",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/governed-handoffs/route.ts", "utf8")
+      .split("export async function POST")[1];
+    assert.ok(!post.includes("error instanceof Error ? error.message"));
+    assert.ok(post.includes('code: "GOVERNED_HANDOFF_UNAVAILABLE"'));
+    assert.ok(post.includes('"Cache-Control": "private, no-store"'));
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
