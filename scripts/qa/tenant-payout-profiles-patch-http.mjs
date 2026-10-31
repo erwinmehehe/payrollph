@@ -15,6 +15,7 @@ function requireDisposable() {
   for (const [k, v] of [
     ["GITHUB_ACTIONS", "true"], ["CI", "true"],
     ["TENANT_SECOND_PASS_MODE", "isolated-ci-only"],
+    ["SECURITY_SMOKE_URL", "http://127.0.0.1:3000"],
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db"],
     ["PAYMONGO_DISBURSEMENTS_ENABLED", "false"],
     ["XENDIT_PAYOUTS_ENABLED", "false"],
@@ -71,6 +72,13 @@ async function patch(org, requestBody, cookie = org.cookie) {
 
 try {
   await pgClient.connect();
+  const { rows: [before] } = await pgClient.query(
+    "SELECT current_database() AS db, current_user AS role, " +
+    "(SELECT count(*)::int FROM organizations) AS employers, " +
+    "(SELECT count(*)::int FROM audit_events) AS audit_events");
+  check(before.db === "app_db" && before.role === "postgres" &&
+    before.employers === 0 && before.audit_events === 0,
+    "Refuse a nonempty or unexpected PostgreSQL test target before creating employers");
   const a = await http.seedEmployer("ATTA", nonce, http.standaloneMakeSession);
   const b = await http.seedEmployer("ATTB", nonce, http.standaloneMakeSession);
   const victim = await http.seedEmployer("VICTIM", nonce, http.standaloneMakeSession);
