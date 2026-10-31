@@ -233,7 +233,8 @@ export function createRows(deps) {
         assert.equal(second.version, 2); assert.equal(Number(second.demandGrowthPercent), 8);
         assert.deepEqual(after.scenarios.filter((row) => row.id !== second.id), before.scenarios, "the first version is untouched");
         assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, "creating scenarios leaves the victim unchanged");
-        return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2 };
+        return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2,
+          SQLFaultInjection: "NOT_RUN", methodCoverageCredit: false };
       } },
   ];
 }

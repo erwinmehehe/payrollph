@@ -181,8 +181,8 @@ test("only the methods with executed HTTP proof are credited; the rest of this W
         assert.equal(method.status, "COVERED", path + " " + method.name);
         assert.equal(method.testedBy?.file, "scripts/qa/tenant-wrk02-batch2-http.mjs");
         assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
-      } else if ((path === FILES.transfer && method.name === "POST") || (path === FILES.scenarios && ["POST", "PATCH"].includes(method.name))) {
-        // These three have distinct signed-in fictional PG16 HTTP write-table proof (all movements; scenario POST creation; PATCH submission).
+      } else if ((path === FILES.transfer && method.name === "POST") || (path === FILES.scenarios && method.name === "PATCH")) {
+        // These two now have real two-attacker PG16 HTTP proof through the write table (all movement types; scenario submission).
         assert.equal(method.status, "COVERED", path + " " + method.name + " is credited by its own executed row");
         assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/workforce-planning.mjs");
         assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");

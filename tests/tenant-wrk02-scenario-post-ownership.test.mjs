@@ -36,3 +36,32 @@ test("scenarios POST sends no raw SQL or unexpected exception text to clients", 
   assert.ok(handler.includes('error: "Scenario could not be calculated."'), "Unexpected errors must be generic");
   assert.ok(!handler.includes("const status = /access|required|outside your assigned/i"), "Raw SQL error classifier must be removed");
 });
+
+test("candidate HTTP write-table scenario uses two attackers, immutable state and equal unknown/foreign denials", () => {
+  const table = readFileSync("scripts/qa/tenant-table-rows/write/workforce-planning.mjs", "utf8");
+  const start = table.indexOf('key: "POST workforce-planning/scenarios"');
+  // POST remains after the historical PATCH row so previously reviewed line
+  // pins in the tenant method inventory do not drift.
+  const patch = table.indexOf('key: "PATCH workforce-planning/scenarios"');
+  const end = table.indexOf("\n  ];", start);
+  assert.ok(patch >= 0 && patch < start && end > start,
+    "The dedicated POST row must follow the historical PATCH proof row");
+  const candidate = table.slice(start, end);
+  for (const proof of [
+    "status: 201", 'seed: async (e) => plan(e, "scenario plan")', "state: scenarioState",
+    "ownBody:", "foreignBody:", "forged:", "status: 404", "expect:", "exercise:",
+    "added(before.scenarios, after.scenarios",
+    "await scenarioState(c.victim.org.id)",
+    "assert.equal(refusals[0], refusals[1]",
+    "assert.deepEqual(await scenarioState(c.orgId), own",
+    "assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore",
+    "own org unit scope", "second version",
+    'SQLFaultInjection: "NOT_RUN"', "methodCoverageCredit: false",
+  ]) assert.ok(candidate.includes(proof), "Missing additional scenario POST isolation control: " + proof);
+  assert.equal((table.match(/key: "POST workforce-planning\/scenarios"/g) ?? []).length, 1,
+    "A merge must not duplicate the scenarios POST family row");
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const post = manifest.allApiRouteFiles["src/app/api/workforce-planning/scenarios/route.ts"].methods.find(method => method.name === "POST");
+  assert.equal(post.status, "GAP", "Current main requires SQL-error injection and independent review before a method credit");
+  assert.equal(post.testedBy, null);
+});

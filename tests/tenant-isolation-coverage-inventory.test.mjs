@@ -1513,8 +1513,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
       return;
     }
-    if ((wrk02Path.endsWith("/transfer/route.ts") && method.name === "POST") || (wrk02Path.endsWith("/scenarios/route.ts") && ["POST", "PATCH"].includes(method.name))) {
-      // Real two-attacker PG16 HTTP proof exists for transfer POST, scenarios POST and scenarios PATCH through distinct rows.
+    if ((wrk02Path.endsWith("/transfer/route.ts") && method.name === "POST") || (wrk02Path.endsWith("/scenarios/route.ts") && method.name === "PATCH")) {
+      // Real two-attacker PG16 HTTP proof now exists for these two through the write table; nothing else here is credited.
       assert.equal(method.status, "COVERED");
       assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/workforce-planning.mjs");
       assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
@@ -1527,7 +1527,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: wrk02.previous,
       routeBlobSha: wrk02.current,
       contractFile: "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
-      contractBlobSha: "ce3ecee6883bcc2759aae7a03a53da7b07ed4149",
+      contractBlobSha: "74ce1283675c0dd8284a785ec5e95435d8abbc61",
       originalGetPrefixSha: wrk02.prefix,
       coverageCredits: 0,
       exactHeadPg16Http: "NOT_RUN",
@@ -1535,7 +1535,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       productionCertified: false,
     });
     assert.equal(gitBlobSha(readFileSync("tests/tenant-wrk02-planning-write-boundaries.test.mjs")),
-      "ce3ecee6883bcc2759aae7a03a53da7b07ed4149", "WRK-02 source contract changed without renewed review");
+      "74ce1283675c0dd8284a785ec5e95435d8abbc61", "WRK-02 source contract changed without renewed review");
     return;
   }
 
@@ -1811,6 +1811,67 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(service, /eq\(salaryCorrectionCases\.legalEntityId, legalEntityId\)/);
     assert.equal(review.newMethodCoverageCredits, 0);
     return; // Only this exact, source-pinned route and three historical methods.
+  }
+
+  // Narrow source-reviewed exception for global worker jobs. There is no
+  // caller-selected employer on either endpoint, so an own/victim proof is not
+  // a meaningful method credit. Require token-only auth and keep GAP until
+  // a separate live worker-trigger security acceptance is independently reviewed.
+  const globalWorkerRouteReviews = {
+    "src/app/api/jobs/tick/route.ts POST": {
+      previous: "dfde5451a937dd19ffcd75ac4d0632e3583b72c8",
+      current: "338f520d2021e90b12f736ad941b2b8a5e2cf3a2",
+      work: "await checkPayrollWorkerDispatchGate()",
+    },
+    "src/app/api/webhooks/drain/route.ts POST": {
+      previous: "e6a40dcec48013e7f1a4c24a937d0cb8c6ca9cb2",
+      current: "4ebd127ff97ea6b342cbfd9545a67eead3f58cda",
+      work: "await drainWebhookRetries(25)",
+    },
+  };
+  const globalWorkerReview = globalWorkerRouteReviews[key];
+  if (isNewOrChanged && globalWorkerReview) {
+    const routeFile = key.slice(0, key.lastIndexOf(" "));
+    const helperFile = "src/lib/global-worker-authorization.ts";
+    const testFile = "tests/global-worker-authorization.test.ts";
+    const expectedReview = {
+      kind: "global-worker-token-only-source-review-zero-method-credit",
+      previousRouteBlobSha: globalWorkerReview.previous,
+      routeBlobSha: globalWorkerReview.current,
+      guardFile: helperFile,
+      guardBlobSha: "8b71dbea21211e3c6963abfab1a1fa7fab4fe7fa",
+      testFile,
+      testBlobSha: "fecc827125a161e529fa6b1cc5d3b8f3cfefc7d6",
+      coverageCredits: 0,
+      exactHeadWorkerHttp: "NOT_RUN",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    };
+    assert.equal(method.name, "POST");
+    assert.equal(method.status, "GAP", key + ": worker-only triggers are not certified tenant methods");
+    assert.equal(method.testedBy, null, key + ": source proof alone is never coverage");
+    assert.match(method.reason, /worker[- ]token/i);
+    assert.equal(currentBlob, globalWorkerReview.current,
+      key + ": worker route changed; renew the exact-source review");
+    assert.deepEqual(method.reviewedUncertified, expectedReview,
+      key + ": global worker hardening must remain zero-credit until reviewed");
+    assert.equal(gitBlobSha(readFileSync(helperFile)), expectedReview.guardBlobSha,
+      "The shared worker-token guard changed, re-review token security");
+    assert.equal(gitBlobSha(readFileSync(testFile)), expectedReview.testBlobSha,
+      "The worker-token test changed, renew review evidence");
+    const guard = readFileSync(helperFile, "utf8");
+    for (const token of ['operationalSecret("worker")', "constantTimeSecretEqual",
+      'request.headers.get("x-worker-token")', "status: 503", "status: 401"]) {
+      assert.ok(guard.includes(token), "Missing token-only worker boundary: " + token);
+    }
+    const source = readFileSync(routeFile, "utf8");
+    assert.ok(!source.includes("getSessionUser(") && !source.includes("enforceSameOriginMutation("),
+      key + ": browser credentials must never trigger global cross-employer work");
+    const authenticate = source.indexOf("const denied = requireGlobalWorkerToken(");
+    const dispatch = source.indexOf(globalWorkerReview.work);
+    assert.ok(authenticate >= 0 && dispatch > authenticate,
+      key + ": worker authentication must precede dispatch");
+    return;
   }
 
   if (isNewOrChanged) {
