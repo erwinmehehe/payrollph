@@ -1874,6 +1874,78 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // PATCH /api/payout-profiles: the historical GET is byte-identical to the
+  // previously accepted own/foreign PG16 read. New PATCH audit atomicity and
+  // two-attacker HTTP evidence are a ZERO-credit candidate pending review.
+  if (isNewOrChanged && key === "src/app/api/payout-profiles/route.ts PATCH") {
+    const routeFile = "src/app/api/payout-profiles/route.ts";
+    const reviewed = method.reviewedUncertified;
+    const expected = {
+      kind: "payout-profile-PATCH-atomic-audit-and-foreign-denial-PG16-zero-credit",
+      originalRouteBlobSha: "91d402d92ea03e66fa56951fef09187001f5f3ed",
+      routeBlobSha: "087457e69765c38f76c1d66e01c895351e2a5dc0",
+      priorGetPrefixFnv64: "4417b941777ae2cd",
+      proofFile: "scripts/qa/tenant-payout-profiles-patch-http.mjs",
+      proofBlobSha: "ad51a1be9b47a59bd458c207391412dc03d52ec1",
+      contractFile: "tests/tenant-payout-profiles-patch-audit.test.mjs",
+      contractBlobSha: "3304e1ef98bac98399eaabdb65981074b7fb64d7",
+      workflowFile: ".github/workflows/tenant-payout-profiles-patch-http.yml",
+      workflowBlobSha: "d96c7761993fb5ed40414250ed7d717411bef217",
+      credits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP", "A source fix cannot self-credit the PATCH method");
+    assert.equal(method.testedBy, null, "Prior GET read proof does not cover payout profile mutations");
+    assert.match(method.reason, /^Still GAP: payout-profile PATCH/);
+    assert.equal(currentBlob, expected.routeBlobSha, "Payout profile source changed; renew independent review");
+    assert.equal(baseline.api[routeFile], expected.originalRouteBlobSha,
+      "Unreviewed source must preserve original audited GET baseline");
+    assert.deepEqual(reviewed, expected, "Only exact uncredited payout PATCH evidence is allowed");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Payout write evidence changed; renew exact-source review: " + file);
+    const source = readFileSync(routeFile, "utf8");
+    const prefix = source.slice(0, source.indexOf("export async function PATCH"));
+    assert.equal(prefix.length, 4945, "GET section changed from reviewed source");
+    let fnv = 0xcbf29ce484222325n;
+    for (const ch of prefix) fnv =
+      ((fnv ^ BigInt(ch.charCodeAt(0))) * 0x100000001b3n) & 0xffffffffffffffffn;
+    assert.equal(fnv.toString(16).padStart(16, "0"), expected.priorGetPrefixFnv64,
+      "PATCH-only fix cannot alter GET employer-scoped read");
+    const patch = source.slice(source.indexOf("export async function PATCH"));
+    for (const token of [
+      "requireCompanyAdmin(user.id, organizationId)",
+      "requireSensitiveActionMfa(user)",
+      "eq(legalEntities.organizationId, organizationId)",
+      "const saved = await db.transaction(async (tx) => {",
+      "await recordAuditEvent({", "}, tx);",
+      'error: "Company payout profile could not be saved."',
+    ]) assert.ok(patch.includes(token), "Missing atomic payout audit tenant guard: " + token);
+    assert.ok(patch.indexOf("const saved = await db.transaction") <
+      patch.indexOf("await recordAuditEvent({"),
+      "Payout receipt must be committed or rolled back in the same transaction");
+    assert.ok(!patch.includes("error instanceof Error ? error.message"),
+      "SQL error details cannot leak to the tenant");
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    for (const marker of [
+      '["GITHUB_ACTIONS", "true"]',
+      '["SECURITY_SMOKE_URL", "http://127.0.0.1:3000"]',
+      '["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db"]',
+      "for (const actor of [a, b])",
+      "CREATE TRIGGER ci_reject_payout_profile_audit",
+      "assert.deepEqual(await profileSnapshot(a.org.id), originalProfiles",
+      "assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles",
+      "methodCredits: 0, independentSecurityReview: \"PENDING\"",
+    ]) assert.ok(proof.includes(marker), "Missing payout PATCH negative control: " + marker);
+    const wf = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(wf, /image: postgres:16/);
+    assert.match(wf, /node --import tsx scripts\/qa\/tenant-payout-profiles-patch-http\.mjs/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
