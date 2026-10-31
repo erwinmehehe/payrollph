@@ -1402,6 +1402,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  if (method.status === "COVERED" && key === "src/app/api/workforce-planning/baselines/route.ts POST") {
+    // WRK-02 Batch 2 receipt (dedicated guard at the end of this file); the zero-credit hold is gone with the credit.
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-wrk02-batch2-http.mjs");
+    assert.equal(method.reviewedUncertified, undefined);
+    return;
+  }
+
   // #1597: uncredited WFM baseline POST fix. A guessed foreign scenario ID
   // must never disclose approval, plan linkage or scope before live membership.
   // The read-only GET handler remains byte-identical to the credited version;
@@ -1499,6 +1506,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
       return;
     }
+    if (wrk02Path.endsWith("/position-executions/route.ts")) {
+      // WRK-02 Batch 2 receipt (dedicated guard at the end of this file) credits POST and PATCH.
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-wrk02-batch2-http.mjs");
+      assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
+      return;
+    }
     if ((wrk02Path.endsWith("/transfer/route.ts") && method.name === "POST") || (wrk02Path.endsWith("/scenarios/route.ts") && method.name === "PATCH")) {
       // Real two-attacker PG16 HTTP proof now exists for these two through the write table; nothing else here is credited.
       assert.equal(method.status, "COVERED");
@@ -1513,7 +1527,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: wrk02.previous,
       routeBlobSha: wrk02.current,
       contractFile: "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
-      contractBlobSha: "7f4b794ce84742f410721b8d702de9ba713fc621",
+      contractBlobSha: "74ce1283675c0dd8284a785ec5e95435d8abbc61",
       originalGetPrefixSha: wrk02.prefix,
       coverageCredits: 0,
       exactHeadPg16Http: "NOT_RUN",
@@ -1521,7 +1535,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       productionCertified: false,
     });
     assert.equal(gitBlobSha(readFileSync("tests/tenant-wrk02-planning-write-boundaries.test.mjs")),
-      "7f4b794ce84742f410721b8d702de9ba713fc621", "WRK-02 source contract changed without renewed review");
+      "74ce1283675c0dd8284a785ec5e95435d8abbc61", "WRK-02 source contract changed without renewed review");
     return;
   }
 
@@ -3058,6 +3072,17 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 124104301803);
         continue;
       }
+      // WRK-02 Batch 2: only these three methods may claim the batch proof file; anchors and pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-wrk02-batch2-http.mjs") {
+        assert.ok(["src/app/api/workforce-planning/baselines/route.ts POST", "src/app/api/workforce-planning/position-executions/route.ts POST",
+          "src/app/api/workforce-planning/position-executions/route.ts PATCH"].includes(path + " " + method.name), "No unrelated method may reuse the Batch 2 evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "ea5c5008706f8e374eb0c8ddf1a46608e0e7969d");
+        assert.equal(proof.workflowRunId, 41161613307);
+        assert.equal(proof.workflowJobId, 124420445717);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -4333,4 +4358,43 @@ test("worksites POST credit requires every one of the ten actions, both attacker
     "non-allowlisted employer \" + action", "requireDisposableWorksiteActions();"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
   assert.ok(harness.indexOf("requireDisposableWorksiteActions();") < harness.indexOf('import("../../src/db/index.ts")'),
     "the fail-closed guard must run before any database import");
+});
+
+test("WRK-02 Batch 2 credits require the exact passing run, byte-pinned inputs and a cited call for every method", () => {
+  const harnessFile = "scripts/qa/tenant-wrk02-batch2-http.mjs";
+  const harness = readFileSync(harnessFile, "utf8"), harnessLines = harness.split("\n");
+  const workflow = readFileSync(".github/workflows/tenant-wrk02-batch2-http.yml", "utf8");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wrk02-batch2-http\.mjs/);
+  const wanted = [
+    ["src/app/api/workforce-planning/baselines/route.ts", "POST", ["publish"], /actorResponse\(BASELINE/],
+    ["src/app/api/workforce-planning/position-executions/route.ts", "POST", ["preview", "reopen"], /actorResponse\(EXECUTION/],
+    ["src/app/api/workforce-planning/position-executions/route.ts", "PATCH", ["apply", "cancel"], /actorResponse\(EXECUTION/],
+  ];
+  for (const [routePath, name, actions, ownPattern] of wanted) {
+    const api = manifest.allApiRouteFiles[routePath];
+    const method = api.methods.find(entry => entry.name === name);
+    assert.equal(api.methods.find(entry => entry.name === "GET").status, "COVERED", "the separate GET proof is preserved");
+    assert.equal(method.status, "COVERED", routePath + " " + name);
+    const proof = method.testedBy;
+    assert.equal(proof.file, harnessFile);
+    assert.deepEqual(proof.methodActions, actions);
+    assert.equal(proof.postgresMajor, 16);
+    assert.match(proof.runLabel, /^GitHub Actions \d+\/\d+ PG16 batch2 PASS$/);
+    assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+    assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+    assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-wrk02-batch2-contract.mjs")));
+    assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+    assert.equal(proof.routeBlobSha, gitBlobSha(readFileSync(routePath)));
+    assert.equal(api.gitBlobSha, proof.routeBlobSha);
+    assert.equal(proof.line, proof.ownPositiveLine);
+    assert.match(harnessLines[proof.ownPositiveLine - 1] ?? "", ownPattern, name + " own-success anchor");
+    assert.match(harnessLines[proof.foreignDenialLine - 1] ?? "", /denied\(/, name + " foreign-denial anchor");
+    assert.match(harnessLines[proof.forgedSelectorLine - 1] ?? "", /denied\(/, name + " forged/unknown-selector anchor");
+    assert.match(harnessLines[proof.unchangedDbLine - 1] ?? "", /assertPlanningUnchanged\(victimBefore/, name + " unchanged-victim anchor");
+  }
+  const executions = readFileSync("src/app/api/workforce-planning/position-executions/route.ts", "utf8");
+  assert.match(executions, /\["apply", "cancel"\]\.includes\(action\)/, "PATCH gained or lost an action; every action needs its own proof");
+  for (const evidence of ["requireDisposableWrk02Batch2(", "assertPlanningUnchanged(victimBefore", '"cross-employer " + action + " on real victim execution"',
+    '"Alpha own exact-hash apply"', '"owned execution cancel"', '"foreign approved scenario"']) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
 });
