@@ -1,4 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { validIsoDate } from "@/lib/payroll-period-validation";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull, like, ne, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   if (!Number.isInteger(applicantId)) {
     return Response.json({ error: "applicantId is required." }, { status: 400 });
   }
-  if (!firstName || !lastName || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+  if (!firstName || !lastName || !validIsoDate(startDate)) {
     return Response.json({ error: "firstName, lastName, and YYYY-MM-DD startDate are required." }, { status: 400 });
   }
 

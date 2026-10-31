@@ -9,6 +9,7 @@ on:
       - 'scripts/qa/tenant-table-rows/read/assets.mjs'
       - 'scripts/qa/tenant-table-rows/write/assets.mjs'
       - 'tests/tenant-assets-family.test.mjs'
+      - 'tests/tenant-assets-lookup-boundary.test.mjs'
       - 'src/app/api/assets/route.ts'
       - 'src/db/schema.ts'
       - 'src/lib/access.ts'
@@ -67,7 +68,7 @@ jobs:
           echo "::add-mask::$secret"
           echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Source and negative-control regressions
-        run: node --test tests/tenant-assets-family.test.mjs
+        run: node --test tests/tenant-assets-family.test.mjs tests/tenant-assets-lookup-boundary.test.mjs tests/tenant-assets-stale-custody.test.mjs
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
       - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
