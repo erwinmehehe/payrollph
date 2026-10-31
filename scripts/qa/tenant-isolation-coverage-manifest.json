@@ -40538,7 +40538,7 @@
     },
     {
       "path": "src/app/hcm/work-items/page.tsx",
-      "blob": "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3",
+      "blob": "378bf6b6050e488fe7ebeb48b4a18710152f88c1",
       "ids": [
         {
           "line": 13,
@@ -40731,7 +40731,30 @@
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: #1658 client-only HCM Work Queue has a fictional PG16 two-attacker GET candidate, but no independent end-to-end browser acceptance or page-coverage certification",
+      "reviewedUncertified": {
+        "kind": "hcm-work-items-client-GET-PG16-unaccepted",
+        "pageBlobSha": "378bf6b6050e488fe7ebeb48b4a18710152f88c1",
+        "originalPageBlobSha": "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3",
+        "helperFile": "src/lib/hcm-work-queue-summary.ts",
+        "helperBlobSha": "1e6fb2ab6fd10324ee06bf382d6050098a6482de",
+        "unitTestFile": "tests/hcm-work-queue-summary.test.ts",
+        "unitTestBlobSha": "eb33b1057cba28ea860828c773faed4e1c70fbe2",
+        "proofFile": "scripts/qa/hcm-work-queue-http.mjs",
+        "proofBlobSha": "634c48f9cafd3f56848dad9e1641ba30494567a5",
+        "harnessFile": "scripts/qa/tenant-second-pass-http.mjs",
+        "harnessBlobSha": "3765c1923e137f68b75fd545348868672f3f2f5d",
+        "workflowFile": ".github/workflows/security-http-smoke.yml",
+        "workflowBlobSha": "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+        "ownPageLine": 146,
+        "foreignPageLine": 154,
+        "ownPositiveLine": 159,
+        "foreignDenialLine": 171,
+        "unchangedDbLine": 183,
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/hcm/worker-360/page.tsx",
