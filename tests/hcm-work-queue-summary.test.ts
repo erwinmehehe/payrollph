@@ -40,6 +40,16 @@ test("HR Work Queue displays unknown until an active, error-free scoped response
     "Scope/filter changes must discard old queue and pending editor state");
   assert.ok(ui.includes("controller.abort()"),
     "A stale request must be aborted when employer/filter/revision changes");
-  assert.ok(ui.includes("activeQueue&&!loadError&&items.length===0"),
-    "A true empty state must be shown only for a verified successful load");
+  assert.ok(ui.includes("{summary ? ("),
+    "The work-items table must only render when the active read is verified");
+  assert.ok(ui.includes("items.length===0&&"),
+    "Only a verified empty view may display the no-work-items message");
+  assert.ok(ui.includes('Work items could not be loaded. Use Refresh to retry.'),
+    "A failed read needs a dedicated, clearly differentiated table state");
+  assert.ok(ui.includes("Work items are loading…"),
+    "A pending read cannot render an empty table");
+  assert.ok(ui.includes("Select a valid organization to see work items."),
+    "Invalid workspace selection cannot look like a verified empty table");
+  assert.ok(!ui.includes("activeQueue&&!loadError&&items.length===0"),
+    "Unknown reads must use the explicit verified-table guard");
 });
