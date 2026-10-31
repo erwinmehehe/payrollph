@@ -4285,6 +4285,80 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(reviewed.credits, 0);
         continue; // Narrow exact-source, zero-credit GAP evidence exception.
       }
+      // #1658 HR Work Queue is a client-only shell: it contains no server
+      // employer data. All rows flow through a separately authorized GET.
+      // This exact, uncredited PG16 candidate is not a COVERED promotion.
+      if (path === "src/app/hcm/work-items/page.tsx") {
+        const reviewed = entry.reviewedUncertified;
+        const pageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
+        const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
+        assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
+        assert.equal(entry.testedBy, undefined, "No premature page coverage credit");
+        assert.equal(current, pageSha, "Changed HR Work Queue must renew its exact review");
+        assert.equal(entry.blob, pageSha);
+        assert.equal(baseline.app[path], originalPageSha);
+        assert.match(entry.reason, /^Still GAP: #1658/);
+        assert.deepEqual(reviewed, {
+          kind: "hcm-work-items-client-GET-PG16-unaccepted",
+          pageBlobSha: pageSha,
+          originalPageBlobSha: originalPageSha,
+          helperFile: "src/lib/hcm-work-queue-summary.ts",
+          helperBlobSha: "1e6fb2ab6fd10324ee06bf382d6050098a6482de",
+          unitTestFile: "tests/hcm-work-queue-summary.test.ts",
+          unitTestBlobSha: "eb33b1057cba28ea860828c773faed4e1c70fbe2",
+          proofFile: "scripts/qa/hcm-work-queue-http.mjs",
+          proofBlobSha: "5d3710f91b0e5d6b06010102566141beba86ca1d",
+          harnessFile: "scripts/qa/tenant-second-pass-http.mjs",
+          harnessBlobSha: "3765c1923e137f68b75fd545348868672f3f2f5d",
+          workflowFile: ".github/workflows/security-http-smoke.yml",
+          workflowBlobSha: "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+          ownPageLine: 145, foreignPageLine: 153,
+          ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
+        for (const [file, sha] of [
+          [reviewed.helperFile, reviewed.helperBlobSha],
+          [reviewed.unitTestFile, reviewed.unitTestBlobSha],
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.harnessFile, reviewed.harnessBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "Unreviewed HR Work Queue evidence changed without renewed proof: " + file);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+          /const ownPage = expectStatus\(await request\("\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+          /const foreignPage = await request\("\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPositiveLine, path),
+          /const ownApi = expectStatus\(await request\("\/api\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignDenialLine, path),
+          /const foreignApi = expectStatus\(await request\("\/api\/hcm\/work-items\?organizationId="/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+          /assert\.deepEqual\(await victimCaseSnapshot\(\), beforeCases/);
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        for (const claim of [
+          'assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only")',
+          'assert.equal(process.env.SECURITY_SMOKE_URL, "http://127.0.0.1:3000")',
+          'assert.equal(process.env.DATABASE_URL, "postgresql://postgres:postgres@127.0.0.1:5432/app_db")',
+          "await verifyHcmWorkItemsPageTenantBoundary(f, { request, expectStatus })",
+          "for (const idx of [1, 2])", "assert.equal(ownPositives, 2)",
+          "assert.equal(foreignDenials, 4)", "assert.deepEqual(await victimWorkerSnapshot()",
+          "assert.deepEqual(await victimPayrollSnapshot()", "assert.deepEqual(await victimAuditSnapshot()",
+        ]) assert.ok(proof.includes(claim), "Missing HR work-queue negative control: " + claim);
+        const page = readFileSync(path, "utf8");
+        assert.match(page, /"use client"/);
+        assert.match(page, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
+        assert.match(page, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
+        const route = readFileSync("src/app/api/hcm/work-items/route.ts", "utf8");
+        assert.match(route, /const auth = await authorize\(organizationId\)/);
+        assert.match(route, /WHERE c\.organization_id = \$1/);
+        assert.match(route, /if \(!access\?\.companyWide\)/);
+        const runner = readFileSync(reviewed.harnessFile, "utf8");
+        assert.match(runner, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
+        assert.equal(reviewed.credits, 0);
+        continue; // Source-pinned, real-HTTP uncredited candidate, not blanket COVERED.
+      }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
       if (entry.status === "COVERED") {
