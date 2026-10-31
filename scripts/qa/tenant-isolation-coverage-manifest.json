@@ -15494,15 +15494,34 @@
       ]
     },
     "src/app/api/hcm/work-items/escalate/route.ts": {
-      "gitBlobSha": "91d465334abe1391d5d96e587b39c365dd529c6c",
+      "gitBlobSha": "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
       "route": "hcm/work-items/escalate",
       "methods": [
         {
           "name": "POST",
           "line": 16,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Global scheduler worker-token authorization and scoped per-employer SLA outbox: exact-source partial unique index fix with fictional PG16 HTTP proof candidate, zero method credits pending exact-head CI and independent security review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "hcm-sla-worker-token-and-partial-index-PG16-uncredited",
+            "previousRouteBlobSha": "91d465334abe1391d5d96e587b39c365dd529c6c",
+            "routeBlobSha": "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
+            "proofFile": "scripts/qa/tenant-hcm-sla-escalate-http.mjs",
+            "proofBlobSha": "07e0020c74c849b54a10e839b6f4d4e65e3009d9",
+            "contractFile": "tests/tenant-hcm-sla-escalate-contract.test.mjs",
+            "contractBlobSha": "71c2cabbc8b11c383fc54545771f5a983dddbe98",
+            "unitTestFile": "tests/hcm-work-item-sla.test.ts",
+            "unitTestBlobSha": "b5699786808d477bb33f2b8cc0a7e908fdd3678b",
+            "workflowFile": ".github/workflows/tenant-hcm-sla-escalate-http.yml",
+            "workflowBlobSha": "eb2b73295ffab13b8eb8a172ab17f913452a8ec1",
+            "fixtureFile": "scripts/qa/prepare-hcm-work-item-fixture.mjs",
+            "fixtureBlobSha": "3bc9f8046c38cf032ade0b076394be2f2e795c7b",
+            "credits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

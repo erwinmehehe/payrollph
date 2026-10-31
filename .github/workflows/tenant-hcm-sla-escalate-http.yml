@@ -1,0 +1,112 @@
+name: HCM SLA worker tenant boundary (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/hcm/work-items/escalate/route.ts"
+      - "scripts/qa/tenant-hcm-sla-escalate-http.mjs"
+      - "tests/tenant-hcm-sla-escalate-contract.test.mjs"
+      - "tests/hcm-work-item-sla.test.ts"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "tests/tenant-isolation-coverage-inventory.test.mjs"
+      - ".github/workflows/tenant-hcm-sla-escalate-http.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hcm-sla-worker-tenant-test
+  cancel-in-progress: true
+
+jobs:
+  hcm-sla-worker-tenant:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      TENANT_SECOND_PASS_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Source-contract and fail-closed syntax checks
+        run: |
+          node --check scripts/qa/tenant-hcm-sla-escalate-http.mjs
+          node --check tests/tenant-hcm-sla-escalate-contract.test.mjs
+          node --test tests/tenant-hcm-sla-escalate-contract.test.mjs
+          npx tsx --test tests/hcm-work-item-sla.test.ts
+      - name: Generate disposable-only scheduler and encryption secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in HCM_SLA_CRON_SECRET PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Build disposable schema without customer rows
+        run: npm run db:push
+      - name: Apply reviewed cutover baseline on empty CI DB
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Install exact HCM 0104 SQL-only fixture on empty CI DB
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode Next from synthetic code
+        run: npm run build
+      - name: Real scheduler HTTP, tenant-cookie denial and per-employer outbox proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1 > /tmp/hcm-sla-local-ci.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..60}; do
+            if curl -fsS "http://127.0.0.1:3000/login" >/dev/null; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo "Disposable scheduler test server failed to start"
+            tail -n 35 /tmp/hcm-sla-local-ci.log
+            exit 1
+          fi
+          node --import tsx scripts/qa/tenant-hcm-sla-escalate-http.mjs
+      - name: Bounded localhost diagnostics on failure
+        if: failure()
+        run: |
+          if test -f /tmp/hcm-sla-local-ci.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/hcm-sla-local-ci.log | tail -n 35 | cut -c 1-200 || true
+          fi

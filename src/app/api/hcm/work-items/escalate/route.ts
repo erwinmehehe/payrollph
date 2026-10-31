@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       for (const recipient of recipients.rows) {
         await client.query(`INSERT INTO outbox (organization_id, channel, recipient, subject, body, purpose, dedupe_key, status)
           VALUES ($1,'email',$2,$3,$4,'hcm_sla_escalation',$5,'queued')
-          ON CONFLICT (dedupe_key) DO NOTHING`, [
+          ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [
           item.organization_id, recipient.email,
           "HR work item requires attention",
           "An HR operational work item has passed its configured SLA escalation time. Sign in to Linaw and review the HR Work Queue. Work item #" + item.id + ". No employee or payroll details are included in this email.",
