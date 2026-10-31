@@ -9417,7 +9417,7 @@
       ]
     },
     "src/app/api/earned-wage/route.ts": {
-      "gitBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
+      "gitBlobSha": "0690ef15bf76c8e5eac0bd447720cb2dcbee47ca",
       "route": "earned-wage",
       "methods": [
         {
@@ -9441,8 +9441,19 @@
           "name": "POST",
           "line": 98,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: EWA POST request insertion and organization-scoped audit are transactional, with source contract only; independent actual two-employer PG16 HTTP proof and review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "earned-wage-POST-atomic-audit-source-only",
+            "priorRouteBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
+            "routeBlobSha": "0690ef15bf76c8e5eac0bd447720cb2dcbee47ca",
+            "contractFile": "tests/tenant-earned-wage-post-audit-atomic.test.mjs",
+            "contractBlobSha": "45b7c8b1d91db17c9a35cc6f19c9266f4f6d2160",
+            "credits": 0,
+            "independentSecurityReview": "PENDING",
+            "actualPg16Http": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
