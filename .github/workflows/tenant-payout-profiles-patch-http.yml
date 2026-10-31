@@ -28,6 +28,7 @@ jobs:
       TENANT_SECOND_PASS_MODE: isolated-ci-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
       DEMO_MODE: "false"
       WORKER_ENABLED: "false"
       CENTRAL_SCHEDULER_ENABLED: "false"
