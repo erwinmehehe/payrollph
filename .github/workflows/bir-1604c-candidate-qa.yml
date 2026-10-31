@@ -26,6 +26,8 @@ on:
       - 'scripts/qa/bir-2316-component-browser.mjs'
       - 'tests/fixtures/bir-2316-certificate.ts'
       - 'tests/bir-1604c*'
+      - 'tests/tenant-bir1604c-candidate-post-contract.test.mjs'
+      - 'scripts/qa/tenant-bir1604c-candidate-post-http.mjs'
       - '.github/workflows/bir-1604c-candidate-qa.yml'
 
 permissions:
@@ -164,6 +166,11 @@ jobs:
           done
       - name: Test role restrictions, DAT bytes, flag-off and desktop/390px UI
         run: node --import tsx scripts/bir-1604c-synthetic-browser.mjs
+      - name: Verify two authenticated foreign employers against a real higher-ID BIR candidate victim
+        run: |
+          node --check scripts/qa/tenant-bir1604c-candidate-post-http.mjs
+          node --test tests/tenant-bir1604c-candidate-post-contract.test.mjs
+          node --import tsx scripts/qa/tenant-bir1604c-candidate-post-http.mjs
       - name: Include official-module manual validation instructions
         if: always()
         run: |
