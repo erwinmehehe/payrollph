@@ -12,6 +12,10 @@ import {
   assertDeniedPlanning, assertStoredOwnedPlanning, assertPlanningUnchanged,
 } from "./tenant-wrk02-batch2-contract.mjs";
 
+import {
+  sourceOrderBaseline, sourceOrderExecution,
+} from "./tenant-wrk02-batch2-jsonb-hash.mjs";
+
 const hex = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const plain = value => JSON.parse(JSON.stringify(value));
 const BASELINE = "/api/workforce-planning/baselines";
@@ -222,8 +226,11 @@ export async function proveWrk02Batch2() {
       assert.equal(row.current, true);
       assert.equal(row.scopeOrgUnitId, null);
       assert.equal(row.worksiteId, null);
-      assert.equal(row.snapshotHash, hex(row.snapshot),
-        "Persisted baseline evidence must be SHA-bound to its actual SQL snapshot");
+      // The application hashes the original JS source BEFORE PostgreSQL stores
+      // the snapshot as jsonb. jsonb reorders keys; restore that exact source
+      // order, fail closed on added/missing keys, then hash all stored values.
+      assert.equal(row.snapshotHash, hex(sourceOrderBaseline(row.snapshot)),
+        "Baseline hash must bind the complete persisted source values");
       assert.deepEqual(row.snapshot?.headcount?.positionIds, [employer.seed.position.id]);
       assert.equal(row.snapshot?.positionExecutionSource?.version,
         "hcm-position-execution-source-v1");
@@ -279,10 +286,9 @@ export async function proveWrk02Batch2() {
       assert.equal(row.executionPlan?.preview?.summary?.updateCount, 1);
       assert.equal(row.executionPlan?.preview?.summary?.createCount, 0);
       assert.equal(row.executionPlan?.preview?.actions?.[0]?.after?.status, "approved");
-      const { generatedAt, boundary, ...evidence } = row.executionPlan;
-      assert.ok(generatedAt && boundary);
-      assert.equal(row.executionHash, hex(evidence),
-        "SQL execution hash must match stored immutable preview evidence");
+      assert.ok(row.executionPlan.generatedAt && row.executionPlan.boundary);
+      assert.equal(row.executionHash, hex(sourceOrderExecution(row.executionPlan)),
+        "Execution hash must bind the persisted preview in original source order");
       const [unchangedPosition] = await db.select().from(s.positions)
         .where(eq(s.positions.id, actor.seed.position.id)).limit(1);
       assert.equal(unchangedPosition.status, "planned",

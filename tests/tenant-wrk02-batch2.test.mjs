@@ -6,6 +6,7 @@ import {
   BATCH2_METHODS, requireDisposableWrk02Batch2,
   assertDeniedPlanning, assertStoredOwnedPlanning, assertPlanningUnchanged,
 } from "../scripts/qa/tenant-wrk02-batch2-contract.mjs";
+import { requireExactObjectOrder } from "../scripts/qa/tenant-wrk02-batch2-jsonb-hash.mjs";
 
 const files = [
   ["src/app/api/workforce-planning/baselines/route.ts",
@@ -163,4 +164,20 @@ test("Denial/positive contract cannot accept empty success or data movement", ()
   }), /actual|reference|equal|ID|SQL/i);
   assert.throws(() => assertPlanningUnchanged({ victim: true }, { victim: false },
     "cross-company 403"), /unchanged|foreign|must leave|deep-equal/i);
+});
+
+test("jsonb SHA reordering restores exact original fields and refuses source tampering", () => {
+  const original = { plan: { name: "fictional", version: 1 }, hash: "fake",
+    actions: [{ status: "planned" }] };
+  const jsonb = { actions: [{ status: "planned" }], hash: "fake",
+    plan: { version: 1, name: "fictional" } };
+  assert.notEqual(JSON.stringify(original), JSON.stringify(jsonb));
+  const restored = requireExactObjectOrder(jsonb, ["plan", "hash", "actions"]);
+  restored.plan = requireExactObjectOrder(restored.plan, ["name", "version"]);
+  assert.deepEqual(restored, original);
+  assert.equal(JSON.stringify(restored), JSON.stringify(original));
+  assert.throws(() => requireExactObjectOrder({ ...jsonb, unauthorized: true },
+    ["plan", "hash", "actions"]), /source keys changed/);
+  assert.throws(() => requireExactObjectOrder({ ...jsonb, plan: undefined },
+    ["plan", "hash", "actions"], "source"), /source keys changed|must be an object/);
 });
