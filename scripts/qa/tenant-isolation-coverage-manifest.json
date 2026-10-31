@@ -38283,65 +38283,95 @@
     },
     {
       "path": "src/app/billing/setup/page.tsx",
-      "blob": "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381",
+      "blob": "c5830a95d2c13063c43a36629690010220d99d31",
       "ids": [
         {
-          "line": 15,
+          "line": 20,
           "token": "organizationId"
         },
         {
-          "line": 16,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 17,
+          "line": 30,
           "token": "organizationId"
         },
         {
-          "line": 21,
+          "line": 43,
           "token": "organizationId"
         },
         {
-          "line": 21,
+          "line": 49,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
+          "token": "organizationId"
+        },
+        {
+          "line": 60,
           "token": "organizationId"
         }
       ],
       "actions": [],
       "guards": [
         {
-          "line": 6,
+          "line": 22,
           "token": "getSessionUser"
         },
         {
-          "line": 13,
-          "token": "getSessionUser"
+          "line": 41,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 49,
+          "token": "getAccess"
+        },
+        {
+          "line": 47,
+          "token": "notFound"
         }
       ],
       "business": [
         {
-          "line": 15,
+          "line": 30,
           "token": "organizationId"
         },
         {
-          "line": 16,
+          "line": 43,
           "token": "organizationId"
         },
         {
-          "line": 17,
+          "line": 53,
           "token": "organizationId"
         },
         {
-          "line": 21,
-          "token": "organizationId"
-        },
-        {
-          "line": 21,
+          "line": 60,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: #1631 adds canonical employer selection, company-wide billing role gating before SSR employer lookup, and an exact-head disposable PG16 two-attacker/real-victim HTTP proof job. Independent security review and completed exact-head CI are pending; this is not tenant-page certification or an accepted coverage credit.",
+      "reviewedUncertified": {
+        "kind": "billing-setup-SSR-GET-PG16-unaccepted",
+        "originalPageBlobSha": "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381",
+        "pageBlobSha": "c5830a95d2c13063c43a36629690010220d99d31",
+        "proofFile": "scripts/qa/tenant-billing-setup-page-http.mjs",
+        "proofBlobSha": "d0047d905a95ef6c33d63065d3404db114b102f3",
+        "contractTestFile": "tests/tenant-billing-setup-boundary.test.mjs",
+        "contractTestBlobSha": "b31437f6707036393404cc8ddad824dee56fd58d",
+        "workflowFile": ".github/workflows/tenant-billing-setup-page-qa.yml",
+        "workflowBlobSha": "a2b3bbe665e27d973d491426d9109853958ff425",
+        "ownPageLine": 153,
+        "foreignPageLine": 161,
+        "revokedPageLine": 206,
+        "unchangedDbLine": 210,
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/careers/page.tsx",
