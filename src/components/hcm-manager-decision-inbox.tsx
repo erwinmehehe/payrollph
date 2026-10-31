@@ -87,7 +87,16 @@ export function HcmManagerDecisionInbox({
       const raw = window.sessionStorage.getItem(preferenceKey);
       saved = raw ? JSON.parse(raw) : null;
     } catch { /* Storage may be disabled; the unsaved defaults still work. */ }
-    setViewPrefs({ key: preferenceKey, ...readManagerDecisionPreferences(saved) });
+    const preferences = readManagerDecisionPreferences(saved);
+    // Browser storage is optional external state. Hydrate after this effect
+    // rather than synchronously cascading a render (react-hooks/set-state-in-effect).
+    // Cancel pending hydration on employer/scope changes. Do not overwrite a
+    // filter the operator chose before the scheduled hydration runs.
+    const pending = window.setTimeout(() => {
+      setViewPrefs((current) => current?.key === preferenceKey
+        ? current : { key: preferenceKey, ...preferences });
+    }, 0);
+    return () => window.clearTimeout(pending);
   }, [preferenceKey]);
 
   function changeView(nextFilter: ManagerDecisionQuickFilter, nextOrder: ManagerDecisionOrder) {
