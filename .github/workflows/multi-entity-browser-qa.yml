@@ -46,6 +46,8 @@ on:
       - "tests/multi-entity-*.test.ts"
       - "scripts/multi-entity-synthetic-*"
       - "scripts/qa/multi-entity-group-report-http.mjs"
+      - "scripts/qa/tenant-multi-entity-transfers-write-http.mjs"
+      - "tests/tenant-multi-entity-transfers-write-candidate.test.mjs"
       - "scripts/multi-entity-registration-synthetic-http.mjs"
       - "scripts/multi-entity-loopback-https.mjs"
       - ".github/workflows/multi-entity-browser-qa.yml"
@@ -208,6 +210,39 @@ jobs:
         run: |
           node --check scripts/qa/payout-destination-entity-http.mjs
           node scripts/qa/payout-destination-entity-http.mjs
+      - name: Verify transfer POST/PATCH with real maker, checker and two foreign tenant sessions (no money)
+        env:
+          # This independent localhost process is the ONLY place that enables
+          # transfers. Existing UI/browser acceptance retains flag-OFF parity.
+          MULTI_ENTITY_TRANSFERS_ENABLED: "true"
+          MULTI_ENTITY_REGISTRATIONS_ENABLED: "false"
+          REQUIRE_PRIVILEGED_MFA: "false"
+          APP_BASE_URL: https://127.0.0.1:3002
+          TRUSTED_APP_ORIGINS: https://127.0.0.1:3002
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/qa/tenant-multi-entity-transfers-write-http.mjs
+          node --test tests/tenant-multi-entity-transfers-write-candidate.test.mjs
+          node node_modules/next/dist/bin/next start -p 3102 -H 127.0.0.1 > /tmp/multi-entity-transfer-write-ci.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..45}; do
+            if curl --insecure -fsS "https://127.0.0.1:3002/login" >/dev/null; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo "Local-only transfer-enabled test server not ready"
+            tail -n 50 /tmp/multi-entity-transfer-write-ci.log
+            exit 1
+          fi
+          node scripts/qa/tenant-multi-entity-transfers-write-http.mjs
+
       - name: Enforce existing UI/browser acceptance remains green
         if: steps.existing_browser.outcome == 'failure'
         run: |
