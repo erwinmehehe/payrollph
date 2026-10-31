@@ -36,13 +36,21 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Proposed combined ledger: 498 methods = 362 COVERED + 10 PUBLIC-BY-DESIGN + 126 GAP.** Main's 358 COVERED, including its roster-batches POST and three previously merged #1593 DL-02 proofs remain intact; PR #1602 adds four independently source-bound Performance POST/PATCH methods. 17 page/action GAPs and all frozen batch gaps remain, with exact-head CI and independent security/coverage-owner review required. No payroll, provider, production or tenant-wide authorization.
 
+## 2026-10-31 PR #1612 sync to main@a0cd5b9d — DRAFT, NOT ACCEPTED
+
+**Provisional combined ledger: 498 methods = 375 COVERED + 10 PUBLIC-BY-DESIGN + 113 GAP.** The latest main contributes 371 separately sourced credits, including its newly proven complete Worksites POST ten-action method, and PR #1612 contributes exactly four independent onboarding POST/PATCH method proofs. The 17 page/action GAPs remain. Source-bound PG16 exact-head CI and independent maintainer/security/coverage-owner review are required. No production, payroll, provider payout, deployment or tenant-wide acceptance.
+
+## 2026-10-31 PR #1612 sync to main@5c3785a8 — DRAFT, NOT ACCEPTED
+
+**Provisional combined ledger: 498 methods = 374 COVERED + 10 PUBLIC-BY-DESIGN + 114 GAP.** Current main includes 370 covered methods, including the independently sourced loans PATCH and two HCM write-method proofs; this PR contributes only four distinct onboarding POST/PATCH methods. No source evidence is double-counted. All 17 page/action GAPs remain. Exact-head PG16/CI and independent maintainer/security/coverage-owner review are pending. No production, payroll release, provider payout or tenant-wide acceptance.
+
 ## 2026-10-30 current main and #1593 DL-02 review-only reconciliation — DRAFT, NOT ACCEPTED
 
 > **2026-10-30 sync to main@90ffef4911b (DRAFT, NOT ACCEPTED):** Current main includes the separately source-pinned #1591 credits and the two WRK-01 staffing-policy POST/PATCH credits from #1592: **354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP**. This PR #1593 adds only three disjoint DL-02 provisional method credits (`POST workforce/demand-observations/import`, `POST self/photo`, `GET web-bundy/evidence`) for **357 COVERED / 10 PUBLIC-BY-DESIGN / 131 GAP** across 498 methods and 17 page/action GAPs. All 12 frozen batches remain INCOMPLETE. Exact-new-head CI and independent security/coverage-owner review are still required; no tenant-wide, production, provider or payroll certification.
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 371 COVERED + 10 PUBLIC-BY-DESIGN + 117 GAP**. Current `main@de69f856` has 358/10/130, including its distinct roster-batches POST proof; PR #1602 adds only four Performance POST/PATCH method credits without double-counting mainline #1593 DL-02. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED**; every frozen batch remains incomplete. Draft #1615 contributes two separate HCM write-method proofs, subject to review. PR #1616 adds one separate loan PATCH provisional proof; money/release remains disabled.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 375 COVERED + 10 PUBLIC-BY-DESIGN + 113 GAP**. Current `main@a0cd5b9d` has 371/10/117, including two independently sourced HCM write credits (#1615), its distinct loans PATCH (#1616), complete Worksites POST ten-action proof, and previously merged credits. PR #1612 adds only four onboarding POST/PATCH methods without double-counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED**; every frozen batch remains incomplete. No payroll release or provider payout is authorized.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -50,20 +58,20 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 22 | 0 | 11 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 30 | 0 | 8 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 28 | 0 | 11 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **287 COVERED + 2 PUBLIC-BY-DESIGN + 117 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **291 COVERED + 2 PUBLIC-BY-DESIGN + 113 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
