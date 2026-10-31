@@ -1,7 +1,6 @@
 /**
  * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
- * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
- * employer's org unit as its scope (see the PR description), so its proof cannot pass until the route validates ownership. The shared write runner adds
+ * from a published baseline, staffing scenario creation, and scenario submission for approval. The shared write runner adds
  * two attackers, the victim denial, a discrimination check and an unchanged victim. Nothing here touches payroll, schedules,
  * providers or money, and no approval is decided.
  */
@@ -74,6 +73,8 @@ export function createRows(deps) {
   const scenarioState = async (orgId) => { const t = await s(); return plain({ scenarios: await read(t.workforcePlanningScenarios, orgId), plans: await read(t.workforcePlans, orgId),
     instances: await read(t.approvalChainInstances, orgId), tasks: await read(t.approvalTasks, orgId), steps: await read(t.approvalChainInstanceSteps, orgId),
     audit: auditBusinessSnapshot(await read(auditEvents, orgId)) }); };
+  const scenarioBody = (organizationId, planId, name, extra) => ({ organizationId, planId, name, startDate: "2026-01-01", endDate: "2026-03-31",
+    demandGrowthPercent: 5, vacancyFillPercent: 90, employerLoadPercent: 0, annualAttritionPercent: 10, attritionBackfillPercent: 80, ...extra });
   const draftSnapshot = (e) => ({ version: "wfm-staffing-scenario-v3", forecast: { summary: { annualRunRateLaborCost: 600000, annualizedBasePayroll: 0,
     currentPeriodStatutoryEmployerCost: 0, currentPeriodBenefitEmployerCost: 0, currentPeriodRecurringCompensationCost: 0 }, assumptions: { windowDays: 30 } },
   scope: { orgUnitId: null }, assumptions: {}, linkedPlan: null, boundary: "fictional " + e.marker });
@@ -143,6 +144,54 @@ export function createRows(deps) {
         assert.deepEqual(after.baselines, before.baselines, "the baseline is only read"); assert.deepEqual(after.plans, before.plans);
         assert.equal(response.json?.scenario?.id, row.id); assert.equal(response.json?.seed?.baselineId, c.seeded.baselineId);
         assert.equal(oneAudit(before, after, c, "Workforce forecast revision created").resource, row.name + " v1");
+      } },
+
+    { key: "POST workforce-planning/scenarios", status: 201,
+      seed: async (e) => plan(e, "scenario plan"),
+      state: scenarioState,
+      ownBody: (c) => scenarioBody(c.orgId, c.seeded.id, c.marker + " staffing scenario"),
+      foreignBody: (c) => scenarioBody(c.victim.org.id, c.victimSeeded.id, c.marker + " staffing scenario"),
+      forged: { status: 404, body: (c) => scenarioBody(c.orgId, c.victimSeeded.id, c.marker + " staffing scenario") },
+      expect: (before, after, c, response) => {
+        const row = added(before.scenarios, after.scenarios, c, "scenario");
+        assert.equal(row.planId, c.seeded.id); assert.equal(row.name, c.marker + " staffing scenario"); assert.equal(row.version, 1);
+        assert.equal(row.status, "draft"); assert.equal(row.createdByUserId, c.owner.id);
+        assert.equal(Number(row.demandGrowthPercent), 5); assert.equal(Number(row.vacancyFillPercent), 90); assert.equal(Number(row.annualAttritionPercent), 10);
+        assert.equal(row.snapshot.linkedPlan.id, c.seeded.id); assert.match(row.snapshotHash, /^[a-f0-9]{64}$/);
+        assert.deepEqual(after.plans, before.plans); assert.deepEqual(after.instances, before.instances);
+        assert.equal(response.json?.scenario?.id, row.id);
+        assert.equal(oneAudit(before, after, c, "Workforce staffing scenario saved").resource, row.name + " v1");
+      },
+      exercise: async (c, { request, expectStatus, cookie }) => {
+        const url = "/api/workforce-planning/scenarios";
+        const victimBefore = await scenarioState(c.victim.org.id);
+        const post = async (body, status, label) => expectStatus(await request(url, { method: "POST", cookie, body }), status, label);
+        // A victim's org unit and a nonexistent one must get the identical refusal (no existence oracle), and write nothing.
+        const refusals = [];
+        for (const [label, scopeOrgUnitId] of [["victim org unit", c.victim.unit.id], ["missing org unit", 2147483000]]) {
+          const own = await scenarioState(c.orgId);
+          const response = await expectStatus(await request(url, { method: "POST", cookie, body: scenarioBody(c.orgId, c.seeded.id, c.marker + " scoped", { scopeOrgUnitId }) }), 404, label);
+          assert.ok(!response.text.includes(c.victim.marker) && !/select |insert |from "/i.test(response.text), "a refusal leaks no victim data or SQL");
+          assert.deepEqual(await scenarioState(c.orgId), own, label + " writes nothing"); assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
+          refusals.push(response.text);
+        }
+        assert.equal(refusals[0], refusals[1], "a victim unit and a missing unit are indistinguishable");
+        // The caller's own org unit is accepted as the scope.
+        {
+          const own = await scenarioState(c.orgId);
+          await post(scenarioBody(c.orgId, c.seeded.id, c.marker + " own scope", { scopeOrgUnitId: c.unit?.id ?? c.seeded.orgUnitId }), 201, "own org unit scope");
+          const row = added(own.scenarios, (await scenarioState(c.orgId)).scenarios, c, "own-scope scenario");
+          assert.equal(row.name, c.marker + " own scope");
+        }
+        // Saving the same name again is a new immutable version, never an overwrite.
+        const before = await scenarioState(c.orgId);
+        await post(scenarioBody(c.orgId, c.seeded.id, c.marker + " staffing scenario", { demandGrowthPercent: 8 }), 201, "second version");
+        const after = await scenarioState(c.orgId);
+        const second = added(before.scenarios, after.scenarios, c, "scenario version");
+        assert.equal(second.version, 2); assert.equal(Number(second.demandGrowthPercent), 8);
+        assert.deepEqual(after.scenarios.filter((row) => row.id !== second.id), before.scenarios, "the first version is untouched");
+        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, "creating scenarios leaves the victim unchanged");
+        return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2 };
       } },
 
     { key: "PATCH workforce-planning/scenarios",
