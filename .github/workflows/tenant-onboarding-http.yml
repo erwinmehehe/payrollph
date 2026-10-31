@@ -58,7 +58,7 @@ jobs:
           done
       # Preserve the final source-bound proof gate, but run fresh PG16 HTTP before checking stale historical receipt hashes.
       - name: Onboarding source contracts before live proof (no historical receipt acceptance)
-        run: node --import tsx --test --test-name-pattern='^(?!executed receipts reject)' tests/tenant-onboarding-contract.test.mjs
+        run: node --import tsx --test --test-name-pattern='^(onboarding refuses|calendar date regression|legacy import assigns|owned verifier requires|both profiles execute real intake)' tests/tenant-onboarding-contract.test.mjs
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
       - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
