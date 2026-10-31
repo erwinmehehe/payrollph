@@ -57,7 +57,13 @@ jobs:
       - run: node scripts/qa/apply-isolated-baseline.mjs
       - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - run: npm run build
-      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - name: Install isolated browser test dependency without pruning dev tooling
+        run: |
+          # first-payroll-full-env sets NODE_ENV=production for the localhost app.
+          # npm honors it when installing, silently pruning dev-only TypeScript
+          # needed by the tenant-table HTTP fixture at test runtime.
+          env -u NODE_ENV npm install --include=dev --no-save --package-lock=false playwright@1.55.0
+          node -e "for (const pkg of ['typescript', 'tsx', 'playwright']) require.resolve(pkg)"
       - run: npx playwright install --with-deps chromium
       - name: Start disposable localhost server
         run: |
