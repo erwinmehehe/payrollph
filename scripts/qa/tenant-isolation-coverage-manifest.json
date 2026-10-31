@@ -33807,7 +33807,7 @@
       ]
     },
     "src/app/api/workforce/demand-observations/issued/route.ts": {
-      "gitBlobSha": "d9e6ae99e687b691ca428e58c6c34ff077769a41",
+      "gitBlobSha": "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0",
       "route": "workforce/demand-observations/issued",
       "methods": [
         {
@@ -33832,14 +33832,58 @@
             "verifiedMainCommit": "fe3ad8901bfa714d59639d9f59a13cf133eeab36",
             "routeBlobSha": "d9e6ae99e687b691ca428e58c6c34ff077769a41",
             "proofBlobSha": "edd6146bfdb1d57d763bd869c863b9d62ebbdfb3"
+          },
+          "reviewedUncertified": {
+            "kind": "wfm-demand-reads-workforce-permission-overlay-unaccepted",
+            "previousRouteBlobSha": "d9e6ae99e687b691ca428e58c6c34ff077769a41",
+            "routeBlobSha": "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0",
+            "onlyReadHandlerChanged": true,
+            "changedMethod": "GET",
+            "statusBefore": "COVERED",
+            "runnerFile": "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
+            "runnerBlobSha": "4fe362a87fa660da1438883e23bc7b9afaab3969",
+            "contractFile": "tests/tenant-wfm-demand-read-overlay.test.mjs",
+            "contractBlobSha": "d03d2814cc989a3743ac520827d45b6a2b43b396",
+            "workflowFile": ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
+            "workflowBlobSha": "a7b23d7680e9a36a35d1d736e7a8bd2b9d01ccfc",
+            "ownPositiveLine": 103,
+            "foreignDenialLine": 118,
+            "overlayDenialLine": 151,
+            "revokedDenialLine": 222,
+            "unchangedDbLine": 231,
+            "methodCredits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
           }
         },
         {
           "name": "POST",
-          "line": 61,
+          "line": 68,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wfm-demand-reads-workforce-permission-overlay-unaccepted",
+            "previousRouteBlobSha": "d9e6ae99e687b691ca428e58c6c34ff077769a41",
+            "routeBlobSha": "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0",
+            "onlyReadHandlerChanged": true,
+            "changedMethod": "GET",
+            "statusBefore": "GAP",
+            "runnerFile": "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
+            "runnerBlobSha": "4fe362a87fa660da1438883e23bc7b9afaab3969",
+            "contractFile": "tests/tenant-wfm-demand-read-overlay.test.mjs",
+            "contractBlobSha": "d03d2814cc989a3743ac520827d45b6a2b43b396",
+            "workflowFile": ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
+            "workflowBlobSha": "a7b23d7680e9a36a35d1d736e7a8bd2b9d01ccfc",
+            "ownPositiveLine": 103,
+            "foreignDenialLine": 118,
+            "overlayDenialLine": 151,
+            "revokedDenialLine": 222,
+            "unchangedDbLine": 231,
+            "methodCredits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -33867,37 +33911,41 @@
           "token": "getSessionUser"
         },
         {
-          "line": 44,
+          "line": 43,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 48,
           "token": "getAccess"
         },
         {
-          "line": 62,
+          "line": 69,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 64,
+          "line": 71,
           "token": "getSessionUser"
         },
         {
-          "line": 76,
+          "line": 83,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 73,
+          "line": 80,
           "token": "input.organizationId"
         },
         {
-          "line": 76,
+          "line": 83,
           "token": "input.organizationId"
         },
         {
-          "line": 84,
+          "line": 91,
           "token": "input.organizationId"
         },
         {
-          "line": 89,
+          "line": 96,
           "token": "input.organizationId"
         }
       ],
@@ -33951,15 +33999,15 @@
           "token": "organizationId"
         },
         {
-          "line": 41,
+          "line": 52,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 48,
           "token": "organizationId"
         },
         {
-          "line": 49,
+          "line": 56,
           "token": "organizationId"
         }
       ]
@@ -34594,19 +34642,41 @@
       ]
     },
     "src/app/api/workforce/demand-staffing/policies/route.ts": {
-      "gitBlobSha": "513975b118713becbf98caffa7d813a5b8c33c71",
+      "gitBlobSha": "e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c",
       "route": "workforce/demand-staffing/policies",
       "methods": [
         {
           "name": "GET",
           "line": 39,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: custom workforce permission and employer/session checks now precede pilot configuration and policy reads. Exact-head own/victim/overlay PG16 HTTP candidate and independent security review remain pending. No new credit.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wfm-demand-reads-workforce-permission-overlay-unaccepted",
+            "previousRouteBlobSha": "513975b118713becbf98caffa7d813a5b8c33c71",
+            "routeBlobSha": "e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c",
+            "onlyReadHandlerChanged": true,
+            "changedMethod": "GET",
+            "statusBefore": "GAP",
+            "runnerFile": "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
+            "runnerBlobSha": "4fe362a87fa660da1438883e23bc7b9afaab3969",
+            "contractFile": "tests/tenant-wfm-demand-read-overlay.test.mjs",
+            "contractBlobSha": "d03d2814cc989a3743ac520827d45b6a2b43b396",
+            "workflowFile": ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
+            "workflowBlobSha": "a7b23d7680e9a36a35d1d736e7a8bd2b9d01ccfc",
+            "ownPositiveLine": 103,
+            "foreignDenialLine": 118,
+            "overlayDenialLine": 151,
+            "revokedDenialLine": 222,
+            "unchangedDbLine": 231,
+            "methodCredits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
+          }
         },
         {
           "name": "POST",
-          "line": 89,
+          "line": 94,
           "status": "COVERED",
           "reason": "Provisional source-pinned four-part tenant isolation evidence: distinct owned success, real higher-ID victim denial, unchanged victim PostgreSQL and forged selector containment across all supported method actions. Independent security/coverage-owner review and this PR's exact-head CI remain mandatory; NOT a production or whole-batch certification.",
           "testedBy": {
@@ -34635,11 +34705,33 @@
             "scope": "Two independently authenticated owners and a real higher-ID victim owner each persist two own planning-only policy drafts with exact row, policy-event and audit receipts; shared idempotency keys are employer-scoped and replay returns the original row without a second event. Foreign organization, victim worksite, victim job profile, extra employee/actor selectors and revoked membership are denied; every non-actor employer (victim, other attacker, excluded) is byte-identical after each denial and each success. The identical proof and route blobs also passed run 40723387488 on head 93e52080d.",
             "independentReview": "PENDING: this credit-promotion PR must be reviewed before merge",
             "productionCertified": false
+          },
+          "reviewedUncertified": {
+            "kind": "wfm-demand-reads-workforce-permission-overlay-unaccepted",
+            "previousRouteBlobSha": "513975b118713becbf98caffa7d813a5b8c33c71",
+            "routeBlobSha": "e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c",
+            "onlyReadHandlerChanged": true,
+            "changedMethod": "GET",
+            "statusBefore": "COVERED",
+            "runnerFile": "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
+            "runnerBlobSha": "4fe362a87fa660da1438883e23bc7b9afaab3969",
+            "contractFile": "tests/tenant-wfm-demand-read-overlay.test.mjs",
+            "contractBlobSha": "d03d2814cc989a3743ac520827d45b6a2b43b396",
+            "workflowFile": ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
+            "workflowBlobSha": "a7b23d7680e9a36a35d1d736e7a8bd2b9d01ccfc",
+            "ownPositiveLine": 103,
+            "foreignDenialLine": 118,
+            "overlayDenialLine": 151,
+            "revokedDenialLine": 222,
+            "unchangedDbLine": 231,
+            "methodCredits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
           }
         },
         {
           "name": "PATCH",
-          "line": 125,
+          "line": 130,
           "status": "COVERED",
           "reason": "Provisional source-pinned four-part tenant isolation evidence: distinct owned success, real higher-ID victim denial, unchanged victim PostgreSQL and forged selector containment across all supported method actions. Independent security/coverage-owner review and this PR's exact-head CI remain mandatory; NOT a production or whole-batch certification.",
           "testedBy": {
@@ -34669,6 +34761,28 @@
             "scope": "All three transitions persist for both attackers and the real victim owner: author submit, independent MFA-verified same-employer admin approve (bound to a hash-checked approval receipt) and reject. Self-approval, owner-approve of a draft, foreign-organization admin, stolen higher-ID victim policy (409), extra policy-owner selector, anonymous and revoked-membership requests are denied with every employer's policies, events, audit, workers and payroll unchanged.",
             "independentReview": "PENDING: this credit-promotion PR must be reviewed before merge",
             "productionCertified": false
+          },
+          "reviewedUncertified": {
+            "kind": "wfm-demand-reads-workforce-permission-overlay-unaccepted",
+            "previousRouteBlobSha": "513975b118713becbf98caffa7d813a5b8c33c71",
+            "routeBlobSha": "e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c",
+            "onlyReadHandlerChanged": true,
+            "changedMethod": "GET",
+            "statusBefore": "COVERED",
+            "runnerFile": "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
+            "runnerBlobSha": "4fe362a87fa660da1438883e23bc7b9afaab3969",
+            "contractFile": "tests/tenant-wfm-demand-read-overlay.test.mjs",
+            "contractBlobSha": "d03d2814cc989a3743ac520827d45b6a2b43b396",
+            "workflowFile": ".github/workflows/tenant-wfm-demand-read-overlay-http.yml",
+            "workflowBlobSha": "a7b23d7680e9a36a35d1d736e7a8bd2b9d01ccfc",
+            "ownPositiveLine": 103,
+            "foreignDenialLine": 118,
+            "overlayDenialLine": 151,
+            "revokedDenialLine": 222,
+            "unchangedDbLine": 231,
+            "methodCredits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
           }
         }
       ],
@@ -34697,31 +34811,35 @@
           "token": "getSessionUser"
         },
         {
-          "line": 58,
+          "line": 57,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 61,
           "token": "getAccess"
         },
         {
-          "line": 90,
+          "line": 95,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 91,
+          "line": 96,
           "token": "getSessionUser"
         },
         {
-          "line": 102,
+          "line": 107,
           "token": "getAccess"
         },
         {
-          "line": 126,
+          "line": 131,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 127,
+          "line": 132,
           "token": "getSessionUser"
         },
         {
-          "line": 138,
+          "line": 143,
           "token": "getAccess"
         }
       ],
@@ -34768,23 +34886,23 @@
           "token": "organizationId"
         },
         {
-          "line": 55,
+          "line": 66,
           "token": "organizationId"
         },
         {
-          "line": 55,
+          "line": 66,
           "token": "organizationId"
         },
         {
-          "line": 58,
-          "token": "organizationId"
-        },
-        {
-          "line": 65,
+          "line": 61,
           "token": "organizationId"
         },
         {
           "line": 70,
+          "token": "organizationId"
+        },
+        {
+          "line": 75,
           "token": "organizationId"
         }
       ]
