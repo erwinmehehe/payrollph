@@ -84,10 +84,19 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
     {
       key: "POST workforce-planning", status: 201,
       seed: async e => {
+        const t = await tables();
         const [profile] = await db.insert(jobProfiles).values({
           organizationId: e.org.id, title: e.marker + " source job profile",
         }).returning();
-        return { jobProfileId: profile.id };
+        const [family] = await db.insert(t.jobFamilies).values({
+          organizationId: e.org.id,
+          code: "SEED-" + e.marker, name: e.marker + " seeded source family",
+        }).returning();
+        const [plan] = await db.insert(t.workforcePlans).values({
+          organizationId: e.org.id, name: e.marker + " seeded source plan",
+          startDate: "2026-01-01", endDate: "2026-12-31",
+        }).returning();
+        return { jobProfileId: profile.id, familyId: family.id, planId: plan.id };
       },
       state: snapshot,
       ownBody: familyBody,
@@ -165,13 +174,9 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
           parentId: c.victim.unit.id,
         }), 404, "foreign org unit parent", client);
         await denyAndPreserve(c, "POST", base(c, "profile", {
-          title: c.marker + " foreign family", familyId: c.victimSeeded.jobProfileId,
+          title: c.marker + " foreign family", familyId: c.victimSeeded.familyId,
           levelId: level.id,
-        }), 404, "foreign family/profiles must not be accepted", client).catch(error => {
-          // A profile ID is not a family ID. If the numeric IDs happen to
-          // collide, the independent family lookup below remains decisive.
-          throw error;
-        });
+        }), 404, "foreign family/profiles must not be accepted", client);
         await denyAndPreserve(c, "POST", positionBody(c, {
           code: "X-PLAN-" + c.marker, jobProfileId: profile.id, planId: c.victimSeeded.planId,
         }), 404, "foreign workforce plan", client);
