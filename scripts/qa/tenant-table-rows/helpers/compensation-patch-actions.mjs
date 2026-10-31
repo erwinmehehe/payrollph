@@ -15,12 +15,23 @@ const tables = async () => (schema ??= await import("../../../../src/db/schema.t
 /** Called from the row's seed: a graded profile with a primary position, components, a second admin and four pending assignments. */
 export async function seedCompensationPatch({ db }, e) {
   const t = await tables();
-  const [grade] = await db.insert(t.jobGrades).values({ organizationId: e.org.id, code: ("PG" + e.marker).slice(-38).toUpperCase(), name: e.marker + " patch grade" }).returning();
-  const [profile] = await db.insert(t.jobProfiles).values({ organizationId: e.org.id, title: e.marker + " patch profile", gradeId: grade.id }).returning();
-  const [position] = await db.insert(t.positions).values({ organizationId: e.org.id, code: ("PP-" + e.marker).slice(-46), jobProfileId: profile.id,
-    orgUnitId: e.unit.id, legalEntityId: e.entity.id, employmentType: "Regular", status: "filled", annualBudget: "0" }).returning();
-  await db.insert(t.positionAssignments).values({ organizationId: e.org.id, positionId: position.id, employeeId: e.worker.id,
-    assignmentType: "primary", fte: "1.0000", effectiveFrom: "2026-01-05", reason: "fixture" });
+  // Reuse the POST fixture's active primary assignment if it has been seeded.
+  const postFixture = e.seeded?.["POST compensation"];
+  const reusedPostFixture = Boolean(postFixture && Number.isSafeInteger(postFixture.profileId)
+    && postFixture.profileId > 0 && postFixture.entityId === e.entity.id);
+  let profile;
+  if (reusedPostFixture) {
+    profile = { id: postFixture.profileId };
+  } else {
+    // Standalone PATCH retains its original synthetic primary-position setup.
+    const [grade] = await db.insert(t.jobGrades).values({ organizationId: e.org.id, code: ("PG" + e.marker).slice(-38).toUpperCase(), name: e.marker + " patch grade" }).returning();
+    const [created] = await db.insert(t.jobProfiles).values({ organizationId: e.org.id, title: e.marker + " patch profile", gradeId: grade.id }).returning();
+    profile = created;
+    const [position] = await db.insert(t.positions).values({ organizationId: e.org.id, code: ("PP-" + e.marker).slice(-46), jobProfileId: profile.id,
+      orgUnitId: e.unit.id, legalEntityId: e.entity.id, employmentType: "Regular", status: "filled", annualBudget: "0" }).returning();
+    await db.insert(t.positionAssignments).values({ organizationId: e.org.id, positionId: position.id, employeeId: e.worker.id,
+      assignmentType: "primary", fte: "1.0000", effectiveFrom: "2026-01-05", reason: "fixture" });
+  }
   // A second company admin: maker-checker means the request and the approval need two different people.
   const [admin] = await db.insert(t.users).values({ email: e.marker.toLowerCase() + "-comp-admin@example.invalid", name: e.marker + " second compensation admin",
     passwordHash: "fictional-session-only", role: "admin", totpEnabled: true }).returning();
@@ -36,7 +47,7 @@ export async function seedCompensationPatch({ db }, e) {
       amount: "1200.00", effectiveFrom: "2099-03-01", status: "pending_approval", reason: e.marker + " " + name, requestedByUserId: requestedBy.id, requestedBy: requestedBy.name }).returning();
     assignments[name] = row.id;
   }
-  return { profileId: profile.id, entityId: e.entity.id, adminId: admin.id, adminName: admin.name, adminCookie: "__Host-linaw_session=" + raw, assignments };
+  return { profileId: profile.id, entityId: e.entity.id, reusedPostFixture, adminId: admin.id, adminName: admin.name, adminCookie: "__Host-linaw_session=" + raw, assignments };
 }
 
 export async function compensationPatchActions({ assert, state, db, eq, hcmBusinessProcessInstances, compensationProposals }, c, { request, expectStatus, cookie }) {
@@ -108,7 +119,13 @@ export async function compensationPatchActions({ assert, state, db, eq, hcmBusin
   const make = async (entityType, extra) => (await call("POST", { organizationId: c.orgId, entityType, ...extra }, 201, "create " + entityType)).json;
   const cycleFor = (month) => make("cycle", { name: c.marker + " patch cycle " + month, startDate: "2098-01-01", endDate: "2098-01-31", effectiveDate: "2098-" + month + "-01", budgetPool: 5000000 });
   const [cycleX, cycleY, cycleZ] = [await cycleFor("02"), await cycleFor("03"), await cycleFor("04")];
-  const band = await make("band", { jobProfileId: extras.profileId, legalEntityId: extras.entityId, locationCode: "PH", minimumAnnual: 120000, midpointAnnual: 240000, maximumAnnual: 360000, effectiveFrom: "2098-01-01" });
+  // Reuse the preexisting POST band rather than create an overlapping active band.
+  const postBand = (await state(c.orgId)).bands.find((b) => b.active
+    && b.jobProfileId === extras.profileId && b.legalEntityId === extras.entityId
+    && b.locationCode === "PH" && String(b.effectiveFrom) <= "2098-02-01"
+    && (!b.effectiveUntil || String(b.effectiveUntil) >= "2098-04-01"));
+  if (extras.reusedPostFixture) assert.ok(postBand, "the POST band must cover this worker profile");
+  const band = postBand ?? await make("band", { jobProfileId: extras.profileId, legalEntityId: extras.entityId, locationCode: "PH", minimumAnnual: 120000, midpointAnnual: 240000, maximumAnnual: 360000, effectiveFrom: "2098-01-01" });
   const propose = async (cycle, proposedAnnual) => (await call("POST", { organizationId: c.orgId, entityType: "proposal", employeeId: c.workerId, cycleId: cycle.id, bandId: band.id,
     proposedAnnual, reason: c.marker + " fictional proposal " + cycle.id }, 201, "create proposal")).json;
   const proposalX = await propose(cycleX, 300000), proposalY = await propose(cycleY, 310000);
