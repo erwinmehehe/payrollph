@@ -474,15 +474,35 @@
       ]
     },
     "src/app/api/approvals/[id]/route.ts": {
-      "gitBlobSha": "4dacb9acf4d49030f0bfe9c89700769d0dbb42a1",
+      "gitBlobSha": "024e0736da4097b2ee4b2e010c014bcd2e36d196",
       "route": "approvals/[id]",
       "methods": [
         {
           "name": "PATCH",
           "line": 33,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: #1665 PATCH final task/payroll/automation/workforce SQL writes are additionally employer-scoped. Existing generic-task three-employer PG16 real HTTP + new exact-head source contract candidate is not coverage of all approval-connected payroll/HCM source types.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "approval-PATCH-final-SQL-employer-scope-PG16-uncredited",
+            "previousRouteBlobSha": "4dacb9acf4d49030f0bfe9c89700769d0dbb42a1",
+            "routeBlobSha": "024e0736da4097b2ee4b2e010c014bcd2e36d196",
+            "proofFile": "scripts/qa/tenant-approval-task-http.mjs",
+            "proofBlobSha": "849fcb15f0c2b9770269b372f81c6837d2422e07",
+            "existingContractFile": "tests/tenant-approval-task-contract.test.mjs",
+            "existingContractBlobSha": "1701a6b166f764213844fa1a91162400b9e1ca18",
+            "newContractFile": "tests/tenant-approval-task-tx-org-scope.test.mjs",
+            "newContractBlobSha": "47cfa33457203f4ff2b21baf0579eec21509d997",
+            "workflowFile": ".github/workflows/tenant-approval-task-http.yml",
+            "workflowBlobSha": "873a44778a3da811619e6eb6c5a0f0f67aed9c17",
+            "ownPositiveLine": 167,
+            "secondOwnPositiveLine": 175,
+            "foreignDenialLine": 128,
+            "unchangedVictimLine": 209,
+            "credits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": [
