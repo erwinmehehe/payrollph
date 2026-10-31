@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -628,14 +628,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
               eq(workforcePlans.organizationId, task.organizationId),
             ))
             .limit(1);
-          if (linkedPlan && linkedPlan.status !== "published") {
-            await tx.update(workforcePlans).set({
+          if (!linkedPlan) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT");
+          if (linkedPlan.status !== "published") {
+            // Fail closed if a linked plan disappeared, moved tenants, or
+            // became published between the scoped read and this update.
+            const [updatedLinkedPlan] = await tx.update(workforcePlans).set({
               status: nextScenarioStatus,
               updatedAt: new Date(),
             }).where(and(
               eq(workforcePlans.id, scenarioRow.planId),
               eq(workforcePlans.organizationId, task.organizationId),
-            ));
+              ne(workforcePlans.status, "published"),
+            )).returning({ id: workforcePlans.id });
+            if (!updatedLinkedPlan) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT");
           }
         }
 

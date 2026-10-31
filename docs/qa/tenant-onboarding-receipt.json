@@ -42,7 +42,7 @@
     },
     {
       "file": "src/app/api/approvals/[id]/route.ts",
-      "sha256": "a3ea553a41d26f459c3de0bc250fc70d147a61ad4c7964283d86e719ab90caf8"
+      "sha256": "65a90405a34e6103d2ae119d903a68f57f4b39a3f829165197f475a39479e5b7"
     },
     {
       "file": "src/lib/payroll-period-validation.ts",
@@ -432,6 +432,16 @@
       "coverageCreditsAdded": 0,
       "productionTested": false,
       "followUp": "Require new exact-head green CI and independent linked payroll/HCM approval review before any merge or release."
+    },
+    "pr1665LinkedPlanFollowUp": {
+      "pullRequest": 1665,
+      "source": "src/app/api/approvals/[id]/route.ts",
+      "sourceSha256": "65a90405a34e6103d2ae119d903a68f57f4b39a3f829165197f475a39479e5b7",
+      "status": "PENDING_EXACT_HEAD_PG16_HTTP_AND_SECURITY_REVIEW",
+      "description": "Linked whole-plan scenario decisions reject missing, foreign-tagged, or newly published linked plans within the approval transaction, retaining rollback on conflict. This records a source hash update, not executed proof.",
+      "methodCreditsAdded": 0,
+      "productionTested": false,
+      "priorHistoricalProofPreserved": true
     }
   }
 }

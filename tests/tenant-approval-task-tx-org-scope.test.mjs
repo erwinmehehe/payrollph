@@ -57,6 +57,21 @@ test("scope contract fails closed for an added unscoped update and a removed emp
     /authenticated task employer in the same SQL statement/);
 });
 
+test("linked whole-plan decision cannot commit when its scoped plan disappears or publishes", () => {
+  const start = route.indexOf("const [linkedPlan] = await tx.select(");
+  const end = route.indexOf("await tx.insert(auditEvents)", start);
+  assert.ok(start >= 0 && end > start, "Missing linked-plan decision path");
+  const source = route.slice(start, end);
+  for (const marker of [
+    "eq(workforcePlans.id, scenarioRow.planId)",
+    "eq(workforcePlans.organizationId, task.organizationId)",
+    'if (!linkedPlan) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT")',
+    'ne(workforcePlans.status, "published")',
+    ".returning({ id: workforcePlans.id })",
+    'if (!updatedLinkedPlan) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT")',
+  ]) assert.ok(source.includes(marker), "Missing linked-plan fail-closed guard: " + marker);
+});
+
 test("prior real three-employer PATCH HTTP proof is reused without claiming a new coverage credit", () => {
   for (const marker of [
     "requireDisposableApprovalTask()",
