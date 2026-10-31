@@ -54,7 +54,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 378 COVERED + 10 PUBLIC-BY-DESIGN + 110 GAP**. Current `main@a0cd5b9d` has 371/10/117, including two independently sourced HCM write credits (#1615), its distinct loans PATCH (#1616), complete Worksites POST ten-action proof, and previously merged credits. PR #1612 adds only four onboarding POST/PATCH methods without double-counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED**; every frozen batch remains incomplete. No payroll release or provider payout is authorized.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 379 COVERED + 10 PUBLIC-BY-DESIGN + 109 GAP**. Current `main@a0cd5b9d` has 371/10/117, including two independently sourced HCM write credits (#1615), its distinct loans PATCH (#1616), complete Worksites POST ten-action proof, and previously merged credits. PR #1612 adds only four onboarding POST/PATCH methods without double-counting. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation is **NOT ACCEPTED**; every frozen batch remains incomplete. No payroll release or provider payout is authorized.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -64,7 +64,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 21 | 0 | 12 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 22 | 0 | 11 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
@@ -75,7 +75,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **294 COVERED + 2 PUBLIC-BY-DESIGN + 110 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **295 COVERED + 2 PUBLIC-BY-DESIGN + 109 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
