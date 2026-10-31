@@ -4,6 +4,7 @@ import { auditEvents, payrollEntries, payrollRuns, payslips } from "@/db/schema"
 import { recordAuditEvent } from "@/lib/audit";
 import { isValidPilotBankDryRunEvidence } from "@/lib/pilot-bank-dry-run-evidence";
 import { getSessionUser } from "@/lib/auth";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   assertOrganizationRole,
@@ -113,6 +114,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  // An organization role and unit grant must not authorize another legal employer.
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
