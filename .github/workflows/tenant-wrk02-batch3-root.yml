@@ -60,6 +60,9 @@ jobs:
             echo "::add-mask::$key"
             echo "$name=$key" >> "$GITHUB_ENV"
           done
+          webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$webhook_secret"
+          echo "RESEND_WEBHOOK_SECRET=$webhook_secret" >> "$GITHUB_ENV"
       - run: npm run db:push
       - name: Apply isolated baseline objects
         run: node scripts/qa/apply-isolated-baseline.mjs
