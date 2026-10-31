@@ -113,7 +113,8 @@ export async function proveWrk02Batch2() {
       "workforcePlanBaselines", "workforcePlanPositionExecutions",
       "positions", "positionAssignments", "jobRequisitions",
       "employees", "employeePayProfiles", "auditEvents", "payrollRuns",
-      "approvalChainInstances", "approvalTasks",
+      "approvalChainInstances", "approvalTasks", "userOrganizations",
+      "permissionSets", "userPermissionAssignments",
     ];
     async function snapshot(organizationId) {
       const entries = await Promise.all(snapshotTables.map(async name => {
@@ -303,6 +304,33 @@ export async function proveWrk02Batch2() {
       await unchangedAll(before, "idempotent position preview");
     }
 
+    // A People-admin role at an assigned unit is not a company-wide plan
+    // publisher or executor. This is a real authenticated unit-scoped HR
+    // membership, not a fake 403 returned by a role-only mock.
+    const [scopedHr] = await db.insert(s.users).values({
+      email: "wrk02-scoped-hr-" + nonce + "@example.invalid",
+      name: "Fictional unit-scoped HR", role: "owner",
+      passwordHash: "fictional-session-only", totpEnabled: true,
+    }).returning({ id: s.users.id });
+    await db.insert(s.userOrganizations).values({
+      userId: scopedHr.id, organizationId: a.org.id,
+      role: "hr", orgUnitId: a.unit.id, active: true,
+    });
+    const scopedSession = await helpers.standaloneMakeSession(scopedHr.id);
+    await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(s.sessions.id, scopedSession.id));
+    assert.equal((await request("/api/account", {
+      cookie: scopedSession.cookie,
+    })).status, 200, "Unit-scoped People HR must be a real active session");
+    for (const [path, method, body] of [
+      [BASELINE, "POST", baselineBody(a)],
+      [EXECUTION, "POST", executionBody(a)],
+      [EXECUTION, "PATCH", { executionId: a.execution.id, action: "cancel" }],
+    ]) {
+      await denied(path, { method, body, cookie: scopedSession.cookie },
+        403, "unit-scoped People HR is not company-wide");
+    }
+
     // Both PATCH actions must reject a real *higher-ID* victim execution,
     // not just an invalid or non-existent ID. The victim stays intact.
     for (const actor of [a, b]) {
@@ -455,6 +483,41 @@ export async function proveWrk02Batch2() {
     }
     await unchangedAll(beforeRevokeReads, "real revoked employer membership");
 
+    // A valid, MFA-verified owner may still have a deny-only custom
+    // permission set. It must be enforced for ALL three writes before
+    // inspecting already-published or already-applied business-state data.
+    const [ownerMembership] = await db.select({ id: s.userOrganizations.id })
+      .from(s.userOrganizations).where(and(
+        eq(s.userOrganizations.userId, a.owner.id),
+        eq(s.userOrganizations.organizationId, a.org.id),
+        eq(s.userOrganizations.active, true),
+      )).limit(1);
+    assert.ok(ownerMembership?.id, "Fictional owner membership must exist");
+    const [denyPeople] = await db.insert(s.permissionSets).values({
+      organizationId: a.org.id,
+      name: "Fictional deny people admin",
+      permissions: ["workforce.manage"], active: true,
+      createdByUserId: a.owner.id,
+    }).returning({ id: s.permissionSets.id });
+    await db.insert(s.userPermissionAssignments).values({
+      organizationId: a.org.id,
+      userOrganizationId: ownerMembership.id,
+      permissionSetId: denyPeople.id, assignedByUserId: a.owner.id,
+    });
+    assert.equal((await request("/api/account", { cookie: a.cookie })).status, 200,
+      "Custom permission restriction cannot be confused with sign-out");
+    for (const [path, method, body] of [
+      [BASELINE, "POST", baselineBody(a)],
+      [EXECUTION, "POST", executionBody(a)],
+      [EXECUTION, "PATCH", { executionId: a.execution.id, action: "apply" }],
+    ]) {
+      const deniedOverlay = await denied(path, {
+        method, body, cookie: a.cookie,
+      }, 403, "active owner denied by people.admin permission overlay");
+      assert.match(deniedOverlay.json?.error ?? "", /custom permission set/i,
+        "Actual People-admin permission overlay must deny, not an unrelated 403");
+    }
+
     assertPlanningUnchanged(victimBefore, await snapshot(victim.org.id),
       "All foreign actions must leave genuine higher-ID victim employer entirely immutable");
     const allAudit = await db.select().from(s.auditEvents)
@@ -480,6 +543,8 @@ export async function proveWrk02Batch2() {
       stalePublishedBaselineApply409: true,
       currentBaselineVersionTwoApply200: true,
       stillSignedInAfterMembershipRevocation: true,
+      unitScopedPeopleHrWritesDenied: 3,
+      activeOwnerWithoutPeoplePermissionDenied: 3,
       victimPayrollAndAuditUnchanged: true,
       externalProviderCalls: false,
       batch1ApprovalProven: false,
