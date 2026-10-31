@@ -497,7 +497,7 @@ function ScopedAttendanceExceptionsPanel({
                 ? "New attendance exceptions will appear here with owner and SLA tracking."
                 : "Try a different filter. This view does not change or close any case."}
             </EmptyState>
-          )
+          )}
         </div>
       </article>
 
