@@ -7,6 +7,7 @@ import {
   assertNonCacheableDemand,
 } from "../scripts/qa/tenant-demand-governance-recovery-contract.mjs";
 import { createRows } from "../scripts/qa/tenant-table-rows/read/demand-governance.mjs";
+import { assertHistoricalDemandSourceCompatible } from "../scripts/qa/tenant-wfm-demand-overlay-history.mjs";
 
 const safe = {
   GITHUB_ACTIONS: "true", CI: "true", NODE_ENV: "production",
@@ -82,11 +83,36 @@ test("only the issued-demand GET gains proof credit; approved-policy GET still l
       assert.equal(target?.status, "COVERED");
       assert.equal(target?.testedBy?.prNumber, 1514);
       assert.equal(target?.testedBy?.workflowRunId, 40624976387);
-      assert.equal(target?.testedBy?.routeBlobSha, found.gitBlobSha);
+      const routePath = "src/app/api/" + route + "/route.ts";
+      // The previously credited GET still points at its historical source.
+      // Verify the new route is *only* the reviewed, exact GET-only overlay
+      // before carrying that historical credit forward.
+      const provenHistoricalSha = assertHistoricalDemandSourceCompatible(routePath, found);
+      assert.equal(target?.testedBy?.routeBlobSha, provenHistoricalSha);
     } else {
       assert.equal(target?.status, "GAP", "approved-mode nonempty positive is absent");
       assert.equal(target?.testedBy, null);
     }
+  }
+});
+
+test("WFM GET overlays preserve exact historical route source and reject tampering", () => {
+  const manifest = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  for (const path of [
+    "src/app/api/workforce/demand-observations/issued/route.ts",
+    "src/app/api/workforce/demand-staffing/policies/route.ts",
+  ]) {
+    const record = manifest.allApiRouteFiles[path];
+    const current = readFileSync(path, "utf8");
+    assert.match(assertHistoricalDemandSourceCompatible(path, record), /^[a-f0-9]{40}$/);
+    // Route bytes are pinned. A changed POST/PATCH or altered GET overlay
+    // invalidates this compatibility proof instead of earning extra credits.
+    assert.throws(() => assertHistoricalDemandSourceCompatible(path, record,
+      file => file === path ? current + "\n// unreviewed route mutation" : readFileSync(file, "utf8")));
+    const tampered = structuredClone(record);
+    tampered.methods[0].reviewedUncertified.methodCredits = 1;
+    assert.throws(() => assertHistoricalDemandSourceCompatible(path, tampered));
   }
 });
 
