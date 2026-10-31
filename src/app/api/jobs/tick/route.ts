@@ -1,33 +1,16 @@
-import { getSessionUser } from "@/lib/auth";
 import { tickScheduler } from "@/lib/scheduler";
 import { checkPayrollWorkerDispatchGate } from "@/lib/payroll-worker-dispatch-gate";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
-import { operationalSecret } from "@/lib/operational-secret";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { requireGlobalWorkerToken } from "@/lib/global-worker-authorization";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const workerToken = request.headers.get("x-worker-token");
-  const expected = operationalSecret("worker");
-
-  if (process.env.NODE_ENV === "production") {
-    if (!expected) {
-      return Response.json({ error: "Scheduler is disabled until a worker token or TOTP encryption master is configured." }, { status: 503 });
-    }
-    if (!constantTimeSecretEqual(workerToken, expected)) {
-      return Response.json({ error: "A valid worker token is required." }, { status: 401 });
-    }
-  } else if (!constantTimeSecretEqual(workerToken, expected)) {
-    // Development-only browser fallback uses the session cookie, so it must
-    // enforce same-origin before consulting that cookie. A valid worker token
-    // remains a server-to-server credential and does not depend on Origin.
-    const originDenied = enforceSameOriginMutation(request);
-    if (originDenied) return originDenied;
-
-    const user = await getSessionUser();
-    if (!user) return Response.json({ error: "Authentication or a valid worker token is required." }, { status: 401 });
-  }
+  const denied = requireGlobalWorkerToken(
+    request,
+    "Scheduler is disabled until a worker token or TOTP encryption master is configured.",
+  );
+  if (denied) return denied;
 
   // An external dispatcher that preflighted one release must never execute
   // against a different deployment after a production alias change.
@@ -45,7 +28,7 @@ export async function POST(request: Request) {
   }
 
   // Do not trust an earlier GET preflight: a worker can stop before this POST,
-  // and a separately authenticated caller may invoke /api/jobs/tick directly.
+  // and a worker-token holder may invoke /api/jobs/tick directly.
   // Enforce the same default-off production worker prerequisite at the final
   // mutating boundary, after authentication and before any scheduler work.
   const worker = await checkPayrollWorkerDispatchGate();
