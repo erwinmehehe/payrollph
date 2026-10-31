@@ -1,8 +1,8 @@
 /**
  * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
  * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
- * employer's org unit as its scope (see the PR description), so its proof cannot pass until the route validates ownership. The shared write runner adds
- * two attackers, the victim denial, a discrimination check and an unchanged victim. Nothing here touches payroll, schedules,
+ * employer's org unit as its scope (issue #1644). This candidate now exercises authenticated own/foreign/nonexistent
+ * org-unit checks using two attackers and a higher-ID victim with unchanged DB/audit snapshots. Nothing touches payroll, schedules,
  * providers or money, and no approval is decided.
  */
 import { createHash } from "node:crypto";
@@ -144,6 +144,79 @@ export function createRows(deps) {
         assert.equal(response.json?.scenario?.id, row.id); assert.equal(response.json?.seed?.baselineId, c.seeded.baselineId);
         assert.equal(oneAudit(before, after, c, "Workforce forecast revision created").resource, row.name + " v1");
       } },
+
+    // #1644: method-specific signed-in HTTP evidence. This stays GAP until
+    // exact-head PG16 CI, SQL-failure injection and security-owner acceptance.
+    { key: "POST workforce-planning/scenarios", status: 201,
+      state: scenarioState,
+      ownBody: (c) => ({
+        organizationId: c.orgId, name: c.marker + " scoped scenario",
+        startDate: "2026-01-01", endDate: "2026-12-31",
+        scopeOrgUnitId: c.unitId, demandGrowthPercent: 0,
+        vacancyFillPercent: 100, employerLoadPercent: 0,
+      }),
+      foreignBody: (c) => ({
+        organizationId: c.victim.org.id, name: c.marker + " victim employer scenario",
+        startDate: "2026-01-01", endDate: "2026-12-31",
+        scopeOrgUnitId: c.victim.unit.id,
+      }),
+      forged: {
+        status: 404,
+        body: (c) => ({
+          organizationId: c.orgId, name: c.marker + " forged org-unit scenario",
+          startDate: "2026-01-01", endDate: "2026-12-31",
+          scopeOrgUnitId: c.victim.unit.id,
+        }),
+      },
+      expect: (before, after, c, response) => {
+        const row = added(before.scenarios, after.scenarios, c, "scoped forecast scenario");
+        assert.equal(row.name, c.marker + " scoped scenario");
+        assert.equal(row.status, "draft");
+        assert.equal(row.scopeOrgUnitId, c.unitId);
+        assert.equal(row.createdByUserId, c.owner.id);
+        assert.equal(row.snapshot?.scope?.orgUnitId, c.unitId);
+        assert.match(row.snapshotHash, /^[a-f0-9]{64}$/);
+        assert.equal(response.json?.scenario?.id, row.id);
+        assert.equal(response.json?.scenario?.organizationId, c.orgId);
+        assert.deepEqual(after.plans, before.plans, "scenario save must not change workforce plans");
+        assert.deepEqual(after.instances, before.instances, "save must not start an approval chain");
+        assert.deepEqual(after.steps, before.steps, "save must not advance approvers");
+        assert.deepEqual(after.tasks, before.tasks, "save must not create approval tasks");
+        const receipt = oneAudit(before, after, c, "Workforce staffing scenario saved");
+        assert.equal(receipt.metadata.scenarioId, row.id);
+        assert.equal(receipt.metadata.scopeOrgUnitId, c.unitId);
+      },
+      exercise: async (c, { request, expectStatus, cookie }) => {
+        const url = "/api/workforce-planning/scenarios";
+        const ownBefore = await scenarioState(c.orgId);
+        const victimBefore = await scenarioState(c.victim.org.id);
+        const requestScoped = (unit) => request(url, { method: "POST", cookie, body: {
+          organizationId: c.orgId, name: c.marker + " rejected unit scenario",
+          startDate: "2026-01-01", endDate: "2026-12-31",
+          scopeOrgUnitId: unit,
+        } });
+        const foreign = expectStatus(await requestScoped(c.victim.unit.id), 404,
+          "foreign org unit must be denied before forecast/save");
+        const nonexistent = expectStatus(await requestScoped(c.victim.unit.id + 100000), 404,
+          "nonexistent org unit must match foreign denial");
+        assert.deepEqual(foreign.json, nonexistent.json,
+          "foreign and unknown global unit IDs must be indistinguishable");
+        assert.deepEqual(foreign.json, { error: "Organization unit not found." });
+        assert.ok(!foreign.text.includes(c.victim.marker));
+        assert.ok(!nonexistent.text.includes(c.victim.marker));
+        assert.deepEqual(await scenarioState(c.orgId), ownBefore,
+          "neither rejected POST may write scenarios, approvals or audit to own employer");
+        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore,
+          "neither rejected POST may change victim employer state");
+        return {
+          actions: ["create scoped draft"],
+          refusedOrgUnitReferences: ["foreign", "nonexistent"],
+          denialPayloadEqual: true,
+          SQLFaultInjection: "NOT_RUN",
+          methodCoverageCredit: false,
+        };
+      },
+    },
 
     { key: "PATCH workforce-planning/scenarios",
       seed: async (e) => {
