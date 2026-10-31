@@ -76,9 +76,11 @@ test("executed People/platform credits stay pinned, selected refresh does not ad
     const record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const method = record.methods.find(m => m.name === verb);
     if (key === "POST workforce/worksites") {
-      assert.equal(method.status, "GAP", "Only create_worksite is proven; other actions remain untested");
-      assert.equal(method.testedBy, null, "Incomplete method evidence must not be source-pinned as covered");
-      assert.match(method.reason, /create_worksite/);
+      // The table row proves create_worksite only; the method is credited solely by the separate ten-action proof.
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy.file, "scripts/qa/tenant-worksites-actions-http.mjs", "never the partial table row");
+      assert.equal(method.testedBy.methodActions.length, 10);
+      assert.equal(method.testedBy.rowFile, undefined);
       continue;
     }
     assert.equal(method.status, "COVERED", key);

@@ -2694,6 +2694,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 123592788790);
         continue;
       }
+      // Worksites POST: only this method may claim the ten-action proof file. Anchors, blob pins and the action list
+      // are checked by the dedicated worksites test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-worksites-actions-http.mjs") {
+        assert.equal(path, "src/app/api/workforce/worksites/route.ts", "No unrelated route may reuse the worksites all-action evidence");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "da9782c1685578f601d69c5dcdfd97283e7c1ec1");
+        assert.equal(proof.workflowRunId, 41067962478);
+        assert.equal(proof.workflowJobId, 124104301803);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -3830,4 +3842,50 @@ test("roster-batches POST credit requires independent HTTP stage, replay, approv
   }
   assert.match(evidenceLine(legacyFile, proof.legacyRejectLine, "positive reject"),
     /const victimReject = await reject\(victim, victim\.orgId, victim\.batchId\)/);
+});
+
+test("worksites POST credit requires every one of the ten actions, both attackers, the victim and the pilot-off employer", async () => {
+  const routePath = "src/app/api/workforce/worksites/route.ts";
+  const api = manifest.allApiRouteFiles[routePath];
+  const post = api.methods.find(method => method.name === "POST");
+  assert.equal(api.methods.find(method => method.name === "GET").status, "COVERED", "the separate GET proof is preserved");
+  const harnessFile = "scripts/qa/tenant-worksites-actions-http.mjs";
+  const { WORKSITE_ACTIONS } = await import("../scripts/qa/tenant-worksites-actions-contract.mjs");
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-worksites-actions-http.yml", "utf8");
+  const routeActions = new Set([...readFileSync(routePath, "utf8").matchAll(/action === "([a-z_]+)"/g)].map(match => match[1]));
+  for (const action of routeActions) assert.ok(WORKSITE_ACTIONS.includes(action), "the route gained an action the proof does not cover: " + action);
+  assert.equal(WORKSITE_ACTIONS.length, 10);
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-worksites-actions-http\.mjs/);
+  assert.equal(post.status, "COVERED");
+  const proof = post.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.deepEqual(proof.methodActions, [...WORKSITE_ACTIONS]);
+  assert.equal(proof.postgresMajor, 16);
+  assert.match(proof.runLabel, /^GitHub Actions \d+\/\d+ PG16 all actions PASS$/);
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; the proof must be re-run and re-credited");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-worksites-actions-contract.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(readFileSync(routePath)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  const anchors = {
+    ownPositiveLine: /await allowed\(actor, createBody\(actor\.org\.id, "NEW-"/,
+    foreignDenialLine: /await refused\(actor, createBody\(victim\.org\.id, "FOREIGN-"/,
+    forgedSelectorLine: /await refused\(actor, assignBody\(actor\.org\.id, victim\.worker\.id, actor\.site1\.id\)/,
+    unchangedDbLine: /for \(const e of subjects\) assertImmutableWorksiteSql\(before\.get\(e\.org\.id\)/,
+    victimIdOrderingLine: /assert\.ok\(victim\.org\.id > Math\.max\(/,
+  };
+  for (const [field, pattern] of Object.entries(anchors)) assert.match(evidenceLine(harnessFile, proof[field], field), pattern, field);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  assert.deepEqual(Object.keys(proof.actionOwnLines), [...WORKSITE_ACTIONS], "every action has its own cited own-success line");
+  for (const [action, number] of Object.entries(proof.actionOwnLines)) {
+    assert.match(evidenceLine(harnessFile, number, action), /await allowed\(actor, /, action + " must cite a real own write");
+    assert.ok(evidenceLine(harnessFile, number, action).includes("own " + action), action + " line must name its own action");
+  }
+  for (const evidence of ["for (const actor of attackers)", "victim.seedAuthorization.id", "assertImmutableWorksiteSql(before.get(other.org.id)",
+    "non-allowlisted employer \" + action", "requireDisposableWorksiteActions();"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposableWorksiteActions();") < harness.indexOf('import("../../src/db/index.ts")'),
+    "the fail-closed guard must run before any database import");
 });
