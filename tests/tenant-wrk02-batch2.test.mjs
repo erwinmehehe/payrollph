@@ -20,7 +20,7 @@ const gitBlobSha = content => createHash("sha1")
 const runner = readFileSync("scripts/qa/tenant-wrk02-batch2-http.mjs", "utf8");
 const workflow = readFileSync(".github/workflows/tenant-wrk02-batch2-http.yml", "utf8");
 
-test("Only the three uncredited Batch 2 methods are in scope, with exact existing routes", () => {
+test("Only the three Batch 2 methods are in scope, with exact existing routes", () => {
   assert.deepEqual(BATCH2_METHODS, [
     "src/app/api/workforce-planning/baselines/route.ts POST",
     "src/app/api/workforce-planning/position-executions/route.ts POST",
@@ -36,8 +36,10 @@ test("Only the three uncredited Batch 2 methods are in scope, with exact existin
     const path = key.slice(0, key.lastIndexOf(" "));
     const name = key.slice(key.lastIndexOf(" ") + 1);
     const method = manifest.allApiRouteFiles[path]?.methods.find(x => x.name === name);
-    assert.equal(method?.status, "GAP", key + " cannot be promoted on unrun proof");
-    assert.equal(method?.testedBy, null, key + " has no independently accepted evidence yet");
+    // Credited only after the exact-head workflow passed (see scripts/qa/tenant-wrk02-batch2-credit.mjs); review stays PENDING.
+    assert.equal(method?.status, "COVERED", key + " is credited by its executed receipt");
+    assert.equal(method?.testedBy?.file, "scripts/qa/tenant-wrk02-batch2-http.mjs", key);
+    assert.equal(method?.testedBy?.independentSecurityReview, "PENDING", key + " has no accepted independent review yet");
   }
 });
 

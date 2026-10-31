@@ -12,6 +12,10 @@ import {
 import { Status } from "@/components/workspace/ui";
 import { readVerifiedComplianceCalendar, type CalendarPayload as Payload, type CalendarStatus, type RuleWatchItem } from "@/lib/compliance-calendar-read";
 import { useScopedAsyncResource } from "@/components/workspace/use-scoped-async-resource";
+import {
+  countComplianceAgencies, needsComplianceAttention, selectComplianceCalendarItems,
+  type ComplianceAgencyFilter, type ComplianceDateSort,
+} from "@/lib/compliance-calendar-planner";
 
 // This flag controls explanatory UI only. Employer authorization and
 // fail-closed source checks run even when the optional notice is OFF.
@@ -28,15 +32,6 @@ const RULE_WATCH_LABEL: Record<RuleWatchItem["status"], string> = {
   "no-coverage": "No coverage",
 };
 const RULE_WATCH_URGENT = new Set<RuleWatchItem["status"]>(["update-overdue", "no-coverage", "coverage-ending", "change-upcoming"]);
-
-const urgent = new Set<CalendarStatus>([
-  "overdue",
-  "exception",
-  "verification-required",
-  "configuration-required",
-  "posting-pending",
-  "due-soon",
-]);
 
 function statusLabel(status: CalendarStatus) {
   if (status === "complete") return "Reconciled";
@@ -61,6 +56,8 @@ function prettyDate(value: string | null) {
 
 export function ComplianceCalendarPanel({ organizationId }: { organizationId: number }) {
   const [attentionOnly, setAttentionOnly] = useState(true);
+  const [agencyFilter, setAgencyFilter] = useState<ComplianceAgencyFilter>("all");
+  const [dateSort, setDateSort] = useState<ComplianceDateSort>("earliest");
   const fetchCalendar = useCallback((signal: AbortSignal): Promise<Payload> =>
     readVerifiedComplianceCalendar(organizationId, fetch, signal), [organizationId]);
 
@@ -73,10 +70,11 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
   const error = loadError?.message ?? "";
 
   const items = useMemo(
-    () => (payload?.items ?? []).filter((item) => !attentionOnly || urgent.has(item.status)),
-    [payload, attentionOnly],
+    () => selectComplianceCalendarItems(payload?.items ?? [], attentionOnly, agencyFilter, dateSort),
+    [payload, attentionOnly, agencyFilter, dateSort],
   );
-  const attentionCount = (payload?.items ?? []).filter((item) => urgent.has(item.status)).length;
+  const agencyCounts = useMemo(() => countComplianceAgencies(payload?.items ?? []), [payload]);
+  const attentionCount = (payload?.items ?? []).filter((item) => needsComplianceAttention(item.status)).length;
   const reconciledCount = (payload?.items ?? []).filter((item) => item.status === "complete").length;
   const upcomingCount = (payload?.items ?? []).filter((item) => item.status === "upcoming").length;
 
@@ -183,10 +181,41 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
             </button>
           </div>
 
+          <div role="group" aria-label="Compliance deadline planner" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
+            <label className="id" style={{ display: "grid", gap: 4 }}>
+              Agency
+              <select aria-label="Filter compliance obligations by agency" value={agencyFilter}
+                onChange={(event) => setAgencyFilter(event.target.value as ComplianceAgencyFilter)}>
+                <option value="all">All agencies ({agencyCounts.all})</option>
+                <option value="BIR">BIR ({agencyCounts.BIR})</option>
+                <option value="SSS">SSS ({agencyCounts.SSS})</option>
+                <option value="PhilHealth">PhilHealth ({agencyCounts.PhilHealth})</option>
+                <option value="Pag-IBIG">Pag-IBIG ({agencyCounts["Pag-IBIG"]})</option>
+              </select>
+            </label>
+            <label className="id" style={{ display: "grid", gap: 4 }}>
+              Deadline order
+              <select aria-label="Sort compliance obligations by deadline" value={dateSort}
+                onChange={(event) => setDateSort(event.target.value as ComplianceDateSort)}>
+                <option value="earliest">Earliest known deadline</option>
+                <option value="latest">Latest known deadline</option>
+                <option value="source">Original source order</option>
+              </select>
+            </label>
+            <span className="id" role="status" style={{ alignSelf: "end" }}>
+              Showing {items.length} of {payload.items.length} verified obligations.
+              {agencyCounts.unresolved > 0
+                ? ` ${agencyCounts.unresolved} unresolved date(s) across all agencies are not estimated and sort last.`
+                : " All displayed due dates come from verified sources."}
+              View controls never file, reconcile or mark an obligation complete.
+            </span>
+          </div>
+
           {items.length === 0 ? (
-            <div className="notice notice-green" style={{ margin: 0 }}>
-              <CheckCircle2 size={15} />
-              <span><strong>No calendar items need attention.</strong> Open all obligations to review upcoming and reconciled dates.</span>
+            <div className="notice" style={{ margin: 0 }}>
+              <CircleAlert size={15} />
+              <span><strong>No obligations match the selected filters.</strong> Choose another agency or status view.
+                This does not certify filing or remittance completion.</span>
             </div>
           ) : (
             <div style={{ display: "grid", gap: 10 }}>
@@ -204,7 +233,7 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
                     <Status value={statusLabel(item.status)} />
                   </div>
 
-                  <div className={item.status === "complete" ? "notice notice-green" : urgent.has(item.status) ? "notice notice-amber" : "notice"} style={{ margin: 0 }}>
+                  <div className={item.status === "complete" ? "notice notice-green" : needsComplianceAttention(item.status) ? "notice notice-amber" : "notice"} style={{ margin: 0 }}>
                     {item.status === "complete" ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}
                     <span>{item.detail}</span>
                   </div>
