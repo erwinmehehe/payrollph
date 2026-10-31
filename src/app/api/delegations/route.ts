@@ -5,6 +5,7 @@ import { approvalDelegations, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { resolveEffectiveApprovers } from "@/lib/delegation";
+import { uniqueDelegationMember } from "@/lib/delegation-members";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   APPROVAL_ADMIN_ROLES,
@@ -15,6 +16,24 @@ import {
 } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
+
+const delegationNotFound = () =>
+  Response.json({ error: "Delegation not found." }, { status: 404 });
+
+// Look up participants only through ACTIVE membership in the selected tenant.
+// Display names are not unique account identifiers.
+async function activeDelegationMembers(organizationId: number) {
+  return db.select({
+    id: users.id, name: users.name, role: userOrganizations.role,
+    orgUnitId: userOrganizations.orgUnitId,
+  }).from(userOrganizations)
+    .innerJoin(users, eq(userOrganizations.userId, users.id))
+    .where(and(
+      eq(userOrganizations.organizationId, organizationId),
+      eq(userOrganizations.active, true),
+    ));
+}
+
 
 export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
@@ -32,25 +51,30 @@ export async function GET(request: Request) {
   );
   if (denied) return denied;
 
+  const access = await getAccess(user.id, organizationId);
+  const canAdminister = Boolean(access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES));
+  if (!canAdminister) {
+    // Non-admin visibility relies on names. A duplicate name is not a safe grant.
+    const actor = uniqueDelegationMember(await activeDelegationMembers(organizationId), user.name);
+    if (actor?.id !== user.id) {
+      return Response.json({ error: "Approval delegation identity is ambiguous." }, { status: 403 });
+    }
+  }
+
   const probe = new URL(request.url).searchParams.get("approver");
   const rows = await db.select().from(approvalDelegations)
     .where(eq(approvalDelegations.organizationId, organizationId))
     .orderBy(desc(approvalDelegations.id));
-
-  const access = await getAccess(user.id, organizationId);
-  const visibleRows =
-    access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES)
-      ? rows
-      : rows.filter(
-          (row) =>
-            row.fromApprover.toLowerCase() === user.name.toLowerCase() ||
-            row.toApprover.toLowerCase() === user.name.toLowerCase(),
-        );
-
-  const resolved =
-    probe && (access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES) || probe.toLowerCase() === user.name.toLowerCase())
-      ? await resolveEffectiveApprovers(organizationId, probe)
-      : null;
+  const visibleRows = canAdminister
+    ? rows
+    : rows.filter(
+        (row) =>
+          row.fromApprover.toLowerCase() === user.name.toLowerCase() ||
+          row.toApprover.toLowerCase() === user.name.toLowerCase(),
+      );
+  const resolved = probe && (canAdminister || probe.toLowerCase() === user.name.toLowerCase())
+    ? await resolveEffectiveApprovers(organizationId, probe)
+    : null;
 
   return Response.json({ delegations: visibleRows, resolved });
 }
@@ -97,17 +121,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "You can delegate only approvals assigned to your own account." }, { status: 403 });
   }
 
-  const members = await db
-    .select({ id: users.id, name: users.name, role: userOrganizations.role, orgUnitId: userOrganizations.orgUnitId })
-    .from(userOrganizations)
-    .innerJoin(users, eq(userOrganizations.userId, users.id))
-    .where(eq(userOrganizations.organizationId, organizationId));
-
+  const members = await activeDelegationMembers(organizationId);
   const visibleMembers = access?.companyWide
     ? members
     : members.filter((member) => member.orgUnitId === access?.orgUnitId);
-  const fromUser = visibleMembers.find((member) => member.name.toLowerCase() === fromApprover.toLowerCase());
-  const toUser = visibleMembers.find((member) => member.name.toLowerCase() === toApprover.toLowerCase());
+  const fromUser = uniqueDelegationMember(visibleMembers, fromApprover);
+  const toUser = uniqueDelegationMember(visibleMembers, toApprover);
   if (!fromUser || !toUser) {
     return Response.json({ error: "Both the source approver and delegate must be authenticated members of this workspace." }, { status: 422 });
   }
@@ -151,8 +170,18 @@ export async function PATCH(request: Request) {
   const id = Number(body.id);
   if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
 
-  const [target] = await db.select().from(approvalDelegations).where(eq(approvalDelegations.id, id)).limit(1);
-  if (!target) return Response.json({ error: "Delegation not found." }, { status: 404 });
+  // Never let a foreign-but-existing ID be distinguished from a missing ID.
+  // Join the target's own tenant to the actor's ACTIVE membership first.
+  const [visibleTarget] = await db.select({ delegation: approvalDelegations })
+    .from(approvalDelegations)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.organizationId, approvalDelegations.organizationId),
+      eq(userOrganizations.userId, user.id),
+      eq(userOrganizations.active, true),
+    ))
+    .where(eq(approvalDelegations.id, id)).limit(1);
+  const target = visibleTarget?.delegation;
+  if (!target) return delegationNotFound();
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -164,14 +193,36 @@ export async function PATCH(request: Request) {
 
   const access = await getAccess(user.id, target.organizationId);
   const canAdminister = Boolean(access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES));
-  if (!canAdminister && target.fromApprover.toLowerCase() !== user.name.toLowerCase()) {
-    return Response.json({ error: "You can change only delegations created from your own approval identity." }, { status: 403 });
+  if (typeof body.active !== "boolean") {
+    return Response.json({ error: "active must be true or false." }, { status: 400 });
+  }
+  // Non-admin mutations require an unambiguous currently active source
+  // identity. Re-enabling also requires the two participants to remain
+  // active, approval-capable and visible within the actor's present scope.
+  if (!canAdminister || body.active) {
+    const members = await activeDelegationMembers(target.organizationId);
+    const visibleMembers = access?.companyWide
+      ? members
+      : members.filter((member) => member.orgUnitId === access?.orgUnitId);
+    const fromUser = uniqueDelegationMember(visibleMembers, target.fromApprover);
+    if (!canAdminister && fromUser?.id !== user.id) {
+      return Response.json({ error: "You can change only your own active approval identity." }, { status: 403 });
+    }
+    if (body.active) {
+      const toUser = uniqueDelegationMember(visibleMembers, target.toApprover);
+      if (!fromUser || !toUser
+          || !roleAllowed(fromUser.role, PAYROLL_CHECKER_ROLES)
+          || !roleAllowed(toUser.role, PAYROLL_CHECKER_ROLES)) {
+        return Response.json({ error: "Delegation participants require active approval-capable memberships." }, { status: 409 });
+      }
+    }
   }
 
   const [row] = await db.update(approvalDelegations)
-    .set({ active: Boolean(body.active) })
+    .set({ active: body.active })
     .where(and(eq(approvalDelegations.id, id), eq(approvalDelegations.organizationId, target.organizationId)))
     .returning();
+  if (!row) return delegationNotFound();
 
   await recordAuditEvent({
     organizationId: row.organizationId,
