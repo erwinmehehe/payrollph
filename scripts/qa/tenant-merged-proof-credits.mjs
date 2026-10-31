@@ -61,6 +61,14 @@ export function verifyMergedProofCredits(manifest, read = file => readFileSync(f
   assert.equal(benefitPut?.status, "COVERED", "Only the exact source-pinned benefit PUT may be credited");
   assert.equal(verifyPost1523Credits(manifest, read), 3,
     "No other route may borrow the new four-part receipts");
-  assert.equal(worksitePost?.status, "GAP", "Three tested actions cannot certify every worksite POST action");
+  // The three-action partial suite and the table row's create_worksite can never certify the handler. The method is
+  // COVERED only through the separate ten-action proof, which must name every action.
+  if (worksitePost?.status === "COVERED") {
+    assert.equal(worksitePost.testedBy?.file, "scripts/qa/tenant-worksites-actions-http.mjs",
+      "Three tested actions cannot certify every worksite POST action");
+    assert.equal(worksitePost.testedBy.methodActions?.length, 10, "every worksite POST action must be named by the proof");
+  } else {
+    assert.equal(worksitePost?.status, "GAP", "Three tested actions cannot certify every worksite POST action");
+  }
   return MERGED_PROOF_SPECS.length;
 }

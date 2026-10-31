@@ -65,7 +65,9 @@ test("fixture unique keys cannot collide and unexecuted partial actions cannot i
   const next = suite.match(/const NEXT_START = "([\d-]+)";/)?.[1];
   assert.ok(prior && next && next > prior);
   for (const method of manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"].methods) {
-    assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP");
+    // GET has its own proof; POST is credited only by the separate ten-action harness, never by this partial suite.
+    assert.equal(method.status, "COVERED");
+    if (method.name === "POST") assert.equal(method.testedBy.file, "scripts/qa/tenant-worksites-actions-http.mjs");
   }
   assert.match(suite, /inventoryCreditsAdded: 0/);
   assert.match(suite, /remainingWorksiteActionsUnaccepted: true/);
