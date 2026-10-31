@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { summarizeVerifiedWorkQueue } from "../src/lib/hcm-work-queue-summary";
+import { isVerifiedHcmWorkQueueResponse, summarizeVerifiedWorkQueue } from "../src/lib/hcm-work-queue-summary";
 
 const scopedRows = [
   { overdue: true, ownerUserId: null },
@@ -30,6 +30,8 @@ test("verified scoped queue counts only the source rows in the current view", ()
 test("HR Work Queue displays unknown until an active, error-free scoped response exists", () => {
   const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
   assert.ok(ui.includes("summarizeVerifiedWorkQueue(items, activeQueue !== null && !loadError)"));
+  assert.ok(ui.includes("isVerifiedHcmWorkQueueResponse(data, Number(organizationId))"),
+    "Mixed-employer, partial or malformed response must fail before rendering");
   assert.ok(ui.includes("summary?.total ?? null"));
   assert.ok(ui.includes("summary?.overdue ?? null"));
   assert.ok(ui.includes("summary?.unassigned ?? null"));
@@ -52,4 +54,30 @@ test("HR Work Queue displays unknown until an active, error-free scoped response
     "Invalid workspace selection cannot look like a verified empty table");
   assert.ok(!ui.includes("activeQueue&&!loadError&&items.length===0"),
     "Unknown reads must use the explicit verified-table guard");
+});
+
+const ownCase = {
+  id: 501, organizationId: 7, title: "Synthetic work case",
+  detail: "Fictional data", caseType: "coverage_recovery", status: "open",
+  ownerTeam: "HR Operations", ownerUserId: null, ownerName: null,
+  dueAt: null, escalateAt: null, escalationLevel: 0, overdue: null,
+};
+const ownQueue = { items: [ownCase], owners: [{ id: 11, name: "Example HR owner" }] };
+
+test("work queue refuses foreign, duplicate, malformed and partial case rows", () => {
+  assert.equal(isVerifiedHcmWorkQueueResponse(ownQueue, 7), true);
+  assert.equal(isVerifiedHcmWorkQueueResponse({items:[], owners:[]}, 7), true);
+  assert.equal(isVerifiedHcmWorkQueueResponse({items:[], owners:[]}, 8), true);
+  assert.equal(isVerifiedHcmWorkQueueResponse(ownQueue, 8), false);
+  assert.equal(isVerifiedHcmWorkQueueResponse(ownQueue, 0), false);
+  for (const bad of [
+    { ...ownQueue, items: [ { ...ownCase, organizationId: 8 } ] },
+    { ...ownQueue, items: [ ownCase, ownCase ] },
+    { ...ownQueue, items: [ { ...ownCase, id: 1.5 } ] },
+    { ...ownQueue, items: [ { ...ownCase, ownerUserId: undefined } ] },
+    { ...ownQueue, items: [ { ...ownCase, overdue: undefined } ] },
+    { ...ownQueue, items: [ { ...ownCase, status: null } ] },
+    { ...ownQueue, owners: [ ownQueue.owners[0], ownQueue.owners[0] ] },
+    { items: [], owners: undefined }, { items: undefined, owners: [] },
+  ]) assert.equal(isVerifiedHcmWorkQueueResponse(bad, 7), false);
 });
