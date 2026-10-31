@@ -16,16 +16,28 @@ import { SiteNav, SiteFooter } from "@/components/marketing/site-chrome";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Set up billing | Linaw", robots: { index: false, follow: false } };
 
-export default async function BillingSetupPage() {
+export default async function BillingSetupPage({ searchParams }: {
+  searchParams: Promise<{ organizationId?: string | string[] }>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const organizationId = await primaryCompanyOrganizationId(user.id);
-  if (!organizationId) redirect("/app");
+  // Keep the legacy default for normal navigation, but honor only one
+  // canonical, positive and safe employer selector for multi-client admins.
+  // Foreign, duplicate and malformed selectors must not fall back to "primary".
+  const params = await searchParams;
+  const selected = params.organizationId;
+  const organizationId = selected === undefined
+    ? await primaryCompanyOrganizationId(user.id)
+    : typeof selected === "string" && /^[1-9]\d*$/.test(selected)
+      && Number.isSafeInteger(Number(selected))
+      ? Number(selected)
+      : null;
+  if (!organizationId) notFound();
 
   // The server-rendered page exposes the employer name and checkout entrypoint.
-  // Enforce the same active, company-wide billing grant as the billing API
-  // before reading or rendering any organization-specific information.
+  // Enforce the same active company-wide billing role and permission overlay as
+  // the billing API before querying any employer data.
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
