@@ -178,6 +178,8 @@ test("jsonb SHA reordering restores exact original fields and refuses source tam
   assert.equal(JSON.stringify(restored), JSON.stringify(original));
   assert.throws(() => requireExactObjectOrder({ ...jsonb, unauthorized: true },
     ["plan", "hash", "actions"]), /source keys changed/);
-  assert.throws(() => requireExactObjectOrder({ ...jsonb, plan: undefined },
-    ["plan", "hash", "actions"], "source"), /source keys changed|must be an object/);
+  const { plan: _missingPlan, ...missingPlan } = jsonb;
+  void _missingPlan;
+  assert.throws(() => requireExactObjectOrder(missingPlan,
+    ["plan", "hash", "actions"], "source"), /source keys changed/);
 });
