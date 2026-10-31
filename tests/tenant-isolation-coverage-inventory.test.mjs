@@ -1436,6 +1436,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
       return;
     }
+    if ((wrk02Path.endsWith("/transfer/route.ts") && method.name === "POST") || (wrk02Path.endsWith("/scenarios/route.ts") && method.name === "PATCH")) {
+      // Real two-attacker PG16 HTTP proof now exists for these two through the write table; nothing else here is credited.
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/workforce-planning.mjs");
+      assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
+      return;
+    }
     assert.equal(method.status, "GAP", "Source-only WRK-02 changes earn zero new method credits");
     assert.equal(method.testedBy, null);
     assert.deepEqual(method.reviewedUncertified, {
@@ -1443,7 +1450,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: wrk02.previous,
       routeBlobSha: wrk02.current,
       contractFile: "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
-      contractBlobSha: "e3eb602b4667c578e5a7f559d67ce4ed5111ceda",
+      contractBlobSha: "7f4b794ce84742f410721b8d702de9ba713fc621",
       originalGetPrefixSha: wrk02.prefix,
       coverageCredits: 0,
       exactHeadPg16Http: "NOT_RUN",
@@ -1451,7 +1458,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       productionCertified: false,
     });
     assert.equal(gitBlobSha(readFileSync("tests/tenant-wrk02-planning-write-boundaries.test.mjs")),
-      "e3eb602b4667c578e5a7f559d67ce4ed5111ceda", "WRK-02 source contract changed without renewed review");
+      "7f4b794ce84742f410721b8d702de9ba713fc621", "WRK-02 source contract changed without renewed review");
     return;
   }
 
