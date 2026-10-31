@@ -1874,6 +1874,73 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Approval PATCH covers multiple payroll/HCM/WFM decision branches. This
+  // refactor repeats employer scoping on final SQL updates; the existing
+  // generic-task PG16 two-attacker proof is NOT a full method certification.
+  if (isNewOrChanged && key === "src/app/api/approvals/[id]/route.ts PATCH") {
+    const reviewed = method.reviewedUncertified;
+    const expected = {
+      kind: "approval-PATCH-final-SQL-employer-scope-PG16-uncredited",
+      previousRouteBlobSha: "4dacb9acf4d49030f0bfe9c89700769d0dbb42a1",
+      routeBlobSha: "6ef8a84e02f9419f85cd0d0765defb016f0d155e",
+      proofFile: "scripts/qa/tenant-approval-task-http.mjs",
+      proofBlobSha: "849fcb15f0c2b9770269b372f81c6837d2422e07",
+      existingContractFile: "tests/tenant-approval-task-contract.test.mjs",
+      existingContractBlobSha: "1701a6b166f764213844fa1a91162400b9e1ca18",
+      newContractFile: "tests/tenant-approval-task-tx-org-scope.test.mjs",
+      newContractBlobSha: "4c751719251e275397d07c67dff814aef973ed89",
+      workflowFile: ".github/workflows/tenant-approval-task-http.yml",
+      workflowBlobSha: "873a44778a3da811619e6eb6c5a0f0f67aed9c17",
+      ownPositiveLine: 167, secondOwnPositiveLine: 175,
+      foreignDenialLine: 128, unchangedVictimLine: 209,
+      credits: 0, independentlyAccepted: false, productionCertified: false,
+    };
+    assert.equal(method.status, "GAP", "Approval PATCH remains uncertified");
+    assert.equal(method.testedBy, null,
+      "A generic task proof cannot certify payroll/leave/HCM source decision branches");
+    assert.match(method.reason, /^Still GAP: #1665 PATCH/);
+    assert.equal(currentBlob, expected.routeBlobSha,
+      "Approval runtime source changed; renew exact-head tenant review");
+    assert.equal(baseline.api["src/app/api/approvals/[id]/route.ts"],
+      expected.previousRouteBlobSha);
+    assert.deepEqual(reviewed, expected, "No unreviewed approval method credit");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.existingContractFile, reviewed.existingContractBlobSha],
+      [reviewed.newContractFile, reviewed.newContractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Approval source/proof changed; renew independent test: " + file);
+    const routeFile = key.slice(0, key.lastIndexOf(" "));
+    const source = readFileSync(routeFile, "utf8");
+    for (const [id, scope] of [
+      ["payrollRuns.id, payrollRunId", "payrollRuns.organizationId, task.organizationId"],
+      ["approvalTasks.id, taskId", "approvalTasks.organizationId, task.organizationId"],
+      ["automationExecutions.waitingApprovalTaskId, taskId",
+       "automationExecutions.organizationId, task.organizationId"],
+      ["workforcePlanningScenarios.id, workforceScenarioApproval.scenarioId",
+       "workforcePlanningScenarios.organizationId, task.organizationId"],
+      ["workforcePlans.id, scenarioRow.planId",
+       "workforcePlans.organizationId, task.organizationId"],
+    ]) {
+      assert.ok(source.includes("eq(" + id + ")") && source.includes("eq(" + scope + ")"),
+        "Final approval SQL operation missing employer scope: " + id);
+    }
+    const proof = readableLines(reviewed.proofFile);
+    assert.match(proof[reviewed.ownPositiveLine - 1], /const ownedA = await decision\(aTask, a\.cookie, "Declined"/);
+    assert.match(proof[reviewed.secondOwnPositiveLine - 1],
+      /const ownedB = await decision\(bTask, b\.cookie, "Approved"\)/);
+    assert.match(proof[reviewed.foreignDenialLine - 1],
+      /for \(const \[attacker, peer\] of \[\[a, b\], \[b, a\]\]\)/);
+    assert.match(proof[reviewed.unchangedVictimLine - 1],
+      /assertUnchanged\(baseline\.get\(victim\.org\.id\), await snapshot\(victim\.org\.id\)/);
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-approval-task-http\.mjs/);
+    assert.match(workflow, /node --test tests\/tenant-approval-task-contract\.test\.mjs tests\/tenant-approval-task-tx-org-scope\.test\.mjs/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
