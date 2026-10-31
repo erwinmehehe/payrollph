@@ -15038,27 +15038,50 @@
       ]
     },
     "src/app/api/hcm/salary-corrections/cases/route.ts": {
-      "gitBlobSha": "26993c273d5482f602f420cd95cf9007616f6954",
+      "gitBlobSha": "9293d95f76f1bb31caa2e3de6e6219be057d616a",
       "route": "hcm/salary-corrections/cases",
       "methods": [
         {
           "name": "GET",
-          "line": 46,
+          "line": 50,
           "status": "COVERED",
-          "reason": "Two MFA-verified owners list their own persisted correction case 200 without the victim-only case; forged victim organizationId 403; victim cases unchanged.",
+          "reason": "Two MFA-verified owners list their own persisted correction case 200 without the victim-only case; forged victim organizationId 403; victim cases unchanged. Historical whole-organization isolation proof retained; legal-employer boundary changes require a separate same-organization two-entity live HTTP acceptance and independent review.",
           "testedBy": {
             "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
             "line": 103,
             "ownPositiveLine": 100,
             "foreignDenialLine": 103,
             "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
+          },
+          "reviewedUncertified": {
+            "kind": "salary-correction-cases-multi-legal-employer-hardening-zero-new-credit",
+            "originalRouteBlobSha": "26993c273d5482f602f420cd95cf9007616f6954",
+            "routeBlobSha": "9293d95f76f1bb31caa2e3de6e6219be057d616a",
+            "methodName": "GET",
+            "historicalCoverageStatus": "COVERED",
+            "historicalProofFile": "scripts/qa/salary-correction-case-tenant-proof.mjs",
+            "historicalProofBlobSha": "b93d311a09d978b1f6e260fa3c94272fc1b6bb93",
+            "caseServiceFile": "src/lib/hcm-salary-correction-cases.ts",
+            "caseServiceBlobSha": "67f2c8878eae13de4b8a807123e8c495c601862a",
+            "scopeContractFile": "tests/hcm-salary-correction-entity-scope.test.mjs",
+            "scopeContractBlobSha": "411ff56012adaeebfa9d967a7d7659b2daf5ed28",
+            "selectorTestFile": "tests/hcm-salary-correction-selector-regression.test.ts",
+            "selectorTestBlobSha": "af0a52f5466ac8810684a16677789e3eb4cb4a9f",
+            "postgresTestFile": "tests/hcm-salary-correction-cases-postgres.test.ts",
+            "postgresTestBlobSha": "d0ea1d6c4e6dd9072d06ba067903d36a99ec96b9",
+            "workflowFile": ".github/workflows/salary-correction-cases-qa.yml",
+            "workflowBlobSha": "9790cca4f7650cad1a6eabb23546a14bb122cea8",
+            "newMethodCoverageCredits": 0,
+            "sameOrganizationTwoLegalEmployerHttp": "NOT_ACCEPTED",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         },
         {
           "name": "PATCH",
-          "line": 96,
+          "line": 124,
           "status": "COVERED",
-          "reason": "Two MFA-verified owners PATCH their own case run 200 with a persisted decision; victim employer PATCH 403 and victim case ID inside own employer 404; victim cases, runs and audit unchanged.",
+          "reason": "Two MFA-verified owners PATCH their own case run 200 with a persisted decision; victim employer PATCH 403 and victim case ID inside own employer 404; victim cases, runs and audit unchanged. Historical whole-organization isolation proof retained; legal-employer boundary changes require a separate same-organization two-entity live HTTP acceptance and independent review.",
           "testedBy": {
             "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
             "line": 111,
@@ -15066,13 +15089,36 @@
             "foreignDenialLine": 111,
             "unchangedDbLine": 119,
             "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
+          },
+          "reviewedUncertified": {
+            "kind": "salary-correction-cases-multi-legal-employer-hardening-zero-new-credit",
+            "originalRouteBlobSha": "26993c273d5482f602f420cd95cf9007616f6954",
+            "routeBlobSha": "9293d95f76f1bb31caa2e3de6e6219be057d616a",
+            "methodName": "PATCH",
+            "historicalCoverageStatus": "COVERED",
+            "historicalProofFile": "scripts/qa/salary-correction-case-tenant-proof.mjs",
+            "historicalProofBlobSha": "b93d311a09d978b1f6e260fa3c94272fc1b6bb93",
+            "caseServiceFile": "src/lib/hcm-salary-correction-cases.ts",
+            "caseServiceBlobSha": "67f2c8878eae13de4b8a807123e8c495c601862a",
+            "scopeContractFile": "tests/hcm-salary-correction-entity-scope.test.mjs",
+            "scopeContractBlobSha": "411ff56012adaeebfa9d967a7d7659b2daf5ed28",
+            "selectorTestFile": "tests/hcm-salary-correction-selector-regression.test.ts",
+            "selectorTestBlobSha": "af0a52f5466ac8810684a16677789e3eb4cb4a9f",
+            "postgresTestFile": "tests/hcm-salary-correction-cases-postgres.test.ts",
+            "postgresTestBlobSha": "d0ea1d6c4e6dd9072d06ba067903d36a99ec96b9",
+            "workflowFile": ".github/workflows/salary-correction-cases-qa.yml",
+            "workflowBlobSha": "9790cca4f7650cad1a6eabb23546a14bb122cea8",
+            "newMethodCoverageCredits": 0,
+            "sameOrganizationTwoLegalEmployerHttp": "NOT_ACCEPTED",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         },
         {
           "name": "POST",
-          "line": 78,
+          "line": 95,
           "status": "COVERED",
-          "reason": "Two MFA-verified owners POST an owned case 201 snapshotting their own Released run; victim employer POST 403 and victim worker inside own employer 404; victim cases, runs and audit unchanged.",
+          "reason": "Two MFA-verified owners POST an owned case 201 snapshotting their own Released run; victim employer POST 403 and victim worker inside own employer 404; victim cases, runs and audit unchanged. Historical whole-organization isolation proof retained; legal-employer boundary changes require a separate same-organization two-entity live HTTP acceptance and independent review.",
           "testedBy": {
             "file": "scripts/qa/salary-correction-case-tenant-proof.mjs",
             "line": 95,
@@ -15080,6 +15126,29 @@
             "foreignDenialLine": 95,
             "unchangedDbLine": 119,
             "scope": "Synthetic MFA-verified owners in two employers; real own HTTP success, real victim-only case/employer denial, disposable PG16, flag-on isolated server, no money, provider or production approval"
+          },
+          "reviewedUncertified": {
+            "kind": "salary-correction-cases-multi-legal-employer-hardening-zero-new-credit",
+            "originalRouteBlobSha": "26993c273d5482f602f420cd95cf9007616f6954",
+            "routeBlobSha": "9293d95f76f1bb31caa2e3de6e6219be057d616a",
+            "methodName": "POST",
+            "historicalCoverageStatus": "COVERED",
+            "historicalProofFile": "scripts/qa/salary-correction-case-tenant-proof.mjs",
+            "historicalProofBlobSha": "b93d311a09d978b1f6e260fa3c94272fc1b6bb93",
+            "caseServiceFile": "src/lib/hcm-salary-correction-cases.ts",
+            "caseServiceBlobSha": "67f2c8878eae13de4b8a807123e8c495c601862a",
+            "scopeContractFile": "tests/hcm-salary-correction-entity-scope.test.mjs",
+            "scopeContractBlobSha": "411ff56012adaeebfa9d967a7d7659b2daf5ed28",
+            "selectorTestFile": "tests/hcm-salary-correction-selector-regression.test.ts",
+            "selectorTestBlobSha": "af0a52f5466ac8810684a16677789e3eb4cb4a9f",
+            "postgresTestFile": "tests/hcm-salary-correction-cases-postgres.test.ts",
+            "postgresTestBlobSha": "d0ea1d6c4e6dd9072d06ba067903d36a99ec96b9",
+            "workflowFile": ".github/workflows/salary-correction-cases-qa.yml",
+            "workflowBlobSha": "9790cca4f7650cad1a6eabb23546a14bb122cea8",
+            "newMethodCoverageCredits": 0,
+            "sameOrganizationTwoLegalEmployerHttp": "NOT_ACCEPTED",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         }
       ],
@@ -15092,40 +15161,64 @@
       },
       "guards": [
         {
-          "line": 48,
-          "token": "getSessionUser"
-        },
-        {
           "line": 52,
-          "token": "assertOrganizationRole"
-        },
-        {
-          "line": 55,
-          "token": "getAccess"
-        },
-        {
-          "line": 61,
           "token": "getSessionUser"
         },
         {
-          "line": 65,
+          "line": 56,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 67,
+          "line": 59,
           "token": "getAccess"
         },
         {
-          "line": 69,
+          "line": 64,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 78,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 82,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 84,
+          "token": "getAccess"
+        },
+        {
+          "line": 86,
           "token": "requireSensitiveActionMfa"
         },
         {
-          "line": 80,
+          "line": 97,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 98,
+          "line": 106,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 113,
+          "token": "assertEntityResource"
+        },
+        {
+          "line": 126,
           "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 148,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 167,
+          "token": "where(caseScope)"
+        },
+        {
+          "line": 170,
+          "token": "assertEntityResource"
         }
       ]
     },
