@@ -171,14 +171,72 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Finance-path tenant boundary hardening: 4 GAP methods receive NO credit.
+  // The real localhost test covers exact IDs and safe read/denial paths, but
+  // intentionally never submits a payroll, pays an employee or signs a pilot.
+  const payrollPathReview = {
+    "src/app/api/payroll-runs/[id]/submit-review/route.ts": {
+      original: "89a93602a5496447bcd902598288cc8543c45276",
+      current: "98abed695eee9462a233f3da78b794e60f40c581", methods: ["POST"],
+    },
+    "src/app/api/payroll-runs/[id]/pilot-signoff/route.ts": {
+      original: "da4bf15b3541e27fe770c1e68ec568f6e3fa91ac",
+      current: "18390e65b137a0e73d5c5c78e3368dbd18a26af4", methods: ["POST"],
+    },
+    "src/app/api/payroll-runs/[id]/xendit-payout/route.ts": {
+      original: "745d24f56eac8dca56012728ad6674f3d160de53",
+      current: "c100c146ce1373c1526bae90dd77667d6ed6aaad", methods: ["GET", "POST"],
+    },
+  };
+  const payrollPath = key.slice(0, key.lastIndexOf(" "));
+  const payrollReviewed = payrollPathReview[payrollPath];
+  if (isNewOrChanged && payrollReviewed && payrollReviewed.methods.includes(method.name)) {
+    assert.equal(currentBlob, payrollReviewed.current,
+      "Financial route source changed: re-review zero-credit method and live external-money guards");
+    assert.equal(method.status, "GAP", "Refused or disabled money actions are never proof of valid own writes");
+    assert.equal(method.testedBy, null, "Only independent successful own HTTP may earn a method credit");
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "payroll-runs-seven-path-negative-only-zero-credit",
+      originalRouteBlobSha: payrollReviewed.original,
+      routeBlobSha: payrollReviewed.current,
+      proofFile: "scripts/qa/tenant-batches/payroll-runs-path-http.mjs",
+      proofBlobSha: "0f82c4e2af1a4f30363e0953ead21ea21475283a",
+      contractFile: "tests/tenant-payroll-runs-path-boundaries.test.mjs",
+      contractBlobSha: "30dbd3e97304728b0d70f38aaa8ec9443d2e8d59",
+      workflowFile: ".github/workflows/tenant-payroll-run-path-boundaries.yml",
+      workflowBlobSha: "899f6dac19cf5e3d6b47ca8242cb93d86738508d",
+      coverageCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "The only allowed uncredited payroll path exception is exact-source scoped evidence");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "Financial security fixture changed: review and re-pin " + file);
+    }
+    return;
+  }
+
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST") {
     // Sole SHA-pinned exclusion: a provider-disabled 501 is access-control
     // evidence, never proof of a completed real payment or a safe retry.
     // Changes to the payout route invalidate this review and re-block CI.
     const proof = method.reviewedUncertified;
-    assert.equal(currentBlob, "4a0f56c5e22127a1d74dd63ef2963df53edb6060",
+    assert.equal(currentBlob, "8a08081eb1ede1f24809d496804c9874ab1b46a7",
       "New payout POST source requires renewed separate owner/provider review");
+    const routeSource = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
+    const postAt = routeSource.indexOf("export async function POST(");
+    const postSource = routeSource.slice(postAt);
+    assert.ok(postAt > 0 && postSource.includes("await requireRunEmployer({"),
+      "Reconciliation must verify persisted legal-employer grant before provider handling");
+    assert.ok(postSource.indexOf("await requireRunEmployer({") < postSource.indexOf("if (!process.env.PAYMONGO_SECRET_KEY)"),
+      "Legal-employer denial must occur before disabled-provider 501");
     assert.equal(proof?.routeBlobSha, currentBlob);
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs");
     const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " owned provider-disabled");

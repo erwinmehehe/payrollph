@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { auditEvents, payoutBatches, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationUnitAccess } from "@/lib/access";
 import {
@@ -166,6 +167,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
 
   const events = await db
     .select()
@@ -248,6 +254,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
