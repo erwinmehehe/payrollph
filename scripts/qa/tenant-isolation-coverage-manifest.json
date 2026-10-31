@@ -17311,19 +17311,32 @@
       "businessIds": []
     },
     "src/app/api/jobs/tick/route.ts": {
-      "gitBlobSha": "dfde5451a937dd19ffcd75ac4d0632e3583b72c8",
+      "gitBlobSha": "338f520d2021e90b12f736ad941b2b8a5e2cf3a2",
       "route": "jobs/tick",
       "methods": [
         {
           "name": "POST",
-          "line": 10,
+          "line": 8,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Global employer-spanning POST is operational worker-token-only; own/victim method acceptance not applicable or performed; independent security review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "global-worker-token-only-source-review-zero-method-credit",
+            "previousRouteBlobSha": "dfde5451a937dd19ffcd75ac4d0632e3583b72c8",
+            "routeBlobSha": "338f520d2021e90b12f736ad941b2b8a5e2cf3a2",
+            "guardFile": "src/lib/global-worker-authorization.ts",
+            "guardBlobSha": "8b71dbea21211e3c6963abfab1a1fa7fab4fe7fa",
+            "testFile": "tests/global-worker-authorization.test.ts",
+            "testBlobSha": "fecc827125a161e529fa6b1cc5d3b8f3cfefc7d6",
+            "coverageCredits": 0,
+            "exactHeadWorkerHttp": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
-        "session": true,
+        "session": false,
         "apiKey": false,
         "scim": false,
         "query": false,
@@ -17331,20 +17344,12 @@
       },
       "guards": [
         {
-          "line": 1,
-          "token": "getSessionUser"
+          "line": 4,
+          "token": "requireGlobalWorkerToken"
         },
         {
-          "line": 6,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 25,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 28,
-          "token": "getSessionUser"
+          "line": 9,
+          "token": "requireGlobalWorkerToken"
         }
       ],
       "callerSuppliedIds": [],
@@ -31199,19 +31204,32 @@
       ]
     },
     "src/app/api/webhooks/drain/route.ts": {
-      "gitBlobSha": "e6a40dcec48013e7f1a4c24a937d0cb8c6ca9cb2",
+      "gitBlobSha": "4ebd127ff97ea6b342cbfd9545a67eead3f58cda",
       "route": "webhooks/drain",
       "methods": [
         {
           "name": "POST",
-          "line": 14,
+          "line": 10,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Global employer-spanning POST is operational worker-token-only; own/victim method acceptance not applicable or performed; independent security review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "global-worker-token-only-source-review-zero-method-credit",
+            "previousRouteBlobSha": "e6a40dcec48013e7f1a4c24a937d0cb8c6ca9cb2",
+            "routeBlobSha": "4ebd127ff97ea6b342cbfd9545a67eead3f58cda",
+            "guardFile": "src/lib/global-worker-authorization.ts",
+            "guardBlobSha": "8b71dbea21211e3c6963abfab1a1fa7fab4fe7fa",
+            "testFile": "tests/global-worker-authorization.test.ts",
+            "testBlobSha": "fecc827125a161e529fa6b1cc5d3b8f3cfefc7d6",
+            "coverageCredits": 0,
+            "exactHeadWorkerHttp": "NOT_RUN",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
-        "session": true,
+        "session": false,
         "apiKey": false,
         "scim": false,
         "query": false,
@@ -31220,19 +31238,11 @@
       "guards": [
         {
           "line": 1,
-          "token": "getSessionUser"
+          "token": "requireGlobalWorkerToken"
         },
         {
-          "line": 2,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 32,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 35,
-          "token": "getSessionUser"
+          "line": 11,
+          "token": "requireGlobalWorkerToken"
         }
       ],
       "callerSuppliedIds": [],
