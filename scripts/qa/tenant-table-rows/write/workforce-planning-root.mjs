@@ -96,7 +96,7 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
           organizationId: e.org.id, name: e.marker + " seeded source plan",
           startDate: "2026-01-01", endDate: "2026-12-31",
         }).returning();
-        return { jobProfileId: profile.id, familyId: family.id, planId: plan.id };
+        return { id: profile.id, jobProfileId: profile.id, familyId: family.id, planId: plan.id };
       },
       state: snapshot,
       ownBody: familyBody,
