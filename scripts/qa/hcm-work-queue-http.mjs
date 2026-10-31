@@ -7,8 +7,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps,
-  hcmLifecycleNotificationTasks, automationOperationalCases,
-  employees, payrollRuns, auditEvents,
+  hcmLifecycleNotificationTasks, automationOperationalCases, employees, payrollRuns, auditEvents,
 } from "../../src/db/schema";
 
 export async function verifyHcmWorkQueueIsolation(f, { request, expectStatus }) {
