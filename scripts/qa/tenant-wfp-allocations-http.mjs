@@ -380,6 +380,222 @@ export async function proveWorkforcePlanningAllocations() {
       }
     }
 
+
+    // Batch 4 candidate: real update, version, budget and decision races.
+    // This extension intentionally earns ZERO coverage credits until exact-head
+    // PG16 HTTP CI and independent method-by-method review pass.
+    const assertOnlyAllocationChanged = (before, after, allocationId, label) => {
+      assert.equal(after.allocations.length, before.allocations.length, label + ": update must not insert");
+      assert.deepEqual(after.allocations.filter(row => row.id !== allocationId),
+        before.allocations.filter(row => row.id !== allocationId),
+        label + ": other allocations must remain byte-identical");
+      assert.deepEqual(after.submissions, before.submissions, label + ": submissions changed");
+      for (const key of ["organization", "entities", "units", "staff", "payProfiles",
+        "plans", "scenarios", "payroll", "punches"]) {
+        assert.deepEqual(after[key], before[key], label + ": collateral " + key + " mutation");
+      }
+      assert.equal(after.audits.length, before.audits.length + 1,
+        label + ": require exactly one audited save");
+      assert.deepEqual(after.audits.slice(0, -1), before.audits);
+    };
+    const checkOtherEmployers = async (actor, label) => {
+      for (const other of employers.filter(e => e.orgId !== actor.orgId)) {
+        assertNoStateChange(expected.get(other.orgId), await snapshot(other.orgId),
+          label + " must not change " + other.label);
+      }
+    };
+    const oneWinner = (responses, successStatus, label) => {
+      assert.deepEqual(responses.map(response => response.status).sort((x, y) => x - y),
+        [successStatus, 409].sort((x, y) => x - y),
+        label + ": exactly one request may win and one must get 409");
+      const success = responses.find(response => response.status === successStatus);
+      const refused = responses.find(response => response.status === 409);
+      assert.ok(success?.json && refused?.json?.error, label + ": real HTTP result required");
+      assert.ok(!success.text.includes(victim.marker) && !refused.text.includes(victim.marker),
+        label + ": no victim data in concurrent responses");
+      return success;
+    };
+    let ownUpdates = 0, activeCeilingDenials = 0, budgetConflictDenials = 0;
+    let draftVersionRaces = 0, submitRaces = 0, decisionRaces = 0, allocationBudgetRaces = 0;
+    for (const actor of [a, b]) {
+      const label = actor.label + " batch4";
+      const initial = await snapshot(actor.orgId);
+      const editedBody = {
+        ...allocationBody(actor, actor.orgId, actor.planId, actor.firstUnitId, 14000),
+        headcountCeiling: 3, notes: actor.notes + " updated existing allocation",
+      };
+      const updated = await post(actor, editedBody);
+      const afterUpdate = await snapshot(actor.orgId);
+      assert.equal(updated.status, 201, label + ": persisted existing allocation update");
+      assertOnlyAllocationChanged(initial, afterUpdate, actor.existingAllocationId, label);
+      const prior = initial.allocations.find(row => row.id === actor.existingAllocationId);
+      const row = afterUpdate.allocations.find(value => value.id === actor.existingAllocationId);
+      assert.ok(prior && row, label + ": original allocation ID preserved");
+      assert.equal(row.organizationId, actor.orgId);
+      assert.equal(row.planId, actor.planId);
+      assert.equal(row.orgUnitId, actor.firstUnitId);
+      assert.equal(row.headcountCeiling, 3);
+      assert.equal(row.annualBudgetCeiling, "14000.00");
+      assert.equal(row.createdByUserId, prior.createdByUserId);
+      assert.equal(row.updatedByUserId, actor.ownerId);
+      assert.equal(row.notes, editedBody.notes);
+      assert.equal(updated.json?.allocation?.id, row.id);
+      assert.equal(updated.json?.allocation?.annualBudgetCeiling, "14000.00");
+      const allocationAudit = afterUpdate.audits.at(-1);
+      assert.equal(allocationAudit.organizationId, actor.orgId);
+      assert.equal(allocationAudit.actor, actor.ownerName);
+      assert.equal(allocationAudit.action, "Workforce plan allocation saved");
+      assert.equal(allocationAudit.metadata?.allocationId, row.id);
+      assert.equal(allocationAudit.metadata?.annualBudgetCeiling, 14000);
+      ownUpdates++;
+      expected.set(actor.orgId, afterUpdate);
+      await checkOtherEmployers(actor, label + " own update");
+
+      // The initial manager request was accepted for both attackers; the
+      // allocation may NOT be lowered beneath a live accepted request.
+      deny(await post(actor, {
+        ...allocationBody(actor, actor.orgId, actor.planId, actor.newUnitId, 500),
+        headcountCeiling: 1,
+      }), 409, label + " cannot shrink below accepted manager demand");
+      activeCeilingDenials++;
+      deny(await post(actor, allocationBody(actor,
+        actor.orgId, actor.planId, actor.firstUnitId, 90000)), 409,
+        label + " sum of org-unit budgets cannot exceed plan budget");
+      budgetConflictDenials++;
+      deny(await post(actor, allocationBody(actor, actor.orgId,
+        victim.planId, actor.firstUnitId, 14000)), 404,
+        label + " cannot update using victim plan");
+      deny(await post(actor, allocationBody(actor, actor.orgId,
+        actor.planId, victim.firstUnitId, 14000)), 404,
+        label + " cannot update victim unit");
+      for (const employer of employers) {
+        assertNoStateChange(expected.get(employer.orgId), await snapshot(employer.orgId),
+          label + " refused updates leave " + employer.label + " unchanged");
+      }
+
+      // Two callers attempting to create version 2 of the same accepted
+      // request race on the existing allocation row. Exactly one wins.
+      const beforeVersionRace = await snapshot(actor.orgId);
+      const drafts = await Promise.all([
+        post(actor, submissionBody(actor, actor.newAllocationId)),
+        post(actor, submissionBody(actor, actor.newAllocationId)),
+      ]);
+      const createdDraft = oneWinner(drafts, 201, label + " version race");
+      const afterVersionRace = await snapshot(actor.orgId);
+      const previousIds = new Set(beforeVersionRace.submissions.map(row => row.id));
+      const newDrafts = afterVersionRace.submissions.filter(row => !previousIds.has(row.id));
+      assert.equal(newDrafts.length, 1, label + ": no duplicate manager version");
+      const newDraft = newDrafts[0];
+      assert.equal(newDraft.version, 2);
+      assert.equal(newDraft.status, "draft");
+      assert.equal(newDraft.allocationId, actor.newAllocationId);
+      assert.equal(newDraft.organizationId, actor.orgId);
+      assert.equal(newDraft.createdByUserId, actor.ownerId);
+      assert.equal(createdDraft.json?.submission?.id, newDraft.id);
+      assert.equal(afterVersionRace.audits.length, beforeVersionRace.audits.length + 1);
+      assert.equal(afterVersionRace.audits.at(-1)?.action, "Workforce manager request drafted");
+      assert.deepEqual(afterVersionRace.allocations, beforeVersionRace.allocations);
+      draftVersionRaces++;
+      expected.set(actor.orgId, afterVersionRace);
+      await checkOtherEmployers(actor, label + " draft race");
+
+      // Two identical submits must not both advance the version or emit
+      // duplicate audit rows. The handler's status predicate is the gate.
+      const beforeSubmitRace = await snapshot(actor.orgId);
+      const submits = await Promise.all([
+        patch(actor, newDraft.id, "submit"), patch(actor, newDraft.id, "submit"),
+      ]);
+      const submitted = oneWinner(submits, 200, label + " submit race");
+      const afterSubmitRace = await snapshot(actor.orgId);
+      const submittedRow = afterSubmitRace.submissions.find(row => row.id === newDraft.id);
+      assert.equal(submittedRow.status, "submitted");
+      assert.equal(submittedRow.submittedByUserId, actor.ownerId);
+      assert.equal(submitted.json?.submission?.id, newDraft.id);
+      assert.equal(afterSubmitRace.audits.length, beforeSubmitRace.audits.length + 1);
+      assert.equal(afterSubmitRace.audits.at(-1)?.action, "Workforce manager request submitted");
+      assert.deepEqual(afterSubmitRace.allocations, beforeSubmitRace.allocations);
+      submitRaces++;
+      expected.set(actor.orgId, afterSubmitRace);
+      await checkOtherEmployers(actor, label + " submit race");
+
+      // A simultaneous accept/reject by an independent checker must produce
+      // one decision and one conflict. If accept wins, the previously accepted
+      // version 1 must be superseded in the same transaction.
+      const beforeDecisionRace = await snapshot(actor.orgId);
+      const decisions = await Promise.all([
+        patch(actor, newDraft.id, "accept", { checker: true }),
+        patch(actor, newDraft.id, "reject", { checker: true }),
+      ]);
+      const decided = oneWinner(decisions, 200, label + " decision race");
+      const afterDecisionRace = await snapshot(actor.orgId);
+      const decidedRow = afterDecisionRace.submissions.find(row => row.id === newDraft.id);
+      assert.equal(decidedRow.status, decided.json?.submission?.status);
+      assert.ok(["accepted", "rejected"].includes(decidedRow.status));
+      assert.equal(decidedRow.decidedByUserId, actor.checkerId);
+      assert.equal(afterDecisionRace.audits.length, beforeDecisionRace.audits.length + 1);
+      assert.equal(afterDecisionRace.audits.at(-1)?.actor, actor.checkerName);
+      assert.equal(afterDecisionRace.audits.at(-1)?.action,
+        "Workforce manager request " + decidedRow.status);
+      const priorAccepted = beforeDecisionRace.submissions.find(row => row.id === actor.draftId);
+      const previousAfter = afterDecisionRace.submissions.find(row => row.id === actor.draftId);
+      assert.equal(priorAccepted.status, "accepted");
+      assert.equal(previousAfter.status,
+        decidedRow.status === "accepted" ? "superseded" : "accepted");
+      assert.deepEqual(afterDecisionRace.allocations, beforeDecisionRace.allocations);
+      decisionRaces++;
+      expected.set(actor.orgId, afterDecisionRace);
+      await checkOtherEmployers(actor, label + " decision race");
+
+      // The plan-row lock must prevent two individually valid writes from
+      // jointly overspending the same plan. Both requests use real HTTP.
+      // Fixture setup is explicitly separated from counted HTTP writes.
+      const [raceUnit] = await db.insert(s.orgUnits).values({
+        organizationId: actor.orgId, 
+        type: "department",
+        code: actor.marker.slice(0, 20) + "-RACE",
+        name: actor.marker + " budget-race planning unit",
+        active: true,
+      }).returning();
+      const beforeBudgetRace = await snapshot(actor.orgId);
+      expected.set(actor.orgId, beforeBudgetRace);
+      const raceBodies = [
+        allocationBody(actor, actor.orgId, actor.planId, actor.firstUnitId, 65000),
+        allocationBody(actor, actor.orgId, actor.planId, raceUnit.id, 65000),
+      ];
+      const budgetRequests = await Promise.all(raceBodies.map(body => post(actor, body)));
+      const winner = oneWinner(budgetRequests, 201, label + " plan budget race");
+      const afterBudgetRace = await snapshot(actor.orgId);
+      const changedRows = afterBudgetRace.allocations.filter(row => {
+        const priorRow = beforeBudgetRace.allocations.find(value => value.id === row.id);
+        return !priorRow || JSON.stringify(priorRow) !== JSON.stringify(row);
+      });
+      assert.equal(changedRows.length, 1, label + ": exactly one budget write");
+      assert.equal(winner.json?.allocation?.id, changedRows[0].id);
+      assert.equal(changedRows[0].organizationId, actor.orgId);
+      assert.equal(changedRows[0].annualBudgetCeiling, "65000.00");
+      assert.equal(afterBudgetRace.audits.length, beforeBudgetRace.audits.length + 1);
+      assert.equal(afterBudgetRace.audits.at(-1)?.metadata?.allocationId, changedRows[0].id);
+      assert.ok(afterBudgetRace.allocations.reduce((sum, value) =>
+        sum + Number(value.annualBudgetCeiling), 0) <= actor.planBudget + 0.005,
+      label + ": plan budget cap must hold after simultaneous writes");
+      assert.deepEqual(afterBudgetRace.submissions, beforeBudgetRace.submissions);
+      for (const key of ["organization", "entities", "units", "staff", "payProfiles",
+        "plans", "scenarios", "payroll", "punches"]) {
+        assert.deepEqual(afterBudgetRace[key], beforeBudgetRace[key],
+          label + ": budget race changed unrelated " + key);
+      }
+      allocationBudgetRaces++;
+      expected.set(actor.orgId, afterBudgetRace);
+      await checkOtherEmployers(actor, label + " budget race");
+    }
+    assert.deepEqual({
+      ownUpdates, activeCeilingDenials, budgetConflictDenials,
+      draftVersionRaces, submitRaces, decisionRaces, allocationBudgetRaces,
+    }, {
+      ownUpdates: 2, activeCeilingDenials: 2, budgetConflictDenials: 2,
+      draftVersionRaces: 2, submitRaces: 2, decisionRaces: 2, allocationBudgetRaces: 2,
+    });
+
     assert.deepEqual({
       foreignGets, foreignPosts, forgedPlanOrUnit, forgedAllocation,
       nonadminDenials, budgetDenials, ownAllocations, ownDrafts,
