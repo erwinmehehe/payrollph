@@ -31,6 +31,7 @@ async function activeDelegationMembers(organizationId: number) {
     .where(and(
       eq(userOrganizations.organizationId, organizationId),
       eq(userOrganizations.active, true),
+      eq(users.active, true),
     ));
 }
 
