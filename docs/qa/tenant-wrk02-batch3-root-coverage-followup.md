@@ -34,3 +34,11 @@ Exact-head full CI, lint, typecheck, security HTTP checks and independent review
 5. The remaining `POST` and `PATCH` methods stay `GAP` and need fresh source-pinned complete-method proof plus independent security/tenant review before any provisional credit decision.
 
 Rollback: revert this PR's narrowly scoped source guard and QA additions. No schema or data migration is involved.
+
+## Exact-source inventory and whole-suite CI reconciliation (2026-10-31)
+
+The dedicated synthetic PG16 workflow on PR head `46a18fd5` passed (run `41203115190`), as did the shared write table. Broader security acceptance and PG18 post-cutover smoke failed at the same fail-closed source-pin check: the root route changed from `0535a1bb935bc61c777b33c1ea01f161a314e8d2` to `0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1` without re-inventory. The extra Security HTTP Smoke failure was a downstream required-check failure, not an independently demonstrated HTTP exploit.
+
+The follow-up now re-inventories the *exact* new root route blob, preserves newer `main` tenant evidence, and pins the existing seven-variant synthetic fixture, dedicated PG16 workflow and source contract in a reviewed-unaccepted marker. The inventory guard explicitly validates foreign/missing 404 concealment, fixture bytes, method statuses, and strict zero new credits. The structural-access guard must still verify the complete 498-handler manifest; it has not been disabled.
+
+**Status remains NO-GO:** root GET retains its previously provisional GET-only credit; root POST/PATCH remain GAP with `testedBy: null`. Fresh exact-head full CI, security HTTP and PG18 post-cutover tests, plus independent tenant/security review, are required. No payroll, external provider, production or release activation is authorized.
