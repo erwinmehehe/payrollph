@@ -94,7 +94,7 @@ try {
   const checker = await one("SELECT id FROM users WHERE email=$1", ["entity-checker@example.test"]);
   const foreign = await one("SELECT id FROM users WHERE email=$1", ["entity-foreign@example.test"]);
   const victimWorker = await one(
-    "SELECT id,organization_id,legal_entity_id FROM employees WHERE employee_no='B-01'");
+    "SELECT id,organization_id,legal_entity_id FROM employees WHERE employee_no='B-VICTIM-7'");
   const sourceWorker = await one(
     "SELECT id,organization_id,legal_entity_id FROM employees WHERE employee_no='A-01'");
   const secondWorker = await one(
