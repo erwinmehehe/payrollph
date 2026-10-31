@@ -1960,7 +1960,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       existingContractFile: "tests/tenant-approval-task-contract.test.mjs",
       existingContractBlobSha: "1701a6b166f764213844fa1a91162400b9e1ca18",
       newContractFile: "tests/tenant-approval-task-tx-org-scope.test.mjs",
-      newContractBlobSha: "4c751719251e275397d07c67dff814aef973ed89",
+      newContractBlobSha: "c5bb3ab4c3aff0b3af97264ca35c39ae3ca3f774",
       workflowFile: ".github/workflows/tenant-approval-task-http.yml",
       workflowBlobSha: "873a44778a3da811619e6eb6c5a0f0f67aed9c17",
       ownPositiveLine: 167, secondOwnPositiveLine: 175,
