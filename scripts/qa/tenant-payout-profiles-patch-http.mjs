@@ -148,12 +148,54 @@ try {
     await pgClient.query("DROP FUNCTION IF EXISTS public.ci_reject_payout_profile_audit()");
   }
 
+  // Inject a mismatched legacy row that references A's legal entity but is
+  // owned by the victim. This is test-only corrupt data in disposable PG16.
+  // PATCH must not adopt its tenant, edit the row, or emit an approval audit.
+  const beforeMismatch = (await profileSnapshot(a.org.id))[0];
+  check(beforeMismatch?.legalEntityId === a.entity.id,
+    "A's persisted payout profile must exist before stale-tenant test");
+  const auditBeforeMismatch = await auditSnapshot(a.org.id);
+  const [staleRow] = await db.update(schema.payoutProfiles)
+    .set({ organizationId: victim.org.id })
+    .where(and(
+      eq(schema.payoutProfiles.id, beforeMismatch.id),
+      eq(schema.payoutProfiles.organizationId, a.org.id),
+    )).returning();
+  check(staleRow?.organizationId === victim.org.id,
+    "Fixture must create an actual foreign-tagged profile row");
+  try {
+    const foreignTaggedBefore = await profileSnapshot(victim.org.id);
+    const mismatch = exact(await patch(a, body(a, "attempt to adopt stale foreign profile")), 409,
+      "An upsert cannot adopt a foreign-tagged conflict row");
+    check(mismatch.json?.error === "Company payout profile could not be saved.",
+      "Stale tenant collision must return a fixed non-leaking message");
+    assert.deepEqual(await profileSnapshot(victim.org.id), foreignTaggedBefore,
+      "Stale conflict must not mutate the foreign-tagged payout profile");
+    assert.deepEqual(await auditSnapshot(a.org.id), auditBeforeMismatch,
+      "Denied stale conflict must not write an own-tenant audit");
+    assert.deepEqual(await auditSnapshot(victim.org.id), victimBefore.audit,
+      "Denied stale conflict must not write a victim-tenant audit");
+  } finally {
+    const [restored] = await db.update(schema.payoutProfiles)
+      .set({ organizationId: a.org.id })
+      .where(and(
+        eq(schema.payoutProfiles.id, beforeMismatch.id),
+        eq(schema.payoutProfiles.organizationId, victim.org.id),
+      )).returning();
+    check(restored?.organizationId === a.org.id,
+      "Disposable stale-profile fixture must be restored");
+  }
+  assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
+    "The real victim profiles must be unchanged after restoring the fixture");
+  assert.deepEqual(await profileSnapshot(a.org.id), originalProfiles,
+    "The original owned payout profile must remain unchanged after rejected adoption");
+
   console.log(JSON.stringify({
     kind: "payout-profile-patch-tenant-audit-atomic-PG16",
     method: "PATCH /api/payout-profiles",
     ownPersistedAndAudited: 2, twoAttackersForeignDenied: true,
     forgedLegalEntityDenied: true, injectedAuditFailureRolledBack: true,
-    victimProfilesAuditPayrollUnchanged: true,
+    staleForeignTaggedUpsertDenied: true, victimProfilesAuditPayrollUnchanged: true,
     methodCredits: 0, independentSecurityReview: "PENDING",
     assertions,
   }));
