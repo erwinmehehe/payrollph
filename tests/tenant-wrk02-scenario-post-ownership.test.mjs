@@ -36,3 +36,25 @@ test("scenarios POST sends no raw SQL or unexpected exception text to clients", 
   assert.ok(handler.includes('error: "Scenario could not be calculated."'), "Unexpected errors must be generic");
   assert.ok(!handler.includes("const status = /access|required|outside your assigned/i"), "Raw SQL error classifier must be removed");
 });
+
+test("candidate HTTP write-table scenario uses two attackers, immutable state and equal unknown/foreign denials", () => {
+  const table = readFileSync("scripts/qa/tenant-table-rows/write/workforce-planning.mjs", "utf8");
+  const start = table.indexOf('key: "POST workforce-planning/scenarios"');
+  // POST remains after the historical PATCH row so previously reviewed line
+  // pins in the tenant method inventory do not drift.
+  const patch = table.indexOf('key: "PATCH workforce-planning/scenarios"');
+  const end = table.indexOf("\n  ];", start);
+  assert.ok(patch >= 0 && patch < start && end > start,
+    "The dedicated POST row must follow the historical PATCH proof row");
+  const candidate = table.slice(start, end);
+  for (const proof of [
+    "status: 201", "state: scenarioState", "ownBody:", "foreignBody:",
+    "forged:", "status: 404", "expect:", "exercise:",
+    "added(before.scenarios, after.scenarios",
+    "await scenarioState(c.victim.org.id)",
+    "assert.deepEqual(foreign.json, nonexistent.json",
+    "assert.deepEqual(await scenarioState(c.orgId), ownBefore",
+    "assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore",
+    'SQLFaultInjection: "NOT_RUN"', "methodCoverageCredit: false",
+  ]) assert.ok(candidate.includes(proof), "Missing separate runtime-acceptance step: " + proof);
+});
