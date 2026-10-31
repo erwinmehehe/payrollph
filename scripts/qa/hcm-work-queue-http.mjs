@@ -145,7 +145,7 @@ export async function verifyHcmWorkItemsPageTenantBoundary(f, { request, expectS
     const cookie = f.ownerSessions[idx].cookie;
     const ownPage = expectStatus(await request("/hcm/work-items?organizationId=" + actor.id, { cookie }),
       200, "Own authenticated work queue page must render");
-    assert.match(ownPage.headers.get("content-type") ?? "", /text\\/html/i);
+    assert.match(ownPage.headers.get("content-type") ?? "", /text\/html/i);
     assert.ok(ownPage.text.includes("HR Work Queue"), "Page must be real work queue, not empty placeholder");
     assert.ok(!ownPage.text.includes("VICTIM-ONLY-WORK-QUEUE-CASE"), "Own SSR cannot contain victim PII");
 
