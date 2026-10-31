@@ -1,0 +1,91 @@
+name: WRK-02 Batch 3 root workforce planning (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-wrk02-batch3-root.yml'
+      - 'src/app/api/workforce-planning/route.ts'
+      - 'scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs'
+      - 'tests/tenant-wrk02-batch3-root-contract.test.mjs'
+      - 'scripts/qa/tenant-table-loader.mjs'
+      - 'scripts/qa/tenant-write-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wrk02-root-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  root-planning:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Guard exact root method contracts and zero coverage credits
+        run: node --test tests/tenant-wrk02-batch3-root-contract.test.mjs
+      - name: Export disposable fictional tenant profile
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Isolated ephemeral encryption keys
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - run: npm run db:push
+      - name: Apply isolated baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare synthetic SQL-only HCM event prerequisites
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Start localhost-only production-mode app
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/wrk02-batch3-root.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/wrk02-batch3-root.log
+          exit 1
+      - name: Prove seven POST variants, lifecycle PATCH and victim isolation
+        env:
+          TENANT_TABLE_FAMILY: workforce-planning-root
+          TENANT_TABLE_PROFILE: default
+          PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+          XENDIT_PAYOUTS_ENABLED: "false"
+        run: npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Show test server diagnostics on failure
+        if: failure()
+        run: cat /tmp/wrk02-batch3-root.log || true

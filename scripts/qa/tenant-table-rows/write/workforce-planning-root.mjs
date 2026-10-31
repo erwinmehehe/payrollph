@@ -1,0 +1,283 @@
+/**
+ * WRK-02 Batch 3: root workforce-planning POST and PATCH, two fictional
+ * owner employers against a higher-ID real victim in disposable PG16.
+ *
+ * Seven successful POST entity types: family, level, grade, org unit,
+ * plan, profile and governed position initiation. Direct assignment is
+ * explicitly checked as a denied effective-date bypass; no worker is assigned.
+ * PATCH demonstrates vacancy freeze and HCM-governed review requests, not
+ * independent human approval or a completed position lifecycle.
+ *
+ * These two methods remain GAP until independent security review accepts
+ * exact-head signed-in own/victim HTTP evidence and remaining action races.
+ * No money, real employer, government, bank or provider.
+ */
+export const fixtureOrder = {};
+
+export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db, eq, jobProfiles }) {
+  let sourceTables;
+  const tables = async () => (sourceTables ??= await import("../../../../src/db/schema.ts"));
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const read = (table, organizationId) => db.select().from(table)
+    .where(eq(table.organizationId, organizationId)).orderBy(asc(table.id));
+  const audit = async (organizationId) => auditBusinessSnapshot(await read(auditEvents, organizationId));
+  const snapshot = async (organizationId) => {
+    const t = await tables();
+    return plain({
+      families: await read(t.jobFamilies, organizationId),
+      levels: await read(t.jobLevels, organizationId),
+      grades: await read(t.jobGrades, organizationId),
+      profiles: await read(t.jobProfiles, organizationId),
+      units: await read(t.orgUnits, organizationId),
+      plans: await read(t.workforcePlans, organizationId),
+      positions: await read(t.positions, organizationId),
+      processes: await read(t.hcmBusinessProcessInstances, organizationId),
+      processSteps: await read(t.hcmBusinessProcessInstanceSteps, organizationId),
+      tasks: await read(t.approvalTasks, organizationId),
+      requisitions: await read(t.jobRequisitions, organizationId),
+      assignments: await read(t.positionAssignments, organizationId),
+      audit: await audit(organizationId),
+    });
+  };
+  const created = (before, after, label, employerId) => {
+    const added = after.filter(row => !before.some(existing => existing.id === row.id));
+    assert.equal(added.length, 1, label + ": exactly one persisted row must be added");
+    assert.equal(added[0].organizationId, employerId, label + ": the row must belong to the attacker employer");
+    assert.deepEqual(after.filter(row => row.id !== added[0].id), before,
+      label + ": every other persisted row stays unchanged");
+    return added[0];
+  };
+  const auditAdded = (before, after, employer, action) => {
+    const appended = after.audit.filter(row => !before.audit.some(old => old.id === row.id));
+    assert.ok(appended.length >= 1, action + ": the action must leave a real audit receipt");
+    const found = appended.find(row => row.action === action);
+    assert.ok(found, action + ": expected audit event not recorded");
+    assert.equal(found.organizationId, employer.orgId);
+    assert.equal(found.actor, employer.owner.name);
+    return found;
+  };
+  const base = (c, entityType, fields = {}) => ({ organizationId: c.orgId, entityType, ...fields });
+  const familyBody = c => base(c, "job_family", {
+    code: "FAM-" + c.marker.toUpperCase(), name: c.marker + " family",
+  });
+  const positionBody = (c, fields = {}) => base(c, "position", {
+    code: "POSITION-" + c.marker.toUpperCase(),
+    jobProfileId: c.seeded.jobProfileId,
+    orgUnitId: c.unitId,
+    legalEntityId: c.entityId,
+    annualBudget: 120000,
+    plannedStartDate: "2026-11-15",
+    ...fields,
+  });
+  const denyAndPreserve = async (c, method, body, status, label, client) => {
+    const ownBefore = await snapshot(c.orgId);
+    const victimBefore = await snapshot(c.victim.org.id);
+    const response = client.expectStatus(await client.request("/api/workforce-planning", {
+      method, cookie: client.cookie, body,
+    }), status, label);
+    assert.ok(!response.text.includes(c.victim.marker), label + ": victim marker must not be disclosed");
+    assert.deepEqual(await snapshot(c.orgId), ownBefore, label + ": own employer unchanged");
+    assert.deepEqual(await snapshot(c.victim.org.id), victimBefore, label + ": victim employer unchanged");
+    return response;
+  };
+  return [
+    {
+      key: "POST workforce-planning", status: 201,
+      seed: async e => {
+        const [profile] = await db.insert(jobProfiles).values({
+          organizationId: e.org.id, title: e.marker + " source job profile",
+        }).returning();
+        return { jobProfileId: profile.id };
+      },
+      state: snapshot,
+      ownBody: familyBody,
+      foreignBody: c => ({ ...familyBody(c), organizationId: c.victim.org.id }),
+      forged: {
+        status: 404,
+        body: c => positionBody(c, { code: "FOREIGN-PROFILE-" + c.marker, jobProfileId: c.victimSeeded.jobProfileId }),
+      },
+      expect: (before, after, c, response) => {
+        const row = created(before.families, after.families, "job family", c.orgId);
+        assert.equal(row.name, c.marker + " family");
+        assert.equal(response.json?.id, row.id);
+        auditAdded(before, after, c, "Job family created");
+        for (const key of ["levels","grades","profiles","units","plans","positions","processes","processSteps","tasks","requisitions","assignments"]) {
+          assert.deepEqual(after[key], before[key], "family creation must not mutate " + key);
+        }
+      },
+      exercise: async (c, client) => {
+        const post = async (entityType, body, table, auditAction, label) => {
+          const before = await snapshot(c.orgId);
+          const victimBefore = await snapshot(c.victim.org.id);
+          const response = client.expectStatus(await client.request("/api/workforce-planning", {
+            method: "POST", cookie: client.cookie, body: base(c, entityType, body),
+          }), 201, label);
+          const after = await snapshot(c.orgId);
+          const row = created(before[table], after[table], label, c.orgId);
+          assert.equal(response.json?.id, row.id, label + ": JSON references the persisted new row");
+          auditAdded(before, after, c, auditAction);
+          assert.deepEqual(await snapshot(c.victim.org.id), victimBefore, label + ": victim must not change");
+          assert.ok(!response.text.includes(c.victim.marker), label + ": own response must not leak victim");
+          return { row, before, after, response };
+        };
+        const level = (await post("job_level", { code: "LVL-" + c.marker, name: c.marker + " level", sequence: 2 },
+          "levels", "Job level created", "own job level")).row;
+        const grade = (await post("job_grade", { code: "GRD-" + c.marker, name: c.marker + " grade", sequence: 3 },
+          "grades", "Job grade created", "own job grade")).row;
+        const unit = (await post("org_unit", {
+          code: "UNIT-" + c.marker, name: c.marker + " own unit", type: "department",
+          parentId: c.unitId, legalEntityId: c.entityId, managerEmployeeId: c.workerId,
+        }, "units", "Organization unit created", "own organization unit")).row;
+        assert.equal(unit.parentId, c.unitId);
+        assert.equal(unit.legalEntityId, c.entityId);
+        const plan = (await post("plan", {
+          name: c.marker + " controlled plan", startDate: "2026-01-01",
+          endDate: "2026-12-31", budget: 500000,
+        }, "plans", "Workforce plan created", "own workforce plan")).row;
+        assert.equal(plan.status, "active");
+        const family = (await snapshot(c.orgId)).families.find(r => r.name === c.marker + " family");
+        assert.ok(family && family.organizationId === c.orgId);
+        const profile = (await post("profile", {
+          title: c.marker + " approved profile", familyId: family.id, levelId: level.id, gradeId: grade.id,
+        }, "profiles", "Job profile created", "own job profile")).row;
+        assert.equal(profile.familyId, family.id);
+        assert.equal(profile.levelId, level.id);
+        assert.equal(profile.gradeId, grade.id);
+        const position = await post("position", {
+          ...positionBody(c, { jobProfileId: profile.id, orgUnitId: unit.id, planId: plan.id }),
+          code: "NEW-" + c.marker,
+        }, "positions", "Position creation submitted to HCM business process", "own governed position");
+        assert.equal(position.row.jobProfileId, profile.id);
+        assert.equal(position.row.orgUnitId, unit.id);
+        assert.equal(position.row.planId, plan.id);
+        assert.equal(position.row.status, "planned");
+        assert.equal(position.response.json?.approvalRequired, true);
+        const instanceId = position.response.json?.businessProcess?.id;
+        assert.ok(Number.isSafeInteger(instanceId) && instanceId > 0);
+        const process = created(position.before.processes, position.after.processes, "position review process", c.orgId);
+        assert.equal(process.id, instanceId);
+        assert.equal(process.sourceType, "position_creation");
+        assert.equal(process.processType, "create_position");
+        assert.equal(process.status, "in_progress");
+        assert.ok(position.after.processSteps.some(r => r.instanceId === instanceId));
+        await denyAndPreserve(c, "POST", base(c, "org_unit", {
+          code: "X-PARENT-" + c.marker, name: c.marker + " foreign parent", type: "department",
+          parentId: c.victim.unit.id,
+        }), 404, "foreign org unit parent", client);
+        await denyAndPreserve(c, "POST", base(c, "profile", {
+          title: c.marker + " foreign family", familyId: c.victimSeeded.jobProfileId,
+          levelId: level.id,
+        }), 404, "foreign family/profiles must not be accepted", client).catch(error => {
+          // A profile ID is not a family ID. If the numeric IDs happen to
+          // collide, the independent family lookup below remains decisive.
+          throw error;
+        });
+        await denyAndPreserve(c, "POST", positionBody(c, {
+          code: "X-PLAN-" + c.marker, jobProfileId: profile.id, planId: c.victimSeeded.planId,
+        }), 404, "foreign workforce plan", client);
+        await denyAndPreserve(c, "POST", positionBody(c, {
+          code: "X-ENTITY-" + c.marker, jobProfileId: profile.id, legalEntityId: c.victim.entity.id,
+        }), 404, "foreign legal employer", client);
+        await denyAndPreserve(c, "POST", base(c, "assignment", {
+          positionId: position.row.id, employeeId: c.workerId,
+          effectiveFrom: "2099-01-01",
+        }), 409, "direct assignment future-date bypass", client);
+        await denyAndPreserve(c, "POST", base(c, "unknown", { marker: c.marker }),
+          400, "unknown root entity type", client);
+        return {
+          positiveEntityTypes: ["job_family","job_level","job_grade","org_unit","plan","profile","position"],
+          forgedReferences: 4, blockedDirectAssignments: 1, certifiedMethod: false,
+        };
+      },
+    },
+    {
+      key: "PATCH workforce-planning", status: 200, deny: 403,
+      seed: async e => {
+        const t = await tables();
+        const [profile] = await db.insert(t.jobProfiles).values({
+          organizationId: e.org.id, title: e.marker + " lifecycle profile",
+        }).returning();
+        const make = async (suffix, status) => (await db.insert(t.positions).values({
+          organizationId: e.org.id,
+          code: ("LIFE-" + suffix + "-" + e.marker).slice(0, 48),
+          jobProfileId: profile.id, orgUnitId: e.unit.id,
+          legalEntityId: e.entity.id, status,
+          annualBudget: "100000.00", createdByUserId: e.owner.id,
+        }).returning())[0];
+        const freeze = await make("FREEZE", "open");
+        const approved = await make("APPROVED", "approved");
+        const planned = await make("PLANNED", "planned");
+        const closing = await make("CLOSING", "open");
+        const frozen = await make("FROZEN", "frozen");
+        return { id: freeze.id, approvedId: approved.id, plannedId: planned.id, closingId: closing.id, frozenId: frozen.id };
+      },
+      state: snapshot,
+      ownBody: c => ({ id: c.seeded.id, status: "frozen" }),
+      foreignBody: c => ({ id: c.victimSeeded.id, status: "frozen" }),
+      forged: { status: 404, body: c => ({ id: c.victimSeeded.frozenId + 100000, status: "frozen" }) },
+      expect: (before, after, c, response) => {
+        const row = after.positions.find(r => r.id === c.seeded.id);
+        const prior = before.positions.find(r => r.id === c.seeded.id);
+        assert.ok(row && prior);
+        assert.equal(prior.status, "open");
+        assert.equal(row.status, "frozen");
+        assert.equal(row.organizationId, c.orgId);
+        assert.equal(response.json?.id, row.id);
+        assert.equal(response.json?.status, "frozen");
+        assert.deepEqual(after.positions.filter(r => r.id !== row.id), before.positions.filter(r => r.id !== row.id));
+        auditAdded(before, after, c, "Position status changed");
+        for (const key of ["families","levels","grades","profiles","units","plans","processes","processSteps","tasks","requisitions","assignments"]) {
+          assert.deepEqual(after[key], before[key], "freezing a vacancy must not mutate " + key);
+        }
+      },
+      exercise: async (c, client) => {
+        const post = async (id, status, expected, label) => client.expectStatus(
+          await client.request("/api/workforce-planning", {
+            method: "PATCH", cookie: client.cookie, body: { id, status },
+          }), expected, label);
+        const heldVictim = await snapshot(c.victim.org.id);
+        const frozenBefore = await snapshot(c.orgId);
+        const repeat = await post(c.seeded.id, "frozen", 200, "idempotent vacancy freeze");
+        assert.equal(repeat.json?.id, c.seeded.id);
+        assert.deepEqual(await snapshot(c.orgId), frozenBefore, "idempotent PATCH must not write an audit");
+        const approvedBefore = await snapshot(c.orgId);
+        const approved = await post(c.seeded.approvedId, "frozen", 200, "approved vacancy freeze");
+        assert.equal(approved.json?.status, "frozen");
+        const approvedAfter = await snapshot(c.orgId);
+        assert.equal(approvedAfter.positions.find(r => r.id === c.seeded.approvedId)?.status, "frozen");
+        auditAdded(approvedBefore, approvedAfter, c, "Position status changed");
+        for (const [id, status, label] of [
+          [c.seeded.plannedId, "approved", "governed approval request"],
+          [c.seeded.closingId, "closed", "governed closure request"],
+        ]) {
+          const before = await snapshot(c.orgId);
+          const response = await post(id, status, 202, label);
+          assert.equal(response.json?.approvalRequired, true);
+          const after = await snapshot(c.orgId);
+          const process = created(before.processes, after.processes, label, c.orgId);
+          assert.equal(response.json?.businessProcess?.id, process.id);
+          assert.equal(process.status, "in_progress");
+          assert.equal(after.positions.find(r => r.id === id)?.status,
+            before.positions.find(r => r.id === id)?.status,
+            "governed request must not silently apply the status");
+          auditAdded(before, after, c, "Position lifecycle review requested");
+        }
+        for (const [id, status, label] of [
+          [c.seeded.frozenId, "approved", "frozen cannot be directly approved"],
+          [c.seeded.closingId, "filled", "open cannot be directly filled"],
+          [c.seeded.plannedId, "open", "planned cannot be directly opened"],
+        ]) {
+          await denyAndPreserve(c, "PATCH", { id, status }, 409, label, client);
+        }
+        await denyAndPreserve(c, "PATCH", {
+          id: c.victimSeeded.plannedId, status: "approved",
+        }, 403, "foreign governed approval request", client);
+        assert.deepEqual(await snapshot(c.victim.org.id), heldVictim, "all lifecycle attempts leave victim employer intact");
+        return {
+          directVacancyFreezes: 2, governedApprovalRequests: 2,
+          forbiddenTransitions: 3, victimDenials: 1, certifiedMethod: false,
+        };
+      },
+    },
+  ];
+}
