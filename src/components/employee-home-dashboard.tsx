@@ -71,7 +71,7 @@ export function EmployeeHomeDashboard({
           <button type="button" onClick={onPay}
             className="flex min-h-14 flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
             <WalletCards size={20} aria-hidden="true" />
-            <strong className="text-sm">{t("Recent payslips")}</strong>
+            <strong className="text-sm">{t("Payslips")}</strong>
             <small className="text-xs text-slate-600">
               {quick.releasedPayslipCount
                 ? quick.releasedPayslipCount + " " + t("released periods")
