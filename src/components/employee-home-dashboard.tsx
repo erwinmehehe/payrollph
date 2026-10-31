@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { dashboardDate, dashboardMoney } from "@/lib/dashboard-presentation";
 import { essText, type EssLanguage } from "@/lib/ess-language";
+import { getEmployeeQuickAccessStatus } from "@/lib/employee-home-quick-access";
 
 type HomeData = {
   employee: { firstName: string };
@@ -51,9 +52,8 @@ export function EmployeeHomeDashboard({
 }) {
   const t = (text: string) => essText(language, text);
   const latest = data.payslips[0];
-  const pending = data.leave.requests.filter(
-    (request) => request.status === "Pending",
-  ).length;
+  const quick = getEmployeeQuickAccessStatus(data);
+  const pending = quick.pendingLeaveRequestCount;
   return (
     <div className="clean-dashboard clean-employee-home employee-home">
       <div className="clean-heading">
@@ -65,6 +65,40 @@ export function EmployeeHomeDashboard({
           <Leaf size={16} aria-hidden="true" /> {t("My leave")}
         </button>
       </div>
+      <section aria-labelledby="employee-home-quick-actions" className="clean-card mt-4">
+        <h2 id="employee-home-quick-actions" className="text-base font-semibold">{t("Quick actions")}</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <button type="button" onClick={onPay}
+            className="flex min-h-14 flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            <WalletCards size={20} aria-hidden="true" />
+            <strong className="text-sm">{t("Recent payslips")}</strong>
+            <small className="text-xs text-slate-600">
+              {quick.releasedPayslipCount
+                ? quick.releasedPayslipCount + " " + t("released periods")
+                : t("No released payslips yet.")}
+            </small>
+          </button>
+          <button type="button" onClick={onRequestLeave}
+            className="flex min-h-14 flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            <Leaf size={20} aria-hidden="true" />
+            <strong className="text-sm">{t("Request leave")}</strong>
+            <small className="text-xs text-slate-600">
+              {quick.pendingLeaveRequestCount
+                ? quick.pendingLeaveRequestCount + " " + t("requests awaiting approval")
+                : t("No pending leave requests")}
+            </small>
+          </button>
+          <button type="button" onClick={onAttendance}
+            className="col-span-2 flex min-h-14 flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:col-span-1">
+            <Clock size={20} aria-hidden="true" />
+            <strong className="text-sm">{t("View attendance")}</strong>
+            <small className="text-xs text-slate-600">
+              {quick.todayAttendance === "complete" ? t("Today’s shift is complete")
+                : quick.todayAttendance === "clocked_in" ? t("You’re clocked in") : t("Not clocked in today")}
+            </small>
+          </button>
+        </div>
+      </section>
       <section className="clean-card clean-employee-next">
         <span className="clean-icon blue">
           <CalendarDays size={24} />
@@ -170,14 +204,6 @@ export function EmployeeHomeDashboard({
           </div>
         )}
       </section>
-      <div className="clean-employee-actions">
-        <button type="button" className="clean-button secondary" onClick={onRequestLeave}>
-          <Leaf size={17} /> {t("Request leave")}
-        </button>
-        <button type="button" className="clean-button secondary" onClick={onAttendance}>
-          <CalendarDays size={17} /> {t("View attendance")}
-        </button>
-      </div>
       <section className="clean-card">
         <div className="clean-card-header">
           <h2>{t("Recent payslips")}</h2>
