@@ -1836,7 +1836,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(method.name, "POST");
     assert.equal(method.status, "GAP", key + ": worker-only triggers are not certified tenant methods");
     assert.equal(method.testedBy, null, key + ": source proof alone is never coverage");
-    assert.match(method.reason, /worker token/i);
+    assert.match(method.reason, /worker[- ]token/i);
     assert.equal(currentBlob, globalWorkerReview.current,
       key + ": worker route changed; renew the exact-source review");
     assert.deepEqual(method.reviewedUncertified, expectedReview,
