@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { summarizeVerifiedWorkQueue } from "@/lib/hcm-work-queue-summary";
 
 type Item = { id:number; title:string; detail:string; caseType:string; status:string; ownerTeam:string; ownerUserId:number|null; ownerName:string|null; dueAt:string|null; escalateAt:string|null; escalationLevel:number; overdue:boolean };
 type Owner = { id:number; name:string };
@@ -110,16 +111,17 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
     } catch(e) {if(generation === editorGeneration.current) setError(e instanceof Error?e.message:"Unable to save");}
     finally {if(generation === editorGeneration.current) setSaving(false);}
   }
-  const overdue = items.filter(i=>i.overdue).length;
-  const unassigned = items.filter(i=>!i.ownerUserId).length;
+  // A pending, denied or failed read is unknown, never an empty queue.
+  const summary = summarizeVerifiedWorkQueue(items, activeQueue !== null && !loadError);
   return <>
     <button className="mb-4 rounded-lg bg-emerald-800 px-4 py-2 font-medium text-white" onClick={refresh} disabled={loading||!validOrganization}>{loading?"Loading...":"Refresh"}</button>
     {!validOrganization && <p role="status" className="mb-4 text-slate-600">Choose a valid organization to load its queue.</p>}
     {loading && <p role="status" className="mb-4 text-slate-600">Loading work items…</p>}
     {(error||loadError) && <p role="alert" className="mb-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-rose-800">{error||loadError}</p>}
-    <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Queue summary">
-      {[[items.length,"Items in current view"],[overdue,"Overdue"],[unassigned,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
+    <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Queue summary" aria-busy={loading}>
+      {[[summary?.total ?? null,"Items in current view"],[summary?.overdue ?? null,"Overdue"],[summary?.unassigned ?? null,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value === null ? "—" : value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
     </section>
+    {!summary && <p role="status" className="mb-4 text-sm text-slate-600">Queue counts are unavailable until the selected employer’s work items load successfully.</p>}
     <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full min-w-[850px] text-left text-sm">
       <thead className="bg-slate-100"><tr>{["Work item","Accountable team","Named owner","SLA due","Status","Action"].map(s=><th key={s} className="p-3">{s}</th>)}</tr></thead>
       <tbody>{items.map(i=><tr key={i.id} className="border-t">
