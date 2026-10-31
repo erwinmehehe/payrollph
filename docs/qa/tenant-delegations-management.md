@@ -4,8 +4,12 @@
 
 This narrowly scoped change covers GET, POST and PATCH at `/api/delegations`.
 It is separate from open PRs #1612 (onboarding), #1631 (billing setup),
-and #1632 (worksites proof). No shared tenant manifest, counts, proof credit
-writer, CI harness, or other PR-owned files are edited.
+and #1632 (worksites proof). The app route, helper, tests and
+method-specific table assertion remain disjoint. The central tenant manifest
+is necessarily re-pinned to the changed delegation route SHA. That metadata
+file is also touched by #1612 and #1632, so a maintainer must reconcile it
+from fresh main at merge time. No status, method credit or inventory count
+is changed by this batch.
 
 ## Implemented controls
 
@@ -15,7 +19,7 @@ writer, CI harness, or other PR-owned files are edited.
   Company-wide approval administrators retain their management view.
 - **POST:** source and delegate must each resolve to one active approval-capable
   member of that organization and, for unit-scoped callers, the same permitted
-  unit. Stale/inactive memberships and ambiguous names cannot be selected.
+  unit. Both membership and the underlying user account must be active. Stale/inactive memberships and ambiguous names cannot be selected.
 - **PATCH:** delegation ID lookup joins the persisted delegation organization
   to the authenticated actor's active membership *before* role checks. An
   existing foreign ID and a nonexistent ID both receive generic 404.
@@ -32,6 +36,10 @@ The test file `tests/tenant-delegation-management.test.ts` exercises three
 independent fictional employer membership lists, names shared across
 employers, within-employer collisions, unit scoping, and static route checks
 for the active membership and foreign-ID SQL guard.
+
+The table-driven PG16 HTTP fixture now expects 404 rather than 403 for
+existing foreign delegation IDs. The existing full write-table runner retains
+its own-row success, two independent attackers and untouched victim checks.
 
 Run: `npx tsx --test tests/tenant-delegation-management.test.ts`
 
