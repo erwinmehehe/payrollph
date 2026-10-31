@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarRange, CheckCircle2, Clock3, RefreshCcw, ShieldAlert, UserRoundCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { AttendanceLockControl } from "./attendance-lock-control";
+import { countAttendanceTriageCases, selectAttendanceTriageCases, type AttendanceTriageFilter, type AttendanceTriageSort } from "@/lib/attendance-exception-triage";
 import { readVerifiedAttendanceAnalysis, readVerifiedAttendanceOperations, type AttendanceAnalysisRead as ResponsePayload, type AttendanceOperationsRead as OperationsPayload } from "@/lib/attendance-exception-read";
 import { EmptyState, ErrorState, Metric, Segmented, Spinner, Status } from "./ui";
 
@@ -52,6 +53,8 @@ function ScopedAttendanceExceptionsPanel({
   const [startDate, setStartDate] = useState(() => addDays(today, -13));
   const [endDate, setEndDate] = useState(today);
   const [filter, setFilter] = useState<"review" | "all">("review");
+  const [triageFilter, setTriageFilter] = useState<AttendanceTriageFilter>("all");
+  const [triageSort, setTriageSort] = useState<AttendanceTriageSort>("priority");
   const [payload, setPayload] = useState<ResponsePayload | null>(null);
   const [operations, setOperations] = useState<OperationsPayload | null>(null);
   const [resolutionDrafts, setResolutionDrafts] = useState<Record<number, string>>({});
@@ -212,6 +215,15 @@ function ScopedAttendanceExceptionsPanel({
       );
   }, [filter, payload]);
 
+  const triageCounts = useMemo(
+    () => countAttendanceTriageCases(operations?.exceptions ?? []),
+    [operations],
+  );
+  const visibleOperationalRows = useMemo(
+    () => selectAttendanceTriageCases(operations?.exceptions ?? [], triageFilter, triageSort),
+    [operations, triageFilter, triageSort],
+  );
+
   const reviewCount = useMemo(
     () => (payload?.days ?? []).filter((row) =>
       row.analysis.exceptions.some((item) => item.severity === "blocker" || item.severity === "warning"),
@@ -335,6 +347,41 @@ function ScopedAttendanceExceptionsPanel({
           />
         )}
 
+        {operations && (
+          <div className="table-toolbar" style={{ padding: "0 14px 14px", gap: 12, flexWrap: "wrap" }}>
+            <label className="id" style={{ display: "grid", gap: 4 }}>
+              Triage queue
+              <select
+                aria-label="Attendance case triage filter"
+                value={triageFilter}
+                onChange={(event) => setTriageFilter(event.target.value as AttendanceTriageFilter)}
+              >
+                <option value="all">All cases ({triageCounts.all})</option>
+                <option value="overdue">Overdue open ({triageCounts.overdue})</option>
+                <option value="unassigned">Unassigned open ({triageCounts.unassigned})</option>
+                <option value="blocking">Blocking open ({triageCounts.blocking})</option>
+                <option value="warning">Warning open ({triageCounts.warning})</option>
+              </select>
+            </label>
+            <label className="id" style={{ display: "grid", gap: 4 }}>
+              Sort cases
+              <select
+                aria-label="Attendance case triage sort"
+                value={triageSort}
+                onChange={(event) => setTriageSort(event.target.value as AttendanceTriageSort)}
+              >
+                <option value="priority">Highest urgency first</option>
+                <option value="sla">Earliest known SLA due</option>
+                <option value="recent">Most recent work date</option>
+              </select>
+            </label>
+            <span className="id" role="status" style={{ alignSelf: "end" }}>
+              Showing {visibleOperationalRows.length} of {operations.exceptions.length} cases in this verified date window.
+              Filters do not resolve or reassign cases.
+            </span>
+          </div>
+        )}
+
         <div className="data-table-wrap slim-scroll">
           <table className="data-table">
             <thead>
@@ -347,7 +394,7 @@ function ScopedAttendanceExceptionsPanel({
               </tr>
             </thead>
             <tbody>
-              {(operations?.exceptions ?? []).map((item) => {
+              {visibleOperationalRows.map((item) => {
                 const employeeName = item.employee
                   ? `${item.employee.firstName} ${item.employee.lastName}`
                   : `Employee #${item.employeeId}`;
@@ -439,9 +486,16 @@ function ScopedAttendanceExceptionsPanel({
             </tbody>
           </table>
 
-          {!loading && operations !== null && operations.exceptions.length === 0 && (
-            <EmptyState icon={<CheckCircle2 size={20} className="i-green" />} title="No persisted exception cases in this window">
-              New attendance exceptions will appear here with owner and SLA tracking.
+          {!loading && operations !== null && visibleOperationalRows.length === 0 && (
+            <EmptyState
+              icon={<CheckCircle2 size={20} className="i-green" />}
+              title={operations.exceptions.length === 0
+                ? "No persisted exception cases in this window"
+                : "No cases match the selected triage queue"}
+            >
+              {operations.exceptions.length === 0
+                ? "New attendance exceptions will appear here with owner and SLA tracking."
+                : "Try a different filter. This view does not change or close any case."}
             </EmptyState>
           )}
         </div>

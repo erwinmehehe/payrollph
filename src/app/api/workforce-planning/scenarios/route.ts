@@ -254,6 +254,22 @@ export async function POST(request: Request) {
   }
 
   try {
+    // A global org-unit ID is not an access grant. Foreign and nonexistent
+    // units must be indistinguishable and rejected before forecast or writes.
+    if (orgUnitId != null) {
+      const { orgUnits } = await import("@/db/schema");
+      const [ownedUnit] = await db.select({ id: orgUnits.id })
+        .from(orgUnits)
+        .where(and(
+          eq(orgUnits.id, orgUnitId),
+          eq(orgUnits.organizationId, organizationId),
+        ))
+        .limit(1);
+      if (!ownedUnit) {
+        return Response.json({ error: "Organization unit not found." }, { status: 404 });
+      }
+    }
+
     const result = await loadScopedWorkforceForecast({
       userId: user.id,
       organizationId,
@@ -347,9 +363,27 @@ export async function POST(request: Request) {
       costVisible: result.canViewCost,
     }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Scenario could not be calculated.";
-    const status = /access|required|outside your assigned/i.test(message) ? 403 : 422;
-    return Response.json({ error: message }, { status });
+    const message = error instanceof Error ? error.message : "";
+    // Only known domain messages may be reflected. Raw database/SQL errors
+    // must never reveal whether an object ID exists in another employer.
+    const accessErrors = [
+      "Workforce-manager access is required to forecast staffing.",
+      "The requested scenario is outside your assigned organization unit.",
+      "The requested worksite is outside your assigned organization unit.",
+    ];
+    if (accessErrors.includes(message)) {
+      return Response.json({ error: message }, { status: 403 });
+    }
+    const validationErrors = [
+      "Invalid organization-unit scope.",
+      "Invalid worksite scope.",
+      "Worksite not found in this organization.",
+      "The requested worksite does not belong to the selected organization unit.",
+    ];
+    if (validationErrors.includes(message)) {
+      return Response.json({ error: message }, { status: 422 });
+    }
+    return Response.json({ error: "Scenario could not be calculated." }, { status: 422 });
   }
 }
 

@@ -1,3 +1,6 @@
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { salaryCorrectionCases } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
   assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES,
@@ -5,6 +8,7 @@ import {
 } from "@/lib/access";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
 } from "@/lib/security-request";
@@ -54,7 +58,20 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) return Response.json({ error: "Company-wide payroll evidence access required." }, { status: 403 });
-  return Response.json({ currentUserId: user.id, cases: await listCorrectionCases(organizationId) }, { headers: NO_STORE });
+  // The shared resolver reads the URL/header selectors itself. Passing
+  // searchParams.get() here converts an absent selector into null, which
+  // means an explicit "all" request and incorrectly denies granted users.
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId, request,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  if (entityScope.context.enabled && (entityScope.context.group || entityScope.context.legalEntityId === null)) {
+    return Response.json({ error: "Select an authorized legal employer to view salary correction cases." }, { status: 403, headers: NO_STORE });
+  }
+  return Response.json({
+    currentUserId: user.id,
+    cases: await listCorrectionCases(organizationId, entityScope.context.enabled ? entityScope.context.legalEntityId : null),
+  }, { headers: NO_STORE });
 }
 
 async function guardMutation(request: Request, organizationId: number, roles: Parameters<typeof assertOrganizationRole>[2], action: string) {
@@ -84,6 +101,17 @@ export async function POST(request: Request) {
   try { input = parseCaseInput(body); } catch (error) { return caseError(error); }
   const guard = await guardMutation(request, input.organizationId, PAYROLL_OPERATOR_ROLES, "hcm-salary-correction-case");
   if (guard.response) return guard.response;
+  // Organization access alone is insufficient in a multi-legal-employer
+  // company. The worker itself is rechecked in the case transaction.
+  const entityScope = await resolveMultiEntityContext({
+    userId: guard.actor.id, organizationId: input.organizationId, request, requested: input.legalEntityId,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  if (entityScope.context.enabled && entityScope.context.group) {
+    return Response.json({ error: "Select a legal employer to open a salary correction case." }, { status: 403, headers: NO_STORE });
+  }
+  const entityDenied = assertEntityResource(entityScope.context, input.legalEntityId);
+  if (entityDenied) return entityDenied;
   try {
     const result = await createCorrectionCase(input, guard.actor);
     return Response.json(result, { status: result.replayed ? 200 : 201, headers: NO_STORE });
@@ -111,6 +139,36 @@ export async function PATCH(request: Request) {
     isChecker ? "hcm-salary-correction-case-review" : "hcm-salary-correction-case");
   if (guard.response) return guard.response;
   const actor = guard.actor;
+  if (body.legalEntityId !== undefined && body.legalEntityId !== null
+    && typeof body.legalEntityId !== "string" && typeof body.legalEntityId !== "number") {
+    return Response.json({ error: "Invalid legal employer selector." }, { status: 400, headers: NO_STORE });
+  }
+  // Reconcile client/header/query selectors before resolving the actual case
+  // employer. Never trust a supplied legalEntityId as resource ownership.
+  const entityScope = await resolveMultiEntityContext({
+    userId: actor.id, organizationId, request, requested: body.legalEntityId as string | number | null | undefined,
+  });
+  if (!entityScope.ok) return entityScope.response;
+  if (entityScope.context.enabled && (entityScope.context.group || entityScope.context.legalEntityId === null)) {
+    return Response.json({ error: "Select an authorized legal employer to change salary correction cases." }, { status: 403, headers: NO_STORE });
+  }
+  // Filter by the already authorized legal employer BEFORE resolving the
+  // case ID. A foreign employer's existing case must be indistinguishable
+  // from a missing case; an org-only lookup leaks its existence.
+  const caseScope = and(
+    eq(salaryCorrectionCases.organizationId, organizationId),
+    eq(salaryCorrectionCases.id, caseId),
+    entityScope.context.enabled
+      ? eq(salaryCorrectionCases.legalEntityId, entityScope.context.legalEntityId!)
+      : undefined,
+  );
+  const [caseEmployer] = await db.select({ legalEntityId: salaryCorrectionCases.legalEntityId })
+    .from(salaryCorrectionCases)
+    .where(caseScope)
+    .limit(1);
+  if (!caseEmployer) return Response.json({ error: "Correction case not found." }, { status: 404, headers: NO_STORE });
+  const entityDenied = assertEntityResource(entityScope.context, caseEmployer.legalEntityId);
+  if (entityDenied) return entityDenied;
   const text = (key: string) => (typeof body[key] === "string" ? body[key] as string : "");
   try {
     switch (action) {

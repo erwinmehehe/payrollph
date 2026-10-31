@@ -267,9 +267,19 @@ export async function createCorrectionCase(input: CaseInput, actor: CaseActor, n
         eq(salaryCorrectionCases.idempotencyKey, input.idempotencyKey),
       )).limit(1);
       if (existing) {
-        const same = existing.employeeId === input.employeeId && String(existing.effectiveDate) === input.effectiveDate
+        // A retry must be the same request from the same maker, not just the
+        // same employee/rate. Never reuse another actor's case or silently
+        // discard a changed legal employer, evidence packet or rationale.
+        const same = existing.requestedByUserId === actor.id
+          && existing.employeeId === input.employeeId
+          && existing.legalEntityId === input.legalEntityId
+          && String(existing.effectiveDate) === input.effectiveDate
           && existing.correctedPayBasis === input.correctedPayBasis
-          && amountToCents(String(existing.correctedRateAmount)) === input.correctedRateCents;
+          && amountToCents(String(existing.correctedRateAmount)) === input.correctedRateCents
+          && existing.evidenceReference === input.evidenceReference
+          && existing.reason === input.reason
+          && (input.expectedLatestRevisionId === null
+            || (existing.baseRevisionId ?? 0) === input.expectedLatestRevisionId);
         if (!same) fail("IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used for a different correction.");
         return { correction: existing, runs: await caseRuns(tx, existing.id), replayed: true };
       }
@@ -437,6 +447,7 @@ export async function cancelCorrectionCase(organizationId: number, caseId: numbe
   return db.transaction(async (tx) => {
     const correction = await lockCase(tx, organizationId, caseId);
     if (!(ACTIVE_CASE_STATUSES as readonly string[]).includes(correction.status)) fail("CASE_NOT_OPEN", "Only an open case can be cancelled.");
+    if (correction.requestedByUserId !== actor.id) fail("NOT_CASE_MAKER", "Only the person who opened the case can cancel it.");
     const runs = await caseRuns(tx, caseId);
     await tx.update(salaryCorrectionCaseRuns).set({
       disposition: "withdrawn", underpaymentRequestId: null, noShortfallReason: null, updatedAt: new Date(),
@@ -452,9 +463,14 @@ export async function cancelCorrectionCase(organizationId: number, caseId: numbe
   });
 }
 
-export async function listCorrectionCases(organizationId: number) {
+export async function listCorrectionCases(organizationId: number, legalEntityId: number | null = null) {
+  // A company-wide role does not grant visibility into every legal employer
+  // when the multi-entity gate is active. Filter before fetching case runs.
+  const caseScope = legalEntityId === null
+    ? eq(salaryCorrectionCases.organizationId, organizationId)
+    : and(eq(salaryCorrectionCases.organizationId, organizationId), eq(salaryCorrectionCases.legalEntityId, legalEntityId));
   const cases = await db.select().from(salaryCorrectionCases)
-    .where(eq(salaryCorrectionCases.organizationId, organizationId))
+    .where(caseScope)
     .orderBy(desc(salaryCorrectionCases.id)).limit(100);
   if (!cases.length) return [];
   const runs = await db.select().from(salaryCorrectionCaseRuns)

@@ -171,14 +171,72 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Finance-path tenant boundary hardening: 4 GAP methods receive NO credit.
+  // The real localhost test covers exact IDs and safe read/denial paths, but
+  // intentionally never submits a payroll, pays an employee or signs a pilot.
+  const payrollPathReview = {
+    "src/app/api/payroll-runs/[id]/submit-review/route.ts": {
+      original: "89a93602a5496447bcd902598288cc8543c45276",
+      current: "98abed695eee9462a233f3da78b794e60f40c581", methods: ["POST"],
+    },
+    "src/app/api/payroll-runs/[id]/pilot-signoff/route.ts": {
+      original: "da4bf15b3541e27fe770c1e68ec568f6e3fa91ac",
+      current: "18390e65b137a0e73d5c5c78e3368dbd18a26af4", methods: ["POST"],
+    },
+    "src/app/api/payroll-runs/[id]/xendit-payout/route.ts": {
+      original: "745d24f56eac8dca56012728ad6674f3d160de53",
+      current: "c100c146ce1373c1526bae90dd77667d6ed6aaad", methods: ["GET", "POST"],
+    },
+  };
+  const payrollPath = key.slice(0, key.lastIndexOf(" "));
+  const payrollReviewed = payrollPathReview[payrollPath];
+  if (isNewOrChanged && payrollReviewed && payrollReviewed.methods.includes(method.name)) {
+    assert.equal(currentBlob, payrollReviewed.current,
+      "Financial route source changed: re-review zero-credit method and live external-money guards");
+    assert.equal(method.status, "GAP", "Refused or disabled money actions are never proof of valid own writes");
+    assert.equal(method.testedBy, null, "Only independent successful own HTTP may earn a method credit");
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "payroll-runs-seven-path-negative-only-zero-credit",
+      originalRouteBlobSha: payrollReviewed.original,
+      routeBlobSha: payrollReviewed.current,
+      proofFile: "scripts/qa/tenant-batches/payroll-runs-path-http.mjs",
+      proofBlobSha: "0f82c4e2af1a4f30363e0953ead21ea21475283a",
+      contractFile: "tests/tenant-payroll-runs-path-boundaries.test.mjs",
+      contractBlobSha: "30dbd3e97304728b0d70f38aaa8ec9443d2e8d59",
+      workflowFile: ".github/workflows/tenant-payroll-run-path-boundaries.yml",
+      workflowBlobSha: "899f6dac19cf5e3d6b47ca8242cb93d86738508d",
+      coverageCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "The only allowed uncredited payroll path exception is exact-source scoped evidence");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "Financial security fixture changed: review and re-pin " + file);
+    }
+    return;
+  }
+
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST") {
     // Sole SHA-pinned exclusion: a provider-disabled 501 is access-control
     // evidence, never proof of a completed real payment or a safe retry.
     // Changes to the payout route invalidate this review and re-block CI.
     const proof = method.reviewedUncertified;
-    assert.equal(currentBlob, "4a0f56c5e22127a1d74dd63ef2963df53edb6060",
+    assert.equal(currentBlob, "8a08081eb1ede1f24809d496804c9874ab1b46a7",
       "New payout POST source requires renewed separate owner/provider review");
+    const routeSource = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
+    const postAt = routeSource.indexOf("export async function POST(");
+    const postSource = routeSource.slice(postAt);
+    assert.ok(postAt > 0 && postSource.includes("await requireRunEmployer({"),
+      "Reconciliation must verify persisted legal-employer grant before provider handling");
+    assert.ok(postSource.indexOf("await requireRunEmployer({") < postSource.indexOf("if (!process.env.PAYMONGO_SECRET_KEY)"),
+      "Legal-employer denial must occur before disabled-provider 501");
     assert.equal(proof?.routeBlobSha, currentBlob);
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs");
     const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " owned provider-disabled");
@@ -652,7 +710,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.originalRouteBlobSha, "f8477326b6a64f45e554f70d9b297b5f20f9bf84");
     assert.equal(reviewed?.routeBlobSha, routeSha);
     assert.equal(reviewed?.file, "scripts/qa/tenant-wfp-allocations-http.mjs");
-    assert.equal(reviewed?.proofBlobSha, "7afbaf74355ebeeab989608a7d3c939b794cabc5");
+    assert.equal(reviewed?.proofBlobSha, "4891fb6b2bc7b4ed180f7dc6650015d974e1aa20");
     assert.equal(reviewed?.testFile, "tests/tenant-wfp-allocations-contract.test.mjs");
     assert.equal(reviewed?.testBlobSha, "793cb13ac69febeeb19503ca99bc9eaa6fa100eb");
     assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-wfp-allocations-http.yml");
@@ -1419,7 +1477,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // WRK-02 source-only hardening. These changed route blobs add stricter
   // final SQL predicates, but have NO new own/victim PG16 HTTP proof.
   const wrk02Boundaries = {
-    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "12ea2979c8a7282236b375183e39e63d32a42e74", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
+    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "5c88b83ff366d1353b131a6b05e5fa4cda7d1f30", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/position-executions/route.ts": { previous: "0c7ddf8ba2db323aea03c152612eced44c31aea2", current: "142797be0cfa4f64849b20958869c12147ccf792", prefix: "e18416e827678a1e62a1e891201df027ba20c48e", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/transfer/route.ts": { previous: "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153", current: "fc17024c47d013b28213abe89c7784254e3b2bc1", prefix: null, methods: ["POST"] },
   };
@@ -1639,6 +1697,106 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       flag > access && source > flag,
       "WFM private demand GET must check active tenant/session/deny overlay before pilot and SQL");
     return; // Narrow, source-reconstructed, zero-credit method-GAP exception only.
+  }
+
+  // #641 salary-correction case route. Three historical company-level methods
+  // were already COVERED, but this PR hardens their same-org legal-employer
+  // boundaries. Pin EXACT changed sources and tests; preserve old tenant proof
+  // WITHOUT claiming that the new legal-employer scenario passed signed-in HTTP.
+  // An edit to any new guard or fixture fails closed pending renewed review.
+  if (isNewOrChanged && key.startsWith(
+    "src/app/api/hcm/salary-corrections/cases/route.ts "
+  )) {
+    const routeFile = "src/app/api/hcm/salary-corrections/cases/route.ts";
+    const oldRouteSha = "26993c273d5482f602f420cd95cf9007616f6954";
+    const hardenedRouteSha = "9293d95f76f1bb31caa2e3de6e6219be057d616a";
+    // The 288-route original baseline predates the #641 cases endpoint.
+    // Do NOT misrepresent its previous HEAD blob as baseline-audited proof.
+    // Instead, pin the exact pre-hardening SHA in reviewedUncertified below
+    // and verify the historical HTTP fixture plus every changed source blob.
+    assert.equal(Object.hasOwn(baseline.api, routeFile), false,
+      "#641 case route is post-baseline; it must not claim old inventory acceptance");
+    assert.equal(currentBlob, hardenedRouteSha,
+      "#641 changed case route requires renewed security/tenant evidence review");
+    assert.ok(["GET", "POST", "PATCH"].includes(method.name),
+      "Unexpected salary correction case mutation or read method");
+    assert.equal(method.status, "COVERED",
+      "Existing case route's historical company-level credits must not silently change");
+    assert.equal(method.testedBy?.file,
+      "scripts/qa/salary-correction-case-tenant-proof.mjs",
+      "Historical two-company PG16 own/foreign proof must remain traceable");
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "salary-correction-cases-multi-legal-employer-hardening-zero-new-credit",
+      originalRouteBlobSha: oldRouteSha,
+      routeBlobSha: hardenedRouteSha,
+      methodName: method.name,
+      historicalCoverageStatus: "COVERED",
+      historicalProofFile: "scripts/qa/salary-correction-case-tenant-proof.mjs",
+      historicalProofBlobSha: "b93d311a09d978b1f6e260fa3c94272fc1b6bb93",
+      caseServiceFile: "src/lib/hcm-salary-correction-cases.ts",
+      caseServiceBlobSha: "67f2c8878eae13de4b8a807123e8c495c601862a",
+      scopeContractFile: "tests/hcm-salary-correction-entity-scope.test.mjs",
+      scopeContractBlobSha: "411ff56012adaeebfa9d967a7d7659b2daf5ed28",
+      selectorTestFile: "tests/hcm-salary-correction-selector-regression.test.ts",
+      selectorTestBlobSha: "af0a52f5466ac8810684a16677789e3eb4cb4a9f",
+      postgresTestFile: "tests/hcm-salary-correction-cases-postgres.test.ts",
+      postgresTestBlobSha: "d0ea1d6c4e6dd9072d06ba067903d36a99ec96b9",
+      workflowFile: ".github/workflows/salary-correction-cases-qa.yml",
+      workflowBlobSha: "9790cca4f7650cad1a6eabb23546a14bb122cea8",
+      newMethodCoverageCredits: 0,
+      sameOrganizationTwoLegalEmployerHttp: "NOT_ACCEPTED",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "Legal-employer hardening stays a zero-credit, source-pinned review");
+    for (const [file, sha] of [
+      [review.historicalProofFile, review.historicalProofBlobSha],
+      [review.caseServiceFile, review.caseServiceBlobSha],
+      [review.scopeContractFile, review.scopeContractBlobSha],
+      [review.selectorTestFile, review.selectorTestBlobSha],
+      [review.postgresTestFile, review.postgresTestBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) {
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "Salary case evidence/source changed: renew #641 security review: " + file);
+    }
+    const route = readFileSync(routeFile, "utf8");
+    const service = readFileSync(review.caseServiceFile, "utf8");
+    const get = route.slice(route.indexOf("export async function GET("),
+      route.indexOf("async function guardMutation("));
+    const post = route.slice(route.indexOf("export async function POST("),
+      route.indexOf("const MAKER_ACTIONS ="));
+    const patch = route.slice(route.indexOf("export async function PATCH("));
+    const role = get.indexOf("assertOrganizationRole(");
+    const selection = get.indexOf("resolveMultiEntityContext({");
+    const read = get.indexOf("await listCorrectionCases(");
+    assert.ok(role >= 0 && role < selection && selection < read,
+      "GET must authorize and select granted legal employer before fetching cases");
+    assert.match(get, /userId: user\.id, organizationId, request,\s*\}/);
+    assert.doesNotMatch(get, /requested:\s*new URL\(request\.url\)\.searchParams\.get/);
+    assert.match(get, /entityScope\.context\.group \|\| entityScope\.context\.legalEntityId === null/);
+    assert.match(get, /entityScope\.context\.enabled \? entityScope\.context\.legalEntityId : null/);
+    assert.match(post, /requested: input\.legalEntityId/);
+    assert.match(post, /assertEntityResource\(entityScope\.context, input\.legalEntityId\)/);
+    assert.match(patch, /requested: body\.legalEntityId as string \| number \| null \| undefined/);
+    const resolved = patch.indexOf("resolveMultiEntityContext({");
+    const caseScope = patch.indexOf("const caseScope = and(");
+    const caseRead = patch.indexOf(".where(caseScope)");
+    const branch = patch.indexOf("switch (action)");
+    assert.ok(resolved >= 0 && resolved < caseScope && caseScope < caseRead
+      && caseRead < branch, "PATCH must scope the case ID before any action dispatch");
+    assert.match(patch, /eq\(salaryCorrectionCases\.organizationId, organizationId\)/);
+    assert.match(patch, /eq\(salaryCorrectionCases\.id, caseId\)/);
+    assert.match(patch, /eq\(salaryCorrectionCases\.legalEntityId, entityScope\.context\.legalEntityId!\)/);
+    assert.match(patch, /if \(!caseEmployer\) return Response\.json\(\{ error: "Correction case not found\." \}/);
+    assert.match(service, /existing\.requestedByUserId === actor\.id/);
+    assert.match(service, /existing\.legalEntityId === input\.legalEntityId/);
+    assert.match(service, /existing\.evidenceReference === input\.evidenceReference/);
+    assert.match(service, /existing\.reason === input\.reason/);
+    assert.match(service, /correction\.requestedByUserId !== actor\.id\) fail\("NOT_CASE_MAKER"/);
+    assert.match(service, /eq\(salaryCorrectionCases\.legalEntityId, legalEntityId\)/);
+    assert.equal(review.newMethodCoverageCredits, 0);
+    return; // Only this exact, source-pinned route and three historical methods.
   }
 
   if (isNewOrChanged) {
