@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 export const fixtureOrder = {};
 
 export function createRows(deps) {
-  const { addWorker, assert, asc, auditBusinessSnapshot, auditEvents, db, employees, eq, jobProfiles, approvalChainPolicies } = deps;
+  const { addWorker, assert, asc, auditBusinessSnapshot, auditEvents, db, employees, eq, jobProfiles, approvalChainPolicies, pool } = deps;
   // The shared runner's dependency list is bound by reviewed receipts, so tables it does not pass come from the schema.
   let schema;
   const s = async () => (schema ??= await import("../../../../src/db/schema.ts"));
@@ -233,8 +233,53 @@ export function createRows(deps) {
         assert.equal(second.version, 2); assert.equal(Number(second.demandGrowthPercent), 8);
         assert.deepEqual(after.scenarios.filter((row) => row.id !== second.id), before.scenarios, "the first version is untouched");
         assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore, "creating scenarios leaves the victim unchanged");
+        // First prove the same valid request can INSERT before the synthetic SQL
+        // fault is enabled. A generic response from an earlier validation path
+        // is not evidence that a PostgreSQL exception was sanitized.
+        const faultName = c.marker + " QA1655_SQL_FAULT_PROBE";
+        const beforeControl = await scenarioState(c.orgId);
+        await post(scenarioBody(c.orgId, c.seeded.id, faultName), 201, "own pre-fault positive control");
+        const afterControl = await scenarioState(c.orgId);
+        assert.equal(added(beforeControl.scenarios, afterControl.scenarios, c, "fault-positive control").name, faultName);
+        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
+        // Defense in depth before temporary SQL DDL: production and external DBs
+        // cannot satisfy this already-enforced shared-runner disposable guard.
+        const { requireTenantTableDisposable } = await import("../../tenant-table-http.mjs");
+        requireTenantTableDisposable();
+        assert.equal(typeof pool?.query, "function", "PG16 fault proof needs the disposable SQL pool");
+        await pool.query("DROP TRIGGER IF EXISTS qa_wfp_scenario_post_fault_1655 ON workforce_planning_scenarios");
+        try {
+          await pool.query([
+            "CREATE OR REPLACE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn() RETURNS trigger AS $",
+            "BEGIN",
+            "  IF strpos(NEW.name, 'QA1655_SQL_FAULT_PROBE') > 0 THEN",
+            "    RAISE EXCEPTION 'QA1655_PRIVATE_SQL_SENTINEL: SELECT worker_pii FROM confidential_employers' USING ERRCODE = 'P0001';",
+            "  END IF;",
+            "  RETURN NEW;",
+            "END",
+            "$ LANGUAGE plpgsql",
+          ].join("\n"));
+          await pool.query("CREATE TRIGGER qa_wfp_scenario_post_fault_1655 BEFORE INSERT ON workforce_planning_scenarios FOR EACH ROW EXECUTE FUNCTION public.qa_wfp_scenario_post_fault_1655_fn()");
+          const installed = await pool.query("SELECT 1 FROM pg_trigger WHERE tgname = $1 AND NOT tgisinternal", ["qa_wfp_scenario_post_fault_1655"]);
+          assert.equal(installed.rowCount, 1, "synthetic PostgreSQL trigger must really be installed");
+          const ownBeforeFault = await scenarioState(c.orgId);
+          const denied = await post(scenarioBody(c.orgId, c.seeded.id, faultName, { demandGrowthPercent: 12 }), 422, "injected PostgreSQL INSERT failure");
+          assert.deepEqual(denied.json, { error: "Scenario could not be calculated." }, "SQL failure must return only the generic public error");
+          assert.ok(!/QA1655_PRIVATE_SQL_SENTINEL|SELECT worker_pii|confidential_employers|P0001/i.test(denied.text),
+            "synthetic SQL error details must never appear in the HTTP response");
+          assert.deepEqual(await scenarioState(c.orgId), ownBeforeFault,
+            "failed PostgreSQL INSERT cannot create an own scenario or audit event");
+          assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore,
+            "failed PostgreSQL INSERT cannot affect victim scenario, planning or audit tables");
+        } finally {
+          try {
+            await pool.query("DROP TRIGGER IF EXISTS qa_wfp_scenario_post_fault_1655 ON workforce_planning_scenarios");
+          } finally {
+            await pool.query("DROP FUNCTION IF EXISTS public.qa_wfp_scenario_post_fault_1655_fn()");
+          }
+        }
         return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2,
-          SQLFaultInjection: "NOT_RUN", methodCoverageCredit: false };
+          SQLFaultInjection: "SYNTHETIC_PG16_HTTP", methodCoverageCredit: false };
       } },
   ];
 }
