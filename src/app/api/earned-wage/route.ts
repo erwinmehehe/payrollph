@@ -160,20 +160,25 @@ export async function POST(request: Request) {
     return Response.json({ error: "Advance not permitted.", reasons: check.reasons, maxAdvance: check.maxAdvance }, { status: 422 });
   }
 
-  const [row] = await db.insert(earnedWageRequests).values({
-    organizationId,
-    employeeId,
-    requestedAmount: requested.toFixed(2),
-    fee: check.fee.toFixed(2),
-    status: "pending",
-  }).returning();
+  // The advance request must not persist without its employer-scoped audit.
+  // The same transaction commits both writes or rolls them back together.
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(earnedWageRequests).values({
+      organizationId,
+      employeeId,
+      requestedAmount: requested.toFixed(2),
+      fee: check.fee.toFixed(2),
+      status: "pending",
+    }).returning();
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Earned wage advance requested",
-    resource: `${employee.firstName} ${employee.lastName} ${requested.toFixed(2)}`,
-    metadata: { requestId: row.id, employeeId, daysWorked, maxAdvance: check.maxAdvance },
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Earned wage advance requested",
+      resource: `${employee.firstName} ${employee.lastName} ${requested.toFixed(2)}`,
+      metadata: { requestId: created.id, employeeId, daysWorked, maxAdvance: check.maxAdvance },
+    }, tx);
+    return created;
   });
 
   return Response.json({ request: row, eligibility: { ...check, employeeId, daysWorked } }, { status: 201 });

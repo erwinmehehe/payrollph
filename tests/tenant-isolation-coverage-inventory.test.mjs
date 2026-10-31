@@ -1946,6 +1946,30 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  if (isNewOrChanged && key === "src/app/api/earned-wage/route.ts POST") {
+    const expected = {
+      kind: "earned-wage-POST-atomic-audit-source-only",
+      priorRouteBlobSha: "258b48d5ffc372bba31c52d2b71e56374660ea50", routeBlobSha: "0690ef15bf76c8e5eac0bd447720cb2dcbee47ca",
+      contractFile: "tests/tenant-earned-wage-post-audit-atomic.test.mjs", contractBlobSha: "45b7c8b1d91db17c9a35cc6f19c9266f4f6d2160",
+      credits: 0, independentSecurityReview: "PENDING",
+      actualPg16Http: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/earned-wage/route.ts", "utf8")
+      .split("export async function POST")[1].split("export async function PATCH")[0];
+    for (const token of [
+      "const row = await db.transaction(async (tx) => {",
+      "await tx.insert(earnedWageRequests)",
+      "await recordAuditEvent({",
+      "}, tx);",
+    ]) assert.ok(post.includes(token), "Missing zero-credit EWA POST audit transaction: " + token);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
