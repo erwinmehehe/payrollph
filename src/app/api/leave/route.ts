@@ -500,7 +500,11 @@ export async function POST(request: Request) {
     .select({ id: users.id, name: users.name, role: userOrganizations.role })
     .from(userOrganizations)
     .innerJoin(users, eq(userOrganizations.userId, users.id))
-    .where(eq(userOrganizations.organizationId, organizationId));
+    .where(and(
+      eq(userOrganizations.organizationId, organizationId),
+      eq(userOrganizations.active, true),
+      eq(users.active, true),
+    ));
 
   const priority = new Map(LEAVE_APPROVER_ROLES.map((role, index) => [role, index]));
   const approver = members
@@ -523,6 +527,21 @@ export async function POST(request: Request) {
       eq(employees.organizationId, organizationId),
     )).limit(1);
     if (!freshWorker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+
+    // An approver may be deactivated or have their checker role revoked after
+    // the initial picker. Revalidate before any leave/task/audit insert.
+    const [liveApprover] = await tx.select({ id: users.id })
+      .from(userOrganizations)
+      .innerJoin(users, eq(userOrganizations.userId, users.id))
+      .where(and(
+        eq(userOrganizations.organizationId, organizationId),
+        eq(userOrganizations.userId, approver.id),
+        eq(userOrganizations.active, true),
+        eq(users.active, true),
+        inArray(userOrganizations.role, [...LEAVE_APPROVER_ROLES]),
+      )).limit(1);
+    if (!liveApprover || liveApprover.id === user.id) throw new Error("LEAVE_APPROVER_CHANGED");
+
     if (access.role !== "employee" && !access.companyWide &&
         freshWorker.orgUnitId !== access.orgUnitId) {
       throw new Error("LEAVE_SCOPE_CHANGED");
@@ -602,6 +621,7 @@ export async function POST(request: Request) {
     return { task, row, intervalSet };
   }).catch((error) => {
     if (error instanceof Error && error.message === "LEAVE_SCOPE_CHANGED") return "scope_changed" as const;
+    if (error instanceof Error && error.message === "LEAVE_APPROVER_CHANGED") return "approver_changed" as const;
     if (error instanceof Error && error.message === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE") return null;
     throw error;
   });
@@ -609,6 +629,12 @@ export async function POST(request: Request) {
     return Response.json({
       code: "LEAVE_SCOPE_CHANGED",
       error: "The worker moved outside your assigned unit. Refresh and obtain a new review.",
+    }, { status: 409 });
+  }
+  if (created === "approver_changed") {
+    return Response.json({
+      code: "LEAVE_APPROVER_CHANGED",
+      error: "The selected leave checker is no longer active or authorized. Refresh and choose another checker.",
     }, { status: 409 });
   }
   if (!created) {
