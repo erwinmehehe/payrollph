@@ -1,0 +1,141 @@
+name: Tenant WRK-02 Batch 2 Baselines and Position Execution (Fictional PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-wrk02-batch2-http.yml"
+      - "scripts/qa/tenant-wrk02-batch2-*.mjs"
+      - "tests/tenant-wrk02-batch2.test.mjs"
+      - "src/app/api/workforce-planning/baselines/**"
+      - "src/app/api/workforce-planning/position-executions/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  wrk02-batch2-tenant-isolation:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_WRK02_BATCH2_MODE: fictional-pg16-only
+      TZ: Asia/Manila
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      OPENAI_API_KEY: ""
+      NEON_DATABASE_URL: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact PR head and never a stale SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export existing synthetic-only offline app profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import {TENANT_TABLE_BASE_ENV} from "./scripts/qa/tenant-table-env.mjs"; for (const [key,value] of Object.entries(TENANT_TABLE_BASE_ENV)) process.stdout.write(key+"="+value+"\n")' >> "$GITHUB_ENV"
+          {
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "TENANT_WRK02_BATCH2_MODE=fictional-pg16-only"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+            echo "OPENAI_API_KEY="
+            echo "NEON_DATABASE_URL="
+          } >> "$GITHUB_ENV"
+      - name: Refuse unsafe targets and false source/coverage receipts before database access
+        run: |
+          node --check scripts/qa/tenant-wrk02-batch2-contract.mjs
+          node --check scripts/qa/tenant-wrk02-batch2-http.mjs
+          node --check tests/tenant-wrk02-batch2.test.mjs
+          node --test tests/tenant-wrk02-batch2.test.mjs
+      - name: Create fresh throwaway encryption inputs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+          webhook="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$webhook"
+          echo "RESEND_WEBHOOK_SECRET=$webhook" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 only
+        run: npm run db:push
+      - name: Apply existing offline migrations only to local app_db
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Install required fictional HCM test-only schema
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build Next production-mode against local PG16
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-wrk02-batch2-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 100 /tmp/tenant-wrk02-batch2-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Local-only Next server failed to start"
+          tail -n 100 /tmp/tenant-wrk02-batch2-next.log
+          exit 1
+      - name: Verify real own/victim baseline, execution apply/cancel, stale version and immutable SQL
+        run: node --import tsx scripts/qa/tenant-wrk02-batch2-http.mjs
+      - name: Display only bounded localhost log after failure
+        if: failure()
+        run: tail -n 100 /tmp/tenant-wrk02-batch2-next.log || true
