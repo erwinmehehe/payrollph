@@ -26,7 +26,7 @@
     },
     {
       "file": ".github/workflows/tenant-onboarding-http.yml",
-      "sha256": "a418f581bbcbf2a1e71fd4448167dd73c9adc46d8c95e11a997e09c2f135e30f"
+      "sha256": "e96e4660062153f577bd884b505e6e18c2ca5568612d039f30d06d709df4514c"
     },
     {
       "file": "src/app/api/employees/route.ts",
@@ -74,11 +74,11 @@
     },
     {
       "file": "src/lib/first-payroll-preview.ts",
-      "sha256": "1333e731e5e3bc76c7fb786852829e9a5e5267aded5e555d7a47e3c890d89f22"
+      "sha256": "45d3615e0916d18075559f105e4ed3f96d5be64fc0ab120badf46346fb647368"
     },
     {
       "file": "src/lib/first-payroll-canonical-preview.ts",
-      "sha256": "c9341b082195118cbc1c52c391c51346331f79e37726c1b0697649920634d60f"
+      "sha256": "f40f0f791e880497c05d5c077e1ae63184dd16412d7bcd6f168e230dbde621c5"
     },
     {
       "file": "scripts/qa/tenant-table-http.mjs",
@@ -360,5 +360,39 @@
       "postgresMajor": 16,
       "victimUnchanged": true
     }
-  ]
+  ],
+  "ciRevalidation": {
+    "purpose": "Later exact-head CI replay of this originally local receipt; historical ci=NOT_RUN describes the original local execution, not the later replay.",
+    "commit": "3323cc313e5824d0b3f7ee93def7883b3abcbddd",
+    "workflowRunId": 41149369911,
+    "workflowUrl": "https://github.com/erwinmehehe/payrollph/actions/runs/41149369911",
+    "verifiedOn": "2026-10-31",
+    "database": "disposable GitHub Actions PostgreSQL 16; local HTTP only; provider payouts disabled",
+    "sourceHashRepins": [
+      ".github/workflows/tenant-onboarding-http.yml",
+      "src/lib/first-payroll-preview.ts",
+      "src/lib/first-payroll-canonical-preview.ts"
+    ],
+    "legacy": {
+      "jobId": 124381947059,
+      "own": 20,
+      "denied": 20,
+      "forged": 14,
+      "negative": 30,
+      "discrimination": 10,
+      "actionsEqualHistoricalReceipt": true,
+      "victimUnchanged": true
+    },
+    "preview": {
+      "jobId": 124381947392,
+      "own": 18,
+      "denied": 18,
+      "forged": 16,
+      "negative": 34,
+      "discrimination": 9,
+      "actionsEqualHistoricalReceipt": true,
+      "victimUnchanged": true
+    },
+    "caveat": "Both real HTTP proof stages succeeded but the workflow run's final receipt-source gate failed on the previously stale hashes. This commit refreshes those three pins; a new full exact-head CI pass is required. No release or tenant-wide authorization."
+  }
 }
