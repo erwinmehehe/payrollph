@@ -8333,12 +8333,12 @@
       ]
     },
     "src/app/api/delegations/route.ts": {
-      "gitBlobSha": "18fc1d831165aca3c8ed14030e6c19375ef66694",
+      "gitBlobSha": "717897a242ff780d5313e17b18a0f9744033edde",
       "route": "delegations",
       "methods": [
         {
           "name": "GET",
-          "line": 19,
+          "line": 39,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8355,7 +8355,7 @@
         },
         {
           "name": "POST",
-          "line": 58,
+          "line": 83,
           "status": "COVERED",
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8372,7 +8372,7 @@
         },
         {
           "name": "PATCH",
-          "line": 139,
+          "line": 159,
           "status": "COVERED",
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -8405,95 +8405,71 @@
           "token": "getSessionUser"
         },
         {
-          "line": 11,
-          "token": "assertOrganizationRole"
-        },
-        {
           "line": 12,
-          "token": "getAccess"
-        },
-        {
-          "line": 21,
-          "token": "getSessionUser"
-        },
-        {
-          "line": 27,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 40,
+          "line": 13,
           "token": "getAccess"
         },
         {
-          "line": 59,
+          "line": 41,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 47,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 55,
+          "token": "getAccess"
+        },
+        {
+          "line": 84,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 62,
+          "line": 87,
           "token": "getSessionUser"
         },
         {
-          "line": 86,
+          "line": 111,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 94,
+          "line": 119,
           "token": "getAccess"
         },
         {
-          "line": 140,
+          "line": 160,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 143,
+          "line": 163,
           "token": "getSessionUser"
         },
         {
-          "line": 157,
+          "line": 187,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 165,
+          "line": 195,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 20,
+          "line": 40,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 70,
+          "line": 95,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 23,
-          "token": "organizationId"
-        },
-        {
-          "line": 24,
-          "token": "organizationId"
-        },
-        {
-          "line": 29,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
+          "line": 40,
           "token": "organizationId"
         },
         {
@@ -8501,19 +8477,27 @@
           "token": "organizationId"
         },
         {
-          "line": 52,
+          "line": 43,
           "token": "organizationId"
         },
         {
-          "line": 70,
+          "line": 44,
           "token": "organizationId"
         },
         {
-          "line": 70,
+          "line": 49,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 55,
           "token": "organizationId"
         },
         {
@@ -8521,11 +8505,27 @@
           "token": "organizationId"
         },
         {
-          "line": 88,
+          "line": 95,
           "token": "organizationId"
         },
         {
-          "line": 94,
+          "line": 95,
+          "token": "organizationId"
+        },
+        {
+          "line": 101,
+          "token": "organizationId"
+        },
+        {
+          "line": 102,
+          "token": "organizationId"
+        },
+        {
+          "line": 113,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
           "token": "organizationId"
         }
       ]
