@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
+import { assertHistoricalDemandSourceCompatible } from "./tenant-wfm-demand-overlay-history.mjs";
 
 export const POST_1523_CREDIT_SPECS = Object.freeze([
   {
@@ -187,8 +188,19 @@ export function verifyPost1523Credits(manifest, read = file => readFileSync(file
       [STAFFING_PROOF, STAFFING_HASHES.proof],
       [STAFFING_CONTRACT, STAFFING_HASHES.contract],
       [STAFFING_WORKFLOW, STAFFING_HASHES.workflow],
-    ]) assert.equal(blobSha(read(path)), sha,
-      "WRK-01 co-located receipt requires byte-identical source: " + path);
+    ]) {
+      // The reviewed GET-only WFM permissions patch changes this route's
+      // whole-file Git SHA. Reconstruct and hash the original source before
+      // reusing the *historical* POST/PATCH proof; never silently re-credit
+      // changed write handlers or accept an arbitrary manifest hash.
+      if (path === STAFFING_ROUTE) {
+        assert.equal(assertHistoricalDemandSourceCompatible(path, staffing, read), sha,
+          "WRK-01 historical write source must reconstruct byte-for-byte");
+      } else {
+        assert.equal(blobSha(read(path)), sha,
+          "WRK-01 co-located receipt requires byte-identical source: " + path);
+      }
+    }
   }
   assert.ok(manifest.acceptanceStatus?.startsWith("NOT ACCEPTED"),
     "Review-only method evidence must never certify tenant-wide isolation");

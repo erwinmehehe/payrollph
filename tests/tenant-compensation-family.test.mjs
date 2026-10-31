@@ -82,33 +82,48 @@ test("proposal refusal cannot schedule pay, alter annual amounts or swap the tar
 
 test("refusal fixture uses real returned proposal, band and cycle IDs scoped to the same employer", async () => {
   const inserted = [], tables = { compensationBands: Symbol("band"), compensationCycles: Symbol("cycle"), compensationProposals: Symbol("proposal") };
-  const db = { insert: table => ({ values: value => ({ returning: async () => {
-    const row = { ...value, id: 100 + inserted.length }; inserted.push({ table, row }); return [row];
-  } }) }) };
+  const db = { insert: table => ({ values: value => {
+    const row = { ...value, id: 100 + inserted.length }; inserted.push({ table, row });
+    return Object.assign(Promise.resolve(), { returning: async () => [row] });
+  } }) };
   const row = createRows({ assert, db, ...tables })[1];
-  const seeded = await row.seed({ org: { id: 11 }, entity: { id: 12 }, worker: { id: 21 }, owner: c.owner, marker: c.marker });
-  assert.equal(inserted.length, 3); assert.deepEqual(inserted.map(item => item.table), Object.values(tables));
-  for (const item of inserted) assert.equal(item.row.organizationId, 11);
+  const seeded = await row.seed({ org: { id: 11 }, entity: { id: 12 }, unit: { id: 13 }, worker: { id: 21 }, owner: c.owner, marker: c.marker });
+  assert.deepEqual(inserted.slice(0, 3).map(item => item.table), Object.values(tables));
+  for (const item of inserted) if ("organizationId" in item.row) assert.equal(item.row.organizationId, 11);
   assert.equal(inserted[0].row.active, false); assert.equal(inserted[0].row.legalEntityId, 12);
   assert.equal(inserted[1].row.status, "draft"); assert.equal(inserted[1].row.budgetPool, "0.00");
   assert.equal(seeded.id, 102); assert.equal(seeded.bandId, 100); assert.equal(seeded.cycleId, 101); assert.equal(seeded.employeeId, 21);
+  const { extras } = seeded, pending = inserted.filter(item => item.row.status === "pending_approval");
+  assert.equal(pending.length, 4); assert.deepEqual(Object.keys(extras.assignments).sort(), ["approve", "cancel", "decline", "self"]);
+  assert.deepEqual(pending.map(item => item.row.employeeId), [21, 21, 21, 21]);
+  assert.equal(pending.filter(item => item.row.requestedByUserId === c.owner.id).length, 1, "exactly one assignment is self-requested by the owner");
+  assert.ok(pending.every(item => item.row.effectiveFrom > "2098-12-31"), "decisions only schedule pay in the far future");
+  const member = inserted.find(item => item.row.role === "admin" && item.row.organizationId === 11);
+  assert.ok(member && member.row.userId === extras.adminId, "the second admin is a member of the own employer only");
 });
 
-test("Compensation targets are unique; POST is credited only with its all-entity-type proof and PATCH stays GAP until its own", () => {
+test("POST and PATCH compensation preserve separate complete-action evidence", () => {
   const catalog = tenantFamilyCatalog("write"), manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const row of rows) {
     assert.equal(catalog.filter(item => item.key === row.key).length, 1);
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
     const entry = record.methods.find(item => item.name === method);
-    if (row.key === "POST compensation") {
-      // component is the row's own entity type; cycle, band, component_assignment and proposal come from its exercise.
-      assert.equal(entry.status, "COVERED");
-      assert.equal(entry.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/compensation.mjs");
-      assert.equal(typeof row.exercise, "function", "the other four entity types must be executed, not assumed");
-      const helper = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-post-actions.mjs", "utf8");
-      for (const type of ["cycle", "band", "component_assignment", "proposal"]) assert.ok(helper.includes('entityType: "' + type + '"'), type + " must be exercised");
-    } else {
-      assert.equal(entry.status, "GAP", row.key + " stays GAP until action-complete proof (assignment approve/decline/cancel, proposal cancel/retry/approved)");
-    }
+    assert.equal(entry.status, "COVERED", row.key + " requires independent proof");
+    assert.equal(entry.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/compensation.mjs");
+    assert.equal(typeof row.exercise, "function", row.key + " requires complete own-action exercise");
   }
+  const post = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-post-actions.mjs", "utf8");
+  for (const type of ["cycle", "band", "component_assignment", "proposal"])
+    assert.ok(post.includes('entityType: "' + type + '"'), type + " must be exercised");
+  const patch = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-patch-actions.mjs", "utf8");
+  assert.ok(patch.includes('e.seeded?.["POST compensation"]'), "reuse existing primary worker assignment");
+  assert.ok(patch.includes("reusedPostFixture"), "reuse existing salary band");
+});
+
+test("PATCH proof executes every assignment action and every proposal decision with forged-employer and maker-checker refusals", () => {
+  const source = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-patch-actions.mjs", "utf8");
+  for (const needle of ['"approve"', '"decline"', '"cancel"', 'decide(proposalX.id, "approved")', 'decide(proposalX.id, "cancel")', 'decide(proposalY.id, "cancel")', 'decide(failed.id, "retry")',
+    'for (const decision of ["approved", "cancel", "retry"])', 'maker-checker: the requester approving their own component', 'maker-checker: the submitter approving their own proposal',
+    'victimBefore', 'not_due', 'salary_change_scheduled', 'component_scheduled']) assert.ok(source.includes(needle), needle);
+  assert.ok(source.includes('effectiveDate: "2098-" + month') && source.includes('effectiveFrom: "2099-03-01"'), "pay changes are scheduled in the far future, never applied");
 });

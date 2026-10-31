@@ -1,4 +1,5 @@
-// Fictional catalogue creation and proposal refusal only; no pay is scheduled or applied.
+// Fictional catalogue creation and proposal decisions; pay changes are only scheduled for 2098, never applied.
+import { seedCompensationPatch, compensationPatchActions } from "../helpers/compensation-patch-actions.mjs";
 export const fixtureOrder = {};
 
 export function createRows({ assert, db, eq, asc, jobProfiles, compensationComponents, compensationProposals, compensationBands,
@@ -27,7 +28,7 @@ export function createRows({ assert, db, eq, asc, jobProfiles, compensationCompo
   };
   return [
     { key: "POST compensation", status: 201, state: state,
-      // Grade, graded profile, component and a primary position for the worker, so the other entity types can reference real own objects.
+      // POST creates the single primary position consumed by both action proofs.
       seed: async e => (await import("../helpers/compensation-post-actions.mjs")).seedCompensation({ db, jobProfiles }, e),
       ownBody: c => ({ organizationId: c.orgId, entityType: "component", code: c.marker + "-COMP", name: c.marker + " component", kind: "allowance", amountFrequency: "monthly", taxable: true, includeInSssBase: true, includeInPagIbigBase: true }),
       foreignBody: c => ({ organizationId: c.victim.org.id, entityType: "component", code: c.marker + "-COMP", name: c.marker + " component", kind: "allowance", amountFrequency: "monthly", taxable: true, includeInSssBase: true, includeInPagIbigBase: true }),
@@ -45,14 +46,15 @@ export function createRows({ assert, db, eq, asc, jobProfiles, compensationCompo
         audited(before, after, c, "Compensation component created", row.name, { componentId: row.id, code: row.code, kind: "allowance", amountFrequency: "monthly" });
       },
       exercise: async (c, helpers) => (await import("../helpers/compensation-post-actions.mjs")).compensationPostActions({ assert, state }, c, helpers) },
-    { key: "PATCH compensation", state,
+    { key: "PATCH compensation", state: state,
       seed: async e => {
         const [band] = await db.insert(compensationBands).values({ organizationId: e.org.id, legalEntityId: e.entity.id,
           locationCode: e.marker, minimumAnnual: "120000.00", midpointAnnual: "240000.00", maximumAnnual: "360000.00", effectiveFrom: "2099-01-01", active: false }).returning();
         const [cycle] = await db.insert(compensationCycles).values({ organizationId: e.org.id, name: e.marker + " refusal-only cycle",
           startDate: "2099-01-01", endDate: "2099-01-31", effectiveDate: "2099-02-01", status: "draft", budgetPool: "0.00", createdByUserId: e.owner.id, createdBy: e.owner.name }).returning();
-        return (await db.insert(compensationProposals).values({ organizationId: e.org.id, employeeId: e.worker.id, bandId: band.id,
-          cycleId: cycle.id, currentAnnual: "240000.00", proposedAnnual: "252000.00", reason: e.marker + " fictional refusal", status: "proposed", submittedByUserId: e.owner.id }).returning())[0];
+        const [proposal] = await db.insert(compensationProposals).values({ organizationId: e.org.id, employeeId: e.worker.id, bandId: band.id,
+          cycleId: cycle.id, currentAnnual: "240000.00", proposedAnnual: "252000.00", reason: e.marker + " fictional refusal", status: "proposed", submittedByUserId: e.owner.id }).returning();
+        return { ...proposal, extras: await seedCompensationPatch({ db }, e) };
       },
       ownBody: c => ({ entityType: "proposal", id: c.seeded.id, decision: "declined" }),
       foreignBody: c => ({ entityType: "proposal", id: c.victimSeeded.id, decision: "declined" }),
@@ -71,6 +73,7 @@ export function createRows({ assert, db, eq, asc, jobProfiles, compensationCompo
         assert.deepEqual(response.json, row);
         audited(before, after, c, "Compensation proposal declined", `Proposal #${row.id}`, { employeeId: c.workerId });
         assert.ok(before.payProfiles.some(profile => profile.employeeId === c.workerId && profile.organizationId === c.orgId), "existing worker pay profile must be preserved, not an empty proxy");
-      } },
+      },
+      exercise: (c, helpers) => compensationPatchActions({ assert, state, db, eq, hcmBusinessProcessInstances, compensationProposals }, c, helpers) },
   ];
 }

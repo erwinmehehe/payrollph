@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobProfiles, worksites } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -52,14 +52,19 @@ export async function GET(request:Request) {
     !metrics.includes(metricKind)||![15,30,60].includes(intervalMinutes)) {
     return Response.json({error:"Exact worksite, role and demand metric are required."},{status:400,headers});
   }
-  if(!staffingPolicyPilotAllowed(organizationId,issuedDemandPilotAllowed(organizationId))){
-    return Response.json({error:"Demand staffing policies unavailable for employer."},{status:404,headers});
-  }
+  // Deny a revoked session or a custom workforce permission restriction
+  // before inspecting tenant pilot flags, sites, roles or policy evidence.
+  const roleDenied=await assertOrganizationRole(
+    user.id,organizationId,WORKFORCE_MANAGER_ROLES,
+    "Workforce policy review requires scoped manager access.");
+  if(roleDenied)return roleDenied;
   const access=await getAccess(user.id,organizationId);
-  if(!access||!WORKFORCE_MANAGER_ROLES.some(role=>role===access.role)||
-    (mode==="manage"&&(!access.companyWide||
+  if(!access||(mode==="manage"&&(!access.companyWide||
        !PEOPLE_ADMIN_ROLES.some(role=>role===access.role)))) {
     return Response.json({error:"Workforce policy review requires scoped manager access."},{status:403,headers});
+  }
+  if(!staffingPolicyPilotAllowed(organizationId,issuedDemandPilotAllowed(organizationId))){
+    return Response.json({error:"Demand staffing policies unavailable for employer."},{status:404,headers});
   }
   try {
     if(!await verifiedSite(organizationId,worksiteId,access)) {
