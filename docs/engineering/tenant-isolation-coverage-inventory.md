@@ -148,9 +148,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 382 |
+| coveredAfter | 383 |
 | publicByDesign | 10 |
-| gap | 106 |
+| gap | 105 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -321,9 +321,9 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`careers/admin` PATCH](../../src/app/api/careers/admin/route.ts#L14) | session, body | getSessionUser L4, assertOrganizationRole L5, getAccess L5, enforceSameOriginMutation L7 | body.organizationId L23 | NO VALID METHOD PROOF | **GAP** |
 | [`careers` GET](../../src/app/api/careers/route.ts#L26) | query | enforceSameOriginMutation L5, enforceSameOriginMutation L57 | searchParams.get("organizationId") L32, body.organizationId L63 | NO VALID METHOD PROOF | **GAP** |
 | [`careers` POST](../../src/app/api/careers/route.ts#L51) | query | enforceSameOriginMutation L5, enforceSameOriginMutation L57 | searchParams.get("organizationId") L32, body.organizationId L63 | NO VALID METHOD PROOF | **GAP** |
-| [`compensation` GET](../../src/app/api/compensation/route.ts#L242) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | NO VALID METHOD PROOF | **GAP** |
-| [`compensation` POST](../../src/app/api/compensation/route.ts#L472) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | NO VALID METHOD PROOF | **GAP** |
-| [`compensation` PATCH](../../src/app/api/compensation/route.ts#L825) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [family row](../../scripts/qa/tenant-table-rows/write/compensation.mjs#L46) | **COVERED** |
+| [`compensation` GET](../../src/app/api/compensation/route.ts#L242) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | [High-risk batch-01 own/victim PG16 proof](../../scripts/qa/tenant-high-risk-01-http.mjs#L275) | **COVERED** |
+| [`compensation` POST](../../src/app/api/compensation/route.ts#L472) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [family row](../../scripts/qa/tenant-table-rows/write/compensation.mjs#L30) | **COVERED** |
+| [`compensation` PATCH](../../src/app/api/compensation/route.ts#L825) | session, query, body | getSessionUser L22, assertOrganizationRole L24, assertScope L24, getAccess L24 | input.organizationId L204, input.organizationId L216, searchParams.get("organizationId") L245 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [family row](../../scripts/qa/tenant-table-rows/write/compensation.mjs#L49) | **COVERED** |
 | [`compliance/audit-chain` GET](../../src/app/api/compliance/audit-chain/route.ts#L9) | session, query | assertOrganizationRole L1, getAccess L1, getSessionUser L2, getSessionUser L10 | searchParams.get("organizationId") L13 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/compliance.mjs#L18) | **COVERED** |
 | [`compliance/bank-validations/[id]/file` GET](../../src/app/api/compliance/bank-validations/[id]/file/route.ts#L18) | session, query | assertOrganizationRole L5, assertOrganizationUnitAccess L6, getSessionUser L13, getSessionUser L22 | searchParams.get("organizationId") L26 | [bank HTTP proof](../../scripts/qa/bank-tenant-http.mjs#L75) | **COVERED (exact-head CI required)** |
 | [`compliance/bank-validations/[id]` PATCH](../../src/app/api/compliance/bank-validations/[id]/route.ts#L21) | session, body | assertOrganizationRole L2, getSessionUser L11, enforceSameOriginMutation L14, enforceSameOriginMutation L25 | body.organizationId L39 | [bank HTTP proof](../../scripts/qa/bank-tenant-http.mjs#L91) | **COVERED (exact-head CI required)** |
