@@ -20337,7 +20337,7 @@
       ]
     },
     "src/app/api/payout-profiles/route.ts": {
-      "gitBlobSha": "91d402d92ea03e66fa56951fef09187001f5f3ed",
+      "gitBlobSha": "087457e69765c38f76c1d66e01c895351e2a5dc0",
       "route": "payout-profiles",
       "methods": [
         {
@@ -20359,8 +20359,24 @@
           "name": "PATCH",
           "line": 138,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: payout-profile PATCH now makes profile and organization audit transactional and hides SQL failures, with fictional PG16 two-attacker HTTP and injected audit-failure candidate; method credit awaits independent review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "payout-profile-PATCH-atomic-audit-and-foreign-denial-PG16-zero-credit",
+            "originalRouteBlobSha": "91d402d92ea03e66fa56951fef09187001f5f3ed",
+            "routeBlobSha": "087457e69765c38f76c1d66e01c895351e2a5dc0",
+            "priorGetPrefixFnv64": "4417b941777ae2cd",
+            "proofFile": "scripts/qa/tenant-payout-profiles-patch-http.mjs",
+            "proofBlobSha": "ad51a1be9b47a59bd458c207391412dc03d52ec1",
+            "contractFile": "tests/tenant-payout-profiles-patch-audit.test.mjs",
+            "contractBlobSha": "3304e1ef98bac98399eaabdb65981074b7fb64d7",
+            "workflowFile": ".github/workflows/tenant-payout-profiles-patch-http.yml",
+            "workflowBlobSha": "d96c7761993fb5ed40414250ed7d717411bef217",
+            "credits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
