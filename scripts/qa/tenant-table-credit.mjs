@@ -29,6 +29,12 @@ if (process.argv.includes("--clock")) {
   process.exit(0);
 }
 
+if (process.argv.includes("--onboarding")) {
+  const { credit } = await import("./tenant-onboarding-credit.mjs");
+  credit(process.argv.slice(2));
+  process.exit(0);
+}
+
 if (process.argv.includes("--performance-core")) {
   const { credit } = await import("./tenant-performance-core-credit.mjs");
   credit(process.argv.slice(2));

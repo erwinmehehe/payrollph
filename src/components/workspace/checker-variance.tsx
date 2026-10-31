@@ -17,6 +17,10 @@ import type { PayrollRun, Task } from "./types";
 import { money, Spinner, Status } from "./ui";
 import { readVerifiedPayrollCheckerVariance, type VerifiedVariancePayload } from "@/lib/payroll-checker-variance-read";
 import type { PayrollVarianceCategory } from "@/lib/payroll-variance";
+import {
+  selectPayrollVarianceRows,
+  type PayrollVarianceMateriality, type PayrollVarianceSort,
+} from "@/lib/payroll-variance-explorer";
 
 type Category = PayrollVarianceCategory;
 type VariancePayload = VerifiedVariancePayload;
@@ -86,6 +90,8 @@ function CheckerVarianceContent({
   const error = current?.error ?? "";
   const loading = current === null;
   const [filter, setFilter] = useState<Category | "all">("all");
+  const [materiality, setMateriality] = useState<PayrollVarianceMateriality>("all");
+  const [sort, setSort] = useState<PayrollVarianceSort>("source");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -108,8 +114,8 @@ function CheckerVarianceContent({
   }, [organizationId, run, scopeKey]);
 
   const visibleRows = useMemo(
-    () => payload?.rows.filter((row) => filter === "all" || row.categories.includes(filter)) ?? [],
-    [payload, filter],
+    () => payload ? selectPayrollVarianceRows(payload.rows, filter, materiality, sort) : [],
+    [payload, filter, materiality, sort],
   );
 
   function toggle(employeeId: number) {
@@ -202,6 +208,34 @@ function CheckerVarianceContent({
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+              Absolute net change
+              <select value={materiality}
+                onChange={(event) => setMateriality(event.target.value as PayrollVarianceMateriality)}
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
+                <option value="all">All stored changes</option>
+                <option value="at_least_100">At least ₱100</option>
+                <option value="at_least_1000">At least ₱1,000</option>
+                <option value="no_prior">No prior comparison</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+              Display order
+              <select value={sort} onChange={(event) => setSort(event.target.value as PayrollVarianceSort)}
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
+                <option value="source">Source order</option>
+                <option value="largest_net_change">Largest net change</option>
+                <option value="employee">Employee name</option>
+              </select>
+            </label>
+            <p className="max-w-lg text-xs leading-5 text-slate-600">
+              Showing {visibleRows.length} of {payload.rows.length} verified changed-employee rows.
+              Thresholds apply only to comparable stored net deltas. No-prior entries have no calculated delta.
+              This display never recalculates payroll or changes checker approval rules.
+            </p>
           </div>
 
           <div className="checker-variance-list">
