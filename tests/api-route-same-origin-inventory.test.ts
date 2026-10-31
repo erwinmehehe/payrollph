@@ -14,6 +14,9 @@ const API = "src/app/api";
 const AUTHORIZED_NO_COOKIE_MUTATIONS: Record<string, string> = {
   "src/app/api/auth/saml/acs/[providerId]/route.ts": "SAML_RUNTIME_NOT_READY",
   "src/app/api/hcm/work-items/escalate/route.ts": "timingSafeEqual",
+  // Worker-to-worker only: these global jobs have no browser-session fallback.
+  "src/app/api/jobs/tick/route.ts": "requireGlobalWorkerToken",
+  "src/app/api/webhooks/drain/route.ts": "requireGlobalWorkerToken",
   "src/app/api/scim/v2/Users/route.ts": "authenticateScim",
   "src/app/api/scim/v2/Users/[id]/route.ts": "authenticateScim",
   "src/app/api/v1/employees/route.ts": "authenticateApiKey",
