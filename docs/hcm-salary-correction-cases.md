@@ -53,14 +53,18 @@ company-wide access):
 
 - `GET ?organizationId=` lists cases with their runs and linked request status
   (payroll view roles). With multi-entity governance enabled, pass `legalEntityId`
-  (or use the authorized selected employer); only that legal employer's cases
-  are returned, and group-level aggregate access is denied.
+  (or omit it to use the currently authorized employer selection/preference);
+  only that legal employer's cases are returned, and group-level aggregate
+  access is denied. Omitting the query key is **not** a request for `all`;
+  duplicate or contradictory query/header selectors remain denied.
 - `POST` opens a case: `organizationId, legalEntityId, employeeId,
   effectiveDate, correctedPayBasis, correctedRateAmount, evidenceReference,
   reason, idempotencyKey, expectedLatestRevisionId?` (payroll operator roles).
 - `PATCH` with `organizationId, caseId, action` (include the authorized
   `legalEntityId` selector when working across legal employers). The server
-  verifies the **actual stored case employer** before allowing any action:
+  looks up the case ID **within the authorized selected legal employer**
+  before allowing any action. A case in another employer is indistinguishable
+  from a missing case; feature-OFF legacy behavior is unchanged:
   - maker (payroll operator roles, and only the person who opened the case for edits):
     `link_underpayment` (`caseRunId, underpaymentRequestId`),
     `mark_no_shortfall` (`caseRunId, reason`), `clear_run` (`caseRunId`),
@@ -85,4 +89,10 @@ company-wide access):
   database), cancellation and link reuse, rollback and audit.
 - `scripts/qa/salary-correction-case-tenant-proof.mjs`: real HTTP against a
   flag-on server with two attacker employers and a victim employer.
-- Both run in `.github/workflows/salary-correction-cases-qa.yml`.
+- `tests/hcm-salary-correction-entity-scope.test.mjs` pins GET's absent-selector
+  handling and pre-lookup legal-employer-scoped PATCH case resolution.
+- `tests/hcm-salary-correction-selector-regression.test.ts` exercises implicit
+  granted-employer selection and rejects foreign, duplicate and conflicting
+  explicit selectors without accessing employer or payroll data.
+- The dedicated QA workflow runs the route/selector tests, PostgreSQL case
+  tests and isolated HTTP proof. Source-only tests do not certify production.
