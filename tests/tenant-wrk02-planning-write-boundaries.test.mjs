@@ -162,7 +162,7 @@ test("employee transfer atomically matches employer, assignment, unit and target
   ["eq(positionAssignments.organizationId, organizationId)"]), /missing/);
 });
 
-test("this source-only WRK-02 slice earns zero manifest credits", () => {
+test("only the two methods with executed HTTP proof are credited; the rest of this WRK-02 slice stays at zero credit", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const statuses = [
     [FILES.scenarios, ["GET", "POST", "PATCH"]],
@@ -176,6 +176,11 @@ test("this source-only WRK-02 slice earns zero manifest credits", () => {
       if (method.name === "GET") {
         assert.equal(method.status, "COVERED", path + " old GET proof retained");
         assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs");
+      } else if ((path === FILES.transfer && method.name === "POST") || (path === FILES.scenarios && method.name === "PATCH")) {
+        // These two now have real two-attacker PG16 HTTP proof through the write table (all movement types; scenario submission).
+        assert.equal(method.status, "COVERED", path + " " + method.name + " is credited by its own executed row");
+        assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/workforce-planning.mjs");
+        assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
       } else {
         assert.equal(method.status, "GAP", path + " does not gain proof credit");
         assert.equal(method.testedBy, null);

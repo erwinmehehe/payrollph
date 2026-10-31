@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { disciplinaryCases, employees } from "@/db/schema";
+import { disciplinaryCases, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -35,7 +35,10 @@ export async function GET(request: Request) {
     employee: employees,
   })
     .from(disciplinaryCases)
-    .innerJoin(employees, eq(disciplinaryCases.employeeId, employees.id))
+    .innerJoin(employees, and(
+      eq(disciplinaryCases.employeeId, employees.id),
+      eq(disciplinaryCases.organizationId, employees.organizationId),
+    ))
     .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
     .orderBy(desc(disciplinaryCases.id));
 
@@ -122,8 +125,19 @@ export async function PATCH(request: Request) {
 
   if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
 
-  const [discCase] = await db.select().from(disciplinaryCases).where(eq(disciplinaryCases.id, id)).limit(1);
-  if (!discCase) return Response.json({ error: "Disciplinary case not found." }, { status: 404 });
+  // Find an ID-only target only within the caller's ACTIVE employer memberships.
+  // A real foreign case and a nonexistent case must have the same denial.
+  const [membershipBoundCase] = await db.select({ discCase: disciplinaryCases })
+    .from(disciplinaryCases)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.userId, user.id),
+      eq(userOrganizations.organizationId, disciplinaryCases.organizationId),
+      eq(userOrganizations.active, true),
+    ))
+    .where(eq(disciplinaryCases.id, id))
+    .limit(1);
+  const discCase = membershipBoundCase?.discCase;
+  if (!discCase) return Response.json({ error: "Disciplinary case unavailable." }, { status: 403 });
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -149,7 +163,12 @@ export async function PATCH(request: Request) {
       employeeExplanation: explanation,
       explanationSubmittedAt: new Date(),
       status: "explanation_submitted",
-    }).where(eq(disciplinaryCases.id, id)).returning();
+    }).where(and(
+      eq(disciplinaryCases.id, id),
+      eq(disciplinaryCases.organizationId, discCase.organizationId),
+      eq(disciplinaryCases.employeeId, discCase.employeeId),
+    )).returning();
+    if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
     await recordAuditEvent({
       organizationId: discCase.organizationId,
@@ -169,7 +188,12 @@ export async function PATCH(request: Request) {
     const [updated] = await db.update(disciplinaryCases).set({
       hearingDate: new Date(hearingDateStr),
       status: "hearing_scheduled",
-    }).where(eq(disciplinaryCases.id, id)).returning();
+    }).where(and(
+      eq(disciplinaryCases.id, id),
+      eq(disciplinaryCases.organizationId, discCase.organizationId),
+      eq(disciplinaryCases.employeeId, discCase.employeeId),
+    )).returning();
+    if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
     await recordAuditEvent({
       organizationId: discCase.organizationId,
@@ -193,7 +217,12 @@ export async function PATCH(request: Request) {
       penalty,
       nodIssuedAt: new Date(),
       status: "nod_issued",
-    }).where(eq(disciplinaryCases.id, id)).returning();
+    }).where(and(
+      eq(disciplinaryCases.id, id),
+      eq(disciplinaryCases.organizationId, discCase.organizationId),
+      eq(disciplinaryCases.employeeId, discCase.employeeId),
+    )).returning();
+    if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
     await recordAuditEvent({
       organizationId: discCase.organizationId,
@@ -209,7 +238,12 @@ export async function PATCH(request: Request) {
   if (action === "close") {
     const [updated] = await db.update(disciplinaryCases).set({
       status: "closed",
-    }).where(eq(disciplinaryCases.id, id)).returning();
+    }).where(and(
+      eq(disciplinaryCases.id, id),
+      eq(disciplinaryCases.organizationId, discCase.organizationId),
+      eq(disciplinaryCases.employeeId, discCase.employeeId),
+    )).returning();
+    if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
     return Response.json(updated);
   }
