@@ -102,15 +102,22 @@ test("refusal fixture uses real returned proposal, band and cycle IDs scoped to 
   assert.ok(member && member.row.userId === extras.adminId, "the second admin is a member of the own employer only");
 });
 
-test("Compensation targets are unique; PATCH is credited only because every action is executed, POST stays GAP", () => {
+test("POST and PATCH compensation preserve separate complete-action evidence", () => {
   const catalog = tenantFamilyCatalog("write"), manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const row of rows) {
     assert.equal(catalog.filter(item => item.key === row.key).length, 1);
     const [method, route] = row.key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
-    assert.equal(record.methods.find(item => item.name === method).status, method === "PATCH" ? "COVERED" : "GAP");
+    const entry = record.methods.find(item => item.name === method);
+    assert.equal(entry.status, "COVERED", row.key + " requires independent proof");
+    assert.equal(entry.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/compensation.mjs");
+    assert.equal(typeof row.exercise, "function", row.key + " requires complete own-action exercise");
   }
-  assert.equal(typeof rows[1].exercise, "function", "the PATCH row executes the additional actions");
-  assert.equal(rows[0].exercise, undefined);
+  const post = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-post-actions.mjs", "utf8");
+  for (const type of ["cycle", "band", "component_assignment", "proposal"])
+    assert.ok(post.includes('entityType: "' + type + '"'), type + " must be exercised");
+  const patch = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-patch-actions.mjs", "utf8");
+  assert.ok(patch.includes('e.seeded?.["POST compensation"]'), "reuse existing primary worker assignment");
+  assert.ok(patch.includes("reusedPostFixture"), "reuse existing salary band");
 });
 
 test("PATCH proof executes every assignment action and every proposal decision with forged-employer and maker-checker refusals", () => {
@@ -119,4 +126,15 @@ test("PATCH proof executes every assignment action and every proposal decision w
     'for (const decision of ["approved", "cancel", "retry"])', 'maker-checker: the requester approving their own component', 'maker-checker: the submitter approving their own proposal',
     'victimBefore', 'not_due', 'salary_change_scheduled', 'component_scheduled']) assert.ok(source.includes(needle), needle);
   assert.ok(source.includes('effectiveDate: "2098-" + month') && source.includes('effectiveFrom: "2099-03-01"'), "pay changes are scheduled in the far future, never applied");
+});
+
+test("POST compensation grade seed cannot collide with root workforce-planning in the shared write suite", () => {
+  const compensation = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-post-actions.mjs", "utf8");
+  const planning = readFileSync("scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs", "utf8");
+  const compensationGrade = compensation.match(/db\.insert\(t\.jobGrades\)\.values\(\{[^\n]*name: e\.marker \+ "([^"]+)"/)?.[1];
+  const planningGrade = planning.match(/post\("job_grade", \{[^\n]*name: c\.marker \+ "([^"]+)"/)?.[1];
+  assert.ok(compensationGrade, "compensation fixture must name its seeded job grade");
+  assert.ok(planningGrade, "workforce-planning fixture must name its created job grade");
+  assert.notEqual(compensationGrade, planningGrade,
+    "shared default PG16 suite must not create duplicate organization-scoped job grade names");
 });
