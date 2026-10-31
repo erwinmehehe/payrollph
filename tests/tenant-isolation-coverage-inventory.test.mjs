@@ -1,4 +1,5 @@
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
+import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
@@ -81,6 +82,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const proof = method.testedBy;
     assert.ok(proof && typeof proof === "object", key + ": COVERED requires a valid proof reference");
     evidenceLine(proof.file, proof.line, key);
+    if (proof.file === "scripts/qa/tenant-onboarding-http.mjs") {
+      const route = manifest.allApiRouteFiles[key.slice(0, key.lastIndexOf(" "))].route;
+      verifyOnboardingCredit(method.name + " " + route, method);
+    }
   if (isNewOrChanged) {
       // Newly introduced or changed code cannot borrow a single anonymous/invalid-request
       // status assertion as proof of actual cross-employer isolation.
@@ -2024,6 +2029,14 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(workflow, /env -u NODE_ENV node --import tsx scripts\/qa\/tenant-clock-http.mjs/);
         continue; // Five exact source-bound methods, never the older one-action receipt.
       }
+      if (proof?.file === "scripts/qa/tenant-onboarding-http.mjs") {
+        verifyOnboardingCredit(method.name + " " + entry.route, method);
+        const workflow = readFileSync(".github/workflows/tenant-onboarding-http.yml", "utf8");
+        assert.match(workflow, /profile: \[legacy, preview\]/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /env -u NODE_ENV node --import tsx scripts\/qa\/tenant-onboarding-http.mjs/);
+        continue; // Exactly four executed, source-bound methods; not a generic allowlist.
+      }
       if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
         assert.equal(verifyPost1523Credits(manifest), 3);
         continue; // Exactly three independently source-pinned methods.
@@ -2692,6 +2705,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.verifiedPrHeadSha, "fdfd1059ede7521662c7c5bc9217eaba885a348d");
         assert.equal(proof.workflowRunId, 40915010977);
         assert.equal(proof.workflowJobId, 123592788790);
+        continue;
+      }
+      // Worksites POST: only this method may claim the ten-action proof file. Anchors, blob pins and the action list
+      // are checked by the dedicated worksites test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-worksites-actions-http.mjs") {
+        assert.equal(path, "src/app/api/workforce/worksites/route.ts", "No unrelated route may reuse the worksites all-action evidence");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "da9782c1685578f601d69c5dcdfd97283e7c1ec1");
+        assert.equal(proof.workflowRunId, 41067962478);
+        assert.equal(proof.workflowJobId, 124104301803);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
@@ -3670,6 +3695,99 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(reviewed.credits, 0, "No page or API credit from feature-ON GET-only proof");
         continue; // Deliberate exact-source, zero-credit GAP exception, not blanket certification.
       }
+      // #1631 billing setup PAGE: exact-source, real-HTTP PG16 synthetic
+      // proof candidate. Like #1557, this remains a GAP until independent
+      // review; changing the page may never silently become a coverage credit.
+      if (path === "src/app/billing/setup/page.tsx") {
+        assert.equal(entry.status, "GAP", "No unreviewed billing page promotion");
+        assert.equal(entry.testedBy, undefined, "A proof candidate is not a coverage credit");
+        const reviewed = entry.reviewedUncertified;
+        const originalPageBlobSha = "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381";
+        const pageBlobSha = "c5830a95d2c13063c43a36629690010220d99d31";
+        assert.equal(current, pageBlobSha, "Billing page changed; renew tenant review");
+        assert.deepEqual(reviewed, {
+          kind: "billing-setup-SSR-GET-PG16-unaccepted",
+          originalPageBlobSha, pageBlobSha,
+          proofFile: "scripts/qa/tenant-billing-setup-page-http.mjs",
+          proofBlobSha: "d0047d905a95ef6c33d63065d3404db114b102f3",
+          contractTestFile: "tests/tenant-billing-setup-boundary.test.mjs",
+          contractTestBlobSha: "b31437f6707036393404cc8ddad824dee56fd58d",
+          workflowFile: ".github/workflows/tenant-billing-setup-page-qa.yml",
+          workflowBlobSha: "a2b3bbe665e27d973d491426d9109853958ff425",
+          ownPageLine: 153, foreignPageLine: 161, revokedPageLine: 206,
+          unchangedDbLine: 210,
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only this exact uncredited PG16 billing page proof is allowed");
+        assert.match(entry.reason, /^Still GAP: #1631/);
+        assert.equal(entry.blob, pageBlobSha);
+        assert.equal(baseline.app[path], originalPageBlobSha);
+        for (const [file, sha] of [
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Billing proof changed without renewed review: " + file);
+        }
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          const sourceLines = actual.split("\n");
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": incorrect exact source line " + pin.line);
+          }
+        }
+        const session = actual.indexOf("await getSessionUser()");
+        const selector = actual.indexOf("const selected = params.organizationId");
+        const role = actual.indexOf("await assertOrganizationRole(");
+        const scope = actual.indexOf("await getAccess(");
+        const employer = actual.indexOf("await db.select(");
+        const render = actual.indexOf("<SubscriptionManager");
+        assert.ok(0 < session && session < selector && selector < role &&
+          role < scope && scope < employer && employer < render,
+          "Billing page must authenticate, select, authorize and scope before employer SSR read");
+        for (const required of [
+          'typeof selected === "string"', '/^[1-9]\\d*$/.test(selected)',
+          "Number.isSafeInteger(Number(selected))",
+          "primaryCompanyOrganizationId(user.id)",
+          "BILLING_ADMIN_ROLES", "if (denied) notFound();",
+          "if (!access?.companyWide) notFound();", "if (!org) notFound();",
+          "companyName={org.name}", "dynamic = \"force-dynamic\"",
+        ]) assert.ok(actual.includes(required),
+          "Billing page tenant gate missing: " + required);
+
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        const proofLines = proof.split("\n");
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+          /assertOwnBillingPage\(await readLocal\(ownPath\(actor\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+          /assertDeniedBillingPage\(denied, subjects/);
+        assert.match(proofLines[reviewed.foreignPageLine - 2] ?? "",
+          /readLocal\(ownPath\(other\.org\.id\), actor\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedPageLine, path),
+          /assertDeniedBillingPage\(await readLocal\(ownPath\(a\.org\.id\), a\.cookie\)/);
+        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+          /assert\.deepEqual\(await snapshot\(other\.org\.id\), before\.get\(other\.org\.id\)/);
+        assert.ok(proof.indexOf("requireDisposableBillingPageEnv();") > 0 &&
+          proof.indexOf("requireDisposableBillingPageEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "Billing CI environment hard refusal must precede importing the app database");
+        for (const required of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          "for (const actor of [a, b])", "assert.equal(ownSuccesses, 2)",
+          "assert.equal(foreignDenials, 4)", "assert.equal(revoked.length, 1",
+          "assert.equal(stillSignedIn.status, 200", "assert.deepEqual(",
+          "pageCredits: 0, methodCredits: 0", "productionCertified: false",
+        ]) assert.ok(proof.includes(required),
+          "Billing PG16 negative control missing: " + required);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-billing-setup-page-http\.mjs/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.equal(reviewed.credits, 0);
+        continue; // Narrow exact-source, zero-credit GAP evidence exception.
+      }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
       if (entry.status === "COVERED") {
@@ -3830,4 +3948,50 @@ test("roster-batches POST credit requires independent HTTP stage, replay, approv
   }
   assert.match(evidenceLine(legacyFile, proof.legacyRejectLine, "positive reject"),
     /const victimReject = await reject\(victim, victim\.orgId, victim\.batchId\)/);
+});
+
+test("worksites POST credit requires every one of the ten actions, both attackers, the victim and the pilot-off employer", async () => {
+  const routePath = "src/app/api/workforce/worksites/route.ts";
+  const api = manifest.allApiRouteFiles[routePath];
+  const post = api.methods.find(method => method.name === "POST");
+  assert.equal(api.methods.find(method => method.name === "GET").status, "COVERED", "the separate GET proof is preserved");
+  const harnessFile = "scripts/qa/tenant-worksites-actions-http.mjs";
+  const { WORKSITE_ACTIONS } = await import("../scripts/qa/tenant-worksites-actions-contract.mjs");
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-worksites-actions-http.yml", "utf8");
+  const routeActions = new Set([...readFileSync(routePath, "utf8").matchAll(/action === "([a-z_]+)"/g)].map(match => match[1]));
+  for (const action of routeActions) assert.ok(WORKSITE_ACTIONS.includes(action), "the route gained an action the proof does not cover: " + action);
+  assert.equal(WORKSITE_ACTIONS.length, 10);
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-worksites-actions-http\.mjs/);
+  assert.equal(post.status, "COVERED");
+  const proof = post.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.deepEqual(proof.methodActions, [...WORKSITE_ACTIONS]);
+  assert.equal(proof.postgresMajor, 16);
+  assert.match(proof.runLabel, /^GitHub Actions \d+\/\d+ PG16 all actions PASS$/);
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; the proof must be re-run and re-credited");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-worksites-actions-contract.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(readFileSync(routePath)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  const anchors = {
+    ownPositiveLine: /await allowed\(actor, createBody\(actor\.org\.id, "NEW-"/,
+    foreignDenialLine: /await refused\(actor, createBody\(victim\.org\.id, "FOREIGN-"/,
+    forgedSelectorLine: /await refused\(actor, assignBody\(actor\.org\.id, victim\.worker\.id, actor\.site1\.id\)/,
+    unchangedDbLine: /for \(const e of subjects\) assertImmutableWorksiteSql\(before\.get\(e\.org\.id\)/,
+    victimIdOrderingLine: /assert\.ok\(victim\.org\.id > Math\.max\(/,
+  };
+  for (const [field, pattern] of Object.entries(anchors)) assert.match(evidenceLine(harnessFile, proof[field], field), pattern, field);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  assert.deepEqual(Object.keys(proof.actionOwnLines), [...WORKSITE_ACTIONS], "every action has its own cited own-success line");
+  for (const [action, number] of Object.entries(proof.actionOwnLines)) {
+    assert.match(evidenceLine(harnessFile, number, action), /await allowed\(actor, /, action + " must cite a real own write");
+    assert.ok(evidenceLine(harnessFile, number, action).includes("own " + action), action + " line must name its own action");
+  }
+  for (const evidence of ["for (const actor of attackers)", "victim.seedAuthorization.id", "assertImmutableWorksiteSql(before.get(other.org.id)",
+    "non-allowlisted employer \" + action", "requireDisposableWorksiteActions();"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposableWorksiteActions();") < harness.indexOf('import("../../src/db/index.ts")'),
+    "the fail-closed guard must run before any database import");
 });

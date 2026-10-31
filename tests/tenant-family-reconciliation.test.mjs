@@ -132,9 +132,12 @@ test("PR #1402 preserves fourteen independent proof receipts and the incomplete 
   }
   assert.equal(credited, 14);
   const worksite = manifest.allApiRouteFiles["src/app/api/workforce/worksites/route.ts"].methods.find(m => m.name === "POST");
-  assert.equal(worksite.status, "GAP", "create_worksite alone cannot certify the whole POST handler");
-  assert.equal(worksite.testedBy, null, "no method-level credit for a partially exercised handler");
-  assert.match(worksite.reason, /create_worksite/);
+  // create_worksite alone still cannot certify the handler: the credit exists only through the separate ten-action
+  // proof (never the table row), and the table credit script keeps refusing this key.
+  assert.equal(worksite.status, "COVERED");
+  assert.equal(worksite.testedBy.file, "scripts/qa/tenant-worksites-actions-http.mjs", "only the all-action proof may credit this handler");
+  assert.equal(worksite.testedBy.methodActions.length, 10);
+  assert.equal(worksite.testedBy.rowFile, undefined, "the table row must not be the source of this credit");
 });
 
 test("ESS overview records match the merged, source-pinned method-level manifest", () => {
