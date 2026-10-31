@@ -11,7 +11,7 @@ const tables = async () => (schema ??= await import("../../../../src/db/schema.t
 /** Called from the row's seed: a grade, a graded job profile, a component and a primary position for the seeded worker. */
 export async function seedCompensation({ db, jobProfiles }, e) {
   const t = await tables();
-  const [grade] = await db.insert(t.jobGrades).values({ organizationId: e.org.id, code: ("G" + e.marker).slice(-38).toUpperCase(), name: e.marker + " grade" }).returning();
+  const [grade] = await db.insert(t.jobGrades).values({ organizationId: e.org.id, code: ("G" + e.marker).slice(-38).toUpperCase(), name: e.marker + " compensation seed grade" }).returning();
   const [profile] = await db.insert(jobProfiles).values({ organizationId: e.org.id, title: e.marker + " compensation profile", gradeId: grade.id }).returning();
   const [component] = await db.insert(t.compensationComponents).values({ organizationId: e.org.id, code: ("SEED" + e.marker).slice(-38).toUpperCase(),
     name: e.marker + " seeded component", kind: "allowance", amountFrequency: "monthly" }).returning();

@@ -127,3 +127,14 @@ test("PATCH proof executes every assignment action and every proposal decision w
     'victimBefore', 'not_due', 'salary_change_scheduled', 'component_scheduled']) assert.ok(source.includes(needle), needle);
   assert.ok(source.includes('effectiveDate: "2098-" + month') && source.includes('effectiveFrom: "2099-03-01"'), "pay changes are scheduled in the far future, never applied");
 });
+
+test("POST compensation grade seed cannot collide with root workforce-planning in the shared write suite", () => {
+  const compensation = readFileSync("scripts/qa/tenant-table-rows/helpers/compensation-post-actions.mjs", "utf8");
+  const planning = readFileSync("scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs", "utf8");
+  const compensationGrade = compensation.match(/db\.insert\(t\.jobGrades\)\.values\(\{[^\n]*name: e\.marker \+ "([^"]+)"/)?.[1];
+  const planningGrade = planning.match(/post\("job_grade", \{[^\n]*name: c\.marker \+ "([^"]+)"/)?.[1];
+  assert.ok(compensationGrade, "compensation fixture must name its seeded job grade");
+  assert.ok(planningGrade, "workforce-planning fixture must name its created job grade");
+  assert.notEqual(compensationGrade, planningGrade,
+    "shared default PG16 suite must not create duplicate organization-scoped job grade names");
+});
