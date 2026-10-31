@@ -18808,7 +18808,7 @@
       "businessIds": []
     },
     "src/app/api/migrations/route.ts": {
-      "gitBlobSha": "5484aba4bdc08351e05f5741f1e8c785919b53fb",
+      "gitBlobSha": "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
       "route": "migrations",
       "methods": [
         {
@@ -18832,8 +18832,19 @@
           "name": "POST",
           "line": 107,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: migrations POST now defers compatibility DDL until authorized and commits legacy payroll/leave/loan import, scoped final writes and audit in one transaction. Source contract only, real PG16 tenant proof/review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "migrations-POST-historical-import-atomic-source-only",
+            "priorRouteBlobSha": "5484aba4bdc08351e05f5741f1e8c785919b53fb",
+            "routeBlobSha": "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
+            "contractFile": "tests/tenant-migrations-post-atomic-history.test.mjs",
+            "contractBlobSha": "5ce4fd9d5ff5d1cfac511efc790e3b0a1fa8957d",
+            "credits": 0,
+            "actualPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

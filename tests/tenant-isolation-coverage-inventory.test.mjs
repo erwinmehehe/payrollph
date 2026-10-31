@@ -1946,6 +1946,33 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  if (isNewOrChanged && key === "src/app/api/migrations/route.ts POST") {
+    const expected = {
+      kind: "migrations-POST-historical-import-atomic-source-only",
+      priorRouteBlobSha: "5484aba4bdc08351e05f5741f1e8c785919b53fb", routeBlobSha: "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
+      contractFile: "tests/tenant-migrations-post-atomic-history.test.mjs", contractBlobSha: "5ce4fd9d5ff5d1cfac511efc790e3b0a1fa8957d",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/migrations/route.ts", "utf8")
+      .split("export async function POST")[1];
+    for (const token of [
+      "const batch = await db.transaction(async (tx) => {",
+      "setWhere: eq(leaveBalances.organizationId, organizationId)",
+      "eq(employeeLoans.organizationId, organizationId)",
+      "await recordAuditEvent({",
+      "}, tx);",
+    ]) assert.ok(post.includes(token), "Missing migrations final write guard: " + token);
+    assert.ok(post.indexOf("const denied = await assertOrganizationRole(") <
+      post.indexOf("await ensureCoreCompatibilitySchema()"));
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
