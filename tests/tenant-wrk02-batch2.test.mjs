@@ -118,7 +118,7 @@ test("Real HTTP proof demands owned 201s, victim 403/404, race and nonmutating s
     "victim.baseline.id >",
     "victim.execution.id >",
     "assertStoredOwnedPlanning(response, row",
-    'await request(BASELINE, { method: "POST"',
+    'request(BASELINE, { method: "POST"',
     "const racing = await Promise.all(",
     "racing.map(x => x.status).sort((x, y) => x - y), [201, 409]",
     "assert.equal(alphaAll.length, 1",
