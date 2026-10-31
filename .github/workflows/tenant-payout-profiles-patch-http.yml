@@ -1,0 +1,108 @@
+name: Payout profile PATCH tenant/audit atomic proof (fictional PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/payout-profiles/route.ts"
+      - "tests/tenant-payout-profiles-patch-audit.test.mjs"
+      - "scripts/qa/tenant-payout-profiles-patch-http.mjs"
+      - "tests/tenant-isolation-coverage-inventory.test.mjs"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - ".github/workflows/tenant-payout-profiles-patch-http.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payout-profile-patch-tenant
+  cancel-in-progress: true
+
+jobs:
+  payout-profile-write-tenant:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      TENANT_SECOND_PASS_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Contract tests and source syntax (zero coverage credits)
+        run: |
+          node --check scripts/qa/tenant-payout-profiles-patch-http.mjs
+          node --test tests/tenant-payout-profiles-patch-audit.test.mjs
+      - name: Generate fictional-only encryption secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            secret="$(openssl rand -hex 32)"
+            echo "::add-mask::$secret"
+            printf '%s=%s\n' "$key" "$secret" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline on empty CI database
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build protected production-mode Next on fictional schema
+        run: npm run build
+      - name: Real own/foreign PATCH and injected audit-failure rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1 > /tmp/payout-profile-patch-ci.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..60}; do
+            if curl -fsS "http://127.0.0.1:3000/login" >/dev/null; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo "Disposable payout profile test server unavailable"
+            tail -n 40 /tmp/payout-profile-patch-ci.log
+            exit 1
+          fi
+          node --import tsx scripts/qa/tenant-payout-profiles-patch-http.mjs
+      - name: Bounded application diagnostics on failure
+        if: failure()
+        run: |
+          if test -f /tmp/payout-profile-patch-ci.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/payout-profile-patch-ci.log | tail -n 35 | cut -c 1-200 || true
+          fi
