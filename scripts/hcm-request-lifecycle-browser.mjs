@@ -47,7 +47,7 @@ async function requestId(fragment, method = "GET") {
 async function complete(id, body, status = 200) { await page.evaluate(({id,body,status}) => window.complete(id,body,status), {id,body,status}); }
 async function visible(text) { await page.getByText(text, { exact: true }).waitFor(); }
 async function absent(text) { assert.equal(await page.getByText(text, { exact: true }).count(), 0, `Unexpected stale text: ${text}`); }
-function item(id, title) { return {id,title,detail:"",caseType:"follow_up",status:"open",ownerTeam:"HR Operations",ownerUserId:1,ownerName:"Synthetic owner",dueAt:null,escalateAt:null,escalationLevel:0,overdue:false}; }
+function item(id, title, organizationId) { return {id,organizationId,title,detail:"",caseType:"follow_up",status:"open",ownerTeam:"HR Operations",ownerUserId:1,ownerName:"Synthetic owner",dueAt:null,escalateAt:null,escalationLevel:0,overdue:false}; }
 
 function scopedTeam(organizationId, name = "SYNTHETIC_TEAM_WORKER") {
   return {
@@ -94,7 +94,9 @@ function scopedCalendar(organizationId, employeeName = "SYNTHETIC_LEAVE_WORKER")
 try {
   await page.goto(base + "/?organizationId=1");
   await page.evaluate(() => window.renderView("queue"));
-  await complete(await requestId("work-items?organizationId=1"), {items:[item(11,"Employer A case"),item(12,"Second A case")],owners:[{id:1,name:"Synthetic owner"}]});
+  // The synthetic API fixture must carry the employer ID that the real GET
+  // explicitly selects. Omitting it tests a malformed response, not an owned read.
+  await complete(await requestId("work-items?organizationId=1"), {items:[item(11,"Employer A case",1),item(12,"Second A case",1)],owners:[{id:1,name:"Synthetic owner"}]});
   await visible("Employer A case");
   await page.getByRole("button", {name:"Assign / SLA"}).first().click();
   const oldHistory = await requestId("caseId=11");
@@ -121,7 +123,7 @@ try {
   assert.equal(await page.getByRole("dialog").count(), 0);
   const tenantBRead = await requestId("work-items?organizationId=2");
   await complete(oldSave, {});
-  await complete(tenantBRead, {items:[item(21,"Employer B case")],owners:[]});
+  await complete(tenantBRead, {items:[item(21,"Employer B case",2)],owners:[]});
   await visible("Employer B case");
   assert.equal(await page.evaluate(() => window.pending.filter(r=>r.url.includes("work-items?organizationId=2")).length), 2, "StrictMode creates two reads; old save must not add another");
   await page.getByRole("button", {name:"Refresh",exact:true}).click();
