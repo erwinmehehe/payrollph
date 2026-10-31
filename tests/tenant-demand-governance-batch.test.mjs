@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createRows, fixtureDemandSha256 } from "../scripts/qa/tenant-table-rows/read/demand-governance.mjs";
+import { assertHistoricalDemandSourceCompatible } from "../scripts/qa/tenant-wfm-demand-overlay-history.mjs";
 
 const [issued, policy] = createRows({ assert });
 const marker = rank => "TTBL-ATT" + rank + "-fictional";
@@ -242,7 +243,14 @@ test("synthetic allowlists retain issued GET verified credit without borrowing d
   assert.equal(issuedMethod.testedBy?.workflowRunId, 40624976387);
   assert.equal(issuedMethod.testedBy?.verifiedMainCommit,
     "fe3ad8901bfa714d59639d9f59a13cf133eeab36");
-  assert.equal(issuedMethod.testedBy?.routeBlobSha, issuedRoute.gitBlobSha);
+  // #1514 certifies the ORIGINAL source, not this PR's reviewed GET-only
+  // permission overlay. Validate both pins and reconstruct historical code
+  // byte-for-byte so an altered POST or arbitrary GET edit fails closed.
+  assert.equal(issuedMethod.testedBy?.routeBlobSha,
+    "d9e6ae99e687b691ca428e58c6c34ff077769a41");
+  assert.equal(assertHistoricalDemandSourceCompatible(
+    "src/app/api/workforce/demand-observations/issued/route.ts", issuedRoute),
+    issuedMethod.testedBy.routeBlobSha);
 
   const policyRoute = manifest.allApiRouteFiles[
     "src/app/api/workforce/demand-staffing/policies/route.ts"];
