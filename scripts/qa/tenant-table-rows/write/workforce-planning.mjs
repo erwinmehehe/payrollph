@@ -1,8 +1,8 @@
 /**
  * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
- * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
- * employer's org unit as its scope (issue #1644). This candidate now exercises authenticated own/foreign/nonexistent
- * org-unit checks using two attackers and a higher-ID victim with unchanged DB/audit snapshots. Nothing touches payroll, schedules,
+ * from a published baseline, and scenario submission for approval. Scenario POST was previously excluded because
+ * an employer could forge another employer's org-unit scope (#1644). The candidate now checks signed-in own, foreign
+ * and nonexistent scopes using two attackers and a higher-ID victim with unchanged DB/audit snapshots. No payroll, schedules,
  * providers or money, and no approval is decided.
  */
 import { createHash } from "node:crypto";
