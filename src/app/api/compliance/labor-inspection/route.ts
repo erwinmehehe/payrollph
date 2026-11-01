@@ -103,30 +103,46 @@ export async function POST(request: Request) {
       updatedAt: new Date(),
     } as const;
 
-    const [record] = existing
-      ? await db.update(laborInspectionRemediations).set(values)
-          .where(eq(laborInspectionRemediations.id, existing.id)).returning()
-      : await db.insert(laborInspectionRemediations).values({
-          organizationId,
-          findingKey,
-          ...values,
-        }).returning();
+    // Keep the tenant-scoped remediation update and audit receipt atomic.
+    try {
+      const record = await db.transaction(async (tx) => {
+        const [updated] = existing
+          ? await tx.update(laborInspectionRemediations).set(values)
+              .where(and(
+                eq(laborInspectionRemediations.id, existing.id),
+                eq(laborInspectionRemediations.organizationId, organizationId),
+                eq(laborInspectionRemediations.findingKey, findingKey),
+                eq(laborInspectionRemediations.status, existing.status),
+              )).returning()
+          : await tx.insert(laborInspectionRemediations).values({
+              organizationId,
+              findingKey,
+              ...values,
+            }).returning();
+        if (!updated) throw new Error("LABOR_INSPECTION_CHANGED");
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: action === "acknowledge" ? "Labor inspection finding acknowledged" : "Labor inspection remediation owner assigned",
-      resource: finding.title,
-      metadata: {
-        findingKey,
-        ruleCode: finding.ruleCode,
-        owner,
-        snapshotHash: finding.snapshotHash,
-        exposureAmount: finding.exposureAmount,
-        exposureConfidence: finding.exposureConfidence,
-      },
-    });
-    return Response.json({ remediation: record });
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: action === "acknowledge" ? "Labor inspection finding acknowledged" : "Labor inspection remediation owner assigned",
+          resource: finding.title,
+          metadata: {
+            findingKey,
+            ruleCode: finding.ruleCode,
+            owner,
+            snapshotHash: finding.snapshotHash,
+            exposureAmount: finding.exposureAmount,
+            exposureConfidence: finding.exposureConfidence,
+          },
+        }, tx);
+        return updated;
+      });
+      return Response.json({ remediation: record });
+    } catch {
+      return Response.json({
+        error: "Remediation changed or could not be saved. Refresh and retry.",
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
   }
 
   if (action === "close") {
@@ -152,34 +168,45 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const [record] = await db.update(laborInspectionRemediations).set({
-      status: "resolved",
-      resolutionNote,
-      evidenceReference,
-      resolvedBy: user.name,
-      resolvedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(laborInspectionRemediations.id, existing.id),
-      eq(laborInspectionRemediations.organizationId, organizationId),
-    )).returning();
+    try {
+      const record = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(laborInspectionRemediations).set({
+          status: "resolved",
+          resolutionNote,
+          evidenceReference,
+          resolvedBy: user.name,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        }).where(and(
+          eq(laborInspectionRemediations.id, existing.id),
+          eq(laborInspectionRemediations.organizationId, organizationId),
+          eq(laborInspectionRemediations.findingKey, findingKey),
+          eq(laborInspectionRemediations.status, existing.status),
+        )).returning();
+        if (!updated) throw new Error("LABOR_INSPECTION_CHANGED");
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Labor inspection finding closed",
-      resource: existing.ruleCode,
-      metadata: {
-        findingKey,
-        ruleCode: existing.ruleCode,
-        owner: existing.owner,
-        resolutionNote,
-        evidenceReference,
-        verification: "finding-no-longer-detected",
-      },
-    });
-
-    return Response.json({ remediation: record });
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "Labor inspection finding closed",
+          resource: existing.ruleCode,
+          metadata: {
+            findingKey,
+            ruleCode: existing.ruleCode,
+            owner: existing.owner,
+            resolutionNote,
+            evidenceReference,
+            verification: "finding-no-longer-detected",
+          },
+        }, tx);
+        return updated;
+      });
+      return Response.json({ remediation: record });
+    } catch {
+      return Response.json({
+        error: "Remediation changed or could not be closed. Refresh and retry.",
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
   }
 
   return Response.json({

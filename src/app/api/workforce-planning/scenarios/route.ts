@@ -266,7 +266,7 @@ export async function POST(request: Request) {
         ))
         .limit(1);
       if (!ownedUnit) {
-        return Response.json({ error: "Organization unit not found." }, { status: 404 });
+        return Response.json({ error: "The requested organization unit is not available in your access." }, { status: 403 });
       }
     }
 
@@ -369,6 +369,7 @@ export async function POST(request: Request) {
     const accessErrors = [
       "Workforce-manager access is required to forecast staffing.",
       "The requested scenario is outside your assigned organization unit.",
+      "The requested organization unit is not available in your access.",
       "The requested worksite is outside your assigned organization unit.",
     ];
     if (accessErrors.includes(message)) {
