@@ -131,38 +131,50 @@ export async function POST(request: Request) {
 
   if (!Number.isInteger(employeeId)) return Response.json({ error: "employeeId is required." }, { status: 400 });
 
-  const [employee] = await db.select().from(employees)
-    .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
-    .limit(1);
-  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
-  if (user.role !== "employee") {
-    const scope = assertScope(adminAccess, employee.orgUnitId);
-    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
-  }
+  // Lock the employer-bound employee row before the final eligibility read.
+  // Concurrent POSTs for this employee are serialized: the later request sees
+  // the earlier pending request instead of creating a second pending advance.
+  const result = await db.transaction(async (tx) => {
+    const [employee] = await tx.select().from(employees)
+      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+      .for("update").limit(1);
+    if (!employee) return { kind: "missing" as const };
 
-  const daysWorked = await earnedDays(employeeId);
-  const existing = await db.select().from(earnedWageRequests)
-    .where(eq(earnedWageRequests.organizationId, organizationId));
-  const advances = existing
-    .filter((row) => row.employeeId === employeeId && row.status === "approved" && row.payrollRunId == null)
-    .reduce((sum, row) => sum + Number(row.requestedAmount) + Number(row.fee), 0);
+    if (user.role !== "employee") {
+      const scope = assertScope(adminAccess, employee.orgUnitId);
+      if (!scope.ok) return { kind: "scope" as const, error: scope.error, status: scope.status };
+    }
 
-  const check = computeEwa({
-    monthlyBasic: Number(employee.basicRate),
-    daysWorked,
-    existingAdvances: advances,
-    requested,
-    status: employee.status,
-    hasPendingRequest: existing.some((row) => row.employeeId === employeeId && row.status === "pending"),
-  });
+    const punches = await tx.select({ timeIn: timePunches.timeIn, timeOut: timePunches.timeOut })
+      .from(timePunches).where(and(
+        eq(timePunches.employeeId, employeeId),
+        gte(timePunches.workDate, periodStart()),
+      ));
+    const daysWorked = punches.filter((punch) => punch.timeIn && punch.timeOut).length;
 
-  if (!check.eligible) {
-    return Response.json({ error: "Advance not permitted.", reasons: check.reasons, maxAdvance: check.maxAdvance }, { status: 422 });
-  }
+    const existing = await tx.select().from(earnedWageRequests)
+      .where(and(
+        eq(earnedWageRequests.organizationId, organizationId),
+        eq(earnedWageRequests.employeeId, employeeId),
+      ));
+    const advances = existing
+      .filter((row) => row.status === "approved" && row.payrollRunId == null)
+      .reduce((sum, row) => sum + Number(row.requestedAmount) + Number(row.fee), 0);
 
-  // The advance request must not persist without its employer-scoped audit.
-  // The same transaction commits both writes or rolls them back together.
-  const row = await db.transaction(async (tx) => {
+    const check = computeEwa({
+      monthlyBasic: Number(employee.basicRate),
+      daysWorked,
+      existingAdvances: advances,
+      requested,
+      status: employee.status,
+      hasPendingRequest: existing.some((row) => row.status === "pending"),
+    });
+
+    if (!check.eligible) {
+      return { kind: "ineligible" as const, reasons: check.reasons, maxAdvance: check.maxAdvance };
+    }
+
+    // The new request and its employer-scoped audit commit or roll back together.
     const [created] = await tx.insert(earnedWageRequests).values({
       organizationId,
       employeeId,
@@ -178,10 +190,24 @@ export async function POST(request: Request) {
       resource: `${employee.firstName} ${employee.lastName} ${requested.toFixed(2)}`,
       metadata: { requestId: created.id, employeeId, daysWorked, maxAdvance: check.maxAdvance },
     }, tx);
-    return created;
-  });
+    return { kind: "created" as const, request: created, eligibility: { ...check, employeeId, daysWorked } };
+  }).catch(() => null);
 
-  return Response.json({ request: row, eligibility: { ...check, employeeId, daysWorked } }, { status: 201 });
+  if (!result) return Response.json({
+    error: "Advance request could not be committed. Refresh and retry.",
+  }, { status: 409 });
+  if (result.kind === "missing") {
+    return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  }
+  if (result.kind === "scope") {
+    return Response.json({ error: result.error }, { status: result.status });
+  }
+  if (result.kind === "ineligible") {
+    return Response.json({
+      error: "Advance not permitted.", reasons: result.reasons, maxAdvance: result.maxAdvance,
+    }, { status: 422 });
+  }
+  return Response.json({ request: result.request, eligibility: result.eligibility }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {

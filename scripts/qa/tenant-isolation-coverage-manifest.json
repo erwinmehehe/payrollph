@@ -9417,7 +9417,7 @@
       ]
     },
     "src/app/api/earned-wage/route.ts": {
-      "gitBlobSha": "0690ef15bf76c8e5eac0bd447720cb2dcbee47ca",
+      "gitBlobSha": "4cacee511614934ba0920c7ea3a4f32be3f916b2",
       "route": "earned-wage",
       "methods": [
         {
@@ -9441,14 +9441,14 @@
           "name": "POST",
           "line": 98,
           "status": "GAP",
-          "reason": "Still GAP: EWA POST request insertion and organization-scoped audit are transactional, with source contract only; independent actual two-employer PG16 HTTP proof and review pending.",
+          "reason": "Still GAP: EWA POST now locks the employer-bound employee and rechecks eligibility before its transactional request/audit; source-only proof, independent PG16 HTTP and review pending.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "earned-wage-POST-atomic-audit-source-only",
             "priorRouteBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
-            "routeBlobSha": "0690ef15bf76c8e5eac0bd447720cb2dcbee47ca",
+            "routeBlobSha": "4cacee511614934ba0920c7ea3a4f32be3f916b2",
             "contractFile": "tests/tenant-earned-wage-post-audit-atomic.test.mjs",
-            "contractBlobSha": "45b7c8b1d91db17c9a35cc6f19c9266f4f6d2160",
+            "contractBlobSha": "59d4379a8684ede9a994538e212ec64a5df8e9de",
             "credits": 0,
             "independentSecurityReview": "PENDING",
             "actualPg16Http": "PENDING",

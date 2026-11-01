@@ -1949,8 +1949,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (isNewOrChanged && key === "src/app/api/earned-wage/route.ts POST") {
     const expected = {
       kind: "earned-wage-POST-atomic-audit-source-only",
-      priorRouteBlobSha: "258b48d5ffc372bba31c52d2b71e56374660ea50", routeBlobSha: "0690ef15bf76c8e5eac0bd447720cb2dcbee47ca",
-      contractFile: "tests/tenant-earned-wage-post-audit-atomic.test.mjs", contractBlobSha: "45b7c8b1d91db17c9a35cc6f19c9266f4f6d2160",
+      priorRouteBlobSha: "258b48d5ffc372bba31c52d2b71e56374660ea50", routeBlobSha: "4cacee511614934ba0920c7ea3a4f32be3f916b2",
+      contractFile: "tests/tenant-earned-wage-post-audit-atomic.test.mjs", contractBlobSha: "59d4379a8684ede9a994538e212ec64a5df8e9de",
       credits: 0, independentSecurityReview: "PENDING",
       actualPg16Http: "PENDING", productionCertified: false,
     };
@@ -1962,7 +1962,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const post = readFileSync("src/app/api/earned-wage/route.ts", "utf8")
       .split("export async function POST")[1].split("export async function PATCH")[0];
     for (const token of [
-      "const row = await db.transaction(async (tx) => {",
+      "const result = await db.transaction(async (tx) => {",
       "await tx.insert(earnedWageRequests)",
       "await recordAuditEvent({",
       "}, tx);",
