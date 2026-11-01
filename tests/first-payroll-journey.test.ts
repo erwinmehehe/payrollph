@@ -81,10 +81,10 @@ test("resume shortcut selects only an actionable permitted step, never a complet
   const steps = buildFirstPayrollJourney(readiness);
   const allowed = ["Settings", "People", "Time & attendance", "Payroll", "Approvals", "Exports"];
   assert.equal(findFirstPayrollResumeStep(steps, allowed)?.key, "time");
-  assert.equal(findFirstPayrollResumeStep(steps, ["Settings"])?.key, null);
-  assert.equal(findFirstPayrollResumeStep(steps, ["People"])?.key, null);
+  assert.equal(findFirstPayrollResumeStep(steps, ["Settings"]), null);
+  assert.equal(findFirstPayrollResumeStep(steps, ["People"]), null);
   assert.equal(findFirstPayrollResumeStep(steps, ["Time & attendance"])?.key, "time");
-  assert.equal(findFirstPayrollResumeStep(steps, [])?.key, null);
+  assert.equal(findFirstPayrollResumeStep(steps, []), null);
   const released = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Released"] }));
   assert.equal(findFirstPayrollResumeStep(released, allowed)?.key, "time");
   assert.equal(findFirstPayrollResumeStep(released, ["Exports"])?.key, "exports");
