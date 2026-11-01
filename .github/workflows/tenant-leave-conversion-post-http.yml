@@ -11,6 +11,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   conversion-post-tenant:
     runs-on: ubuntu-24.04
@@ -56,10 +59,10 @@ jobs:
             echo "::add-mask::$secret"
             printf '%s=%s\n' "$key" "$secret" >> "$GITHUB_ENV"
           done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
       - name: Install disposable PostgreSQL 16 baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Seed three employers and exact per-employer fictional release caps
         run: node --import tsx scripts/qa/tenant-leave-conversion-post-http.mjs seed
       - name: Build default-protected production-mode Next
