@@ -2166,6 +2166,44 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Scoped source-only enhancement: not a promotion of the historical GAP.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/careers/admin/route.ts PATCH") {
+    const review = method.reviewedUncertified;
+    assert.equal(currentBlob, "fc7920e19fc75389c5f5e7fe3cb4f90046028f00",
+      "Careers publishing changed; renew independent tenant review");
+    assert.deepEqual(review, {
+      kind: "careers-patch-final-live-role-lock-PG16-review-only",
+      originalRouteBlobSha: "3227f2bd369ca86bc05b10750f3bdf8b35512955",
+      routeBlobSha: "fc7920e19fc75389c5f5e7fe3cb4f90046028f00",
+      proofFile: "scripts/qa/tenant-edg01-careers-publication-http.mjs",
+      proofBlobSha: "175abbd544ba66ca8c393fcd91946e2a09545a80",
+      contractFile: "tests/tenant-edg01-careers-publication-contract.test.mjs",
+      contractBlobSha: "dfc9bbd2304c2f24bce4230667244d1ea58ad14f",
+      workflowFile: ".github/workflows/tenant-edg01-careers-publication-http.yml",
+      workflowBlobSha: "b84ba8d8001b1475c741809340dcb795943a96f7",
+      coverageCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    });
+    assert.equal(method.testedBy, null, "Careers PATCH remains an unaccepted GAP");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Fictional PG16 source proof changed without fresh review " + file);
+    const write = readFileSync("src/app/api/careers/admin/route.ts", "utf8")
+      .split("export async function PATCH(")[1];
+    assert.ok(write, "Careers publication PATCH must remain");
+    const txAt = write.indexOf("const saved = await db.transaction");
+    const lockAt = write.indexOf("for share of uo, u");
+    const updateAt = write.indexOf("update job_requisitions as req");
+    assert.ok(txAt > 0 && lockAt > txAt && updateAt > lockAt,
+      "Live grant lock must precede the tenant-bound requisition update");
+    assert.match(write, /req\.organization_id = \$\{organizationId\}/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
