@@ -3483,7 +3483,7 @@
       "businessIds": []
     },
     "src/app/api/careers/admin/route.ts": {
-      "gitBlobSha": "3227f2bd369ca86bc05b10750f3bdf8b35512955",
+      "gitBlobSha": "fc7920e19fc75389c5f5e7fe3cb4f90046028f00",
       "route": "careers/admin",
       "methods": [
         {
