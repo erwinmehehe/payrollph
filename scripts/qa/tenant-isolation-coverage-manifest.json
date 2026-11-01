@@ -32539,7 +32539,7 @@
       ]
     },
     "src/app/api/workforce-planning/route.ts": {
-      "gitBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
+      "gitBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
       "route": "workforce-planning",
       "methods": [
         {
@@ -32557,6 +32557,26 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
             "rowLine": 34
+          },
+          "reviewedUncertified": {
+            "kind": "wrk02-batch3-root-privacy-assignment-race-zero-new-credit",
+            "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
+            "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
+            "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
+            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
+            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
+            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "previousDedicatedPg16Run": "41203115190",
+            "newMethodCredits": 0,
+            "uncreditedMethods": [
+              "POST",
+              "PATCH"
+            ],
+            "exactHeadPg16": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         },
         {
@@ -32564,14 +32584,54 @@
           "line": 175,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-batch3-root-privacy-assignment-race-zero-new-credit",
+            "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
+            "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
+            "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
+            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
+            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
+            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "previousDedicatedPg16Run": "41203115190",
+            "newMethodCredits": 0,
+            "uncreditedMethods": [
+              "POST",
+              "PATCH"
+            ],
+            "exactHeadPg16": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
           "line": 779,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "wrk02-batch3-root-privacy-assignment-race-zero-new-credit",
+            "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
+            "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
+            "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
+            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
+            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
+            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "previousDedicatedPg16Run": "41203115190",
+            "newMethodCredits": 0,
+            "uncreditedMethods": [
+              "POST",
+              "PATCH"
+            ],
+            "exactHeadPg16": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
