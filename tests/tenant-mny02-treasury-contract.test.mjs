@@ -198,9 +198,9 @@ test("workflow uses real PostgreSQL 16 localhost HTTP, no providers and no manif
   assert.match(script, /MNY02_TREASURY_PROOF_OK/);
   assert.match(script, /CI_ONLY_TREASURY_AUDIT_FAILURE/,
     "Disposable PG16 must prove injected audit failure rolls back all writes");
-  assert.ok(script.includes("RETURNS trigger LANGUAGE plpgsql AS $ "),
+  assert.ok(script.includes("RETURNS trigger LANGUAGE plpgsql AS $$ "),
     "PL/pgSQL trigger body must open with paired dollar quotes");
-  assert.ok(script.includes("RETURN NEW; END $"),
+  assert.ok(script.includes("RETURN NEW; END; $$;"),
     "PL/pgSQL trigger body must close with paired dollar quotes");
   // Inspect actual URL hostnames, not arbitrary substrings of a URL. A URL
   // may contain these strings in the path, userinfo, or an unrelated host.
