@@ -267,6 +267,7 @@ export async function decideMweClassificationRequest(input: {
         updatedAt: decidedAt,
       }).where(and(
         eq(employeeMweClassifications.id, request.id),
+        eq(employeeMweClassifications.organizationId, input.organizationId),
         eq(employeeMweClassifications.status, "pending"),
       )).returning();
       await tx.insert(auditEvents).values({
@@ -329,7 +330,10 @@ export async function decideMweClassificationRequest(input: {
       await tx.update(employeeMweClassifications).set({
         effectiveUntil: dayBefore(String(request.effectiveFrom)),
         updatedAt: decidedAt,
-      }).where(eq(employeeMweClassifications.id, latest.id));
+      }).where(and(
+        eq(employeeMweClassifications.id, latest.id),
+        eq(employeeMweClassifications.organizationId, input.organizationId),
+      ));
     }
 
     const [approved] = await tx.update(employeeMweClassifications).set({
@@ -341,6 +345,7 @@ export async function decideMweClassificationRequest(input: {
       updatedAt: decidedAt,
     }).where(and(
       eq(employeeMweClassifications.id, request.id),
+      eq(employeeMweClassifications.organizationId, input.organizationId),
       eq(employeeMweClassifications.status, "pending"),
     )).returning();
     if (!approved) return { kind: "conflict" as const, message: "Classification state changed while approval was being recorded." };
@@ -368,13 +373,17 @@ export async function decideMweClassificationRequest(input: {
         exceptions: 0,
         processedChunks: 0,
         totalChunks: 0,
-      }).where(eq(payrollRuns.id, run.id));
+      }).where(and(
+        eq(payrollRuns.id, run.id),
+        eq(payrollRuns.organizationId, input.organizationId),
+      ));
       await tx.update(approvalTasks).set({
         status: "Superseded",
         decidedBy: "System",
         decidedAt,
       }).where(and(
         eq(approvalTasks.payrollRunId, run.id),
+        eq(approvalTasks.organizationId, input.organizationId),
         inArray(approvalTasks.status, ["Pending", "Approved"]),
       ));
       invalidatedRunIds.push(run.id);
