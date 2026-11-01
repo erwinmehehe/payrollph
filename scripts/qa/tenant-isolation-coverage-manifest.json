@@ -32899,7 +32899,7 @@
       ]
     },
     "src/app/api/workforce-planning/scenarios/route.ts": {
-      "gitBlobSha": "5c88b83ff366d1353b131a6b05e5fa4cda7d1f30",
+      "gitBlobSha": "2476d179a0472c915829aaec27db5da84078a50f",
       "route": "workforce-planning/scenarios",
       "methods": [
         {
@@ -32928,7 +32928,7 @@
           "reviewedUncertified": {
             "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
             "originalRouteBlobSha": "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7",
-            "routeBlobSha": "5c88b83ff366d1353b131a6b05e5fa4cda7d1f30",
+            "routeBlobSha": "2476d179a0472c915829aaec27db5da84078a50f",
             "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
             "contractBlobSha": "74ce1283675c0dd8284a785ec5e95435d8abbc61",
             "originalGetPrefixSha": "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9",
