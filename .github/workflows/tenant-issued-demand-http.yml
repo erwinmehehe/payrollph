@@ -1,0 +1,152 @@
+name: Tenant issued demand POST and final score (fictional PG16, no providers)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-issued-demand-http.yml"
+      - "scripts/qa/tenant-issued-demand-*.mjs"
+      - "tests/tenant-issued-demand-contract.test.mjs"
+      - "scripts/qa/tenant-table-allowlist-bootstrap.mjs"
+      - "scripts/qa/tenant-table-invariants.mjs"
+      - "scripts/qa/tenant-table-env.mjs"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "scripts/qa/prepare-hcm-work-item-fixture.mjs"
+      - "src/app/api/workforce/demand-observations/issued/**"
+      - "src/lib/workforce-issued-demand*"
+      - "src/lib/workforce-operational-demand-*"
+      - "src/lib/workforce-schedule-receipt.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/db/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-issued-demand-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  issued-demand-two-posts:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+      TRUSTED_APP_ORIGINS: "http://127.0.0.1:3000"
+      WFM_LOYVERSE_POS_ENABLED: "false"
+      WFM_SQUARE_SANDBOX_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked repository dependencies only
+        run: npm ci
+      - name: Export disposable allowlist release flags and forbid all external providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+          {
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "WFM_LOYVERSE_POS_ENABLED=false"
+            echo "WFM_SQUARE_SANDBOX_ENABLED=false"
+            echo "WFM_LOYVERSE_ACCESS_TOKEN="
+            echo "WFM_LOYVERSE_STORE_ID="
+            echo "WFM_SQUARE_SANDBOX_ACCESS_TOKEN="
+            echo "WFM_SQUARE_SANDBOX_LOCATION_ID="
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Reject unsafe source contracts and false positive receipts before any SQL
+        run: |
+          node --check scripts/qa/tenant-issued-demand-contract.mjs
+          node --check scripts/qa/tenant-issued-demand-http.mjs
+          node --check tests/tenant-issued-demand-contract.test.mjs
+          node --test tests/tenant-issued-demand-contract.test.mjs
+      - name: Create synthetic private encryption and signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$key"
+          echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
+      - name: Create empty disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply existing reviewed isolated baseline to local app_db only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare existing SQL-only fictional HCM fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Bootstrap two attackers, real higher-ID victim and disabled fourth employer before build
+        run: node --import tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Build production-mode Next against disposable localhost SQL only
+        run: npm run build
+      - name: Start localhost-only Next server, never deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-issued-demand-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 100 /tmp/tenant-issued-demand-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Disposable Next server did not become ready"
+          tail -n 100 /tmp/tenant-issued-demand-next.log
+          exit 1
+      - name: Prove both owned POST writes, real foreign denial, exact source/score SQL and unchanged victim
+        run: node --import tsx scripts/qa/tenant-issued-demand-http.mjs
+      - name: Print only the isolated local test-server log on failure
+        if: failure()
+        run: tail -n 120 /tmp/tenant-issued-demand-next.log || true

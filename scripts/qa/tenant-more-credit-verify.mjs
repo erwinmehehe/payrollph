@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { verifyCredit as verifyClockCredit } from "./tenant-clock-credit.mjs";
+import { assertHistoricalDemandSourceCompatible } from "./tenant-wfm-demand-overlay-history.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -80,8 +81,16 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     const routeFile = "src/app/api/" + route + "/route.ts";
     const entry = manifest.allApiRouteFiles[routeFile];
     assert.ok(entry && entry.route === route, c.key + ": wrong route");
-    assert.equal(entry.gitBlobSha, c.routeBlob, c.key + ": wrong route SHA");
-    checkFile(routeFile, c.routeBlob);
+    if (c.key === "GET workforce/demand-observations/issued") {
+      // #1637 only changes this route's GET permission overlay. Preserve
+      // #1514's original proof SHA while reconstructing and checking the
+      // historical source byte-for-byte. No POST/other modification passes.
+      assert.equal(assertHistoricalDemandSourceCompatible(routeFile, entry, read), c.routeBlob,
+        c.key + ": historical source must reconstruct exactly");
+    } else {
+      assert.equal(entry.gitBlobSha, c.routeBlob, c.key + ": wrong route SHA");
+      checkFile(routeFile, c.routeBlob);
+    }
     const matching = entry.methods.filter(m => m.name === name);
     assert.equal(matching.length, 1, c.key + ": missing or duplicated method");
     const method = matching[0], receipt = method.testedBy;

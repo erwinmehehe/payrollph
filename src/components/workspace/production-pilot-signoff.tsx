@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, ClipboardCheck, ShieldCheck } from "lucide-react";
 import type { DashboardData, Notify } from "@/components/workspace/types";
-import { Status, money } from "@/components/workspace/ui";
+import { Status, moneyExact } from "@/components/workspace/ui";
 
 const FIGURES = [
   ["grossPay", "Gross pay", "peso"],
@@ -228,7 +228,7 @@ export function ProductionPilotSignoffCard({
           </div>
           <div>
             <span>Net payroll</span>
-            <strong className="green-number">{money(releasedRun.netPay)}</strong>
+            <strong className="green-number">{moneyExact(releasedRun.netPay)}</strong>
             <small>Linaw released total</small>
           </div>
         </div>

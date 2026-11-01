@@ -22,7 +22,7 @@ export function createRows({ approvalDelegations, asc, assert, db, eq, organizat
   };
   return [
   { key: "PATCH delegations",
-    seed: async (e) => (await db.insert(approvalDelegations).values({ organizationId: e.org.id, fromApprover: e.marker, toApprover: e.marker + "-TO",
+    deny: 404, seed: async (e) => (await db.insert(approvalDelegations).values({ organizationId: e.org.id, fromApprover: e.marker, toApprover: e.marker + "-TO",
       startsOn: "2026-01-01", endsOn: "2026-12-31" }).returning())[0],
     state: (orgId) => db.select().from(approvalDelegations).where(eq(approvalDelegations.organizationId, orgId)).orderBy(asc(approvalDelegations.id)),
     ownBody: (c) => ({ id: c.seeded.id, active: false }),

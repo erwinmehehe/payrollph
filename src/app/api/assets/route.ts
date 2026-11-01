@@ -1,9 +1,25 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, employees, itManagedDevices } from "@/db/schema";
+import { assets, employees, itManagedDevices, userOrganizations } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+
+// Resolve ID-only asset mutations through the caller's ACTIVE employer membership
+// before inspecting the target or checking People permissions. This keeps a real
+// foreign asset and a nonexistent asset indistinguishable to an outside tenant.
+async function findMemberAsset(userId: number, assetId: number) {
+  const [match] = await db.select({ asset: assets })
+    .from(assets)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.userId, userId),
+      eq(userOrganizations.organizationId, assets.organizationId),
+      eq(userOrganizations.active, true),
+    ))
+    .where(eq(assets.id, assetId))
+    .limit(1);
+  return match?.asset ?? null;
+}
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -112,8 +128,8 @@ export async function PATCH(request: Request) {
   const id = Number(body.id);
   if (!Number.isInteger(id)) return Response.json({ error: "Asset id is required." }, { status: 400 });
 
-  const [target] = await db.select().from(assets).where(eq(assets.id, id)).limit(1);
-  if (!target) return Response.json({ error: "Asset not found." }, { status: 404 });
+  const target = await findMemberAsset(user.id, id);
+  if (!target) return Response.json({ error: "Asset not accessible." }, { status: 403 });
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -200,8 +216,8 @@ export async function DELETE(request: Request) {
   const id = Number(new URL(request.url).searchParams.get("id"));
   if (!Number.isInteger(id)) return Response.json({ error: "Asset id is required." }, { status: 400 });
 
-  const [target] = await db.select().from(assets).where(eq(assets.id, id)).limit(1);
-  if (!target) return Response.json({ error: "Asset not found." }, { status: 404 });
+  const target = await findMemberAsset(user.id, id);
+  if (!target) return Response.json({ error: "Asset not accessible." }, { status: 403 });
 
   const denied = await assertOrganizationRole(
     user.id,

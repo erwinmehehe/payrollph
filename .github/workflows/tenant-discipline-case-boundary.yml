@@ -1,0 +1,37 @@
+name: HR disciplinary case tenant boundary (source-only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-discipline-case-boundary.yml'
+      - 'src/app/api/discipline/route.ts'
+      - 'tests/tenant-discipline-case-boundary.test.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'scripts/qa/tenant-table-rows/read/people.mjs'
+      - 'scripts/qa/tenant-table-rows/write/people.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-discipline-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Require unchanged source-level tenant and unit guards
+        run: node --test tests/tenant-discipline-case-boundary.test.mjs
+      # This is NOT a substitute for the existing tenant-table-proof.yml
+      # disposable PG16 / real signed-in HTTP own/victim evidence.

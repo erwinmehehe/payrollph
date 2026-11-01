@@ -55,7 +55,15 @@ test("disposable PostgreSQL: #641 correction case completeness, reconciliation, 
     assert.deepEqual(runs.map((r) => r.payrollRunId).sort(), [a.run.id, b.run.id].sort(), "Only Released runs ending on/after the effective date");
     assert.ok(!runs.some((r) => r.payrollRunId === before.run.id));
     const runA = runs.find((r) => r.payrollRunId === a.run.id)!, runB = runs.find((r) => r.payrollRunId === b.run.id)!;
+    assert.ok((await cases.listCorrectionCases(orgs[0], entity.id)).some((c) => c.id === correction.id));
+    assert.equal((await cases.listCorrectionCases(orgs[0], entity.id + 1000)).length, 0,
+      "A different legal employer must not see this correction case");
     await rejectsCode(cases.createCorrectionCase({ ...input, correctedRateCents: BigInt(2_300_000) }, maker, NOW), "IDEMPOTENCY_KEY_REUSED");
+    await rejectsCode(cases.createCorrectionCase({ ...input, evidenceReference: "Different signed HR ticket" }, maker, NOW), "IDEMPOTENCY_KEY_REUSED");
+    await rejectsCode(cases.createCorrectionCase({ ...input, reason: "The source memo was replaced by a different correction." }, maker, NOW), "IDEMPOTENCY_KEY_REUSED");
+    await rejectsCode(cases.createCorrectionCase({ ...input, legalEntityId: entity.id + 1000 }, maker, NOW), "IDEMPOTENCY_KEY_REUSED");
+    await rejectsCode(cases.createCorrectionCase({ ...input, expectedLatestRevisionId: 77 }, maker, NOW), "IDEMPOTENCY_KEY_REUSED");
+    await rejectsCode(cases.createCorrectionCase(input, other, NOW), "IDEMPOTENCY_KEY_REUSED");
     await rejectsCode(cases.createCorrectionCase({ ...input, idempotencyKey: "fict-case-key-0002" }, maker, NOW), "ACTIVE_CASE_EXISTS");
 
     // Tenant and maker scoping.
@@ -147,7 +155,11 @@ test("disposable PostgreSQL: #641 correction case completeness, reconciliation, 
     const requestB = await underpayment(b, "50.00");
     const nextRunB = nextRuns.find((r) => r.payrollRunId === b.run.id)!;
     await cases.decideCaseRun(orgs[0], next.correction.id, { kind: "link", runId: nextRunB.id, underpaymentRequestId: requestB.id }, maker);
-    const cancelled = await cases.cancelCorrectionCase(orgs[0], next.correction.id, "Duplicate of an HR ticket handled elsewhere.", other);
+    await rejectsCode(cases.cancelCorrectionCase(orgs[0], next.correction.id, "Duplicate of an HR ticket handled elsewhere.", other), "NOT_CASE_MAKER");
+    assert.equal((await db.select().from(s.salaryCorrectionCaseRuns)
+      .where(eq(s.salaryCorrectionCaseRuns.caseId, next.correction.id)))
+      .find((r) => r.id === nextRunB.id)?.underpaymentRequestId, requestB.id, "Rejected cancellation must preserve linked evidence");
+    const cancelled = await cases.cancelCorrectionCase(orgs[0], next.correction.id, "Duplicate of an HR ticket handled elsewhere.", maker);
     assert.equal(cancelled.status, "cancelled");
     const withdrawn = await db.select().from(s.salaryCorrectionCaseRuns).where(eq(s.salaryCorrectionCaseRuns.caseId, next.correction.id));
     assert.ok(withdrawn.every((r) => r.disposition === "withdrawn" && r.underpaymentRequestId === null));

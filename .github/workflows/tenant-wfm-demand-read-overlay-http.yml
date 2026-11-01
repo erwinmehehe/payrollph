@@ -1,0 +1,130 @@
+name: Tenant WFM Demand Read Permission Overlay (Fictional PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/workforce/demand-observations/issued/**"
+      - "src/app/api/workforce/demand-staffing/policies/**"
+      - "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs"
+      - "tests/tenant-wfm-demand-read-overlay.test.mjs"
+      - ".github/workflows/tenant-wfm-demand-read-overlay-http.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  workforce-demand-tenant-overlay:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Pin exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Enable only the existing disposable, dynamically allowlisted demand-read fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+          {
+            echo "TENANT_WFM_DEMAND_READ_OVERLAY_PROOF=fictional-only"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Reject unsafe environments and missing authorization guards before opening SQL
+        run: |
+          node --check scripts/qa/tenant-wfm-demand-read-overlay-http.mjs
+          node --check tests/tenant-wfm-demand-read-overlay.test.mjs
+          node --test tests/tenant-wfm-demand-read-overlay.test.mjs
+      - name: Generate throwaway local encryption inputs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key_name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key_name=$value" >> "$GITHUB_ENV"
+          done
+          webhook="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$webhook"
+          echo "RESEND_WEBHOOK_SECRET=$webhook" >> "$GITHUB_ENV"
+      - name: Create ephemeral PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed local baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare approved synthetic-only HCM fixture schema
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Seed two independent attackers, higher-ID victim and excluded company
+        run: node --import tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Build Next production-mode app with fictional feature-ON employer allowlist
+        run: npm run build
+      - name: Start localhost-only Next server and reject failed startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-wfm-demand-overlay-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 80 /tmp/tenant-wfm-demand-overlay-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-wfm-demand-overlay-next.log
+          exit 1
+      - name: Execute own populated read, real foreign victim, custom overlay and revocation PG16 proof
+        run: node --import tsx scripts/qa/tenant-wfm-demand-read-overlay-http.mjs
+      - name: Display bounded localhost-only server log on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-wfm-demand-overlay-next.log || true

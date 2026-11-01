@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyCredit as verifyOnboardingCredit } from '../scripts/qa/tenant-onboarding-credit.mjs';
 
 const manifest = JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json', 'utf8'));
 const overview = readFileSync('docs/engineering/tenant-isolation-coverage-inventory.md', 'utf8');
@@ -107,8 +108,9 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.ok(actionMethods.every(m => m.status === 'COVERED' &&
     m.testedBy?.file === 'scripts/qa/remittance-action-entity-http.mjs'));
   const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
-  assert.equal(importPost.status, 'GAP', 'GET proof cannot cover the import write');
-  assert.equal(importPost.testedBy, null);
+  assert.equal(importPost.status, 'COVERED', 'Only the separately executed onboarding proof covers import POST');
+  assert.notEqual(importPost.testedBy?.file, specs[0].file, 'GET proof cannot cover the import write');
+  assert.equal(verifyOnboardingCredit('POST employees/import', importPost), true);
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
   assert.equal(closePost?.status, "COVERED",

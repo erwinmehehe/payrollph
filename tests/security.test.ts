@@ -85,13 +85,17 @@ test("anonymous health checks cannot create monitoring snapshots", () => {
   assert.ok(source.includes("HEALTH_TOKEN"));
 });
 
-test("production worker endpoints require a strong operational worker token", () => {
+test("cross-tenant background endpoints always require an operational worker token", () => {
+  const guard = readFileSync("src/lib/global-worker-authorization.ts", "utf8");
+  assert.ok(guard.includes('operationalSecret("worker")'));
+  assert.ok(guard.includes("constantTimeSecretEqual"));
+  assert.ok(guard.includes("status: 503"));
+  assert.ok(guard.includes("status: 401"));
   for (const path of ["src/app/api/jobs/tick/route.ts", "src/app/api/webhooks/drain/route.ts"]) {
     const source = readFileSync(path, "utf8");
-    assert.ok(source.includes('process.env.NODE_ENV === "production"'));
-    assert.ok(source.includes('operationalSecret("worker")'));
-    assert.ok(source.includes("constantTimeSecretEqual"));
-    assert.ok(source.includes("status: 503"));
+    assert.ok(source.includes("requireGlobalWorkerToken("), path);
+    assert.ok(!source.includes("getSessionUser("), path + " must not authorize browser sessions");
+    assert.ok(!source.includes("enforceSameOriginMutation("), path + " must not use browser fallback");
   }
 });
 

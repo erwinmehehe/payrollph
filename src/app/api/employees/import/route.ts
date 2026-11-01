@@ -1,4 +1,5 @@
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { handleEmployeeImportPreview } from "@/lib/employee-import-request";
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -191,7 +192,12 @@ export async function POST(request: Request) {
         }
         // Keep the transaction atomic across the worker, pay-profile, batch
         // summary and audit; no half-created workers if a later write fails.
-        inserted = await tx.insert(employees).values(toInsert).returning({
+        const legalEmployer = await ensurePrimaryLegalEntity(organizationId, user.id, tx);
+        if (!legalEmployer?.active) throw new Error("EMPLOYEE_IMPORT_LEGAL_EMPLOYER_REQUIRED");
+        inserted = await tx.insert(employees).values(toInsert.map(row => ({
+          ...row,
+          legalEntityId: legalEmployer.id,
+        }))).returning({
           id: employees.id,
           employeeNo: employees.employeeNo,
           basicRate: employees.basicRate,
@@ -238,6 +244,12 @@ export async function POST(request: Request) {
       return { batch, createdCount: inserted.length };
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "EMPLOYEE_IMPORT_LEGAL_EMPLOYER_REQUIRED") {
+      return Response.json({
+        error: "An active legal employer is required before importing employees.",
+        code: "EMPLOYEE_IMPORT_LEGAL_EMPLOYER_REQUIRED",
+      }, { status: 422 });
+    }
     if (error instanceof Error && error.message === "HCM_GOVERNED_HIRE_REQUIRED") {
       return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
     }

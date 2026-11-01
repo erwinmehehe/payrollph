@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { payoutBatches, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationUnitAccess } from "@/lib/access";
 import { configuredPayrollPayoutProvider, xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
@@ -46,6 +47,12 @@ async function context(request: Request, params: Promise<{ id: string }>, mutati
   const scopeDenied = await assertOrganizationUnitAccess(user.id, run.organizationId,
     run.scopeOrgUnitId, "This payroll run is outside your authorized organization unit.");
   if (scopeDenied) return { response: scopeDenied } as const;
+  // Apply the resource's real legal employer to BOTH status reads and payout actions.
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return { response: entityDenied } as const;
   if (mutation) {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return { response: mfaDenied } as const;

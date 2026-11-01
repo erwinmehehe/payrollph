@@ -50,7 +50,13 @@ test("failed attendance reads show retryable inline errors, not false zero-excep
   assert.ok(panel.includes('title="Exception ownership unavailable"'));
   assert.ok(panel.includes('onRetry={() => void load()}'));
   assert.ok(panel.includes('value={operations ? String(operations.summary.open) : "—"}'));
-  assert.ok(panel.includes('!loading && operations !== null && operations.exceptions.length === 0'));
+  // The operation read must succeed before an empty or filtered-empty queue is rendered.
+  assert.ok(panel.includes('!loading && operations !== null && visibleOperationalRows.length === 0'));
+  // An empty verified employer window and a nonempty window hidden by triage
+  // filters must have different explanations, never a false all-clear.
+  assert.ok(panel.includes('title={operations.exceptions.length === 0'));
+  assert.ok(panel.includes('"No persisted exception cases in this window"'));
+  assert.ok(panel.includes('"No cases match the selected triage queue"'));
   assert.ok(panel.includes('!loading && payload !== null && rows.length === 0'));
   assert.ok(locks.includes('title="Attendance lock status unavailable"'));
   assert.ok(!locks.includes('notify(error.message, "err")'));

@@ -1,0 +1,91 @@
+name: Onboarding tenant journey (fictional PG16 HTTP)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/tenant-onboarding-http.yml'
+      - 'scripts/qa/tenant-onboarding-*.mjs'
+      - 'tests/tenant-onboarding-*.test.mjs'
+      - 'src/app/api/employees/**'
+      - 'src/app/api/recruitment/hire/**'
+      - 'src/app/api/approvals/**'
+      - 'src/lib/**'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'docs/qa/tenant-onboarding-receipt.json'
+permissions:
+  contents: read
+concurrency:
+  group: onboarding-tenant-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  journey:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [legacy, preview]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/qa/tenant-onboarding-env.mjs "${{ matrix.profile }}" >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys (no provider secrets)
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      # Preserve the final source-bound proof gate, but run fresh PG16 HTTP before checking stale historical receipt hashes.
+      - name: Onboarding source contracts before live proof (no historical receipt acceptance)
+        run: node --import tsx --test --test-name-pattern='^(onboarding refuses|calendar date regression|legacy import assigns|owned verifier requires|both profiles execute real intake)' tests/tenant-onboarding-contract.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Start the disposable local server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/onboarding-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/onboarding-server.log
+          exit 1
+      - name: Two attackers, independent hire checker, real victim, database invariants
+        run: env -u NODE_ENV node --import tsx scripts/qa/tenant-onboarding-http.mjs
+      - name: Verify source-bound receipt after real PG16 HTTP (fail closed)
+        run: node --import tsx --test tests/tenant-onboarding-contract.test.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: onboarding-${{ matrix.profile }}-receipt
+          path: outputs/onboarding-${{ matrix.profile }}.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/onboarding-server.log || true

@@ -1,0 +1,112 @@
+name: Payroll-run path isolation (fictional PG16, no money)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-payroll-run-path-boundaries.yml'
+      - 'scripts/qa/tenant-batches/payroll-runs-path-http.mjs'
+      - 'tests/tenant-payroll-runs-path-boundaries.test.mjs'
+      - 'src/app/api/payroll-runs/**'
+      - 'src/lib/multi-entity-run-guard.ts'
+      - 'src/lib/multi-entity-server.ts'
+      - 'src/lib/treasury-controls.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  no-money-paths:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [default, multi-entity]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export fictional localhost-only environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Disable all payment and external side effects before build
+        shell: bash
+        run: |
+          {
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYROLL_PAYOUT_PROVIDER=paymongo'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'PAYMONGO_WALLET_ID='
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_LIVE_APPROVED=false'
+            echo 'XENDIT_PAYOUT_SECRET_KEY='
+            echo 'XENDIT_PAYOUT_CALLBACK_TOKEN='
+            echo 'RESEND_API_KEY='
+            echo 'MULTI_ENTITY_ENABLED=${{ matrix.profile == 'multi-entity' && 'true' || 'false' }}'
+          } >> "$GITHUB_ENV"
+      - name: Verify the seven-method source contract and no-money fixture
+        run: node --test tests/tenant-payroll-runs-path-boundaries.test.mjs
+      - name: Generate disposable encryption and signing keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$key"
+          echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
+      - name: Create isolated schema only in ephemeral PG16
+        run: npm run db:push
+      - name: Apply existing cutover baseline to disposable database
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build real production-mode Next app (no live provider)
+        run: npm run build
+      - name: Start isolated localhost HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/payroll-runs-path-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/payroll-runs-path-server.log
+          exit 1
+      - name: Two authenticated attackers and one real higher-ID victim; seven paths; no money
+        run: npx tsx scripts/qa/tenant-batches/payroll-runs-path-http.mjs
+      - name: Show isolated server log on failure
+        if: failure()
+        run: cat /tmp/payroll-runs-path-server.log || true

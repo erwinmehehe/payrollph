@@ -92,7 +92,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .innerJoin(users, eq(userOrganizations.userId, users.id))
     .where(and(
       eq(userOrganizations.organizationId, run.organizationId),
+      eq(userOrganizations.active, true),
       eq(users.id, approverUserId),
+      eq(users.active, true),
     ))
     .limit(1);
 

@@ -26,6 +26,7 @@ const taglishCopy: Readonly<Record<string, string>> = {
   "Display language": "Wika ng display",
   "English": "English",
   "Taglish": "Taglish",
+  "Quick actions": "Mga mabilis na gawain",
   "Home": "Home",
   "Pay": "Sahod",
   "Payslips": "Mga payslip",

@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import {
   hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps,
-  hcmLifecycleNotificationTasks,
+  hcmLifecycleNotificationTasks, automationOperationalCases, employees, payrollRuns, auditEvents,
 } from "../../src/db/schema";
 
 export async function verifyHcmWorkQueueIsolation(f, { request, expectStatus }) {
@@ -83,4 +83,108 @@ export async function verifyHcmWorkQueueIsolation(f, { request, expectStatus }) 
     .where(eq(hcmLifecycleNotificationTasks.organizationId,victim.id));
   assert.deepEqual(victimStepsAfter,victimStepsBefore,"Victim HCM work items stay unchanged");
   assert.deepEqual(victimTasksAfter,victimTasksBefore,"Victim lifecycle tasks stay unchanged");
+  await verifyHcmWorkItemsPageTenantBoundary(f, { request, expectStatus });
+}
+
+
+/**
+ * Uncredited page candidate. A client-only /hcm/work-items HTML shell may
+ * return 200 for either employer selector; it must contain no private employer
+ * rows. Actual data are loaded ONLY via the separately authenticated, scoped
+ * /api/hcm/work-items GET. Never treat a 200 shell as tenant authorization.
+ *
+ * Executed by the immutable tenant-second-pass runner on real localhost HTTP
+ * and a disposable PG16 fixture; no browser mock, production credential, flag
+ * change, payroll mutation, coverage promotion or review credit.
+ */
+export async function verifyHcmWorkItemsPageTenantBoundary(f, { request, expectStatus }) {
+  assert.equal(process.env.CI, "true");
+  assert.equal(process.env.TENANT_SECOND_PASS_MODE, "isolated-ci-only");
+  assert.equal(process.env.SECURITY_SMOKE_URL, "http://127.0.0.1:3000");
+  assert.equal(process.env.DATABASE_URL, "postgresql://postgres:postgres@127.0.0.1:5432/app_db");
+  assert.notEqual(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "true");
+  assert.notEqual(process.env.XENDIT_PAYOUTS_ENABLED, "true");
+  assert.equal(f.orgs.length, 3);
+  assert.ok(f.victimEmployee.id > 6, "Real higher-ID victim must be populated");
+
+  // Three real, distinct persisted cases prevent an empty-list false pass.
+  const cases = await db.insert(automationOperationalCases).values(f.orgs.map((org, idx) => ({
+    organizationId: org.id,
+    caseType: "coverage_recovery",
+    sourceType: "synthetic_ci_only",
+    sourceId: idx === 0 ? f.victimEmployee.id : f.ownedEmployees[idx - 1].id,
+    ownerTeam: "HR Operations",
+    assignedOwnerUserId: idx === 1 ? null : f.owners[idx].id,
+    title: idx === 0 ? "VICTIM-ONLY-WORK-QUEUE-CASE" : "Attacker-owned queue " + idx,
+    detail: "Fictional HR work item for scoped read proof",
+    slaDueAt: new Date("2026-10-01T00:00:00.000Z"),
+    status: "open",
+  }))).returning({ id: automationOperationalCases.id, organizationId: automationOperationalCases.organizationId });
+  assert.equal(new Set(cases.map(item => item.id)).size, 3);
+
+  const victim = f.orgs[0];
+  const victimCaseSnapshot = () => db.select().from(automationOperationalCases)
+    .where(eq(automationOperationalCases.organizationId, victim.id)).orderBy(automationOperationalCases.id);
+  const victimWorkerSnapshot = () => db.select().from(employees)
+    .where(eq(employees.organizationId, victim.id)).orderBy(employees.id);
+  const victimPayrollSnapshot = () => db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, victim.id)).orderBy(payrollRuns.id);
+  const victimAuditSnapshot = () => db.select().from(auditEvents)
+    .where(eq(auditEvents.organizationId, victim.id)).orderBy(auditEvents.id);
+  const beforeCases = await victimCaseSnapshot();
+  const beforeWorkers = await victimWorkerSnapshot();
+  const beforePayroll = await victimPayrollSnapshot();
+  const beforeAudit = await victimAuditSnapshot();
+  assert.ok(beforeCases.some(row => row.id === cases[0].id), "Victim-only case is persisted");
+
+  let ownPositives = 0;
+  let foreignDenials = 0;
+  for (const idx of [1, 2]) {
+    const actor = f.orgs[idx];
+    const cookie = f.ownerSessions[idx].cookie;
+    const ownPage = expectStatus(await request("/hcm/work-items?organizationId=" + actor.id, { cookie }),
+      200, "Own authenticated work queue page must render");
+    assert.match(ownPage.headers.get("content-type") ?? "", /text\/html/i);
+    assert.ok(ownPage.text.includes("HR Work Queue"), "Page must be real work queue, not empty placeholder");
+    assert.ok(!ownPage.text.includes("VICTIM-ONLY-WORK-QUEUE-CASE"), "Own SSR cannot contain victim PII");
+
+    // The client-rendered HTML shell is not an authorization receipt. The API
+    // must independently reject a forged foreign employer selector.
+    const foreignPage = await request("/hcm/work-items?organizationId=" + victim.id, { cookie });
+    assert.ok([200, 403, 404].includes(foreignPage.status), "Foreign HTML must not produce server error");
+    assert.ok(!foreignPage.text.includes("VICTIM-ONLY-WORK-QUEUE-CASE"),
+      "Foreign selector cannot serialize victim work item into HTML/RSC");
+
+    const ownApi = expectStatus(await request("/api/hcm/work-items?organizationId=" + actor.id + "&status=open", { cookie }),
+      200, "Own HCM work items GET must return populated organization-scoped records");
+    assert.ok(Array.isArray(ownApi.json?.items) && Array.isArray(ownApi.json?.owners),
+      "A 200 response without work items and owner arrays cannot count as positive");
+    assert.ok(ownApi.json.items.some(row => row.id === cases[idx].id && row.organizationId === actor.id),
+      "Owned persisted HR case must appear in own API response");
+    assert.ok(ownApi.json.items.every(row => row.organizationId === actor.id),
+      "Owned response may never include another employer");
+    assert.ok(!ownApi.text.includes("VICTIM-ONLY-WORK-QUEUE-CASE"),
+      "Own API response must not contain the victim-only case marker");
+    ownPositives += 1;
+
+    const foreignApi = expectStatus(await request("/api/hcm/work-items?organizationId=" + victim.id + "&status=open", { cookie }),
+      403, "Foreign employer HCM work queue must deny authorized attacker");
+    assert.ok(!foreignApi.text.includes("VICTIM-ONLY-WORK-QUEUE-CASE"),
+      "Foreign denied response cannot expose case data");
+    foreignDenials += 1;
+    const other = f.orgs[idx === 1 ? 2 : 1];
+    expectStatus(await request("/api/hcm/work-items?organizationId=" + other.id + "&status=open", { cookie }),
+      403, "Cross-attacker company selector must also be denied");
+    foreignDenials += 1;
+  }
+  assert.equal(ownPositives, 2);
+  assert.equal(foreignDenials, 4);
+  assert.deepEqual(await victimCaseSnapshot(), beforeCases,
+    "Denied page and API reads cannot modify victim cases");
+  assert.deepEqual(await victimWorkerSnapshot(), beforeWorkers,
+    "Denied page and API reads cannot modify victim employees");
+  assert.deepEqual(await victimPayrollSnapshot(), beforePayroll,
+    "Denied page and API reads cannot modify victim payroll");
+  assert.deepEqual(await victimAuditSnapshot(), beforeAudit,
+    "Denied page and API reads cannot modify victim audit events");
 }

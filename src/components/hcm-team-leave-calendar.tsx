@@ -12,6 +12,7 @@ import {
   type TeamLeaveCase, type TeamLeaveMonthResponse,
 } from "@/lib/hcm-team-leave-calendar-contract";
 import { readScopedResponse, scopedReadFailureMessage, type ScopedReadFailure } from "@/lib/hcm-scoped-read-failure";
+import { selectTeamLeaveCases, summarizeVisibleTeamLeaveMonth, type TeamLeaveViewFilter } from "@/lib/hcm-team-leave-calendar-view";
 import { validTeamLeaveResponse } from "@/lib/hcm-scoped-read-validation";
 
 type LoadState = {
@@ -60,6 +61,7 @@ export function HcmTeamLeaveCalendar({
   const [month, setMonth] = useState(initialMonth);
   const [selectedDate, setSelectedDate] = useState(initialMonth + "-01");
   const [revision, setRevision] = useState(0);
+  const [leaveFilter, setLeaveFilter] = useState<TeamLeaveViewFilter>("all");
   const [loaded, setLoaded] = useState<LoadState | null>(null);
   const requestKey = [organizationId, month, revision].join(":");
 
@@ -91,15 +93,23 @@ export function HcmTeamLeaveCalendar({
   const active = loaded?.requestKey === requestKey ? loaded : null;
   const page = active?.status === "ready" ? active.payload : null;
   const dates = useMemo(() => teamLeaveMonthCells(month), [month]);
+  const visibleCases = useMemo(
+    () => selectTeamLeaveCases(page?.cases ?? [], leaveFilter),
+    [page, leaveFilter],
+  );
+  const monthSummary = useMemo(
+    () => summarizeVisibleTeamLeaveMonth(month, visibleCases),
+    [month, visibleCases],
+  );
   const spansByDate = useMemo(() => {
     const entries = new Map<string, TeamLeaveCase[]>();
     if (page) {
       for (const date of dates) {
-        if (date) entries.set(date, activeLeaveRequestSpans(date, page.cases));
+        if (date) entries.set(date, activeLeaveRequestSpans(date, visibleCases));
       }
     }
     return entries;
-  }, [page, dates]);
+  }, [page, dates, visibleCases]);
   const selectedCases = spansByDate.get(selectedDate) ?? [];
   const approvedToday = selectedCases.filter((item) => item.status === "Approved").length;
   const pendingToday = selectedCases.filter((item) => item.status === "Pending").length;
@@ -208,7 +218,7 @@ export function HcmTeamLeaveCalendar({
 
           {page && (
             <>
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="mt-5 grid gap-3 sm:grid-cols-4">
                 <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-emerald-800">
                     <UsersRound size={16} aria-hidden="true"/>
@@ -224,6 +234,14 @@ export function HcmTeamLeaveCalendar({
                   <p className="mt-2 text-3xl font-bold tabular-nums">{page.summary.pendingRequestRecords}</p>
                 </article>
                 <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <CalendarDays size={16} aria-hidden="true"/>
+                    <p className="text-xs font-semibold text-slate-600">Days with 2+ request spans</p>
+                  </div>
+                  <p className="mt-2 text-3xl font-bold tabular-nums">{monthSummary.datesWithMultipleSpans}</p>
+                  <p className="mt-1 text-xs text-slate-500">Visible records only · not a staffing conflict</p>
+                </article>
+                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-slate-700">
                     <LockKeyhole size={16} aria-hidden="true"/>
                     <p className="text-xs font-semibold text-slate-600">Source visibility</p>
@@ -233,9 +251,27 @@ export function HcmTeamLeaveCalendar({
                 </article>
               </div>
 
-              <div aria-label="Leave status legend" className="mt-5 flex flex-wrap gap-3 text-xs text-slate-700">
+              <div className="mt-5 flex flex-wrap items-end gap-4">
+                <label htmlFor="team-leave-request-filter" className="grid gap-1 text-xs font-semibold text-slate-700">
+                  Request status
+                  <select id="team-leave-request-filter" value={leaveFilter}
+                    onChange={(event) => setLeaveFilter(event.target.value as TeamLeaveViewFilter)}
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+                    <option value="all">All requests ({page.cases.length})</option>
+                    <option value="approved">Approved ({page.summary.approvedRequestRecords})</option>
+                    <option value="pending">Pending ({page.summary.pendingRequestRecords})</option>
+                  </select>
+                </label>
+                <p role="status" className="max-w-2xl text-xs leading-5 text-slate-600">
+                  Showing {monthSummary.visibleRequestRecords} of {page.cases.length} verified request records across
+                  {monthSummary.datesWithAnySpans} dates with visible request spans.
+                  Filters do not approve requests or establish staff availability.
+                </p>
+              </div>
+              <div aria-label="Leave status legend" className="mt-4 flex flex-wrap gap-3 text-xs text-slate-700">
                 <span className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2.5 rounded-full bg-emerald-700"/> Approved request span</span>
                 <span className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2.5 rounded-full bg-amber-500"/> Pending request span</span>
+                <span className="flex items-center gap-1.5">2+ spans = concurrent request records, not a staffing conflict</span>
               </div>
 
               <div className="mt-4 grid grid-cols-7 gap-1.5" aria-label="Month days">
@@ -253,7 +289,8 @@ export function HcmTeamLeaveCalendar({
                   return (
                     <button key={date} type="button"
                       aria-pressed={selected}
-                      aria-label={dayLabel(date) + ": " + approved + " approved and " + pending + " pending request spans"}
+                      aria-label={dayLabel(date) + ": " + approved + " approved and " + pending + " pending request spans"
+                        + (cases.length >= 2 ? "; multiple request spans" : "")}
                       onClick={() => setSelectedDate(date)}
                       className={"min-h-20 rounded-lg border p-1.5 text-left transition-colors sm:min-h-24 sm:p-2.5 " +
                         (selected
@@ -269,6 +306,9 @@ export function HcmTeamLeaveCalendar({
                         </span>}
                         {pending > 0 && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
                           {pending} <span className="hidden sm:inline">pending</span>
+                        </span>}
+                        {cases.length >= 2 && <span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-semibold text-slate-700">
+                          2+ spans
                         </span>}
                       </span>
                     </button>
@@ -293,12 +333,13 @@ export function HcmTeamLeaveCalendar({
               </div>
               <p className="text-xs text-slate-600">
                 {approvedToday} approved · {pendingToday} pending request records
+                {selectedCases.length >= 2 ? " · Multiple request spans" : ""}
               </p>
             </div>
 
             {selectedCases.length === 0 ? (
               <p className="mt-4 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
-                No approved or pending source request spans overlap this date.
+                No {leaveFilter === "all" ? "approved or pending" : leaveFilter} source request spans overlap this date.
                 This does not certify full staffing or shift availability.
               </p>
             ) : (

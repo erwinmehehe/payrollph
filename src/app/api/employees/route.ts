@@ -1,4 +1,5 @@
 import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
+import { validIsoDate } from "@/lib/payroll-period-validation";
 import { createPayoutDestinationChangeRequest } from "@/lib/payout-destination-controls";
 import { treasuryControlPolicy } from "@/lib/treasury-controls";
 import { encryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
@@ -214,7 +215,7 @@ export async function POST(request: Request) {
     return Response.json({ error: error instanceof Error ? error.message : "Pay profile is invalid." }, { status: 400 });
   }
 
-  if (!firstName || !lastName || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+  if (!firstName || !lastName || !validIsoDate(startDate)) {
     return Response.json({ error: "firstName, lastName and YYYY-MM-DD startDate are required." }, { status: 400 });
   }
 
@@ -463,7 +464,7 @@ export async function PATCH(request: Request) {
   let nextStartDate: string | undefined;
   if (wantsStartDateUpdate) {
     nextStartDate = String(body.startDate ?? "").trim();
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(nextStartDate)) {
+    if (!validIsoDate(nextStartDate)) {
       return Response.json({ error: "Employment start date must use YYYY-MM-DD." }, { status: 400 });
     }
     const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
@@ -557,7 +558,7 @@ export async function PATCH(request: Request) {
     payEffectiveDate = String(body.payEffectiveDate ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())).trim();
     payChangeReason = String(body.payChangeReason ?? "").trim();
     const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(payEffectiveDate)) {
+    if (!validIsoDate(payEffectiveDate)) {
       return Response.json({ error: "Pay effective date must use YYYY-MM-DD." }, { status: 400 });
     }
     if (payEffectiveDate < effectiveStartDate) {
@@ -641,7 +642,7 @@ export async function PATCH(request: Request) {
     const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
     restDayEffectiveDate = String(body.restDayEffectiveDate ?? todayPh).trim();
     restDayChangeReason = String(body.restDayChangeReason ?? "Work schedule change").trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(restDayEffectiveDate)) {
+    if (!validIsoDate(restDayEffectiveDate)) {
       return Response.json({ error: "Rest-day effective date must use YYYY-MM-DD." }, { status: 400 });
     }
     if (restDayEffectiveDate < effectiveStartDate) {

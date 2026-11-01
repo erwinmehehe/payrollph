@@ -219,8 +219,18 @@ test("optional operator endpoints stay protected without blocking a controlled p
   assert.ok(readiness.includes('key: "remote-scheduler-token"'));
   assert.ok(readiness.includes('blocks: "scale"'));
   assert.ok(readiness.includes('configured("TOTP_ENCRYPTION_KEY")'));
-  assert.ok(jobs.includes('operationalSecret("worker")'));
-  assert.ok(jobs.includes("constantTimeSecretEqual"));
+  const workerGuard = read("src/lib/global-worker-authorization.ts");
+  const drain = read("src/app/api/webhooks/drain/route.ts");
+  assert.ok(jobs.includes("requireGlobalWorkerToken("),
+    "Scheduler must enforce worker-token authentication before dispatch");
+  assert.ok(drain.includes("requireGlobalWorkerToken("),
+    "Global retry drain must enforce the same worker-only boundary");
+  assert.ok(workerGuard.includes('operationalSecret("worker")'),
+    "The shared worker guard must resolve the existing operational secret");
+  assert.ok(workerGuard.includes("constantTimeSecretEqual"),
+    "Worker token comparison must remain constant time");
+  assert.ok(!jobs.includes("getSessionUser(") && !drain.includes("getSessionUser("),
+    "No tenant browser session may authorize a global worker");
   assert.ok(preflight.includes('operationalSecretSource("worker")'));
   assert.ok(preflight.includes('operationalSecretSource("readiness")'));
 });

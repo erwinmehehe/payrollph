@@ -108,3 +108,36 @@ the presently credited method scope.
 
 No production acceptance, external employer activation, bank transfer,
 statutory filing, payout authorization or deployment is requested.
+
+
+## Batch 4 expanded proof candidate — 2026-10-31 (NOT ACCEPTED)
+
+The dedicated disposable PostgreSQL 16 + real localhost HTTP runner now proposes
+additional *method-level* adversarial evidence for both GAP methods, without
+changing their classifications or production behavior:
+
+- POST existing allocation update: unchanged ID and creator, precise saved budget,
+  headcount, notes, editor, single real audit, no second insertion and unchanged
+  unrelated employer/worker/payroll rows.
+- POST rejects an update below an accepted manager request, cross-tenant plan/unit
+  references and total annual budget greater than the plan, with unchanged DB/audit.
+- Two simultaneous new manager draft POSTs on the same allocation: one version-2
+  creation, one 409; no duplicate version or audit. This exercises the row lock.
+- Two simultaneous PATCH submits for the same draft: one submit and one 409.
+- Independent-checker PATCH accept/reject race: one decision and one 409, exact
+  deciding actor and audit; earlier accepted version is superseded iff accept wins.
+- Concurrent allocation POST update and creation against two units that each fit
+  the 100,000 fictional budget individually but not together: exactly one 201,
+  one 409, at most one changed allocation and no overspend.
+- Repeat all new flows with two independent attacker employers and confirm all
+  other employers, including the higher-ID victim, are byte-identical afterward.
+
+The existing workflow remains the **only** dedicated live PG16 runner for this
+family. Exact-head CI is required for this changed runner. Prior receipts from
+#1536 do **not** validate these new cases. The old reviewed source evidence is
+historical, not a green result for this candidate.
+
+**Both POST and PATCH remain GAP and newCredits remains 0** until valid fresh
+full-method evidence, budget/decision race behavior, security-owner review,
+source pins and CI are accepted. No bank, payroll, payout, customer, provider,
+feature-flag or production actions are performed by this QA change.

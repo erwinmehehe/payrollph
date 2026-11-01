@@ -13,10 +13,26 @@ const parityBaseline = JSON.parse(readFileSync("scripts/qa/tenant-table-rows/bas
 function originalRows(kind) { return parityBaseline[kind]; }
 
 test("the family split preserves every original method, full executable row body and fixture order", () => {
+  const sha256 = (source) => createHash("sha256").update(source).digest("hex");
   for (const kind of ["read", "write"]) {
     const original = originalRows(kind);
     const keys = new Set(original.map((row) => row.key));
-    assert.deepEqual(tenantFamilyCatalog(kind).filter((row) => keys.has(row.key)).map(({ key, text }) => ({ key, sha256: createHash("sha256").update(text).digest("hex") })), original);
+    const actual = tenantFamilyCatalog(kind).filter((row) => keys.has(row.key)).map(({ key, text }) => {
+      if (kind !== "write" || key !== "PATCH delegations") return { key, sha256: sha256(text) };
+
+      // Reviewed security-only delta: a foreign existing delegation ID must be
+      // indistinguishable from a missing ID (404, not the historical 403).
+      // Keep the sourceCommit baseline immutable; verify that removing ONLY
+      // the exact 404 override restores the original full executable row.
+      assert.equal(sha256(text), "2b8fbe3620edbedcc88f2a2561dd67b657a76fa2eb02dbbd70de8cfca0182080",
+        "Delegation tenant-denial fixture changed beyond the explicitly reviewed override");
+      const baselineText = text.replace(/^(\s*)deny: 404, (?=seed:)/m, "$1");
+      assert.notEqual(baselineText, text, "Delegation must explicitly assert the foreign 404");
+      assert.equal(sha256(baselineText), "016e6337ffbbc6ef0faf581919b76e71bfde5ae0d02d38c03ac97778f71e54d9",
+        "Delegation fixture must otherwise match the frozen full-row baseline");
+      return { key, sha256: sha256(baselineText) };
+    });
+    assert.deepEqual(actual, original);
   }
 });
 

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { worksites } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
 } from "@/lib/security-request";
@@ -38,12 +38,19 @@ export async function GET(request: Request) {
   if (!validReceiptId(organizationId) || !validReceiptId(worksiteId)) {
     return Response.json({ error: "Valid employer and worksite required." }, { status: 400 });
   }
+  // Authorize the active employer, session policy and deny-only custom
+  // workforce permission BEFORE disclosing any tenant pilot configuration.
+  const roleDenied = await assertOrganizationRole(
+    user.id, organizationId, WORKFORCE_MANAGER_ROLES,
+    "Workforce manager access is required.",
+  );
+  if (roleDenied) return roleDenied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) {
+    return Response.json({ error: "Workforce manager access is required." }, { status: 403 });
+  }
   if (!issuedDemandPilotAllowed(organizationId)) {
     return Response.json({ error: "Issued workload forecasting is not enabled for this employer." }, { status: 404 });
-  }
-  const access = await getAccess(user.id, organizationId);
-  if (!access || !WORKFORCE_MANAGER_ROLES.some(role => role === access.role)) {
-    return Response.json({ error: "Workforce manager access is required." }, { status: 403 });
   }
   try {
     if (!await scopedWorksite(organizationId, worksiteId, access)) {
