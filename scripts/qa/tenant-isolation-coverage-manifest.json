@@ -29785,8 +29785,23 @@
           "name": "POST",
           "line": 120,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: State and audit now share one transaction; audit-failure rollback proof. Fictional PG16 candidate and source contract are not independent tenant-coverage acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "treasury-post-transactional-audit-PG16-review-only",
+            "originalRouteBlobSha": "bb5b9cd2b0a0ca2d9ec3d66bfab80ebdf344d653",
+            "routeBlobSha": "56583ab43e7dc39101bb17122b4e9bdcbbaad81a",
+            "proofFile": "scripts/qa/tenant-mny02-treasury-http.mjs",
+            "proofBlobSha": "0fd1453144f916d177d3ce56cf86976d60b08751",
+            "contractFile": "tests/tenant-mny02-treasury-contract.test.mjs",
+            "contractBlobSha": "602e920273c230013ead0065a237b2439d5dd536",
+            "workflowFile": ".github/workflows/tenant-mny02-treasury-http.yml",
+            "workflowBlobSha": "790ff70cdbae22ef9709e7676b2ba99f1244fb4e",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
