@@ -6116,7 +6116,7 @@
       ]
     },
     "src/app/api/compliance/labor-inspection/route.ts": {
-      "gitBlobSha": "32050f2292f1da22ffbb05efcc699a595d80a2fb",
+      "gitBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
       "route": "compliance/labor-inspection",
       "methods": [
         {
@@ -6140,8 +6140,24 @@
           "name": "POST",
           "line": 47,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Source-only tenant-scope and atomic-audit hardening in PR #1685: final remediation UPDATE now binds authenticated organizationId, findingKey, existing status and record ID, while assign/acknowledge/close state and audit commit or roll back together. Existing company-wide role check and close MFA retained. Two-attacker real PostgreSQL 16 own-success/victim-denial/unchanged-DB/forged-selector and audit-failure rollback proofs are NOT yet accepted. Zero new tenant coverage credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "labor-inspection-remediation-post-atomic-audit-source-review",
+            "routeBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
+            "contractFile": "tests/tenant-labor-inspection-remediation-post-boundary.test.mjs",
+            "reviewFile": "docs/qa/tenant-labor-inspection-remediation-batch.md",
+            "methodActions": [
+              "assign",
+              "acknowledge",
+              "close"
+            ],
+            "coverageCredits": 0,
+            "syntheticPg16Http": "PENDING",
+            "auditRollbackProof": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         }
       ],
       "employerSources": {
@@ -15547,15 +15563,34 @@
       ]
     },
     "src/app/api/hcm/work-items/escalate/route.ts": {
-      "gitBlobSha": "91d465334abe1391d5d96e587b39c365dd529c6c",
+      "gitBlobSha": "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
       "route": "hcm/work-items/escalate",
       "methods": [
         {
           "name": "POST",
           "line": 16,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Global scheduler worker-token authorization and scoped per-employer SLA outbox: exact-source partial unique index fix with fictional PG16 HTTP proof candidate, zero method credits pending exact-head CI and independent security review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "hcm-sla-worker-token-and-partial-index-PG16-uncredited",
+            "previousRouteBlobSha": "91d465334abe1391d5d96e587b39c365dd529c6c",
+            "routeBlobSha": "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
+            "proofFile": "scripts/qa/tenant-hcm-sla-escalate-http.mjs",
+            "proofBlobSha": "07e0020c74c849b54a10e839b6f4d4e65e3009d9",
+            "contractFile": "tests/tenant-hcm-sla-escalate-contract.test.mjs",
+            "contractBlobSha": "71c2cabbc8b11c383fc54545771f5a983dddbe98",
+            "unitTestFile": "tests/hcm-work-item-sla.test.ts",
+            "unitTestBlobSha": "b5699786808d477bb33f2b8cc0a7e908fdd3678b",
+            "workflowFile": ".github/workflows/tenant-hcm-sla-escalate-http.yml",
+            "workflowBlobSha": "eb2b73295ffab13b8eb8a172ab17f913452a8ec1",
+            "fixtureFile": "scripts/qa/prepare-hcm-work-item-fixture.mjs",
+            "fixtureBlobSha": "3bc9f8046c38cf032ade0b076394be2f2e795c7b",
+            "credits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -20052,12 +20087,12 @@
       ]
     },
     "src/app/api/outbox/route.ts": {
-      "gitBlobSha": "86c5fcfdab250bb9e87d203c29a0fe02f7b53692",
+      "gitBlobSha": "65144a65d42039fbb99f91110e1bc49d79679994",
       "route": "outbox",
       "methods": [
         {
           "name": "GET",
-          "line": 20,
+          "line": 22,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -20074,10 +20109,25 @@
         },
         {
           "name": "POST",
-          "line": 89,
+          "line": 91,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: Employer role preflight before message ID lookup; no real provider. Fictional PG16 candidate and source contract are not independent tenant-coverage acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "outbox-post-role-preflight-before-lookup-PG16-review-only",
+            "originalRouteBlobSha": "86c5fcfdab250bb9e87d203c29a0fe02f7b53692",
+            "routeBlobSha": "65144a65d42039fbb99f91110e1bc49d79679994",
+            "proofFile": "scripts/qa/tenant-edg02-outbox-http.mjs",
+            "proofBlobSha": "1b1d3a79989f6a1c9aaeba39969ceccc4ce24e92",
+            "contractFile": "tests/tenant-edg02-outbox-contract.test.mjs",
+            "contractBlobSha": "2e5c879cadea6eca968469f06b730428f003af2b",
+            "workflowFile": ".github/workflows/tenant-edg02-outbox-http.yml",
+            "workflowBlobSha": "a7d6a8ba13726a92575912f8920321f25f999756",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

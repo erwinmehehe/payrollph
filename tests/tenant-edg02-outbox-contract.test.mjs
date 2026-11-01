@@ -77,6 +77,20 @@ test("EDG-02 outbox lookup, dedupe and retry SQL bind the owning organization", 
     "Do not report success or write audit when the scoped final update matched nothing");
 });
 
+test("Outbox POST checks active employer role before looking up a numbered message", () => {
+  const route = readFileSync("src/app/api/outbox/route.ts", "utf8");
+  const post = route.split("export async function POST")[1];
+  assert.ok(post, "Outbox POST must exist");
+  const roleCheck = post.indexOf("await getAccess(user.id, organizationId)");
+  const lookup = post.indexOf("await getOutboxMessage(messageId, organizationId)");
+  assert.ok(roleCheck > 0 && lookup > roleCheck,
+    "Message lookup must not be an ID-existence oracle for unauthorized roles");
+  assert.match(post, /roleAllowed\(access\.role, PAYROLL_OPERATOR_ROLES\)/);
+  assert.match(post, /Outbox access denied\./);
+  assert.match(post, /assertOrganizationRole\(/,
+    "Purpose-specific permission and role checks are still required");
+});
+
 test("EDG-02 proof exercises real owned actions and victim data, without credits", () => {
   const proof = readFileSync("scripts/qa/tenant-edg02-outbox-http.mjs", "utf8");
   assert.match(proof, /http\.seedEmployer\("ATTA"/);
