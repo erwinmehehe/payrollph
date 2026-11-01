@@ -94,6 +94,15 @@ try{
    assert.deepEqual(errors,[]);mkdirSync('outputs',{recursive:true});await page.screenshot({path:`outputs/first-payroll-${width}.png`,fullPage:true});
    await page.getByRole('button',{name:'View payroll details',exact:true}).click();
    await page.getByText('₱'+Number(run.netPay).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),{exact:true}).first().waitFor();
+   if(width===390){
+    const layout=await page.locator('#payroll-workspace').evaluate(el=>{
+     const children=Array.from(el.children).map(child=>{const r=child.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};});
+     return{width:el.getBoundingClientRect().width,children};
+    });
+    assert.ok(layout.children.length>=2,'payroll list and register present');
+    assert.ok(layout.children[1].top>=layout.children[0].bottom,'mobile payroll register stacks below run list');
+    assert.ok(layout.children[1].width>=layout.width-2,'mobile payroll register uses available width');
+   }
    assert.deepEqual(errors,[]);await page.screenshot({path:`outputs/first-payroll-details-${width}.png`,fullPage:true});await page.close();
   }browserTested=true;}finally{await browser.close();}
  }
