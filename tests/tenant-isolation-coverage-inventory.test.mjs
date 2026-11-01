@@ -1890,7 +1890,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       contractFile: "tests/tenant-payout-profiles-patch-audit.test.mjs",
       contractBlobSha: "3304e1ef98bac98399eaabdb65981074b7fb64d7",
       workflowFile: ".github/workflows/tenant-payout-profiles-patch-http.yml",
-      workflowBlobSha: "d96c7761993fb5ed40414250ed7d717411bef217",
+      workflowBlobSha: "a06a4210dd6aef54cb332ab72cbefafd897f2e7c",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
