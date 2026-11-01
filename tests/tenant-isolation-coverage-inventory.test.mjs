@@ -60,6 +60,28 @@ function gitBlobSha(bytes) {
   return createHash("sha1").update(Buffer.from("blob " + bytes.length + "\0"))
     .update(bytes).digest("hex");
 }
+// Reconstruct the pre-hardening source byte-for-byte. A source-only handler
+// reorder may not silently alter historical GET credits or unrelated logic.
+function restoreIssuedDemandPostPilotOrder(source) {
+  const postAt = source.indexOf("export async function POST(");
+  const accessStart = source.indexOf(
+    "  const access = await getAccess(user.id, input.organizationId);", postAt);
+  const pilotStart = source.indexOf(
+    "  if (!issuedDemandPilotAllowed(input.organizationId)) {", accessStart);
+  const mfaStart = source.indexOf(
+    "  const mfa = requireSensitiveActionMfa(user);", pilotStart);
+  assert.ok(postAt >= 0 && accessStart > postAt &&
+    pilotStart > accessStart && mfaStart > pilotStart,
+    "Issued-demand POST must authorize employer before examining pilot status");
+  const roleGuard = source.slice(accessStart, pilotStart);
+  const pilotGuard = source.slice(pilotStart, mfaStart);
+  assert.match(roleGuard, /!access\.companyWide/);
+  assert.match(roleGuard, /PEOPLE_ADMIN_ROLES/);
+  assert.match(roleGuard, /status: 403/);
+  assert.match(pilotGuard, /status: 404/);
+  return source.slice(0, accessStart) + pilotGuard + roleGuard + source.slice(mfaStart);
+}
+
 function readableLines(path) {
   return readFileSync(path, "utf8").split("\n");
 }
@@ -1539,6 +1561,29 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Source-identified POST-only pilot-status oracle fix. Own disabled-pilot
+  // 404 is preserved, but unauthorized foreign employers must receive 403
+  // regardless of pilot state. No tenant-isolation method credit is granted.
+  if (isNewOrChanged &&
+      key === "src/app/api/workforce/demand-observations/issued/score/route.ts POST") {
+    const path = "src/app/api/workforce/demand-observations/issued/score/route.ts";
+    assert.equal(currentBlob, "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
+      "Issued final-score security edit requires renewed exact-source review");
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null, "Source reorder alone is not full POST evidence");
+    const route = readFileSync(path, "utf8");
+    assert.equal(gitBlobSha(Buffer.from(restoreIssuedDemandPostPilotOrder(route))),
+      "91170340cd1bc1e43547e4d29d4b213bf45efe12",
+      "Score route may change only the reviewed POST role/pilot ordering");
+    const runner = readFileSync("scripts/qa/tenant-issued-demand-http.mjs", "utf8");
+    const contract = readFileSync("tests/tenant-issued-demand-contract.test.mjs", "utf8");
+    assert.match(runner, /non-member cannot inspect excluded employer pilot status/);
+    assert.match(runner, /counts\.nonmemberExcludedEmployer403\+\+/);
+    assert.match(contract,
+      /both issued-demand writes authorize employer membership before inspecting pilot flags/);
+    return;
+  }
+
   // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
   // These changes preserve the historical POST/PATCH handlers byte-for-byte,
   // preserve all existing method credits, and do NOT promote the open GET GAP.
@@ -1554,7 +1599,15 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const after = issued
       ? "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0"
       : "e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c";
-    assert.equal(currentBlob, after, "WFM demand GET change requires renewed exact-source review");
+    if (issued) {
+      assert.equal(currentBlob, "549156b2e143c71bd33385fb1cc49a95cb120dfc",
+        "Issued GET/POST route changed: renew POST-specific tenant review");
+      assert.equal(gitBlobSha(Buffer.from(restoreIssuedDemandPostPilotOrder(
+        readFileSync(routePath, "utf8")))), after,
+        "Issuer source must differ from the reviewed GET-only route solely by POST auth order");
+    } else {
+      assert.equal(currentBlob, after, "WFM demand GET change requires renewed exact-source review");
+    }
     assert.equal(baseline.api[routePath], before, "Original WFM demand baseline must remain stable");
     const expectedStatuses = issued
       ? { GET: "COVERED", POST: "GAP" }
@@ -1695,7 +1748,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       ].join("\n");
     assert.equal(code.split(newImport).length, 2, "Reviewed import change must be unique");
     assert.equal(code.split(newGet).length, 2, "Reviewed GET-body replacement must be unique");
-    const reconstructed = code.replace(newImport, oldImport).replace(newGet, oldGet);
+    const sourceBeforePostHardening = issued ? restoreIssuedDemandPostPilotOrder(code) : code;
+    const reconstructed = sourceBeforePostHardening.replace(newImport, oldImport)
+      .replace(newGet, oldGet);
     assert.equal(gitBlobSha(Buffer.from(reconstructed)), before,
       "WFM read hardening must not change unreviewed POST/PATCH or any unrelated route code");
     const get = code.slice(code.indexOf("export async function GET("),
