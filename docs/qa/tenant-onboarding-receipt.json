@@ -42,7 +42,7 @@
     },
     {
       "file": "src/app/api/approvals/[id]/route.ts",
-      "sha256": "76029d05afeb8eff2e062bd488aefc01b70435041377941be31d610f7c69a5a3"
+      "sha256": "65a90405a34e6103d2ae119d903a68f57f4b39a3f829165197f475a39479e5b7"
     },
     {
       "file": "src/lib/payroll-period-validation.ts",
@@ -397,6 +397,51 @@
     "workflowTriggerFix": {
       "commit": "1ea2ddb1c2a4d4ed7ac41798e45f3847b70b6c57",
       "details": "The dedicated workflow now watches its receipt file, so source repins trigger fresh exact-head PG16 proof. The extra path filter does not change HTTP proof implementation; final tests are still mandatory."
+    },
+    "pr1665ApprovalRoute": {
+      "pullRequest": 1665,
+      "source": "src/app/api/approvals/[id]/route.ts",
+      "previousSourceSha256": "76029d05afeb8eff2e062bd488aefc01b70435041377941be31d610f7c69a5a3",
+      "executedSourceSha256": "a3ea553a41d26f459c3de0bc250fc70d147a61ad4c7964283d86e719ab90caf8",
+      "testedHeadCommit": "e796e2814ac678d02e77cf0b15c24a56199c7910",
+      "workflowRunId": 41213622786,
+      "workflowUrl": "https://github.com/erwinmehehe/payrollph/actions/runs/41213622786",
+      "observedOn": "2026-10-31",
+      "database": "disposable PostgreSQL 16; localhost authenticated HTTP with fictional employers; no provider payouts",
+      "legacy": {
+        "jobId": 124573512294,
+        "liveProofStep": "success",
+        "own": 20,
+        "denied": 20,
+        "forged": 14,
+        "negative": 30,
+        "discrimination": 10,
+        "victimUnchanged": true
+      },
+      "preview": {
+        "jobId": 124573512101,
+        "liveProofStep": "success",
+        "own": 18,
+        "denied": 18,
+        "forged": 16,
+        "negative": 34,
+        "discrimination": 9,
+        "victimUnchanged": true
+      },
+      "priorFinalGate": "Failed solely on older approvals route source hash; both real PG16 HTTP proof steps passed before source pin refresh.",
+      "coverageCreditsAdded": 0,
+      "productionTested": false,
+      "followUp": "Require new exact-head green CI and independent linked payroll/HCM approval review before any merge or release."
+    },
+    "pr1665LinkedPlanFollowUp": {
+      "pullRequest": 1665,
+      "source": "src/app/api/approvals/[id]/route.ts",
+      "sourceSha256": "65a90405a34e6103d2ae119d903a68f57f4b39a3f829165197f475a39479e5b7",
+      "status": "PENDING_EXACT_HEAD_PG16_HTTP_AND_SECURITY_REVIEW",
+      "description": "Linked whole-plan scenario decisions reject missing, foreign-tagged, or newly published linked plans within the approval transaction, retaining rollback on conflict. This records a source hash update, not executed proof.",
+      "methodCreditsAdded": 0,
+      "productionTested": false,
+      "priorHistoricalProofPreserved": true
     }
   }
 }

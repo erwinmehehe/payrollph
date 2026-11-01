@@ -8,6 +8,7 @@ on:
       - '.github/workflows/tenant-approval-task-http.yml'
       - 'scripts/qa/tenant-approval-task-*.mjs'
       - 'tests/tenant-approval-task-contract.test.mjs'
+      - 'tests/tenant-approval-task-tx-org-scope.test.mjs'
       - 'docs/qa/tenant-approval-task-http.md'
       - 'scripts/qa/tenant-table-http.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
@@ -87,7 +88,7 @@ jobs:
           node --check scripts/qa/tenant-approval-task-contract.mjs
           node --check scripts/qa/tenant-approval-task-http.mjs
           node --check tests/tenant-approval-task-contract.test.mjs
-          node --test tests/tenant-approval-task-contract.test.mjs
+          node --test tests/tenant-approval-task-contract.test.mjs tests/tenant-approval-task-tx-org-scope.test.mjs
       - name: Generate throwaway encryption keys and webhook secret
         shell: bash
         run: |
