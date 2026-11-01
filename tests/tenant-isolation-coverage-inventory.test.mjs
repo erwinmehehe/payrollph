@@ -2166,6 +2166,44 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // A deliberately uncredited single-family fix. Preserve the frozen GAP
+  // until source-pinned fictional PG16 and independent reviewer acceptance.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/outbox/route.ts POST") {
+    const review = method.reviewedUncertified;
+    assert.equal(currentBlob, "65144a65d42039fbb99f91110e1bc49d79679994",
+      "Single-family source changed; renew tenant/security review");
+    assert.deepEqual(review, {
+      kind: "outbox-post-role-preflight-before-lookup-PG16-review-only",
+      originalRouteBlobSha: "86c5fcfdab250bb9e87d203c29a0fe02f7b53692",
+      routeBlobSha: "65144a65d42039fbb99f91110e1bc49d79679994",
+      proofFile: "scripts/qa/tenant-edg02-outbox-http.mjs",
+      proofBlobSha: "1b1d3a79989f6a1c9aaeba39969ceccc4ce24e92",
+      contractFile: "tests/tenant-edg02-outbox-contract.test.mjs",
+      contractBlobSha: "2e5c879cadea6eca968469f06b730428f003af2b",
+      workflowFile: ".github/workflows/tenant-edg02-outbox-http.yml",
+      workflowBlobSha: "a7d6a8ba13726a92575912f8920321f25f999756",
+      coverageCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    });
+    assert.equal(method.testedBy, null, "Unaccepted candidate must earn zero credits");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Review-only fictional proof was changed without repinning: " + file);
+    const write = readFileSync("src/app/api/outbox/route.ts", "utf8")
+      .split("export async function POST(")[1];
+    assert.ok(write, "Expected single-family API handler");
+    const accessAt = write.indexOf("await getAccess(user.id, organizationId)");
+    const messageAt = write.indexOf("await getOutboxMessage(messageId, organizationId)");
+    assert.ok(accessAt > 0 && messageAt > accessAt);
+    assert.match(write, /roleAllowed\(access\.role, PAYROLL_OPERATOR_ROLES\)/);
+    assert.match(write, /if \(body\.mode === "retry-failed-payslips"\)/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
