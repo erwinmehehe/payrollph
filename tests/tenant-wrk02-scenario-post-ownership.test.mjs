@@ -12,8 +12,8 @@ const post = src.slice(start, end);
 function tenantGuard(region) {
   assert.ok(region.includes("eq(orgUnits.id, orgUnitId)"), "Missing exact requested unit ID");
   assert.ok(region.includes("eq(orgUnits.organizationId, organizationId)"), "Missing authenticated employer ownership predicate");
-  assert.ok(region.includes('error: "Organization unit not found."'), "Unknown/foreign unit response must be the same");
-  assert.ok(region.includes("status: 404"), "Denied reference must be a stable not-found response");
+  assert.ok(region.includes('error: "The requested organization unit is not available in your access."'), "Unknown/foreign unit response must be the same");
+  assert.ok(region.includes("status: 403"), "Denied reference must be the same 403 response for foreign and nonexistent units");
 }
 
 test("scenarios POST checks employer ownership before forecast or scenario persistence", () => {

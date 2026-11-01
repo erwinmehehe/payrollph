@@ -108,7 +108,6 @@ export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
-  await ensureCoreCompatibilitySchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -193,6 +192,8 @@ export async function POST(request: Request) {
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
 
+  // A rejected mutation must never run compatibility schema writers.
+  await ensureCoreCompatibilitySchema();
   await ensureMigrationSchema();
   await ensureEmployeePayProfiles(organizationId);
 
@@ -595,136 +596,157 @@ export async function POST(request: Request) {
     }
   }
 
-  const [batch] = await db.insert(importBatches).values({
-    organizationId,
-    fileName,
-    sourceSystem: source,
-    importKind: kind,
-    totalRows,
-    createdCount,
-    updatedCount,
-    errorCount: rowErrors.length,
-    status: rowErrors.length > 0 ? "partial" : "completed",
-    errors: rowErrors.slice(0, 100),
-    createdBy: user.name,
-  }).returning();
-
-
-  if (kind === "payroll_history") {
-    const rows = importRows as MigratedPayrollHistory[];
-    for (const row of rows) {
-      const employee = employeeByNo.get(row.employeeNo.toLowerCase());
-      if (!employee) continue;
-      const values = {
-        importBatchId: batch.id,
-        periodLabel: row.periodLabel,
-        payDate: row.payDate,
-        grossPay: cents(row.grossPay),
-        basicSalary: cents(row.basicSalary),
-        netPay: cents(row.netPay),
-        taxWithheld: cents(row.taxWithheld),
-        sssEmployee: cents(row.sssEmployee),
-        philHealthEmployee: cents(row.philHealthEmployee),
-        pagIbigEmployee: cents(row.pagIbigEmployee),
-        thirteenthMonth: cents(row.thirteenthMonth),
-        deMinimisBreakdown: row.deMinimisBreakdown,
-      };
-      await db.insert(historicalPayrollEntries).values({
+  // Historical payroll, leave-balance and loan migrations must not leave
+  // partial rows or an unaudited batch on failure. Recheck write ownership.
+  const batch = await db.transaction(async (tx) => {
+      const [batch] = await tx.insert(importBatches).values({
         organizationId,
-        employeeId: employee.id,
+        fileName,
         sourceSystem: source,
-        sourceReference: row.sourceReference,
-        ...values,
-      }).onConflictDoUpdate({
-        target: [
-          historicalPayrollEntries.organizationId,
-          historicalPayrollEntries.employeeId,
-          historicalPayrollEntries.sourceSystem,
-          historicalPayrollEntries.sourceReference,
-        ],
-        set: values,
-      });
-    }
-  }
+        importKind: kind,
+        totalRows,
+        createdCount,
+        updatedCount,
+        errorCount: rowErrors.length,
+        status: rowErrors.length > 0 ? "partial" : "completed",
+        errors: rowErrors.slice(0, 100),
+        createdBy: user.name,
+      }).returning();
 
-  if (kind === "leave_balances") {
-    const rows = importRows as MigratedLeaveBalance[];
-    for (const row of rows) {
-      const employee = employeeByNo.get(row.employeeNo.toLowerCase());
-      if (!employee) continue;
-      const values = {
-        opening: oneDecimal(row.opening),
-        accrued: oneDecimal(row.accrued),
-        used: oneDecimal(row.used),
-        pending: oneDecimal(row.pending),
-        updatedAt: new Date(),
-      };
-      await db.insert(leaveBalances).values({
-        organizationId,
-        employeeId: employee.id,
-        leaveType: row.leaveType,
-        year: row.year,
-        ...values,
-      }).onConflictDoUpdate({
-        target: [leaveBalances.employeeId, leaveBalances.leaveType, leaveBalances.year],
-        set: values,
-      });
-    }
-  }
 
-  if (kind === "loans") {
-    const rows = importRows as MigratedLoan[];
-    const existing = await db.select().from(employeeLoans).where(eq(employeeLoans.organizationId, organizationId));
-    const existingByKey = new Map(existing.map((loan) => [`${loan.employeeId}:${loan.referenceNo.toLowerCase()}`, loan]));
-
-    for (const row of rows) {
-      const employee = employeeByNo.get(row.employeeNo.toLowerCase());
-      if (!employee) continue;
-      const values = {
-        loanType: row.loanType,
-        principal: cents(row.principal),
-        monthlyAmortization: cents(row.monthlyAmortization),
-        cutoffDeduction: cents(row.cutoffDeduction),
-        remainingBalance: cents(row.remainingBalance),
-        totalPaid: cents(row.totalPaid),
-        status: row.status,
-        startDate: row.startDate,
-        endDate: row.endDate,
-        notes: `Migrated from ${source} in batch #${batch.id}`,
-      };
-      const existingLoan = existingByKey.get(`${employee.id}:${row.referenceNo.toLowerCase()}`);
-      if (existingLoan) {
-        await db.update(employeeLoans).set(values).where(eq(employeeLoans.id, existingLoan.id));
-      } else {
-        await db.insert(employeeLoans).values({
-          organizationId,
-          employeeId: employee.id,
-          referenceNo: row.referenceNo,
-          ...values,
-        });
+      if (kind === "payroll_history") {
+        const rows = importRows as MigratedPayrollHistory[];
+        for (const row of rows) {
+          const employee = employeeByNo.get(row.employeeNo.toLowerCase());
+          if (!employee) continue;
+          const values = {
+            importBatchId: batch.id,
+            periodLabel: row.periodLabel,
+            payDate: row.payDate,
+            grossPay: cents(row.grossPay),
+            basicSalary: cents(row.basicSalary),
+            netPay: cents(row.netPay),
+            taxWithheld: cents(row.taxWithheld),
+            sssEmployee: cents(row.sssEmployee),
+            philHealthEmployee: cents(row.philHealthEmployee),
+            pagIbigEmployee: cents(row.pagIbigEmployee),
+            thirteenthMonth: cents(row.thirteenthMonth),
+            deMinimisBreakdown: row.deMinimisBreakdown,
+          };
+          await tx.insert(historicalPayrollEntries).values({
+            organizationId,
+            employeeId: employee.id,
+            sourceSystem: source,
+            sourceReference: row.sourceReference,
+            ...values,
+          }).onConflictDoUpdate({
+            target: [
+              historicalPayrollEntries.organizationId,
+              historicalPayrollEntries.employeeId,
+              historicalPayrollEntries.sourceSystem,
+              historicalPayrollEntries.sourceReference,
+            ],
+            set: values,
+          });
+        }
       }
-    }
-  }
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Migration import completed",
-    resource: fileName,
-    metadata: {
-      batchId: batch.id,
-      source,
-      kind,
-      created: createdCount,
-      updated: updatedCount,
-      errors: rowErrors.length,
-      duplicateCount,
-      mappings: parsed.mappings,
-      unmappedColumns: parsed.unmappedColumns,
-      // Employee-master migrations return earlier from their own atomic path.
-      // This branch contains only historical payroll, leave or loan imports.
-    },
+      if (kind === "leave_balances") {
+        const rows = importRows as MigratedLeaveBalance[];
+        for (const row of rows) {
+          const employee = employeeByNo.get(row.employeeNo.toLowerCase());
+          if (!employee) continue;
+          const values = {
+            opening: oneDecimal(row.opening),
+            accrued: oneDecimal(row.accrued),
+            used: oneDecimal(row.used),
+            pending: oneDecimal(row.pending),
+            updatedAt: new Date(),
+          };
+          const [savedBalance] = await tx.insert(leaveBalances).values({
+            organizationId,
+            employeeId: employee.id,
+            leaveType: row.leaveType,
+            year: row.year,
+            ...values,
+          }).onConflictDoUpdate({
+            target: [leaveBalances.employeeId, leaveBalances.leaveType, leaveBalances.year],
+            set: values,
+            setWhere: eq(leaveBalances.organizationId, organizationId),
+          }).returning({ id: leaveBalances.id });
+          if (!savedBalance) throw new Error("MIGRATION_BALANCE_SCOPE_CHANGED");
+        }
+      }
+
+      if (kind === "loans") {
+        const rows = importRows as MigratedLoan[];
+        const existing = await tx.select().from(employeeLoans).where(eq(employeeLoans.organizationId, organizationId));
+        const existingByKey = new Map(existing.map((loan) => [`${loan.employeeId}:${loan.referenceNo.toLowerCase()}`, loan]));
+
+        for (const row of rows) {
+          const employee = employeeByNo.get(row.employeeNo.toLowerCase());
+          if (!employee) continue;
+          const values = {
+            loanType: row.loanType,
+            principal: cents(row.principal),
+            monthlyAmortization: cents(row.monthlyAmortization),
+            cutoffDeduction: cents(row.cutoffDeduction),
+            remainingBalance: cents(row.remainingBalance),
+            totalPaid: cents(row.totalPaid),
+            status: row.status,
+            startDate: row.startDate,
+            endDate: row.endDate,
+            notes: `Migrated from ${source} in batch #${batch.id}`,
+          };
+          const existingLoan = existingByKey.get(`${employee.id}:${row.referenceNo.toLowerCase()}`);
+          if (existingLoan) {
+            const [updatedLoan] = await tx.update(employeeLoans).set(values).where(and(
+              eq(employeeLoans.id, existingLoan.id),
+              eq(employeeLoans.organizationId, organizationId),
+              eq(employeeLoans.employeeId, employee.id),
+            )).returning({ id: employeeLoans.id });
+            if (!updatedLoan) throw new Error("MIGRATION_LOAN_SCOPE_CHANGED");
+          } else {
+            await tx.insert(employeeLoans).values({
+              organizationId,
+              employeeId: employee.id,
+              referenceNo: row.referenceNo,
+              ...values,
+            });
+          }
+        }
+      }
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Migration import completed",
+        resource: fileName,
+        metadata: {
+          batchId: batch.id,
+          source,
+          kind,
+          created: createdCount,
+          updated: updatedCount,
+          errors: rowErrors.length,
+          duplicateCount,
+          mappings: parsed.mappings,
+          unmappedColumns: parsed.unmappedColumns,
+          // Employee-master migrations return earlier from their own atomic path.
+          // This branch contains only historical payroll, leave or loan imports.
+        },
+      }, tx);
+    return batch;
+  }).catch((error) => {
+    if (error instanceof Error && [
+      "MIGRATION_BALANCE_SCOPE_CHANGED", "MIGRATION_LOAN_SCOPE_CHANGED",
+    ].includes(error.message)) return null;
+    throw error;
   });
+  if (!batch) return Response.json({
+    code: "MIGRATION_SOURCE_SCOPE_CHANGED",
+    error: "An imported employer record changed before commit. Reconcile and retry.",
+  }, { status: 409 });
 
   return Response.json({
     batchId: batch.id,
