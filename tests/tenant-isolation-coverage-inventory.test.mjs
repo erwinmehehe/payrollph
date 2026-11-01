@@ -1539,6 +1539,53 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // Source-reviewed labor inspection remediation atomicity, NOT a POST
+  // isolation credit. Keep the separately executed historical GET untouched.
+  // Exact source and limited assign/acknowledge/close scope are pinned so
+  // later edits require a new security review, rather than a broad GAP waiver.
+  if (isNewOrChanged && key === "src/app/api/compliance/labor-inspection/route.ts POST") {
+    const path = "src/app/api/compliance/labor-inspection/route.ts";
+    const actualRoute = "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5";
+    assert.equal(currentBlob, actualRoute, "Labor inspection POST changed: renew tenant review");
+    const entry = manifest.allApiRouteFiles[path];
+    assert.equal(entry.gitBlobSha, currentBlob);
+    assert.equal(method.status, "GAP", "Source-only transactional hardening is not method proof");
+    assert.equal(method.testedBy, null);
+    assert.equal(entry.methods.find(row => row.name === "GET")?.testedBy?.file,
+      "scripts/qa/tenant-table-http.mjs",
+      "Existing GET proof must not be replaced by POST hardening");
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "labor-inspection-remediation-post-atomic-audit-source-review",
+      routeBlobSha: actualRoute,
+      contractFile: "tests/tenant-labor-inspection-remediation-post-boundary.test.mjs",
+      reviewFile: "docs/qa/tenant-labor-inspection-remediation-batch.md",
+      methodActions: ["assign", "acknowledge", "close"],
+      coverageCredits: 0,
+      syntheticPg16Http: "PENDING",
+      auditRollbackProof: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionTouched: false,
+    });
+    const route = readFileSync(path, "utf8");
+    const postAt = route.indexOf("export async function POST(request: Request)");
+    assert.ok(postAt > route.indexOf("export async function GET(request: Request)"));
+    const post = route.slice(postAt);
+    const assignAt = post.indexOf('if (action === "assign" || action === "acknowledge")');
+    const closeAt = post.indexOf('if (action === "close")');
+    assert.ok(assignAt >= 0 && closeAt > assignAt);
+    for (const action of [post.slice(assignAt, closeAt), post.slice(closeAt)]) {
+      assert.match(action, /await db\.transaction\(async \(tx\) =>/);
+      assert.match(action, /await recordAuditEvent\(/);
+      assert.match(action, /\}, tx\);/);
+      assert.match(action, /eq\(laborInspectionRemediations\.organizationId, organizationId\)/);
+      assert.match(action, /eq\(laborInspectionRemediations\.findingKey, findingKey\)/);
+      assert.match(action, /eq\(laborInspectionRemediations\.status, existing\.status\)/);
+    }
+    const contract = readFileSync(method.reviewedUncertified.contractFile, "utf8");
+    assert.match(contract, /transaction|atomic/i);
+    return;
+  }
+
   // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
   // These changes preserve the historical POST/PATCH handlers byte-for-byte,
   // preserve all existing method credits, and do NOT promote the open GET GAP.
@@ -2021,6 +2068,73 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(workflow, /XENDIT_PAYOUTS_ENABLED/);
     return; // Only this exact three-method unaccepted source review.
   }
+
+  // HCM SLA runs across employers by an explicitly configured cron token, not
+  // a caller-selected employer. Source-only partial-index repair and a real
+  // fictional PG16 HTTP candidate are NEVER a client-method coverage credit.
+  if (isNewOrChanged &&
+      key === "src/app/api/hcm/work-items/escalate/route.ts POST") {
+    const routeFile = "src/app/api/hcm/work-items/escalate/route.ts";
+    const review = method.reviewedUncertified;
+    const expectedReview = {
+      kind: "hcm-sla-worker-token-and-partial-index-PG16-uncredited",
+      previousRouteBlobSha: "91d465334abe1391d5d96e587b39c365dd529c6c",
+      routeBlobSha: "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
+      proofFile: "scripts/qa/tenant-hcm-sla-escalate-http.mjs",
+      proofBlobSha: "07e0020c74c849b54a10e839b6f4d4e65e3009d9",
+      contractFile: "tests/tenant-hcm-sla-escalate-contract.test.mjs",
+      contractBlobSha: "71c2cabbc8b11c383fc54545771f5a983dddbe98",
+      unitTestFile: "tests/hcm-work-item-sla.test.ts",
+      unitTestBlobSha: "b5699786808d477bb33f2b8cc0a7e908fdd3678b",
+      workflowFile: ".github/workflows/tenant-hcm-sla-escalate-http.yml",
+      workflowBlobSha: "eb2b73295ffab13b8eb8a172ab17f913452a8ec1",
+      fixtureFile: "scripts/qa/prepare-hcm-work-item-fixture.mjs",
+      fixtureBlobSha: "3bc9f8046c38cf032ade0b076394be2f2e795c7b",
+      credits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP", "No global scheduler method coverage credit");
+    assert.equal(method.testedBy, null, "Do not call a worker-token denial a tenant method proof");
+    assert.match(method.reason, /worker-token.*zero method credits/i);
+    assert.equal(currentBlob, expectedReview.routeBlobSha,
+      "HCM SLA source changed: require renewed exact SHA and PG16 proof");
+    assert.equal(baseline.api[routeFile], expectedReview.previousRouteBlobSha);
+    assert.deepEqual(review, expectedReview, "No unreviewed scheduler exception expansion");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+      [review.fixtureFile, review.fixtureBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Worker evidence changed; renew exact-source review: " + file);
+    const source = readFileSync(routeFile, "utf8");
+    const beforeDb = source.indexOf("if (!authorized(request))");
+    const connectDb = source.indexOf("const client = await pool.connect()");
+    assert.ok(beforeDb > 0 && connectDb > beforeDb,
+      "HCM cron authorization must precede all employer writes");
+    assert.ok(!source.includes("getSessionUser("),
+      "Tenant browser sessions are never global scheduler authorization");
+    assert.match(source, /timingSafeEqual\(a, b\)/);
+    assert.match(source, /WHERE uo\.organization_id=\$1 AND uo\.active=true/);
+    assert.match(source, /ON CONFLICT \(dedupe_key\) WHERE dedupe_key IS NOT NULL DO NOTHING/);
+    const schema = readFileSync("src/db/schema.ts", "utf8");
+    assert.match(schema, /uniqueIndex\("outbox_dedupe_key_unique"\)/);
+    const proof = readFileSync(review.proofFile, "utf8");
+    for (const marker of [
+      '["GITHUB_ACTIONS", "true"]',
+      '["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db"]',
+      'authenticatedTenantCookieDenied: true',
+      'assert.deepEqual(await snapshot("audit_events", org.orgId)',
+      'assert.deepEqual(await snapshot("payroll_runs", org.orgId)',
+      "methodCredits: 0, independentSecurityAcceptance: false",
+    ]) assert.ok(proof.includes(marker), "Missing HCM worker negative control: " + marker);
+    const workflow = readFileSync(review.workflowFile, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-sla-escalate-http\.mjs/);
+    return;
+  }
+
 
   if (isNewOrChanged && key === "src/app/api/leave/route.ts POST") {
     const expected = {
