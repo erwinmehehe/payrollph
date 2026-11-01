@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -237,7 +237,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   if (payrollRunId) {
-    const [payrollRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
+    const [payrollRun] = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.id, payrollRunId),
+      eq(payrollRuns.organizationId, task.organizationId),
+    )).limit(1);
     if (!payrollRun || payrollRun.organizationId !== task.organizationId) {
       return Response.json({ error: "The payroll approval is not linked to a valid run in this workspace." }, { status: 409 });
     }
@@ -447,6 +450,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           .set({ status: status === "Approved" ? "Ready for release" : "Needs review" })
           .where(and(
             eq(payrollRuns.id, payrollRunId),
+            eq(payrollRuns.organizationId, task.organizationId),
             eq(payrollRuns.status, "Pending approval"),
           ))
           .returning();
@@ -465,6 +469,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         })
         .where(and(
           eq(approvalTasks.id, taskId),
+          eq(approvalTasks.organizationId, task.organizationId),
           eq(approvalTasks.status, "Pending"),
         ))
         .returning();
@@ -586,6 +591,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           updatedAt: new Date(),
         }).where(and(
           eq(automationExecutions.waitingApprovalTaskId, taskId),
+          eq(automationExecutions.organizationId, task.organizationId),
           eq(automationExecutions.status, "waiting_approval"),
         ));
       }
@@ -606,6 +612,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           updatedAt: new Date(),
         }).where(and(
           eq(workforcePlanningScenarios.id, workforceScenarioApproval.scenarioId),
+          eq(workforcePlanningScenarios.organizationId, task.organizationId),
           eq(workforcePlanningScenarios.status, "submitted"),
         )).returning();
         if (!scenarioRow) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT");
@@ -616,13 +623,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           && scenarioRow.worksiteId == null
         ) {
           const [linkedPlan] = await tx.select({ status: workforcePlans.status }).from(workforcePlans)
-            .where(eq(workforcePlans.id, scenarioRow.planId))
+            .where(and(
+              eq(workforcePlans.id, scenarioRow.planId),
+              eq(workforcePlans.organizationId, task.organizationId),
+            ))
             .limit(1);
-          if (linkedPlan && linkedPlan.status !== "published") {
-            await tx.update(workforcePlans).set({
+          if (!linkedPlan) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT");
+          if (linkedPlan.status !== "published") {
+            // Fail closed if a linked plan disappeared, moved tenants, or
+            // became published between the scoped read and this update.
+            const [updatedLinkedPlan] = await tx.update(workforcePlans).set({
               status: nextScenarioStatus,
               updatedAt: new Date(),
-            }).where(eq(workforcePlans.id, scenarioRow.planId));
+            }).where(and(
+              eq(workforcePlans.id, scenarioRow.planId),
+              eq(workforcePlans.organizationId, task.organizationId),
+              ne(workforcePlans.status, "published"),
+            )).returning({ id: workforcePlans.id });
+            if (!updatedLinkedPlan) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT");
           }
         }
 
@@ -818,7 +836,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   if (payrollRunId && status === "Approved") {
-    const [approvedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
+    const [approvedRun] = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.id, payrollRunId),
+      eq(payrollRuns.organizationId, task.organizationId),
+    )).limit(1);
     if (approvedRun) {
       automation.push(...await runAutomationEventSafely({
         organizationId: task.organizationId,
