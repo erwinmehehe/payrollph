@@ -254,7 +254,7 @@ export async function proveIssuedDemandPosts() {
       ownScoreReplay200: 0, foreignEmployer403: 0, forgedSite403: 0,
       forgedIssue403: 0, earlyScore409: 0, changedKey409: 0,
       forgedSource409: 0, invalidInput400: 0, anonymous401: 0,
-      excludedPilot404: 0, missingMfa403: 0 };
+      excludedPilot404: 0, nonmemberExcludedEmployer403: 0, missingMfa403: 0 };
     // Actual production HTTP issue, first for both attackers and then for
     // the allowlisted victim, to obtain a genuine higher-ID positive victim.
     for (const actor of [a, b, victim]) {
@@ -300,6 +300,12 @@ export async function proveIssuedDemandPosts() {
         { ...goodBody, organizationId: victim.org.id, worksiteId: victim.site.id },
         403, "signed-in attacker cannot issue for allowlisted real victim");
       counts.foreignEmployer403++;
+      // A foreign, pilot-disabled employer must return the same 403 authorization
+      // denial as an allowlisted foreign employer, before flag disclosure.
+      await refused(ISSUE_PATH, actor,
+        { ...goodBody, organizationId: excluded.org.id, worksiteId: excluded.site.id },
+        403, "non-member cannot inspect excluded employer pilot status");
+      counts.nonmemberExcludedEmployer403++;
       await refused(ISSUE_PATH, actor,
         { ...goodBody, worksiteId: victim.site.id },
         403, "victim higher-ID worksite cannot be issued within attacker's employer");
@@ -383,6 +389,10 @@ export async function proveIssuedDemandPosts() {
         scoreBody(victim.org.id, victim.scorableIssue.id), 403,
         "attacker cannot score real allowlisted victim employer");
       counts.foreignEmployer403++;
+      await refused(SCORE_PATH, actor,
+        scoreBody(excluded.org.id, excluded.scorableIssue.id), 403,
+        "non-member cannot inspect excluded employer pilot status");
+      counts.nonmemberExcludedEmployer403++;
       await refused(SCORE_PATH, actor,
         scoreBody(actor.org.id, victim.scorableIssue.id), 403,
         "attacker cannot steal victim's higher-ID issueId");
