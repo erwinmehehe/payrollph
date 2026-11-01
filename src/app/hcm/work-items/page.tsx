@@ -130,7 +130,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
           onChange={event => setSearch(event.target.value)} placeholder="Title, case type, team or owner" />
       </label>
       <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={!search.trim()} onClick={() => setSearch("")}>Clear search</button>
-      <p className="w-full text-sm text-slate-600" role="status">Showing {visibleItems.length} of {items.length} loaded items. Search only filters this employer's verified view.</p>
+      <p className="w-full text-sm text-slate-600" role="status">Showing {visibleItems.length} of {items.length} loaded items. Search only filters this employer&apos;s verified view.</p>
     </div>}
     {summary ? (
       <div className="rounded-xl border bg-white"><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[850px] text-left text-sm">
