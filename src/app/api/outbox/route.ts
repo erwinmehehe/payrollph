@@ -1,5 +1,7 @@
 import {
   assertOrganizationRole,
+  getAccess,
+  roleAllowed,
   ORG_ADMIN_ROLES,
   PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
@@ -100,6 +102,14 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId);
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  // Reject users with no eligible active employer role before fetching any
+  // globally numbered message ID. Action-specific permissions still apply
+  // below, including the custom org-admin/payroll permission overlays.
+  const access = await getAccess(user.id, organizationId);
+  if (!access || !roleAllowed(access.role, PAYROLL_OPERATOR_ROLES)) {
+    return Response.json({ error: "Outbox access denied." }, { status: 403 });
   }
 
   if (body.mode === "retry-failed-payslips") {
