@@ -25,7 +25,7 @@ test("SLA escalation requires a secret, locks rows, and queues deduplicated noti
   assert.match(source,/timingSafeEqual/);
   assert.match(source,/FOR UPDATE SKIP LOCKED/);
   assert.match(source,/escalated_at IS NULL/);
-  assert.match(source,/ON CONFLICT \(dedupe_key\) DO NOTHING/);
+  assert.match(source,/ON CONFLICT \(dedupe_key\) WHERE dedupe_key IS NOT NULL DO NOTHING/);
 });
 test("HCM command center is read-only and company-wide",()=>{
   const source=read("src/app/hcm/command-center/page.tsx");
