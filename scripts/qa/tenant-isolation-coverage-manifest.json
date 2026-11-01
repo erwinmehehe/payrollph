@@ -6116,7 +6116,7 @@
       ]
     },
     "src/app/api/compliance/labor-inspection/route.ts": {
-      "gitBlobSha": "32050f2292f1da22ffbb05efcc699a595d80a2fb",
+      "gitBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
       "route": "compliance/labor-inspection",
       "methods": [
         {
@@ -6140,8 +6140,24 @@
           "name": "POST",
           "line": 47,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Source-only tenant-scope and atomic-audit hardening in PR #1685: final remediation UPDATE now binds authenticated organizationId, findingKey, existing status and record ID, while assign/acknowledge/close state and audit commit or roll back together. Existing company-wide role check and close MFA retained. Two-attacker real PostgreSQL 16 own-success/victim-denial/unchanged-DB/forged-selector and audit-failure rollback proofs are NOT yet accepted. Zero new tenant coverage credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "labor-inspection-remediation-post-atomic-audit-source-review",
+            "routeBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
+            "contractFile": "tests/tenant-labor-inspection-remediation-post-boundary.test.mjs",
+            "reviewFile": "docs/qa/tenant-labor-inspection-remediation-batch.md",
+            "methodActions": [
+              "assign",
+              "acknowledge",
+              "close"
+            ],
+            "coverageCredits": 0,
+            "syntheticPg16Http": "PENDING",
+            "auditRollbackProof": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionTouched": false
+          }
         }
       ],
       "employerSources": {
