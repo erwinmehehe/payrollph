@@ -41,6 +41,10 @@ on:
       - "src/lib/payroll-**"
       - "src/lib/workforce-**"
       - "src/app/api/workforce/**"
+      # Demand forecasting APIs are not part of the payroll scheduling-to-pay proof.
+      - "!src/app/api/workforce/demand-observations/**"
+      - "!src/app/api/workforce/demand-outlook/**"
+      - "!src/app/api/workforce/demand-staffing/**"
       - "tests/workforce-*.test.ts"
       - "src/lib/roles.ts"
       - "src/db/**"
