@@ -31,11 +31,6 @@ export type FirstPayrollJourneyStep = {
   settingsTab?: "organization" | "team";
 };
 
-/**
- * Status is derived from actual readiness; a workspace checkbox is not evidence
- * of a period-specific attendance review, independent approval or government
- * filing acceptance. Financial calculations and authorization are server-owned.
- */
 /** Select an actionable step only from authorized navigation destinations.
  * This is a UI suggestion, not a payroll/compliance readiness decision. */
 export function findFirstPayrollResumeStep(
@@ -48,6 +43,11 @@ export function findFirstPayrollResumeStep(
   ) ?? null;
 }
 
+/**
+ * Status is derived from actual readiness; a workspace checkbox is not evidence
+ * of a period-specific attendance review, independent approval or government
+ * filing acceptance. Financial calculations and authorization are server-owned.
+ */
 export function buildFirstPayrollJourney(readiness: FirstPayrollReadiness): FirstPayrollJourneyStep[] {
   const flags = new Map(readiness.items.map(item => [item.key, item.ready]));
   const company = flags.get("workspace") === true;
