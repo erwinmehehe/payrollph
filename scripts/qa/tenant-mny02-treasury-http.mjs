@@ -180,7 +180,7 @@ export async function proveMny02Treasury() {
         await pool.query(
           "CREATE FUNCTION public.ci_reject_treasury_audit() RETURNS trigger LANGUAGE plpgsql AS $$ " +
           "BEGIN IF NEW.action LIKE 'Treasury separation policy%' THEN " +
-          "RAISE EXCEPTION 'CI_ONLY_TREASURY_AUDIT_FAILURE'; END IF; RETURN NEW; END $$"
+          "RAISE EXCEPTION 'CI_ONLY_TREASURY_AUDIT_FAILURE'; END IF; RETURN NEW; END; $$;"
         );
         await pool.query(
           "CREATE TRIGGER ci_reject_treasury_audit BEFORE INSERT ON public.audit_events " +
