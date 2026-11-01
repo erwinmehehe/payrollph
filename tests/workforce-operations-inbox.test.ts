@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWfmOpsSignals,
+  filterWfmOpsSignals,
+  isValidWfmOpsPeriod,
   projectAttendanceOps,
   projectTimesheetOps,
   recentAttendanceWindow,
@@ -66,4 +68,22 @@ test("unknown/unavailable sources are not treated as zero", () => {
   assert.deepEqual(buildWfmOpsSignals(null, null), []);
   const signals = buildWfmOpsSignals({ open: 1, overdue: 1, unassigned: 0, resolved: 0 }, null);
   assert.deepEqual(signals.map(s => s.id), ["attendance-overdue", "attendance-open"]);
+});
+
+test("manager priority filter is a pure local view, never a new approval", () => {
+  const source = { open: 5, overdue: 2, unassigned: 1, resolved: 0 };
+  const signals = buildWfmOpsSignals(source, null);
+  assert.deepEqual(filterWfmOpsSignals(signals, "all"), signals);
+  assert.deepEqual(filterWfmOpsSignals(signals, "urgent").map(s => s.id), ["attendance-overdue"]);
+  assert.deepEqual(filterWfmOpsSignals(signals, "review").map(s => s.id), ["attendance-open", "attendance-unassigned"]);
+  assert.equal(filterWfmOpsSignals([], "urgent").length, 0);
+  assert.equal(signals.length, 3, "Filtering must not mutate source evidence or priorities");
+});
+
+test("manager period selection rejects impossible and reversed calendar dates", () => {
+  assert.equal(isValidWfmOpsPeriod("2024-02-29", "2024-03-15"), true);
+  assert.equal(isValidWfmOpsPeriod("2026-02-29", "2026-03-15"), false);
+  assert.equal(isValidWfmOpsPeriod("2026-04-31", "2026-05-15"), false);
+  assert.equal(isValidWfmOpsPeriod("2026-11-16", "2026-11-15"), false);
+  assert.equal(isValidWfmOpsPeriod("2026-11-01", "2026-11-01"), true);
 });
