@@ -163,8 +163,6 @@ export function WorkforceOperationsInbox({
           ) : bothAvailable ? (
             <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>No triage signals in the selected source windows. This does not independently certify payroll readiness.</div>
           ) : null}
-          <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>No triage signals in the selected source windows. This does not independently certify payroll readiness.</div>
-          ) : null}
           <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
             Staffing gaps, shift claims and schedule readiness remain in <button type="button" className="secondary-button" onClick={() => onOpenTab("coverage")}>Coverage operations →</button>
           </div>
