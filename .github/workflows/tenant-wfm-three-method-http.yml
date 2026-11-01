@@ -106,9 +106,10 @@ jobs:
           key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$key"
           echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
-      - name: Prepare isolated PostgreSQL 16 app_db, no hosted migration
+      - name: Push isolated PostgreSQL 16 schema (fictional only)
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline and fixture after schema push
         run: |
-          npm run db:push
           node scripts/qa/apply-isolated-baseline.mjs
           node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Build real production-mode Next on fictional local DB
@@ -210,9 +211,10 @@ jobs:
           key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$key"
           echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
-      - name: Prepare empty disposable PostgreSQL 16 app_db
+      - name: Push empty disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline and fixture after schema push
         run: |
-          npm run db:push
           node scripts/qa/apply-isolated-baseline.mjs
           node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Preseed two actual fake employers, higher-ID victim and excluded fourth employer
