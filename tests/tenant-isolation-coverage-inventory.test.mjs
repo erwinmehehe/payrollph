@@ -1484,7 +1484,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // WRK-02 source-only hardening. These changed route blobs add stricter
   // final SQL predicates, but have NO new own/victim PG16 HTTP proof.
   const wrk02Boundaries = {
-    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "5c88b83ff366d1353b131a6b05e5fa4cda7d1f30", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
+    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "2476d179a0472c915829aaec27db5da84078a50f", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/position-executions/route.ts": { previous: "0c7ddf8ba2db323aea03c152612eced44c31aea2", current: "142797be0cfa4f64849b20958869c12147ccf792", prefix: "e18416e827678a1e62a1e891201df027ba20c48e", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/transfer/route.ts": { previous: "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153", current: "fc17024c47d013b28213abe89c7784254e3b2bc1", prefix: null, methods: ["POST"] },
   };
@@ -2043,6 +2043,30 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "await recordAuditEvent({",
       "}, tx);",
     ]) assert.ok(post.includes(token), "Missing zero-credit EWA POST audit transaction: " + token);
+    return;
+  }
+
+
+  if (isNewOrChanged && key === "src/app/api/leave/route.ts POST") {
+    const expected = {
+      kind: "leave-POST-revalidate-active-checker-source-only",
+      priorRouteBlobSha: "1ecad0e01335770d683edeef091b5dd2ccc180c2", routeBlobSha: "97d492317460b0ff580bc045d8930f8232ed7031",
+      contractFile: "tests/tenant-leave-post-active-checker.test.mjs", contractBlobSha: "42ac939ecd1a86e71584fda0aad05e15c3065a5e",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/leave/route.ts", "utf8").split("export async function POST")[1];
+    for (const token of [
+      "eq(userOrganizations.active, true)", "eq(users.active, true)",
+      "inArray(userOrganizations.role, [...LEAVE_APPROVER_ROLES])",
+      "const [liveApprover] = await tx.select(",
+      "LEAVE_APPROVER_CHANGED",
+    ]) assert.ok(post.includes(token), "Missing leave POST checker boundary: " + token);
     return;
   }
 
@@ -3461,6 +3485,17 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 124420445717);
         continue;
       }
+      // WRK-02 allocations: only POST and PATCH may claim the allocations receipt; anchors and pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-wfp-allocations-http.mjs") {
+        assert.equal(path, "src/app/api/workforce-planning/allocations/route.ts", "No unrelated route may reuse the allocations evidence");
+        assert.ok(["POST", "PATCH"].includes(method.name));
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "a79c53844b6b4eff58e2b63ed86aec9dc8103273");
+        assert.equal(proof.workflowRunId, 41272751903);
+        assert.equal(proof.workflowJobId, 124748701503);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -4849,4 +4884,55 @@ test("WRK-02 Batch 2 credits require the exact passing run, byte-pinned inputs a
   assert.match(executions, /\["apply", "cancel"\]\.includes\(action\)/, "PATCH gained or lost an action; every action needs its own proof");
   for (const evidence of ["requireDisposableWrk02Batch2(", "assertPlanningUnchanged(victimBefore", '"cross-employer " + action + " on real victim execution"',
     '"Alpha own exact-hash apply"', '"owned execution cancel"', '"foreign approved scenario"']) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+});
+
+test("allocations POST and PATCH credits require the exact passing run, byte-pinned inputs and a cited call per method", () => {
+  const routePath = "src/app/api/workforce-planning/allocations/route.ts";
+  const harnessFile = "scripts/qa/tenant-wfp-allocations-http.mjs";
+  const api = manifest.allApiRouteFiles[routePath];
+  const harness = readFileSync(harnessFile, "utf8"), harnessLines = harness.split("\n");
+  const workflow = readFileSync(".github/workflows/tenant-wfp-allocations-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-wfp-allocations-http.mjs"));
+  assert.equal(api.methods.find(entry => entry.name === "GET").status, "COVERED", "the separate GET proof is preserved");
+  assert.ok(route.includes('["submit", "accept", "reject"].includes(action)'), "PATCH gained or lost an action; every action needs its own proof");
+  assert.ok(route.includes('if (entityType === "allocation")'));
+  assert.ok(route.includes('if (entityType === "submission")'));
+  const wanted = {
+    POST: { actions: ["allocation_create", "allocation_update", "manager_draft_create"],
+      own: "const createAllocation = await post(actor, allocationBody(actor));", second: "const createDraft = await post(actor, submissionBody(actor, allocationId));",
+      foreign: "deny(await post(actor, allocationBody(actor, victim.orgId,", secondForeign: "deny(await post(actor, submissionBody(actor," },
+    PATCH: { actions: ["submit", "accept", "reject"],
+      own: 'const submitted = await patch(actor, actor.draftId, "submit");', second: "const decision = await patch(actor, actor.draftId, action, { checker: true });",
+      foreign: "deny(await patch(actor, victim.draftId, action, { orgId: actor.orgId }),", secondForeign: 'deny(await patch(actor, victim.draftId, "accept",' },
+  };
+  const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
+  for (const [name, spec] of Object.entries(wanted)) {
+    const method = api.methods.find(entry => entry.name === name);
+    assert.equal(method.status, "COVERED", name);
+    assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
+    const proof = method.testedBy;
+    assert.equal(proof.file, harnessFile);
+    assert.deepEqual(proof.methodActions, spec.actions);
+    assert.equal(proof.postgresMajor, 16);
+    assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 allocations PASS");
+    assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+    assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+    assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-wfp-allocations-contract.mjs")));
+    assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-wfp-allocations-contract.test.mjs")));
+    assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+    assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+    assert.equal(api.gitBlobSha, proof.routeBlobSha);
+    assert.equal(proof.line, proof.ownPositiveLine);
+    cites(proof.ownPositiveLine, spec.own, name + " own-success anchor");
+    cites(proof.secondaryOwnPositiveLine, spec.second, name + " second own-success anchor");
+    cites(proof.foreignDenialLine, spec.foreign, name + " foreign-denial anchor");
+    cites(proof.secondaryForeignDenialLine, spec.secondForeign, name + " second foreign-denial anchor");
+    cites(proof.unchangedDbLine, "assertNoStateChange(expected.get(e.orgId), await snapshot(e.orgId)", name + " unchanged anchor");
+    cites(proof.higherIdVictimLine, "assert.ok(victim[key] > attacker[key]", name + " higher-ID victim anchor");
+  }
+  for (const evidence of ["requireDisposablePlanningEnv();", "cannot shrink below accepted manager demand", "sum of org-unit budgets cannot exceed plan budget",
+    'for (const action of ["submit", "accept", "reject"])', "foreignPatches: 8, nonadminPatches: 2, makerDecisionDenials: 3"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposablePlanningEnv();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
 });
