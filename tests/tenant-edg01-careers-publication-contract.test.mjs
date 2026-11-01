@@ -108,6 +108,8 @@ test("route preserves organization+requisition CAS, MFA and company-wide scope",
     "req.careers_published = ${body.expectedPublished}",
     "p.organization_id = req.organization_id",
     "auditEvents", "Cache-Control",
+    "for share of uo, u", "uo.organization_id = ${organizationId}",
+    "uo.active = true", "u.active = true", "uo.org_unit_id is null",
   ]) assert.ok(s.includes(token), "missing source guard: " + token);
 });
 
