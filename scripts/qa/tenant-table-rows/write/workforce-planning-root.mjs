@@ -14,7 +14,7 @@
  */
 export const fixtureOrder = {};
 
-export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db, eq, jobProfiles }) {
+export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, auditEvents, db, eq, jobProfiles }) {
   let sourceTables;
   const tables = async () => (sourceTables ??= await import("../../../../src/db/schema.ts"));
   const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -31,6 +31,8 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
       units: await read(t.orgUnits, organizationId),
       plans: await read(t.workforcePlans, organizationId),
       positions: await read(t.positions, organizationId),
+      workers: await read(t.employees, organizationId),
+      events: await read(t.workerEmploymentEvents, organizationId),
       processes: await read(t.hcmBusinessProcessInstances, organizationId),
       processSteps: await read(t.hcmBusinessProcessInstanceSteps, organizationId),
       tasks: await read(t.approvalTasks, organizationId),
@@ -110,7 +112,7 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
         assert.equal(row.name, c.marker + " family");
         assert.equal(response.json?.id, row.id);
         auditAdded(before, after, c, "Job family created");
-        for (const key of ["levels","grades","profiles","units","plans","positions","processes","processSteps","tasks","requisitions","assignments"]) {
+        for (const key of ["levels","grades","profiles","units","plans","positions","workers","events","processes","processSteps","tasks","requisitions","assignments"]) {
           assert.deepEqual(after[key], before[key], "family creation must not mutate " + key);
         }
       },
@@ -163,11 +165,11 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
         assert.equal(position.response.json?.approvalRequired, true);
         const instanceId = position.response.json?.businessProcess?.id;
         assert.ok(Number.isSafeInteger(instanceId) && instanceId > 0);
-        const process = created(position.before.processes, position.after.processes, "position review process", c.orgId);
-        assert.equal(process.id, instanceId);
-        assert.equal(process.sourceType, "position_creation");
-        assert.equal(process.processType, "create_position");
-        assert.equal(process.status, "in_progress");
+        const approvalProcess = created(position.before.processes, position.after.processes, "position review process", c.orgId);
+        assert.equal(approvalProcess.id, instanceId);
+        assert.equal(approvalProcess.sourceType, "position_creation");
+        assert.equal(approvalProcess.processType, "create_position");
+        assert.equal(approvalProcess.status, "in_progress");
         assert.ok(position.after.processSteps.some(r => r.instanceId === instanceId));
         await denyAndPreserve(c, "POST", base(c, "org_unit", {
           code: "X-PARENT-" + c.marker, name: c.marker + " foreign parent", type: "department",
@@ -189,14 +191,71 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
         }), 409, "direct assignment future-date bypass", client);
         await denyAndPreserve(c, "POST", base(c, "unknown", { marker: c.marker }),
           400, "unknown root entity type", client);
+
+        // Only the dedicated disposable-PG16 workflow runs a true direct-assignment
+        // success. Other shared table families may add HCM movement governance,
+        // so this case is not silently skipped or counted in their proof.
+        let directAssignmentProofs = 0;
+        if (process.env.TENANT_TABLE_FAMILY === "workforce-planning-root") {
+          const { isGovernedPositionAssignmentWorkspace } =
+            await import("../../../../src/lib/hcm-position-assignment-guard.ts");
+          assert.equal(await isGovernedPositionAssignmentWorkspace(c.orgId), false,
+            "dedicated synthetic employer must genuinely be ungoverned");
+          const t = await tables();
+          const worker = await addWorker(c, "ROOTASSIGN");
+          const [vacancy] = await db.insert(t.positions).values({
+            organizationId: c.orgId, code: "ASSIGN-" + c.marker,
+            jobProfileId: profile.id, orgUnitId: c.unitId, legalEntityId: c.entityId,
+            employmentType: "Regular", status: "open", annualBudget: "100000.00",
+            createdByUserId: c.owner.id,
+          }).returning();
+          const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+          const before = await snapshot(c.orgId);
+          const victimBefore = await snapshot(c.victim.org.id);
+          const assigned = client.expectStatus(await client.request("/api/workforce-planning", {
+            method: "POST", cookie: client.cookie,
+            body: base(c, "assignment", {
+              positionId: vacancy.id, employeeId: worker.id, effectiveFrom: todayPh,
+              reason: "Fictional ungoverned primary position assignment",
+            }),
+          }), 201, "ungoverned direct position assignment");
+          const after = await snapshot(c.orgId);
+          const assignment = created(before.assignments, after.assignments,
+            "direct primary position assignment", c.orgId);
+          assert.equal(assignment.id, assigned.json?.id);
+          assert.equal(assignment.positionId, vacancy.id);
+          assert.equal(assignment.employeeId, worker.id);
+          assert.equal(assignment.assignmentType, "primary");
+          assert.equal(assignment.effectiveFrom, todayPh);
+          assert.equal(after.positions.find(row => row.id === vacancy.id)?.status, "filled");
+          assert.equal(before.workers.find(row => row.id === worker.id)?.status, "Active");
+          assert.equal(after.workers.find(row => row.id === worker.id)?.title, profile.title);
+          const event = created(before.events, after.events, "position employment event", c.orgId);
+          assert.equal(event.employeeId, worker.id);
+          assert.equal(event.positionAssignmentId, assignment.id);
+          assert.equal(event.eventType, "position_assigned");
+          auditAdded(before, after, c, "Employee assigned to position");
+          assert.deepEqual(await snapshot(c.victim.org.id), victimBefore,
+            "direct assignment must leave foreign employer unchanged");
+          assert.ok(!assigned.text.includes(c.victim.marker), "direct assignment response cannot disclose victim");
+          await denyAndPreserve(c, "POST", base(c, "assignment", {
+            positionId: vacancy.id, employeeId: worker.id, effectiveFrom: todayPh,
+          }), 409, "duplicate position assignment refused", client);
+          await denyAndPreserve(c, "POST", base(c, "assignment", {
+            positionId: c.victim.seeded["PATCH workforce-planning"].id,
+            employeeId: worker.id, effectiveFrom: todayPh,
+          }), 404, "foreign root assignment target refused", client);
+          directAssignmentProofs = 1;
+        }
         return {
           positiveEntityTypes: ["job_family","job_level","job_grade","org_unit","plan","profile","position"],
-          forgedReferences: 4, blockedDirectAssignments: 1, certifiedMethod: false,
+          forgedReferences: 4, blockedDirectAssignments: 1, directAssignmentProofs,
+          certifiedMethod: false,
         };
       },
     },
     {
-      key: "PATCH workforce-planning", status: 200, deny: 403,
+      key: "PATCH workforce-planning", status: 200, deny: 404,
       seed: async e => {
         const t = await tables();
         const [profile] = await db.insert(t.jobProfiles).values({
@@ -274,13 +333,47 @@ export function createRows({ assert, asc, auditBusinessSnapshot, auditEvents, db
         ]) {
           await denyAndPreserve(c, "PATCH", { id, status }, 409, label, client);
         }
-        await denyAndPreserve(c, "PATCH", {
+        const foreignPosition = await denyAndPreserve(c, "PATCH", {
           id: c.victimSeeded.plannedId, status: "approved",
-        }, 403, "foreign governed approval request", client);
-        assert.deepEqual(await snapshot(c.victim.org.id), heldVictim, "all lifecycle attempts leave victim employer intact");
+        }, 404, "foreign governed approval request", client);
+        const missingPosition = await denyAndPreserve(c, "PATCH", {
+          id: Number.MAX_SAFE_INTEGER, status: "approved",
+        }, 404, "unknown position id matches foreign 404", client);
+        assert.equal(foreignPosition.text, missingPosition.text,
+          "foreign and missing positions must be indistinguishable to a non-member");
+
+        // Parallel same-vacancy freezes may have one idempotent 200 or a stale
+        // 409, but must only commit one transition and one audit record.
+        const t = await tables();
+        const source = (await snapshot(c.orgId)).positions.find(row => row.id === c.seeded.id);
+        assert.ok(source && source.status === "frozen");
+        const [racePosition] = await db.insert(t.positions).values({
+          organizationId: c.orgId, code: "RACE-" + c.marker,
+          jobProfileId: source.jobProfileId, orgUnitId: c.unitId,
+          legalEntityId: c.entityId, status: "open", annualBudget: "100000.00",
+          createdByUserId: c.owner.id,
+        }).returning();
+        const raceBefore = await snapshot(c.orgId);
+        const raceVictim = await snapshot(c.victim.org.id);
+        const raced = await Promise.all([1, 2].map(() => client.request("/api/workforce-planning", {
+          method: "PATCH", cookie: client.cookie, body: { id: racePosition.id, status: "frozen" },
+        })));
+        assert.ok(raced.every(row => row.status === 200 || row.status === 409),
+          "concurrent freeze may only succeed or report a stale conflict");
+        assert.ok(raced.some(row => row.status === 200),
+          "at least one concurrent vacancy freeze must commit");
+        const raceAfter = await snapshot(c.orgId);
+        assert.equal(raceAfter.positions.find(row => row.id === racePosition.id)?.status, "frozen");
+        const raceAudit = raceAfter.audit.filter(row => !raceBefore.audit.some(old => old.id === row.id)
+          && row.action === "Position status changed" && row.resource === racePosition.code);
+        assert.equal(raceAudit.length, 1, "exactly one persisted audit for simultaneous freezes");
+        assert.deepEqual(await snapshot(c.victim.org.id), raceVictim, "parallel freezes cannot affect victim");
+        assert.deepEqual(await snapshot(c.victim.org.id), heldVictim,
+          "all lifecycle attempts leave victim employer intact");
         return {
           directVacancyFreezes: 2, governedApprovalRequests: 2,
-          forbiddenTransitions: 3, victimDenials: 1, certifiedMethod: false,
+          forbiddenTransitions: 3, victimDenials: 1, missingIdParity: true,
+          racedSamePositionFreezes: 2, certifiedMethod: false,
         };
       },
     },
