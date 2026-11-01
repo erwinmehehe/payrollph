@@ -2025,8 +2025,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (isNewOrChanged && key === "src/app/api/leave/route.ts POST") {
     const expected = {
       kind: "leave-POST-revalidate-active-checker-source-only",
-      priorRouteBlobSha: "1ecad0e01335770d683edeef091b5dd2ccc180c2", routeBlobSha: "b227ecb472cf21af5ba7aaa3a9a286b1f1f2c593",
-      contractFile: "tests/tenant-leave-post-active-checker.test.mjs", contractBlobSha: "1f4fc0f992ac33de4f604e2b78bdd4566495a016",
+      priorRouteBlobSha: "1ecad0e01335770d683edeef091b5dd2ccc180c2", routeBlobSha: "97d492317460b0ff580bc045d8930f8232ed7031",
+      contractFile: "tests/tenant-leave-post-active-checker.test.mjs", contractBlobSha: "42ac939ecd1a86e71584fda0aad05e15c3065a5e",
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };

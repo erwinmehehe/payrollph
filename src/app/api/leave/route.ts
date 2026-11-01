@@ -539,7 +539,7 @@ export async function POST(request: Request) {
         eq(userOrganizations.active, true),
         eq(users.active, true),
         inArray(userOrganizations.role, [...LEAVE_APPROVER_ROLES]),
-      )).limit(1);
+      )).for("share").limit(1);
     if (!liveApprover || liveApprover.id === user.id) throw new Error("LEAVE_APPROVER_CHANGED");
 
     if (access.role !== "employee" && !access.companyWide &&
