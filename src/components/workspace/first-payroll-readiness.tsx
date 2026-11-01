@@ -2,7 +2,7 @@
 
 import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
-import { buildFirstPayrollJourney, FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
+import { buildFirstPayrollJourney, findFirstPayrollResumeStep, FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
 import { FirstPayrollInlinePanel } from "./first-payroll-inline-panel";
 import { useCallback, useState } from "react";
 import type { DashboardData, Notify } from "./types";
@@ -65,6 +65,7 @@ export function FirstPayrollReadinessCard({
       : step.state;
     return {...step,state};
   });
+  const nextStep = guided ? findFirstPayrollResumeStep(journey, allowedPages) : null;
   const ownerFor = (key:FirstPayrollKey) => FIRST_PAYROLL_STEPS.find(item=>item.key===key)?.owner ?? "owner";
   const resumeRun = data?.payrollRuns[0];
   const resumeHref = guided && inlineEnabled && data?.firstPayrollConnectedEnabled &&
@@ -98,6 +99,19 @@ export function FirstPayrollReadinessCard({
       {guided&&inlineEnabled&&progressError&&<div className="notice notice-amber" role="alert">
         <span>Saved first-payroll progress and role assignments are unavailable. Do not treat previous completion indicators as verified.</span>
         <button type="button" className="secondary-button" onClick={()=>void reloadProgress()}>Retry saved progress</button>
+      </div>}
+      {guided && nextStep && (!inlineEnabled || (!progressLoading && !progressError)) && <div className="notice notice-slate" style={{ marginTop: 16 }} aria-label="Suggested next first-payroll action">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span><strong>Suggested next action:</strong> {nextStep.title}. This shortcut does not verify payroll, approve a run, or authorize payment.</span>
+          <button type="button" className="secondary-button" onClick={() => {
+            if (inlineEnabled && data && onRefresh) {
+              setOpened(nextStep.key);
+            } else {
+              if (nextStep.settingsTab && onSettings) onSettings(nextStep.settingsTab);
+              onPage(nextStep.page);
+            }
+          }}>Continue setup <ArrowRight size={15} aria-hidden="true" /></button>
+        </div>
       </div>}
       {guided && <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
         {journey.map((step, index) => (

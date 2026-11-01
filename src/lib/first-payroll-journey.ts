@@ -36,6 +36,18 @@ export type FirstPayrollJourneyStep = {
  * of a period-specific attendance review, independent approval or government
  * filing acceptance. Financial calculations and authorization are server-owned.
  */
+/** Select an actionable step only from authorized navigation destinations.
+ * This is a UI suggestion, not a payroll/compliance readiness decision. */
+export function findFirstPayrollResumeStep(
+  steps: readonly FirstPayrollJourneyStep[],
+  allowedPages: readonly string[],
+): FirstPayrollJourneyStep | null {
+  return steps.find((step) =>
+    (step.state === "available" || step.state === "review") &&
+    allowedPages.includes(step.page)
+  ) ?? null;
+}
+
 export function buildFirstPayrollJourney(readiness: FirstPayrollReadiness): FirstPayrollJourneyStep[] {
   const flags = new Map(readiness.items.map(item => [item.key, item.ready]));
   const company = flags.get("workspace") === true;
