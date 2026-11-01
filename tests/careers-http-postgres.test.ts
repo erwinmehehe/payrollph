@@ -240,9 +240,13 @@ test("public careers is consent-bound, isolated by employer, race-safe and HR-on
     assert.equal((await admin.PATCH(adminRequest(
       orgA.id, jobA.id, false, true))).status, 409,
     "revoked persisted HR membership must block the final write");
-    const [stillPublished] = await db.select().from(jobRequisitions)
-      .where(eq(jobRequisitions.id, jobA.id));
-    assert.equal(stillPublished.careersPublished, true);
+    // The careers_published column is optional forward DDL and deliberately
+    // absent from the baseline Drizzle schema. Query the disposable PG table.
+    const stillPublished = await pool.query<{ careers_published: boolean }>(
+      `select careers_published from ${schema}.job_requisitions where id = $1`,
+      [jobA.id],
+    );
+    assert.equal(stillPublished.rows[0]?.careers_published, true);
     assert.deepEqual(await db.select().from(auditEvents).where(
       eq(auditEvents.organizationId, orgA.id)), auditBeforeRevoked);
     await db.update(userOrganizations).set({ active: true }).where(and(
