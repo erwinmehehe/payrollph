@@ -9125,7 +9125,7 @@
       ]
     },
     "src/app/api/documents/route.ts": {
-      "gitBlobSha": "259618c6355f61bde9fe8161d7f5017738753439",
+      "gitBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
       "route": "documents",
       "methods": [
         {
@@ -9145,8 +9145,19 @@
           "name": "POST",
           "line": 115,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: legacy POST now rechecks requirement, private-file boundary and changed compliance state under a transaction; source-only evidence, PG16 HTTP proof and independent review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "documents-POST-legacy-audit-scope-source-only",
+            "priorRouteBlobSha": "259618c6355f61bde9fe8161d7f5017738753439",
+            "routeBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+            "contractFile": "tests/tenant-documents-post-legacy-atomic.test.mjs",
+            "contractBlobSha": "99ad5a76acbfc8e9588e1df4165db641c2647362",
+            "credits": 0,
+            "actualPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

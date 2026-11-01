@@ -2022,6 +2022,34 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Only this exact three-method unaccepted source review.
   }
 
+  if (isNewOrChanged && key === "src/app/api/documents/route.ts POST") {
+    const expected = {
+      kind: "documents-POST-legacy-audit-scope-source-only",
+      priorRouteBlobSha: "259618c6355f61bde9fe8161d7f5017738753439", routeBlobSha: "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+      contractFile: "tests/tenant-documents-post-legacy-atomic.test.mjs", contractBlobSha: "99ad5a76acbfc8e9588e1df4165db641c2647362",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const legacy = readFileSync("src/app/api/documents/route.ts", "utf8")
+      .split("export async function POST")[1].split("// Legacy database-backed document")[1];
+    for (const token of [
+      "const result = await db.transaction(async (tx) => {",
+      "tx.insert(legacyDocumentInsertTable)",
+      "tx.update(hcmEmployeeDocumentCompliance)",
+      "eq(hcmEmployeeDocumentCompliance.organizationId, organizationId)",
+      "eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!)",
+      "eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id)",
+      "await recordAuditEvent({", "}, tx);",
+    ]) assert.ok(legacy.includes(token), "Missing documents POST atomic tenant guard: " + token);
+    return;
+  }
+
+
   if (isNewOrChanged && key === "src/app/api/migrations/route.ts POST") {
     const expected = {
       kind: "migrations-POST-historical-import-atomic-source-only",

@@ -413,54 +413,103 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await db.insert(legacyDocumentInsertTable).values({
-    organizationId,
-    employeeId,
-    kind,
-    fileName: safeFileName(file.name),
-    mimeType: check.mime,
-    byteSize: bytes.byteLength,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-    scannedClean: scan.scannedClean,
-    scanNote: scan.note,
-    uploadedBy: user.name,
-    content: Buffer.from(bytes).toString("base64"),
-  }).returning({
-    id: legacyDocumentInsertTable.id,
-    fileName: legacyDocumentInsertTable.fileName,
-    byteSize: legacyDocumentInsertTable.byteSize,
-    sha256: legacyDocumentInsertTable.sha256,
-  });
+  // Legacy database-backed document and its compliance link/audit must commit
+  // together; stale cross-employer compliance cannot be reattached by id only.
+  const result = await db.transaction(async (tx) => {
+    if (requirement) {
+      // Reject a requirement deactivated or reconfigured during upload scanning.
+      const [currentRequirement] = await tx.select({ id: hcmDocumentRequirements.id })
+        .from(hcmDocumentRequirements).where(and(
+          eq(hcmDocumentRequirements.id, requirement.id),
+          eq(hcmDocumentRequirements.organizationId, organizationId),
+          eq(hcmDocumentRequirements.active, true),
+          eq(hcmDocumentRequirements.kind, requirement.kind),
+          eq(hcmDocumentRequirements.expiryRequired, requirement.expiryRequired),
+        )).for("update").limit(1);
+      if (!currentRequirement) throw new Error("DOCUMENT_REQUIREMENT_CHANGED");
+    }
 
-  let compliance = null;
-  if (requirement && complianceRow) {
-    [compliance] = await db.update(hcmEmployeeDocumentCompliance).set({
-      documentId: row.id,
-      expiresAt,
-      status: "submitted",
-      verifiedAt: null,
-      verifiedByUserId: null,
-      verifiedByName: null,
-      updatedAt: new Date(),
-    }).where(eq(hcmEmployeeDocumentCompliance.id, complianceRow.id)).returning();
-  }
+    if (complianceRow?.documentId != null) {
+      // The legacy branch must not replace a file converted into a private A-5 object.
+      const [previousLegacy] = await tx.select({ id: documents.id }).from(documents).where(and(
+        eq(documents.id, complianceRow.documentId),
+        eq(documents.organizationId, organizationId),
+        eq(documents.employeeId, employeeId!),
+        legacyVisibleDocumentWhere,
+      )).for("update").limit(1);
+      if (!previousLegacy) throw new Error("DOCUMENT_PRIOR_FILE_CHANGED");
+    }
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Document uploaded",
-    resource: row.fileName,
-    metadata: {
-      kind,
-      employeeId,
-      sha256Verified: true,
-      avScanned: scan.scannedClean,
-      requirementId: requirement?.id ?? null,
-      complianceId: compliance?.id ?? null,
-      expiresAt,
-      status: compliance?.status ?? null,
-    },
-  });
+      const [row] = await tx.insert(legacyDocumentInsertTable).values({
+        organizationId,
+        employeeId,
+        kind,
+        fileName: safeFileName(file.name),
+        mimeType: check.mime,
+        byteSize: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        scannedClean: scan.scannedClean,
+        scanNote: scan.note,
+        uploadedBy: user.name,
+        content: Buffer.from(bytes).toString("base64"),
+      }).returning({
+        id: legacyDocumentInsertTable.id,
+        fileName: legacyDocumentInsertTable.fileName,
+        byteSize: legacyDocumentInsertTable.byteSize,
+        sha256: legacyDocumentInsertTable.sha256,
+      });
+
+      let compliance = null;
+      if (requirement && complianceRow) {
+        [compliance] = await tx.update(hcmEmployeeDocumentCompliance).set({
+          documentId: row.id,
+          expiresAt,
+          status: "submitted",
+          verifiedAt: null,
+          verifiedByUserId: null,
+          verifiedByName: null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(hcmEmployeeDocumentCompliance.id, complianceRow.id),
+          eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),
+          eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!),
+          eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),
+          // Match the same optimistic preconditions used by private-vault uploads.
+          // A waiver, document replacement or expiry edit must win over stale POST data.
+          ne(hcmEmployeeDocumentCompliance.status, "waived"),
+          eq(hcmEmployeeDocumentCompliance.status, complianceRow.status),
+          complianceRow.expiresAt === null
+            ? isNull(hcmEmployeeDocumentCompliance.expiresAt)
+            : eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt)),
+          complianceRow.documentId === null
+            ? isNull(hcmEmployeeDocumentCompliance.documentId)
+            : eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId),
+        )).returning();
+        if (!compliance) throw new Error("DOCUMENT_COMPLIANCE_SCOPE_CHANGED");
+      }
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Document uploaded",
+        resource: row.fileName,
+        metadata: {
+          kind,
+          employeeId,
+          sha256Verified: true,
+          avScanned: scan.scannedClean,
+          requirementId: requirement?.id ?? null,
+          complianceId: compliance?.id ?? null,
+          expiresAt,
+          status: compliance?.status ?? null,
+        },
+      }, tx);
+    return { row, compliance };
+  }).catch(() => null);
+  if (!result) return Response.json({
+    error: "Document upload could not be committed. Refresh and retry.",
+  }, { status: 409 });
+  const { row, compliance } = result;
 
   return Response.json({
     id: row.id,
