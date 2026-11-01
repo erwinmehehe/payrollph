@@ -10,6 +10,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   preflight-post-tenant:
     runs-on: ubuntu-24.04
@@ -55,10 +58,10 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
           done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
       - name: Initialize disposable PG16 baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build actual production Next.js server
         run: npm run build
       - name: Run own/foreign HTTP, then stop server
