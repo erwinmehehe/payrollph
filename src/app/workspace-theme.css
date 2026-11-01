@@ -1290,6 +1290,16 @@
   top: calc(var(--topbar-h) + 14px);
 }
 
+@media (max-width: 980px) {
+  .app-shell .payroll-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .run-list {
+    position: static;
+  }
+}
+
 .app-shell .run-item {
   gap: 9px;
   padding: 10px 11px;
