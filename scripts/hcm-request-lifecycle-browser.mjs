@@ -45,7 +45,7 @@ async function requestId(fragment, method = "GET") {
   return page.evaluate(({ fragment, method }) => window.pending.findLastIndex(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
 }
 async function complete(id, body, status = 200) { await page.evaluate(({id,body,status}) => window.complete(id,body,status), {id,body,status}); }
-async function visible(text) { await page.getByText(text, { exact: true }).waitFor(); }
+async function visible(text) { await page.getByText(text, { exact: true }).first().waitFor(); }
 async function absent(text) { assert.equal(await page.getByText(text, { exact: true }).count(), 0, `Unexpected stale text: ${text}`); }
 function item(id, title, organizationId) { return {id,organizationId,title,detail:"",caseType:"follow_up",status:"open",ownerTeam:"HR Operations",ownerUserId:1,ownerName:"Synthetic owner",dueAt:null,escalateAt:null,escalationLevel:0,overdue:false}; }
 
