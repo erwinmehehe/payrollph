@@ -211,7 +211,7 @@ test("already credited and partial-action methods are not double-counted", () =>
   const excluded = [
     "PATCH approvals/[id]",
     "PATCH performance/follow-through-governance",
-    "PATCH careers/admin", "POST workforce-planning/allocations",
+    "PATCH careers/admin",
     "GET year-end", "GET workforce/demand-staffing/policies",
     "PATCH self/profile",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
@@ -225,6 +225,12 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.status, "GAP", key);
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
+  }
+  // Allocations POST/PATCH have their own executed receipt (dedicated guard in the inventory test); never a promotion credit.
+  for (const key of ["POST workforce-planning/allocations", "PATCH workforce-planning/allocations"]) {
+    assert.equal(methods.get(key)?.status, "COVERED", key);
+    assert.equal(methods.get(key)?.testedBy?.file, "scripts/qa/tenant-wfp-allocations-http.mjs", key);
+    assert.notEqual(methods.get(key)?.testedBy?.verifiedMainCommit, base, "not borrowed historical promotion evidence: " + key);
   }
   verifyClockCredit("POST web-bundy/consent", methods.get("POST web-bundy/consent"));
   // HMO POST is distinct from the sixteen historical promotion credits.
