@@ -2022,6 +2022,30 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Only this exact three-method unaccepted source review.
   }
 
+  if (isNewOrChanged && key === "src/app/api/leave/route.ts POST") {
+    const expected = {
+      kind: "leave-POST-revalidate-active-checker-source-only",
+      priorRouteBlobSha: "1ecad0e01335770d683edeef091b5dd2ccc180c2", routeBlobSha: "97d492317460b0ff580bc045d8930f8232ed7031",
+      contractFile: "tests/tenant-leave-post-active-checker.test.mjs", contractBlobSha: "42ac939ecd1a86e71584fda0aad05e15c3065a5e",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/leave/route.ts", "utf8").split("export async function POST")[1];
+    for (const token of [
+      "eq(userOrganizations.active, true)", "eq(users.active, true)",
+      "inArray(userOrganizations.role, [...LEAVE_APPROVER_ROLES])",
+      "const [liveApprover] = await tx.select(",
+      "LEAVE_APPROVER_CHANGED",
+    ]) assert.ok(post.includes(token), "Missing leave POST checker boundary: " + token);
+    return;
+  }
+
+
   if (isNewOrChanged && key === "src/app/api/documents/route.ts POST") {
     const expected = {
       kind: "documents-POST-legacy-audit-scope-source-only",

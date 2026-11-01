@@ -17845,7 +17845,7 @@
       ]
     },
     "src/app/api/leave/route.ts": {
-      "gitBlobSha": "1ecad0e01335770d683edeef091b5dd2ccc180c2",
+      "gitBlobSha": "97d492317460b0ff580bc045d8930f8232ed7031",
       "route": "leave",
       "methods": [
         {
@@ -17869,8 +17869,19 @@
           "name": "POST",
           "line": 205,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: leave POST requires active approver and revalidates the approved role/membership inside the transaction before writing leave and audit; source-only candidate, two-employer PG16 review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "leave-POST-revalidate-active-checker-source-only",
+            "priorRouteBlobSha": "1ecad0e01335770d683edeef091b5dd2ccc180c2",
+            "routeBlobSha": "97d492317460b0ff580bc045d8930f8232ed7031",
+            "contractFile": "tests/tenant-leave-post-active-checker.test.mjs",
+            "contractBlobSha": "42ac939ecd1a86e71584fda0aad05e15c3065a5e",
+            "credits": 0,
+            "actualPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
