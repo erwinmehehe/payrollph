@@ -11,6 +11,7 @@ import {
   employees,
   employeeWorksiteAssignments,
   jobProfiles,
+  orgUnits,
   positionAssignments,
   positions,
   shiftDefinitions,
@@ -43,6 +44,18 @@ export type WorkforceForecastRequest = WorkforceForecastScope & {
   attritionBackfillPercent: number;
 };
 
+// Deliberate, client-safe refusals from the loader. Routes may echo these (they
+// match it by name); database errors must never be echoed to the client.
+export class WorkforceForecastScopeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkforceForecastScopeError";
+  }
+}
+
+// Contains "access" so the routes' existing 403 mapping applies.
+export const ORG_UNIT_SCOPE_DENIED = "The requested organization unit is not available in your access.";
+
 function roleAllowed(role: string, roles: readonly string[]) {
   return roles.includes(role);
 }
@@ -53,28 +66,41 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
   // company-wide financial forecast. Verify the employer before bulk SQL.
   if (!access || !coherentWorkforceTenantScope(access, input.organizationId)
       || !roleAllowed(access.role, WORKFORCE_MANAGER_ROLES as readonly string[])) {
-    throw new Error("Workforce-manager access is required to forecast staffing.");
+    throw new WorkforceForecastScopeError("Workforce-manager access is required to forecast staffing.");
   }
 
   if (
     input.orgUnitId != null
     && (!Number.isSafeInteger(input.orgUnitId) || input.orgUnitId <= 0)
   ) {
-    throw new Error("Invalid organization-unit scope.");
+    throw new WorkforceForecastScopeError("Invalid organization-unit scope.");
   }
   if (
     input.worksiteId != null
     && (!Number.isSafeInteger(input.worksiteId) || input.worksiteId <= 0)
   ) {
-    throw new Error("Invalid worksite scope.");
+    throw new WorkforceForecastScopeError("Invalid worksite scope.");
   }
   if (!access.companyWide && input.orgUnitId != null && input.orgUnitId !== access.orgUnitId) {
-    throw new Error("The requested scenario is outside your assigned organization unit.");
+    throw new WorkforceForecastScopeError("The requested scenario is outside your assigned organization unit.");
   }
 
   const effectiveOrgUnitId = access.companyWide
     ? input.orgUnitId
     : access.orgUnitId;
+
+  // A company-wide manager's unit id comes straight from the request. A unit
+  // that is missing and one that belongs to another employer must be
+  // indistinguishable, so both fail with this one message (no existence oracle).
+  if (effectiveOrgUnitId != null) {
+    const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits)
+      .where(and(
+        eq(orgUnits.id, effectiveOrgUnitId),
+        eq(orgUnits.organizationId, input.organizationId),
+      ))
+      .limit(1);
+    if (!unit) throw new WorkforceForecastScopeError(ORG_UNIT_SCOPE_DENIED);
+  }
 
   const [
     employeeRows,
@@ -209,21 +235,21 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     ? null
     : worksiteRows.find((worksite) => worksite.id === input.worksiteId) ?? null;
   if (input.worksiteId != null && !requestedWorksite) {
-    throw new Error("Worksite not found in this organization.");
+    throw new WorkforceForecastScopeError("Worksite not found in this organization.");
   }
   if (
     requestedWorksite
     && !access.companyWide
     && requestedWorksite.orgUnitId !== access.orgUnitId
   ) {
-    throw new Error("The requested worksite is outside your assigned organization unit.");
+    throw new WorkforceForecastScopeError("The requested worksite is outside your assigned organization unit.");
   }
   if (
     requestedWorksite?.orgUnitId
     && effectiveOrgUnitId != null
     && requestedWorksite.orgUnitId !== effectiveOrgUnitId
   ) {
-    throw new Error("The requested worksite does not belong to the selected organization unit.");
+    throw new WorkforceForecastScopeError("The requested worksite does not belong to the selected organization unit.");
   }
 
   const employeeWorksiteAtStart = new Map<number, number>();

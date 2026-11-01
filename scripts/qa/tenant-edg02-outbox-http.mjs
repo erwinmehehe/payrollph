@@ -113,6 +113,19 @@ export async function proveEdg02OutboxHttp() {
     victim.bulk = await seedNotice(victim, "payslip", "payslip-ready");
     assert.ok(victim.single.id > 6 && victim.single.id > a.single.id && victim.single.id > b.single.id);
     assert.ok(victim.bulk.id > a.bulk.id && victim.bulk.id > b.bulk.id);
+    // A real, signed-in HR employee has an active membership but no outbox
+    // management role. Real, foreign, and unknown message IDs all deny alike.
+    const [hrViewer] = await db.insert(schema.users).values({
+      name: "Fictional outbox HR viewer " + nonce,
+      email: "outbox-hr-" + nonce + "@example.invalid",
+      passwordHash: "fictional-only-no-password-login",
+      role: "hr",
+      active: true,
+    }).returning();
+    await db.insert(schema.userOrganizations).values({
+      userId: hrViewer.id, organizationId: a.org.id, role: "hr", active: true,
+    });
+    const hrSession = await http.standaloneMakeSession(hrViewer.id);
 
     async function snapshot(orgId) {
       const byOrg = table => db.select().from(table)
@@ -145,11 +158,22 @@ export async function proveEdg02OutboxHttp() {
     assert.equal(deniedAnonymous.status, 401, "Anonymous caller cannot retry");
     assert.equal(smtp.captured.length, 0);
 
+    for (const messageId of [a.single.id, victim.single.id, 9999999]) {
+      const refused = await post(hrSession.cookie, {
+        organizationId: a.org.id, messageId,
+      });
+      assert.equal(refused.status, 403,
+        "A role without outbox permissions cannot distinguish real message IDs");
+      assert.ok(!refused.text.includes(victim.single.recipient));
+      assert.deepEqual(await snapshot(victim.org.id), victimBefore);
+      assert.equal(smtp.captured.length, 0);
+    }
+
     for (const actor of [a, b]) {
       const probes = [
         [{ organizationId: actor.org.id, messageId: victim.single.id }, 404],
         [{ organizationId: victim.org.id, messageId: victim.single.id }, 403],
-        [{ organizationId: victim.org.id, messageId: actor.single.id }, 404],
+        [{ organizationId: victim.org.id, messageId: actor.single.id }, 403],
         [{ organizationId: victim.org.id, mode: "retry-failed-payslips" }, 403],
       ];
       for (const [body, status] of probes) {
