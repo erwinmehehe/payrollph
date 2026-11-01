@@ -788,9 +788,20 @@ export async function PATCH(request: Request) {
   if (!Number.isInteger(id) || !POSITION_STATUSES.includes(status as (typeof POSITION_STATUSES)[number])) {
     return Response.json({ error: "Position id and valid status are required." }, { status: 400 });
   }
+  // positions.id is PostgreSQL int4. An out-of-range numeric ID is nonexistent,
+  // not an SQL error: use the same neutral 404 as a foreign or missing position.
+  // Reject it before querying, so no database exception discloses ID validity.
+  if (id <= 0 || id > 2_147_483_647) {
+    return Response.json({ error: "Position not found." }, { status: 404 });
+  }
 
   const [position] = await db.select().from(positions).where(eq(positions.id, id)).limit(1);
   if (!position) return Response.json({ error: "Position not found." }, { status: 404 });
+
+  // A user outside this employer must not learn whether a global position ID
+  // exists. Own-employer role, unit, and MFA checks still run below.
+  const membership = await getAccess(user.id, position.organizationId);
+  if (!membership) return Response.json({ error: "Position not found." }, { status: 404 });
 
   const denied = await assertOrganizationRole(user.id, position.organizationId, WORKFORCE_MANAGER_ROLES);
   if (denied) return denied;
