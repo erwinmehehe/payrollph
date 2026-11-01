@@ -173,6 +173,35 @@ export async function proveMny02Treasury() {
       });
       await assertVictim("own persisted enabled policy");
       ownedWrites++;
+      // Simulate an audit writer failure using disposable PostgreSQL only.
+      // The previous business state and operator assignments must roll back.
+      if (e === a) {
+        const beforeAuditFailure = await snapshot(e.org.id);
+        await pool.query(
+          "CREATE FUNCTION public.ci_reject_treasury_audit() RETURNS trigger LANGUAGE plpgsql AS $ " +
+          "BEGIN IF NEW.action LIKE 'Treasury separation policy%' THEN " +
+          "RAISE EXCEPTION 'CI_ONLY_TREASURY_AUDIT_FAILURE'; END IF; RETURN NEW; END $"
+        );
+        await pool.query(
+          "CREATE TRIGGER ci_reject_treasury_audit BEFORE INSERT ON public.audit_events " +
+          "FOR EACH ROW EXECUTE FUNCTION public.ci_reject_treasury_audit()"
+        );
+        try {
+          const failed = await post(e, body(e, {
+            requireReleaseSubmitterSeparation: false,
+            operatorUserIds: [e.owner.id],
+          }));
+          assertTreasuryDenied(failed, 500, protectedMarkers(victim));
+          assert.equal(failed.json.error, "Treasury controls could not be saved.");
+          assert.ok(!failed.text.includes("CI_ONLY_TREASURY_AUDIT_FAILURE"));
+          assertUnchangedTreasury(beforeAuditFailure, await snapshot(e.org.id),
+            "audit error must atomically roll back policy, operators and audit");
+          await assertVictim("failed audit writer");
+        } finally {
+          await pool.query("DROP TRIGGER IF EXISTS ci_reject_treasury_audit ON public.audit_events");
+          await pool.query("DROP FUNCTION IF EXISTS public.ci_reject_treasury_audit()");
+        }
+      }
 
       // Body and query attempt to override actor/user/employer, but the
       // actual written organization and audit must remain the signed-in own
