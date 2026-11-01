@@ -3490,8 +3490,23 @@
           "name": "PATCH",
           "line": 14,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: Final careers publication SQL rechecks locked active employer grant. Fictional PG16 candidate and source contract are not independent tenant-coverage acceptance.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "careers-patch-final-live-role-lock-PG16-review-only",
+            "originalRouteBlobSha": "3227f2bd369ca86bc05b10750f3bdf8b35512955",
+            "routeBlobSha": "fc7920e19fc75389c5f5e7fe3cb4f90046028f00",
+            "proofFile": "scripts/qa/tenant-edg01-careers-publication-http.mjs",
+            "proofBlobSha": "175abbd544ba66ca8c393fcd91946e2a09545a80",
+            "contractFile": "tests/tenant-edg01-careers-publication-contract.test.mjs",
+            "contractBlobSha": "dfc9bbd2304c2f24bce4230667244d1ea58ad14f",
+            "workflowFile": ".github/workflows/tenant-edg01-careers-publication-http.yml",
+            "workflowBlobSha": "b84ba8d8001b1475c741809340dcb795943a96f7",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
