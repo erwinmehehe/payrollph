@@ -712,7 +712,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.file, "scripts/qa/tenant-wfp-allocations-http.mjs");
     assert.equal(reviewed?.proofBlobSha, "4891fb6b2bc7b4ed180f7dc6650015d974e1aa20");
     assert.equal(reviewed?.testFile, "tests/tenant-wfp-allocations-contract.test.mjs");
-    assert.equal(reviewed?.testBlobSha, "793cb13ac69febeeb19503ca99bc9eaa6fa100eb");
+    assert.equal(reviewed?.testBlobSha, "98f08f01b55695499146fb8f804cdac8123e2426");
     assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-wfp-allocations-http.yml");
     assert.equal(reviewed?.workflowBlobSha, "3872153dc4233ed10f074ccf90d22a8a2cd6ad16");
     assert.equal(reviewed?.reviewedHead, "3b548203726254c18f4ad4fb201a609c96f5e25a");
@@ -2046,6 +2046,34 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   }
 
 
+  if (isNewOrChanged && key === "src/app/api/documents/route.ts POST") {
+    const expected = {
+      kind: "documents-POST-legacy-audit-scope-source-only",
+      priorRouteBlobSha: "259618c6355f61bde9fe8161d7f5017738753439", routeBlobSha: "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+      contractFile: "tests/tenant-documents-post-legacy-atomic.test.mjs", contractBlobSha: "99ad5a76acbfc8e9588e1df4165db641c2647362",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const legacy = readFileSync("src/app/api/documents/route.ts", "utf8")
+      .split("export async function POST")[1].split("// Legacy database-backed document")[1];
+    for (const token of [
+      "const result = await db.transaction(async (tx) => {",
+      "tx.insert(legacyDocumentInsertTable)",
+      "tx.update(hcmEmployeeDocumentCompliance)",
+      "eq(hcmEmployeeDocumentCompliance.organizationId, organizationId)",
+      "eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!)",
+      "eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id)",
+      "await recordAuditEvent({", "}, tx);",
+    ]) assert.ok(legacy.includes(token), "Missing documents POST atomic tenant guard: " + token);
+    return;
+  }
+
+
   if (isNewOrChanged && key === "src/app/api/migrations/route.ts POST") {
     const expected = {
       kind: "migrations-POST-historical-import-atomic-source-only",
@@ -2073,6 +2101,27 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+
+  if (isNewOrChanged && key === "src/app/api/governed-handoffs/route.ts POST") {
+    const expected = {
+      kind: "governed-handoffs-POST-error-redaction-source-only",
+      priorRouteBlobSha: "85e937e999a10afd30348e748c510b2a55f160be", routeBlobSha: "fa7039cee62df7624e3124e75e6566294de32c68",
+      contractFile: "tests/tenant-governed-handoff-post-error-boundary.test.mjs", contractBlobSha: "8e839b7197203d3ea6b32281af78aaf0a5b3753b",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/governed-handoffs/route.ts", "utf8")
+      .split("export async function POST")[1];
+    assert.ok(!post.includes("error instanceof Error ? error.message"));
+    assert.ok(post.includes('code: "GOVERNED_HANDOFF_UNAVAILABLE"'));
+    assert.ok(post.includes('"Cache-Control": "private, no-store"'));
+    return;
+  }
 
   // Approval PATCH covers multiple payroll/HCM/WFM decision branches. This
   // refactor repeats employer scoping on final SQL updates; the existing
