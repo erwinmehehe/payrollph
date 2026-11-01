@@ -21,7 +21,7 @@ test("POST legacy compliance update rechecks employer, employee and requirement 
   for (const token of [
     "eq(hcmEmployeeDocumentCompliance.id, complianceRow.id)",
     "eq(hcmEmployeeDocumentCompliance.organizationId, organizationId)",
-    "eq(hcmEmployeeDocumentCompliance.employeeId, complianceRow.employeeId)",
+    "eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!)",
     "eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id)",
     'if (!compliance) throw new Error("DOCUMENT_COMPLIANCE_SCOPE_CHANGED")',
   ]) assert.ok(legacy.includes(token), "Missing final tenant write guard: " + token);
@@ -34,4 +34,22 @@ test("Document POST keeps auth, upload policy and private-vault boundaries", () 
     "assertOrganizationRole(", "assertScope(access, employee.orgUnitId)",
     "canMutateLegacyHcmDocument(", "scanUpload(bytes",
   ]) assert.ok(post.includes(token), "Missing document boundary: " + token);
+});
+
+test("Legacy upload rejects changed requirement, waiver, prior file and expiry", () => {
+  for (const token of [
+    "eq(hcmDocumentRequirements.active, true)",
+    "eq(hcmDocumentRequirements.kind, requirement.kind)",
+    "eq(hcmDocumentRequirements.expiryRequired, requirement.expiryRequired)",
+    "if (!currentRequirement) throw new Error",
+    "legacyVisibleDocumentWhere",
+    "if (!previousLegacy) throw new Error",
+    'ne(hcmEmployeeDocumentCompliance.status, "waived")',
+    "eq(hcmEmployeeDocumentCompliance.status, complianceRow.status)",
+    "isNull(hcmEmployeeDocumentCompliance.expiresAt)",
+    "eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt))",
+    "isNull(hcmEmployeeDocumentCompliance.documentId)",
+    "eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId)",
+    '.for("update")',
+  ]) assert.ok(legacy.includes(token), "Missing stale-write protection: " + token);
 });

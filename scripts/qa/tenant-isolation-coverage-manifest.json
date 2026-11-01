@@ -9105,7 +9105,7 @@
       ]
     },
     "src/app/api/documents/route.ts": {
-      "gitBlobSha": "8e78f92747b3154e238bb43fb712aabc2579c33b",
+      "gitBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
       "route": "documents",
       "methods": [
         {
@@ -9125,14 +9125,14 @@
           "name": "POST",
           "line": 115,
           "status": "GAP",
-          "reason": "Still GAP: documents POST now commits legacy inline document, matching employer/employee compliance link and employer audit atomically; source contract only, cross-tenant PG16 evidence and independent review pending.",
+          "reason": "Still GAP: legacy POST now rechecks requirement, private-file boundary and changed compliance state under a transaction; source-only evidence, PG16 HTTP proof and independent review pending.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "documents-POST-legacy-audit-scope-source-only",
             "priorRouteBlobSha": "259618c6355f61bde9fe8161d7f5017738753439",
-            "routeBlobSha": "8e78f92747b3154e238bb43fb712aabc2579c33b",
+            "routeBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
             "contractFile": "tests/tenant-documents-post-legacy-atomic.test.mjs",
-            "contractBlobSha": "d6c2a70686222b9e09b8f807a294b36f4169ec6c",
+            "contractBlobSha": "99ad5a76acbfc8e9588e1df4165db641c2647362",
             "credits": 0,
             "actualPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",

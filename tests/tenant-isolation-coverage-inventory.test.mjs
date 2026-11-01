@@ -1949,8 +1949,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (isNewOrChanged && key === "src/app/api/documents/route.ts POST") {
     const expected = {
       kind: "documents-POST-legacy-audit-scope-source-only",
-      priorRouteBlobSha: "259618c6355f61bde9fe8161d7f5017738753439", routeBlobSha: "8e78f92747b3154e238bb43fb712aabc2579c33b",
-      contractFile: "tests/tenant-documents-post-legacy-atomic.test.mjs", contractBlobSha: "d6c2a70686222b9e09b8f807a294b36f4169ec6c",
+      priorRouteBlobSha: "259618c6355f61bde9fe8161d7f5017738753439", routeBlobSha: "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+      contractFile: "tests/tenant-documents-post-legacy-atomic.test.mjs", contractBlobSha: "99ad5a76acbfc8e9588e1df4165db641c2647362",
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
@@ -1966,7 +1966,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "tx.insert(legacyDocumentInsertTable)",
       "tx.update(hcmEmployeeDocumentCompliance)",
       "eq(hcmEmployeeDocumentCompliance.organizationId, organizationId)",
-      "eq(hcmEmployeeDocumentCompliance.employeeId, complianceRow.employeeId)",
+      "eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!)",
       "eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id)",
       "await recordAuditEvent({", "}, tx);",
     ]) assert.ok(legacy.includes(token), "Missing documents POST atomic tenant guard: " + token);

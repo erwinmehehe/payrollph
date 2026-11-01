@@ -416,6 +416,30 @@ export async function POST(request: Request) {
   // Legacy database-backed document and its compliance link/audit must commit
   // together; stale cross-employer compliance cannot be reattached by id only.
   const result = await db.transaction(async (tx) => {
+    if (requirement) {
+      // Reject a requirement deactivated or reconfigured during upload scanning.
+      const [currentRequirement] = await tx.select({ id: hcmDocumentRequirements.id })
+        .from(hcmDocumentRequirements).where(and(
+          eq(hcmDocumentRequirements.id, requirement.id),
+          eq(hcmDocumentRequirements.organizationId, organizationId),
+          eq(hcmDocumentRequirements.active, true),
+          eq(hcmDocumentRequirements.kind, requirement.kind),
+          eq(hcmDocumentRequirements.expiryRequired, requirement.expiryRequired),
+        )).for("update").limit(1);
+      if (!currentRequirement) throw new Error("DOCUMENT_REQUIREMENT_CHANGED");
+    }
+
+    if (complianceRow?.documentId != null) {
+      // The legacy branch must not replace a file converted into a private A-5 object.
+      const [previousLegacy] = await tx.select({ id: documents.id }).from(documents).where(and(
+        eq(documents.id, complianceRow.documentId),
+        eq(documents.organizationId, organizationId),
+        eq(documents.employeeId, employeeId!),
+        legacyVisibleDocumentWhere,
+      )).for("update").limit(1);
+      if (!previousLegacy) throw new Error("DOCUMENT_PRIOR_FILE_CHANGED");
+    }
+
       const [row] = await tx.insert(legacyDocumentInsertTable).values({
         organizationId,
         employeeId,
@@ -448,8 +472,18 @@ export async function POST(request: Request) {
         }).where(and(
           eq(hcmEmployeeDocumentCompliance.id, complianceRow.id),
           eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),
-          eq(hcmEmployeeDocumentCompliance.employeeId, complianceRow.employeeId),
+          eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!),
           eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),
+          // Match the same optimistic preconditions used by private-vault uploads.
+          // A waiver, document replacement or expiry edit must win over stale POST data.
+          ne(hcmEmployeeDocumentCompliance.status, "waived"),
+          eq(hcmEmployeeDocumentCompliance.status, complianceRow.status),
+          complianceRow.expiresAt === null
+            ? isNull(hcmEmployeeDocumentCompliance.expiresAt)
+            : eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt)),
+          complianceRow.documentId === null
+            ? isNull(hcmEmployeeDocumentCompliance.documentId)
+            : eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId),
         )).returning();
         if (!compliance) throw new Error("DOCUMENT_COMPLIANCE_SCOPE_CHANGED");
       }
