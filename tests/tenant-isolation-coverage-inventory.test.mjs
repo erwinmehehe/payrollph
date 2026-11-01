@@ -2072,8 +2072,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (isNewOrChanged && key === "src/app/api/earned-wage/route.ts POST") {
     const expected = {
       kind: "earned-wage-POST-atomic-audit-source-only",
-      priorRouteBlobSha: "258b48d5ffc372bba31c52d2b71e56374660ea50", routeBlobSha: "4cacee511614934ba0920c7ea3a4f32be3f916b2",
-      contractFile: "tests/tenant-earned-wage-post-audit-atomic.test.mjs", contractBlobSha: "59d4379a8684ede9a994538e212ec64a5df8e9de",
+      priorRouteBlobSha: "258b48d5ffc372bba31c52d2b71e56374660ea50", routeBlobSha: "e030259bb14719a806acbdad77c35135f63e1520",
+      contractFile: "tests/tenant-earned-wage-post-audit-atomic.test.mjs", contractBlobSha: "3bf5d524f2d89dc9ac69cfb1ea3071ff0c74441c",
       credits: 0, independentSecurityReview: "PENDING",
       actualPg16Http: "PENDING", productionCertified: false,
     };

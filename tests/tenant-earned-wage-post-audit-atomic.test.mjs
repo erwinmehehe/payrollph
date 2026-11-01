@@ -45,3 +45,10 @@ test("EWA POST locks the tenant employee before rechecking pending advances", ()
     'if (result.kind === "ineligible")',
   ]) assert.ok(post.includes(token), "Missing serialized EWA POST boundary: " + token);
 });
+
+test("EWA POST counts only punches bound to the requested employer and employee", () => {
+  const punches = post.slice(post.indexOf("const punches ="), post.indexOf("const daysWorked ="));
+  assert.ok(punches.includes("eq(timePunches.organizationId, organizationId)"));
+  assert.ok(punches.includes("eq(timePunches.employeeId, employeeId)"));
+  assert.ok(punches.includes("gte(timePunches.workDate, periodStart())"));
+});

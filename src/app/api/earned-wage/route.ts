@@ -147,6 +147,7 @@ export async function POST(request: Request) {
 
     const punches = await tx.select({ timeIn: timePunches.timeIn, timeOut: timePunches.timeOut })
       .from(timePunches).where(and(
+        eq(timePunches.organizationId, organizationId),
         eq(timePunches.employeeId, employeeId),
         gte(timePunches.workDate, periodStart()),
       ));
