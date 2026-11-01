@@ -4,7 +4,9 @@
  * seed (before server) configures exact per-org cash caps; verify tests method.
  */
 import assert from "node:assert/strict";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 const mode = process.argv[2] ?? "verify";
 assert.ok(["seed", "verify"].includes(mode), "seed or verify required");
@@ -25,7 +27,7 @@ const { asc, eq } = orm;
 const { seedEmployer, standaloneMakeSession, standaloneRequest,
   requireTenantTableDisposable } = http;
 requireTenantTableDisposable();
-const fixturePath = "/tmp/tenant-leave-conversion-post-fixture.json";
+const fixturePath = process.env.LEAVE_CONVERSION_FIXTURE_PATH;
 const leaveType = "Vacation leave";
 const year = Number(new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Manila", year: "numeric",
@@ -65,15 +67,20 @@ async function seed() {
     });
     caps[e.org.id] = { "vacation leave": 5 };
   }
+  assert.ok(process.env.GITHUB_ENV && process.env.GITHUB_ENV.startsWith("/"),
+    "Only CI may export temporary source-approved fictional policy");
+  // Use a private, unpredictable directory and exclusive file creation: /tmp is shared.
+  const fixtureDir = mkdtempSync(join(tmpdir(), "tenant-leave-conversion-"));
+  const createdFixture = join(fixtureDir, "fixture.json");
+  writeFileSync(createdFixture, JSON.stringify({ employers, year }),
+    { flag: "wx", mode: 0o600 });
   const values = {
     LEAVE_CONVERSION_MAX_DAYS_JSON: JSON.stringify(caps),
     LEAVE_CONVERSION_TAX_REVIEWED_ORG_IDS: employers.map(e => e.org.id).join(","),
+    LEAVE_CONVERSION_FIXTURE_PATH: createdFixture,
   };
-  assert.ok(process.env.GITHUB_ENV && process.env.GITHUB_ENV.startsWith("/"),
-    "Only CI may export temporary source-approved fictional policy");
   appendFileSync(process.env.GITHUB_ENV,
     Object.entries(values).map(([k, v]) => k + "=" + v).join("\n") + "\n");
-  writeFileSync(fixturePath, JSON.stringify({ employers, year }));
   check(employers[2].org.id > employers[1].org.id, "Genuine higher-ID victim");
   console.log(JSON.stringify({
     kind: "leave-conversion-fixture-only", organizations: employers.length,
@@ -81,6 +88,8 @@ async function seed() {
   }));
 }
 async function verify() {
+  assert.ok(fixturePath?.startsWith(join(tmpdir(), "tenant-leave-conversion-")),
+    "Require a private fixture path from the seed phase");
   const config = JSON.parse(readFileSync(fixturePath, "utf8"));
   const [a, b, victim] = config.employers;
   check(config.year === year, "Manila fiscal year not stale");
