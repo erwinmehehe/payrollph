@@ -60,3 +60,17 @@ pilot signoff is not fabricated or submitted.
 
 Local checks and final tested revision are recorded in the draft PR. Exact-head
 CI remains required; a local PASS is not deployment or real-money authorization.
+
+## November 1 mobile follow-up
+
+The current-main replay passed the fictional multi-role HTTP lifecycle, but visual
+review found the theme's more-specific two-column payroll rule overriding the
+mobile layout. At 390 pixels the register was squeezed beside the run list.
+The theme now stacks these sections at 980 pixels and below. The real browser
+scenario asserts that the register sits below the list and uses the available
+width, in addition to checking exact monetary totals and page errors.
+
+The local production build, eight focused tests, scoped lint, and repeated PG16
+HTTP journey with desktop/mobile Chrome passed. No email or payment provider was
+called. This remains a fixture-authenticated HTTP journey with post-flow browser
+verification, not deployed sign-in or an all-browser entry/approval journey.
