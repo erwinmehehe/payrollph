@@ -422,9 +422,9 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
       assert.equal(proof.sourceRowLine, standalone.line);
       assert.equal(proof.sourceRowBlobSha, standalone.sha);
       const bytes = readFileSync(standalone.file);
-      assert.equal(createHash("sha1").update("blob " + bytes.length + "\\0").update(bytes).digest("hex"), standalone.sha,
+      assert.equal(createHash("sha1").update("blob " + bytes.length + String.fromCharCode(0)).update(bytes).digest("hex"), standalone.sha,
         key + ": changed source row requires new PG16 receipt and review");
-      const sourceRow = bytes.toString("utf8").split("\\n")[standalone.line - 1] ?? "";
+      const sourceRow = bytes.toString("utf8").split(String.fromCharCode(10))[standalone.line - 1] ?? "";
       assert.ok(sourceRow.includes('key: "' + key + '"') || sourceRow.includes("key: '" + key + "'"),
         key + ": dedicated source line must identify the exact method");
       reviewedComplianceCount++;
