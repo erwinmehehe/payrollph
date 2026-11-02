@@ -80,7 +80,7 @@ export function HrTemplateLibrary() {
           </div>
           <p className="mt-8 border-t border-slate-200 pt-4 text-xs leading-relaxed text-slate-600">
             Planning aid only. Adapt to employer policy and current Philippine requirements. This public page has no employee-data collection,
-            approval capability, storage or connection to payroll. Use your employer's authorized system for actual records and decisions.
+            approval capability, storage or connection to payroll. Use your employer&apos;s authorized system for actual records and decisions.
           </p>
         </article>
       </div>
