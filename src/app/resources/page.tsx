@@ -95,6 +95,7 @@ export default function ResourcesPage() {
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/resources/updates" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Regulatory updates</Link>
               <Link href="/glossary" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Payroll glossary</Link>
+              <Link href="/templates" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Templates</Link>
               <Link href="/calculators" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Calculators</Link>
             </div>
           </div>

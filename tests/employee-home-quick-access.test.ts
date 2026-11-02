@@ -35,3 +35,16 @@ test("home quick actions are touch-sized and navigate through existing safe call
   assert.ok(!source.includes("fetch("));
   assert.ok(!source.includes("localStorage"));
 });
+
+test("documents and profile shortcuts reuse existing employee tabs without direct APIs", () => {
+  const home = readFileSync("src/components/employee-home-dashboard.tsx", "utf8");
+  const portal = readFileSync("src/components/self-service-portal.tsx", "utf8");
+  assert.ok(home.includes("onClick={onDocuments}"));
+  assert.ok(home.includes("onClick={onProfile}"));
+  assert.ok(portal.includes('onDocuments={() => navigateTo("documents")}'));
+  assert.ok(portal.includes('onProfile={() => navigateTo("profile")}'));
+  assert.ok(portal.includes("if (!employeeTabEnabled(next, spendEnabled)) return;"));
+  assert.ok(!home.includes("fetch("));
+  assert.ok(!home.includes("localStorage"));
+  assert.ok(!home.includes("sessionStorage"));
+});

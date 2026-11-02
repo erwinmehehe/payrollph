@@ -53,6 +53,13 @@ test("PG16 real HTTP candidate proves two own writes, actual foreign denial and 
   for (const required of [
     '["GITHUB_ACTIONS", "true"]',
     '["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db"]',
+    'for (let n = 0; n < 6; n++)',
+    'victim.org.id > 6 && victim.entity.id > 6 && victim.worker.id > 6',
+    'victimProfile.id > 6 && victimProfile.id > aProfile.id',
+    'victimProfile.id > bProfile.id',
+    'victimBefore.profiles.length === 1',
+    'independentVictimOwnedPositive: true',
+    'realVictimPayoutProfileIdAboveSix: true',
     'for (const actor of [a, b])',
     'exact(await patch(actor, body(actor, actor.marker + " manual profile")), 200',
     'organizationId: victim.org.id', "legalEntityId: victim.entity.id",
@@ -69,4 +76,22 @@ test("PG16 real HTTP candidate proves two own writes, actual foreign denial and 
   assert.deepEqual(methods.map(m => [m.name, m.status]), [
     ["GET", "COVERED"], ["PATCH", "GAP"],
   ], "Do not borrow prior GET HTTP proof to certify PATCH without independent review");
+});
+
+test("victim payout profile is a genuine persisted higher-ID target before foreign/forged denial", () => {
+  const ownAttacker = script.indexOf('for (const actor of [a, b])');
+  const ownVictim = script.indexOf('const victimOwn = exact(await patch(victim, body(victim,');
+  const snapshot = script.indexOf('const victimBefore = {');
+  const crossTenant = script.indexOf('for (const actor of [a, b])', ownAttacker + 1);
+  assert.ok(ownAttacker >= 0 && ownAttacker < ownVictim &&
+    ownVictim < snapshot && snapshot < crossTenant,
+    "two distinct attacker-owned profiles and one real higher-ID victim profile must precede denials");
+  assert.ok(script.includes('db.insert(schema.payoutProfiles).values({'),
+    "numeric IDs must come from actual disposable PG16 inserts");
+  assert.ok(script.includes('assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,'),
+    "victim's populated payout row must be byte-identical after every denied request");
+  assert.ok(script.includes('assert.deepEqual(await auditSnapshot(victim.org.id), victimBefore.audit,'),
+    "victim's real own-positive audit must be preserved after each denial");
+  assert.ok(script.includes('staleForeignTaggedUpsertDenied: true'),
+    "the original foreign-tagged conflict regression must remain fully exercised");
 });

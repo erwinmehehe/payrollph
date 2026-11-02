@@ -79,17 +79,30 @@ try {
   check(before.db === "app_db" && before.role === "postgres" &&
     before.employers === 0 && before.audit_events === 0,
     "Refuse a nonempty or unexpected PostgreSQL test target before creating employers");
+  // Keep all source IDs real and above six: six inert, explicitly fictional
+  // employers and payout profiles are created ONLY after the empty-PG16 gate.
+  // These are disposable fixture rows, not tenant data repairs or API credits.
+  const inert = [];
+  for (let n = 0; n < 6; n++) {
+    const e = await http.seedEmployer("PAD" + n, nonce, http.standaloneMakeSession);
+    inert.push(e);
+    const [row] = await db.insert(schema.payoutProfiles).values({
+      organizationId: e.org.id, legalEntityId: e.entity.id,
+      defaultMethod: "manual", active: false,
+      bankProduct: "inert synthetic ID-padding fixture",
+      createdByUserId: e.owner.id, updatedByUserId: e.owner.id,
+    }).returning();
+    check(row?.organizationId === e.org.id && row?.legalEntityId === e.entity.id,
+      "Every inert profile must be a real same-employer PostgreSQL row");
+  }
   const a = await http.seedEmployer("ATTA", nonce, http.standaloneMakeSession);
   const b = await http.seedEmployer("ATTB", nonce, http.standaloneMakeSession);
   const victim = await http.seedEmployer("VICTIM", nonce, http.standaloneMakeSession);
-  check(victim.org.id > b.org.id && victim.entity.id > b.entity.id &&
-    victim.worker.id > b.worker.id,
-    "Victim is a real populated, higher-ID employer, entity and employee");
-  const victimBefore = {
-    profiles: await profileSnapshot(victim.org.id),
-    audit: await auditSnapshot(victim.org.id),
-    payroll: await payrollSnapshot(victim.org.id),
-  };
+  check(victim.org.id > 6 && victim.entity.id > 6 && victim.worker.id > 6 &&
+    victim.org.id > a.org.id && victim.org.id > b.org.id &&
+    victim.entity.id > a.entity.id && victim.entity.id > b.entity.id &&
+    victim.worker.id > a.worker.id && victim.worker.id > b.worker.id,
+    "Genuine victim org, legal entity and employee IDs exceed six and both attackers");
   for (const actor of [a, b]) {
     const own = exact(await patch(actor, body(actor, actor.marker + " manual profile")), 200,
       "Own owner can save a tenant-specific inactive manual payout profile");
@@ -103,7 +116,35 @@ try {
     check(audits.some(event => event.action === "Company payout profile updated" &&
       event.organizationId === actor.org.id),
       "Owned successful write must have a genuine employer-scoped audit receipt");
+  }
 
+  // The victim must own a REAL, independently created payout profile, not an
+  // empty set whose snapshot could pass unchanged despite missing tenant data.
+  // Create it AFTER both attacker profiles so its persisted ID is greater too.
+  const victimOwn = exact(await patch(victim, body(victim,
+    victim.marker + " separate fictional company payout profile")), 200,
+    "Victim owner must independently write its own real inactive profile");
+  const victimProfile = (await profileSnapshot(victim.org.id))[0];
+  const aProfile = (await profileSnapshot(a.org.id))[0];
+  const bProfile = (await profileSnapshot(b.org.id))[0];
+  check(victimOwn.json?.profile?.id === victimProfile?.id &&
+    victimProfile.organizationId === victim.org.id &&
+    victimProfile.legalEntityId === victim.entity.id &&
+    victimProfile.id > 6 && victimProfile.id > aProfile.id &&
+    victimProfile.id > bProfile.id,
+    "Real victim-only payout profile ID exceeds six and both attacker profile IDs");
+  const victimBefore = {
+    profiles: await profileSnapshot(victim.org.id),
+    audit: await auditSnapshot(victim.org.id),
+    payroll: await payrollSnapshot(victim.org.id),
+  };
+  check(victimBefore.profiles.length === 1 &&
+    victimBefore.audit.some(event =>
+      event.action === "Company payout profile updated" &&
+      event.organizationId === victim.org.id),
+    "Victim positive and corresponding private audit must exist before attacks");
+
+  for (const actor of [a, b]) {
     exact(await patch(actor, {
       ...body(victim, "forged foreign employer"), organizationId: victim.org.id,
     }), 403, "True foreign employer selector is forbidden");
@@ -113,6 +154,10 @@ try {
     exact(await patch(actor, {
       ...body(actor, "forged peer legal entity"), legalEntityId: (actor === a ? b : a).entity.id,
     }), 404, "Another attacker entity forged into own employer is not found");
+    assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
+      "Each denied foreign/forged request leaves actual populated victim payout row unchanged");
+    assert.deepEqual(await auditSnapshot(victim.org.id), victimBefore.audit,
+      "Each denied foreign/forged request leaves populated victim audit unchanged");
   }
   assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
     "Foreign writes cannot mutate the populated victim profile state");
@@ -210,7 +255,8 @@ try {
   console.log(JSON.stringify({
     kind: "payout-profile-patch-tenant-audit-atomic-PG16",
     method: "PATCH /api/payout-profiles",
-    ownPersistedAndAudited: 2, twoAttackersForeignDenied: true,
+    ownPersistedAndAudited: 2, independentVictimOwnedPositive: true,
+    realVictimPayoutProfileIdAboveSix: true, twoAttackersForeignDenied: true,
     forgedLegalEntityDenied: true, injectedAuditFailureRolledBack: true,
     staleForeignTaggedUpsertDenied: true, victimProfilesAuditPayrollUnchanged: true,
     methodCredits: 0, independentSecurityReview: "PENDING",
