@@ -23,6 +23,7 @@ const cases = [
   ["PATCH", "compliance/filing-validations/[id]", 1501, "893977583b4ac7e4d49da5b03327f7bc5c8e4a53",
     "c7e0660e218646d5848e56c3e60aaeb0b283f4b4", 112, 125, 129, 149, 74, "accepted-outcome"],
 ];
+const skipOpenCredit = new Set(["POST leave/conversion", "POST payroll/overpayment-preflight"]);
 const blobSha = filename => {
   const data = readFileSync(filename);
   return createHash("sha1").update(Buffer.from("blob " + data.length + "\0")).update(data).digest("hex");
@@ -42,6 +43,15 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
     const label = verb + " " + route;
     assert.equal(method?.status, "GAP", label);
     assert.equal(method.testedBy, null, label + " must never borrow a partial receipt");
+    if (skipOpenCredit.has(label)) {
+      assert.equal(method.reason, "No valid own-object + real victim-only denial was linked to this method",
+        label + ": concurrent open #1727 owns any proposed credit; keep main entry unchanged");
+      assert.equal(method.reviewedUncertified, undefined, label + ": no overlapping metadata change");
+      const skippedRow = inventory.split("\n").find(line => line.includes("[\x60" + route + "\x60 " + verb + "]("));
+      assert.ok(skippedRow?.includes("NO VALID METHOD PROOF") && skippedRow.includes("**GAP**"),
+        label + ": skipped inventory citation must be unchanged");
+      continue;
+    }
     assert.match(method.reason, /Still GAP:/, label);
     const review = method.reviewedUncertified?.reconciliationReview;
     assert.ok(review && typeof review === "object", label);
@@ -79,6 +89,14 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
         "filing accepted action still needs its own positive");
       assert.equal(method.reviewedUncertified.fullMethodCoverageCredits, 0);
     }
+    if (pr === 1676) {
+      const handler = readFileSync(path, "utf8");
+      for (const mode of ['"template"', '"check"', '"download"'])
+        assert.ok(handler.includes(mode), "BIR POST action " + mode + " must be reviewed individually");
+      assert.ok(review.missingParts.join(" ").includes("mode=check") &&
+        review.missingParts.join(" ").includes("mode=download"),
+        "Template-only BIR evidence must not silently certify check/download");
+    }
     if ([1676,1675,1674].includes(pr)) {
       assert.ok(!/>\s*6\b/.test(lines[ordering - 1]),
         label + ": the final-head ordering assertion itself does not prove the >6 floor");
@@ -90,7 +108,7 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
   }
   const cited = allMethods.filter(({ method }) => method.reviewedUncertified?.reconciliationReview);
   assert.deepEqual(cited.map(({ path, method }) => method.name + " " + path.slice("src/app/api/".length, -"/route.ts".length)).sort(),
-    cases.map(c => c[0] + " " + c[1]).sort(), "no seventh method may borrow this review");
+    cases.filter(c => !skipOpenCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
 });
 
 test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", () => {
