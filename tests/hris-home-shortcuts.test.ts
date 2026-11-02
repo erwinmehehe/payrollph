@@ -54,7 +54,13 @@ test("HR dashboard only navigates to the exact selected, authorized employee", (
   assert.ok(workspace.includes("onFocusEmployee={openHrEmployee}"));
   assert.ok(roleView.includes("onFocusEmployee={onFocusEmployee}"));
   assert.ok(v2.includes("onFocusEmployee(employee.id)"));
-  assert.ok(people.includes("employee.id === focusEmployeeId"));
+  // Selection now stores employer + employee IDs rather than a stale worker object.
+  // Focus navigation must resolve the subject from the current authorized roster.
+  assert.ok(people.includes("picked.organizationId === data.selectedOrganization.id"));
+  assert.ok(people.includes(": focusEmployeeId"));
+  assert.ok(people.includes("const selected = data.employees.find((employee) => employee.id === selectedId) ?? null"));
+  assert.ok(people.includes("setPicked({ organizationId: data.selectedOrganization.id, employeeId: employee.id })"));
+  assert.ok(!people.includes("const selected = picked ??"), "do not render a saved cross-employer worker object");
   assert.ok(people.includes("onClearFocus?.()"));
   const shortcuts = readFileSync("src/components/hris-home-shortcuts.tsx", "utf8");
   assert.ok(shortcuts.includes('type="button"'));
