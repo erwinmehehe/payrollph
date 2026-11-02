@@ -50,5 +50,8 @@ test("proof is inbound-only, one callback route, zero manifest credits", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles["src/app/api/webhooks/paymongo/transfers/route.ts"];
   assert.ok(entry, "webhook method still inventoried");
-  assert.equal(entry.methods.find(m => m.name === "POST")?.status, "GAP", "proof-only PR must not self-credit");
+  assert.ok(["GAP", "COVERED"].includes(entry.methods.find(m => m.name === "POST")?.status),
+    "credit is written only by the restricted credit script after the exact-head run");
+  assert.ok(harness.includes("a real foreign run must not be distinguishable from a nonexistent run"), "no-oracle assertion present");
+  assert.ok(workflow.includes("paymongo-transfer-webhook-isolation:"), "job name identifies this proof");
 });

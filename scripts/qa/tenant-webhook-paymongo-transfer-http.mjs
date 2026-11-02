@@ -231,19 +231,24 @@ export async function provePaymongoTransferWebhook() {
       eventBody(a, { reference: "PAY-" + a.payout.run.id + "-" + victim.worker.employeeNo }),
       eventBody(victim, { amount: 10001 }),
     ];
+    let unmatchedText = null;
     for (const payload of mismatches) {
       const ignored = await send(payload);
       result(ignored, 200, { ok: true, ignored: true, reason: "unmatched-payroll-transfer" },
         "cross-bound run/transfer data must not be recorded");
+      unmatchedText ??= ignored.text;
+      assert.equal(ignored.text, unmatchedText, "every cross-bound ignore must be byte-identical");
       counts.crossBoundIgnored++;
     }
     await unchangedExcept(before);
 
-    // A signed unknown run is deliberately an ignore, not tenant proof.
+    // A signed unknown run must be indistinguishable from a real run that does not hold the
+    // transfer, so the callback is not an existence oracle for payroll runs. Still not tenant credit alone.
     before = await snapshots();
     const nonexistentReference = "PAY-" + (victim.payout.run.id + 1000000) + "-" + victim.worker.employeeNo;
-    result(await send(eventBody(victim, { reference: nonexistentReference })),
-      200, { ok: true, ignored: true, reason: "unknown-payroll-run" }, "unknown run");
+    const unknownRun = await send(eventBody(victim, { reference: nonexistentReference }));
+    result(unknownRun, 200, { ok: true, ignored: true, reason: "unmatched-payroll-transfer" }, "unknown run");
+    assert.equal(unknownRun.text, unmatchedText, "a real foreign run must not be distinguishable from a nonexistent run");
     await unchangedExcept(before);
 
     console.log(JSON.stringify({
