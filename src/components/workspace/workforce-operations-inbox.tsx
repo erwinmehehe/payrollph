@@ -7,10 +7,12 @@ import {
   filterWfmOpsSignals,
   isValidWfmOpsPeriod,
   projectAttendanceOps,
+  projectCoverageOps,
   projectTimesheetOps,
   recentAttendanceWindow,
   suggestCompletedHalfMonth,
   type AttendanceOpsCounts,
+  type CoverageOpsCounts,
   type TimesheetOpsCounts,
   type WfmOpsSignalFilter,
 } from "@/lib/workforce-operations-inbox";
@@ -26,6 +28,7 @@ type Snapshot = {
   scope: string;
   attendance: Source<AttendanceOpsCounts>;
   timesheets: Source<TimesheetOpsCounts>;
+  coverage: Source<CoverageOpsCounts>;
 };
 
 async function fetchSource<T>(url: string, signal: AbortSignal, project: (input: unknown) => T): Promise<Source<T>> {
@@ -68,12 +71,16 @@ export function WorkforceOperationsInbox({
     const timesheetParams = new URLSearchParams({
       organizationId: String(organizationId), periodStart, periodEnd,
     });
-    const [attendance, timesheets] = await Promise.all([
+    const coverageParams = new URLSearchParams({
+      organizationId: String(organizationId), ...attendanceWindow,
+    });
+    const [attendance, timesheets, coverage] = await Promise.all([
       fetchSource("/api/workforce/attendance-exception-events?" + attendanceParams, signal, projectAttendanceOps),
       fetchSource("/api/workforce/timesheets?" + timesheetParams, signal, projectTimesheetOps),
+      fetchSource("/api/workforce/coverage?" + coverageParams, signal, projectCoverageOps),
     ]);
     if (signal.aborted || sequence.current !== requestId) return;
-    setSnapshot({ scope, attendance, timesheets });
+    setSnapshot({ scope, attendance, timesheets, coverage });
   }, [organizationId, periodStart, periodEnd, scope]);
 
   useEffect(() => {
@@ -87,11 +94,12 @@ export function WorkforceOperationsInbox({
   const visible = periodValid && snapshot?.scope === scope ? snapshot : null;
   const attendance = visible?.attendance.state === "ok" ? visible.attendance.data : null;
   const timesheets = visible?.timesheets.state === "ok" ? visible.timesheets.data : null;
-  const signals = buildWfmOpsSignals(attendance, timesheets);
+  const coverage = visible?.coverage.state === "ok" ? visible.coverage.data : null;
+  const signals = buildWfmOpsSignals(attendance, timesheets, coverage);
   const visibleSignals = filterWfmOpsSignals(signals, priorityFilter);
   const urgentKinds = signals.filter(signal => signal.priority === "urgent").length;
   const loading = !visible && periodValid;
-  const bothAvailable = attendance !== null && timesheets !== null;
+  const allAvailable = attendance !== null && timesheets !== null && coverage !== null;
 
   return (
     <article className="card workforce-triage" style={{ marginTop: 16 }} data-wfm-operations-inbox>
@@ -99,7 +107,7 @@ export function WorkforceOperationsInbox({
         <div>
           <div className="card-kicker">Workforce operations · read-only manager triage</div>
           <h2>Resolve workforce issues before payroll cut-off.</h2>
-          <p>Attendance exception cases and timecard review are independently scoped by the existing source APIs. This is not a release decision, absence finding or automatic wage adjustment.</p>
+          <p>Recorded attendance cases, timecard review and staffing gaps come from independently authorized source APIs. This does not determine absence, confirm physical presence, change a roster or authorize wages.</p>
         </div>
         <button type="button" className="secondary-button" disabled={!periodValid || loading} onClick={() => setRefreshIndex(n => n + 1)}>
           <RefreshCcw size={15} aria-hidden="true" /> Refresh
@@ -118,10 +126,11 @@ export function WorkforceOperationsInbox({
       {loading && <div className="notice notice-slate" role="status">Loading authorized WFM sources…</div>}
       {visible && (
         <>
-          {(!bothAvailable) && (
+          {(!allAvailable) && (
             <div className="notice notice-amber" role="status">
               Partial data: {visible.attendance.state === "unavailable" ? "attendance " + visible.attendance.reason + ". " : ""}
-              {visible.timesheets.state === "unavailable" ? "timesheets " + visible.timesheets.reason + "." : ""}
+              {visible.timesheets.state === "unavailable" ? "timesheets " + visible.timesheets.reason + ". " : ""}
+              {visible.coverage.state === "unavailable" ? "coverage " + visible.coverage.reason + "." : ""}
               Unavailable does not mean zero open cases or payroll-ready.
             </div>
           )}
@@ -131,6 +140,8 @@ export function WorkforceOperationsInbox({
             <Metric label="Awaiting checker" value={timesheets ? String(timesheets.pendingReview) : "—"} hint="selected timesheet period" icon={<Clock3 size={15}/>} tone={timesheets?.pendingReview ? "amber" : "slate"}/>
             <Metric label="Expected missing" value={timesheets ? String(timesheets.missingExpected) : "—"} hint="frozen expected cohort" icon={<AlertTriangle size={15}/>} tone={timesheets?.missingExpected ? "amber" : "slate"}/>
             <Metric label="Timecard blockers" value={timesheets ? String(timesheets.blockers) : "—"} hint="affected latest timecards" icon={<ShieldCheck size={15}/>} tone={timesheets?.blockers ? "amber" : "slate"}/>
+            <Metric label="Uncovered requirements" value={coverage ? String(coverage.uncoveredRequirements) : "—"} hint="source staffing requirements · last 14 PH work dates" icon={<AlertTriangle size={15}/>} tone={coverage?.uncoveredRequirements ? "amber" : "slate"}/>
+            <Metric label="Uncovered slots" value={coverage ? String(coverage.uncoveredSlots) : "—"} hint="recorded schedule gap · not employee absence" icon={<AlertTriangle size={15}/>} tone={coverage?.uncoveredSlots ? "amber" : "slate"}/>
           </section>
           {timesheets && <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
             Timesheet policy: <strong>{timesheets.enforcement === "block" ? "blocking when required" : "advisory"}</strong>. This screen does not verify all payroll release controls.
@@ -151,7 +162,7 @@ export function WorkforceOperationsInbox({
               <div className="policy-lines workforce-triage-signals">
                 {visibleSignals.map(item => <div key={item.id} className="workforce-triage-signal">
                   <div><Status value={item.priority === "urgent" ? "Urgent" : "Review"}/> <strong>{item.count} · {item.label}</strong></div>
-                  <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : onOpenTab("timesheets", { periodStart, periodEnd })}>
+                  <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : item.destination === "coverage" ? onOpenTab("coverage") : onOpenTab("timesheets", { periodStart, periodEnd })}>
                     Open source review →
                   </button>
                 </div>)}
@@ -160,11 +171,11 @@ export function WorkforceOperationsInbox({
                 No {priorityFilter === "urgent" ? "urgent" : "review"} signals in the available sources. Unavailable sources remain unknown; this is not payroll clearance.
               </div>}
             </div>
-          ) : bothAvailable ? (
+          ) : allAvailable ? (
             <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>No triage signals in the selected source windows. This does not independently certify payroll readiness.</div>
           ) : null}
           <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
-            Staffing gaps, shift claims and schedule readiness remain in <button type="button" className="secondary-button" onClick={() => onOpenTab("coverage")}>Coverage operations →</button>
+            Open Coverage operations for staffing requirement details, shift claims and roster readiness: <button type="button" className="secondary-button" onClick={() => onOpenTab("coverage")}>Coverage operations →</button>
           </div>
         </>
       )}
