@@ -4,6 +4,8 @@
 
 ## 2026-11-02 PR #1731 issued-demand recovery — SOLO_VERIFIED_DEV_RECOVERY
 
+Current live PR #1731 inventory (DRAFT / NOT ACCEPTED): 498 methods = 389 COVERED + 10 PUBLIC-BY-DESIGN + 99 GAP. This is a proposed, source-pinned method-level ledger, not merged main, independent human acceptance or authorization to deploy.
+
 **Method-only evidence ledger:** 498 API methods = **389 COVERED + 10 PUBLIC-BY-DESIGN + 99 GAP**, with 17 separate page/action gaps. Compared to main's 387/10/101, two disjoint methods are added: `POST /api/workforce/demand-observations/issued` and `POST /api/workforce/demand-observations/issued/score`. Neither is duplicated by open #1727 or by the historical issued GET proof.
 
 **Exact PG16 real-HTTP four-part evidence:** [run 41444835667 / job 125275257980](https://github.com/erwinmehehe/payrollph/actions/runs/41444835667/job/125275257980), PR-head `1834b73aab8e162e19b4b260e51b32e6fa1fbbec`, source/proof/workflow blobs pinned in each manifest method. Both independently signed-in attacker employers produce actual owned 201s and subsequent 200 replays, the real higher-ID victim is denied 403 with victim worksite/issue and foreign source forgery explicitly refused, and real victim/source/payroll/audit SQL remains unchanged on every refused call. All four parts are asserted before the receipt. This is `SOLO_VERIFIED_DEV_RECOVERY`: `@erwinmehehe` is the repository's **only owner/reviewer**, not a second independent reviewer. Full PR CI on the ledger-changing head must still pass before merge, and the overall tenant and production release acceptance remains **NOT ACCEPTED**. No live data, financial provider, POS, payroll, payout or deploy.
@@ -79,13 +81,13 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **305 COVERED + 2 PUBLIC-BY-DESIGN + 99 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
