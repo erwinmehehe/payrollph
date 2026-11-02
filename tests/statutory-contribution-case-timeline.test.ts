@@ -90,10 +90,10 @@ test("update email dedupe is keyed to the immutable event id", () => {
 test("agency referral emits an immutable timeline event permitted by the existing SQL constraint", () => {
   const route = readFileSync("src/app/api/compliance/contribution-issues/route.ts", "utf8");
   const migration = readFileSync("drizzle/0029_statutory_contribution_issue_events.sql", "utf8");
-  const checkValues = migration.match(/CHECK\\s*\\("event_type"\\s+IN\\s*\\(([^)]+)\\)\\)/)?.[1];
+  const checkValues = migration.match(/CHECK\s*\("event_type"\s+IN\s*\(([^)]+)\)\)/)?.[1];
   assert.ok(checkValues, "existing event-type CHECK must be present");
   const allowedTypes = new Set([...checkValues.matchAll(/'([^']+)'/g)].map((match) => match[1]));
-  const routeEventTypes = [...route.matchAll(/eventType:\\s*"([^"]+)"/g)].map((match) => match[1]);
+  const routeEventTypes = [...route.matchAll(/eventType:\s*"([^"]+)"/g)].map((match) => match[1]);
   assert.ok(routeEventTypes.length >= 4, "assert all contribution issue event writes");
   for (const eventType of routeEventTypes) {
     assert.ok(allowedTypes.has(eventType), `API event type ${eventType} violates immutable SQL CHECK`);
@@ -103,9 +103,9 @@ test("agency referral emits an immutable timeline event permitted by the existin
   const referralEnd = route.indexOf("return Response.json({ case: result, resolved: false });", referralStart);
   assert.ok(referralEnd > referralStart, "referral must return an open-case result");
   const referral = route.slice(referralStart, referralEnd);
-  assert.match(referral, /status:\\s*"in_review"/);
+  assert.match(referral, /status:\s*"in_review"/);
   assert.match(referral, /resolutionOutcome,/);
-  assert.match(referral, /eventType:\\s*"payroll_update"/);
-  assert.match(referral, /Referred to the agency for verification\\./);
+  assert.match(referral, /eventType:\s*"payroll_update"/);
+  assert.match(referral, /Referred to the agency for verification\./);
   assert.match(referral, /Employee contribution issue referred to agency/);
 });
