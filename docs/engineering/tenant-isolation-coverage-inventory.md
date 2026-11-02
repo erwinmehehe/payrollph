@@ -1,5 +1,7 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
+> **PayMongo transfer webhook provisional evidence:** 387 COVERED / 10 PUBLIC-BY-DESIGN / 101 GAP. webhooks/paymongo/transfers POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277) from head `c510fc14e`, merged as `918085a37`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production/payout authorization.
+
 > **Xendit payout webhook provisional evidence:** 386 COVERED / 10 PUBLIC-BY-DESIGN / 102 GAP. webhooks/xendit-payout POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41367679707/job/125031218758) from head `2e7e23ede`, merged as `90a9a207e`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production/payout authorization.
 
 > **Allocations provisional evidence:** 385 COVERED / 10 PUBLIC-BY-DESIGN / 103 GAP. Allocations POST and PATCH: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41272751903/job/124748701503) from head `a79c53844`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production/payout authorization.
@@ -41,9 +43,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 102 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 101 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 102 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remain GAP. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 101 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remain GAP. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -152,14 +154,14 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 386 |
+| coveredAfter | 387 |
 | publicByDesign | 10 |
-| gap | 102 |
+| gap | 101 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
 
-Original source-inventory baseline (historical): [`main@8c2a62135fd6e23db4603197822339cc1020ec27`](https://github.com/erwinmehehe/payrollph/commit/8c2a62135fd6e23db4603197822339cc1020ec27). The archived partition JSON files preserve the earlier `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214` snapshot and do not substitute for current-head HTTP acceptance. HTTP-method classification is per exported handler, not per file. `COVERED` is only credited where the existing `scripts/qa/tenant-second-pass-http.mjs` proves a real own-tenant positive control followed by a victim-only denial. `PUBLIC-BY-DESIGN` has method-level public-resource rationale. Others remain **GAP** regardless of helper names or anonymous responses.
+Original source-inventory baseline (historical): [`main@8c2a62135fd6e23db4603197822339cc1020ec27`](https://github.com/erwinmehehe/payrollph/commit/8c2a62135fd6e23db4603197822339cc1020ec27). The archived partition JSON files preserve the earlier `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214` snapshot and do not substitute for current-head HTTP acceptance. HTTP-method classification is per exported handler, not per file. `COVERED` requires a cited method-specific proof or credited proof family satisfying the applicable policy; `scripts/qa/tenant-second-pass-http.mjs` is one historical proof source, not the only allowed source. `PUBLIC-BY-DESIGN` has method-level public-resource rationale. Others remain **GAP** regardless of helper names or anonymous responses.
 
 The original `.github/workflows/security-http-smoke.yml`, 42-file `scripts/qa/tenant-second-pass-manifest.mjs`, and the non-waivable `requireDisposable` guard in `scripts/qa/tenant-second-pass-http.mjs` are preserved.
 
@@ -263,7 +265,7 @@ Both independent attacker employers first receive real 200/201 own-record eviden
 
 ## Complete API method matrix
 
-Every one of the 290 route files and 493 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
+All 295 API route files and 498 exported methods in the current manifest are listed in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
 # API methods — inventory appendix A (partitions 00–10)
@@ -701,7 +703,7 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`web-bundy` GET](../../src/app/api/web-bundy/route.ts#L40) | session, query, body | enforceSameOriginMutation L2, getSessionUser L6, assertOrganizationRole L7, getSessionUser L41 | searchParams.get("organizationId") L45, searchParams.get("employeeId") L46, body.organizationId L134 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L87) | **COVERED** |
 | [`web-bundy` POST](../../src/app/api/web-bundy/route.ts#L127) | session, query, body | enforceSameOriginMutation L2, getSessionUser L6, assertOrganizationRole L7, getSessionUser L41 | searchParams.get("organizationId") L45, searchParams.get("employeeId") L46, body.organizationId L134 | [Clock lifecycle PG16 HTTP](../../scripts/qa/tenant-clock-http.mjs#L14) — [receipt](../qa/tenant-clock-receipt.json) | **COVERED** |
 | [`webhooks/drain` POST](../../src/app/api/webhooks/drain/route.ts#L14) | session | getSessionUser L1, enforceSameOriginMutation L2, enforceSameOriginMutation L32, getSessionUser L35 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`webhooks/paymongo/transfers` POST](../../src/app/api/webhooks/paymongo/transfers/route.ts#L48) | NONE FOUND | NONE FOUND | input.runId L34 | NO VALID METHOD PROOF | **GAP** |
+| [`webhooks/paymongo/transfers` POST](../../src/app/api/webhooks/paymongo/transfers/route.ts#L48) | NONE FOUND | NONE FOUND | input.runId L34 | [paymongo-transfer webhook proof](../../scripts/qa/tenant-webhook-paymongo-transfer-http.mjs#L169) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277)) | **COVERED** |
 | [`webhooks/resend` POST](../../src/app/api/webhooks/resend/route.ts#L10) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`webhooks/xendit-payout` POST](../../src/app/api/webhooks/xendit-payout/route.ts#L16) | NONE FOUND | NONE FOUND | none found | [xendit-payout webhook proof](../../scripts/qa/tenant-webhook-xendit-payout-http.mjs#L117) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/41367679707/job/125031218758)) | **COVERED** |
 | [`webhooks/xendit/subscriptions` POST](../../src/app/api/webhooks/xendit/subscriptions/route.ts#L31) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
