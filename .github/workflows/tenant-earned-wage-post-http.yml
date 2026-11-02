@@ -1,0 +1,77 @@
+name: Earned-wage POST atomicity (fictional PG16 HTTP)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/app/api/earned-wage/route.ts'
+      - 'src/lib/audit.ts'
+      - 'src/lib/ewa.ts'
+      - 'scripts/qa/tenant-earned-wage-post-http.mjs'
+      - 'scripts/qa/first-payroll-full-contract.mjs'
+      - 'scripts/qa/first-payroll-full-env.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'src/db/**'
+      - 'tests/tenant-earned-wage-post-audit-atomic.test.mjs'
+      - '.github/workflows/tenant-earned-wage-post-http.yml'
+permissions:
+  contents: read
+concurrency:
+  group: earned-wage-post-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  atomic-post:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/qa/first-payroll-full-env.mjs >> "$GITHUB_ENV"
+      - name: Disposable encryption keys
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - run: node --import tsx --test tests/tenant-earned-wage-post-audit-atomic.test.mjs tests/first-payroll-full-contract.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Start isolated localhost server
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/earned-wage-post.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/earned-wage-post.log
+          exit 1
+      - run: env -u NODE_ENV node --import tsx scripts/qa/tenant-earned-wage-post-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: tenant-earned-wage-post
+          path: outputs/tenant-earned-wage-post.json
+          retention-days: 7
+      - if: failure()
+        run: cat /tmp/earned-wage-post.log || true
