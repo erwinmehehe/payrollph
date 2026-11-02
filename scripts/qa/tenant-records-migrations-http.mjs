@@ -66,6 +66,7 @@ export async function proveMigrations(attackers,victim){
   prove(victimBatches.length===4&&victimBatches.every(x=>x.id>6)&&
     victimBatches.every(x=>x.id>ownSources.get(attackers[1]).loans.batchId),
     "four actual victim import batch IDs >6 and higher than both attackers");
+  return async ()=>{
   for(const actor of attackers){
     for(const kind of KINDS){
       await denial(await request(actor,kind,ownSources.get(victim)[kind].csv,{
@@ -83,4 +84,5 @@ export async function proveMigrations(attackers,victim){
     }
   }
   return ownSources;
+  };
 }
