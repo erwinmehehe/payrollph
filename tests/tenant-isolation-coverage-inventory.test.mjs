@@ -4733,7 +4733,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
       // This exact, uncredited PG16 candidate is not a COVERED promotion.
       if (path === "src/app/hcm/work-items/page.tsx") {
         const reviewed = entry.reviewedUncertified;
-        const pageSha = "1e3ba049527b825dc757837bce59e1d075f8be02";
+        const pageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
         const historicalPageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
         const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
         assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
@@ -4769,9 +4769,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           previousPageBlobSha: historicalPageSha,
           pageBlobSha: pageSha,
           helperBlobSha: "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
-          unitTestBlobSha: "bd5ffcdca75b50f43c8399c2667c192bf2a979ca",
+          unitTestBlobSha: "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
           browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
-          browserScriptBlobSha: "1335bb32bc75a4cc42e4a788e41c5a482dd2b2c7",
+          browserScriptBlobSha: "a63ff3facee006251abbbdf1993d9184b0eea171",
           coverageCredits: 0,
           independentlyAccepted: false,
           productionCertified: false,

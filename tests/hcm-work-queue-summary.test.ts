@@ -104,3 +104,13 @@ test("responsive HR work queue preserves verified-only rows and a mobile action"
   assert.ok(ui.includes('Showing {visibleItems.length} of {items.length} loaded items'));
   assert.ok(ui.includes('Search only filters this employer'));
 });
+
+
+test("HR case editor traps keyboard focus, supports Escape, and restores invoking focus", () => {
+  const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  assert.ok(ui.includes("ref={dialogRef}"));
+  assert.ok(ui.includes('event.key === "Escape"'));
+  assert.ok(ui.includes('event.key !== "Tab"'));
+  assert.ok(ui.includes("triggerRef.current?.isConnected"));
+  assert.ok(ui.includes("document.addEventListener(\"keydown\", onDialogKeyDown)"));
+});

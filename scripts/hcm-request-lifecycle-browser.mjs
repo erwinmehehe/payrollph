@@ -118,8 +118,12 @@ try {
     await mobileAction.focus();
     await page.keyboard.press("Enter");
     await page.getByRole("dialog", { name: "Assign #11" }).waitFor();
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    assert.equal(await page.getByRole("dialog").count(), 0, "Keyboard-opened mobile editor must close");
+    assert.ok(await page.evaluate(() => document.querySelector('[role="dialog"]')?.contains(document.activeElement)),
+      "Opening the keyboard editor must move focus inside the modal");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    assert.ok(await mobileAction.evaluate(element => element === document.activeElement),
+      "Closing the modal must restore focus to its mobile trigger");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       "HR mobile queue has horizontal overflow at " + width + "px");
   }

@@ -42,6 +42,8 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   const [error,setError] = useState("");
   const [saving,setSaving] = useState(false);
   const editorGeneration = useRef(0);
+  const dialogRef = useRef<HTMLElement|null>(null);
+  const triggerRef = useRef<HTMLElement|null>(null);
   const [historyRead,setHistoryRead] = useState<{caseId:number; events:History[]; error:string}|null>(null);
   const validOrganization = Number.isSafeInteger(Number(organizationId)) && Number(organizationId) > 0;
   const activeQueue = queue?.revision === revision ? queue : null;
@@ -53,6 +55,12 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   const history = activeHistory?.events ?? [];
 
   function refresh() { setRevision(value=>value+1); }
+  function closeEditor() {
+    editorGeneration.current += 1;
+    setSelected(null);
+    setError("");
+    setSaving(false);
+  }
 
   useEffect(() => {
     if (!validOrganization) return;
@@ -72,6 +80,46 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   },[organizationId,filter,revision,validOrganization]);
 
   const selectedId = selected?.id;
+
+  // Keep focus inside the modal editor and return it to the invoking button.
+  // Server authorization remains authoritative for any PATCH action.
+  useEffect(() => {
+    if (!selectedId || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ));
+    focusable()[0]?.focus();
+    function onDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        editorGeneration.current += 1;
+        setSelected(null);
+        setError("");
+        setSaving(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (elements.length === 0) return;
+      const first = elements[0], last = elements[elements.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onDialogKeyDown);
+      if (triggerRef.current?.isConnected) triggerRef.current.focus();
+    };
+  }, [selectedId]);
   useEffect(() => {
     if (!selectedId) return;
     const controller = new AbortController();
@@ -90,6 +138,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   },[organizationId,selectedId]);
 
   function edit(item:Item) {
+    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     editorGeneration.current += 1;
     setSaving(false);
     setSelected(item); setTeam(teams.includes(item.ownerTeam) ? item.ownerTeam : teams[0]); setOwnerId(item.ownerUserId?.toString() ?? "");
@@ -161,7 +210,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
         {loading ? "Work items are loading…" : loadError ? "Work items could not be loaded. Use Refresh to retry." : "Select a valid organization to see work items."}
       </div>
     )}
-    {selected&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="work-item-edit-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+    {selected&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="work-item-edit-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
       <h2 id="work-item-edit-title" className="text-xl font-bold">Assign #{selected.id}</h2><p className="mb-4 text-slate-600">{selected.title}</p>
       {error&&<p role="alert" className="mb-3 rounded border border-rose-300 p-2 text-rose-700">{error}</p>}
       <div className="grid gap-3">
@@ -172,7 +221,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
       </div>
       <div className="mt-4 max-h-40 overflow-y-auto border-t pt-3"><h3 className="text-sm font-bold">Ownership and SLA history</h3>
         {!activeHistory?<p role="status" className="mt-2 text-xs text-slate-500">Loading history…</p>:activeHistory.error?<p role="alert" className="mt-2 text-xs text-rose-700">{activeHistory.error}</p>:history.length===0?<p className="mt-2 text-xs text-slate-500">No history recorded.</p>:<ul className="mt-2 space-y-2 text-xs">{history.map(event=><li key={event.id} className="flex justify-between gap-2"><span>{event.eventType.replaceAll("_"," ")} · {event.actorName??"Scheduler"}</span><time>{new Date(event.createdAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"})}</time></li>)}</ul>}
-      </div><div className="mt-5 flex justify-end gap-2"><button className="rounded border px-4 py-2" onClick={()=>{editorGeneration.current+=1;setSelected(null);setError("");setSaving(false);}}>Cancel</button><button disabled={saving} className="rounded bg-emerald-800 px-4 py-2 text-white disabled:opacity-50" onClick={()=>void save()}>{saving?"Saving...":"Save changes"}</button></div>
+      </div><div className="mt-5 flex justify-end gap-2"><button className="rounded border px-4 py-2" onClick={closeEditor}>Cancel</button><button disabled={saving} className="rounded bg-emerald-800 px-4 py-2 text-white disabled:opacity-50" onClick={()=>void save()}>{saving?"Saving...":"Save changes"}</button></div>
     </section></div>}
   </>;
 }
