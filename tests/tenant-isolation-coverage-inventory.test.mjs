@@ -3847,6 +3847,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 125031218758);
         continue;
       }
+      // webhooks/paymongo/transfers POST: provider-callback receipt; anchors and pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/webhooks/paymongo/transfers/route.ts POST", "No unrelated method may reuse the PayMongo transfer webhook evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "c510fc14ef1188e65aafe929aa287898c07db4b9");
+        assert.equal(proof.workflowRunId, 41402106010);
+        assert.equal(proof.workflowJobId, 125135951277);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -5326,7 +5336,7 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
   const route = readFileSync(routePath, "utf8");
   assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-xendit-payout-http.mjs"));
   assert.ok(workflow.includes("image: postgres:16"));
-  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 1, "the rule counts exactly this credited method");
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 2, "the rule counts the xendit payout and PayMongo transfer credits");
   const api = manifest.allApiRouteFiles[routePath];
   assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
   const method = api.methods[0];
@@ -5359,4 +5369,51 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
   for (const evidence of ["requireDisposableXenditPayoutWebhook();", "a real foreign run must not be distinguishable from a nonexistent run",
     "denial must not echo victim data", "Settlement observation rejected; manual review required."]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
   assert.ok(harness.indexOf("requireDisposableXenditPayoutWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+});
+
+test("PayMongo transfer webhook credit requires the exact passing run, byte-pinned inputs, the provider-callback rule and a cited call per case", () => {
+  const routePath = "src/app/api/webhooks/paymongo/transfers/route.ts";
+  const harnessFile = "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const harnessLines = harness.split(String.fromCharCode(10));
+  const workflow = readFileSync(".github/workflows/tenant-webhook-paymongo-transfer-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-paymongo-transfer-http.mjs"));
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("paymongo-transfer-webhook-isolation:"));
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 2, "the rule counts exactly the two credited methods");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const method = api.methods[0];
+  assert.equal(method.reviewedUncertified, undefined);
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.rule, "proofPolicy.providerCallback");
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 paymongo-transfer-webhook PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1708);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-webhook-paymongo-transfer-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-webhook-paymongo-transfer.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "const own = await send(ownEvent);", "own-observation anchor");
+  cites(proof.secondaryOwnPositiveLine, "const forged = await send(eventBody(a, {", "forged-selector anchor");
+  cites(proof.foreignDenialLine, "eventBody(a, { transferId: victim.payout.transferId }),", "foreign-transfer anchor");
+  cites(proof.secondaryForeignDenialLine, "eventBody(b, { transferId: victim.payout.transferId }),", "second-attacker anchor");
+  cites(proof.crossBoundLine, "const ignored = await send(payload);", "cross-bound anchor");
+  cites(proof.unchangedDbLine, "await unchangedExcept(before);", "unchanged-SQL anchor");
+  assert.ok(proof.unchangedDbLine > proof.crossBoundLine, "unchanged-SQL anchor follows the refusal loop");
+  cites(proof.replayLine, 'result(await send(ownEvent), 200, { ok: true, duplicate: true }, "same signed event replay");', "replay anchor");
+  cites(proof.concurrentDeliveryLine, "const raced = await Promise.all(", "concurrent-delivery anchor");
+  cites(proof.unknownRunLine, "const unknownRun = await send(eventBody(victim, { reference: nonexistentReference }));", "unknown-run anchor");
+  for (const evidence of ["requireDisposablePaymongoTransferWebhook();", "a real foreign run must not be distinguishable from a nonexistent run",
+    "every cross-bound ignore must be byte-identical", "concurrent duplicates must not double-write"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposablePaymongoTransferWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+  assert.ok(!route.includes("unknown-payroll-run"), "the existence oracle must stay removed");
 });

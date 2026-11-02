@@ -58,7 +58,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 386 COVERED + 10 PUBLIC-BY-DESIGN + 102 GAP**. Current `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contains **382/10/106**, including separately credited compensation PATCH, WRK-02 Batch 2 and other newer tenant evidence. PR #1646 adds exactly **one** source-linked compensation POST method, not another PATCH or any of the newer main credits. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP**. Current `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contains **382/10/106**, including separately credited compensation PATCH, WRK-02 Batch 2 and other newer tenant evidence. PR #1646 adds exactly **one** source-linked compensation POST method, not another PATCH or any of the newer main credits. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -77,9 +77,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 18 | 0 | 15 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **302 COVERED + 2 PUBLIC-BY-DESIGN + 102 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

@@ -24,7 +24,10 @@ test("the provider callback rule is explicit, narrow and leaves the session rule
 });
 
 test("only receipt-backed webhook methods are COVERED and the rule counts them", () => {
-  const receipts = { "webhooks/xendit-payout": "scripts/qa/tenant-webhook-xendit-payout-http.mjs" };
+  const receipts = {
+    "webhooks/xendit-payout": "scripts/qa/tenant-webhook-xendit-payout-http.mjs",
+    "webhooks/paymongo/transfers": "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs",
+  };
   let covered = 0;
   for (const route of credited) {
     const entry = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
