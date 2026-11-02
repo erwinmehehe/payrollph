@@ -307,6 +307,8 @@ test("manifest is still GAP; fictional accepted status is NOT an external agency
 test("accepted outcome branch uses a second real own PG16 filing, exact audit and victim-denial controls", () => {
   const proof = readFileSync("scripts/qa/tenant-table-rows/write/compliance-filing.mjs", "utf8");
   for (const anchor of [
+    'for (let pad = 0; pad < 6; pad++)',
+    'Number.isSafeInteger(filing.id) && filing.id > 6',
     'const [acceptFixture] = await db.insert(governmentFilingValidations).values({',
     'acceptedOwnDecisionPG16: true',
     'acceptedForeignAndForgedDenied: true',

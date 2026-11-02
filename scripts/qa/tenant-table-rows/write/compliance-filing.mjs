@@ -59,6 +59,30 @@ export function createRows({
     const sha = createHash("sha256").update(
       "disposable-synthetic-sss-r3:" + e.marker + ":" + run.id,
     ).digest("hex");
+    // Real numeric victim filing IDs must be above BOTH attacker filings
+    // and greater than 6. Seed six inert, fictional, never-used SQL objects
+    // per employer BEFORE its own target; no guessed IDs or fake lookups.
+    // They are ordinary generated draft fixtures, with no acceptance, audit,
+    // remittance or provider side effects in the isolated PG16 database.
+    for (let pad = 0; pad < 6; pad++) {
+      const padded = await db.insert(governmentFilingValidations).values({
+        organizationId: e.org.id, legalEntityId: e.entity.id,
+        payrollRunId: run.id, agency: "SSS", form: "R-3",
+        periodLabel: e.marker + " inert-victim-ID-pad-" + pad,
+        applicableMonth: FILING_PERIOD.applicableMonth,
+        employeeCount: 1,
+        reportedTotal: (20_000 + e.rank * 123).toFixed(2),
+        fileName: e.marker + "-fictional-inert-" + pad + ".csv",
+        fileSha256: createHash("sha256").update(
+          "disposable-inert-filing-id:" + e.marker + ":" + run.id + ":" + pad,
+        ).digest("hex"),
+        generatorVersion: "sss-r3-worksheet-v2",
+        generatedBy: e.marker + " synthetic ID-order fixture",
+        status: "generated",
+      }).returning({ id: governmentFilingValidations.id });
+      assert.equal(padded.length, 1,
+        "a real persisted padding filing is mandatory");
+    }
     const [filing] = await db.insert(governmentFilingValidations).values({
       organizationId: e.org.id,
       legalEntityId: e.entity.id,
@@ -74,8 +98,8 @@ export function createRows({
       generatedBy: e.marker + " fictional worksheet fixture",
       status: "generated",
     }).returning();
-    assert.ok(Number.isSafeInteger(filing.id) && filing.id > 0,
-      "real persisted filing ID required");
+    assert.ok(Number.isSafeInteger(filing.id) && filing.id > 6,
+      "real persisted filing ID above six required");
     assert.equal(filing.organizationId, e.org.id);
     assert.equal(filing.legalEntityId, e.entity.id);
     assert.equal(filing.payrollRunId, run.id);

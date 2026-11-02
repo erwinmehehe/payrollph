@@ -113,13 +113,15 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
       // Historical #1501 was rejection-only. A new synthetic ACCEPTED-branch
       // HTTP/PG16 candidate is in the current family row; no successful job
       // or accepted coverage credit is implied until its exact-head run.
-      assert.equal(blobSha(review.proofFile), "80d0f3c846593444ebee04ef72de0a9b917696b4",
+      assert.equal(blobSha(review.proofFile), "cb27590280c58a34615faef99cdc33bb02330e66",
         "new fictional accepted-path family proof changed; rerun exact-head CI");
       assert.notEqual(blobSha(review.proofFile),
         method.reviewedUncertified.proofBlobSha,
         "new accepted-path source cannot masquerade as merged #1501 evidence");
       const current = readFileSync(review.proofFile, "utf8");
       for (const token of [
+        'for (let pad = 0; pad < 6; pad++)',
+        'Number.isSafeInteger(filing.id) && filing.id > 6',
         'const [acceptFixture] = await db.insert(governmentFilingValidations).values({',
         'const acceptedHttp = expectStatus(await request(',
         'persistedAccepted.status, "accepted"',
