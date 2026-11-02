@@ -5444,8 +5444,7 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
     assert.equal(method?.status, "GAP", name + " " + route + " remains held or lacks whole-method proof");
     assert.equal(method?.testedBy, null);
   }
-  assert.equal(manifest.metrics.coveredAfter, 392);
-  assert.equal(manifest.metrics.gap, 96);
-  assert.equal(manifest.metrics.methods, 498);
-  assert.equal(manifest.metrics.publicByDesign, 10);
+  // Live manifest counts must be derived and non-regressing against the PR base.
+  // Never pin a moving six-credit tally inside a regression test.
+  assertLiveTenantCounts(assert, manifest);
 });
