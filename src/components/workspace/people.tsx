@@ -541,7 +541,7 @@ export function PeopleView({
           organizationId={data.selectedOrganization.id}
           onOpenEmployee={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);
-            if (worker) setPicked(worker);
+            if (worker) pickEmployee(worker);
           }}
           onOpenSeparation={() => onPage("Separation")}
         />
