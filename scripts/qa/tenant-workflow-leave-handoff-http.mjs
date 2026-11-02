@@ -250,7 +250,7 @@ try {
   // leave orphan approval/task/step rows and the SQL snapshot would fail.
   const faultSep = await seedSeparation(a);
   const faultBefore = await ownOrgSnapshot(a.org.id);
-  await db.execute(sql.raw("CREATE FUNCTION tenant_qa_fail_handoff_audit() RETURNS trigger LANGUAGE plpgsql AS $ BEGIN IF NEW.action = 'Governed WFM/HCM human approval handoff requested' THEN RAISE EXCEPTION 'SYNTHETIC_AUDIT_FAULT_PRIVATE_ONLY'; END IF; RETURN NEW; END; $"));
+  await db.execute(sql.raw("CREATE FUNCTION tenant_qa_fail_handoff_audit() RETURNS trigger LANGUAGE plpgsql AS $audit$ BEGIN IF NEW.action = 'Governed WFM/HCM human approval handoff requested' THEN RAISE EXCEPTION 'SYNTHETIC_AUDIT_FAULT_PRIVATE_ONLY'; END IF; RETURN NEW; END; $audit$"));
   await db.execute(sql.raw("CREATE TRIGGER tenant_qa_handoff_audit_denial BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION tenant_qa_fail_handoff_audit()"));
   try {
     const failed = await assertDenied(post("/api/governed-handoffs",a.cookie,
