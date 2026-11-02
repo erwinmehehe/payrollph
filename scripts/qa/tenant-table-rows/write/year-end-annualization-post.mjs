@@ -181,7 +181,8 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
           assert.equal(ownArtifact.headers.get('x-payrollph-filing-status'),
             'DRAFT-SOURCE-NOT-BIR-DAT',
             'Alphalist remains a source extract, never an official BIR DAT');
-          assert.match(ownArtifact.text, /Employer TIN,Employer Branch,Employee TIN/);
+          assert.match(ownArtifact.text, /^"Employer TIN","Employer Branch","Employee TIN"/,
+            "CSV serializer quotes all header cells; validate the actual export");
         }
         const afterOwnExport = await state(c.orgId);
         assert.equal(afterOwnExport.audit.length, previousOwnExportState.audit.length + 1);
