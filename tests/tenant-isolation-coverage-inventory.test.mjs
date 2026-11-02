@@ -1631,7 +1631,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "uo.role in ('owner', 'admin', 'hr')", "for share of uo, u",
       "if (!liveGrant.rows[0]) return null",
     ]) assert.ok(gate.includes(item), "Careers commit-time tenant role guard missing: " + item);
-    assert.match(source, /req\\.organization_id = \\$\\{organizationId\\}/,
+    assert.ok(source.includes("req.organization_id = ${organizationId}"),
       "Careers write must retain the employer-bound requisition predicate");
     return;
   }
