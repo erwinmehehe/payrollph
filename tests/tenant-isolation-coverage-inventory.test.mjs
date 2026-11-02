@@ -568,6 +568,28 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.testFile, "tests/tenant-self-profile-contract.test.mjs");
     assert.equal(reviewed?.testBlobSha, gitBlobSha(readFileSync(reviewed.testFile)),
       "Any negative-control test change requires review");
+    assert.equal(reviewed?.historicalFileBlobSha, "2bae931424036014f92211a50c4211824a61d7b1");
+    assert.equal(reviewed?.historicalTestBlobSha, "bda6d239383e0736302c1970cbc0aa78433ef470");
+    assert.equal(reviewed?.contractFile, "scripts/qa/tenant-self-profile-contract.mjs");
+    assert.equal(reviewed?.contractBlobSha, gitBlobSha(readFileSync(reviewed.contractFile)),
+      "New payroll-entry/CSP invariant contract requires renewed review");
+    assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-self-profile-http.yml");
+    assert.equal(reviewed?.workflowBlobSha, gitBlobSha(readFileSync(reviewed.workflowFile)),
+      "New disposable-PG16 workflow must stay byte-pinned");
+    const profileProof = readFileSync(reviewed.file, "utf8");
+    for (const token of [
+      "payrollEntriesByEmployer", "innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))",
+      "assert.deepEqual(await snapshot(first.org.id), beforeAuditVeto",
+      "profileAuditRollbackProven: true",
+    ]) assert.ok(profileProof.includes(token), "PII-02 changed real-HTTP proof lost: " + token);
+    assert.ok(readFileSync(reviewed.contractFile, "utf8").includes("payrollEntries"),
+      "Profile contact updates must preserve actual payroll entries");
+    for (const flag of ["NEXT_CSP_ENABLED=false", "WORKER_ENABLED=false",
+      "CENTRAL_SCHEDULER_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+      assert.ok(readFileSync(reviewed.workflowFile, "utf8").includes(flag),
+        "Disposable PII-02 workflow lost a disabled safety flag: " + flag);
+    }
+
     const checks = [
       [reviewed.ownPositiveLine, /const actual = await checked\(ENDPOINT, \{/],
       [reviewed.forgedSelectorLine, /const forged = await checked\(ENDPOINT/],
