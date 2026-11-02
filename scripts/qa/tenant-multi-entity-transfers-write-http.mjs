@@ -136,6 +136,25 @@ try {
     organizationId: 1, employeeId: workerId, toLegalEntityId: target,
     effectiveDate, reason: "Fictional employer movement for CI isolation only",
   });
+  // Exercise a real, disposable PostgreSQL failure through the HTTP POST.
+  // An otherwise valid maker action must not expose internal driver text.
+  const beforePostFault = await snapshot(1);
+  await sql.query("CREATE FUNCTION public.ci_transfer_post_error() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''CI_INTERNAL_DATABASE_DIAGNOSTIC''; END;'");
+  await sql.query("CREATE TRIGGER ci_transfer_post_error BEFORE INSERT ON entity_transfer_requests FOR EACH ROW EXECUTE FUNCTION public.ci_transfer_post_error()");
+  try {
+    const deniedFault = status(await call(a, "POST", path,
+      createBody(sourceWorker.id, secondaryEntity.id, future), primaryId),
+      409, "Authorized POST with SQL failure is safely rejected");
+    check(deniedFault.data?.error === "Could not request transfer." &&
+      !deniedFault.text.includes("CI_INTERNAL_DATABASE_DIAGNOSTIC"),
+      "POST must never expose database diagnostics");
+    assert.deepEqual(await snapshot(1), beforePostFault,
+      "SQL-failed transfer POST must not change employer or audit rows");
+  } finally {
+    await sql.query("DROP TRIGGER IF EXISTS ci_transfer_post_error ON entity_transfer_requests");
+    await sql.query("DROP FUNCTION IF EXISTS public.ci_transfer_post_error()");
+  }
+
   const ownCreated = status(await call(a, "POST", path,
     createBody(sourceWorker.id, secondaryEntity.id, future), primaryId),
     201, "Maker may propose a valid own-employer transfer");
@@ -186,6 +205,24 @@ try {
     201, "A rejected case permits a new owned proposal");
   const nextId = nextCreated.data?.transfer?.id;
   check(Number.isSafeInteger(nextId) && nextId !== ownId, "A new proposal has a new real ID");
+  // Prove the PATCH error boundary on a genuine checker decision.
+  const beforePatchFault = await snapshot(1);
+  await sql.query("CREATE FUNCTION public.ci_transfer_patch_error() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''CI_INTERNAL_DATABASE_DIAGNOSTIC''; END;'");
+  await sql.query("CREATE TRIGGER ci_transfer_patch_error BEFORE UPDATE ON entity_transfer_requests FOR EACH ROW EXECUTE FUNCTION public.ci_transfer_patch_error()");
+  try {
+    const deniedFault = status(await call(b, "PATCH", path,
+      { organizationId: 1, id: nextId, action: "approve" }, primaryId),
+      409, "Authorized PATCH with SQL failure is safely rejected");
+    check(deniedFault.data?.error === "Transfer could not be decided." &&
+      !deniedFault.text.includes("CI_INTERNAL_DATABASE_DIAGNOSTIC"),
+      "PATCH must never expose database diagnostics");
+    assert.deepEqual(await snapshot(1), beforePatchFault,
+      "SQL-failed transfer PATCH must not change employer or audit rows");
+  } finally {
+    await sql.query("DROP TRIGGER IF EXISTS ci_transfer_patch_error ON entity_transfer_requests");
+    await sql.query("DROP FUNCTION IF EXISTS public.ci_transfer_patch_error()");
+  }
+
   const approved = status(await call(b, "PATCH", path,
     { organizationId: 1, id: nextId, action: "approve" }, primaryId),
     200, "Independent checker may approve owned future transfer");

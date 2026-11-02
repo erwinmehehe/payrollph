@@ -1,8 +1,8 @@
 # Tenant isolation closure plan — 490 API methods and 20 page/action surfaces
 
-## WRK-01 corrected one-method provisional reconciliation (2026-11-02, NOT ACCEPTED)
+## PR #1712 WRK-01 single-method evidence reconciliation — 2026-11-02 (DRAFT / NOT ACCEPTED)
 
-**Current proposed ledger: 498 methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP.** Only `POST workforce/roster-rules/preview` retains the previous [source-pinned fictional PG16 HTTP receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41293308290). **`GET workforce/greedy-roster` is GAP** because the prior successful response had no suggested workers and did not exercise real employee identity output; the revised nonempty recommendation and sanitized database-failure proof requires a newly passing dedicated PG16 HTTP job and independent review before any credit. **`GET workforce/demand-staffing/policies` is also GAP** because the manage branch remains unproved. Previously credited Xendit webhook POST remains credited. All 17 page/action GAPs and independent security/WFM review requirements remain. No deploy, provider, payroll release or production access.
+**Proposed integration ledger after merged PayMongo webhook credit:** 498 API methods = **388 provisional COVERED / 10 PUBLIC-BY-DESIGN / 100 GAP**. This branch proposes exactly one additional, source-bound `POST workforce/roster-rules/preview` receipt ([fictional PG16 job 124808879396](https://github.com/erwinmehehe/payrollph/actions/runs/41293308290/job/124808879396)) on the unchanged preview route/proof/contract/workflow. `GET workforce/greedy-roster` remains **GAP / testedBy:null / zero new credit** despite an exact-source nonempty eligible-worker and sanitized SQL-fault candidate ([PG16 run 41417733172](https://github.com/erwinmehehe/payrollph/actions/runs/41417733172)); independent method/coverage review is pending. `GET workforce/demand-staffing/policies` still lacks complete manage-mode proof and remains GAP. The independent PayMongo webhook provisional credit from merged #1715 and the foreign payout-profile zero-credit safety fix remain preserved. **No independent WFM/security acceptance, deployment, payroll release, provider activity or production authorization** is implied.
 
 > **NOT ACCEPTED — baseline only.** Audited GitHub `main@28e1224448342c34a4899fb67660b3da504530c1` on 2026-10-21: 289 route files, 490 HTTP methods, **76 COVERED / 8 PUBLIC-BY-DESIGN / 406 GAP**, plus **20 page/action GAPs**. No additional methods are certified by writing this plan. This document is a **frozen 406-method closure queue**; later PRs must update the live manifest and the inventory headline independently. Manifest acceptance stays **NOT ACCEPTED**; an independent owner/reviewer decides acceptance.
 
@@ -62,7 +62,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 386 COVERED + 10 PUBLIC-BY-DESIGN + 102 GAP**. Current `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contains **382/10/106**, including separately credited compensation PATCH, WRK-02 Batch 2 and other newer tenant evidence. PR #1646 adds exactly **one** source-linked compensation POST method, not another PATCH or any of the newer main credits. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP**. The PR #1715 base, `main@918085a3779d9386331c77d47ac20d4c8b71458f`, contains **386 COVERED / 10 PUBLIC-BY-DESIGN / 102 GAP**. This PR adds exactly **one** source-pinned `POST webhooks/paymongo/transfers` credit from merged proof #1708 ([passing disposable-PG16 run 41402106010](https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277)); independent security review remains **PENDING**. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -81,9 +81,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 18 | 0 | 15 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **304 COVERED + 2 PUBLIC-BY-DESIGN + 100 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

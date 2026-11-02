@@ -118,6 +118,53 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // Transfer write hardening remains a strictly uncredited PG16 review
+  // candidate. The historical GET source and exact method credit are preserved.
+  if (isNewOrChanged && key.startsWith("src/app/api/multi-entity/transfers/route.ts ")) {
+    const source = readFileSync("src/app/api/multi-entity/transfers/route.ts", "utf8");
+    assert.equal(currentBlob, "a4ac9ec92df17492c4c0918f08114660bc4c6ebe",
+      "Transfer endpoint changed since typed-error security review");
+    const typedClass = "// Only explicit business conflicts may be shown. SQL and driver failures\n// must receive a generic response, even if their text matches a business error.\nclass TransferDecisionConflict extends Error {\n  constructor(message: string) {\n    super(message);\n    this.name = \"TransferDecisionConflict\";\n  }\n}\n\n";
+    const expectedPostCatch = "  } catch {\n    return fail(\"Could not request transfer.\");\n  }\n}\n\nexport async function PATCH";
+    const expectedPatchCatch = "  } catch (error) {\n    return fail(error instanceof TransferDecisionConflict\n      ? error.message : \"Transfer could not be decided.\");\n  }\n}\n";
+    assert.ok(source.includes(typedClass),
+      "A dedicated trusted business-conflict error class must exist");
+    assert.equal(source.split("throw new TransferDecisionConflict(").length - 1, 9,
+      "Only the nine known business-conflict throw sites may return detailed errors");
+    assert.ok(source.includes(expectedPostCatch) && source.includes(expectedPatchCatch),
+      "Both transaction exceptions must fail closed");
+    const restored = source
+      .replace(typedClass, "")
+      .replace(expectedPostCatch, "  } catch (error) {\n    return fail(error instanceof Error ? error.message : \"Could not request transfer.\");\n  }\n}\n\nexport async function PATCH")
+      .replace(expectedPatchCatch, "  } catch (error) {\n    return fail(error instanceof Error ? error.message : \"Transfer could not be decided.\");\n  }\n}\n")
+      .replaceAll("throw new TransferDecisionConflict(", "throw new Error(");
+    assert.equal(gitBlobSha(Buffer.from(restored)), "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+      "No source change beyond the reviewed POST/PATCH error boundary is allowed");
+    assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP",
+      "Source hardening must not grant unreviewed write-method credit");
+    if (method.name === "GET") {
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+        "Preserve the earlier GET own/foreign proof");
+    } else {
+      assert.ok(method.name === "POST" || method.name === "PATCH");
+      assert.equal(method.testedBy, null);
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false},
+        "Source and PG16 evidence must match the uncredited transfer review");
+    }
+    for (const [file, sha] of [
+      ["tests/tenant-multi-entity-transfers-write-candidate.test.mjs", "0b76a0e9b3fe06008bcc0941593e119466616c91"],
+      ["scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "f28258785c80f83c699d651543526153eb4f3dd9"],
+      [".github/workflows/multi-entity-browser-qa.yml", "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476"],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "A changed transfer security test must receive new exact-source review: " + file);
+    const proof = readFileSync("scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "utf8");
+    assert.match(proof, /CREATE TRIGGER ci_transfer_post_error/);
+    assert.match(proof, /CREATE TRIGGER ci_transfer_patch_error/);
+    assert.ok(proof.includes("assert.deepEqual(await snapshot(1), beforePostFault"), "Missing POST unchanged-state assertion");
+    assert.ok(proof.includes("assert.deepEqual(await snapshot(1), beforePatchFault"), "Missing PATCH unchanged-state assertion");
+    return;
+  }
+
   // Existing historical GET credit is preserved, not promoted. The new exact
   // route source and dedicated disposable-PG16 proof are independently pinned
   // for renewed human review. The old positive/victim receipt remains intact.
@@ -2083,12 +2130,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const expected = {
       kind: "payout-profile-PATCH-atomic-audit-and-foreign-denial-PG16-zero-credit",
       originalRouteBlobSha: "91d402d92ea03e66fa56951fef09187001f5f3ed",
-      routeBlobSha: "087457e69765c38f76c1d66e01c895351e2a5dc0",
+      routeBlobSha: "336cacb025603264af7b8c47e196aa29e8053f62",
       priorGetPrefixFnv64: "4417b941777ae2cd",
       proofFile: "scripts/qa/tenant-payout-profiles-patch-http.mjs",
-      proofBlobSha: "ad51a1be9b47a59bd458c207391412dc03d52ec1",
+      proofBlobSha: "70c32de8fae81048c68772fba928c4adfb997987",
       contractFile: "tests/tenant-payout-profiles-patch-audit.test.mjs",
-      contractBlobSha: "3304e1ef98bac98399eaabdb65981074b7fb64d7",
+      contractBlobSha: "9f12d693c43187924c1f5b51463171720e60933a",
       workflowFile: ".github/workflows/tenant-payout-profiles-patch-http.yml",
       workflowBlobSha: "a06a4210dd6aef54cb332ab72cbefafd897f2e7c",
       credits: 0, exactHeadPg16Http: "PENDING",
@@ -2120,6 +2167,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "requireCompanyAdmin(user.id, organizationId)",
       "requireSensitiveActionMfa(user)",
       "eq(legalEntities.organizationId, organizationId)",
+      "setWhere: eq(payoutProfiles.organizationId, organizationId)",
+      'if (!persisted) throw new Error("PAYOUT_PROFILE_SCOPE_CONFLICT")',
+      'error.message === "PAYOUT_PROFILE_SCOPE_CONFLICT"',
       "const saved = await db.transaction(async (tx) => {",
       "await recordAuditEvent({", "}, tx);",
       'error: "Company payout profile could not be saved."',
@@ -2136,6 +2186,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       '["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db"]',
       "for (const actor of [a, b])",
       "CREATE TRIGGER ci_reject_payout_profile_audit",
+      "An upsert cannot adopt a foreign-tagged conflict row",
+      "for (let n = 0; n < 6; n++)",
+      "victimProfile.id > 6 && victimProfile.id > aProfile.id",
+      "victimBefore.profiles.length === 1",
+      "realVictimPayoutProfileIdAboveSix: true",
+      "assert.deepEqual(await profileSnapshot(victim.org.id), foreignTaggedBefore",
       "assert.deepEqual(await profileSnapshot(a.org.id), originalProfiles",
       "assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles",
       "methodCredits: 0, independentSecurityReview: \"PENDING\"",
@@ -2555,7 +2611,6 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(write, /Treasury controls could not be saved\./);
     return;
   }
-
 
   // This *single* changed GET remains GAP despite a passing nonempty
   // recommendation + SQL-fault candidate: acceptance is still independently
@@ -3911,6 +3966,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.verifiedPrHeadSha, "2e7e23edeec362ff90203b1cc0e243aa3db8bf4a");
         assert.equal(proof.workflowRunId, 41367679707);
         assert.equal(proof.workflowJobId, 125031218758);
+        continue;
+      }
+      // webhooks/paymongo/transfers POST: provider-callback receipt; anchors and pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/webhooks/paymongo/transfers/route.ts POST", "No unrelated method may reuse the PayMongo transfer webhook evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "c510fc14ef1188e65aafe929aa287898c07db4b9");
+        assert.equal(proof.workflowRunId, 41402106010);
+        assert.equal(proof.workflowJobId, 125135951277);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
@@ -5435,7 +5500,7 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
   const route = readFileSync(routePath, "utf8");
   assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-xendit-payout-http.mjs"));
   assert.ok(workflow.includes("image: postgres:16"));
-  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 1, "the rule counts exactly this credited method");
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 2, "the rule counts the xendit payout and PayMongo transfer credits");
   const api = manifest.allApiRouteFiles[routePath];
   assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
   const method = api.methods[0];
@@ -5468,4 +5533,52 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
   for (const evidence of ["requireDisposableXenditPayoutWebhook();", "a real foreign run must not be distinguishable from a nonexistent run",
     "denial must not echo victim data", "Settlement observation rejected; manual review required."]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
   assert.ok(harness.indexOf("requireDisposableXenditPayoutWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+});
+
+test("PayMongo transfer webhook credit requires the exact passing run, byte-pinned inputs, the provider-callback rule and a cited call per case", () => {
+  const routePath = "src/app/api/webhooks/paymongo/transfers/route.ts";
+  const harnessFile = "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const harnessLines = harness.split(String.fromCharCode(10));
+  const workflow = readFileSync(".github/workflows/tenant-webhook-paymongo-transfer-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-paymongo-transfer-http.mjs"));
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("paymongo-transfer-webhook-isolation:"));
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 2, "the rule counts exactly the two credited methods");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const method = api.methods[0];
+  assert.equal(method.reviewedUncertified, undefined);
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.rule, "proofPolicy.providerCallback");
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 paymongo-transfer-webhook PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1708);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-webhook-paymongo-transfer-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-webhook-paymongo-transfer.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "const own = await send(ownEvent);", "own-observation anchor");
+  cites(proof.secondaryOwnPositiveLine, "const ownB = await send(eventBody(b));", "second-employer own-observation anchor");
+  cites(proof.forgedSelectorLine, "const forged = await send(eventBody(a, {", "forged-selector anchor");
+  cites(proof.foreignDenialLine, "eventBody(a, { transferId: victim.payout.transferId }),", "foreign-transfer anchor");
+  cites(proof.secondaryForeignDenialLine, "eventBody(b, { transferId: victim.payout.transferId }),", "second-attacker anchor");
+  cites(proof.crossBoundLine, "const ignored = await send(payload);", "cross-bound anchor");
+  cites(proof.unchangedDbLine, "await unchangedExcept(before);", "unchanged-SQL anchor");
+  assert.ok(proof.unchangedDbLine > proof.crossBoundLine, "unchanged-SQL anchor follows the refusal loop");
+  cites(proof.replayLine, 'result(await send(ownEvent), 200, { ok: true, duplicate: true }, "same signed event replay");', "replay anchor");
+  cites(proof.concurrentDeliveryLine, "const raced = await Promise.all(", "concurrent-delivery anchor");
+  cites(proof.unknownRunLine, "const unknownRun = await send(eventBody(victim, { reference: nonexistentReference }));", "unknown-run anchor");
+  for (const evidence of ["requireDisposablePaymongoTransferWebhook();", "a real foreign run must not be distinguishable from a nonexistent run",
+    "every cross-bound ignore must be byte-identical", "concurrent duplicates must not double-write"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposablePaymongoTransferWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+  assert.ok(!route.includes("unknown-payroll-run"), "the existence oracle must stay removed");
 });

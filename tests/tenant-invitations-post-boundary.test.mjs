@@ -3,14 +3,16 @@ import {test} from "node:test";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {requireDisposableInvitations,proveOwnInvitationRead,proveOwnInvitationPost,proveUnchanged} from "../scripts/qa/tenant-invitations-post-boundary.mjs";
-const env={GITHUB_ACTIONS:"true",CI:"true",NODE_ENV:"production",TENANT_SECOND_PASS_MODE:"isolated-ci-only",DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",SECURITY_SMOKE_URL:"http://127.0.0.1:3000",WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",XENDIT_BILLING_ENABLED:"false",DEMO_MODE:"false",SMTP_URL:"smtp://127.0.0.1:2525",MAIL_FROM:"PayrollPH QA <no-reply@example.invalid>"};
+const env={GITHUB_ACTIONS:"true",CI:"true",NODE_ENV:"production",TENANT_SECOND_PASS_MODE:"isolated-ci-only",DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",SECURITY_SMOKE_URL:"http://127.0.0.1:3000",APP_BASE_URL:"https://payroll.example.test",REQUIRE_PRIVILEGED_MFA:"true",WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",XENDIT_BILLING_ENABLED:"false",DEMO_MODE:"false",SMTP_URL:"smtp://127.0.0.1:2525",MAIL_FROM:"PayrollPH QA <no-reply@example.invalid>"};
 test("refuse non-disposable environment and providers",()=>{
  assert.doesNotThrow(()=>requireDisposableInvitations(env));
  for(const [k,v] of Object.entries(env)){
   assert.throws(()=>requireDisposableInvitations({...env,[k]:v==="false"?"true":"false"}));
   assert.throws(()=>requireDisposableInvitations({...env,[k]:undefined}));
  }
- for(const k of ["PAYMONGO_SECRET_KEY","XENDIT_SECRET_KEY","RESEND_API_KEY","POSTMARK_SERVER_TOKEN","STRIPE_SECRET_KEY"])
+ for(const k of ["PAYMONGO_SECRET_KEY","XENDIT_SECRET_KEY","RESEND_API_KEY",
+  "POSTMARK_SERVER_TOKEN","STRIPE_SECRET_KEY","NEON_API_KEY","DATABASE_URL_DIRECT",
+  "DATABASE_URL_UNPOOLED","DATABASE_POOL_URL","VERCEL_ENV"])
   assert.throws(()=>requireDisposableInvitations({...env,[k]:"fake-provider"}));
 });
 test("real own-positive contract must not accept empty or another employer",()=>{
@@ -97,5 +99,52 @@ test("real disposable PG16 runner exercises unit-visible read, eight privilege d
  const revoke=runner.indexOf("await db.update(s.userOrganizations).set({active:false})");
  assert.ok(start>0&&positive>start&&revoke>positive,
    "privilege denial, own success and revocation must execute in one live session sequence");
+});
+
+
+test("actual same-method POST proof includes real forged victim selectors and no-mail denials",()=>{
+ const runner=readFileSync("scripts/qa/tenant-invitations-post-boundary.mjs","utf8");
+ for(const marker of [
+  "employeeId:victim.worker.id","legalEntityId:victim.entity.id",
+  "userId:victim.owner.id","invitationId:victim.invitationId",
+  "const mailBefore=smtp.captured.length",
+  "smtp.captured.length,mailBefore",
+  "smtp.captured.length,forgedMailBefore",
+  "smtp.captured.length,unitDeniedMailBefore",
+  "smtp.captured.length,revokedMailBefore",
+  "smtp.captured.length,duplicateMailBefore",
+  "const accounts=memberIds.length",
+  "db.select().from(s.users).where(inArray(s.users.id,memberIds))",
+  "localSmtpDelivered:4",
+ ])assert.ok(runner.includes(marker),"missing real SQL/no-mail proof: "+marker);
+ const ownPost=runner.indexOf("const realPost=await call(owner,owner,\"POST\")");
+ const forgedSelectors=runner.indexOf("employeeId:victim.worker.id");
+ const foreignDenial=runner.indexOf("const post=await call(attacker,victim,\"POST\")");
+ assert.ok(forgedSelectors>0&&forgedSelectors<foreignDenial&&foreignDenial<ownPost,
+  "foreign and forged IDs must be actual request inputs before the same-method positive");
+});
+
+test("company owner positive vs non-owner escalation and anonymous victim denial are real HTTP probes",()=>{
+ const runner=readFileSync("scripts/qa/tenant-invitations-post-boundary.mjs","utf8");
+ for(const marker of [
+  'const ownerRole=await http.standaloneRequest("/api/invitations"',
+  'assert.equal(ownerRole.status,201',
+  'assert.equal(ownerRoleSaved?.role,"owner")',
+  'assert.equal(ownerRoleSaved?.organizationId,a.org.id)',
+  'const deniedOwnerByAdmin=await http.standaloneRequest("/api/invitations"',
+  "assert.equal(deniedOwnerByAdmin.status,403",
+  'const anonymous=await http.standaloneRequest("/api/invitations"',
+  'assert.equal(anonymous.status,401',
+  "smtp.captured.length,adminMailBefore",
+  "smtp.captured.length,anonymousMailBefore",
+  "smtp.captured.length,4",
+  "companyOwnerRoleOwnPositive:true",
+  "nonOwnerEscalationDenied:true",
+  "anonymousVictimPostDenied:true",
+ ])assert.ok(runner.includes(marker),"missing owner/anonymous branch proof: "+marker);
+ const own=runner.indexOf('const ownerRole=await http.standaloneRequest("/api/invitations"');
+ const nonOwner=runner.indexOf('const deniedOwnerByAdmin=await http.standaloneRequest("/api/invitations"');
+ assert.ok(own>0&&nonOwner>own,
+  "non-owner denial cannot be mistaken for legitimate owner-role success");
 });
 
