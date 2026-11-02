@@ -92,7 +92,7 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
       const victimState = () => state(c.victim.org.id);
       const actionBodies = [
         ['add_update', { message: 'Fictional employee-visible review update ' + c.marker }, 'in_review', 'payroll_update'],
-        ['resolve', { resolutionOutcome: 'referred_to_agency', resolutionNote: 'Fictional agency referral with preserved source evidence ' + c.marker }, 'in_review', 'referred_to_agency'],
+        ['resolve', { resolutionOutcome: 'referred_to_agency', resolutionNote: 'Fictional agency referral with preserved source evidence ' + c.marker }, 'in_review', 'payroll_update'],
         ['resolve', { resolutionOutcome: 'employee_advised', resolutionNote: 'Fictional case review completed with verified own evidence ' + c.marker }, 'resolved', 'resolved'],
       ];
       let positives = 1, foreignDenials = 1, forgedDenials = 1;
@@ -109,6 +109,13 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
         assert.equal(after.events.length, before.events.length + 1, 'one and only one case event');
         assert.equal(after.events.at(-1).eventType, eventType);
         assert.equal(after.events.at(-1).caseId, c.seeded.id);
+        if (extra.resolutionOutcome === 'referred_to_agency') {
+          assert.equal(findCase(after, c.seeded.id).resolutionOutcome, 'referred_to_agency');
+          assert.equal(positive.json?.resolved, false, 'referral must not close the case');
+          assert.ok(after.events.at(-1).message.startsWith('Referred to the agency for verification.'),
+            'allowed payroll_update event must retain explicit referral meaning');
+          assert.equal(after.audit.at(-1).action, 'Employee contribution issue referred to agency');
+        }
         assert.equal(after.audit.length, before.audit.length + 1, 'one business audit per action');
         assert.equal(after.audit.at(-1).organizationId, c.orgId);
         assert.notDeepEqual(after, before, 'own action has a genuine persisted SQL change');
