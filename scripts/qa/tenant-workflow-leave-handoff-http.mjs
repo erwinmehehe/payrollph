@@ -150,6 +150,13 @@ try {
   need(v.org.id > b.org.id && v.owner.id > b.owner.id,
     "real victim employer/user IDs exceed attacker comparators");
   for (const e of [a,b,v]) await setupEmployer(e);
+  // The forged policy code below is a genuine victim-owned database policy.
+  await db.insert(approvalChainPolicies).values({
+    organizationId:v.org.id, code:"victim-only-approval-policy",
+    name:"Fictional victim-exclusive human policy", purpose:"automation", active:true,
+    createdByUserId:v.owner.id,
+    steps:[{label:"Victim-only review",approver:"role:owner"}],
+  });
   // Ensure targeted victim selectors are actual PG-backed IDs > 6, never invented IDs.
   for (let i=0;i<6;i++) await addWorker(v, "FILLER"+i, {payProfile:false});
   const targetWorker = await addWorker(v, "TARGET", {payProfile:false});
