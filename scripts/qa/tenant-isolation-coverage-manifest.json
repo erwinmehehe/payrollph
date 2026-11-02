@@ -28441,7 +28441,7 @@
           "name": "PATCH",
           "line": 17,
           "status": "GAP",
-          "reason": "PII-02 hardened contact-only PATCH has focused fictional PG16/localhost proof, but independent security/privacy and #1523 source-credit reconciliation remain pending. No method credit or production acceptance.",
+          "reason": "PII-02 hardened contact-only PATCH has focused fictional PG16/localhost proof, but sole-owner exact-final-head security/privacy and #1523 source-credit reconciliation remain pending. No method credit or production acceptance.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "pii02-self-profile-atomic-source-review-only",
@@ -28461,13 +28461,15 @@
             "evidence": "Focused isolated PG16/localhost HTTP #40647115749 passed on d37ad55cab886b7ba2d7192d9bde5f38000b4d67; new exact-head CI and independent review required.",
             "scope": "PATCH self/profile only. Original #1518 proof remains historical; audit/worker-bind source changed. No production/Neon run, employer acceptance or method-status promotion.",
             "coverageCredits": 0,
-            "independentReview": "PENDING",
             "contractFile": "scripts/qa/tenant-self-profile-contract.mjs",
             "contractBlobSha": "ff33b4626f1c052d3d2ded4fbfa2cbbcf9883658",
             "workflowFile": ".github/workflows/tenant-self-profile-http.yml",
             "workflowBlobSha": "f87cf4434859281fad052d8baa920677c5dd37af",
             "historicalFileBlobSha": "2bae931424036014f92211a50c4211824a61d7b1",
-            "historicalTestBlobSha": "bda6d239383e0736302c1970cbc0aa78433ef470"
+            "historicalTestBlobSha": "bda6d239383e0736302c1970cbc0aa78433ef470",
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         }
       ],
