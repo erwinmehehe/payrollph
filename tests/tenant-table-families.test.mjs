@@ -115,7 +115,11 @@ test("credit refresh retains statuses and pins both the family row and actual sh
         assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
         assert.equal(proof.workflowRunId, 41446327305);
         assert.equal(proof.sourceRowFile, row.file);
-        assert.equal(proof.sourceRowLine, row.line);
+        assert.equal(proof.sourceRowLine, row.line + 1,
+          "sourceRowLine identifies the literal method key after the row opener");
+        const sourceMethodLine = readFileSync(row.file, "utf8").split("\n")[proof.sourceRowLine - 1];
+        assert.ok(sourceMethodLine.includes("key:") && sourceMethodLine.includes(row.key),
+          "source-row line must identify the actual credited method");
         assert.ok(Array.isArray(proof.methodActions) && proof.methodActions.length > 0);
         assert.equal(proof.productionCertified, false);
         assert.equal(proof.independentlyAccepted, false);
