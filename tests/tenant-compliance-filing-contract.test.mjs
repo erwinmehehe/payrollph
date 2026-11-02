@@ -328,6 +328,10 @@ test("accepted outcome branch uses a second real own PG16 filing, exact audit an
   ]) assert.ok(proof.includes(anchor), "Missing accepted-case PG16 HTTP/SQL proof: " + anchor);
   assert.ok(proof.includes('note: "Fictional branch-coverage acceptance only; never submitted to SSS"'),
     "An accepted branch is not an actual government submission");
+  // Read the actual dedicated CI workflow. A missing local binding previously
+  // failed before checking the disposable PostgreSQL 16 proof environment.
+  const workflow = readFileSync(
+    ".github/workflows/tenant-compliance-filing-http.yml", "utf8");
   assert.ok(workflow.includes("image: postgres:16"),
     "Accepted-path proof must be confined to a disposable PostgreSQL 16 job");
 });
