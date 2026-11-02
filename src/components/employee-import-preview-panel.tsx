@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import type { ImportPreviewRow } from "@/lib/employee-import-preview";
+import { employeeImportFailureMessage, employeeImportNetworkFailure } from "@/lib/employee-import-preview-feedback";
 
 type Result = { rows: ImportPreviewRow[]; totalRows: number; errorCount: number; warningCount: number; blockingErrorCount: number; skippedCount: number; fileErrors: string[]; previewToken?: string; errorCsv: string; error?: string; createdCount?: number; dryRun?: boolean };
 export function EmployeeImportPreviewPanel({ organizationId, onImported }: { organizationId: number; onImported: () => void }) {
@@ -15,16 +16,57 @@ export function EmployeeImportPreviewPanel({ organizationId, onImported }: { org
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState("all");
   async function submit(action: "preview" | "commit") {
-    setBusy(true); setError("");
+    if (busy || !csv || (action === "commit" && !receipt)) return;
+    setBusy(true);
+    setError("");
+    if (action === "preview") { setReceipt(""); setResult(null); }
     try {
-      const response = await fetch("/api/employees/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, csv, fileName, action, skipLines: skips, previewToken: receipt }) });
-      const body = await response.json();
-      if (body.rows) setResult(body);
-      if (!response.ok) { setReceipt(""); throw new Error(body.error ?? "Import failed."); }
-      if (action === "preview") { setReceipt(body.previewToken); setPage(0); }
-      else { setReceipt(""); onImported(); }
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not reach the server."); }
-    finally { setBusy(false); }
+      const response = await fetch("/api/employees/import", {
+        method: "POST", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, csv, fileName, action, skipLines: skips, previewToken: receipt }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      const validResult = body && typeof body === "object"
+        && Array.isArray((body as Result).rows)
+        && Array.isArray((body as Result).fileErrors)
+        && typeof (body as Result).errorCsv === "string"
+        && typeof (body as Result).blockingErrorCount === "number";
+      if (!response.ok) {
+        if (validResult) setResult(body as Result);
+        setReceipt("");
+        setError(employeeImportFailureMessage(response.status, action));
+        return;
+      }
+      if (!validResult) {
+        setReceipt("");
+        setError(employeeImportFailureMessage(500, action));
+        return;
+      }
+      const result = body as Result;
+      setResult(result);
+      if (action === "preview") {
+        const token = result.previewToken;
+        if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) {
+          setReceipt("");
+          setError("The preview receipt was missing or invalid. No commit is available; refresh the preview.");
+          return;
+        }
+        setReceipt(token);
+        setPage(0);
+      } else if (result.dryRun === false && typeof result.createdCount === "number" && Number.isSafeInteger(result.createdCount)) {
+        setReceipt("");
+        onImported();
+      } else {
+        setReceipt("");
+        setError("The import outcome could not be verified. Check the employee directory before another commit.");
+      }
+    } catch {
+      setReceipt("");
+      setError(employeeImportNetworkFailure(action));
+    } finally {
+      setBusy(false);
+    }
   }
   function skip(lines: number[]) { setSkips(lines); setReceipt(""); }
   const committed = result?.dryRun === false;
@@ -36,22 +78,26 @@ export function EmployeeImportPreviewPanel({ organizationId, onImported }: { org
       const file = e.target.files?.[0];
       if (!file) return;
       const version = ++uploadVersion.current;
-      setError(""); setCsv(""); setReceipt(""); setResult(null); setSkips([]); setPage(0); setFilter("all");
+      setError(""); setCsv(""); setFileName(""); setReceipt(""); setResult(null); setSkips([]); setPage(0); setFilter("all");
+      if (!/\.csv$/i.test(file.name)) { setError("Choose a .csv file using the template. No data was uploaded."); return; }
       if (file.size > 2 * 1024 * 1024) { setCsv(""); setError("CSV exceeds 2 MB."); return; }
       try {
         const contents = await file.text();
         if (version !== uploadVersion.current) return;
+        if (!contents.trim()) { setError("This CSV is empty. Add a header and at least one employee row."); return; }
         setCsv(contents); setFileName(file.name);
       } catch { if (version === uploadVersion.current) setError("The file could not be read. Select it again."); }
     }} /></label>
     <a href="/api/employees/import/template" download className="secondary-button">Download CSV template</a>
+    {fileName && <p role="status" className="text-sm text-slate-700">Selected file: {fileName}. Preview checks row-level data without creating employees.</p>}
     <button type="button" className="primary-button" disabled={busy || !csv} onClick={() => void submit("preview")}>{busy ? "Working…" : result ? "Refresh preview" : "Preview upload"}</button>
     {error && <p role="alert">{error}</p>}
     {result && <>
+      {!committed && !receipt && <p role="status" className="text-sm text-amber-800">A verified preview is required before commit. Refresh the preview after changing row selections or recovering from an error.</p>}
       <p role="status">{committed ? `${result.createdCount} employees imported.` : `${result.totalRows} rows · ${result.errorCount} errors · ${result.warningCount} warnings · ${result.skippedCount} skipped`}</p>
       {result.fileErrors.map(reason => <p role="alert" key={reason}>{reason}</p>)}
-      <a download="employee-import-errors.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(result.errorCsv)}`} className="secondary-button">Download error CSV</a>
-      {!committed && <button type="button" disabled={busy} className="secondary-button" onClick={() => skip([...new Set([...skips, ...result.rows.filter(r => r.status === "error").map(r => r.line)])])}>Skip all error rows</button>}
+      {result.errorCsv && <a download="employee-import-errors.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(result.errorCsv)}`} className="secondary-button">Download error CSV</a>}
+      {!committed && <button type="button" disabled={busy || result.errorCount === 0} className="secondary-button" onClick={() => skip([...new Set([...skips, ...result.rows.filter(r => r.status === "error").map(r => r.line)])])}>Skip all error rows</button>}
       <label>Filter results<select value={filter} onChange={event => { setFilter(event.target.value); setPage(0); }}><option value="all">All rows</option><option value="error">Errors</option><option value="warning">Warnings</option><option value="valid">Valid</option></select></label>
       <div style={{ overflowX: "auto" }}><table><caption>Row-by-row import preview</caption><thead><tr><th>Row</th><th>Employee no.</th><th>Name</th><th>Result</th><th>Reason</th><th>Skip</th></tr></thead><tbody>
         {visibleRows.slice(page * 50, page * 50 + 50).map(row => <tr key={row.line}><td>{row.line}</td><td>{row.employeeNo}</td><td>{row.name}</td><td>{row.status}</td><td>{row.reasons.join("; ") || "Validated"}</td><td><input type="checkbox" aria-label={`Skip row ${row.line}`} checked={skips.includes(row.line)} disabled={busy || committed} onChange={e => skip(e.target.checked ? [...skips, row.line] : skips.filter(n => n !== row.line))} /></td></tr>)}
