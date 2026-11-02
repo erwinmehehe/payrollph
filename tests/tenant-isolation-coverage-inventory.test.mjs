@@ -2370,8 +2370,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
+    assert.equal(method.status, "COVERED", "Whole POST only with source-bound exact-head four-part PG16 evidence");
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-workflow-leave-handoff-http.mjs");
+    assert.equal(method.testedBy?.workflowRunId, 41431907703);
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.independentlyAccepted, false);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "67485b8f33655ae3681d7c030e79a6bbc0f76029");
+    assert.equal(method.testedBy?.workflowBlobSha, "297301dd47519cf2ec1a1a8902ad90a66c58581b");
+    assert.deepEqual(method.testedBy?.methodActions, ["create","revise_intervals"]);
     assert.equal(currentBlob, expected.routeBlobSha);
     assert.deepEqual(method.reviewedUncertified, expected);
     assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
@@ -2450,8 +2459,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
+    assert.equal(method.status, "COVERED", "Whole POST only with source-bound exact-head four-part PG16 evidence");
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-workflow-leave-handoff-http.mjs");
+    assert.equal(method.testedBy?.workflowRunId, 41431907703);
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.independentlyAccepted, false);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "67485b8f33655ae3681d7c030e79a6bbc0f76029");
+    assert.equal(method.testedBy?.workflowBlobSha, "297301dd47519cf2ec1a1a8902ad90a66c58581b");
+    assert.deepEqual(method.testedBy?.methodActions, ["hcm_separation_readiness","wfm_roster_claim_review"]);
     assert.equal(currentBlob, expected.routeBlobSha);
     assert.deepEqual(method.reviewedUncertified, expected);
     assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
@@ -4224,6 +4242,36 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      // Two exact-method, source-pinned owner-only POST credits from the merged
+      // #1735 final-head PG16 real-HTTP evidence. No generic bypass.
+      if (proof?.file === "scripts/qa/tenant-workflow-leave-handoff-http.mjs") {
+        assert.ok(["leave", "governed-handoffs"].includes(entry.route),
+          "Workflow POST receipt must not certify any other route");
+        assert.equal(method.name, "POST");
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.prNumber, 1735);
+        assert.equal(proof.proofHeadSha, "0e4fab6399783c989b851e0f66ed43ec02dfe9b8");
+        assert.equal(proof.workflowRunId, 41431907703);
+        assert.equal(proof.workflowJobId, 125232288146);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-workflow-leave-handoff-pg16.yml");
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        const pins = entry.route === "leave"
+          ? { ownPositiveLine: [209, /status\\(await post\\("\\/api\\/leave"/], foreignDenialLine: [243, /await assertDenied\\(post\\("\\/api\\/leave"/], forgedSelectorLine: [246, /await assertDenied\\(post\\("\\/api\\/leave"/], unchangedDbLine: [271, /assert\\.deepEqual\\(await ownOrgSnapshot/] }
+          : { ownPositiveLine: [186, /const r = status\\(await post\\("\\/api\\/governed-handoffs"/], foreignDenialLine: [258, /await assertDenied\\(post\\("\\/api\\/governed-handoffs"/], forgedSelectorLine: [261, /await assertDenied\\(post\\("\\/api\\/governed-handoffs"/], unchangedDbLine: [271, /assert\\.deepEqual\\(await ownOrgSnapshot/] };
+        for (const [field, [line, pattern]] of Object.entries(pins)) {
+          assert.equal(proof[field], line, "Evidence line moved without repin");
+          assert.match(evidenceLine(proof.file, line, entry.route + " " + field), pattern);
+        }
+        continue;
       }
       // Six specific POST proofs are independently guarded by the
       // "2026-11-02 exact-head promotion sweep" test below. Do not widen the
