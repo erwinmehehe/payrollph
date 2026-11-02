@@ -5,6 +5,7 @@ import {
   filterWfmOpsSignals,
   isValidWfmOpsPeriod,
   projectAttendanceOps,
+  projectCoverageOps,
   projectTimesheetOps,
   recentAttendanceWindow,
   suggestCompletedHalfMonth,
@@ -86,4 +87,23 @@ test("manager period selection rejects impossible and reversed calendar dates", 
   assert.equal(isValidWfmOpsPeriod("2026-04-31", "2026-05-15"), false);
   assert.equal(isValidWfmOpsPeriod("2026-11-16", "2026-11-15"), false);
   assert.equal(isValidWfmOpsPeriod("2026-11-01", "2026-11-01"), true);
+});
+
+test("coverage projection is privacy minimized and never treats a broken source as zero", () => {
+  const projected = projectCoverageOps({ coverage: [
+    { requirementId: 1, gap: 2, name: "SENSITIVE", salary: "SENSITIVE" },
+    { requirementId: 2, gap: 0, employeeId: 999 },
+    { requirementId: 3, gap: 1, employeeName: "SENSITIVE" },
+  ] });
+  assert.deepEqual(projected, { uncoveredRequirements: 2, uncoveredSlots: 3 });
+  assert.ok(!JSON.stringify(projected).includes("SENSITIVE"));
+  const signals = buildWfmOpsSignals(null, null, projected);
+  assert.equal(signals[0]?.id, "uncovered-staffing");
+  assert.equal(signals[0]?.destination, "coverage");
+  assert.throws(() => projectCoverageOps({ error: "Access denied" }));
+  assert.throws(() => projectCoverageOps({ coverage: [{ requirementId: 1, gap: -1 }] }));
+  assert.throws(() => projectCoverageOps({ coverage: [
+    { requirementId: 1, gap: 1 }, { requirementId: 1, gap: 2 },
+  ] }));
+  assert.deepEqual(buildWfmOpsSignals(null, null, null), []);
 });
