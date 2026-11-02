@@ -33,6 +33,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     label: "Resources",
     links: [
       { label: "Payroll guides", href: "/resources" },
+      { label: "Help & support", href: "/help" },
       { label: "Payroll calculators", href: "/calculators" },
       { label: "Payroll glossary", href: "/glossary" },
       { label: "Regulatory updates", href: "/resources/updates" },
