@@ -441,39 +441,40 @@ export async function POST(request: Request) {
     }
   }
 
+  const boundRun = targetRun;
   const summary = await runYearEndAnnualization(
     organizationId,
     taxYear,
     user.name,
-    targetRun
+    boundRun
       ? {
-          includePayrollRunId: targetRun.id,
-          bindToPayrollRunId: targetRun.id,
+          includePayrollRunId: boundRun.id,
+          bindToPayrollRunId: boundRun.id,
           approvedBy: user.name,
+          onBoundToPayrollRun: async (tx, boundSummary) => {
+            // Preserve one all-or-nothing unit: annual tax adjustment, queue
+            // replacement, job creation, and both audit receipts.
+            await enqueuePayrollRun(boundRun.id, undefined, tx);
+            await recordAuditEvent({
+              organizationId,
+              actor: user.name,
+              action: "Year-end tax adjustments bound to payroll",
+              resource: boundRun.periodLabel,
+              metadata: {
+                taxYear,
+                payrollRunId: boundRun.id,
+                refunds: boundSummary.refunds,
+                collections: boundSummary.collections,
+                totalRefund: boundSummary.totalRefund,
+                totalCollect: boundSummary.totalCollect,
+                requiresRecalculation: true,
+              },
+            }, tx);
+          },
         }
       : {},
   );
 
-  if (targetRun) {
-    // Requeue from the approved annualization snapshot so the register,
-    // payslips and release settlement all include the exact refund/collection.
-    await enqueuePayrollRun(targetRun.id);
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Year-end tax adjustments bound to payroll",
-      resource: targetRun.periodLabel,
-      metadata: {
-        taxYear,
-        payrollRunId: targetRun.id,
-        refunds: summary.refunds,
-        collections: summary.collections,
-        totalRefund: summary.totalRefund,
-        totalCollect: summary.totalCollect,
-        requiresRecalculation: true,
-      },
-    });
-  }
   if (summary.employees === 0) {
     return Response.json({
       ...summary,
