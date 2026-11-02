@@ -160,6 +160,10 @@ for (const source of SOURCES) {
     const hit = byKey.get(row.key);
     if (!hit) throw new Error(row.key + ": not in the manifest");
     const { method } = hit;
+    // An explicit credit selection must not rewrite unrelated source-pinned receipts.
+    // Only --refresh-links without a selection may intentionally repin existing rows.
+    if (selectedKeys.size && !selectedKeys.has(row.key)) continue;
+    if (selection && !selection.methods.has(row.key)) continue;
     const ownedHere = method.testedBy?.file === source.file;
     if (method.status === "GAP" && actionScopedMethodHolds.has(row.key)) continue;
     if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
