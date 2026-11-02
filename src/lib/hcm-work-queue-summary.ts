@@ -92,3 +92,20 @@ export function isVerifiedHcmWorkQueueResponse(
   }
   return true;
 }
+
+/**
+ * Filters already-verified, employer-scoped rows for a local quick-find UI.
+ * Never search case details or private staff data, and never imply that an
+ * unavailable/partial server result is an empty queue.
+ */
+export function findLoadedHcmWorkItems(
+  items: readonly HcmWorkQueueItem[],
+  search: string,
+): HcmWorkQueueItem[] {
+  const needle = search.trim().toLocaleLowerCase("en-PH");
+  if (!needle) return [...items];
+  return items.filter((item) =>
+    [item.title, item.caseType, item.ownerTeam, item.ownerName ?? ""]
+      .some((field) => field.toLocaleLowerCase("en-PH").includes(needle))
+  );
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { isVerifiedHcmWorkQueueResponse, summarizeVerifiedWorkQueue } from "../src/lib/hcm-work-queue-summary";
+import { findLoadedHcmWorkItems, isVerifiedHcmWorkQueueResponse, summarizeVerifiedWorkQueue } from "../src/lib/hcm-work-queue-summary";
 
 const scopedRows = [
   { overdue: true, ownerUserId: null },
@@ -44,7 +44,7 @@ test("HR Work Queue displays unknown until an active, error-free scoped response
     "A stale request must be aborted when employer/filter/revision changes");
   assert.ok(ui.includes("{summary ? ("),
     "The work-items table must only render when the active read is verified");
-  assert.ok(ui.includes("items.length===0&&"),
+  assert.ok(ui.includes("visibleItems.length===0&&"),
     "Only a verified empty view may display the no-work-items message");
   assert.ok(ui.includes('Work items could not be loaded. Use Refresh to retry.'),
     "A failed read needs a dedicated, clearly differentiated table state");
@@ -80,4 +80,37 @@ test("work queue refuses foreign, duplicate, malformed and partial case rows", (
     { ...ownQueue, owners: [ ownQueue.owners[0], ownQueue.owners[0] ] },
     { items: [], owners: undefined }, { items: undefined, owners: [] },
   ]) assert.equal(isVerifiedHcmWorkQueueResponse(bad, 7), false);
+});
+
+test("local HR case quick-find includes only public work metadata and does not mutate source", () => {
+  const other = { ...ownCase, id: 502, title: "Review onboarding", caseType: "onboarding", ownerTeam: "People Operations",
+    ownerUserId: 11, ownerName: "Example HR owner", detail: "PRIVATE_MEDICAL_NOTE" };
+  const rows = [ownCase, other];
+  assert.deepEqual(findLoadedHcmWorkItems(rows, ""), rows);
+  assert.deepEqual(findLoadedHcmWorkItems(rows, " ONBOARD "), [other]);
+  assert.deepEqual(findLoadedHcmWorkItems(rows, "people operations"), [other]);
+  assert.deepEqual(findLoadedHcmWorkItems(rows, "example hr"), [other]);
+  assert.deepEqual(findLoadedHcmWorkItems(rows, "private_medical_note"), [],
+    "Sensitive case details are not searchable as work-queue labels");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].id, 501);
+});
+
+test("responsive HR work queue preserves verified-only rows and a mobile action", () => {
+  const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  assert.ok(ui.includes('findLoadedHcmWorkItems(items, search)'));
+  assert.ok(ui.includes('aria-label="Work items on mobile"'));
+  assert.ok(ui.includes('className="hidden overflow-x-auto md:block"'));
+  assert.ok(ui.includes('Showing {visibleItems.length} of {items.length} loaded items'));
+  assert.ok(ui.includes('Search only filters this employer'));
+});
+
+
+test("HR case editor traps keyboard focus, supports Escape, and restores invoking focus", () => {
+  const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  assert.ok(ui.includes("ref={dialogRef}"));
+  assert.ok(ui.includes('event.key === "Escape"'));
+  assert.ok(ui.includes('event.key !== "Tab"'));
+  assert.ok(ui.includes("triggerRef.current?.isConnected"));
+  assert.ok(ui.includes("document.addEventListener(\"keydown\", onDialogKeyDown)"));
 });

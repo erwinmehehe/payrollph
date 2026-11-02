@@ -4863,7 +4863,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
       // This exact, uncredited PG16 candidate is not a COVERED promotion.
       if (path === "src/app/hcm/work-items/page.tsx") {
         const reviewed = entry.reviewedUncertified;
-        const pageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
+        const pageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
+        const historicalPageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
         const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
         assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
         assert.equal(entry.testedBy, undefined, "No premature page coverage credit");
@@ -4873,7 +4874,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(entry.reason, /^Still GAP: #1658/);
         assert.deepEqual(reviewed, {
           kind: "hcm-work-items-client-GET-PG16-unaccepted",
-          pageBlobSha: pageSha,
+          pageBlobSha: historicalPageSha,
           originalPageBlobSha: originalPageSha,
           helperFile: "src/lib/hcm-work-queue-summary.ts",
           helperBlobSha: "1e6fb2ab6fd10324ee06bf382d6050098a6482de",
@@ -4889,14 +4890,37 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
+        // Historical PG16 receipt is still pinned to the old client-only page.
+        // The later local-search and responsive-card change is separate,
+        // exact-source and uncredited until fresh independent acceptance.
+        const pendingUiChange = entry.pendingUiChange;
+        assert.deepEqual(pendingUiChange, {
+          kind: "hcm-work-items-client-local-search-and-responsive-cards-review-only",
+          previousPageBlobSha: historicalPageSha,
+          pageBlobSha: pageSha,
+          helperBlobSha: "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
+          unitTestBlobSha: "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
+          browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
+          browserScriptBlobSha: "793ef20c5f75e55b8162054087a8ab0388fafda3",
+          coverageCredits: 0,
+          independentlyAccepted: false,
+          productionCertified: false,
+        }, "UI changes need their own exact-source, zero-credit review record");
+        assert.equal(gitBlobSha(readFileSync(pendingUiChange.browserScript)),
+          pendingUiChange.browserScriptBlobSha,
+          "Browser tenant-retirement proof changed without renewed review");
         for (const [file, sha] of [
           [reviewed.helperFile, reviewed.helperBlobSha],
           [reviewed.unitTestFile, reviewed.unitTestBlobSha],
           [reviewed.proofFile, reviewed.proofBlobSha],
           [reviewed.harnessFile, reviewed.harnessBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
-        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
-          "Unreviewed HR Work Queue evidence changed without renewed proof: " + file);
+        ]) {
+          const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
+            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha : sha;
+          assert.equal(gitBlobSha(readFileSync(file)), expected,
+            "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
+        }
         assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
           /const ownPage = expectStatus\(await request\("\/hcm\/work-items\?organizationId="/);
         assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
@@ -4921,6 +4945,10 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(page, /"use client"/);
         assert.match(page, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
         assert.match(page, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
+        assert.match(page, /const visibleItems = summary \? findLoadedHcmWorkItems\(items, search\) : \[\]/,
+          "Search must operate only after verified employer rows load");
+        assert.match(page, /aria-label="Work items on mobile"/,
+          "Responsive cards must only show verified, employer-scoped work items");
         const route = readFileSync("src/app/api/hcm/work-items/route.ts", "utf8");
         assert.match(route, /const auth = await authorize\(organizationId\)/);
         assert.match(route, /WHERE c\.organization_id = \$1/);

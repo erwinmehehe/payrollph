@@ -40827,7 +40827,7 @@
     },
     {
       "path": "src/app/hcm/work-items/page.tsx",
-      "blob": "378bf6b6050e488fe7ebeb48b4a18710152f88c1",
+      "blob": "268f84811df574a7240d2fe17996f4674630d3b2",
       "ids": [
         {
           "line": 13,
@@ -41041,6 +41041,18 @@
         "foreignDenialLine": 170,
         "unchangedDbLine": 182,
         "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      },
+      "pendingUiChange": {
+        "kind": "hcm-work-items-client-local-search-and-responsive-cards-review-only",
+        "previousPageBlobSha": "378bf6b6050e488fe7ebeb48b4a18710152f88c1",
+        "pageBlobSha": "268f84811df574a7240d2fe17996f4674630d3b2",
+        "helperBlobSha": "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
+        "unitTestBlobSha": "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
+        "browserScript": "scripts/hcm-request-lifecycle-browser.mjs",
+        "browserScriptBlobSha": "793ef20c5f75e55b8162054087a8ab0388fafda3",
+        "coverageCredits": 0,
         "independentlyAccepted": false,
         "productionCertified": false
       }
