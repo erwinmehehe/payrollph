@@ -52,7 +52,7 @@ function positive() {
   });
 }
 
-test("three distinct currently uncredited API methods, no duplicates", () => {
+test("three exact WFM methods have independently traceable provisional credits, no duplicates", () => {
   assert.equal(ROSTER_PREVIEW_ENDPOINT, "/api/workforce/roster-rules/preview");
   assert.deepEqual(WFM_THREE_METHODS, [
     "GET workforce/demand-staffing/policies",
@@ -68,8 +68,12 @@ test("three distinct currently uncredited API methods, no duplicates", () => {
     assert.ok(entry, "manifest must contain exact route: " + file);
     const record = entry.methods.filter(m => m.name === verb);
     assert.equal(record.length, 1, "exact single method in canonical inventory");
-    assert.equal(record[0].status, "GAP",
-      "no coverage credit may be implied by opening this source-only draft PR");
+    assert.equal(record[0].status, "COVERED",
+      "only source-pinned, independently reviewable PostgreSQL proof may support provisional credit");
+    assert.equal(record[0].testedBy?.workflowRunId, 41293308290);
+    assert.equal(record[0].testedBy?.verifiedPrHeadSha, "a5c70e563580c5ab9cb6d8db7610f3950148a27e");
+    assert.equal(record[0].testedBy?.independentSecurityReview, "PENDING");
+    assert.equal(record[0].testedBy?.productionCertified, false);
   }
 });
 
