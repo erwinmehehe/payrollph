@@ -2521,7 +2521,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(review.workflowRunId, 41319237095);
     for (const [file, sha] of [
       [review.file, review.proofBlobSha],
-      ["tests/tenant-mny02-treasury-contract.test.mjs", "e274e63aa41f5e8afd63f466bd7e7c29b33a66a1"],
+      ["tests/tenant-mny02-treasury-contract.test.mjs", "8bb7f1c442623b6a0952ce28d204d5c8b14bdec0"],
       [review.workflowFile, review.workflowBlobSha],
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
       "Credited fictional proof/contract/workflow changed without a new exact-head receipt: " + file);
@@ -4158,6 +4158,32 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      // Six specific POST proofs are independently guarded by the
+      // "2026-11-02 exact-head promotion sweep" test below. Do not widen the
+      // generic evidence-source allowlist or let an unrelated route borrow one.
+      const promotedWrites = new Map([
+        ["leave/conversion", ["scripts/qa/tenant-leave-conversion-post-http.mjs", 41264782087]],
+        ["payroll/overpayment-preflight", ["scripts/qa/tenant-overpayment-preflight-post-http.mjs", 41264867045]],
+        ["outbox", ["scripts/qa/tenant-edg02-outbox-http.mjs", 41306939767]],
+        ["treasury-controls", ["scripts/qa/tenant-mny02-treasury-http.mjs", 41319237095]],
+        ["compliance/labor-inspection", ["scripts/qa/tenant-labor-inspection-post-http.mjs", 41392987376]],
+        ["earned-wage", ["scripts/qa/tenant-earned-wage-post-http.mjs", 41366324196]],
+      ]);
+      const promotion = promotedWrites.get(entry.route);
+      if (promotion && method.name === "POST") {
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.equal(proof.file, promotion[0], "Method may not borrow an unrelated POST proof");
+        assert.equal(proof.workflowRunId, promotion[1], "Unreviewed proof run is not accepted");
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha,
+          "Changed POST test requires a new executed localhost proof");
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha,
+          "Changed POST workflow requires a new executed localhost proof");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        continue; // Only the six pinned sources; every other method uses strict standard guards.
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
