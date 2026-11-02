@@ -219,61 +219,64 @@ export async function POST(request: Request) {
       : now
     : null;
 
-  await db.transaction(async (tx) => {
-    await tx.insert(treasuryControlPolicies).values({
-      organizationId,
-      enabled,
-      requireReleaseSubmitterSeparation: requireSeparation,
-      enabledAt,
-      createdByUserId: existing?.createdByUserId ?? user.id,
-      updatedByUserId: user.id,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: treasuryControlPolicies.organizationId,
-      set: {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(treasuryControlPolicies).values({
+        organizationId,
         enabled,
         requireReleaseSubmitterSeparation: requireSeparation,
         enabledAt,
+        createdByUserId: existing?.createdByUserId ?? user.id,
         updatedByUserId: user.id,
         updatedAt: now,
-      },
-    });
-
-    await tx.update(treasuryOperatorAssignments).set({
-      active: false,
-      updatedAt: now,
-    }).where(eq(treasuryOperatorAssignments.organizationId, organizationId));
-
-    for (const userId of requestedIds) {
-      await tx.insert(treasuryOperatorAssignments).values({
-        organizationId,
-        userId,
-        active: true,
-        createdByUserId: user.id,
-        updatedAt: now,
       }).onConflictDoUpdate({
-        target: [
-          treasuryOperatorAssignments.organizationId,
-          treasuryOperatorAssignments.userId,
-        ],
-        set: { active: true, updatedAt: now },
+        target: treasuryControlPolicies.organizationId,
+        set: {
+          enabled,
+          requireReleaseSubmitterSeparation: requireSeparation,
+          enabledAt,
+          updatedByUserId: user.id,
+          updatedAt: now,
+        },
       });
-    }
-  });
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: enabled ? "Treasury separation policy enabled or updated" : "Treasury separation policy disabled",
-    resource: "Payroll treasury controls",
-    metadata: {
-      enabled,
-      requireReleaseSubmitterSeparation: requireSeparation,
-      operatorUserIds: requestedIds,
-      enabledAt: enabledAt?.toISOString() ?? null,
-      configuredByUserId: user.id,
-    },
-  });
+      await tx.update(treasuryOperatorAssignments).set({
+        active: false,
+        updatedAt: now,
+      }).where(eq(treasuryOperatorAssignments.organizationId, organizationId));
+
+      for (const userId of requestedIds) {
+        await tx.insert(treasuryOperatorAssignments).values({
+          organizationId,
+          userId,
+          active: true,
+          createdByUserId: user.id,
+          updatedAt: now,
+        }).onConflictDoUpdate({
+          target: [
+            treasuryOperatorAssignments.organizationId,
+            treasuryOperatorAssignments.userId,
+          ],
+          set: { active: true, updatedAt: now },
+        });
+      }
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: enabled ? "Treasury separation policy enabled or updated" : "Treasury separation policy disabled",
+        resource: "Payroll treasury controls",
+        metadata: {
+          enabled,
+          requireReleaseSubmitterSeparation: requireSeparation,
+          operatorUserIds: requestedIds,
+          enabledAt: enabledAt?.toISOString() ?? null,
+          configuredByUserId: user.id,
+        },
+      }, tx);
+    });
+  } catch {
+    return Response.json({ error: "Treasury controls could not be saved." }, { status: 500 });
+  }
 
   return Response.json({
     enabled,
