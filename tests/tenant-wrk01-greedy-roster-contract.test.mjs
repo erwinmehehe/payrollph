@@ -237,6 +237,8 @@ test("focused CI actually runs same-method PostgreSQL/localhost source, forged a
     "payrollEntries", "auditEvents", "forged", "stolen higher-ID worksite",
     "assertSuggestedGreedyRoster", 'decision: "allow"', "schedulePatterns",
     "schedulePatternSegments", "otherUnitSession", "staffing_requirements_wfm_qa_missing",
+    "WFM-GREEDY-PAD-", "paddingDate", "victim[key].id > 6",
+    "persistedVictimRequirement?.organizationId",
   ]) assert.ok(script.includes(marker), "missing source proof anchor: " + marker);
   for (const marker of [
     "postgres:16", "tenant-table-env.mjs flagged-reads",

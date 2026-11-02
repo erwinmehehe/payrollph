@@ -156,11 +156,49 @@ export async function proveGreedyRosterIsolation() {
 
     Object.assign(a, await siteFixture(a, a.marker, 2));
     Object.assign(b, await siteFixture(b, b.marker, 3));
+
+    // Closure contract: a real victim-only *source object* must have an ID
+    // above both attacker objects AND > 6. Padding uses only inert, fictional
+    // own-employer data on a date outside the one-day requested preview.
+    // It does not alter the two already seeded owner positives.
+    const paddingDate = addDays(workDate, 35);
+    for (let n = 0; n < 6; n++) {
+      const label = "WFM-GREEDY-PAD-" + nonce + "-" + n;
+      const [paddingSite] = await db.insert(s.worksites).values({
+        organizationId: a.org.id, orgUnitId: a.unit.id,
+        code: (label + "-SITE").slice(0, 32),
+        name: label + " fictional inactive worksite",
+        timezone: "Asia/Manila", active: false,
+      }).returning();
+      const [paddingShift] = await db.insert(s.shiftDefinitions).values({
+        organizationId: a.org.id,
+        code: (label + "-SH").slice(0, 32),
+        name: label + " fictional inactive shift",
+        startTime: "03:00", endTime: "04:00",
+        breakMinutes: 0, spansMidnight: false, active: false,
+      }).returning();
+      await db.insert(s.staffingRequirements).values({
+        organizationId: a.org.id, worksiteId: paddingSite.id,
+        shiftDefinitionId: paddingShift.id, workDate: paddingDate,
+        requiredHeadcount: 1, sourceType: "manual",
+        createdBy: "Synthetic isolated QA: inert ID-padding only",
+        notes: label + " never belongs to requested date/worksite",
+      });
+    }
+
     Object.assign(victim, await siteFixture(victim, victim.marker, 5));
     for (const key of ["site", "shift", "requirement"]) {
-      assert.ok(victim[key].id > a[key].id && victim[key].id > b[key].id,
-        "victim source ID must be greater than both attackers: " + key);
+      assert.ok(victim[key].id > 6 &&
+        victim[key].id > a[key].id && victim[key].id > b[key].id,
+        "real victim-only source object ID must exceed six and both attackers: " + key);
     }
+    const [persistedVictimRequirement] = await db.select()
+      .from(s.staffingRequirements)
+      .where(eq(s.staffingRequirements.id, victim.requirement.id)).limit(1);
+    assert.equal(persistedVictimRequirement?.organizationId, victim.org.id,
+      "the high-ID victim target must exist in real disposable PostgreSQL");
+    assert.equal(persistedVictimRequirement?.worksiteId, victim.site.id);
+    assert.equal(persistedVictimRequirement?.shiftDefinitionId, victim.shift.id);
     const secondUnitMarker = "PRIVATE-UNIT-B-" + nonce;
     const [secondUnit] = await db.insert(s.orgUnits).values({
       organizationId: a.org.id, legalEntityId: a.entity.id,
