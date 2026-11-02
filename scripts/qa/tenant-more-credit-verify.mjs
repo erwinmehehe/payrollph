@@ -194,7 +194,7 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
       assert.equal(method?.testedBy?.routeBlobSha,
         manifest.allApiRouteFiles[path].gitBlobSha);
       assert.equal(method?.testedBy?.proofBlobSha,
-        gitBlobSha(read(method.testedBy.file)));
+        gitBlob(read(method.testedBy.file)));
       continue;
     }
     assert.equal(method?.status, "GAP", path + " " + verb + ": incomplete proof");
