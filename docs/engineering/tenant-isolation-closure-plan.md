@@ -2,6 +2,10 @@
 
 > **NOT ACCEPTED — baseline only.** Audited GitHub `main@28e1224448342c34a4899fb67660b3da504530c1` on 2026-10-21: 289 route files, 490 HTTP methods, **76 COVERED / 8 PUBLIC-BY-DESIGN / 406 GAP**, plus **20 page/action GAPs**. No additional methods are certified by writing this plan. This document is a **frozen 406-method closure queue**; later PRs must update the live manifest and the inventory headline independently. Manifest acceptance stays **NOT ACCEPTED**; an independent owner/reviewer decides acceptance.
 
+## WFM three-method exact-head provisional coverage proposal (2026-11-02, NOT ACCEPTED)
+
+**Current proposed ledger: 498 methods = 388 COVERED + 10 PUBLIC-BY-DESIGN + 100 GAP.** The merged #1680 two-job fictional PostgreSQL 16 / production-mode localhost [run 41293308290](https://github.com/erwinmehehe/payrollph/actions/runs/41293308290) passed on head `a5c70e563580c5ab9cb6d8db7610f3950148a27e`. Only `GET workforce/greedy-roster`, `POST workforce/roster-rules/preview` and `GET workforce/demand-staffing/policies` are proposed for provisional COVERED credit; all three cite disjoint methods, source-blob identities, owned positives, real higher-ID victim denials, forgery controls and unchanged SQL. Their source/proof/workflow dependencies have not changed since the passing head; no other WFM or compliance methods are credited. Independent tenant/WFM/security review stays **PENDING**. All 17 page/action GAPs remain; no production, provider, payroll or global acceptance.
+
 ## 2026-10-31 PR #1646 sync with main@04029a8b — NOT ACCEPTED
 
 **Proposed combined inventory: 498 methods = 383 COVERED + 10 PUBLIC-BY-DESIGN + 105 GAP.** `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contributes 382 already source-pinned methods. This branch adds **only POST /api/compensation** with its five creation variants (`component`, `cycle`, `band`, `component_assignment`, `proposal`) and real own/employer-foreign PostgreSQL 16 evidence. Its existing `PATCH /api/compensation` proof remains separately credited; this PR updates only its shifted family row reference (46 to 49) without a second credit. The 27 newer main commits, including separate workforce-planning proof and global worker authorization changes, are preserved. **All 17 page/action gaps and remaining 105 method gaps remain unaccepted.** Fresh exact-head PG16/CI and human tenant/compensation/maintainer review are required. No live payroll, provider, filing or production release is authorized.
@@ -58,7 +62,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 385 COVERED + 10 PUBLIC-BY-DESIGN + 103 GAP**. Current `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contains **382/10/106**, including separately credited compensation PATCH, WRK-02 Batch 2 and other newer tenant evidence. PR #1646 adds exactly **one** source-linked compensation POST method, not another PATCH or any of the newer main credits. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 388 COVERED + 10 PUBLIC-BY-DESIGN + 100 GAP**. Current `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contains **382/10/106**, including separately credited compensation PATCH, WRK-02 Batch 2 and other newer tenant evidence. PR #1646 adds exactly **one** source-linked compensation POST method, not another PATCH or any of the newer main credits. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -73,13 +77,13 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 33 | 0 | 6 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
 
-Frozen subtotal: **301 COVERED + 2 PUBLIC-BY-DESIGN + 103 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **304 COVERED + 2 PUBLIC-BY-DESIGN + 100 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
