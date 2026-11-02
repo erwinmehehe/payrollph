@@ -37,6 +37,14 @@ export function findFirstPayrollResumeStep(
   steps: readonly FirstPayrollJourneyStep[],
   allowedPages: readonly string[],
 ): FirstPayrollJourneyStep | null {
+  // A recorded release does not certify time review or government filing.
+  // Still, the relevant next navigation destination is the export handoff,
+  // not an earlier review prompt that cannot be marked complete by this UI.
+  if (steps.some(step => step.key === "payroll" && step.state === "complete")) {
+    return steps.find(step => step.key === "exports" &&
+      (step.state === "available" || step.state === "review") &&
+      allowedPages.includes(step.page)) ?? null;
+  }
   return steps.find((step) =>
     (step.state === "available" || step.state === "review") &&
     allowedPages.includes(step.page)

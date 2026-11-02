@@ -86,8 +86,12 @@ test("resume shortcut selects only an actionable permitted step, never a complet
   assert.equal(findFirstPayrollResumeStep(steps, ["Time & attendance"])?.key, "time");
   assert.equal(findFirstPayrollResumeStep(steps, []), null);
   const released = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Released"] }));
-  assert.equal(findFirstPayrollResumeStep(released, allowed)?.key, "time");
+  assert.equal(findFirstPayrollResumeStep(released, allowed)?.key, "exports");
+  assert.equal(findFirstPayrollResumeStep(released, ["Time & attendance"]), null,
+    "A released run should not suggest redoing attendance instead of the export handoff");
   assert.equal(findFirstPayrollResumeStep(released, ["Exports"])?.key, "exports");
+  assert.equal(findFirstPayrollResumeStep(released, []), null,
+    "Release does not expose an unauthorized export shortcut");
   const unavailable = steps.map(step => ({ ...step, state: "upcoming" as const }));
   assert.equal(findFirstPayrollResumeStep(unavailable, allowed), null);
 });
