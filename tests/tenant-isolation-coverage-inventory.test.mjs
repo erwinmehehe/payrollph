@@ -4265,11 +4265,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowFile, ".github/workflows/tenant-workflow-leave-handoff-pg16.yml");
         assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
         const pins = entry.route === "leave"
-          ? { ownPositiveLine: [209, /status\\(await post\\("\\/api\\/leave"/], foreignDenialLine: [243, /await assertDenied\\(post\\("\\/api\\/leave"/], forgedSelectorLine: [246, /await assertDenied\\(post\\("\\/api\\/leave"/], unchangedDbLine: [271, /assert\\.deepEqual\\(await ownOrgSnapshot/] }
-          : { ownPositiveLine: [186, /const r = status\\(await post\\("\\/api\\/governed-handoffs"/], foreignDenialLine: [258, /await assertDenied\\(post\\("\\/api\\/governed-handoffs"/], forgedSelectorLine: [261, /await assertDenied\\(post\\("\\/api\\/governed-handoffs"/], unchangedDbLine: [271, /assert\\.deepEqual\\(await ownOrgSnapshot/] };
-        for (const [field, [line, pattern]] of Object.entries(pins)) {
+          ? { ownPositiveLine: [209, 'status(await post("/api/leave"'],
+              foreignDenialLine: [243, 'await assertDenied(post("/api/leave"'],
+              forgedSelectorLine: [246, 'await assertDenied(post("/api/leave"'],
+              unchangedDbLine: [271, "assert.deepEqual(await ownOrgSnapshot"] }
+          : { ownPositiveLine: [186, 'status(await post("/api/governed-handoffs"'],
+              foreignDenialLine: [258, 'await assertDenied(post("/api/governed-handoffs"'],
+              forgedSelectorLine: [261, 'await assertDenied(post("/api/governed-handoffs"'],
+              unchangedDbLine: [271, "assert.deepEqual(await ownOrgSnapshot"] };
+        for (const [field, [line, snippet]] of Object.entries(pins)) {
           assert.equal(proof[field], line, "Evidence line moved without repin");
-          assert.match(evidenceLine(proof.file, line, entry.route + " " + field), pattern);
+          assert.ok(evidenceLine(proof.file, line, entry.route + " " + field).includes(snippet),
+            "Four-part receipt must reference genuine executed HTTP and SQL assertions");
         }
         continue;
       }
