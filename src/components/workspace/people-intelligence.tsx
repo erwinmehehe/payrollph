@@ -21,7 +21,7 @@ export function PeopleIntelligenceOverview({ report }: { report: PeopleIntellige
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-700">{evidence.detail}</p>
         <p className="mt-1 text-xs leading-5 text-slate-600">
-          Current vacancies and requisitions are not reconstructed for past dates. Median time-to-hire measures recorded requisition creation to recorded hire, not time-to-fill. Missing records are never counted as zero.
+          Current vacancies and requisitions are not reconstructed for past dates. The time-to-fill proxy uses recorded requisition creation to linked hire; approved opening dates and final vacancy closure are not independently verified. Missing records are never counted as zero.
         </p>
       </section>
       <section className="stats-grid" aria-label="People Intelligence summary">
@@ -66,7 +66,7 @@ export function PeopleIntelligenceOverview({ report }: { report: PeopleIntellige
         <Metric
           label="Open requisitions"
           value={count(report.activeRequisitions)}
-          hint={`Median recorded time to hire: ${days(report.medianHireDays)} · not time-to-fill`}
+          hint="Current open/interviewing requisitions; historical status not reconstructed"
           icon={<BriefcaseBusiness size={16} className="i-green" />}
           tone="blue"
         />
@@ -81,6 +81,23 @@ export function PeopleIntelligenceOverview({ report }: { report: PeopleIntellige
           label="Vacancy budget"
           value={report.recordedAnnualVacancyBudget == null ? "Unverified" : shortMoney(report.recordedAnnualVacancyBudget)}
           hint="Recorded annual approved-position budget · not payroll spend"
+          icon={<FileBarChart2 size={16} className="i-blue" />}
+          tone="slate"
+        />
+      </section>
+
+      <section className="stats-grid" aria-label="Turnover and recruitment evidence">
+        <Metric
+          label="Released-exit turnover"
+          value={report.turnoverRate == null ? "Not verifiable" : report.turnoverRate.toFixed(1) + "%"}
+          hint="Recorded released exits divided by average verified headcount"
+          icon={<UsersRound size={16} className="i-blue" />}
+          tone="slate"
+        />
+        <Metric
+          label="Time-to-fill proxy"
+          value={days(report.timeToFillProxyDays)}
+          hint={`${report.timeToFillSampleSize} linked hire(s) · requisition created to recorded hire, not a verified filled-position date`}
           icon={<FileBarChart2 size={16} className="i-blue" />}
           tone="slate"
         />
