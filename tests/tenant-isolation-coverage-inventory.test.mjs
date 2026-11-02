@@ -128,8 +128,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const fixed = "8c2ac7e8d59c862295f44023ed3d12b1d900f26a";
     assert.equal(currentBlob, fixed, "Contribution case source drift requires security review");
     assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, fixed);
-    assert.equal(method.status, "GAP", "Source-only fix never certifies a POST method");
-    assert.equal(method.testedBy, null, "No coverage credit before independent acceptance");
+    assert.equal(method.status, "COVERED", "Exact-head PG16 own/victim/forged/unchanged four-part method proof required");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.workflowRunId, 41446327305);
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
     const review = method.reviewedUncertified;
     assert.deepEqual(review, {
       kind: "contribution-referral-SQL-event-contract-PG16-review-only",
@@ -4324,6 +4328,39 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
+          ["compliance/contribution-issues", "compliance/payroll-month-close", "compliance/statutory-remittances"].includes(entry.route)) {
+        const pinned = new Map([
+          ["compliance/contribution-issues", ["scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs", 43, "dfcf1615be01bb151e13a5d74c080299575ce53a"]],
+          ["compliance/payroll-month-close", ["scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs", 49, "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193"]],
+          ["compliance/statutory-remittances", ["scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs", 75, "f24a7349c902dae0bc41a3989c8a88df24aedb6f"]],
+        ]);
+        const [rowFile, rowLine, rowSha] = pinned.get(entry.route);
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.file, "scripts/qa/tenant-write-table-http.mjs");
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-compliance-post-candidate.yml");
+        assert.equal(proof.workflowRunId, 41446327305);
+        assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        assert.equal(proof.sourceRowFile, rowFile);
+        assert.equal(proof.sourceRowLine, rowLine);
+        assert.equal(proof.sourceRowBlobSha, rowSha);
+        assert.equal(gitBlobSha(readFileSync(rowFile)), rowSha);
+        assert.ok(evidenceLine(rowFile, rowLine, entry.route + " action").includes("POST " + entry.route));
+        assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine], [112,125,129,149]);
+        for (const field of ["sourceRowOwnPositiveLine","sourceRowForeignDenialLine","sourceRowForgedSelectorLine","sourceRowUnchangedDbLine"])
+          assert.ok(evidenceLine(rowFile, proof[field], entry.route + " four-part " + field).length > 14);
+        continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",

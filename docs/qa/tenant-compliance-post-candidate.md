@@ -1,3 +1,5 @@
+> **Owner-only method credit, 2026-11-02:** Exact head `d3cdcf020a559ae85c813d656620832dd0a46d4e` passed [disposable PG16 real HTTP run 41446327305](https://github.com/erwinmehehe/payrollph/actions/runs/41446327305) with all four parts for each of three STA-01 POSTs. Ledger now 390 COVERED / 10 PUBLIC-BY-DESIGN / 98 GAP. `SOLO_VERIFIED_DEV_RECOVERY` means repository owner `@erwinmehehe` is the only reviewer, not an independent approver. No real remittance, production SQL, providers or release. Earlier ZERO-credit planning notes below remain historical.
+
 # Compliance POST tenant isolation, three-method family
 
 **Status: DRAFT / NOT ACCEPTED / ZERO METHOD CREDITS.** All source and

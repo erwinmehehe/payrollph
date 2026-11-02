@@ -6,6 +6,10 @@
 
 **Proposed combined inventory: 498 methods = 383 COVERED + 10 PUBLIC-BY-DESIGN + 105 GAP.** `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contributes 382 already source-pinned methods. This branch adds **only POST /api/compensation** with its five creation variants (`component`, `cycle`, `band`, `component_assignment`, `proposal`) and real own/employer-foreign PostgreSQL 16 evidence. Its existing `PATCH /api/compensation` proof remains separately credited; this PR updates only its shifted family row reference (46 to 49) without a second credit. The 27 newer main commits, including separate workforce-planning proof and global worker authorization changes, are preserved. **All 17 page/action gaps and remaining 105 method gaps remain unaccepted.** Fresh exact-head PG16/CI and human tenant/compensation/maintainer review are required. No live payroll, provider, filing or production release is authorized.
 
+## 2026-11-02 PR #1728 compliance POST SOLO_VERIFIED_DEV_RECOVERY (DRAFT)
+
+**Current source-pinned candidate ledger: 498 methods = 390 COVERED / 10 PUBLIC-BY-DESIGN / 98 GAP.** The three distinct STA-01 `POST compliance/contribution-issues`, `POST compliance/payroll-month-close`, and `POST compliance/statutory-remittances` source-pinned four-part methods passed [exact final-head fictional PG16 HTTP run 41446327305](https://github.com/erwinmehehe/payrollph/actions/runs/41446327305) on `d3cdcf020a559ae85c813d656620832dd0a46d4e`. Two independent signed-in employers performed genuine persisted own write actions, including contribution start/update/referral/resolve, ready month close, and create/record/confirm/exception remittance; real higher-ID victim employer and forged cross-employer case/entity/batch were denied with victim PostgreSQL payroll, source, remittance and audit unchanged. The shared real-HTTP runner and each method's row are pinned by Git blob SHA; previous source-only referral event-type and auth-before-read reconstruction guard remains fully enforced. `@erwinmehehe` is the **only reviewer**; evidence is **SOLO_VERIFIED_DEV_RECOVERY**, not independent review or official statutory remittance acceptance. 17 page/action gaps and other API gaps remain, no production, real tenant, payout, money, provider, CSP, deploy or merge. Keep draft.
+
 ## Safety boundary and method evidence contract
 
 Operate only on fictional three-employer fixtures (victim employer A plus attackers B and C), dedicated localhost Next.js in production mode, real disposable PostgreSQL 16 (`/app_db`), temporary test-process-only flags and dummy secrets. **Never** use Neon, a production endpoint/DB, real bank details, real workers, production SQL, deploy flags, new migrations, provider HTTP calls or actual money movement. Preserve `requireDisposable`, existing tests, exact HTTP statuses, and maker/checker/payroll calculation behavior. The existing CI provisioning via `npm run db:push` targets only ephemeral PG; no migration files or production schema are changed by this plan.
@@ -70,7 +74,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 22 | 0 | 11 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 22 | 0 | 11 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 24 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
@@ -79,7 +83,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **306 COVERED + 2 PUBLIC-BY-DESIGN + 98 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

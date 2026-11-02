@@ -564,13 +564,22 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     }
     assert.equal(method.testedBy.postgresMajor, 16);
   }
+  const complianceSoloCredits = ["POST compliance/contribution-issues", "POST compliance/payroll-month-close", "POST compliance/statutory-remittances"]
+    .filter(key => {
+      const credit = methodsByKey.get(key);
+      assert.equal(credit?.status, "COVERED", key + ": real PG16 four-part compliance proof");
+      assert.equal(credit.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(credit.testedBy?.workflowRunId, 41446327305);
+      return true;
+    }).length;
+  assert.equal(complianceSoloCredits, 3);
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - complianceSoloCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + complianceSoloCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
