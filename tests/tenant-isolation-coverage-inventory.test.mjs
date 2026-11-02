@@ -5403,7 +5403,8 @@ test("PayMongo transfer webhook credit requires the exact passing run, byte-pinn
   assert.equal(proof.line, proof.ownPositiveLine);
   const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
   cites(proof.ownPositiveLine, "const own = await send(ownEvent);", "own-observation anchor");
-  cites(proof.secondaryOwnPositiveLine, "const forged = await send(eventBody(a, {", "forged-selector anchor");
+  cites(proof.secondaryOwnPositiveLine, "const ownB = await send(eventBody(b));", "second-employer own-observation anchor");
+  cites(proof.forgedSelectorLine, "const forged = await send(eventBody(a, {", "forged-selector anchor");
   cites(proof.foreignDenialLine, "eventBody(a, { transferId: victim.payout.transferId }),", "foreign-transfer anchor");
   cites(proof.secondaryForeignDenialLine, "eventBody(b, { transferId: victim.payout.transferId }),", "second-attacker anchor");
   cites(proof.crossBoundLine, "const ignored = await send(payload);", "cross-bound anchor");
