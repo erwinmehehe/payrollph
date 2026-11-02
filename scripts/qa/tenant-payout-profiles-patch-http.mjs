@@ -79,17 +79,30 @@ try {
   check(before.db === "app_db" && before.role === "postgres" &&
     before.employers === 0 && before.audit_events === 0,
     "Refuse a nonempty or unexpected PostgreSQL test target before creating employers");
+  // Keep all source IDs real and above six: six inert, explicitly fictional
+  // employers and payout profiles are created ONLY after the empty-PG16 gate.
+  // These are disposable fixture rows, not tenant data repairs or API credits.
+  const inert = [];
+  for (let n = 0; n < 6; n++) {
+    const e = await http.seedEmployer("PAD" + n, nonce, http.standaloneMakeSession);
+    inert.push(e);
+    const [row] = await db.insert(schema.payoutProfiles).values({
+      organizationId: e.org.id, legalEntityId: e.entity.id,
+      defaultMethod: "manual", active: false,
+      bankProduct: "inert synthetic ID-padding fixture",
+      createdByUserId: e.owner.id, updatedByUserId: e.owner.id,
+    }).returning();
+    check(row?.organizationId === e.org.id && row?.legalEntityId === e.entity.id,
+      "Every inert profile must be a real same-employer PostgreSQL row");
+  }
   const a = await http.seedEmployer("ATTA", nonce, http.standaloneMakeSession);
   const b = await http.seedEmployer("ATTB", nonce, http.standaloneMakeSession);
   const victim = await http.seedEmployer("VICTIM", nonce, http.standaloneMakeSession);
-  check(victim.org.id > b.org.id && victim.entity.id > b.entity.id &&
-    victim.worker.id > b.worker.id,
-    "Victim is a real populated, higher-ID employer, entity and employee");
-  const victimBefore = {
-    profiles: await profileSnapshot(victim.org.id),
-    audit: await auditSnapshot(victim.org.id),
-    payroll: await payrollSnapshot(victim.org.id),
-  };
+  check(victim.org.id > 6 && victim.entity.id > 6 && victim.worker.id > 6 &&
+    victim.org.id > a.org.id && victim.org.id > b.org.id &&
+    victim.entity.id > a.entity.id && victim.entity.id > b.entity.id &&
+    victim.worker.id > a.worker.id && victim.worker.id > b.worker.id,
+    "Genuine victim org, legal entity and employee IDs exceed six and both attackers");
   for (const actor of [a, b]) {
     const own = exact(await patch(actor, body(actor, actor.marker + " manual profile")), 200,
       "Own owner can save a tenant-specific inactive manual payout profile");
@@ -103,7 +116,35 @@ try {
     check(audits.some(event => event.action === "Company payout profile updated" &&
       event.organizationId === actor.org.id),
       "Owned successful write must have a genuine employer-scoped audit receipt");
+  }
 
+  // The victim must own a REAL, independently created payout profile, not an
+  // empty set whose snapshot could pass unchanged despite missing tenant data.
+  // Create it AFTER both attacker profiles so its persisted ID is greater too.
+  const victimOwn = exact(await patch(victim, body(victim,
+    victim.marker + " separate fictional company payout profile")), 200,
+    "Victim owner must independently write its own real inactive profile");
+  const victimProfile = (await profileSnapshot(victim.org.id))[0];
+  const aProfile = (await profileSnapshot(a.org.id))[0];
+  const bProfile = (await profileSnapshot(b.org.id))[0];
+  check(victimOwn.json?.profile?.id === victimProfile?.id &&
+    victimProfile.organizationId === victim.org.id &&
+    victimProfile.legalEntityId === victim.entity.id &&
+    victimProfile.id > 6 && victimProfile.id > aProfile.id &&
+    victimProfile.id > bProfile.id,
+    "Real victim-only payout profile ID exceeds six and both attacker profile IDs");
+  const victimBefore = {
+    profiles: await profileSnapshot(victim.org.id),
+    audit: await auditSnapshot(victim.org.id),
+    payroll: await payrollSnapshot(victim.org.id),
+  };
+  check(victimBefore.profiles.length === 1 &&
+    victimBefore.audit.some(event =>
+      event.action === "Company payout profile updated" &&
+      event.organizationId === victim.org.id),
+    "Victim positive and corresponding private audit must exist before attacks");
+
+  for (const actor of [a, b]) {
     exact(await patch(actor, {
       ...body(victim, "forged foreign employer"), organizationId: victim.org.id,
     }), 403, "True foreign employer selector is forbidden");
@@ -113,6 +154,10 @@ try {
     exact(await patch(actor, {
       ...body(actor, "forged peer legal entity"), legalEntityId: (actor === a ? b : a).entity.id,
     }), 404, "Another attacker entity forged into own employer is not found");
+    assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
+      "Each denied foreign/forged request leaves actual populated victim payout row unchanged");
+    assert.deepEqual(await auditSnapshot(victim.org.id), victimBefore.audit,
+      "Each denied foreign/forged request leaves populated victim audit unchanged");
   }
   assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
     "Foreign writes cannot mutate the populated victim profile state");
@@ -148,12 +193,72 @@ try {
     await pgClient.query("DROP FUNCTION IF EXISTS public.ci_reject_payout_profile_audit()");
   }
 
+  // Inject a mismatched legacy row that references A's legal entity but is
+  // owned by the victim. This is test-only corrupt data in disposable PG16.
+  // PATCH must not adopt its tenant, edit the row, or emit an approval audit.
+  const beforeMismatch = (await profileSnapshot(a.org.id))[0];
+  check(beforeMismatch?.legalEntityId === a.entity.id,
+    "A's persisted payout profile must exist before stale-tenant test");
+  const auditBeforeMismatch = await auditSnapshot(a.org.id);
+  // The production tenant-scope trigger correctly rejects corrupt ownership.
+  // Create this pre-existing bad-row scenario only in the guard-verified,
+  // empty, disposable PG16 CI database. SET LOCAL is confined to this test
+  // connection and transaction; application requests retain all triggers.
+  const roleBefore = await pgClient.query("SELECT current_setting('session_replication_role') AS role");
+  check(roleBefore.rows[0]?.role === "origin",
+    "Test fixture must start with PostgreSQL tenant triggers enabled");
+  await pgClient.query("BEGIN");
+  try {
+    await pgClient.query("SET LOCAL session_replication_role = 'replica'");
+    const { rows: [staleRow] } = await pgClient.query(
+      "UPDATE public.payout_profiles SET organization_id = $1 " +
+      "WHERE id = $2 AND organization_id = $3 RETURNING id, organization_id",
+      [victim.org.id, beforeMismatch.id, a.org.id],
+    );
+    check(staleRow?.organization_id === victim.org.id,
+      "Fixture must create an actual foreign-tagged profile row");
+    await pgClient.query("COMMIT");
+  } catch (error) {
+    await pgClient.query("ROLLBACK");
+    throw error;
+  }
+  const roleAfter = await pgClient.query("SELECT current_setting('session_replication_role') AS role");
+  check(roleAfter.rows[0]?.role === "origin",
+    "PostgreSQL tenant triggers must be restored before calling the real PATCH route");
+  try {
+    const foreignTaggedBefore = await profileSnapshot(victim.org.id);
+    const mismatch = exact(await patch(a, body(a, "attempt to adopt stale foreign profile")), 409,
+      "An upsert cannot adopt a foreign-tagged conflict row");
+    check(mismatch.json?.error === "Company payout profile could not be saved.",
+      "Stale tenant collision must return a fixed non-leaking message");
+    assert.deepEqual(await profileSnapshot(victim.org.id), foreignTaggedBefore,
+      "Stale conflict must not mutate the foreign-tagged payout profile");
+    assert.deepEqual(await auditSnapshot(a.org.id), auditBeforeMismatch,
+      "Denied stale conflict must not write an own-tenant audit");
+    assert.deepEqual(await auditSnapshot(victim.org.id), victimBefore.audit,
+      "Denied stale conflict must not write a victim-tenant audit");
+  } finally {
+    const [restored] = await db.update(schema.payoutProfiles)
+      .set({ organizationId: a.org.id })
+      .where(and(
+        eq(schema.payoutProfiles.id, beforeMismatch.id),
+        eq(schema.payoutProfiles.organizationId, victim.org.id),
+      )).returning();
+    check(restored?.organizationId === a.org.id,
+      "Disposable stale-profile fixture must be restored");
+  }
+  assert.deepEqual(await profileSnapshot(victim.org.id), victimBefore.profiles,
+    "The real victim profiles must be unchanged after restoring the fixture");
+  assert.deepEqual(await profileSnapshot(a.org.id), originalProfiles,
+    "The original owned payout profile must remain unchanged after rejected adoption");
+
   console.log(JSON.stringify({
     kind: "payout-profile-patch-tenant-audit-atomic-PG16",
     method: "PATCH /api/payout-profiles",
-    ownPersistedAndAudited: 2, twoAttackersForeignDenied: true,
+    ownPersistedAndAudited: 2, independentVictimOwnedPositive: true,
+    realVictimPayoutProfileIdAboveSix: true, twoAttackersForeignDenied: true,
     forgedLegalEntityDenied: true, injectedAuditFailureRolledBack: true,
-    victimProfilesAuditPayrollUnchanged: true,
+    staleForeignTaggedUpsertDenied: true, victimProfilesAuditPayrollUnchanged: true,
     methodCredits: 0, independentSecurityReview: "PENDING",
     assertions,
   }));
