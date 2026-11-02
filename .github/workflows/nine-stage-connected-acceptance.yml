@@ -21,6 +21,10 @@ on:
       - "src/app/api/legal-entities/**"
       - "src/app/api/approvals/**"
       - "src/app/api/workforce/**"
+      # Forecast/pilot APIs do not participate in Hire -> Schedule -> Time -> Pay.
+      - "!src/app/api/workforce/demand-observations/**"
+      - "!src/app/api/workforce/demand-outlook/**"
+      - "!src/app/api/workforce/demand-staffing/**"
       - "src/app/api/web-bundy/**"
       - "src/app/api/payroll/**"
       - "src/app/api/payroll-runs/**"
@@ -106,6 +110,10 @@ on:
       - "src/app/api/legal-entities/**"
       - "src/app/api/approvals/**"
       - "src/app/api/workforce/**"
+      # Forecast/pilot APIs do not participate in Hire -> Schedule -> Time -> Pay.
+      - "!src/app/api/workforce/demand-observations/**"
+      - "!src/app/api/workforce/demand-outlook/**"
+      - "!src/app/api/workforce/demand-staffing/**"
       - "src/app/api/web-bundy/**"
       - "src/app/api/payroll/**"
       - "src/app/api/payroll-runs/**"

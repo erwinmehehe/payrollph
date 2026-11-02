@@ -102,7 +102,7 @@ test("intake reuses one exact-source build while retaining both independent data
 
 test("narrowed optional PR jobs still protect common auth and dependency changes", () => {
   assert.deepEqual(new Set(policy.selectivePrFilters), new Set([
-    "nav-runtime-sweep.yml", "paymongo-export-isolation.yml",
+    "a5-vault-minio-acceptance.yml", "nav-runtime-sweep.yml", "paymongo-export-isolation.yml",
     "public-intake-db-acceptance.yml", "tenant-money-lifecycle.yml",
     "treasury-isolation.yml", "underpayment-posting.yml",
   ]));

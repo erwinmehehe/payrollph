@@ -3,7 +3,30 @@ name: core-modules browser acceptance
 on:
   pull_request:
     paths:
-      - 'src/**'
+      # Keep feature UI, authentication, migrations and shared schema coverage;
+      # unrelated API-only PRs use core security and their own endpoint proofs.
+      - 'src/app/**/page.tsx'
+      - 'src/app/**/layout.tsx'
+      - 'src/app/globals.css'
+      - 'src/app/dashboard-design.css'
+      - 'src/components/**'
+      - 'src/app/api/employees/**'
+      - 'src/app/api/hcm/**'
+      - 'src/app/api/recruitment/**'
+      - 'src/app/api/payroll-runs/**'
+      - 'src/app/api/self/**'
+      - 'src/lib/*navigation*.ts'
+      - 'src/lib/dashboard-*.ts'
+      - 'src/lib/hcm-*.ts'
+      - 'src/lib/employee-*.ts'
+      - 'src/lib/roles.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - 'scripts/core-modules-synthetic-*'
       - 'tests/core-modules-*'
       - 'tests/e2e/core-modules*'
