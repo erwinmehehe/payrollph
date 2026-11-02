@@ -8,7 +8,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { and, eq, sql } from "drizzle-orm";
 import {
   applicantPrivacyEvidence, auditEvents, jobApplicants, jobRequisitions,
-  organizations, positions,
+  organizations, positions, users, userOrganizations,
 } from "../src/db/schema";
 
 const require = createRequire(import.meta.url);
@@ -53,7 +53,7 @@ test("public careers is consent-bound, isolated by employer, race-safe and HR-on
   try {
     // Older mainline schema is provisioned by CI db:push. The careers column
     // MUST NOT be needed by default-OFF legacy queries.
-    for (const table of ["organizations", "positions", "job_requisitions",
+    for (const table of ["users", "organizations", "user_organizations", "positions", "job_requisitions",
       "job_applicants", "applicant_privacy_evidence", "audit_events"]) {
       await pool.query(`create table ${schema}.${table}
         (like public.${table} including defaults including constraints)`);
@@ -114,6 +114,18 @@ test("public careers is consent-bound, isolated by employer, race-safe and HR-on
       { organizationId: orgB.id, positionId: positionB.id, title: "Other Company Role", department: "Beta HR" },
       { organizationId: orgA.id, positionId: positionClosed.id, title: "Closed Role", department: "Alpha HR" },
     ]).returning();
+
+    // The route now revalidates active company-wide grants inside the final
+    // transaction. Synthetic auth mocks alone are not a persisted grant.
+    // Keep these fictional identities inside this disposable schema.
+    await db.insert(users).values([
+      { id: 7001, name: "Fictional HR", email: "careers-a@fictional.invalid", passwordHash: "nonlogin-qa" },
+      { id: 8001, name: "Beta HR", email: "careers-b@fictional.invalid", passwordHash: "nonlogin-qa" },
+    ]);
+    await db.insert(userOrganizations).values([
+      { userId: 7001, organizationId: orgA.id, role: "hr", orgUnitId: null, active: true },
+      { userId: 8001, organizationId: orgB.id, role: "hr", orgUnitId: null, active: true },
+    ]);
 
     const adminRequest = (organizationId: number, requisitionId: number,
       published: boolean, expectedPublished: boolean, origin = "https://example.invalid") =>
@@ -215,6 +227,59 @@ test("public careers is consent-bound, isolated by employer, race-safe and HR-on
     assert.ok(publishAudit);
     assert.equal((await db.select().from(auditEvents).where(eq(
       auditEvents.action, "Careers requisition published"))).length, 1);
+
+    // Simulate a grant revoked between the mocked early access check and
+    // the transactional SQL recheck. A stale authorized session must not
+    // unpublish even when the preflight mock still reports an HR role.
+    await db.update(userOrganizations).set({ active: false }).where(and(
+      eq(userOrganizations.userId, 7001),
+      eq(userOrganizations.organizationId, orgA.id),
+    ));
+    const auditBeforeRevoked = await db.select().from(auditEvents).where(
+      eq(auditEvents.organizationId, orgA.id));
+    assert.equal((await admin.PATCH(adminRequest(
+      orgA.id, jobA.id, false, true))).status, 409,
+    "revoked persisted HR membership must block the final write");
+    // The careers_published column is optional forward DDL and deliberately
+    // absent from the baseline Drizzle schema. Query the disposable PG table.
+    const stillPublished = await pool.query<{ careers_published: boolean }>(
+      `select careers_published from ${schema}.job_requisitions where id = $1`,
+      [jobA.id],
+    );
+    assert.equal(stillPublished.rows[0]?.careers_published, true);
+    assert.deepEqual(await db.select().from(auditEvents).where(
+      eq(auditEvents.organizationId, orgA.id)), auditBeforeRevoked);
+    await db.update(userOrganizations).set({ active: true }).where(and(
+      eq(userOrganizations.userId, 7001),
+      eq(userOrganizations.organizationId, orgA.id),
+    ));
+
+    // A session cached before a user suspension or role downgrade must not
+    // bypass the transaction's persisted user/membership checks either.
+    const expectPersistedGrantDenied = async (label: string) => {
+      assert.equal((await admin.PATCH(adminRequest(
+        orgA.id, jobA.id, false, true))).status, 409, label);
+      const unchanged = await pool.query<{ careers_published: boolean }>(
+        `select careers_published from ${schema}.job_requisitions where id = $1`,
+        [jobA.id],
+      );
+      assert.equal(unchanged.rows[0]?.careers_published, true, label);
+      assert.deepEqual(await db.select().from(auditEvents).where(
+        eq(auditEvents.organizationId, orgA.id)), auditBeforeRevoked, label);
+    };
+    await db.update(users).set({ active: false }).where(eq(users.id, 7001));
+    await expectPersistedGrantDenied("disabled account must block the final write");
+    await db.update(users).set({ active: true }).where(eq(users.id, 7001));
+
+    await db.update(userOrganizations).set({ role: "bookkeeper" }).where(and(
+      eq(userOrganizations.userId, 7001),
+      eq(userOrganizations.organizationId, orgA.id),
+    ));
+    await expectPersistedGrantDenied("downgraded role must block the final write");
+    await db.update(userOrganizations).set({ role: "hr" }).where(and(
+      eq(userOrganizations.userId, 7001),
+      eq(userOrganizations.organizationId, orgA.id),
+    ));
 
     actor = { id: 8001, name: "Beta HR", organizationId: orgB.id,
       role: "hr", companyWide: true };

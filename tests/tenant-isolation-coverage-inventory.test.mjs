@@ -1631,6 +1631,56 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // PATCH careers publication: recheck the persisted, active company-wide
+  // HR grant inside the final SQL transaction. Source review only; a passing
+  // mock or partial HTTP path does not prove full tenant isolation or add credit.
+  if (isNewOrChanged && key === "src/app/api/careers/admin/route.ts PATCH") {
+    const path = "src/app/api/careers/admin/route.ts";
+    const current = "fc7920e19fc75389c5f5e7fe3cb4f90046028f00";
+    assert.equal(currentBlob, current, "Careers final role guard changed: renewed review required");
+    assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, current);
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "careers-patch-final-live-role-lock-PG16-review-only",
+      originalRouteBlobSha: "3227f2bd369ca86bc05b10750f3bdf8b35512955",
+      routeBlobSha: current,
+      proofFile: "scripts/qa/tenant-edg01-careers-publication-http.mjs",
+      proofBlobSha: "175abbd544ba66ca8c393fcd91946e2a09545a80",
+      contractFile: "tests/tenant-edg01-careers-publication-contract.test.mjs",
+      contractBlobSha: "dfc9bbd2304c2f24bce4230667244d1ea58ad14f",
+      workflowFile: ".github/workflows/tenant-edg01-careers-publication-http.yml",
+      workflowBlobSha: "b84ba8d8001b1475c741809340dcb795943a96f7",
+      coverageCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    });
+    for (const [file, expected] of [
+      [method.reviewedUncertified.proofFile, method.reviewedUncertified.proofBlobSha],
+      [method.reviewedUncertified.contractFile, method.reviewedUncertified.contractBlobSha],
+      [method.reviewedUncertified.workflowFile, method.reviewedUncertified.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), expected,
+      "Careers test/PG16 evidence source changed; re-review required: " + file);
+    const source = readFileSync(path, "utf8");
+    const tx = source.indexOf("db.transaction(async tx =>");
+    const grant = source.indexOf("const liveGrant = await tx.execute", tx);
+    const update = source.indexOf("update job_requisitions as req", grant);
+    assert.ok(tx > 0 && grant > tx && update > grant,
+      "Active employer grant must be locked before publishing any requisition");
+    const gate = source.slice(grant, update);
+    for (const item of [
+      "uo.user_id = ${user.id}",
+      "uo.organization_id = ${organizationId}",
+      "uo.active = true", "u.active = true", "uo.org_unit_id is null",
+      "uo.role in ('owner', 'admin', 'hr')", "for share of uo, u",
+      "if (!liveGrant.rows[0]) return null",
+    ]) assert.ok(gate.includes(item), "Careers commit-time tenant role guard missing: " + item);
+    assert.ok(source.includes("req.organization_id = ${organizationId}"),
+      "Careers write must retain the employer-bound requisition predicate");
+    return;
+  }
+
   // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
   // These changes preserve the historical POST/PATCH handlers byte-for-byte,
   // preserve all existing method credits, and do NOT promote the open GET GAP.
