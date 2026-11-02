@@ -4247,6 +4247,41 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
       }
+      // Four exact source-bound PG16 year-end/prior-evidence credits, no generic exemption.
+      if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
+          ["year-end", "year-end/prior-evidence"].includes(entry.route)) {
+        const expectedProof = entry.route === "year-end"
+          ? "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs" : "scripts/qa/tenant-sta01-prior-evidence-http.mjs";
+        const expectedRun = entry.route === "year-end" ? 41446394887 : 41446394999;
+        const expectedWorkflow = entry.route === "year-end"
+          ? ".github/workflows/tenant-year-end-post-candidate.yml" : ".github/workflows/tenant-sta01-prior-evidence-http.yml";
+        assert.equal(proof.file, expectedProof);
+        assert.equal(proof.workflowFile, expectedWorkflow);
+        assert.equal(proof.workflowRunId, expectedRun);
+        assert.equal(proof.verifiedPrHeadSha, "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5");
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.ok(["GET", "POST"].includes(method.name));
+        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        const approved = [
+          ["year-end GET", [168, 113, 118, 116]],
+          ["year-end POST", [125, 140, 144, 148]],
+          ["year-end/prior-evidence GET", [142, 176, 189, 203]],
+          ["year-end/prior-evidence POST", [141, 179, 192, 203]],
+        ];
+        const [name, lines] = approved.find(([name]) => name === entry.route + " " + method.name) ?? [];
+        assert.ok(name, "No unrelated method may borrow year-end proof");
+        assert.deepEqual([proof.ownPositiveLine,proof.foreignDenialLine,proof.forgedSelectorLine,proof.unchangedDbLine],lines);
+        for (const line of lines) assert.ok(evidenceLine(proof.file, line, entry.route + " real HTTP assertion").length > 15);
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",

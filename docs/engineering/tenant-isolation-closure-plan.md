@@ -6,6 +6,10 @@
 
 **Proposed combined inventory: 498 methods = 383 COVERED + 10 PUBLIC-BY-DESIGN + 105 GAP.** `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contributes 382 already source-pinned methods. This branch adds **only POST /api/compensation** with its five creation variants (`component`, `cycle`, `band`, `component_assignment`, `proposal`) and real own/employer-foreign PostgreSQL 16 evidence. Its existing `PATCH /api/compensation` proof remains separately credited; this PR updates only its shifted family row reference (46 to 49) without a second credit. The 27 newer main commits, including separate workforce-planning proof and global worker authorization changes, are preserved. **All 17 page/action gaps and remaining 105 method gaps remain unaccepted.** Fresh exact-head PG16/CI and human tenant/compensation/maintainer review are required. No live payroll, provider, filing or production release is authorized.
 
+## 2026-11-02 PR #1730 year-end four-part SOLO_VERIFIED_DEV_RECOVERY (DRAFT)
+
+**Current proposed source-pinned ledger: 498 API methods = 391 COVERED / 10 PUBLIC-BY-DESIGN / 97 GAP**; 17 scoped page/action GAPs remain. Both `GET/POST year-end` and `GET/POST year-end/prior-evidence` passed method-specific real-HTTP tests on exact PR head `066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5`, with two independent signed-in fictional attacker employers, a real higher-ID victim, legitimate source-bound own responses, foreign and forged-selector denials, and unchanged victim payroll/year-end/evidence/audit PostgreSQL snapshots. [Year-end annualization and draft 2316/print/Alphalist export PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/41446394887) and [separate prior-evidence save/read/approve PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/41446394999) are both green on the same final proof head; [JSON read PG16](https://github.com/erwinmehehe/payrollph/actions/runs/41446394862) also passed. `@erwinmehehe` is the repository's only reviewer. The evidence label `SOLO_VERIFIED_DEV_RECOVERY` makes **no claim of independent review**. Existing worker/provider/payout/money/CSP gates stay OFF; no official BIR submissions, production data, global tenant acceptance, or release. Keep draft, do not merge.
+
 ## Safety boundary and method evidence contract
 
 Operate only on fictional three-employer fixtures (victim employer A plus attackers B and C), dedicated localhost Next.js in production mode, real disposable PostgreSQL 16 (`/app_db`), temporary test-process-only flags and dummy secrets. **Never** use Neon, a production endpoint/DB, real bank details, real workers, production SQL, deploy flags, new migrations, provider HTTP calls or actual money movement. Preserve `requireDisposable`, existing tests, exact HTTP statuses, and maker/checker/payroll calculation behavior. The existing CI provisioning via `npm run db:push` targets only ephemeral PG; no migration files or production schema are changed by this plan.
@@ -66,9 +70,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 22 | 0 | 11 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 24 | 0 | 9 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 22 | 0 | 11 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
@@ -79,7 +83,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **307 COVERED + 2 PUBLIC-BY-DESIGN + 97 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

@@ -1,6 +1,8 @@
+> **Current evidence update, 2026-11-02:** Exact final head `066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5` passed PG16 HTTP run 41446394887 (year-end annualization and all draft exports), 41446394862 (JSON read) and 41446394999 (prior evidence real save, approve and read). `GET/POST year-end` and `GET/POST year-end/prior-evidence` each have all four parts. **`SOLO_VERIFIED_DEV_RECOVERY`**: sole reviewer is owner `@erwinmehehe`, not independent. This is method-only development coverage, not BIR/production/payroll release. Historical zero-credit planning below is preserved as dated context.
+
 # Year-end and prior-employer evidence four-method tenant isolation proof review
 
-**DRAFT / NOT ACCEPTED / ZERO METHOD CREDITS.** The inventory retains `GAP`
+**DRAFT / 4 METHOD-ONLY SOLO_VERIFIED_DEV_RECOVERY CREDITS / NOT TENANT-WIDE ACCEPTED.** The inventory retains `GAP`
 for all four exact methods until source-pinned four-part proof has passed on
 the final PR head and has been independently reviewed. `main` inspected at
 `11b6d544cf6bd30c84fc524a088f90627dec09e6`.
