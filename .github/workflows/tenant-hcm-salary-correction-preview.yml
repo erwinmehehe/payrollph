@@ -67,6 +67,7 @@ jobs:
             echo 'XENDIT_BILLING_ENABLED=false'
             echo 'WORKER_ENABLED=false'
             echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'NEXT_CSP_ENABLED=false'
             echo 'PAYMONGO_SECRET_KEY='
             echo 'XENDIT_SECRET_KEY='
           } >> "$GITHUB_ENV"
