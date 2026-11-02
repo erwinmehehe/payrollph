@@ -13,6 +13,21 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "true",
     CORE_MODULE_NAVIGATION_ENABLED: "true",
   },
+  // Dedicated statutory isolation profile: every monetary, payout and provider release flag stays OFF.
+  // Does not change global defaults or authorize a production feature.
+  "compliance-posts": {
+    WORKER_ENABLED: "false",
+    CENTRAL_SCHEDULER_ENABLED: "false",
+    XENDIT_BILLING_ENABLED: "false",
+    XENDIT_PAYOUTS_ENABLED: "false",
+    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+    HCM_OVERPAYMENT_PREVIEW_ENABLED: "false",
+    PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
+    PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false",
+    WFM_LOYVERSE_POS_ENABLED: "false",
+    WFM_SQUARE_SANDBOX_ENABLED: "false",
+    CSP_ENABLED: "false",
+  },
   // Reads that are 404 unless their own plain release flag is on; kept off the default server so the
   // default rows are proven in the same shape as production.
   "flagged-reads": {
