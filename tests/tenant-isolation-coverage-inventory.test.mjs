@@ -2069,6 +2069,31 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Only this exact three-method unaccepted source review.
   }
 
+  if (isNewOrChanged && key === "src/app/api/earned-wage/route.ts POST") {
+    const expected = {
+      kind: "earned-wage-POST-atomic-audit-source-only",
+      priorRouteBlobSha: "258b48d5ffc372bba31c52d2b71e56374660ea50", routeBlobSha: "e030259bb14719a806acbdad77c35135f63e1520",
+      contractFile: "tests/tenant-earned-wage-post-audit-atomic.test.mjs", contractBlobSha: "3bf5d524f2d89dc9ac69cfb1ea3071ff0c74441c",
+      credits: 0, independentSecurityReview: "PENDING",
+      actualPg16Http: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    const post = readFileSync("src/app/api/earned-wage/route.ts", "utf8")
+      .split("export async function POST")[1].split("export async function PATCH")[0];
+    for (const token of [
+      "const result = await db.transaction(async (tx) => {",
+      "await tx.insert(earnedWageRequests)",
+      "await recordAuditEvent({",
+      "}, tx);",
+    ]) assert.ok(post.includes(token), "Missing zero-credit EWA POST audit transaction: " + token);
+    return;
+  }
+
+
   // HCM SLA runs across employers by an explicitly configured cron token, not
   // a caller-selected employer. Source-only partial-index repair and a real
   // fictional PG16 HTTP candidate are NEVER a client-method coverage credit.

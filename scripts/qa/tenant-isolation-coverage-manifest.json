@@ -9464,7 +9464,7 @@
       ]
     },
     "src/app/api/earned-wage/route.ts": {
-      "gitBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
+      "gitBlobSha": "e030259bb14719a806acbdad77c35135f63e1520",
       "route": "earned-wage",
       "methods": [
         {
@@ -9488,8 +9488,19 @@
           "name": "POST",
           "line": 98,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: EWA POST now locks the employer-bound employee and rechecks eligibility before its transactional request/audit; source-only proof, independent PG16 HTTP and review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "earned-wage-POST-atomic-audit-source-only",
+            "priorRouteBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
+            "routeBlobSha": "e030259bb14719a806acbdad77c35135f63e1520",
+            "contractFile": "tests/tenant-earned-wage-post-audit-atomic.test.mjs",
+            "contractBlobSha": "3bf5d524f2d89dc9ac69cfb1ea3071ff0c74441c",
+            "credits": 0,
+            "independentSecurityReview": "PENDING",
+            "actualPg16Http": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
