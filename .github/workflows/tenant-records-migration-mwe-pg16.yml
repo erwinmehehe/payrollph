@@ -38,6 +38,7 @@ jobs:
       WORKER_ENABLED: "false"
       CENTRAL_SCHEDULER_ENABLED: "false"
       NEXT_CSP_ENABLED: "false"
+      DOCUMENT_UPLOADS_ENABLED: "false"
       CSP_REPORT_ONLY: "false"
       PAYMONGO_SECRET_KEY: ""
       XENDIT_SECRET_KEY: ""
@@ -83,6 +84,7 @@ jobs:
             echo 'WORKER_ENABLED=false'
             echo 'CENTRAL_SCHEDULER_ENABLED=false'
             echo 'NEXT_CSP_ENABLED=false'
+            echo 'DOCUMENT_UPLOADS_ENABLED=false'
             echo 'CSP_REPORT_ONLY=false'
             echo 'PAYMONGO_SECRET_KEY='
             echo 'XENDIT_SECRET_KEY='
