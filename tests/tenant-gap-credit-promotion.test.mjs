@@ -212,7 +212,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH approvals/[id]",
     "PATCH performance/follow-through-governance",
     "PATCH careers/admin",
-    "GET year-end",
+    "GET year-end", "GET workforce/demand-staffing/policies",
     "PATCH self/profile",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
   ];

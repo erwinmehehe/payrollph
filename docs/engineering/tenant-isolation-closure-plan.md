@@ -1,10 +1,10 @@
 # Tenant isolation closure plan — 490 API methods and 20 page/action surfaces
 
+## WRK-01 narrow two-method provisional reconciliation (2026-11-02, NOT ACCEPTED)
+
+**Current proposed ledger: 498 methods = 388 COVERED + 10 PUBLIC-BY-DESIGN + 100 GAP.** Merged #1680's [two-job fictional PG16 HTTP run](https://github.com/erwinmehehe/payrollph/actions/runs/41293308290) proves the real higher-ID victim, signed-in owned positives, foreign/forged denials and unchanged payroll/audit for `GET workforce/greedy-roster` and `POST workforce/roster-rules/preview`. The exact route, runner, contract and CI workflow bytes were compared against current main. **Do not credit `GET workforce/demand-staffing/policies`: only the approved branch was exercised; whole-method manage-mode proof remains incomplete.** Main's separately credited Xendit webhook POST remains credited. All 17 page/action GAPs and independent security/WFM review requirements remain. No deploy, provider, payroll release or production access.
+
 > **NOT ACCEPTED — baseline only.** Audited GitHub `main@28e1224448342c34a4899fb67660b3da504530c1` on 2026-10-21: 289 route files, 490 HTTP methods, **76 COVERED / 8 PUBLIC-BY-DESIGN / 406 GAP**, plus **20 page/action GAPs**. No additional methods are certified by writing this plan. This document is a **frozen 406-method closure queue**; later PRs must update the live manifest and the inventory headline independently. Manifest acceptance stays **NOT ACCEPTED**; an independent owner/reviewer decides acceptance.
-
-## WFM three-method exact-head provisional coverage proposal (2026-11-02, NOT ACCEPTED)
-
-**Current proposed ledger: 498 methods = 388 COVERED + 10 PUBLIC-BY-DESIGN + 100 GAP.** The merged #1680 two-job fictional PostgreSQL 16 / production-mode localhost [run 41293308290](https://github.com/erwinmehehe/payrollph/actions/runs/41293308290) passed on head `a5c70e563580c5ab9cb6d8db7610f3950148a27e`. Only `GET workforce/greedy-roster`, `POST workforce/roster-rules/preview` and `GET workforce/demand-staffing/policies` are proposed for provisional COVERED credit; all three cite disjoint methods, source-blob identities, owned positives, real higher-ID victim denials, forgery controls and unchanged SQL. Their source/proof/workflow dependencies have not changed since the passing head; no other WFM or compliance methods are credited. Independent tenant/WFM/security review stays **PENDING**. All 17 page/action GAPs remain; no production, provider, payroll or global acceptance.
 
 ## 2026-10-31 PR #1646 sync with main@04029a8b — NOT ACCEPTED
 
@@ -77,11 +77,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 33 | 0 | 6 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 18 | 0 | 15 | INCOMPLETE |
 
 Frozen subtotal: **304 COVERED + 2 PUBLIC-BY-DESIGN + 100 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 

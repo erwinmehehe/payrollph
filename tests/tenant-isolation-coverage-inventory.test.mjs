@@ -829,6 +829,54 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
+  // PayMongo transfer callback: permit only the reviewed removal of the run-existence oracle, while the method stays GAP
+  // until the dedicated signed-callback proof is credited under proofPolicy.providerCallback.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/webhooks/paymongo/transfers/route.ts POST") {
+    const review = method.reviewedUncertified;
+    const originalBlob = "68c6b8f2b7ba8f70417cc461e78270f6b2b9a17d";
+    const hardenedBlob = "b7606ef203779ec194e3a3c3b4d0664e77e3ac31";
+    assert.equal(currentBlob, hardenedBlob, "PayMongo callback route changed again: fresh source review required");
+    assert.equal(review?.kind, "paymongo-transfer-webhook-no-run-oracle-hardening-only-zero-credit");
+    assert.equal(review.originalRouteBlobSha, originalBlob);
+    assert.equal(review.routeBlobSha, hardenedBlob);
+    assert.equal(review.fullMethodCoverageCredits, 0);
+    assert.equal(review.ownForeignTenantProof, false);
+    assert.equal(review.goLiveApproval, false);
+    assert.equal(method.testedBy, null, "PayMongo callback POST remains GAP until its separate method proof is credited");
+    assert.match(method.reason, /GAP/);
+    const source = readFileSync("src/app/api/webhooks/paymongo/transfers/route.ts", "utf8");
+    const hardened = [
+      "  // Validate before touching the run so the response never depends on whether the run exists.",
+      "  if (!event.eventId || event.eventId.length > 180) {",
+      "    return Response.json({ error: \"Invalid provider event ID.\" }, { status: 400 });",
+      "  }",
+      "",
+      "  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);",
+      "  if (!run) {",
+      "    // Same response as a run that exists but does not hold this transfer: a signed",
+      "    // caller must not be able to tell a nonexistent run from another tenant's run.",
+      "    return Response.json({ ok: true, ignored: true, reason: \"unmatched-payroll-transfer\" });",
+      "  }",
+      "",
+    ].join(String.fromCharCode(10));
+    const former = [
+      "  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);",
+      "  if (!run) {",
+      "    return Response.json({ ok: true, ignored: true, reason: \"unknown-payroll-run\" });",
+      "  }",
+      "",
+      "  if (!event.eventId || event.eventId.length > 180) {",
+      "    return Response.json({ error: \"Invalid provider event ID.\" }, { status: 400 });",
+      "  }",
+      "",
+    ].join(String.fromCharCode(10));
+    assert.equal(source.split(hardened).length - 1, 1, "the reviewed oracle removal must occur exactly once");
+    assert.equal(gitBlobSha(Buffer.from(source.replace(hardened, former))), originalBlob,
+      "PayMongo PR may change ONLY the reviewed run-lookup ordering and response");
+    return;
+  }
+
   // Signup is a public tenant-CREATION method, not an already authenticated
   // own/foreign employer method. Permit only the four reviewed anti-abuse
   // source substitutions, while keeping the entire POST method GAP.
@@ -1683,7 +1731,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
 
   // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
   // These changes preserve the historical POST/PATCH handlers byte-for-byte,
-  // preserve all existing method credits. The separate three-method review now proposes a source-pinned GET credit.
+  // preserve all existing method credits, and do NOT promote the open GET GAP.
   if (isNewOrChanged && (
     key.startsWith("src/app/api/workforce/demand-observations/issued/route.ts ") ||
     key.startsWith("src/app/api/workforce/demand-staffing/policies/route.ts ")
@@ -1708,18 +1756,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(baseline.api[routePath], before, "Original WFM demand baseline must remain stable");
     const expectedStatuses = issued
       ? { GET: "COVERED", POST: "GAP" }
-      : { GET: "COVERED", POST: "COVERED", PATCH: "COVERED" };
+      : { GET: "GAP", POST: "COVERED", PATCH: "COVERED" };
     assert.equal(method.status, expectedStatuses[method.name],
       "WFM permission fix cannot silently promote, downgrade or omit another method");
     if (method.status === "GAP") assert.equal(method.testedBy, null,
       "Unreviewed method cannot borrow a feature-OFF or static proof credit");
-    else if (!issued && method.name === "GET") {
-      assert.equal(method.testedBy?.routeBlobSha, after,
-        "Credited approved-policy GET must cite the current authorization-overlay source");
-      assert.equal(method.testedBy?.file,
-        "scripts/qa/tenant-demand-approved-policy-get-http.mjs",
-        "Historical POST/PATCH must not substitute for the real GET proof");
-    } else {
+    else {
       assert.equal(method.testedBy?.routeBlobSha, before,
         "Historical covered method evidence must keep its original source hash");
       assert.equal(method.testedBy?.file, issued
@@ -1735,7 +1777,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       routeBlobSha: after,
       onlyReadHandlerChanged: true,
       changedMethod: "GET",
-      statusBefore: !issued && method.name === "GET" ? "GAP" : method.status,
+      statusBefore: method.status,
       runnerFile: "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
       runnerBlobSha: "595539e672a3dc121f709b44ce045f432d7d9d92",
       contractFile: "tests/tenant-wfm-demand-read-overlay.test.mjs",
@@ -3795,6 +3837,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 124748701503);
         continue;
       }
+      // webhooks/xendit-payout POST: provider-callback receipt; anchors and pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-webhook-xendit-payout-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/webhooks/xendit-payout/route.ts POST", "No unrelated method may reuse the xendit payout webhook evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "2e7e23edeec362ff90203b1cc0e243aa3db8bf4a");
+        assert.equal(proof.workflowRunId, 41367679707);
+        assert.equal(proof.workflowJobId, 125031218758);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -4129,9 +4181,9 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
       }
-      // Three deliberately disjoint WFM read/preview receipts. They do not
+      // Two independently executed WFM GET/POST receipts. They do not
       // borrow the already-credited staffing-policy POST/PATCH evidence.
-      const wfmThree = {
+      const wfmTwo = {
         "scripts/qa/tenant-wrk01-greedy-roster-http.mjs": {
           route: "src/app/api/workforce/greedy-roster/route.ts", method: "GET",
           contract: "scripts/qa/tenant-wrk01-greedy-roster-contract.mjs", job: 124808879396,
@@ -4145,16 +4197,8 @@ test("all credited proof links point to the claimed route and every recertified 
           foreign: /const response = await post\(body, attacker\.cookie\)/,
           forged: /stolen employee/, unchanged: /assertRosterPreviewImmutable\(/,
         },
-        "scripts/qa/tenant-demand-approved-policy-get-http.mjs": {
-          route: "src/app/api/workforce/demand-staffing/policies/route.ts", method: "GET",
-          contract: "scripts/qa/tenant-demand-approved-policy-get-contract.mjs", job: 124808879584,
-          own: /const own = await request\(url, \{ cookie: attacker\.cookie \}\)/,
-          foreign: /await denied\(endpoint\(victim\.org\.id, victimRow\.worksiteId/,
-          forged: /const forged = await request\(url \+ "&policyId="/,
-          unchanged: /assert\.deepEqual\(await snapshot\(e\.org\.id\), before\.get\(e\.org\.id\)/,
-        },
       };
-      const wfmSpec = wfmThree[proof?.file];
+      const wfmSpec = wfmTwo[proof?.file];
       if (wfmSpec) {
         assert.equal(path, wfmSpec.route, "WFM proof cannot be borrowed by another API route");
         assert.equal(method.name, wfmSpec.method, "WFM proof must match the actual HTTP method");
@@ -4183,7 +4227,7 @@ test("all credited proof links point to the claimed route and every recertified 
           ["unchangedDbLine", wfmSpec.unchanged],
         ]) assert.match(evidenceLine(proof.file, proof[field], path + " " + field), pattern);
         assert.ok(proof.victimIdOrderingLine > 0);
-        assert.match(proof.evidence, /^https:\/\/github\.com\/erwinmehehe\/payrollph\/actions\/runs\/41293308290\/job\/124808879(?:396|584)$/);
+        assert.match(proof.evidence, /^https:\/\/github\.com\/erwinmehehe\/payrollph\/actions\/runs\/41293308290\/job\/124808879396$/);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
@@ -5319,4 +5363,49 @@ test("allocations POST and PATCH credits require the exact passing run, byte-pin
   for (const evidence of ["requireDisposablePlanningEnv();", "cannot shrink below accepted manager demand", "sum of org-unit budgets cannot exceed plan budget",
     'for (const action of ["submit", "accept", "reject"])', "foreignPatches: 8, nonadminPatches: 2, makerDecisionDenials: 3"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
   assert.ok(harness.indexOf("requireDisposablePlanningEnv();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+});
+
+test("xendit payout webhook credit requires the exact passing run, byte-pinned inputs, the provider-callback rule and a cited call per case", () => {
+  const routePath = "src/app/api/webhooks/xendit-payout/route.ts";
+  const harnessFile = "scripts/qa/tenant-webhook-xendit-payout-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const harnessLines = harness.split(String.fromCharCode(10));
+  const workflow = readFileSync(".github/workflows/tenant-webhook-xendit-payout-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-xendit-payout-http.mjs"));
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 1, "the rule counts exactly this credited method");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const method = api.methods[0];
+  assert.equal(method.reviewedUncertified, undefined);
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.rule, "proofPolicy.providerCallback");
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 xendit-payout-webhook PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1696);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-webhook-xendit-payout-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-webhook-xendit-payout.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "const ownEvent = await send(eventBody(a));", "own-observation anchor");
+  cites(proof.secondaryOwnPositiveLine, "const forgedEvent = await send(eventBody(a, {", "forged-selector anchor");
+  cites(proof.foreignDenialLine, "const foreignVictim = await send(eventBody(victim));", "foreign-run anchor");
+  cites(proof.secondaryForeignDenialLine, "const foreignSecondAttacker = await send(eventBody(b));", "second-attacker anchor");
+  cites(proof.unchangedDbLine, "await unchangedExcept(before);", "unchanged-SQL anchor");
+  cites(proof.unchangedDbLine - 1, "for (const forbidden of [victim.marker,", "unchanged-SQL anchor follows the echo check");
+  cites(proof.higherIdVictimLine, "victim.payout[key] > a.payout[key]", "higher-ID victim anchor");
+  cites(proof.replayLine, "const replayEvent = await send(eventBody(a), { eventId: ownEvent.eventId });", "replay anchor");
+  cites(proof.concurrentDeliveryLine, "const raced = await Promise.all(", "concurrent-delivery anchor");
+  cites(proof.crossBoundLine, "const crossVictimReference = await send(", "cross-bound anchor");
+  for (const evidence of ["requireDisposableXenditPayoutWebhook();", "a real foreign run must not be distinguishable from a nonexistent run",
+    "denial must not echo victim data", "Settlement observation rejected; manual review required."]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposableXenditPayoutWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
 });

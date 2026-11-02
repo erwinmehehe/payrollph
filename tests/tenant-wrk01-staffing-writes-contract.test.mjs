@@ -187,12 +187,8 @@ test("manifest credits both WRK-01 write methods only through the source-pinned 
     assert.match(method.testedBy.independentReview, /^PENDING/);
     assert.equal(method.testedBy.productionCertified, false);
   }
-  // GET has a separate provisionally credited approved-mode receipt; it never borrows POST/PATCH's older proof.
-  const read = route.methods.find(x => x.name === "GET");
-  assert.equal(read.status, "COVERED");
-  assert.equal(read.testedBy.file, "scripts/qa/tenant-demand-approved-policy-get-http.mjs");
-  assert.equal(read.testedBy.workflowRunId, 41293308290);
-  assert.equal(read.testedBy.independentSecurityReview, "PENDING");
+  // The uncovered read stays GAP: manage-mode GET has no own/foreign proof here.
+  assert.equal(route.methods.find(x => x.name === "GET").status, "GAP");
 });
 
 test("actual HTTP source covers creation, all PATCH decisions, real target IDs and SQL snapshots", () => {
