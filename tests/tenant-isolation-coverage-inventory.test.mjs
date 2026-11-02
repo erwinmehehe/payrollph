@@ -2342,6 +2342,42 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // A deliberately uncredited single-family fix. Preserve the frozen GAP
+  // until source-pinned fictional PG16 and independent reviewer acceptance.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/treasury-controls/route.ts POST") {
+    const review = method.reviewedUncertified;
+    assert.equal(currentBlob, "56583ab43e7dc39101bb17122b4e9bdcbbaad81a",
+      "Single-family source changed; renew tenant/security review");
+    assert.deepEqual(review, {
+      kind: "treasury-post-transactional-audit-PG16-review-only",
+      originalRouteBlobSha: "bb5b9cd2b0a0ca2d9ec3d66bfab80ebdf344d653",
+      routeBlobSha: "56583ab43e7dc39101bb17122b4e9bdcbbaad81a",
+      proofFile: "scripts/qa/tenant-mny02-treasury-http.mjs",
+      proofBlobSha: "06ccd8204c45e93edf9db34fc465e7685b39eb73",
+      contractFile: "tests/tenant-mny02-treasury-contract.test.mjs",
+      contractBlobSha: "e274e63aa41f5e8afd63f466bd7e7c29b33a66a1",
+      workflowFile: ".github/workflows/tenant-mny02-treasury-http.yml",
+      workflowBlobSha: "790ff70cdbae22ef9709e7676b2ba99f1244fb4e",
+      coverageCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    });
+    assert.equal(method.testedBy, null, "Unaccepted candidate must earn zero credits");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Review-only fictional proof was changed without repinning: " + file);
+    const write = readFileSync("src/app/api/treasury-controls/route.ts", "utf8")
+      .split("export async function POST(")[1];
+    assert.ok(write, "Expected single-family API handler");
+    assert.match(write, /await db\.transaction\(async \(tx\) => \{/);
+    assert.match(write, /await recordAuditEvent\([\s\S]*\}, tx\);\s*\}\);\s*\} catch \{/);
+    assert.match(write, /Treasury controls could not be saved\./);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

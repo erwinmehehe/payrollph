@@ -140,6 +140,25 @@ export function buildWfmOpsSignals(
   return signals.sort((a, b) => Number(a.priority !== "urgent") - Number(b.priority !== "urgent") || a.id.localeCompare(b.id));
 }
 
+/** Local view preference only. A priority label is not a wage or policy finding. */
+export type WfmOpsSignalFilter = "all" | "urgent" | "review";
+
+export function filterWfmOpsSignals(
+  signals: readonly WfmOpsSignal[],
+  filter: WfmOpsSignalFilter,
+): WfmOpsSignal[] {
+  return filter === "all" ? [...signals] : signals.filter((signal) => signal.priority === filter);
+}
+
+/** Reject impossible local dates instead of normalizing them to another pay period. */
+export function isValidWfmOpsPeriod(periodStart: string, periodEnd: string): boolean {
+  try {
+    return calendarDate(periodStart).getTime() <= calendarDate(periodEnd).getTime();
+  } catch {
+    return false;
+  }
+}
+
 function calendarDate(text: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new Error("A valid ISO work date is required.");
   const date = new Date(text + "T00:00:00Z");
