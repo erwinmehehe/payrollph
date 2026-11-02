@@ -199,6 +199,78 @@ try {
       firstHandoffs.set(e.label + ":" + kind, r.json.approval);
     }
   }
+
+  // Both handoff source types must support a genuine idempotent replay and a
+  // changed-source follow-up without adopting another tenant's approval.
+  for (const e of attackers) {
+    for (const [kind,id] of [["hcm_separation_readiness",sepId.get(e)],
+      ["wfm_roster_claim_review",claimId.get(e)]]) {
+      const original = firstHandoffs.get(e.label + ":" + kind);
+      const instancesBefore = await db.select().from(approvalChainInstances)
+        .where(eq(approvalChainInstances.organizationId,e.org.id));
+      const tasksBefore = await db.select().from(approvalTasks)
+        .where(eq(approvalTasks.organizationId,e.org.id));
+      const replay = status(await post("/api/governed-handoffs",e.cookie,
+        handoffBody(e,kind,id)),201,e.label+" idempotent "+kind+" own retry");
+      need(replay.json.approval.id === original.id &&
+        replay.json.approval.taskId === original.taskId &&
+        replay.json.approval.sourceHash === original.sourceHash,
+        kind+" exact own replay returns same persisted source-bound chain and task");
+      assert.equal((await db.select().from(approvalChainInstances)
+        .where(eq(approvalChainInstances.organizationId,e.org.id))).length,
+        instancesBefore.length, "idempotent replay may not duplicate approval instances");
+      assert.equal((await db.select().from(approvalTasks)
+        .where(eq(approvalTasks.organizationId,e.org.id))).length,
+        tasksBefore.length, "idempotent replay may not duplicate approval tasks");
+
+      if (kind === "hcm_separation_readiness") {
+        await db.update(separationRecords).set({noticeDate:"2026-11-17"}).where(and(
+          eq(separationRecords.organizationId,e.org.id),eq(separationRecords.id,id)));
+      } else {
+        await db.update(openShiftClaims).set({
+          reason:"Synthetic changed claim evidence for independent human review",
+        }).where(and(eq(openShiftClaims.organizationId,e.org.id),eq(openShiftClaims.id,id)));
+      }
+      const changed = status(await post("/api/governed-handoffs",e.cookie,
+        handoffBody(e,kind,id)),201,e.label+" changed-source "+kind+" own follow-up");
+      need(changed.json.approval.id !== original.id &&
+        changed.json.approval.sourceHash !== original.sourceHash &&
+        changed.json.approval.taskId !== original.taskId,
+        kind+" changed real source creates NEW version-bound approval and task");
+      const [fresh] = await db.select().from(approvalChainInstances)
+        .where(eq(approvalChainInstances.id,changed.json.approval.id));
+      need(fresh?.organizationId === e.org.id && fresh.sourceType === kind &&
+        fresh.sourceKey === id + ":" + changed.json.approval.sourceHash,
+        "changed handoff has persisted employer-bound new source hash/version");
+    }
+  }
+
+  // A deliberate PostgreSQL audit insert failure must NEVER commit an approval.
+  // Without the separately labelled atomic source fix, this 409 would silently
+  // leave orphan approval/task/step rows and the SQL snapshot would fail.
+  const faultSep = await seedSeparation(a);
+  const faultBefore = await ownOrgSnapshot(a.org.id);
+  await db.execute(sql.raw("CREATE FUNCTION tenant_qa_fail_handoff_audit() RETURNS trigger LANGUAGE plpgsql AS $ BEGIN IF NEW.action = 'Governed WFM/HCM human approval handoff requested' THEN RAISE EXCEPTION 'SYNTHETIC_AUDIT_FAULT_PRIVATE_ONLY'; END IF; RETURN NEW; END; $"));
+  await db.execute(sql.raw("CREATE TRIGGER tenant_qa_handoff_audit_denial BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION tenant_qa_fail_handoff_audit()"));
+  try {
+    const failed = await assertDenied(post("/api/governed-handoffs",a.cookie,
+      handoffBody(a,"hcm_separation_readiness",faultSep.id)),
+      409,v,"own governed handoff forced audit failure must roll back all writes");
+    need(failed.json.code === "GOVERNED_HANDOFF_UNAVAILABLE" &&
+      !failed.text.includes("SYNTHETIC_AUDIT_FAULT_PRIVATE_ONLY"),
+      "audit fault returns sanitized 409 without revealing exception or SQL");
+    assert.deepEqual(await ownOrgSnapshot(a.org.id),faultBefore,
+      "forced audit exception leaves zero orphaned approval, task, step or audit changes");
+  } finally {
+    await db.execute(sql.raw("DROP TRIGGER tenant_qa_handoff_audit_denial ON audit_events"));
+    await db.execute(sql.raw("DROP FUNCTION tenant_qa_fail_handoff_audit()"));
+  }
+  const recovered = status(await post("/api/governed-handoffs",a.cookie,
+    handoffBody(a,"hcm_separation_readiness",faultSep.id)),
+    201,"audit-failed source retries successfully without half-committed records");
+  need(recovered.json?.approval?.id>0 && recovered.json?.approval?.taskId>0,
+    "audit-failed source becomes a persisted real handoff after recovery");
+
   // POSITIVE #2 (leave create): two independent signed-in own submissions + real victim.
   const ownLeaves = new Map();
   for (const e of [a,b,v]) {
