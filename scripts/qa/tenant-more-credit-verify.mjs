@@ -182,7 +182,20 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     const method = manifest.allApiRouteFiles[path]?.methods.find(m => m.name === verb);
     if (path === "src/app/api/web-bundy/consent/route.ts" && method?.status === "COVERED") {
       verifyClockCredit("POST web-bundy/consent", method);
-      continue; // Independently executed consent lifecycle; cannot borrow this historical promotion.
+      continue; // Distinct consent lifecycle proof; cannot borrow this historical promotion.
+    }
+    if (path === "src/app/api/workforce/demand-observations/issued/route.ts") {
+      assert.equal(method?.status, "COVERED",
+        "New exact-head owner-only PG16 POST proof must not be erased by historical GET overlay checks");
+      assert.equal(method?.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(method?.testedBy?.workflowRunId, 41444835667);
+      assert.equal(method?.testedBy?.ownerReviewer, "erwinmehehe");
+      assert.equal(method?.testedBy?.ownerIsOnlyReviewer, true);
+      assert.equal(method?.testedBy?.routeBlobSha,
+        manifest.allApiRouteFiles[path].gitBlobSha);
+      assert.equal(method?.testedBy?.proofBlobSha,
+        gitBlobSha(read(method.testedBy.file)));
+      continue;
     }
     assert.equal(method?.status, "GAP", path + " " + verb + ": incomplete proof");
     assert.equal(method?.testedBy, null, path + " " + verb + ": borrowed method evidence");
