@@ -5,8 +5,9 @@
  * same owner naming the higher-ID victim filing under its own organization is
  * not found; the victim's whole PostgreSQL snapshot remains unchanged.
  *
- * Only fictional REJECTED records are positively exercised. There is NO
- * agency acceptance, submission, remittance, payment or payroll release.
+ * Both fictional rejected and ACCEPTED status branches are exercised, but
+ * no government acknowledgement, submission, remittance, payment or payroll
+ * release actually occurs. All agency references are CI-only fixtures.
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -139,6 +140,121 @@ export function createRows({
           proveFilingStateUntouched(victimBefore,
             await state(ctx.victim.org.id));
         }
+        // Recover the separate accepted-outcome POST/PATCH branch as a
+        // genuine signed-in HTTP and persisted DB proof for EACH attacker
+        // employer. This creates only a FICTIONAL acknowledgement in the
+        // verified empty PG16 database: no real SSS portal, submission, funds,
+        // payroll release, or government response is implied or contacted.
+        const fictionalReference = "CI-ONLY-SSS-" + ctx.seeded.id;
+        const [acceptFixture] = await db.insert(governmentFilingValidations).values({
+          organizationId: ctx.orgId, legalEntityId: ctx.entityId,
+          payrollRunId: ctx.seeded.runId,
+          agency: "SSS", form: "R-3",
+          periodLabel: ctx.marker + " CI-only accepted-path fixture",
+          applicableMonth: FILING_PERIOD.applicableMonth,
+          employeeCount: 1, reportedTotal: (20_000 + ctx.rank * 123).toFixed(2),
+          fileName: ctx.marker + "-ci-acceptance-synthetic-only.csv",
+          fileSha256: createHash("sha256").update(
+            "never-submitted-ci-accepted:" + ctx.marker + ":" + ctx.seeded.runId,
+          ).digest("hex"),
+          generatorVersion: "sss-r3-worksheet-v2",
+          generatedBy: ctx.marker + " fictional branch-coverage fixture",
+          status: "generated",
+        }).returning();
+        assert.equal(acceptFixture.organizationId, ctx.orgId);
+        assert.equal(acceptFixture.legalEntityId, ctx.entityId);
+        assert.equal(acceptFixture.payrollRunId, ctx.seeded.runId);
+        assert.ok(acceptFixture.id > ctx.seeded.id,
+          "new accepted-path source must be a real later persisted filing");
+        const acceptedBody = {
+          organizationId: ctx.orgId, outcome: "accepted",
+          submissionMethod: "manual_entry",
+          agencyReference: fictionalReference,
+          submittedAt: "2025-07-16",
+          note: "Fictional branch-coverage acceptance only; never submitted to SSS",
+        };
+        const beforeAccepted = await state(ctx.orgId);
+        const victimBeforeAccepted = await state(ctx.victim.org.id);
+        const acceptedHttp = expectStatus(await request(
+          "/api/compliance/filing-validations/" + acceptFixture.id, {
+            method: "PATCH", cookie, body: acceptedBody,
+          }), 200, "real own authorized SSS R-3 accepted decision branch");
+        const afterAccepted = await state(ctx.orgId);
+        const persistedAccepted = afterAccepted.filings.find(
+          row => row.id === acceptFixture.id);
+        assert.ok(persistedAccepted, "own acceptance must commit genuine PG16 row");
+        assert.equal(persistedAccepted.organizationId, ctx.orgId);
+        assert.equal(persistedAccepted.legalEntityId, ctx.entityId);
+        assert.equal(persistedAccepted.payrollRunId, ctx.seeded.runId);
+        assert.equal(persistedAccepted.status, "accepted");
+        assert.equal(persistedAccepted.submissionMethod, "manual_entry");
+        assert.equal(persistedAccepted.agencyReference, fictionalReference);
+        assert.equal(persistedAccepted.submittedAt?.toISOString?.().slice(0, 10),
+          "2025-07-16");
+        assert.equal(persistedAccepted.recordedBy, ctx.owner.name);
+        assert.ok(persistedAccepted.recordedAt,
+          "an authorized accepted decision must have a persisted actor timestamp");
+        assert.deepEqual(acceptedHttp.json?.record,
+          JSON.parse(JSON.stringify(persistedAccepted)),
+          "own 200 must return exactly the committed acceptance row");
+        for (const name of ["runs", "employees", "payProfiles"]) {
+          assert.deepEqual(afterAccepted[name], beforeAccepted[name],
+            "a filing acceptance must not change payroll/worker/pay profiles: " + name);
+        }
+        assert.deepEqual(afterAccepted.filings.filter(row => row.id !== acceptFixture.id),
+          beforeAccepted.filings.filter(row => row.id !== acceptFixture.id),
+          "a synthetic acceptance cannot change another own filing");
+        assert.equal(afterAccepted.audit.length, beforeAccepted.audit.length + 1,
+          "one own acceptance must commit exactly one actor audit");
+        assert.deepEqual(afterAccepted.audit.slice(0, -1), beforeAccepted.audit,
+          "acceptance must not mutate any earlier audit event");
+        const acceptedAudit = afterAccepted.audit.at(-1);
+        assert.equal(acceptedAudit.organizationId, ctx.orgId);
+        assert.equal(acceptedAudit.actor, ctx.owner.name);
+        assert.equal(acceptedAudit.action, "SSS R-3 filing accepted");
+        assert.equal(acceptedAudit.resource, persistedAccepted.periodLabel);
+        assert.deepEqual(acceptedAudit.metadata, {
+          recordId: acceptFixture.id, runId: ctx.seeded.runId,
+          fileSha256: persistedAccepted.fileSha256,
+          submissionMethod: "manual_entry", agencyReference: fictionalReference,
+          submittedAt: persistedAccepted.submittedAt.toISOString(),
+        });
+        assert.ok(!acceptedHttp.text.includes(ctx.victim.marker),
+          "real own accepted HTTP response must not leak victim filing evidence");
+        proveFilingStateUntouched(victimBeforeAccepted,
+          await state(ctx.victim.org.id));
+
+        // Repeat denial and the SAME victim/forged selectors applied to the
+        // accepted action, not merely the previously tested rejection action.
+        for (const deniedCase of [
+          {
+            label: "repeat immutable accepted decision",
+            url: "/api/compliance/filing-validations/" + acceptFixture.id,
+            body: acceptedBody, status: 409,
+          },
+          {
+            label: "foreign organization accepted decision",
+            url: "/api/compliance/filing-validations/" + ctx.victimSeeded.id,
+            body: { ...acceptedBody, organizationId: ctx.victim.org.id },
+            status: 403,
+          },
+          {
+            label: "forged victim filing ID within own organization",
+            url: "/api/compliance/filing-validations/" + ctx.victimSeeded.id,
+            body: acceptedBody, status: 404,
+          },
+        ]) {
+          const deniedResponse = expectStatus(await request(deniedCase.url, {
+            method: "PATCH", cookie, body: deniedCase.body,
+          }), deniedCase.status,
+          "Fictional accepted-path " + deniedCase.label);
+          proveFilingDenied(deniedResponse, deniedCase.status,
+            [ctx.marker, ctx.victim.marker]);
+          proveFilingStateUntouched(afterAccepted, await state(ctx.orgId));
+          proveFilingStateUntouched(victimBeforeAccepted,
+            await state(ctx.victim.org.id));
+        }
+
         // Synthetic audit-insert veto: if the status transition is not in the
         // same PostgreSQL transaction as its audit, this real HTTP request
         // would commit "rejected" even though the audit INSERT fails.
@@ -211,6 +327,10 @@ export function createRows({
           assert.deepEqual(removed.map(row => row.id), [vetoFiling.id]);
         }
         return {
+          acceptedOwnDecisionPG16: true,
+          acceptedForeignAndForgedDenied: true,
+          acceptedVictimDbAndAuditUnchanged: true,
+          acceptedBranchNoRealAgencySubmission: true,
           repeatedDecisionBlocked: true,
           fabricatedAcceptanceBlocked: true,
           impossibleDateBlocked: true,
