@@ -80,13 +80,16 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignored: true, reason: "test-mode-event" });
   }
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);
-  if (!run) {
-    return Response.json({ ok: true, ignored: true, reason: "unknown-payroll-run" });
-  }
-
+  // Validate before touching the run so the response never depends on whether the run exists.
   if (!event.eventId || event.eventId.length > 180) {
     return Response.json({ error: "Invalid provider event ID." }, { status: 400 });
+  }
+
+  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);
+  if (!run) {
+    // Same response as a run that exists but does not hold this transfer: a signed
+    // caller must not be able to tell a nonexistent run from another tenant's run.
+    return Response.json({ ok: true, ignored: true, reason: "unmatched-payroll-transfer" });
   }
 
   // Only fetch payout submission audit receipts for the matching run. These
