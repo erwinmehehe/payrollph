@@ -39,7 +39,7 @@ jobs:
       PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
       WFM_LOYVERSE_POS_ENABLED: "false"
       WFM_SQUARE_SANDBOX_ENABLED: "false"
-      CSP_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
     services:
       postgres:
         image: postgres:16
@@ -79,7 +79,7 @@ jobs:
             echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
             echo "WFM_LOYVERSE_POS_ENABLED=false"
             echo "WFM_SQUARE_SANDBOX_ENABLED=false"
-            echo "CSP_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
             echo "PAYMONGO_SECRET_KEY="
             echo "XENDIT_SECRET_KEY="
             echo "WFM_LOYVERSE_ACCESS_TOKEN="
