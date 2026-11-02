@@ -243,3 +243,16 @@ test("hire-to-requisition days obey Asia/Manila business date boundaries", () =>
   // 23:30 Manila. The UTC date is different but the local interval is zero.
   assert.equal(report.medianHireDays, 0);
 });
+
+test("recorded time-to-fill proxy never masquerades as a complete filled-position lifecycle", () => {
+  const summary = summarizeHcmPeopleIntelligence(input);
+  assert.equal(summary.timeToFillProxyDays, 36);
+  assert.equal(summary.timeToFillSampleSize, 1);
+  const missing = summarizeHcmPeopleIntelligence({ ...input, applicants: [] });
+  assert.equal(missing.timeToFillProxyDays, null);
+  assert.equal(missing.timeToFillSampleSize, 0);
+
+  const server = readFileSync("src/lib/hcm-people-intelligence-server.ts", "utf8");
+  assert.match(server, /Recorded time-to-fill proxy/);
+  assert.match(server, /not independently verified/);
+});
