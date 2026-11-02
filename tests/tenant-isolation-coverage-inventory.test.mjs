@@ -560,7 +560,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
     assert.equal(reviewed?.routeBlobSha, currentBlob);
     assert.equal(reviewed?.coverageCredits, 0);
-    assert.equal(reviewed?.independentReview, "PENDING");
+    assert.equal(reviewed?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(reviewed?.soleOwnerReviewer, "erwinmehehe");
+    assert.equal(reviewed?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
     assert.equal(method.testedBy, null, "No method is promoted to COVERED");
     assert.equal(reviewed?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
     assert.equal(reviewed?.fileBlobSha, gitBlobSha(readFileSync(reviewed.file)),
