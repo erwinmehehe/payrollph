@@ -1,5 +1,7 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
+> **Xendit payout webhook provisional evidence:** 386 COVERED / 10 PUBLIC-BY-DESIGN / 102 GAP. webhooks/xendit-payout POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41367679707/job/125031218758) from head `2e7e23ede`, merged as `90a9a207e`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production/payout authorization.
+
 > **Allocations provisional evidence:** 385 COVERED / 10 PUBLIC-BY-DESIGN / 103 GAP. Allocations POST and PATCH: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41272751903/job/124748701503) from head `a79c53844`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production/payout authorization.
 
 > **PR #1646 synced with main@04029a8b (2026-10-31; NOT ACCEPTED):** Current main is 382 COVERED / 10 PUBLIC-BY-DESIGN / 106 GAP of 498. The single new source-pinned compensation **POST** five-entity-type proof proposes **383 COVERED / 10 PUBLIC-BY-DESIGN / 105 GAP**, with 17 remaining page/action gaps. The separately proven PATCH remains one method, not an additional credit; the shared fixture supports both through a single seeded primary worker position and applicable compensation band. No production compensation, payroll or money authorization; exact-PR-head synthetic PG16 and independent security review remain required.
@@ -39,9 +41,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 103 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 102 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 103 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remain GAP. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 102 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remain GAP. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -150,9 +152,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 385 |
+| coveredAfter | 386 |
 | publicByDesign | 10 |
-| gap | 103 |
+| gap | 102 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -701,7 +703,7 @@ Every one of the 290 route files and 493 exported handlers is in the following s
 | [`webhooks/drain` POST](../../src/app/api/webhooks/drain/route.ts#L14) | session | getSessionUser L1, enforceSameOriginMutation L2, enforceSameOriginMutation L32, getSessionUser L35 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`webhooks/paymongo/transfers` POST](../../src/app/api/webhooks/paymongo/transfers/route.ts#L48) | NONE FOUND | NONE FOUND | input.runId L34 | NO VALID METHOD PROOF | **GAP** |
 | [`webhooks/resend` POST](../../src/app/api/webhooks/resend/route.ts#L10) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
-| [`webhooks/xendit-payout` POST](../../src/app/api/webhooks/xendit-payout/route.ts#L16) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`webhooks/xendit-payout` POST](../../src/app/api/webhooks/xendit-payout/route.ts#L16) | NONE FOUND | NONE FOUND | none found | [xendit-payout webhook proof](../../scripts/qa/tenant-webhook-xendit-payout-http.mjs#L117) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/41367679707/job/125031218758)) | **COVERED** |
 | [`webhooks/xendit/subscriptions` POST](../../src/app/api/webhooks/xendit/subscriptions/route.ts#L31) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`workforce-planning/allocations` GET](../../src/app/api/workforce-planning/allocations/route.ts#L72) | session, query, body | getAccess L10, assertOrganizationRole L13, getSessionUser L16, enforceSameOriginMutation L19 | searchParams.get("organizationId") L76, body.organizationId L155 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L57) | **COVERED** |
 | [`workforce-planning/allocations` POST](../../src/app/api/workforce-planning/allocations/route.ts#L145) | session, query, body | getAccess L10, assertOrganizationRole L13, getSessionUser L16, enforceSameOriginMutation L19 | searchParams.get("organizationId") L76, body.organizationId L155 | [allocations POST proof](../../scripts/qa/tenant-wfp-allocations-http.mjs#L301) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/41272751903/job/124748701503)) | **COVERED** |
