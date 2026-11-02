@@ -535,9 +535,13 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // source-pinned fictional PG16 methods. Never count the unproven GET.
   const staffingPolicyMethods = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods;
   const wfmProvisional = [
-    ["src/app/api/workforce/greedy-roster/route.ts", "GET", "scripts/qa/tenant-wrk01-greedy-roster-http.mjs"],
     ["src/app/api/workforce/roster-rules/preview/route.ts", "POST", "scripts/qa/tenant-wfm-three-method-post-http.mjs"],
   ];
+  const greedyPending = manifest.allApiRouteFiles["src/app/api/workforce/greedy-roster/route.ts"].methods
+    .find(method => method.name === "GET");
+  assert.equal(greedyPending.status, "GAP");
+  assert.equal(greedyPending.testedBy, null,
+    "new nonempty recommendation and source-exception proof is pending CI");
   for (const [path, verb, file] of wfmProvisional) {
     const method = manifest.allApiRouteFiles[path]?.methods.find(item => item.name === verb);
     assert.equal(method?.status, "COVERED", path + " must have separate own/foreign PG16 receipt");

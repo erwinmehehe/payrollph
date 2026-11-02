@@ -52,7 +52,7 @@ function positive() {
   });
 }
 
-test("only two WFM methods have own exact-job credits; policy GET manage-mode stays GAP", () => {
+test("POST preview alone stays provisionally credited; both GET methods remain GAP pending whole-method proof", () => {
   assert.equal(ROSTER_PREVIEW_ENDPOINT, "/api/workforce/roster-rules/preview");
   assert.deepEqual(WFM_THREE_METHODS, [
     "GET workforce/demand-staffing/policies",
@@ -68,10 +68,11 @@ test("only two WFM methods have own exact-job credits; policy GET manage-mode st
     assert.ok(entry, "manifest must contain exact route: " + file);
     const record = entry.methods.filter(m => m.name === verb);
     assert.equal(record.length, 1, "exact single method in canonical inventory");
-    if (route === "workforce/demand-staffing/policies") {
-      assert.equal(record[0].status, "GAP", "manage-mode GET lacks whole-method proof");
+    if (route !== "workforce/roster-rules/preview") {
+      assert.equal(record[0].status, "GAP",
+        "GET methods need independently passing whole-method branch proofs");
       assert.equal(record[0].testedBy, null,
-        "an approved-only receipt cannot certify the separate manage-mode behavior");
+        "historical partial branch receipts cannot certify these GET methods");
     } else {
       assert.equal(record[0].status, "COVERED",
         "only independent source-bound PostgreSQL proof may earn provisional credit");

@@ -52,8 +52,12 @@ export async function GET(request:Request) {
     });
     return Response.json(preview,{status:200,headers:noStore});
   }catch(error){
+    // Never return database, query, employee or internal-source exception details.
+    console.error("WFM greedy roster preview unavailable", {
+      errorType:error instanceof Error?error.name:typeof error,
+    });
     return Response.json({
-      error:error instanceof Error?error.message:"Verified staffing evidence could not be loaded.",
+      error:"Verified staffing evidence could not be loaded.",
       code:"WFM_GREEDY_ROSTER_SOURCE_REVIEW",
       automaticallyPublished:false,
     },{status:409,headers:noStore});

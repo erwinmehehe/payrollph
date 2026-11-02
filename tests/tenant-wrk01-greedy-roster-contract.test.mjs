@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   METHOD, ENDPOINT, requireDisposableGreedyRoster,
   assertGreedyNoStore, assertNoGreedyLeak, assertOwnGreedyRoster,
-  assertGreedyDenied, assertGreedySqlUnchanged,
+  assertSuggestedGreedyRoster, assertGreedyDenied, assertGreedySqlUnchanged,
 } from "../scripts/qa/tenant-wrk01-greedy-roster-contract.mjs";
 
 const safe = {
@@ -123,6 +123,49 @@ test("own positive must be genuine SQL-bound staffing requirements, not a cached
   }
 });
 
+
+test("nonempty suggestions must match exact owned SQL employee identity and refuse foreign PII", () => {
+  const eligible = {
+    ...actor, headcount: 1, shift: { id: 37 },
+    worker: { id: actor.worker.id, firstName: "Table", lastName: "Owned" },
+  };
+  function positive() {
+    const response = success();
+    response.json.roster = [{
+      requirementId: eligible.requirement.id, employeeId: eligible.worker.id,
+      employeeName: "Table Owned", workDate: eligible.workDate,
+      worksiteId: eligible.site.id, shiftDefinitionId: eligible.shift.id,
+      paidMinutes: 420, unpopular: false, source: "suggested", warnings: [],
+    }];
+    response.json.unfilled = [];
+    response.json.summary = {
+      required: 1, existing: 0, suggested: 1, unfilled: 0,
+      fairnessProjectedMinutes: [{
+        employeeId: eligible.worker.id, scheduledMinutes: 420, unpopularShifts: 0,
+      }],
+    };
+    response.text = JSON.stringify(response.json);
+    return response;
+  }
+  assertSuggestedGreedyRoster(positive(), eligible, [foreign]);
+  for (const mutate of [
+    x => { x.json.roster = []; },
+    x => { x.json.roster[0].employeeId = 999; },
+    x => { x.json.roster[0].employeeName = foreign; },
+    x => { x.json.roster[0].shiftDefinitionId = 999; },
+    x => { x.json.roster[0].worksiteId = 999; },
+    x => { x.json.summary.suggested = 0; },
+    x => { x.json.summary.unfilled = 1; },
+    x => { x.json.source.candidateCount = 0; },
+    x => { x.headers.set("Cache-Control", "public, max-age=60"); },
+    x => { x.text += foreign; },
+  ]) {
+    const candidate = positive();
+    mutate(candidate);
+    assert.throws(() => assertSuggestedGreedyRoster(candidate, eligible, [foreign]));
+  }
+});
+
 test("private no-store allows Next.js normalization but rejects public or stale reuse", () => {
   for (const value of ["private, no-store", "no-store", "no-store, max-age=0"]) {
     assert.doesNotThrow(() => assertGreedyNoStore(new Headers({
@@ -158,7 +201,7 @@ test("denials must not include roster source, foreign PII markers or victim audi
     { audit: [], runs: [] }, { audit: [], runs: [23] }, "victim"));
 });
 
-test("greedy-roster has one exact-job provisional method proof, without independent acceptance", () => {
+test("greedy-roster stays GAP until revised positive and driver-error PG16 proof passes", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles[
@@ -167,12 +210,8 @@ test("greedy-roster has one exact-job provisional method proof, without independ
   assert.equal(METHOD, "GET workforce/greedy-roster");
   assert.equal(ENDPOINT, "/api/workforce/greedy-roster");
   const method = entry.methods.find(x => x.name === "GET");
-  assert.equal(method.status, "COVERED");
-  assert.equal(method.testedBy?.file, "scripts/qa/tenant-wrk01-greedy-roster-http.mjs");
-  assert.equal(method.testedBy?.workflowRunId, 41293308290);
-  assert.equal(method.testedBy?.workflowJobId, 124808879396);
-  assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
-  assert.equal(method.testedBy?.productionCertified, false);
+  assert.equal(method.status, "GAP");
+  assert.equal(method.testedBy, null, "old empty-suggestion job cannot prove whole GET");
 });
 
 test("focused CI actually runs same-method PostgreSQL/localhost source, forged and immutable controls", () => {
@@ -196,6 +235,8 @@ test("focused CI actually runs same-method PostgreSQL/localhost source, forged a
     "victim.requirement.id", "secondUnitMarker", "managerSession",
     "employeeSession", "active: false", "originals.get(actor.org.id)",
     "payrollEntries", "auditEvents", "forged", "stolen higher-ID worksite",
+    "assertSuggestedGreedyRoster", 'decision: "allow"', "schedulePatterns",
+    "schedulePatternSegments", "otherUnitSession", "staffing_requirements_wfm_qa_missing",
   ]) assert.ok(script.includes(marker), "missing source proof anchor: " + marker);
   for (const marker of [
     "postgres:16", "tenant-table-env.mjs flagged-reads",
@@ -207,7 +248,10 @@ test("focused CI actually runs same-method PostgreSQL/localhost source, forged a
   for (const marker of [
     "assertOrganizationRole", "getAccess", "getSessionUser",
     "previewEmployerGreedyRoster", "criticalReleaseFlagEnabled",
-  ]) assert.ok(route.includes(marker), "source auth proof missing " + marker);
+    'error:"Verified staffing evidence could not be loaded."',
+  ]) assert.ok(route.includes(marker), "source auth/response proof missing " + marker);
+  assert.ok(!route.includes("error:error instanceof Error?error.message"),
+    "source exceptions must never be sent to the browser");
   for (const marker of [
     "eq(worksites.organizationId,organizationId)",
     "eq(staffingRequirements.organizationId,organizationId)",

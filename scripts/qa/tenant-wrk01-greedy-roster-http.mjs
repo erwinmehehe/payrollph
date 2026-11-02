@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import {
   ENDPOINT, requireDisposableGreedyRoster, assertOwnGreedyRoster,
-  assertGreedyDenied, assertGreedySqlUnchanged, assertNoGreedyLeak,
+  assertSuggestedGreedyRoster, assertGreedyDenied, assertGreedyNoStore,
+  assertGreedySqlUnchanged, assertNoGreedyLeak,
 } from "./tenant-wrk01-greedy-roster-contract.mjs";
 
 function addDays(date, offset) {
@@ -38,7 +39,7 @@ export async function proveGreedyRosterIsolation() {
     "employeePayProfiles", "userOrganizations", "worksites",
     "shiftDefinitions", "staffingRequirements",
     "employeeWorksiteAssignments", "hcmWorksiteAuthorizations",
-    "workforceRosterRulePolicies", "workforceScheduleGuardrailPolicies",
+    "schedulePatterns", "workforceRosterRulePolicies", "workforceScheduleGuardrailPolicies",
     "employeeScheduleAssignments", "scheduleOverrides",
     "leaveRequests", "overtimeRequests", "payrollRuns", "auditEvents",
   ];
@@ -56,6 +57,16 @@ export async function proveGreedyRosterIsolation() {
       value[name] = name === "auditEvents"
         ? invariants.auditBusinessSnapshot(rows) : rows;
     }
+    const patternIds = value.schedulePatterns.map(row => row.id);
+    value.schedulePatternDays = patternIds.length
+      ? await db.select().from(s.schedulePatternDays)
+        .where(drizzle.inArray(s.schedulePatternDays.patternId, patternIds))
+        .orderBy(asc(s.schedulePatternDays.id)) : [];
+    const dayIds = value.schedulePatternDays.map(row => row.id);
+    value.schedulePatternSegments = dayIds.length
+      ? await db.select().from(s.schedulePatternSegments)
+        .where(drizzle.inArray(s.schedulePatternSegments.patternDayId, dayIds))
+        .orderBy(asc(s.schedulePatternSegments.id)) : [];
     const userIds = value.userOrganizations.map(row => row.userId);
     value.users = userIds.length
       ? await db.select().from(s.users)
@@ -287,10 +298,148 @@ export async function proveGreedyRosterIsolation() {
     await assertAllUnchanged(afterRevocation, subjects,
       "active Beta membership cannot resurrect revoked Alpha access");
 
+
+    // Whole-method positive: a separate real employer has an eligible worker,
+    // an authorized worksite and an approved schedule. The result must include
+    // the actual SQL worker identity, not only an all-unfilled roster.
+    const eligible = await helpers.seedEmployer("ELIG", nonce,
+      helpers.standaloneMakeSession);
+    const [eligibleSite] = await db.insert(s.worksites).values({
+      organizationId: eligible.org.id, orgUnitId: eligible.unit.id,
+      code: (eligible.marker + "-SITE").slice(0, 32),
+      name: eligible.marker + " eligible fictional worksite",
+      timezone: "Asia/Manila", active: true,
+    }).returning();
+    const [eligibleShift] = await db.insert(s.shiftDefinitions).values({
+      organizationId: eligible.org.id,
+      code: (eligible.marker + "-SH").slice(0, 32),
+      name: eligible.marker + " own candidate shift",
+      startTime: "12:00", endTime: "20:00",
+      breakMinutes: 60, spansMidnight: false, active: true,
+    }).returning();
+    const [earlyShift] = await db.insert(s.shiftDefinitions).values({
+      organizationId: eligible.org.id,
+      code: (eligible.marker + "-EARLY").slice(0, 32),
+      name: eligible.marker + " baseline early shift",
+      startTime: "00:00", endTime: "01:00",
+      breakMinutes: 0, spansMidnight: false, active: true,
+    }).returning();
+    const [eligibleRequirement] = await db.insert(s.staffingRequirements).values({
+      organizationId: eligible.org.id, worksiteId: eligibleSite.id,
+      shiftDefinitionId: eligibleShift.id, workDate, requiredHeadcount: 1,
+      sourceType: "manual", createdBy: "Synthetic isolated QA",
+      notes: eligible.marker + " unfilled real authorized staffing demand",
+    }).returning();
+    await db.insert(s.employeeWorksiteAssignments).values({
+      organizationId: eligible.org.id, employeeId: eligible.worker.id,
+      worksiteId: eligibleSite.id, decision: "allow",
+      effectiveFrom: "2026-01-05",
+      reason: eligible.marker + " verified own-site authorization",
+      createdBy: "Synthetic isolated QA",
+    });
+    const [pattern] = await db.insert(s.schedulePatterns).values({
+      organizationId: eligible.org.id,
+      code: (eligible.marker + "-PAT").slice(0, 32),
+      name: eligible.marker + " approved weekly schedule",
+      cycleDays: 7, active: true,
+    }).returning();
+    const patternDays = await db.insert(s.schedulePatternDays).values(
+      Array.from({length: 7}, (_, dayIndex) => ({
+        patternId: pattern.id, dayIndex, isRestDay: dayIndex !== 0,
+        label: dayIndex === 0 ? "Verified working day" : "Verified rest day",
+      })),
+    ).returning();
+    await db.insert(s.schedulePatternSegments).values({
+      patternDayId: patternDays.find(day => day.dayIndex === 0).id,
+      shiftDefinitionId: earlyShift.id, segmentOrder: 1,
+    });
+    await db.insert(s.employeeScheduleAssignments).values({
+      organizationId: eligible.org.id, employeeId: eligible.worker.id,
+      patternId: pattern.id, effectiveFrom: "2026-01-05",
+      anchorDate: workDate, workLocationOrgUnitId: eligible.unit.id,
+      worksiteId: eligibleSite.id, reason: "Verified fictional weekly baseline",
+      createdBy: "Synthetic isolated QA",
+    });
+    Object.assign(eligible, {
+      site: eligibleSite, shift: eligibleShift,
+      requirement: eligibleRequirement, headcount: 1, workDate,
+    });
+    const otherUnitMarker = "PRIVATE-ELIG-UNIT-" + nonce;
+    const [eligibleOtherUnit] = await db.insert(s.orgUnits).values({
+      organizationId: eligible.org.id, legalEntityId: eligible.entity.id,
+      type: "department", code: otherUnitMarker,
+      name: otherUnitMarker + " outside scope",
+    }).returning();
+    const [otherUnitManager] = await db.insert(s.users).values({
+      email: "greedy-positive-other-unit-" + nonce + "@example.invalid",
+      name: otherUnitMarker + " manager", role: "manager",
+      passwordHash: "not-a-real-login", totpEnabled: true, active: true,
+    }).returning();
+    await db.insert(s.userOrganizations).values({
+      organizationId: eligible.org.id, userId: otherUnitManager.id,
+      role: "manager", orgUnitId: eligibleOtherUnit.id, active: true,
+    });
+    const otherUnitSession = await helpers.standaloneMakeSession(otherUnitManager.id);
+    await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(s.sessions.id, otherUnitSession.id));
+
+    const allEmployers = [...subjects, eligible];
+    const positiveBaseline = await freezeAll(allEmployers);
+    const positiveResponse = await read(eligible);
+    const positiveRoster = assertSuggestedGreedyRoster(positiveResponse, eligible,
+      [a.marker, b.marker, victim.marker, secondUnitMarker, otherUnitMarker]);
+    await assertAllUnchanged(positiveBaseline, allEmployers,
+      "source-bound eligible recommendation");
+
+    const forgedEligible = await read(eligible, eligible.cookie, {
+      employeeId: String(victim.worker.id),
+      shiftDefinitionId: String(victim.shift.id),
+      requirementId: String(victim.requirement.id),
+      legalEntityId: String(victim.entity.id),
+      payrollRunId: "99999",
+    });
+    assert.deepEqual(assertSuggestedGreedyRoster(forgedEligible, eligible,
+      [a.marker, b.marker, victim.marker, secondUnitMarker, otherUnitMarker]),
+    positiveRoster, "forged victim selectors must not alter real eligible suggestions");
+    await assertAllUnchanged(positiveBaseline, allEmployers, "forged eligible query");
+
+    for (const actor of [b, victim]) {
+      const response = await request(path(eligible), { cookie: actor.cookie });
+      assertGreedyDenied(response, 403, [eligible.marker, otherUnitMarker]);
+      await assertAllUnchanged(positiveBaseline, allEmployers,
+        actor.label + " denied access to real eligible employee roster");
+    }
+    const deniedUnit = await request(path(eligible), {
+      cookie: otherUnitSession.cookie,
+    });
+    assertGreedyDenied(deniedUnit, 409, [eligible.marker, otherUnitMarker]);
+    const stolenSite = await read(eligible, eligible.cookie, {
+      worksiteId: String(victim.site.id),
+    });
+    assertGreedyDenied(stolenSite, 409, [eligible.marker, victim.marker]);
+    await assertAllUnchanged(positiveBaseline, allEmployers,
+      "cross-unit and stolen-site positive-roster refusals");
+
+    // Force a genuine PostgreSQL relation error only in this guarded disposable
+    // database. Restore the table before snapshots or the next CI proof job.
+    try {
+      await pool.query('ALTER TABLE "staffing_requirements" RENAME TO "staffing_requirements_wfm_qa_missing"');
+      const failed = await read(eligible);
+      assertGreedyDenied(failed, 409, [eligible.marker, victim.marker]);
+      assertGreedyNoStore(failed.headers);
+      assert.equal(failed.json.error, "Verified staffing evidence could not be loaded.");
+      assert.equal(failed.json.code, "WFM_GREEDY_ROSTER_SOURCE_REVIEW");
+      assert.ok(!/staffing_requirements|postgres|drizzle|SELECT|node_modules|relation .* does not exist/i.test(failed.text),
+        "driver exception or SQL diagnostics must not be disclosed in HTTP");
+    } finally {
+      await pool.query('ALTER TABLE IF EXISTS "staffing_requirements_wfm_qa_missing" RENAME TO "staffing_requirements"');
+    }
+    await assertAllUnchanged(positiveBaseline, allEmployers,
+      "forced PostgreSQL driver exception preserved persisted tenants");
     console.log("FICTIONAL_PG16_GREEDY_ROSTER_GET_PASS: A+B populated source " +
-      "requirements + real higher-ID victim, independent manager unit scope, " +
-      "foreign worksite denial, ignored forged selectors, revoked membership " +
-      "despite second employer, unchanged workforce/audit/payroll; ZERO CREDITS");
+      "plus separate nonempty eligible-worker suggestion, real higher-ID victim, " +
+      "cross-unit/foreign/forged denials, revoked access, sanitized PG error, " +
+      "unchanged workforce/audit/payroll; ZERO CREDITS");
   } finally {
     await pool.end();
   }

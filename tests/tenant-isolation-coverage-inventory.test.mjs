@@ -4181,15 +4181,9 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
       }
-      // Two independently executed WFM GET/POST receipts. They do not
-      // borrow the already-credited staffing-policy POST/PATCH evidence.
+      // POST preview retains its source-pinned PG16 receipt. Greedy GET is
+      // deliberately GAP until nonempty-roster and forced-driver CI succeeds.
       const wfmTwo = {
-        "scripts/qa/tenant-wrk01-greedy-roster-http.mjs": {
-          route: "src/app/api/workforce/greedy-roster/route.ts", method: "GET",
-          contract: "scripts/qa/tenant-wrk01-greedy-roster-contract.mjs", job: 124808879396,
-          own: /const own = await read\(e\);/, foreign: /await denied\(actor\.label \+ " foreign organization"/,
-          forged: /const forged = await read\(actor, actor\.cookie/, unchanged: /assertGreedySqlUnchanged\(/,
-        },
         "scripts/qa/tenant-wfm-three-method-post-http.mjs": {
           route: "src/app/api/workforce/roster-rules/preview/route.ts", method: "POST",
           contract: "scripts/qa/tenant-wfm-three-method-contract.mjs", job: 124808879396,
