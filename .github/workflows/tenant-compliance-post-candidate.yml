@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/tenant-compliance-post-candidate.yml"
       - "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs"
+      - "scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs"
       - "scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs"
       - "scripts/qa/tenant-table-env.mjs"
       - "scripts/qa/tenant-write-table-http.mjs"
@@ -92,6 +93,7 @@ jobs:
       - name: Reject incomplete and malformed test contracts
         run: |
           node --check scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs
+          node --check scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs
           node --check scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs
           node --check scripts/qa/tenant-write-table-http.mjs
           node --test tests/tenant-table-families.test.mjs
