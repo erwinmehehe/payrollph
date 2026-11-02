@@ -333,6 +333,51 @@ try {
   need(victimSubmitted?.status === "submitted",
     "victim's real submitted timesheet stays intact after own revisions");
 
+  // Checker revocation during POST /leave: force HTTP to block at the
+  // transaction's SELECT FOR SHARE AFTER it selected an approver in preflight.
+  // Revoking that role before releasing the worker lock must reject all writes.
+  const revokeWorker = await addWorker(a,"REVOKE",{payProfile:false});
+  const beforeRevocation = await ownOrgSnapshot(a.org.id);
+  const holder = await pool.connect();
+  let held = false;
+  let pendingLeave;
+  try {
+    await holder.query("BEGIN");
+    await holder.query(
+      "SELECT id FROM employees WHERE organization_id = $1 AND id = $2 FOR UPDATE",
+      [a.org.id,revokeWorker.id]);
+    held = true;
+    pendingLeave = post("/api/leave",a.cookie,leaveBody(a,revokeWorker.id));
+    let blocked = false;
+    for (let attempt=0; attempt<150; attempt++) {
+      const waiting = await pool.query("SELECT pid FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query ILIKE '%from employees%' AND query ILIKE '%for share%'");
+      if (waiting.rows.length > 0) { blocked = true; break; }
+      await new Promise(resolve => setTimeout(resolve,60));
+    }
+    need(blocked, "leave request reached transaction's shared employee lock after initial checker selection");
+    await db.update(userOrganizations).set({active:false}).where(and(
+      eq(userOrganizations.organizationId,a.org.id),
+      eq(userOrganizations.userId,a.checker.id)));
+    await holder.query("COMMIT");
+    held = false;
+    const refused = status(await pendingLeave,409,
+      "leave POST rejects approver revoked between preflight and transaction");
+    need(refused.json.code === "LEAVE_APPROVER_CHANGED",
+      "revoked checker is rejected by the in-transaction membership/role recheck");
+    const after = await ownOrgSnapshot(a.org.id);
+    for (const [table, rows] of Object.entries(beforeRevocation)) {
+      if (table === "userOrganizations") continue; // intentionally revoked checker
+      assert.deepEqual(after[table], rows,
+        "revoked HR checker creates no "+table+" business, timesheet or audit mutation");
+    }
+    need(after.userOrganizations.find(x=>x.userId===a.checker.id)?.active===false,
+      "checker is really revoked in disposable PostgreSQL before leave commits");
+  } finally {
+    if (held) await holder.query("ROLLBACK");
+    holder.release();
+    if (pendingLeave) await pendingLeave.catch(()=>null);
+  }
+
   const baseline = new Map(await Promise.all([a,b,v].map(async e =>
     [e.org.id,await ownOrgSnapshot(e.org.id)])));
   // DENIAL #2 and FORGERY #4: real victim selectors, not fabricated IDs.
