@@ -60,9 +60,7 @@
     "wfm-review-lifecycle-browser.yml",
     "wfm-square-sandbox-qa.yml"
   ],
-  "docsOnlyFilters": [
-    "a5-vault-minio-acceptance.yml"
-  ],
+  "docsOnlyFilters": [],
   "documentationPatterns": [
     "**",
     "!**/*.md",
@@ -93,6 +91,7 @@
     "vercel-git-deploy-policy.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior."
   },
   "selectivePrFilters": [
+    "a5-vault-minio-acceptance.yml",
     "nav-runtime-sweep.yml",
     "paymongo-export-isolation.yml",
     "public-intake-db-acceptance.yml",

@@ -9479,7 +9479,7 @@
       ]
     },
     "src/app/api/earned-wage/route.ts": {
-      "gitBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
+      "gitBlobSha": "e030259bb14719a806acbdad77c35135f63e1520",
       "route": "earned-wage",
       "methods": [
         {
@@ -9503,8 +9503,19 @@
           "name": "POST",
           "line": 98,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: EWA POST now locks the employer-bound employee and rechecks eligibility before its transactional request/audit; source-only proof, independent PG16 HTTP and review pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "earned-wage-POST-atomic-audit-source-only",
+            "priorRouteBlobSha": "258b48d5ffc372bba31c52d2b71e56374660ea50",
+            "routeBlobSha": "e030259bb14719a806acbdad77c35135f63e1520",
+            "contractFile": "tests/tenant-earned-wage-post-audit-atomic.test.mjs",
+            "contractBlobSha": "3bf5d524f2d89dc9ac69cfb1ea3071ff0c74441c",
+            "credits": 0,
+            "independentSecurityReview": "PENDING",
+            "actualPg16Http": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
@@ -34330,7 +34341,7 @@
       ]
     },
     "src/app/api/workforce/demand-observations/issued/route.ts": {
-      "gitBlobSha": "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0",
+      "gitBlobSha": "549156b2e143c71bd33385fb1cc49a95cb120dfc",
       "route": "workforce/demand-observations/issued",
       "methods": [
         {
@@ -34450,7 +34461,7 @@
           "token": "getSessionUser"
         },
         {
-          "line": 83,
+          "line": 80,
           "token": "getAccess"
         }
       ],
@@ -34460,7 +34471,7 @@
           "token": "input.organizationId"
         },
         {
-          "line": 83,
+          "line": 85,
           "token": "input.organizationId"
         },
         {
@@ -34522,11 +34533,11 @@
           "token": "organizationId"
         },
         {
-          "line": 52,
+          "line": 48,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 52,
           "token": "organizationId"
         },
         {
@@ -34536,7 +34547,7 @@
       ]
     },
     "src/app/api/workforce/demand-observations/issued/score/route.ts": {
-      "gitBlobSha": "91170340cd1bc1e43547e4d29d4b213bf45efe12",
+      "gitBlobSha": "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
       "route": "workforce/demand-observations/issued/score",
       "methods": [
         {
@@ -34576,7 +34587,7 @@
           "token": "getSessionUser"
         },
         {
-          "line": 35,
+          "line": 32,
           "token": "getAccess"
         }
       ],
@@ -34586,7 +34597,7 @@
           "token": "input.organizationId"
         },
         {
-          "line": 35,
+          "line": 37,
           "token": "input.organizationId"
         },
         {
@@ -34612,7 +34623,7 @@
           "token": "organizationId"
         },
         {
-          "line": 35,
+          "line": 37,
           "token": "organizationId"
         },
         {

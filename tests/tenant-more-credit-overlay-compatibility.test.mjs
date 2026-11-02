@@ -10,10 +10,15 @@ const staffingRoute = "src/app/api/workforce/demand-staffing/policies/route.ts";
 const read = path => readFileSync(path, "utf8");
 const load = () => JSON.parse(read(manifestFile));
 
-test("historical issued GET credit survives only the exact reviewed GET-only change", () => {
+test("historical issued GET credit survives exact GET overlay plus POST-only authorization reorder", () => {
   const manifest = load();
   const entry = manifest.allApiRouteFiles[issuedRoute];
-  assert.equal(entry.gitBlobSha, "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0");
+  // This is the exact reviewed GET-overlay route plus the later POST-only
+  // role-before-pilot reordering. The compatibility validator reconstructs
+  // both earlier blobs byte-for-byte and refuses unrelated changes.
+  assert.equal(entry.gitBlobSha, "549156b2e143c71bd33385fb1cc49a95cb120dfc");
+  assert.equal(entry.methods.find(m => m.name === "POST")?.status, "GAP");
+  assert.equal(entry.methods.find(m => m.name === "POST")?.testedBy, null);
   assert.equal(entry.methods.find(m => m.name === "GET")?.testedBy?.routeBlobSha,
     "d9e6ae99e687b691ca428e58c6c34ff077769a41",
     "Historical proof must keep naming its original reviewed source");

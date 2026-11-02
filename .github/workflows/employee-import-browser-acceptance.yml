@@ -3,7 +3,29 @@ name: employee-import browser acceptance
 on:
   pull_request:
     paths:
-      - 'src/**'
+      # Keep feature UI, authentication, migrations and shared schema coverage;
+      # unrelated API-only PRs use core security and their own endpoint proofs.
+      - 'src/app/api/employees/**'
+      - 'src/app/api/provisioning/**'
+      - 'src/app/**/page.tsx'
+      - 'src/app/**/layout.tsx'
+      - 'src/app/globals.css'
+      - 'src/app/dashboard-design.css'
+      - 'src/components/employee-import-preview-panel.tsx'
+      - 'src/components/import-panel.tsx'
+      - 'src/components/new-hire-modal.tsx'
+      - 'src/components/workspace/**'
+      - 'src/lib/employee-import-*.ts'
+      - 'src/lib/csv-import.ts'
+      - 'src/lib/migration-import.ts'
+      - 'src/lib/employee-navigation.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - 'scripts/employee-import-synthetic-*'
       - 'tests/employee-import-*'
       - 'tests/fixtures/employee-import-*'

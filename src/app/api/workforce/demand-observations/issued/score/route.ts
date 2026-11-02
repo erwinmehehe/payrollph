@@ -29,13 +29,13 @@ export async function POST(request: Request) {
   let input;
   try { input = parseScoreDemandRequest(JSON.parse(raw)); }
   catch { return Response.json({ error: "Invalid final scoring request." }, { status: 400 }); }
-  if (!issuedDemandPilotAllowed(input.organizationId)) {
-    return Response.json({ error: "Final scoring is unavailable for this employer." }, { status: 404 });
-  }
   const access = await getAccess(user.id, input.organizationId);
   if (!access || !access.companyWide
     || !PEOPLE_ADMIN_ROLES.some(role => role === access.role)) {
     return Response.json({ error: "Company-wide People admin is required for final scoring." }, { status: 403 });
+  }
+  if (!issuedDemandPilotAllowed(input.organizationId)) {
+    return Response.json({ error: "Final scoring is unavailable for this employer." }, { status: 404 });
   }
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;

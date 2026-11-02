@@ -24,6 +24,7 @@ const SPEC = Object.freeze({
   [PREFIX + "demand-observations/issued/route.ts"]: {
     before: "d9e6ae99e687b691ca428e58c6c34ff077769a41",
     after: "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0",
+    postHardenedAfter: "549156b2e143c71bd33385fb1cc49a95cb120dfc",
     statuses: { GET: "COVERED", POST: "GAP" },
     oldGet: [
       '  if (!issuedDemandPilotAllowed(organizationId)) {',
@@ -96,6 +97,25 @@ function gitBlobSha(source) {
  * that original OR an exact reviewed GET-only replacement on that original.
  * Every old proof continues to identify OLD source, never the patched GET.
  */
+// Two-method issuer family follow-up: undo ONLY the reviewed POST pilot/auth
+// reorder, then require the previous GET-overlay route to reconstruct exactly.
+// This is historical source compatibility, not a new POST method credit.
+function restoreIssuerPostOrder(source) {
+  const postAt = source.indexOf("export async function POST(");
+  const roleAt = source.indexOf("  const access = await getAccess(user.id, input.organizationId);", postAt);
+  const flagAt = source.indexOf("  if (!issuedDemandPilotAllowed(input.organizationId)) {", roleAt);
+  const mfaAt = source.indexOf("  const mfa = requireSensitiveActionMfa(user);", flagAt);
+  assert.ok(postAt >= 0 && roleAt > postAt && flagAt > roleAt && mfaAt > flagAt,
+    "Issuer must authorize a real employer before revealing the pilot flag");
+  const roleGuard = source.slice(roleAt, flagAt);
+  const pilotGuard = source.slice(flagAt, mfaAt);
+  assert.match(roleGuard, /!access\.companyWide/);
+  assert.match(roleGuard, /PEOPLE_ADMIN_ROLES/);
+  assert.match(roleGuard, /status: 403/);
+  assert.match(pilotGuard, /status: 404/);
+  return source.slice(0, roleAt) + pilotGuard + roleGuard + source.slice(mfaAt);
+}
+
 export function assertHistoricalDemandSourceCompatible(path, record,
   read = file => readFileSync(file, "utf8")) {
   const spec = SPEC[path];
@@ -103,7 +123,9 @@ export function assertHistoricalDemandSourceCompatible(path, record,
   assert.equal(record?.gitBlobSha, gitBlobSha(read(path)),
     "Manifest must pin the exact current WFM demand route");
   if (record.gitBlobSha === spec.before) return spec.before;
-  assert.equal(record.gitBlobSha, spec.after,
+  const postAuthReordered = !!spec.postHardenedAfter &&
+    record.gitBlobSha === spec.postHardenedAfter;
+  assert.equal(record.gitBlobSha, postAuthReordered ? spec.postHardenedAfter : spec.after,
     "Changed WFM demand source requires new independent CI review");
   assert.deepEqual(record.methods.map(m => m.name), Object.keys(spec.statuses),
     "WFM demand methods changed; no old receipt may be reused");
@@ -131,7 +153,10 @@ export function assertHistoricalDemandSourceCompatible(path, record,
     assert.equal(gitBlobSha(read(file)), pinned,
       "Reviewed WFM synthetic proof changed without renewed security review: " + file);
   }
-  const source = read(path);
+  const currentSource = read(path);
+  const source = postAuthReordered ? restoreIssuerPostOrder(currentSource) : currentSource;
+  if (postAuthReordered) assert.equal(gitBlobSha(source), spec.after,
+    "The only authorized second change is POST pilot/auth ordering");
   assert.equal(source.split(IMPORT_AFTER).length, 2,
     "Reviewed GET permission import must occur exactly once");
   assert.equal(source.split(spec.newGet).length, 2,
