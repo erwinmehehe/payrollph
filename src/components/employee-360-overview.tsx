@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   ArrowDownRight,
   BriefcaseBusiness,
@@ -14,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Employee360Card, Employee360CardId } from "@/lib/employee-360-overview";
 import { focusEmployee360Section } from "@/lib/employee-360-focus";
+import { EMPLOYEE_360_SECTIONS, cardsForEmployee360Section, type Employee360SectionId } from "@/lib/employee-360-navigation";
 
 const ICONS: Record<Employee360CardId, LucideIcon> = {
   employment: BriefcaseBusiness,
@@ -38,6 +41,9 @@ export function Employee360Overview({
   cards: readonly Employee360Card[];
   employeeNo: string;
 }) {
+  const [section, setSection] = useState<Employee360SectionId>("overview");
+  const activeGroup = EMPLOYEE_360_SECTIONS.find(group => group.id === section)!;
+  const displayedCards = cardsForEmployee360Section(cards, section);
   return (
     <section aria-labelledby="employee-360-heading"
       className="employee-360 mb-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
@@ -49,12 +55,30 @@ export function Employee360Overview({
           Employee 360
         </h3>
         <p className="mt-1 text-xs leading-5 text-slate-600">
-          One read-only view of the selected employee&apos;s linked HR information. Choose a section to review
-          its underlying source records.
+          One read-only entry point to the selected employee&apos;s authorized records. Current employee fields
+          are not historical as-of facts. History is shown only from linked effective-dated records.
         </p>
       </header>
+      <nav aria-label="Employee 360 sections" className="mb-4 flex flex-wrap gap-2">
+        {EMPLOYEE_360_SECTIONS.map(group => (
+          <button key={group.id} type="button" aria-pressed={section === group.id}
+            aria-controls="employee-360-section" onClick={() => setSection(group.id)}
+            className={"rounded-lg border px-3 py-2 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 " +
+              (section === group.id ? "border-emerald-700 bg-emerald-50 text-emerald-950" : "border-slate-200 text-slate-700 hover:bg-slate-50")}>
+            {group.label}
+          </button>
+        ))}
+      </nav>
+      <div id="employee-360-section" aria-live="polite" className="mb-3">
+        <h4 className="text-sm font-semibold text-slate-900">{activeGroup.label}</h4>
+        <p className="mt-1 text-xs leading-5 text-slate-600">
+          {section === "history"
+            ? "As-of evidence comes from recorded employment event dates and effective position assignments. This preview may not contain every historical record."
+            : "Values reflect the connected, authorized source snapshot. Select a card to inspect its original records and effective dates where available."}
+        </p>
+      </div>
       <div className="employee-360-grid">
-        {cards.map((card) => {
+        {displayedCards.map((card) => {
           const Icon = ICONS[card.id];
           const isUnavailable = !card.available;
           return (
