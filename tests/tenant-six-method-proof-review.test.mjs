@@ -110,10 +110,29 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
     if (pr !== 1501 && pr !== 1676) {
       assert.equal(blobSha(review.proofFile), proofSha, label + " proof changed since exact final head");
     } else if (pr === 1501) {
-      assert.equal(blobSha(review.proofFile), method.reviewedUncertified.proofBlobSha,
-        "current filing atomicity proof pin must remain intact");
+      // Historical #1501 was rejection-only. A new synthetic ACCEPTED-branch
+      // HTTP/PG16 candidate is in the current family row; no successful job
+      // or accepted coverage credit is implied until its exact-head run.
+      assert.equal(blobSha(review.proofFile), "80d0f3c846593444ebee04ef72de0a9b917696b4",
+        "new fictional accepted-path family proof changed; rerun exact-head CI");
+      assert.notEqual(blobSha(review.proofFile),
+        method.reviewedUncertified.proofBlobSha,
+        "new accepted-path source cannot masquerade as merged #1501 evidence");
+      const current = readFileSync(review.proofFile, "utf8");
+      for (const token of [
+        'const [acceptFixture] = await db.insert(governmentFilingValidations).values({',
+        'const acceptedHttp = expectStatus(await request(',
+        'persistedAccepted.status, "accepted"',
+        'acceptedAudit.action, "SSS R-3 filing accepted"',
+        'acceptedOwnDecisionPG16: true',
+        'acceptedForeignAndForgedDenied: true',
+        'acceptedVictimDbAndAuditUnchanged: true',
+        'proveFilingStateUntouched(victimBeforeAccepted,',
+        'method: "PATCH", cookie, body: deniedCase.body',
+      ]) assert.ok(current.includes(token),
+        "current filing accepted branch lacks executable source control: " + token);
       assert.equal(method.reviewedUncertified.acceptedOutcomePositiveProven, false,
-        "filing accepted action still needs its own positive");
+        "filing remains GAP until a fresh complete accepted HTTP/PG16 CI receipt passes");
       assert.equal(method.reviewedUncertified.fullMethodCoverageCredits, 0);
     }
     if (pr === 1676) {
