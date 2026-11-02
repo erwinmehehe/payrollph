@@ -633,7 +633,7 @@ function CheckerHome({
           type="button"
           className="clean-button secondary"
           disabled={!run}
-          onClick={() => onPage("Payroll")}
+          onClick={() => onPage("Approvals")}
         >
           <Download size={16} />
           Open comparison
@@ -642,9 +642,9 @@ function CheckerHome({
           type="button"
           className="clean-button"
           disabled={!run}
-          onClick={() => onPage("Payroll")}
+          onClick={() => onPage("Approvals")}
         >
-          {exceptions === null ? "Review exceptions in Payroll" : exceptions > 0 ? "Review exceptions" : "Review payroll"}
+          {exceptions === null ? "Review exceptions in Approvals" : exceptions > 0 ? "Review exceptions" : "Review payroll"}
           <ArrowRight size={16} />
         </button>
       </div>
