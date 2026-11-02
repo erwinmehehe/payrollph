@@ -44,6 +44,33 @@ test("only two exact issued POST methods are claimed, with no GET or provider me
   assert.equal(SCORE_PATH, ISSUE_PATH + "/score");
 });
 
+test("both issued-demand writes authorize employer membership before inspecting pilot flags", () => {
+  const routeFiles = [
+    "src/app/api/workforce/demand-observations/issued/route.ts",
+    "src/app/api/workforce/demand-observations/issued/score/route.ts",
+  ];
+  for (const file of routeFiles) {
+    const source = path(file);
+    const authorized = source.indexOf("const access = await getAccess(user.id, input.organizationId);");
+    const roleGuard = source.indexOf("if (!access || !access.companyWide", authorized);
+    const pilotFlag = source.indexOf("if (!issuedDemandPilotAllowed(input.organizationId))", authorized);
+    const mfa = source.indexOf("const mfa = requireSensitiveActionMfa(user);", pilotFlag);
+    assert.ok(authorized > 0 && roleGuard > authorized && pilotFlag > roleGuard && mfa > pilotFlag,
+      file + ": must deny non-member employer before pilot configuration check");
+    const authorizationBlock = source.slice(roleGuard, pilotFlag);
+    assert.match(authorizationBlock, /PEOPLE_ADMIN_ROLES/);
+    assert.match(authorizationBlock, /status: 403/);
+    assert.doesNotMatch(authorizationBlock, /issuedDemandPilotAllowed/);
+  }
+  const harness = path("scripts/qa/tenant-issued-demand-http.mjs");
+  assert.equal(harness.split("non-member cannot inspect excluded employer pilot status").length - 1, 2,
+    "both POST methods must test non-member against a real non-allowlisted employer");
+  assert.match(harness, /nonmemberExcludedEmployer403:\s*0/);
+  assert.equal(harness.split("counts.nonmemberExcludedEmployer403++").length - 1, 2);
+  assert.match(harness, /organizationId: excluded\.org\.id, worksiteId: excluded\.site\.id/);
+  assert.match(harness, /scoreBody\(excluded\.org\.id, excluded\.scorableIssue\.id\)/);
+});
+
 test("preflight rejects all hosted, wildcard, provider-enabled, money-enabled and non-CI environments", () => {
   const safe = isolatedEnv();
   assert.deepEqual(requireDisposableIssuedDemand(safe), [11, 12, 14]);

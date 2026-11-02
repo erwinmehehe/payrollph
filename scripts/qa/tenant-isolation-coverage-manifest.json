@@ -34326,7 +34326,7 @@
       ]
     },
     "src/app/api/workforce/demand-observations/issued/route.ts": {
-      "gitBlobSha": "d552c6db5a54b346d8fb940edb5f0ceaaeff04a0",
+      "gitBlobSha": "549156b2e143c71bd33385fb1cc49a95cb120dfc",
       "route": "workforce/demand-observations/issued",
       "methods": [
         {
@@ -34446,7 +34446,7 @@
           "token": "getSessionUser"
         },
         {
-          "line": 83,
+          "line": 80,
           "token": "getAccess"
         }
       ],
@@ -34456,7 +34456,7 @@
           "token": "input.organizationId"
         },
         {
-          "line": 83,
+          "line": 85,
           "token": "input.organizationId"
         },
         {
@@ -34518,11 +34518,11 @@
           "token": "organizationId"
         },
         {
-          "line": 52,
+          "line": 48,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 52,
           "token": "organizationId"
         },
         {
@@ -34532,7 +34532,7 @@
       ]
     },
     "src/app/api/workforce/demand-observations/issued/score/route.ts": {
-      "gitBlobSha": "91170340cd1bc1e43547e4d29d4b213bf45efe12",
+      "gitBlobSha": "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
       "route": "workforce/demand-observations/issued/score",
       "methods": [
         {
@@ -34572,7 +34572,7 @@
           "token": "getSessionUser"
         },
         {
-          "line": 35,
+          "line": 32,
           "token": "getAccess"
         }
       ],
@@ -34582,7 +34582,7 @@
           "token": "input.organizationId"
         },
         {
-          "line": 35,
+          "line": 37,
           "token": "input.organizationId"
         },
         {
@@ -34608,7 +34608,7 @@
           "token": "organizationId"
         },
         {
-          "line": 35,
+          "line": 37,
           "token": "organizationId"
         },
         {

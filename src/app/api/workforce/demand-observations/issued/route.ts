@@ -77,13 +77,13 @@ export async function POST(request: Request) {
   let input;
   try { input = parseIssueDemandRequest(JSON.parse(raw)); }
   catch { return Response.json({ error: "Invalid aggregate forecast issue request." }, { status: 400 }); }
-  if (!issuedDemandPilotAllowed(input.organizationId)) {
-    return Response.json({ error: "Issued workload forecasting is not enabled for this employer." }, { status: 404 });
-  }
   const access = await getAccess(user.id, input.organizationId);
   if (!access || !access.companyWide
     || !PEOPLE_ADMIN_ROLES.some(role => role === access.role)) {
     return Response.json({ error: "Company-wide People admin is required to issue workload forecasts." }, { status: 403 });
+  }
+  if (!issuedDemandPilotAllowed(input.organizationId)) {
+    return Response.json({ error: "Issued workload forecasting is not enabled for this employer." }, { status: 404 });
   }
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
