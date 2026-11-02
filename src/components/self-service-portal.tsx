@@ -711,6 +711,8 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
             onAttendance={() => navigateTo("time")}
             onLeave={() => navigateTo("leave")}
             onRequestLeave={() => { navigateTo("leave"); if (data.leave.policies.length) setLeaveOpen(true); }}
+            onDocuments={() => navigateTo("documents")}
+            onProfile={() => navigateTo("profile")}
           />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>

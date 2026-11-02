@@ -27,6 +27,8 @@ const taglishCopy: Readonly<Record<string, string>> = {
   "English": "English",
   "Taglish": "Taglish",
   "Quick actions": "Mga mabilis na gawain",
+  "View employer-shared documents": "Tingnan ang mga dokumentong ibinahagi ng employer",
+  "Review your contact details": "Tingnan ang contact details mo",
   "Home": "Home",
   "Pay": "Sahod",
   "Payslips": "Mga payslip",

@@ -6,6 +6,7 @@ import {
   Clock,
   Download,
   FileText,
+  UserRound,
   Leaf,
   WalletCards,
 } from "lucide-react";
@@ -40,6 +41,8 @@ export function EmployeeHomeDashboard({
   onAttendance,
   onLeave,
   onRequestLeave,
+  onDocuments,
+  onProfile,
   language = "en",
 }: {
   data: HomeData;
@@ -48,6 +51,8 @@ export function EmployeeHomeDashboard({
   onAttendance: () => void;
   onLeave: () => void;
   onRequestLeave: () => void;
+  onDocuments: () => void;
+  onProfile: () => void;
   language?: EssLanguage;
 }) {
   const t = (text: string) => essText(language, text);
@@ -96,6 +101,18 @@ export function EmployeeHomeDashboard({
               {quick.todayAttendance === "complete" ? t("Today’s shift is complete")
                 : quick.todayAttendance === "clocked_in" ? t("You’re clocked in") : t("Not clocked in today")}
             </small>
+          </button>
+          <button type="button" onClick={onDocuments}
+            className="flex min-h-14 flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            <FileText size={20} aria-hidden="true" />
+            <strong className="text-sm">{t("Documents")}</strong>
+            <small className="text-xs text-slate-600">{t("View employer-shared documents")}</small>
+          </button>
+          <button type="button" onClick={onProfile}
+            className="flex min-h-14 flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            <UserRound size={20} aria-hidden="true" />
+            <strong className="text-sm">{t("My info")}</strong>
+            <small className="text-xs text-slate-600">{t("Review your contact details")}</small>
           </button>
         </div>
       </section>

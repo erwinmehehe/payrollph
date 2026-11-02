@@ -86,6 +86,8 @@ test("employee sees only released pay and separate leave balances", () => {
       onAttendance: noop,
       onLeave: noop,
       onRequestLeave: noop,
+      onDocuments: noop,
+      onProfile: noop,
     }),
   );
   assert.match(markup, /28,450\.00/);
@@ -115,6 +117,8 @@ test("employee empty state does not claim a payslip or payday is available", () 
       onAttendance: noop,
       onLeave: noop,
       onRequestLeave: noop,
+      onDocuments: noop,
+      onProfile: noop,
     }),
   );
   assert.match(markup, /Not scheduled yet/);

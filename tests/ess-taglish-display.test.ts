@@ -24,6 +24,7 @@ test("Taglish dashboard changes copy, not payroll amounts, employee names or dow
     data: employeeFixture,
     onPayslip: noop, onPay: noop, onAttendance: noop,
     onLeave: noop, onRequestLeave: noop,
+    onDocuments: noop, onProfile: noop,
   };
   const english = renderToStaticMarkup(createElement(EmployeeHomeDashboard, props));
   const taglish = renderToStaticMarkup(createElement(EmployeeHomeDashboard, { ...props, language: "fil" as const }));
