@@ -1,4 +1,4 @@
-name: Tenant compliance contribution POST candidate (PG16 real HTTP, money/provider OFF)
+name: Tenant compliance contribution + statutory remittance POST candidates (PG16 HTTP)
 
 on:
   pull_request:
@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/tenant-compliance-post-candidate.yml"
       - "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs"
+      - "scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs"
       - "scripts/qa/tenant-table-env.mjs"
       - "scripts/qa/tenant-write-table-http.mjs"
       - "scripts/qa/tenant-table-http.mjs"
@@ -70,7 +71,6 @@ jobs:
           set -euo pipefail
           node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
           {
-            echo "TENANT_TABLE_FAMILY=compliance-contribution-post"
             echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
             echo "WORKER_ENABLED=false"
             echo "CENTRAL_SCHEDULER_ENABLED=false"
@@ -92,6 +92,7 @@ jobs:
       - name: Reject incomplete and malformed test contracts
         run: |
           node --check scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs
+          node --check scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs
           node --check scripts/qa/tenant-write-table-http.mjs
           node --test tests/tenant-table-families.test.mjs
       - name: One-time fictional encryption and signing material
@@ -128,7 +129,7 @@ jobs:
           echo "::error::Next localhost server did not become ready"
           tail -n 100 /tmp/tenant-contribution-next.log
           exit 1
-      - name: Prove own cases, real higher-ID victim denial, unchanged victim rows and forged selectors
+      - name: Prove own case plus all four real remittance actions, both victim denials, unchanged SQL and forged selectors
         run: node --import tsx scripts/qa/tenant-write-table-http.mjs
       - name: Local server diagnostics on failure
         if: failure()
