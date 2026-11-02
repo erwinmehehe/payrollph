@@ -254,6 +254,33 @@ test("public careers is consent-bound, isolated by employer, race-safe and HR-on
       eq(userOrganizations.organizationId, orgA.id),
     ));
 
+    // A session cached before a user suspension or role downgrade must not
+    // bypass the transaction's persisted user/membership checks either.
+    const expectPersistedGrantDenied = async (label: string) => {
+      assert.equal((await admin.PATCH(adminRequest(
+        orgA.id, jobA.id, false, true))).status, 409, label);
+      const unchanged = await pool.query<{ careers_published: boolean }>(
+        `select careers_published from ${schema}.job_requisitions where id = $1`,
+        [jobA.id],
+      );
+      assert.equal(unchanged.rows[0]?.careers_published, true, label);
+      assert.deepEqual(await db.select().from(auditEvents).where(
+        eq(auditEvents.organizationId, orgA.id)), auditBeforeRevoked, label);
+    };
+    await db.update(users).set({ active: false }).where(eq(users.id, 7001));
+    await expectPersistedGrantDenied("disabled account must block the final write");
+    await db.update(users).set({ active: true }).where(eq(users.id, 7001));
+
+    await db.update(userOrganizations).set({ role: "bookkeeper" }).where(and(
+      eq(userOrganizations.userId, 7001),
+      eq(userOrganizations.organizationId, orgA.id),
+    ));
+    await expectPersistedGrantDenied("downgraded role must block the final write");
+    await db.update(userOrganizations).set({ role: "hr" }).where(and(
+      eq(userOrganizations.userId, 7001),
+      eq(userOrganizations.organizationId, orgA.id),
+    ));
+
     actor = { id: 8001, name: "Beta HR", organizationId: orgB.id,
       role: "hr", companyWide: true };
     assert.equal((await admin.PATCH(adminRequest(orgB.id, jobB.id, true, false))).status, 200);
