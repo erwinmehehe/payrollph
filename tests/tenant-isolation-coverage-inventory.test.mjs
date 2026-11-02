@@ -118,6 +118,53 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // Transfer write hardening remains a strictly uncredited PG16 review
+  // candidate. The historical GET source and exact method credit are preserved.
+  if (isNewOrChanged && key.startsWith("src/app/api/multi-entity/transfers/route.ts ")) {
+    const source = readFileSync("src/app/api/multi-entity/transfers/route.ts", "utf8");
+    assert.equal(currentBlob, "a4ac9ec92df17492c4c0918f08114660bc4c6ebe",
+      "Transfer endpoint changed since typed-error security review");
+    const typedClass = "// Only explicit business conflicts may be shown. SQL and driver failures\n// must receive a generic response, even if their text matches a business error.\nclass TransferDecisionConflict extends Error {\n  constructor(message: string) {\n    super(message);\n    this.name = \"TransferDecisionConflict\";\n  }\n}\n\n";
+    const expectedPostCatch = "  } catch {\n    return fail(\"Could not request transfer.\");\n  }\n}\n\nexport async function PATCH";
+    const expectedPatchCatch = "  } catch (error) {\n    return fail(error instanceof TransferDecisionConflict\n      ? error.message : \"Transfer could not be decided.\");\n  }\n}\n";
+    assert.ok(source.includes(typedClass),
+      "A dedicated trusted business-conflict error class must exist");
+    assert.equal(source.split("throw new TransferDecisionConflict(").length - 1, 9,
+      "Only the nine known business-conflict throw sites may return detailed errors");
+    assert.ok(source.includes(expectedPostCatch) && source.includes(expectedPatchCatch),
+      "Both transaction exceptions must fail closed");
+    const restored = source
+      .replace(typedClass, "")
+      .replace(expectedPostCatch, "  } catch (error) {\n    return fail(error instanceof Error ? error.message : \"Could not request transfer.\");\n  }\n}\n\nexport async function PATCH")
+      .replace(expectedPatchCatch, "  } catch (error) {\n    return fail(error instanceof Error ? error.message : \"Transfer could not be decided.\");\n  }\n}\n")
+      .replaceAll("throw new TransferDecisionConflict(", "throw new Error(");
+    assert.equal(gitBlobSha(Buffer.from(restored)), "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+      "No source change beyond the reviewed POST/PATCH error boundary is allowed");
+    assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP",
+      "Source hardening must not grant unreviewed write-method credit");
+    if (method.name === "GET") {
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+        "Preserve the earlier GET own/foreign proof");
+    } else {
+      assert.ok(method.name === "POST" || method.name === "PATCH");
+      assert.equal(method.testedBy, null);
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false},
+        "Source and PG16 evidence must match the uncredited transfer review");
+    }
+    for (const [file, sha] of [
+      ["tests/tenant-multi-entity-transfers-write-candidate.test.mjs", "0b76a0e9b3fe06008bcc0941593e119466616c91"],
+      ["scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "f28258785c80f83c699d651543526153eb4f3dd9"],
+      [".github/workflows/multi-entity-browser-qa.yml", "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476"],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "A changed transfer security test must receive new exact-source review: " + file);
+    const proof = readFileSync("scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "utf8");
+    assert.match(proof, /CREATE TRIGGER ci_transfer_post_error/);
+    assert.match(proof, /CREATE TRIGGER ci_transfer_patch_error/);
+    assert.ok(proof.includes("assert.deepEqual(await snapshot(1), beforePostFault"), "Missing POST unchanged-state assertion");
+    assert.ok(proof.includes("assert.deepEqual(await snapshot(1), beforePatchFault"), "Missing PATCH unchanged-state assertion");
+    return;
+  }
+
   // Existing historical GET credit is preserved, not promoted. The new exact
   // route source and dedicated disposable-PG16 proof are independently pinned
   // for renewed human review. The old positive/victim receipt remains intact.

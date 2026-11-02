@@ -19702,7 +19702,7 @@
       ]
     },
     "src/app/api/multi-entity/transfers/route.ts": {
-      "gitBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+      "gitBlobSha": "a4ac9ec92df17492c4c0918f08114660bc4c6ebe",
       "route": "multi-entity/transfers",
       "methods": [
         {
@@ -19726,15 +19726,45 @@
           "name": "POST",
           "line": 89,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: transfer POST/PATCH fail closed on driver errors; PATCH now uses typed business conflicts rather than comparing database-provided error text. Synthetic PostgreSQL/HTTPS fault probes and existing maker-checker tests require exact-head CI and independent tenant/payroll/security review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited",
+            "originalRouteBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+            "routeBlobSha": "a4ac9ec92df17492c4c0918f08114660bc4c6ebe",
+            "proofFile": "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+            "proofBlobSha": "f28258785c80f83c699d651543526153eb4f3dd9",
+            "contractFile": "tests/tenant-multi-entity-transfers-write-candidate.test.mjs",
+            "contractBlobSha": "0b76a0e9b3fe06008bcc0941593e119466616c91",
+            "workflowFile": ".github/workflows/multi-entity-browser-qa.yml",
+            "workflowBlobSha": "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
           "line": 248,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: transfer POST/PATCH fail closed on driver errors; PATCH now uses typed business conflicts rather than comparing database-provided error text. Synthetic PostgreSQL/HTTPS fault probes and existing maker-checker tests require exact-head CI and independent tenant/payroll/security review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited",
+            "originalRouteBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+            "routeBlobSha": "a4ac9ec92df17492c4c0918f08114660bc4c6ebe",
+            "proofFile": "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+            "proofBlobSha": "f28258785c80f83c699d651543526153eb4f3dd9",
+            "contractFile": "tests/tenant-multi-entity-transfers-write-candidate.test.mjs",
+            "contractBlobSha": "0b76a0e9b3fe06008bcc0941593e119466616c91",
+            "workflowFile": ".github/workflows/multi-entity-browser-qa.yml",
+            "workflowBlobSha": "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
