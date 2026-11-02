@@ -43,7 +43,9 @@ export function Employee360Overview({
 }) {
   const [section, setSection] = useState<Employee360SectionId>("overview");
   const activeGroup = EMPLOYEE_360_SECTIONS.find(group => group.id === section)!;
-  const displayedCards = cardsForEmployee360Section(cards, section);
+  // Overview remains a complete source index, while each focused section shows its subset.
+  // This preserves source discoverability in the original HR journey and has no data fetch.
+  const displayedCards = section === "overview" ? cards : cardsForEmployee360Section(cards, section);
   return (
     <section aria-labelledby="employee-360-heading"
       className="employee-360 mb-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
