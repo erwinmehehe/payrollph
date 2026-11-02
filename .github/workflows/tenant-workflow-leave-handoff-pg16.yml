@@ -1,0 +1,136 @@
+name: Tenant leave + governed handoff four-part PG16 HTTP proof
+
+on:
+  push:
+    branches: [qa/tenant-workflow-leave-handoff-pg16-20261102]
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-workflow-leave-handoff-pg16.yml'
+      - 'scripts/qa/tenant-workflow-leave-handoff-http.mjs'
+      - 'src/app/api/leave/route.ts'
+      - 'src/app/api/governed-handoffs/route.ts'
+      - 'src/lib/approval-chains.ts'
+      - 'src/lib/governed-approval-handoffs.ts'
+      - 'src/db/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-workflow-leave-handoff-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fictional-workflow-writes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      TENANT_WORKFLOW_WRITES_MODE: fictional-pg16-http
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      CSP_REPORT_ONLY: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      SMTP_URL: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      OPENAI_API_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact lockfile dependencies
+        run: npm ci
+      - name: Export isolated localhost targets, no production or provider flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_WORKFLOW_WRITES_MODE=fictional-pg16-http'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'NEXT_CSP_ENABLED=false'
+            echo 'CSP_REPORT_ONLY=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'XENDIT_PAYOUT_SECRET_KEY='
+            echo 'SMTP_URL='
+            echo 'RESEND_API_KEY='
+            echo 'POSTMARK_SERVER_TOKEN='
+            echo 'OPENAI_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Refuse invalid test script or accidentally enabled money/CSP
+        run: |
+          node --check scripts/qa/tenant-workflow-leave-handoff-http.mjs
+          node -e "const fs=require('fs'); const f=fs.readFileSync('scripts/qa/tenant-workflow-leave-handoff-http.mjs','utf8'); if(!f.includes('requireDisposable();')) process.exit(1)"
+      - name: Generate throwaway encryption keys for fictional test process
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize throwaway PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed local-only baseline tables
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare existing fictional HCM table fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build localhost production-mode Next app
+        run: npm run build
+      - name: Start Next on loopback interface
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-workflow-leave-handoff-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-workflow-leave-handoff-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-workflow-leave-handoff-next.log
+          exit 1
+      - name: Prove two distinct own positives, real victim denials, unchanged SQL and forged selectors
+        run: node --import tsx scripts/qa/tenant-workflow-leave-handoff-http.mjs
+      - name: Dump localhost app diagnostics only on failure
+        if: failure()
+        run: cat /tmp/tenant-workflow-leave-handoff-next.log || true
