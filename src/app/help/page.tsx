@@ -30,8 +30,8 @@ export default function HelpCenterPage() {
               <Link href="/contact" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#0877ff] px-5 py-3 text-sm font-semibold text-white">
                 Contact support <ArrowRight size={16} aria-hidden="true" />
               </Link>
-              <Link href="/templates" className="inline-flex min-h-11 items-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800">
-                Browse templates
+              <Link href="/templates/payroll-rfp-checklist" className="inline-flex min-h-11 items-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800">
+                Use RFP checklist
               </Link>
             </div>
           </div>
