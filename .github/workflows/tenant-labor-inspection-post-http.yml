@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  xendit-payout-webhook-isolation:
+  labor-inspection-post-isolation:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -38,7 +38,6 @@ jobs:
       XENDIT_BILLING_ENABLED: "false"
       MULTI_ENTITY_ENABLED: "false"
       REQUIRE_PRIVILEGED_MFA: "true"
-      TENANT_LABOR_INSPECTION_MODE: fictional-pg16-only
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
       OPENAI_API_KEY: ""
       NEON_DATABASE_URL: ""
