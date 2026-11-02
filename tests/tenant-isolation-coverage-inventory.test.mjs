@@ -718,15 +718,44 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed.helperFile, "src/lib/filing-evidence-store.ts");
     assert.equal(reviewed.proofFile, "scripts/qa/tenant-table-rows/write/compliance-filing.mjs");
     assert.equal(reviewed.testFile, "tests/tenant-compliance-filing-contract.test.mjs");
-    for (const [file,sha] of [
+    // The original STA-01 rejected-only source is historical. This separate
+    // draft adds a fictional ACCEPTED-path candidate without coverage credit.
+    // Pin both generations independently; don't transfer the older receipt.
+    const currentCandidatePins = {
+      "scripts/qa/tenant-table-rows/write/compliance-filing.mjs":
+        "cb27590280c58a34615faef99cdc33bb02330e66",
+      "tests/tenant-compliance-filing-contract.test.mjs":
+        "fe286bc91140a8dbc11dc1eebf7594fa18f97ed1",
+    };
+    assert.equal(reviewed.proofBlobSha,
+      "6bb8bf721e73b47b2b79e26b27ec36f1c22aae34",
+      "Retain prior rejected-only proof as historical evidence");
+    assert.equal(reviewed.testBlobSha,
+      "9befe55be39ec7fb783958561da4182edc060ae4",
+      "Retain prior rejected-only contract as historical evidence");
+    for (const [file, historicalSha] of [
       [reviewed.helperFile, reviewed.helperBlobSha],
       [reviewed.proofFile, reviewed.proofBlobSha],
       [reviewed.testFile, reviewed.testBlobSha],
     ]) {
-      assert.match(sha, /^[a-f0-9]{40}$/);
-      assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "Filing atomicity security helper/proof modified without re-review: " + file);
+      assert.match(historicalSha, /^[a-f0-9]{40}$/);
+      const expected = currentCandidatePins[file] ?? historicalSha;
+      assert.equal(gitBlobSha(readFileSync(file)), expected,
+        "Filing current candidate/helper modified without re-review: " + file);
     }
+    const candidate = readFileSync(reviewed.proofFile, "utf8");
+    for (const token of [
+      "for (let pad = 0; pad < 6; pad++)",
+      "Number.isSafeInteger(filing.id) && filing.id > 6",
+      "const acceptedHttp = expectStatus(await request(",
+      'persistedAccepted.status, "accepted"',
+      'acceptedAudit.action, "SSS R-3 filing accepted"',
+      "acceptedOwnDecisionPG16: true",
+      "acceptedVictimDbAndAuditUnchanged: true",
+    ]) assert.ok(candidate.includes(token),
+      "Filing accepted-path candidate missing required fictional PG16 control: " + token);
+    assert.equal(reviewed.reconciliationReview?.fullMethodCoverageCredits, 0);
+    assert.equal(reviewed.acceptedOutcomePositiveProven, false);
     assert.equal(reviewed.atomicAuditRollbackRequired, true);
     assert.equal(reviewed.acceptedOutcomePositiveProven, false);
     assert.equal(reviewed.fullMethodCoverageCredits, 0);
