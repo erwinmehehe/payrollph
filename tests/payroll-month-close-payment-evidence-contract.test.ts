@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { evaluateRemittanceMonthClose } from "../src/lib/statutory-remittance-close.ts";
+import { evaluateRemittanceMonthClose } from "../src/lib/statutory-remittance-close";
 
 const server = readFileSync("src/lib/payroll-month-close-server.ts", "utf8");
 const canonicalRoute = readFileSync("src/app/api/compliance/remittance-month-close/route.ts", "utf8");
