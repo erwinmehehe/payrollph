@@ -213,6 +213,8 @@ export function createRows(deps) {
         for (const [label, scopeOrgUnitId] of [["victim org unit", c.victim.unit.id], ["missing org unit", 2147483000]]) {
           const own = await scenarioState(c.orgId);
           const response = await expectStatus(await request(url, { method: "POST", cookie, body: scenarioBody(c.orgId, c.seeded.id, c.marker + " scoped", { scopeOrgUnitId }) }), 403, label);
+          assert.deepEqual(response.json, { error: "The requested organization unit is not available in your access." },
+            label + ": denial body is constant and does not reveal foreign or missing org-unit IDs");
           assert.ok(!response.text.includes(c.victim.marker) && !/select |insert |from "/i.test(response.text), "a refusal leaks no victim data or SQL");
           assert.deepEqual(await scenarioState(c.orgId), own, label + " writes nothing"); assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
           refusals.push(response.text);
