@@ -829,6 +829,54 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
+  // PayMongo transfer callback: permit only the reviewed removal of the run-existence oracle, while the method stays GAP
+  // until the dedicated signed-callback proof is credited under proofPolicy.providerCallback.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/webhooks/paymongo/transfers/route.ts POST") {
+    const review = method.reviewedUncertified;
+    const originalBlob = "68c6b8f2b7ba8f70417cc461e78270f6b2b9a17d";
+    const hardenedBlob = "b7606ef203779ec194e3a3c3b4d0664e77e3ac31";
+    assert.equal(currentBlob, hardenedBlob, "PayMongo callback route changed again: fresh source review required");
+    assert.equal(review?.kind, "paymongo-transfer-webhook-no-run-oracle-hardening-only-zero-credit");
+    assert.equal(review.originalRouteBlobSha, originalBlob);
+    assert.equal(review.routeBlobSha, hardenedBlob);
+    assert.equal(review.fullMethodCoverageCredits, 0);
+    assert.equal(review.ownForeignTenantProof, false);
+    assert.equal(review.goLiveApproval, false);
+    assert.equal(method.testedBy, null, "PayMongo callback POST remains GAP until its separate method proof is credited");
+    assert.match(method.reason, /GAP/);
+    const source = readFileSync("src/app/api/webhooks/paymongo/transfers/route.ts", "utf8");
+    const hardened = [
+      "  // Validate before touching the run so the response never depends on whether the run exists.",
+      "  if (!event.eventId || event.eventId.length > 180) {",
+      "    return Response.json({ error: \"Invalid provider event ID.\" }, { status: 400 });",
+      "  }",
+      "",
+      "  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);",
+      "  if (!run) {",
+      "    // Same response as a run that exists but does not hold this transfer: a signed",
+      "    // caller must not be able to tell a nonexistent run from another tenant's run.",
+      "    return Response.json({ ok: true, ignored: true, reason: \"unmatched-payroll-transfer\" });",
+      "  }",
+      "",
+    ].join(String.fromCharCode(10));
+    const former = [
+      "  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);",
+      "  if (!run) {",
+      "    return Response.json({ ok: true, ignored: true, reason: \"unknown-payroll-run\" });",
+      "  }",
+      "",
+      "  if (!event.eventId || event.eventId.length > 180) {",
+      "    return Response.json({ error: \"Invalid provider event ID.\" }, { status: 400 });",
+      "  }",
+      "",
+    ].join(String.fromCharCode(10));
+    assert.equal(source.split(hardened).length - 1, 1, "the reviewed oracle removal must occur exactly once");
+    assert.equal(gitBlobSha(Buffer.from(source.replace(hardened, former))), originalBlob,
+      "PayMongo PR may change ONLY the reviewed run-lookup ordering and response");
+    return;
+  }
+
   // Signup is a public tenant-CREATION method, not an already authenticated
   // own/foreign employer method. Permit only the four reviewed anti-abuse
   // source substitutions, while keeping the entire POST method GAP.
@@ -1628,6 +1676,56 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(runner, /counts\.nonmemberExcludedEmployer403\+\+/);
     assert.match(contract,
       /both issued-demand writes authorize employer membership before inspecting pilot flags/);
+    return;
+  }
+
+  // PATCH careers publication: recheck the persisted, active company-wide
+  // HR grant inside the final SQL transaction. Source review only; a passing
+  // mock or partial HTTP path does not prove full tenant isolation or add credit.
+  if (isNewOrChanged && key === "src/app/api/careers/admin/route.ts PATCH") {
+    const path = "src/app/api/careers/admin/route.ts";
+    const current = "fc7920e19fc75389c5f5e7fe3cb4f90046028f00";
+    assert.equal(currentBlob, current, "Careers final role guard changed: renewed review required");
+    assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, current);
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "careers-patch-final-live-role-lock-PG16-review-only",
+      originalRouteBlobSha: "3227f2bd369ca86bc05b10750f3bdf8b35512955",
+      routeBlobSha: current,
+      proofFile: "scripts/qa/tenant-edg01-careers-publication-http.mjs",
+      proofBlobSha: "175abbd544ba66ca8c393fcd91946e2a09545a80",
+      contractFile: "tests/tenant-edg01-careers-publication-contract.test.mjs",
+      contractBlobSha: "dfc9bbd2304c2f24bce4230667244d1ea58ad14f",
+      workflowFile: ".github/workflows/tenant-edg01-careers-publication-http.yml",
+      workflowBlobSha: "b84ba8d8001b1475c741809340dcb795943a96f7",
+      coverageCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    });
+    for (const [file, expected] of [
+      [method.reviewedUncertified.proofFile, method.reviewedUncertified.proofBlobSha],
+      [method.reviewedUncertified.contractFile, method.reviewedUncertified.contractBlobSha],
+      [method.reviewedUncertified.workflowFile, method.reviewedUncertified.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), expected,
+      "Careers test/PG16 evidence source changed; re-review required: " + file);
+    const source = readFileSync(path, "utf8");
+    const tx = source.indexOf("db.transaction(async tx =>");
+    const grant = source.indexOf("const liveGrant = await tx.execute", tx);
+    const update = source.indexOf("update job_requisitions as req", grant);
+    assert.ok(tx > 0 && grant > tx && update > grant,
+      "Active employer grant must be locked before publishing any requisition");
+    const gate = source.slice(grant, update);
+    for (const item of [
+      "uo.user_id = ${user.id}",
+      "uo.organization_id = ${organizationId}",
+      "uo.active = true", "u.active = true", "uo.org_unit_id is null",
+      "uo.role in ('owner', 'admin', 'hr')", "for share of uo, u",
+      "if (!liveGrant.rows[0]) return null",
+    ]) assert.ok(gate.includes(item), "Careers commit-time tenant role guard missing: " + item);
+    assert.ok(source.includes("req.organization_id = ${organizationId}"),
+      "Careers write must retain the employer-bound requisition predicate");
     return;
   }
 
@@ -3739,6 +3837,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 124748701503);
         continue;
       }
+      // webhooks/xendit-payout POST: provider-callback receipt; anchors and pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-webhook-xendit-payout-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/webhooks/xendit-payout/route.ts POST", "No unrelated method may reuse the xendit payout webhook evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "2e7e23edeec362ff90203b1cc0e243aa3db8bf4a");
+        assert.equal(proof.workflowRunId, 41367679707);
+        assert.equal(proof.workflowJobId, 125031218758);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -4813,7 +4921,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
       // This exact, uncredited PG16 candidate is not a COVERED promotion.
       if (path === "src/app/hcm/work-items/page.tsx") {
         const reviewed = entry.reviewedUncertified;
-        const pageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
+        const pageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
+        const historicalPageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
         const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
         assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
         assert.equal(entry.testedBy, undefined, "No premature page coverage credit");
@@ -4823,7 +4932,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(entry.reason, /^Still GAP: #1658/);
         assert.deepEqual(reviewed, {
           kind: "hcm-work-items-client-GET-PG16-unaccepted",
-          pageBlobSha: pageSha,
+          pageBlobSha: historicalPageSha,
           originalPageBlobSha: originalPageSha,
           helperFile: "src/lib/hcm-work-queue-summary.ts",
           helperBlobSha: "1e6fb2ab6fd10324ee06bf382d6050098a6482de",
@@ -4839,14 +4948,37 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
+        // Historical PG16 receipt is still pinned to the old client-only page.
+        // The later local-search and responsive-card change is separate,
+        // exact-source and uncredited until fresh independent acceptance.
+        const pendingUiChange = entry.pendingUiChange;
+        assert.deepEqual(pendingUiChange, {
+          kind: "hcm-work-items-client-local-search-and-responsive-cards-review-only",
+          previousPageBlobSha: historicalPageSha,
+          pageBlobSha: pageSha,
+          helperBlobSha: "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
+          unitTestBlobSha: "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
+          browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
+          browserScriptBlobSha: "793ef20c5f75e55b8162054087a8ab0388fafda3",
+          coverageCredits: 0,
+          independentlyAccepted: false,
+          productionCertified: false,
+        }, "UI changes need their own exact-source, zero-credit review record");
+        assert.equal(gitBlobSha(readFileSync(pendingUiChange.browserScript)),
+          pendingUiChange.browserScriptBlobSha,
+          "Browser tenant-retirement proof changed without renewed review");
         for (const [file, sha] of [
           [reviewed.helperFile, reviewed.helperBlobSha],
           [reviewed.unitTestFile, reviewed.unitTestBlobSha],
           [reviewed.proofFile, reviewed.proofBlobSha],
           [reviewed.harnessFile, reviewed.harnessBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
-        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
-          "Unreviewed HR Work Queue evidence changed without renewed proof: " + file);
+        ]) {
+          const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
+            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha : sha;
+          assert.equal(gitBlobSha(readFileSync(file)), expected,
+            "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
+        }
         assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
           /const ownPage = expectStatus\(await request\("\/hcm\/work-items\?organizationId="/);
         assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
@@ -4871,6 +5003,10 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(page, /"use client"/);
         assert.match(page, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
         assert.match(page, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
+        assert.match(page, /const visibleItems = summary \? findLoadedHcmWorkItems\(items, search\) : \[\]/,
+          "Search must operate only after verified employer rows load");
+        assert.match(page, /aria-label="Work items on mobile"/,
+          "Responsive cards must only show verified, employer-scoped work items");
         const route = readFileSync("src/app/api/hcm/work-items/route.ts", "utf8");
         assert.match(route, /const auth = await authorize\(organizationId\)/);
         assert.match(route, /WHERE c\.organization_id = \$1/);
@@ -5178,4 +5314,49 @@ test("allocations POST and PATCH credits require the exact passing run, byte-pin
   for (const evidence of ["requireDisposablePlanningEnv();", "cannot shrink below accepted manager demand", "sum of org-unit budgets cannot exceed plan budget",
     'for (const action of ["submit", "accept", "reject"])', "foreignPatches: 8, nonadminPatches: 2, makerDecisionDenials: 3"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
   assert.ok(harness.indexOf("requireDisposablePlanningEnv();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+});
+
+test("xendit payout webhook credit requires the exact passing run, byte-pinned inputs, the provider-callback rule and a cited call per case", () => {
+  const routePath = "src/app/api/webhooks/xendit-payout/route.ts";
+  const harnessFile = "scripts/qa/tenant-webhook-xendit-payout-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const harnessLines = harness.split(String.fromCharCode(10));
+  const workflow = readFileSync(".github/workflows/tenant-webhook-xendit-payout-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-xendit-payout-http.mjs"));
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 1, "the rule counts exactly this credited method");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const method = api.methods[0];
+  assert.equal(method.reviewedUncertified, undefined);
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.rule, "proofPolicy.providerCallback");
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 xendit-payout-webhook PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1696);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-webhook-xendit-payout-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-webhook-xendit-payout.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "const ownEvent = await send(eventBody(a));", "own-observation anchor");
+  cites(proof.secondaryOwnPositiveLine, "const forgedEvent = await send(eventBody(a, {", "forged-selector anchor");
+  cites(proof.foreignDenialLine, "const foreignVictim = await send(eventBody(victim));", "foreign-run anchor");
+  cites(proof.secondaryForeignDenialLine, "const foreignSecondAttacker = await send(eventBody(b));", "second-attacker anchor");
+  cites(proof.unchangedDbLine, "await unchangedExcept(before);", "unchanged-SQL anchor");
+  cites(proof.unchangedDbLine - 1, "for (const forbidden of [victim.marker,", "unchanged-SQL anchor follows the echo check");
+  cites(proof.higherIdVictimLine, "victim.payout[key] > a.payout[key]", "higher-ID victim anchor");
+  cites(proof.replayLine, "const replayEvent = await send(eventBody(a), { eventId: ownEvent.eventId });", "replay anchor");
+  cites(proof.concurrentDeliveryLine, "const raced = await Promise.all(", "concurrent-delivery anchor");
+  cites(proof.crossBoundLine, "const crossVictimReference = await send(", "cross-bound anchor");
+  for (const evidence of ["requireDisposableXenditPayoutWebhook();", "a real foreign run must not be distinguishable from a nonexistent run",
+    "denial must not echo victim data", "Settlement observation rejected; manual review required."]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposableXenditPayoutWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
 });

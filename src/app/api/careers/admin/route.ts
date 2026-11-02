@@ -59,6 +59,22 @@ export async function PATCH(request: Request) {
   // Even a previously published, since-filled job may be UNpublished, never
   // newly published. A linked position must still be open in this employer.
   const saved = await db.transaction(async tx => {
+    // The preflight session grant can be revoked while the caller passes MFA
+    // and rate limits. Lock and recheck the same active, company-wide employer
+    // role inside the write transaction before touching requisition or audit.
+    const liveGrant = await tx.execute<{ id: number }>(sql`
+      select uo.id
+        from user_organizations as uo
+        join users as u on u.id = uo.user_id
+       where uo.user_id = ${user.id}
+         and uo.organization_id = ${organizationId}
+         and uo.active = true
+         and u.active = true
+         and uo.org_unit_id is null
+         and uo.role in ('owner', 'admin', 'hr')
+       for share of uo, u
+    `);
+    if (!liveGrant.rows[0]) return null;
     const result = await tx.execute<{ id: number; careers_published: boolean }>(sql`
       update job_requisitions as req
          set careers_published = ${body.published}

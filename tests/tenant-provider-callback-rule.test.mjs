@@ -23,11 +23,19 @@ test("the provider callback rule is explicit, narrow and leaves the session rule
   assert.ok(manifest.proofPolicy.covered.includes("Never infer from invented IDs"), "the session COVERED rule must not be weakened");
 });
 
-test("no webhook method is credited by the rule PR itself", () => {
-  assert.equal(rule.creditedMethods, 0);
+test("only receipt-backed webhook methods are COVERED and the rule counts them", () => {
+  const receipts = { "webhooks/xendit-payout": "scripts/qa/tenant-webhook-xendit-payout-http.mjs" };
+  let covered = 0;
   for (const route of credited) {
     const entry = Object.values(manifest.allApiRouteFiles).find(item => item.route === route);
     assert.ok(entry, route + " must remain in the manifest");
-    for (const method of entry.methods) assert.notEqual(method.status, "COVERED", route + " " + method.name + " needs a proof PR first");
+    for (const method of entry.methods) {
+      if (method.status !== "COVERED") continue;
+      covered += 1;
+      assert.equal(method.testedBy?.file, receipts[route], route + " " + method.name + " needs its own executed receipt");
+      assert.equal(method.testedBy.rule, "proofPolicy.providerCallback");
+      assert.equal(method.testedBy.independentSecurityReview, "PENDING");
+    }
   }
+  assert.equal(rule.creditedMethods, covered, "the rule's counter must match the credited methods");
 });

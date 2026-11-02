@@ -370,7 +370,8 @@ export function PeopleView({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
-  const [picked, setPicked] = useState<Employee | null>(null);
+  // Keep employee selection bound to the employer that authorized the list.
+  const [picked, setPicked] = useState<{ organizationId: number; employeeId: number } | null>(null);
   const hrMode = data.access?.role === "hr";
   const canManageLifecycle = Boolean(
     canManage
@@ -383,7 +384,14 @@ export function PeopleView({
 
   // The drawer subject is derived: either a row the user clicked, or the person
   // the command palette handed us. No effect copies one into the other.
-  const selected = picked ?? data.employees.find((employee) => employee.id === focusEmployeeId) ?? null;
+  const selectedId = picked
+    ? (picked.organizationId === data.selectedOrganization.id ? picked.employeeId : null)
+    : focusEmployeeId;
+  const selected = data.employees.find((employee) => employee.id === selectedId) ?? null;
+
+  function pickEmployee(employee: Employee) {
+    setPicked({ organizationId: data.selectedOrganization.id, employeeId: employee.id });
+  }
 
   function closeDrawer() {
     setPicked(null);
@@ -482,7 +490,7 @@ export function PeopleView({
           onOpenWorker={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (!worker) return false;
-            setPicked(worker);
+            pickEmployee(worker);
             return true;
           }}
           onPage={onPage}
@@ -522,7 +530,7 @@ export function PeopleView({
           legalEntityId={data.multiEntity?.legalEntityId ?? null}
           onOpenEmployee={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);
-            if (worker) setPicked(worker);
+            if (worker) pickEmployee(worker);
           }}
           onOpenSeparation={() => onPage("Separation")}
         />
@@ -533,7 +541,7 @@ export function PeopleView({
           organizationId={data.selectedOrganization.id}
           onOpenEmployee={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);
-            if (worker) setPicked(worker);
+            if (worker) pickEmployee(worker);
           }}
           onOpenSeparation={() => onPage("Separation")}
         />
@@ -573,10 +581,16 @@ export function PeopleView({
               <input
                 value={query}
                 onChange={(event) => search(event.target.value)}
-                placeholder="Search name, number, role"
+                type="search"
+                autoComplete="off"
+                placeholder="Search loaded name, number, role"
                 aria-label="Search people"
+                aria-describedby="people-search-scope"
+                aria-controls="people-directory-table"
+                onKeyDown={(event) => { if (event.key === "Escape") search(""); }}
               />
             </div>
+            {query && <button type="button" className="filter-button" onClick={() => search("")}>Clear search</button>}
             <button className="filter-button" onClick={() => toggleSort("basicRate")}>
               <ArrowUpDown size={13} /> Pay rate
             </button>
@@ -585,8 +599,11 @@ export function PeopleView({
             </button>
           </div>
 
+          <p id="people-search-scope" role="status" className="px-4 py-2 text-xs text-slate-600">
+            Searching {data.employees.length} loaded, authorized employee records only. Other employers and restricted departments are not searched.
+          </p>
           <div className="data-table-wrap slim-scroll">
-            <table className="data-table">
+            <table id="people-directory-table" className="data-table">
               <thead>
                 <tr>
                   <th className="sortable" aria-sort={sort.key === "name" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
@@ -604,13 +621,13 @@ export function PeopleView({
                 {visible.map((employee) => (
                   <tr
                     key={employee.id}
-                    onClick={() => setPicked(employee)}
+                    onClick={() => pickEmployee(employee)}
                     style={{ cursor: "pointer" }}
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        setPicked(employee);
+                        pickEmployee(employee);
                       }
                     }}
                   >
@@ -648,7 +665,7 @@ export function PeopleView({
 
             {filtered.length === 0 && (
               <EmptyState icon={<Search size={20} className="i-slate" />} title="No people match">
-                {query ? `Nothing matches “${query}”.` : "This status has no employees on this client yet."}
+                {query ? `No matching records for “${query}” within this authorized snapshot.` : "No employee records in this loaded, authorized snapshot. This does not confirm the employer has zero employees."}
               </EmptyState>
             )}
             {filtered.length === 0 && (query || tab !== "all") && <div className="empty-state-action"><button type="button" className="secondary-button" onClick={() => { search(""); selectTab("all"); }}>Clear filters</button></div>}

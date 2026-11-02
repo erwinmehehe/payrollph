@@ -230,9 +230,17 @@ async function prove() {
       await publishOrUnpublish(attacker, false);
       await expectDenied(() => patch(attacker, attacker.org.id, attacker.job.id, false, true),
         409, attacker.label + " repeated unpublish is not idempotent publication");
+      // A once-valid owner session must no longer publish even when its
+      // cookie survives and the requisition is otherwise ready to re-publish.
+      await db.update(s.userOrganizations).set({ active: false }).where(orm.and(
+        eq(s.userOrganizations.userId, attacker.owner.id),
+        eq(s.userOrganizations.organizationId, attacker.org.id),
+      ));
+      await expectDenied(() => patch(attacker, attacker.org.id, attacker.job.id, true, false),
+        403, attacker.label + " revoked employer membership denies publication");
     }
     assert.equal(successes, 5);
-    assert.equal(denials, 18);
+    assert.equal(denials, 20);
     const final = await snapshotAll();
     assert.equal(final[2].jobs.find(j => j.id === victim.job.id).careers_published, true,
       "the victim's genuine published opening remains visible to its own tenant");

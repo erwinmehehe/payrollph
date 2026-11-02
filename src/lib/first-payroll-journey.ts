@@ -31,6 +31,26 @@ export type FirstPayrollJourneyStep = {
   settingsTab?: "organization" | "team";
 };
 
+/** Select an actionable step only from authorized navigation destinations.
+ * This is a UI suggestion, not a payroll/compliance readiness decision. */
+export function findFirstPayrollResumeStep(
+  steps: readonly FirstPayrollJourneyStep[],
+  allowedPages: readonly string[],
+): FirstPayrollJourneyStep | null {
+  // A recorded release does not certify time review or government filing.
+  // Still, the relevant next navigation destination is the export handoff,
+  // not an earlier review prompt that cannot be marked complete by this UI.
+  if (steps.some(step => step.key === "payroll" && step.state === "complete")) {
+    return steps.find(step => step.key === "exports" &&
+      (step.state === "available" || step.state === "review") &&
+      allowedPages.includes(step.page)) ?? null;
+  }
+  return steps.find((step) =>
+    (step.state === "available" || step.state === "review") &&
+    allowedPages.includes(step.page)
+  ) ?? null;
+}
+
 /**
  * Status is derived from actual readiness; a workspace checkbox is not evidence
  * of a period-specific attendance review, independent approval or government
