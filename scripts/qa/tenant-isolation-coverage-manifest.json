@@ -19702,7 +19702,7 @@
       ]
     },
     "src/app/api/multi-entity/transfers/route.ts": {
-      "gitBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+      "gitBlobSha": "3e29e93af79ab88fef73a287aaa6912c4399b87a",
       "route": "multi-entity/transfers",
       "methods": [
         {
@@ -19726,15 +19726,45 @@
           "name": "POST",
           "line": 89,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: source hardening now redacts unexpected SQL errors in POST/PATCH transfer writes; existing synthetic two-attacker PG16 write proof is candidate-only and requires exact-head CI, all-action evidence and independent employer/payroll/security review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "multi-entity-transfers-errors-redacted-source-only",
+            "originalRouteBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+            "routeBlobSha": "3e29e93af79ab88fef73a287aaa6912c4399b87a",
+            "proofFile": "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+            "proofBlobSha": "21909753364cda9cead239a8a495b1e2a40abc9d",
+            "contractFile": "tests/tenant-multi-entity-transfers-write-candidate.test.mjs",
+            "contractBlobSha": "0d9394e25fbbdc1f8940db69e34775e47e6c44df",
+            "workflowFile": ".github/workflows/multi-entity-browser-qa.yml",
+            "workflowBlobSha": "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "PATCH",
           "line": 248,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: source hardening now redacts unexpected SQL errors in POST/PATCH transfer writes; existing synthetic two-attacker PG16 write proof is candidate-only and requires exact-head CI, all-action evidence and independent employer/payroll/security review.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "multi-entity-transfers-errors-redacted-source-only",
+            "originalRouteBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+            "routeBlobSha": "3e29e93af79ab88fef73a287aaa6912c4399b87a",
+            "proofFile": "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+            "proofBlobSha": "21909753364cda9cead239a8a495b1e2a40abc9d",
+            "contractFile": "tests/tenant-multi-entity-transfers-write-candidate.test.mjs",
+            "contractBlobSha": "0d9394e25fbbdc1f8940db69e34775e47e6c44df",
+            "workflowFile": ".github/workflows/multi-entity-browser-qa.yml",
+            "workflowBlobSha": "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

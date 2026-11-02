@@ -29,6 +29,18 @@ function validDate(ymd: string) {
 }
 const managementRoles = new Set(["owner", "admin", "bookkeeper", "hr"]);
 
+// Only explicit business conflicts are safe to disclose. Never send SQL diagnostics.
+const safeTransferDecisionErrors = new Set([
+  "Transfer decision was changed. Reload.",
+  "Review conflict.",
+  "Source employer or service date changed. Request a new review.",
+  "Historical assignment is missing or move date is invalid.",
+  "New payroll appeared after approval; cannot mix employers.",
+  "Concurrent transfer conflict.",
+  "The worker changed concurrently.",
+  "Transfer already applied.",
+]);
+
 async function transferGrants(organizationId: number, userId: number): Promise<number[]> {
   return (await db.select({ id: userLegalEntityGrants.legalEntityId })
     .from(userLegalEntityGrants).where(and(
@@ -240,8 +252,8 @@ export async function POST(request: Request) {
       return [row];
     });
     return Response.json({ transfer: summarizeEntityTransfer(created) }, { status: 201 });
-  } catch (error) {
-    return fail(error instanceof Error ? error.message : "Could not request transfer.");
+  } catch {
+    return fail("Could not request transfer.");
   }
 }
 
@@ -380,6 +392,7 @@ export async function PATCH(request: Request) {
     });
     return Response.json({ transfer: summarizeEntityTransfer(result) });
   } catch (error) {
-    return fail(error instanceof Error ? error.message : "Transfer could not be decided.");
+    return fail(error instanceof Error && safeTransferDecisionErrors.has(error.message)
+      ? error.message : "Transfer could not be decided.");
   }
 }

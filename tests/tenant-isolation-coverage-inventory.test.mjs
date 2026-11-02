@@ -118,6 +118,36 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // Only transfer exception handling changed; preserve the GET credit and
+  // require fresh independent evidence for POST/PATCH without self-crediting.
+  if (isNewOrChanged && key.startsWith("src/app/api/multi-entity/transfers/route.ts ")) {
+    const source = readFileSync("src/app/api/multi-entity/transfers/route.ts", "utf8");
+    assert.equal(currentBlob, "3e29e93af79ab88fef73a287aaa6912c4399b87a", "Transfer route changed since guard review");
+    const restored = source
+      .replace("\n// Only explicit business conflicts are safe to disclose. Never send SQL diagnostics.\nconst safeTransferDecisionErrors = new Set([\n  \"Transfer decision was changed. Reload.\",\n  \"Review conflict.\",\n  \"Source employer or service date changed. Request a new review.\",\n  \"Historical assignment is missing or move date is invalid.\",\n  \"New payroll appeared after approval; cannot mix employers.\",\n  \"Concurrent transfer conflict.\",\n  \"The worker changed concurrently.\",\n  \"Transfer already applied.\",\n]);\n", "")
+      .replace("  } catch {\n    return fail(\"Could not request transfer.\");\n  }\n}\n\nexport async function PATCH", "  } catch (error) {\n    return fail(error instanceof Error ? error.message : \"Could not request transfer.\");\n  }\n}\n\nexport async function PATCH")
+      .replace("  } catch (error) {\n    return fail(error instanceof Error && safeTransferDecisionErrors.has(error.message)\n      ? error.message : \"Transfer could not be decided.\");\n  }\n}\n", "  } catch (error) {\n    return fail(error instanceof Error ? error.message : \"Transfer could not be decided.\");\n  }\n}\n");
+    assert.equal(gitBlobSha(Buffer.from(restored)), "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+      "Only the reviewed POST/PATCH exception boundaries may change");
+    assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP",
+      "Do not reclassify transfer methods from a source edit");
+    if (method.name === "GET") {
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+        "Preserve the independent prior GET evidence");
+    } else {
+      assert.equal(method.testedBy, null, "Transfer write remains uncredited");
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-errors-redacted-source-only","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"3e29e93af79ab88fef73a287aaa6912c4399b87a","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"21909753364cda9cead239a8a495b1e2a40abc9d","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0d9394e25fbbdc1f8940db69e34775e47e6c44df","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false},
+        "Transfer exception change is a source-only candidate");
+    }
+    assert.equal(gitBlobSha(readFileSync("tests/tenant-multi-entity-transfers-write-candidate.test.mjs")), "0d9394e25fbbdc1f8940db69e34775e47e6c44df",
+      "Transfer error regression contract drifted");
+    assert.equal(gitBlobSha(readFileSync("scripts/qa/tenant-multi-entity-transfers-write-http.mjs")), "21909753364cda9cead239a8a495b1e2a40abc9d",
+      "Transfer original synthetic PG16 proof drifted");
+    assert.equal(gitBlobSha(readFileSync(".github/workflows/multi-entity-browser-qa.yml")), "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476",
+      "Transfer synthetic workflow drifted");
+    return;
+  }
+
   // Existing historical GET credit is preserved, not promoted. The new exact
   // route source and dedicated disposable-PG16 proof are independently pinned
   // for renewed human review. The old positive/victim receipt remains intact.

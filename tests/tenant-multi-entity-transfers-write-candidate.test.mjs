@@ -51,3 +51,30 @@ test("PG16 real-HTTPS transfer write fixture is the only proposed family and nev
     [["GET", "COVERED"], ["POST", "GAP"], ["PATCH", "GAP"]],
     "First new run must pass and receive independent review before earning any credits");
 });
+
+test("POST and PATCH transfer failures never expose unexpected SQL diagnostics", () => {
+  const post = route.slice(route.indexOf("export async function POST"), route.indexOf("export async function PATCH"));
+  const patch = route.slice(route.indexOf("export async function PATCH"));
+  assert.ok(post.includes('return fail("Could not request transfer.");'),
+    "POST SQL errors must use a fixed message");
+  assert.ok(patch.includes("safeTransferDecisionErrors.has(error.message)"),
+    "PATCH SQL errors must be handled through a fixed allowlist");
+  assert.ok(patch.includes('error.message : "Transfer could not be decided."'),
+    "Unknown PATCH failures must use a fixed response");
+  assert.doesNotMatch(post, /return fail\(error instanceof Error \? error\.message/,
+    "POST must not echo database driver diagnostics");
+  assert.doesNotMatch(patch, /return fail\(error instanceof Error \? error\.message/,
+    "PATCH must not echo database driver diagnostics");
+  for (const message of [
+    "Transfer decision was changed. Reload.", "Review conflict.",
+    "Source employer or service date changed. Request a new review.",
+    "Historical assignment is missing or move date is invalid.",
+    "New payroll appeared after approval; cannot mix employers.",
+    "Concurrent transfer conflict.", "The worker changed concurrently.",
+    "Transfer already applied.",
+  ]) assert.ok(route.includes(JSON.stringify(message)),
+    "Explicit business conflict should remain available: " + message);
+  assert.match(workflow, /MULTI_ENTITY_TRANSFERS_ENABLED: "true"/);
+  assert.match(proof, /for \(const attacker of \[attackerB, attackerC\]\)/);
+  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), victimBefore/);
+});
