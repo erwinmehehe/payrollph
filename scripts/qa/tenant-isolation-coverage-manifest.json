@@ -32846,8 +32846,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         },
         {
