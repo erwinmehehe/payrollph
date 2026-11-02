@@ -2228,8 +2228,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
         "PATCH"
       ],
       "exactHeadPg16": "PENDING",
-      "independentSecurityReview": "PENDING",
-      "productionCertified": false
+      "productionCertified": false,
+      "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+      "soleOwnerReviewer": "erwinmehehe",
+      "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
     };
     assert.deepEqual(method.reviewedUncertified, expected,
       "WRK-02 method lacks its exact uncredited proof review");
@@ -2249,7 +2251,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       [expected.workflowFile, expected.workflowBlobSha],
     ]) {
       assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "WRK-02 fixture/contract/workflow changed; renew independent review: " + file);
+        "WRK-02 fixture/contract/workflow changed; renew sole-owner source review: " + file);
     }
     const source = readFileSync(routeFile, "utf8");
     const patch = source.split("export async function PATCH(request: Request) {")[1] ?? "";
