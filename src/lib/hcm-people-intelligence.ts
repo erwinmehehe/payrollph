@@ -87,6 +87,9 @@ export type PeopleIntelligenceSummary = {
   activeRequisitions: number | null;
   recordedAnnualVacancyBudget: number | null;
   medianHireDays: number | null;
+  /** Requisition creation to linked hire, not an independently verified vacancy-fill lifecycle. */
+  timeToFillProxyDays: number | null;
+  timeToFillSampleSize: number;
   approvedCompensationDeltaAnnual: number | null;
   activeCycleBudget: number | null;
   releasedPayrollGross: number | null;
@@ -333,6 +336,7 @@ export function summarizeHcmPeopleIntelligence(input: {
     if (days >= 0 && days <= 3650) hireDays.push(days);
   }
 
+  const timeToFillProxyDays = median(hireDays);
   const releasedRuns = input.payrollRuns.filter((row) =>
     row.status.toLowerCase() === "released" && row.payDate >= windowStart && row.payDate <= asOf);
   const safeGross = recordedMoneyTotal(releasedRuns.map((row) => row.grossPay));
@@ -406,7 +410,8 @@ export function summarizeHcmPeopleIntelligence(input: {
     vacantPositions: historical ? null : eligibleVacancies.length,
     activeRequisitions,
     recordedAnnualVacancyBudget,
-    medianHireDays: median(hireDays),
+    medianHireDays: timeToFillProxyDays,
+    timeToFillProxyDays, timeToFillSampleSize: hireDays.length,
     approvedCompensationDeltaAnnual, activeCycleBudget,
     releasedPayrollGross: safeGross, releasedPayrollNet: safeNet,
     releasedRunCount: releasedRuns.length,
