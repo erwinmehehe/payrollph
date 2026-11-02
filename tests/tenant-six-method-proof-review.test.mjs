@@ -131,7 +131,7 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
       // Historical #1501 was rejection-only. A new synthetic ACCEPTED-branch
       // HTTP/PG16 candidate is in the current family row; no successful job
       // or accepted coverage credit is implied until its exact-head run.
-      assert.equal(blobSha(review.proofFile), "cb27590280c58a34615faef99cdc33bb02330e66",
+      assert.equal(blobSha(review.proofFile), "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
         "new fictional accepted-path family proof changed; rerun exact-head CI");
       assert.notEqual(blobSha(review.proofFile),
         method.reviewedUncertified.proofBlobSha,
