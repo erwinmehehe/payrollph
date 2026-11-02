@@ -384,8 +384,9 @@ export function PeopleView({
 
   // The drawer subject is derived: either a row the user clicked, or the person
   // the command palette handed us. No effect copies one into the other.
-  const selectedId = picked?.organizationId === data.selectedOrganization.id
-    ? picked.employeeId : focusEmployeeId;
+  const selectedId = picked
+    ? (picked.organizationId === data.selectedOrganization.id ? picked.employeeId : null)
+    : focusEmployeeId;
   const selected = data.employees.find((employee) => employee.id === selectedId) ?? null;
 
   function pickEmployee(employee: Employee) {
