@@ -170,6 +170,15 @@ export function createRows({
         // verified empty PG16 database: no real SSS portal, submission, funds,
         // payroll release, or government response is implied or contacted.
         const fictionalReference = "CI-ONLY-SSS-" + ctx.seeded.id;
+        // The real PATCH source-integrity guard re-generates the worksheet
+        // from its Released payroll run. The CI-only accepted path must use
+        // those exact bytes, not a fabricated file hash or an early cutoff.
+        const { generateGovernmentDraft } = await import("../../../../src/lib/exporters.ts");
+        const sourceFile = await generateGovernmentDraft(ctx.seeded.runId, "sss-r3");
+        assert.match(sourceFile.body, /^# DRAFT ONLY, not a certified government submission file/);
+        assert.match(sourceFile.filename, /^sss-ecl-r3-worksheet-\d+\.csv$/);
+        const sourceHash = createHash("sha256").update(sourceFile.body, "utf8").digest("hex");
+        assert.match(sourceHash, /^[a-f0-9]{64}$/);
         const [acceptFixture] = await db.insert(governmentFilingValidations).values({
           organizationId: ctx.orgId, legalEntityId: ctx.entityId,
           payrollRunId: ctx.seeded.runId,
@@ -177,10 +186,8 @@ export function createRows({
           periodLabel: ctx.marker + " CI-only accepted-path fixture",
           applicableMonth: FILING_PERIOD.applicableMonth,
           employeeCount: 1, reportedTotal: (20_000 + ctx.rank * 123).toFixed(2),
-          fileName: ctx.marker + "-ci-acceptance-synthetic-only.csv",
-          fileSha256: createHash("sha256").update(
-            "never-submitted-ci-accepted:" + ctx.marker + ":" + ctx.seeded.runId,
-          ).digest("hex"),
+          fileName: sourceFile.filename,
+          fileSha256: sourceHash,
           generatorVersion: "sss-r3-worksheet-v2",
           generatedBy: ctx.marker + " fictional branch-coverage fixture",
           status: "generated",
@@ -194,7 +201,7 @@ export function createRows({
           organizationId: ctx.orgId, outcome: "accepted",
           submissionMethod: "manual_entry",
           agencyReference: fictionalReference,
-          submittedAt: "2025-07-16",
+          submittedAt: "2025-08-01",
           note: "Fictional branch-coverage acceptance only; never submitted to SSS",
         };
         const beforeAccepted = await state(ctx.orgId);
@@ -214,7 +221,7 @@ export function createRows({
         assert.equal(persistedAccepted.submissionMethod, "manual_entry");
         assert.equal(persistedAccepted.agencyReference, fictionalReference);
         assert.equal(persistedAccepted.submittedAt?.toISOString?.().slice(0, 10),
-          "2025-07-16");
+          "2025-08-01");
         assert.equal(persistedAccepted.recordedBy, ctx.owner.name);
         assert.ok(persistedAccepted.recordedAt,
           "an authorized accepted decision must have a persisted actor timestamp");

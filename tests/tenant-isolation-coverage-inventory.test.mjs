@@ -148,7 +148,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     } else {
       assert.ok(method.name === "POST" || method.name === "PATCH");
       assert.equal(method.testedBy, null);
-      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false},
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false,"reconciliationReview":{"kind":"exact-final-merged-head-four-part-review-withheld-2026-11-02","proofPr":1662,"proofFinalHead":"c7001c59b9f60b55192bfb1d1876a18e0f18f482","passedJob":"https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobShaAtFinalHead":"21909753364cda9cead239a8a495b1e2a40abc9d","reviewedRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","sourceAnchors":{"ownPositiveLine":139,"foreignDenialLine":153,"forgedSelectorLine":160,"unchangedDbLine":224,"victimIdOrderingLine":131},"missingParts":["Two independent own-employer positive POST controls missing (both owns use organization 1).","Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."],"fullMethodCoverageCredits":0,"independentReview":"PENDING","productionTested":false}},
         "Source and PG16 evidence must match the uncredited transfer review");
     }
     for (const [file, sha] of [
@@ -723,7 +723,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     // Pin both generations independently; don't transfer the older receipt.
     const currentCandidatePins = {
       "scripts/qa/tenant-table-rows/write/compliance-filing.mjs":
-        "cb27590280c58a34615faef99cdc33bb02330e66",
+        "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
       "tests/tenant-compliance-filing-contract.test.mjs":
         "fe286bc91140a8dbc11dc1eebf7594fa18f97ed1",
     };
@@ -744,6 +744,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
         "Filing current candidate/helper modified without re-review: " + file);
     }
     const candidate = readFileSync(reviewed.proofFile, "utf8");
+    const sourceRule = readFileSync("scripts/qa/tenant-compliance-filing-contract.mjs", "utf8");
+    assert.match(sourceRule, /periodEnd: "2025-07-31"/,
+      "SSS accepted-path source must end at the final month cutoff");
+    assert.match(candidate, /generateGovernmentDraft\(ctx\.seeded\.runId, "sss-r3"\)/,
+      "Do not use a made-up hash to bypass the real source-integrity check");
+    assert.match(candidate, /fileSha256: sourceHash/,
+      "Filing must bind to the SHA-256 of the regenerated source bytes");
     for (const token of [
       "for (let pad = 0; pad < 6; pad++)",
       "Number.isSafeInteger(filing.id) && filing.id > 6",
@@ -757,7 +764,6 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed.reconciliationReview?.fullMethodCoverageCredits, 0);
     assert.equal(reviewed.acceptedOutcomePositiveProven, false);
     assert.equal(reviewed.atomicAuditRollbackRequired, true);
-    assert.equal(reviewed.acceptedOutcomePositiveProven, false);
     assert.equal(reviewed.fullMethodCoverageCredits, 0);
     assert.equal(reviewed.noProviderOrAgencySubmission, true);
     assert.equal(method.testedBy, null, "Rejected-only proof must stay GAP");
