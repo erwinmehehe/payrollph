@@ -109,6 +109,14 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
   };
 }
 
+type YearEndTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type BoundYearEndSummary = {
+  refunds: number;
+  collections: number;
+  totalRefund: number;
+  totalCollect: number;
+};
+
 /**
  * Aggregates every released payroll entry for the tax year and runs the
  * December annualization for each employee. Idempotent: re-running replaces
@@ -122,6 +130,7 @@ export async function runYearEndAnnualization(
     includePayrollRunId?: number;
     bindToPayrollRunId?: number;
     approvedBy?: string;
+    onBoundToPayrollRun?: (tx: YearEndTransaction, summary: BoundYearEndSummary) => Promise<void>;
   } = {},
 ) {
   await ensureMigrationSchema();
@@ -460,7 +469,7 @@ export async function runYearEndAnnualization(
     },
   });
 
-  return {
+  const summary = {
     taxYear,
     runsIncluded: runIds.length,
     importedHistoryRows: importedHistory.length,
@@ -473,5 +482,12 @@ export async function runYearEndAnnualization(
     includedPayrollRunId: options.includePayrollRunId ?? null,
     boundPayrollRunId: options.bindToPayrollRunId ?? null,
   };
+
+  // A bound final-cutoff job and its audit must commit under this same
+  // serializable transaction; any queue or audit veto rolls back adjustments.
+  if (options.bindToPayrollRunId != null && options.onBoundToPayrollRun) {
+    await options.onBoundToPayrollRun(tx, summary);
+  }
+  return summary;
   }, { isolationLevel: "serializable" });
 }
