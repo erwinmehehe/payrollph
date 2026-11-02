@@ -4771,7 +4771,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           helperBlobSha: "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
           unitTestBlobSha: "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
           browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
-          browserScriptBlobSha: "a63ff3facee006251abbbdf1993d9184b0eea171",
+          browserScriptBlobSha: "793ef20c5f75e55b8162054087a8ab0388fafda3",
           coverageCredits: 0,
           independentlyAccepted: false,
           productionCertified: false,

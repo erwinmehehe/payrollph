@@ -118,10 +118,10 @@ try {
     await mobileAction.focus();
     await page.keyboard.press("Enter");
     await page.getByRole("dialog", { name: "Assign #11" }).waitFor();
-    assert.ok(await page.evaluate(() => document.querySelector('[role="dialog"]')?.contains(document.activeElement)),
-      "Opening the keyboard editor must move focus inside the modal");
+    await page.waitForFunction(() => document.querySelector('[role="dialog"]')?.contains(document.activeElement));
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Assign / SLA");
     assert.ok(await mobileAction.evaluate(element => element === document.activeElement),
       "Closing the modal must restore focus to its mobile trigger");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
