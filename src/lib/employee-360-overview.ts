@@ -1,5 +1,6 @@
 import type { Employee, LeaveRequest } from "@/components/workspace/types";
 import type { WorkerJourneyStage } from "@/lib/hcm-worker-journey";
+import { latestLinkedEffectiveDate } from "@/lib/employee-360-navigation";
 
 /**
  * Read-only, source-linked summary for the existing People drawer.
@@ -141,6 +142,7 @@ export function buildEmployee360Overview({
   const documentsFlagged = policies + documents;
   const historyEvents = active.history.employmentEvents.length;
   const historyAssignments = active.history.positionAssignments.length;
+  const lastHistoryDate = latestLinkedEffectiveDate(active.history);
 
   return [
     employment,
@@ -199,7 +201,9 @@ export function buildEmployee360Overview({
     {
       id: "history", title: "Employment history",
       value: historyEvents + " events shown",
-      detail: historyAssignments + " position assignment(s) shown. Linked preview may omit older history.",
+      detail: historyAssignments + " position assignment(s) shown. " +
+        (lastHistoryDate ? "Latest linked effective date: " + lastHistoryDate + ". " : "Effective-dated history not verified. ") +
+        "Linked preview may omit older history.",
       source: "Linked employment events and position assignments",
       targetId: "employee-360-history", available: true,
       tone: "neutral",
