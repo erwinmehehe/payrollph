@@ -155,12 +155,14 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
   assert.equal(profile?.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3",
     "new atomic handler may not borrow historical #1518 route evidence");
   checkFile(profileRoute, profile.gitBlobSha);
-  assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without independent acceptance");
+  assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without final-head sole-owner acceptance");
   assert.equal(profileMethod?.testedBy, null, "old #1518 route proof must not certify merged #1524");
   const atomic = profileMethod.reviewedUncertified;
   assert.equal(atomic?.kind, "pii02-self-profile-atomic-source-review-only");
   assert.equal(atomic?.coverageCredits, 0);
-  assert.equal(atomic?.independentReview, "PENDING");
+  assert.equal(atomic?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(atomic?.soleOwnerReviewer, "erwinmehehe");
+  assert.equal(atomic?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
   assert.equal(atomic?.routeBlobSha, profile.gitBlobSha);
   assert.equal(atomic?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
   assert.equal(atomic?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
