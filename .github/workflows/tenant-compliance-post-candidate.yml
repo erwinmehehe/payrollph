@@ -95,6 +95,7 @@ jobs:
           node --check scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs
           node --check scripts/qa/tenant-write-table-http.mjs
           node --test tests/tenant-table-families.test.mjs
+          node --import tsx --test tests/statutory-contribution-case-timeline.test.ts
       - name: One-time fictional encryption and signing material
         shell: bash
         run: |
