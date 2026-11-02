@@ -4,7 +4,7 @@
 
 ## 2026-11-02 merged-proof four-part re-audit on main@11b6d544 — ZERO CREDITS / NOT ACCEPTED
 
-This review used the **latest exact `main@11b6d544cf6bd30c84fc524a088f90627dec09e6`** and checked all then-open PR ownership, with prior promotion precedents [#1469](https://github.com/erwinmehehe/payrollph/pull/1469), [#1509](https://github.com/erwinmehehe/payrollph/pull/1509), [#1519](https://github.com/erwinmehehe/payrollph/pull/1519) and [#1523](https://github.com/erwinmehehe/payrollph/pull/1523). The six methods below have **0 promotions**. Detailed final-head CI receipts and source-line citations: [six-method review ledger](../qa/tenant-six-method-proof-review-2026-11-02.md).
+The original review used `main@11b6d544cf6bd30c84fc524a088f90627dec09e6`; this draft now integrates **`main@9fb1ddd79a7517085097dae4d0e66e2552efc0f9`** with zero new credits and checked all then-open PR ownership, with prior promotion precedents [#1469](https://github.com/erwinmehehe/payrollph/pull/1469), [#1509](https://github.com/erwinmehehe/payrollph/pull/1509), [#1519](https://github.com/erwinmehehe/payrollph/pull/1519) and [#1523](https://github.com/erwinmehehe/payrollph/pull/1523). The six methods below have **0 promotions**. Detailed final-head CI receipts and source-line citations: [six-method review ledger](../qa/tenant-six-method-proof-review-2026-11-02.md).
 
 | Method | Merged evidence | State | Missing part of the contract |
 |---|---|---|---|
@@ -15,7 +15,7 @@ This review used the **latest exact `main@11b6d544cf6bd30c84fc524a088f90627dec09
 | `PATCH multi-entity/transfers` | [#1662 final head](https://github.com/erwinmehehe/payrollph/commit/c7001c59b9f60b55192bfb1d1876a18e0f18f482) | **GAP** | Reject/approve/apply are all under one employer's checker; no independent positive second employer or victim transfer ID ordering. |
 | `PATCH compliance/filing-validations/[id]` | [#1501 final head](https://github.com/erwinmehehe/payrollph/commit/893977583b4ac7e4d49da5b03327f7bc5c8e4a53) | **GAP** | Rejection-only positive; successful accepted-outcome branch missing. Current route source was subsequently hardened, so older receipt cannot prove the full current handler. |
 
-**Live totals recalculated, unchanged:** 295 routes and **498 API methods = 386 COVERED + 10 PUBLIC-BY-DESIGN + 102 GAP**; pages/actions **4 provisionally covered / 17 GAP**. Frozen subtotal **302 COVERED + 2 PUBLIC-BY-DESIGN + 102 GAP = 406**; no historical accepted receipt has been repinned to claim a new method. Open [#1711](https://github.com/erwinmehehe/payrollph/pull/1711) changes transfer POST/PATCH but claims zero credit. Concurrent open [#1727](https://github.com/erwinmehehe/payrollph/pull/1727) proposes credit for leave/conversion POST and overpayment-preflight POST. **Both were skipped in this branch and left byte-identical to main in the manifest and inventory.** No other open PR credits the four reviewed GAP identities; [#1728](https://github.com/erwinmehehe/payrollph/pull/1728) covers unrelated compliance POSTs with zero credit. Preserve all provider/payout/money/CSP gates **OFF** and independent review **PENDING**. No production SQL, Neon, secrets or real customer data.
+**Live totals on refreshed main (zero new credits from this review):** 295 routes and **498 API methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP**; pages/actions **4 provisionally covered / 17 GAP**. Frozen subtotal **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**; no historical accepted receipt has been repinned to claim a new method. Merged [#1711](https://github.com/erwinmehehe/payrollph/pull/1711) changed transfer POST/PATCH source and proof but claimed zero coverage credit. Concurrent open [#1727](https://github.com/erwinmehehe/payrollph/pull/1727) proposes credit for leave/conversion POST and overpayment-preflight POST. **Both were skipped in this branch and left byte-identical to main in the manifest and inventory.** No other open PR credits the four reviewed GAP identities; [#1728](https://github.com/erwinmehehe/payrollph/pull/1728) covers unrelated compliance POSTs with zero credit. Preserve all provider/payout/money/CSP gates **OFF** and independent review **PENDING**. No production SQL, Neon, secrets or real customer data.
 
 ## 2026-10-31 PR #1646 sync with main@04029a8b — NOT ACCEPTED
 
@@ -73,7 +73,7 @@ Source: [method manifest](../../scripts/qa/tenant-isolation-coverage-manifest.js
 
 **Authoritative proposed manifest snapshot:** exact `main@90ffef4911b32b1f23b9e498079aec8735cea919` with #1592's two staffing-policy proofs preserved, plus only the three additional DL-02 source-pinned, review-PENDING credits from #1593. Their referenced historical fictional PG16 receipt is not a current-head pass; import replay (200) is unproven and `POST web-bundy/evidence` stays GAP. Earlier 341/10/147, 347/10/141, 352/10/136, 354/10/134 and 355/10/133 snapshots are historical, not current acceptance.
 
-**API ledger proposed after main sync:** 295 API routes, **498 methods = 386 COVERED + 10 PUBLIC-BY-DESIGN + 102 GAP**. Current `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contains **382/10/106**, including separately credited compensation PATCH, WRK-02 Batch 2 and other newer tenant evidence. PR #1646 adds exactly **one** source-linked compensation POST method, not another PATCH or any of the newer main credits. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
+**API ledger proposed after main sync:** 295 API routes, **498 methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP**. The PR #1715 base, `main@918085a3779d9386331c77d47ac20d4c8b71458f`, contains **386 COVERED / 10 PUBLIC-BY-DESIGN / 102 GAP**. This PR adds exactly **one** source-pinned `POST webhooks/paymongo/transfers` credit from merged proof #1708 ([passing disposable-PG16 run 41402106010](https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277)); independent security review remains **PENDING**. Scoped page/action ledger remains **4 provisionally COVERED / 17 GAP** of 21. Global tenant isolation remains **NOT ACCEPTED**, and no payroll release, provider payout or deployment is authorized.
 
 ### Current 406-method frozen batch queue — 2026-10-29
 
@@ -92,9 +92,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 18 | 0 | 15 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **302 COVERED + 2 PUBLIC-BY-DESIGN + 102 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

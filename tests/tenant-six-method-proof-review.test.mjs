@@ -59,7 +59,19 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
     assert.equal(review.proofFinalHead, head, label);
     assert.match(review.passedJob, /https:\/\/github\.com\/erwinmehehe\/payrollph\/actions\/runs\/\d+\/job\/\d+$/, label);
     assert.equal(review.proofBlobShaAtFinalHead, proofSha, label);
-    assert.equal(review.reviewedRouteBlobSha, entry.gitBlobSha, label);
+    if (pr === 1662) {
+      // Historical #1662 source is superseded by merged #1711, not a current credit.
+      assert.equal(review.reviewedRouteBlobSha,
+        method.reviewedUncertified.originalRouteBlobSha, label + " historical route");
+      assert.equal(method.reviewedUncertified.routeBlobSha, entry.gitBlobSha,
+        label + " current source pin");
+      assert.equal(blobSha(method.reviewedUncertified.proofFile),
+        method.reviewedUncertified.proofBlobSha, label + " newer uncredited fault proof");
+      assert.notEqual(blobSha(review.proofFile), proofSha,
+        label + " historical receipt must not be reused as current proof");
+    } else {
+      assert.equal(review.reviewedRouteBlobSha, entry.gitBlobSha, label);
+    }
     assert.equal(blobSha(path), entry.gitBlobSha, label + " route changed since review");
     assert.equal(review.fullMethodCoverageCredits, 0, label);
     assert.equal(review.independentReview, "PENDING", label);
@@ -95,6 +107,12 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
         'credits: 0',
       ]) assert.ok(current.includes(evidence),
         "New BIR recovery source lost a required real-HTTP guard: " + evidence);
+    } else if (pr === 1662) {
+      // Old line anchors remain only historical citations after source hardening.
+      assert.equal(method.reviewedUncertified.coverageCredits, 0, label);
+      assert.equal(method.reviewedUncertified.exactHeadPg16Http, "PENDING", label);
+      assert.equal(method.reviewedUncertified.productionCertified, false, label);
+      assert.equal(review.fullMethodCoverageCredits, 0, label);
     } else {
       for (const [kind, n] of Object.entries(review.sourceAnchors)) {
         assert.ok(Number.isSafeInteger(n) && n > 0 && n <= lines.length, label + " " + kind);
@@ -107,7 +125,7 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
       assert.match(forgedText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " forged request");
       assert.match(invariantText, /assert\.deepEqual\(/, label + " actual victim DB comparison");
     }
-    if (pr !== 1501 && pr !== 1676) {
+    if (pr !== 1501 && pr !== 1676 && pr !== 1662) {
       assert.equal(blobSha(review.proofFile), proofSha, label + " proof changed since exact final head");
     } else if (pr === 1501) {
       // Historical #1501 was rejection-only. A new synthetic ACCEPTED-branch
@@ -166,14 +184,14 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
     counts[method.status]++;
   }
   assert.equal(allMethods.length, 498);
-  assert.deepEqual(counts, { COVERED:386, "PUBLIC-BY-DESIGN":10, GAP:102 });
+  assert.deepEqual(counts, { COVERED:387, "PUBLIC-BY-DESIGN":10, GAP:101 });
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
   assert.equal(m.metrics.gap, counts.GAP);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
-  assert.ok(inventory.includes("386 COVERED + 10 PUBLIC-BY-DESIGN + 102 GAP"));
-  assert.ok(plan.includes("Frozen subtotal: **302 COVERED + 2 PUBLIC-BY-DESIGN + 102 GAP = 406**"));
+  assert.ok(inventory.includes("387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP"));
+  assert.ok(plan.includes("Frozen subtotal **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**"));
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 });

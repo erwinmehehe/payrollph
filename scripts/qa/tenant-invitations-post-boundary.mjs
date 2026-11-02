@@ -11,6 +11,8 @@ export function requireDisposableInvitations(env=process.env) {
     TENANT_SECOND_PASS_MODE:"isolated-ci-only",
     DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",
     SECURITY_SMOKE_URL:"http://127.0.0.1:3000",
+    APP_BASE_URL:"https://payroll.example.test",
+    REQUIRE_PRIVILEGED_MFA:"true",
     WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",
     PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",
     XENDIT_BILLING_ENABLED:"false",DEMO_MODE:"false",
@@ -19,8 +21,10 @@ export function requireDisposableInvitations(env=process.env) {
   };
   for(const [key,value] of Object.entries(required))
     assert.equal(env[key],value,"INVITATIONS_PROOF_REFUSED: "+key);
-  for(const key of ["PAYMONGO_SECRET_KEY","XENDIT_SECRET_KEY","RESEND_API_KEY","POSTMARK_SERVER_TOKEN","STRIPE_SECRET_KEY"])
-    assert.ok(!env[key],"INVITATIONS_PROOF_REFUSED: external credentials "+key);
+  for(const key of ["PAYMONGO_SECRET_KEY","XENDIT_SECRET_KEY","RESEND_API_KEY",
+    "POSTMARK_SERVER_TOKEN","STRIPE_SECRET_KEY","NEON_API_KEY","DATABASE_URL_DIRECT",
+    "DATABASE_URL_UNPOOLED","DATABASE_POOL_URL","VERCEL_ENV"])
+    assert.ok(!env[key],"INVITATIONS_PROOF_REFUSED: external credentials or target "+key);
 }
 export function proveOwnInvitationRead(response,employer) {
   assert.equal(response.status,200);
@@ -145,7 +149,7 @@ export function proveUnchanged(before,after,label) {
 }
 async function main() {
   requireDisposableInvitations(); // before any dynamic database/app import
-  const [{db,pool},s,{eq,asc},http,{auditBusinessSnapshot}]=await Promise.all([
+  const [{db,pool},s,{eq,asc,inArray},http,{auditBusinessSnapshot}]=await Promise.all([
     import("../../src/db/index.ts"),import("../../src/db/schema.ts"),
     import("drizzle-orm"),import("./tenant-table-http.mjs"),
     import("./tenant-table-invariants.mjs")
@@ -187,7 +191,12 @@ async function main() {
           .where(eq(s.payrollRuns.organizationId,orgId)).orderBy(asc(s.payrollEntries.id)),
         byOrg(s.outbox),byOrg(s.auditEvents)
       ]);
-      return {invites,members,staff,profiles,payroll,entries,outbox,audits:auditBusinessSnapshot(audits)};
+      const memberIds=[...new Set(members.map(row=>row.userId))];
+      const accounts=memberIds.length
+        ? await db.select().from(s.users).where(inArray(s.users.id,memberIds))
+          .orderBy(asc(s.users.id)) : [];
+      return {invites,members,accounts,staff,profiles,payroll,entries,
+        outbox,audits:auditBusinessSnapshot(audits)};
     };
     smtp=await startLocalSmtpSink();
     let log="";
@@ -206,7 +215,11 @@ async function main() {
       "/api/invitations"+(method==="GET"?"?organizationId="+target.org.id:""),
       {method,cookie:actor.cookie,body:method==="POST"?{
         organizationId:target.org.id,email:actor.marker.toLowerCase()+"-foreign@example.invalid",
-        role:"employee",orgUnitId:target.unit.id
+        role:"employee",orgUnitId:target.unit.id,
+        // Real foreign SQL identifiers must not retarget a legitimate own POST.
+        employeeId:victim.worker.id,legalEntityId:victim.entity.id,
+        userId:victim.owner.id,invitationId:victim.invitationId,
+        payrollRunId:987654321,
       }:undefined});
     const before=await Promise.all(employers.map(e=>snapshot(e.org.id)));
     let first;
@@ -220,6 +233,7 @@ async function main() {
     }
     let forbidden=0;
     for(const attacker of [a,b]) {
+      const mailBefore=smtp.captured.length;
       const get=await call(attacker,victim);
       assert.equal(get.status,403,"real foreign invitation GET denied");
       assert.ok(!get.text.includes(victim.marker));
@@ -227,6 +241,8 @@ async function main() {
       assert.equal(post.status,403,"real foreign invitation POST denied");
       assert.ok(!post.text.includes(victim.marker));
       forbidden+=2;
+      assert.equal(smtp.captured.length,mailBefore,
+        "foreign employer GET/POST must not send even local SMTP");
       for(let i=0;i<employers.length;i++)
         proveUnchanged(before[i],await snapshot(employers[i].org.id),
           attacker.label+" cannot change "+employers[i].label);
@@ -234,6 +250,7 @@ async function main() {
     assert.equal(forbidden,4);
 
     // A signed-in owner cannot bind a real foreign unit to an owned employer's invitation.
+    const forgedMailBefore=smtp.captured.length;
     const forgedUnit=await http.standaloneRequest("/api/invitations",{
       method:"POST",cookie:a.cookie,body:{
         organizationId:a.org.id,email:(a.marker+"-wrong-unit@example.invalid").toLowerCase(),
@@ -242,6 +259,8 @@ async function main() {
     });
     assert.equal(forgedUnit.status,404,"foreign persisted unit must be invisible under own employer");
     assert.ok(!forgedUnit.text.includes(victim.marker));
+    assert.equal(smtp.captured.length,forgedMailBefore,
+      "foreign unit must not generate an invitation email");
     for(let i=0;i<employers.length;i++)
       proveUnchanged(before[i],await snapshot(employers[i].org.id),
         "forged foreign org unit cannot change "+employers[i].label);
@@ -278,12 +297,50 @@ async function main() {
         proveUnchanged(peersBefore.get(other.org.id),await snapshot(other.org.id),
           "foreign source must not change after "+owner.label+" authorized POST");
 
+      const duplicateMailBefore=smtp.captured.length;
       const duplicate=await call(owner,owner,"POST");
+      assert.equal(smtp.captured.length,duplicateMailBefore,
+        "duplicate invitation must not send again");
       assert.equal(duplicate.status,409,"replaying an active invitation must not duplicate it");
       assert.ok(!duplicate.text.includes(victim.marker));
       proveUnchanged(ownAfter,await snapshot(owner.org.id),
         "duplicate POST must not create an invitation, outbox or audit");
     }
+
+
+    // A company-wide owner can invite another owner; all added client-supplied
+    // identifiers refer to the real victim and must be ignored.
+    const ownerRoleEmail=(a.marker+"-owner-role@example.invalid").toLowerCase();
+    const ownerRoleBefore=new Map(await Promise.all(employers.map(async e=>
+      [e.org.id,await snapshot(e.org.id)])));
+    const ownerRoleMailBefore=smtp.captured.length;
+    const ownerRole=await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:a.cookie,body:{
+        organizationId:a.org.id,role:"owner",orgUnitId:null,
+        email:ownerRoleEmail,
+        employeeId:victim.worker.id,legalEntityId:victim.entity.id,
+        userId:victim.owner.id,invitationId:victim.invitationId,
+      },
+    });
+    assert.equal(ownerRole.status,201,"actual company owner can invite owner");
+    assert.equal(ownerRole.json?.inviteToken,undefined,"production bearer invitation must be private");
+    const [ownerRoleSaved]=await db.select().from(s.invitations)
+      .where(eq(s.invitations.id,ownerRole.json?.id)).limit(1);
+    assert.equal(ownerRoleSaved?.organizationId,a.org.id);
+    assert.equal(ownerRoleSaved?.role,"owner");
+    assert.equal(ownerRoleSaved?.orgUnitId,null);
+    assert.equal(ownerRoleSaved?.email,ownerRoleEmail);
+    assert.equal(ownerRoleSaved?.invitedBy,a.owner.name);
+    assert.equal(smtp.captured.length,ownerRoleMailBefore+1);
+    assert.equal(smtp.captured.at(-1)?.recipient,ownerRoleEmail);
+    const ownerRoleAfter=await snapshot(a.org.id);
+    assert.equal(ownerRoleAfter.invites.length,ownerRoleBefore.get(a.org.id).invites.length+1);
+    assert.equal(ownerRoleAfter.outbox.filter(row=>row.recipient===ownerRoleEmail).length,1);
+    assert.equal(ownerRoleAfter.audits.filter(row=>row.action==="Invitation created"
+      && row.resource===ownerRoleEmail&&row.actor===a.owner.name).length,1);
+    for(const other of [b,victim])
+      proveUnchanged(ownerRoleBefore.get(other.org.id),await snapshot(other.org.id),
+        "owner-role invitation preserves "+other.label);
 
     // Unit-level tenant isolation: a real session with a COMPANY-restricted
     // admin grant must not see sibling/global members or issue privileged
@@ -340,6 +397,7 @@ async function main() {
     assert.ok(unitRead.headers.get("cache-control")?.includes("no-store"));
 
     const unitBefore=await Promise.all(employers.map(e=>snapshot(e.org.id)));
+    const unitDeniedMailBefore=smtp.captured.length;
     const unitDeniedCases=[
       {label:"company-wide employee",role:"employee",unit:null,status:403},
       {label:"missing unit employee",role:"employee",status:403},
@@ -363,6 +421,8 @@ async function main() {
       assert.equal(response.status,bad.status,bad.label+" denied before issuance");
       assert.ok(!response.text.includes(siblingEmail));
       assert.ok(!response.text.includes(victim.marker));
+      assert.equal(smtp.captured.length,unitDeniedMailBefore,
+        bad.label+" must not send even fictional SMTP");
       for(let i=0;i<employers.length;i++)
         proveUnchanged(unitBefore[i],await snapshot(employers[i].org.id),
           bad.label+" must not change "+employers[i].label);
@@ -377,6 +437,8 @@ async function main() {
       },
     });
     assert.equal(unitVictimPost.status,403,"unit admin cannot issue foreign employer invitation");
+    assert.equal(smtp.captured.length,unitDeniedMailBefore,
+      "cross-employer unit POST must not deliver mail");
     for(let i=0;i<employers.length;i++)
       proveUnchanged(unitBefore[i],await snapshot(employers[i].org.id),
         "cross-tenant unit attempts preserve "+employers[i].label);
@@ -419,12 +481,15 @@ async function main() {
     assert.equal((await http.standaloneRequest(
       "/api/invitations?organizationId="+a.org.id,{cookie:unitCookie})).status,403,
       "revoked unit administrator cannot list invites");
+    const revokedMailBefore=smtp.captured.length;
     assert.equal((await http.standaloneRequest("/api/invitations",{
       method:"POST",cookie:unitCookie,body:{
         organizationId:a.org.id,role:"employee",orgUnitId:a.unit.id,
         email:(a.marker+"-revoked-unit@example.invalid").toLowerCase(),
       },
     })).status,403,"revoked unit administrator cannot issue invites");
+    assert.equal(smtp.captured.length,revokedMailBefore,
+      "revoked same-session actor cannot send email");
     for(let i=0;i<employers.length;i++)
       proveUnchanged(revokedBefore[i],await snapshot(employers[i].org.id),
         "revoked same-session requests preserve "+employers[i].label);
@@ -432,14 +497,69 @@ async function main() {
     proveUnchanged(before[2],await snapshot(victim.org.id),
       "higher-ID victim unchanged after all authorized and denied attacker requests");
 
+
+    // Company-wide administrator has access to own employer but is NOT
+    // permitted to delegate the company-owner role.
+    const [companyAdmin]=await db.insert(s.users).values({
+      name:a.marker+" company administrator",
+      email:(a.marker+"-company-admin@example.invalid").toLowerCase(),
+      passwordHash:"fictional-session-only",role:"admin",totpEnabled:true,
+    }).returning();
+    await db.insert(s.userOrganizations).values({
+      userId:companyAdmin.id,organizationId:a.org.id,orgUnitId:null,
+      role:"admin",active:true,
+    });
+    const adminSession=await http.standaloneMakeSession(companyAdmin.id);
+    await db.update(s.sessions).set({mfaVerifiedAt:new Date()})
+      .where(eq(s.sessions.id,adminSession.id));
+    const adminBefore=new Map(await Promise.all(employers.map(async e=>
+      [e.org.id,await snapshot(e.org.id)])));
+    const adminMailBefore=smtp.captured.length;
+    const deniedOwnerByAdmin=await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:adminSession.cookie,body:{
+        organizationId:a.org.id,role:"owner",orgUnitId:null,
+        email:(a.marker+"-admin-escalation@example.invalid").toLowerCase(),
+      },
+    });
+    assert.equal(deniedOwnerByAdmin.status,403,
+      "company-wide administrator must not issue an owner invitation");
+    assert.ok(!deniedOwnerByAdmin.text.includes(victim.marker));
+    assert.equal(smtp.captured.length,adminMailBefore,
+      "privilege escalation must not send any email");
+    for(const e of employers)
+      proveUnchanged(adminBefore.get(e.org.id),await snapshot(e.org.id),
+        "company-wide owner escalation denied: "+e.label);
+
+    const anonymousBefore=new Map(await Promise.all(employers.map(async e=>
+      [e.org.id,await snapshot(e.org.id)])));
+    const anonymousMailBefore=smtp.captured.length;
+    const anonymous=await http.standaloneRequest("/api/invitations",{
+      method:"POST",body:{
+        organizationId:victim.org.id,role:"employee",orgUnitId:victim.unit.id,
+        email:(a.marker+"-anonymous@example.invalid").toLowerCase(),
+      },
+    });
+    assert.equal(anonymous.status,401,"unauthenticated victim POST must be denied");
+    assert.ok(!anonymous.text.includes(victim.marker));
+    assert.equal(smtp.captured.length,anonymousMailBefore,
+      "anonymous victim POST must not send fictional SMTP");
+    for(const e of employers)
+      proveUnchanged(anonymousBefore.get(e.org.id),await snapshot(e.org.id),
+        "anonymous denial preserves "+e.label);
+    assert.equal(smtp.captured.length,4,
+      "only A/B owned, company-owner and unit-scoped fictional SMTP deliveries allowed");
+
     console.log(JSON.stringify({kind:"tenant-invitations-post-boundary-pg16",
       independentAttackers:2,higherIdVictim:true,populatedOwnGets:3,
       foreignGetDenials:2,foreignPostDenials:2,forgedUnitDenied:true,
       legitimatePostCreationProved:true,ownOutboxAndAuditVerified:true,
-      localSmtpDelivered:3,victimUnchanged:true,
+      localSmtpDelivered:4,victimUnchanged:true,
       unitAdminOwnGetScoped:true,unitAdminSameUnitEmployeePost:true,
       unitAdminPrivilegeDenials:8,siblingAndGlobalHidden:true,
       foreignEmployerUnitDenials:2,sameSessionRevocationDenied:true,
+      forgedEmployeeEntityUserAndInvitationIdsIgnored:true,
+      companyOwnerRoleOwnPositive:true,nonOwnerEscalationDenied:true,
+      deniedRequestSmtpCount:0,anonymousVictimPostDenied:true,
       methodFullyCovered:false,coverageCredits:0}));
   } finally {
     if(server&&server.exitCode===null){server.kill("SIGTERM");await Promise.race([

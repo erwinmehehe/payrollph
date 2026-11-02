@@ -239,7 +239,11 @@ export async function PATCH(request: Request) {
       }).onConflictDoUpdate({
         target: payoutProfiles.legalEntityId,
         set: values,
+        // A stale profile attached to another employer must not be re-owned
+        // through an otherwise valid legal-entity conflict.
+        setWhere: eq(payoutProfiles.organizationId, organizationId),
       }).returning();
+      if (!persisted) throw new Error("PAYOUT_PROFILE_SCOPE_CONFLICT");
 
       await recordAuditEvent({
         organizationId,
@@ -279,6 +283,9 @@ export async function PATCH(request: Request) {
     ]);
     if (error instanceof Error && inputErrors.has(error.message)) {
       return Response.json({ error: error.message }, { status: 422 });
+    }
+    if (error instanceof Error && error.message === "PAYOUT_PROFILE_SCOPE_CONFLICT") {
+      return Response.json({ error: "Company payout profile could not be saved." }, { status: 409 });
     }
     return Response.json({ error: "Company payout profile could not be saved." }, { status: 500 });
   }
