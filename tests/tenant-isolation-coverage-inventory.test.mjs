@@ -1486,8 +1486,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       workflowBlobSha: "7cbb0a6a0389a4eb0f22cce61c34ed90939c5a97",
       coverageCredits: 0,
       testedBy: null,
-      independentSecurityReview: "PENDING",
       exactHeadHttpResult: "PENDING",
+      reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY",
+      soleOwnerReviewer: "erwinmehehe",
+      reviewStatus: "PENDING_EXACT_FINAL_HEAD",
     });
     for (const [file, sha] of [
       [reviewed.testFile, reviewed.testBlobSha],
