@@ -11693,12 +11693,12 @@
       ]
     },
     "src/app/api/governed-handoffs/route.ts": {
-      "gitBlobSha": "fa7039cee62df7624e3124e75e6566294de32c68",
+      "gitBlobSha": "258ec66f80e24e4d7ac484fb4be789573b1a9820",
       "route": "governed-handoffs",
       "methods": [
         {
           "name": "GET",
-          "line": 59,
+          "line": 58,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -11715,16 +11715,23 @@
         },
         {
           "name": "POST",
-          "line": 130,
+          "line": 129,
           "status": "GAP",
-          "reason": "Still GAP: governed-handoffs POST now redacts internal chain/SQL errors; source and tenant checks unchanged. Actual PG16 denial and audit integrity review pending.",
+          "reason": "Still GAP (zero credit): source fix 2fc684a4 places governed-handoff approval/task/step and audit in one PG transaction. Disposable PG16 HTTP run 41446174317 (head ceba0eb1) passed two-employer positives, real higher-ID victim 403/404, forged selectors, unchanged SQL, idempotent replay, changed-source follow-up and forced audit-insert rollback. New final head and independent security/coverage-owner review remain unaccepted; neither production certification nor method credit is implied.",
           "testedBy": null,
           "reviewedUncertified": {
-            "kind": "governed-handoffs-POST-error-redaction-source-only",
-            "priorRouteBlobSha": "85e937e999a10afd30348e748c510b2a55f160be",
-            "routeBlobSha": "fa7039cee62df7624e3124e75e6566294de32c68",
+            "kind": "governed-handoffs-POST-atomic-audit-PG16-review-only",
+            "priorRouteBlobSha": "fa7039cee62df7624e3124e75e6566294de32c68",
+            "routeBlobSha": "258ec66f80e24e4d7ac484fb4be789573b1a9820",
             "contractFile": "tests/tenant-governed-handoff-post-error-boundary.test.mjs",
             "contractBlobSha": "8e839b7197203d3ea6b32281af78aaf0a5b3753b",
+            "proofFile": "scripts/qa/tenant-workflow-leave-handoff-http.mjs",
+            "proofBlobSha": "40c37e9966b5261ab1953d907a76843e339d90b8",
+            "workflowFile": ".github/workflows/tenant-workflow-leave-handoff-pg16.yml",
+            "workflowBlobSha": "b46cfbb441918cefd193580cf428f45f55606bb4",
+            "sourceFixCommit": "2fc684a4cb8d2469ae2b7ced7ef04e740738e49d",
+            "lastPassingHead": "ceba0eb16ab2c18add5ddfeac4b408e0be287e35",
+            "lastPassingRun": 41446174317,
             "credits": 0,
             "actualPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -11757,67 +11764,71 @@
           "token": "getAccess"
         },
         {
-          "line": 25,
+          "line": 24,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 42,
+          "line": 41,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 49,
+          "line": 48,
           "token": "getAccess"
         },
         {
-          "line": 60,
+          "line": 59,
           "token": "getSessionUser"
         },
         {
-          "line": 97,
+          "line": 96,
           "token": "assertScope"
         },
         {
-          "line": 131,
+          "line": 130,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 134,
+          "line": 133,
           "token": "getSessionUser"
         },
         {
-          "line": 179,
+          "line": 178,
           "token": "assertScope"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 63,
+          "line": 62,
           "token": "params.get(\"organizationId\")"
         },
         {
-          "line": 140,
+          "line": 139,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 39,
+          "line": 38,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 43,
           "token": "organizationId"
         },
         {
-          "line": 49,
+          "line": 48,
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 62,
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
           "token": "organizationId"
         },
         {
@@ -11825,39 +11836,35 @@
           "token": "organizationId"
         },
         {
-          "line": 66,
+          "line": 67,
           "token": "organizationId"
         },
         {
-          "line": 68,
+          "line": 75,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 75,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 94,
           "token": "organizationId"
         },
         {
-          "line": 95,
-          "token": "organizationId"
-        },
-        {
-          "line": 97,
+          "line": 96,
           "token": "orgUnitId"
         },
         {
-          "line": 100,
+          "line": 99,
           "token": "organizationId"
         },
         {
-          "line": 105,
+          "line": 104,
           "token": "employeeId"
         },
         {
-          "line": 105,
+          "line": 104,
           "token": "employeeId"
         }
       ]
