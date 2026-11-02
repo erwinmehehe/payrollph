@@ -52,7 +52,7 @@ function positive() {
   });
 }
 
-test("POST preview alone stays provisionally credited; both GET methods remain GAP pending whole-method proof", () => {
+test("preview POST and eligible-worker greedy GET have separate source-pinned PG16 credits, manage-mode GET stays GAP", () => {
   assert.equal(ROSTER_PREVIEW_ENDPOINT, "/api/workforce/roster-rules/preview");
   assert.deepEqual(WFM_THREE_METHODS, [
     "GET workforce/demand-staffing/policies",
@@ -68,11 +68,27 @@ test("POST preview alone stays provisionally credited; both GET methods remain G
     assert.ok(entry, "manifest must contain exact route: " + file);
     const record = entry.methods.filter(m => m.name === verb);
     assert.equal(record.length, 1, "exact single method in canonical inventory");
-    if (route !== "workforce/roster-rules/preview") {
+    if (route === "workforce/demand-staffing/policies") {
       assert.equal(record[0].status, "GAP",
-        "GET methods need independently passing whole-method branch proofs");
-      assert.equal(record[0].testedBy, null,
-        "historical partial branch receipts cannot certify these GET methods");
+        "unproved manage-mode GET remains GAP and cannot borrow another receipt");
+      assert.equal(record[0].testedBy, null);
+    } else if (route === "workforce/greedy-roster") {
+      assert.equal(record[0].status, "COVERED",
+        "actual nonempty own employee and higher-ID real victim PG16 proof required");
+      assert.equal(record[0].testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(record[0].testedBy?.ownerReviewer, "@erwinmehehe");
+      assert.equal(record[0].testedBy?.ownerIsOnlyReviewer, true);
+      assert.equal(record[0].testedBy?.workflowRunId, 41447125405);
+      assert.equal(record[0].testedBy?.verifiedPrHeadSha,
+        "8245efd876c38f2b7ba02ece12ac515b8775d6ed");
+      assert.equal(record[0].testedBy?.postgresMajor, 16);
+      assert.deepEqual([
+        record[0].testedBy?.ownPositiveLine,
+        record[0].testedBy?.foreignDenialLine,
+        record[0].testedBy?.forgedSelectorLine,
+        record[0].testedBy?.unchangedDbLine,
+      ], [427, 289, 432, 429]);
+      assert.equal(record[0].testedBy?.productionCertified, false);
     } else {
       assert.equal(record[0].status, "COVERED",
         "only independent source-bound PostgreSQL proof may earn provisional credit");

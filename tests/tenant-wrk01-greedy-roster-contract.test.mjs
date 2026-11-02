@@ -201,7 +201,7 @@ test("denials must not include roster source, foreign PII markers or victim audi
     { audit: [], runs: [] }, { audit: [], runs: [23] }, "victim"));
 });
 
-test("greedy-roster stays GAP until revised positive and driver-error PG16 proof passes", () => {
+test("greedy-roster GET credit requires its complete exact-head PG16 four-part receipt", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles[
@@ -210,8 +210,22 @@ test("greedy-roster stays GAP until revised positive and driver-error PG16 proof
   assert.equal(METHOD, "GET workforce/greedy-roster");
   assert.equal(ENDPOINT, "/api/workforce/greedy-roster");
   const method = entry.methods.find(x => x.name === "GET");
-  assert.equal(method.status, "GAP");
-  assert.equal(method.testedBy, null, "old empty-suggestion job cannot prove whole GET");
+  assert.equal(method.status, "COVERED");
+  assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+  assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+  assert.equal(method.testedBy?.independentlyAccepted, false);
+  assert.equal(method.testedBy?.postgresMajor, 16);
+  assert.equal(method.testedBy?.workflowRunId, 41447125405);
+  assert.equal(method.testedBy?.verifiedPrHeadSha,
+    "8245efd876c38f2b7ba02ece12ac515b8775d6ed");
+  assert.deepEqual([
+    method.testedBy?.ownPositiveLine,
+    method.testedBy?.foreignDenialLine,
+    method.testedBy?.forgedSelectorLine,
+    method.testedBy?.unchangedDbLine,
+  ], [427, 289, 432, 429], "All four sensitive GET proof parts must remain pinned");
+  assert.equal(method.testedBy?.productionCertified, false);
 });
 
 test("focused CI actually runs same-method PostgreSQL/localhost source, forged and immutable controls", () => {
