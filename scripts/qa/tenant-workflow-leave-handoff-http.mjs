@@ -152,7 +152,7 @@ try {
   for (const e of [a,b,v]) await setupEmployer(e);
   // Ensure targeted victim selectors are actual PG-backed IDs > 6, never invented IDs.
   for (let i=0;i<6;i++) await addWorker(v, "FILLER"+i, {payProfile:false});
-  const targetWorker = await addWorker(v, "VICTIM-TARGET", {payProfile:false});
+  const targetWorker = await addWorker(v, "TARGET", {payProfile:false});
   need(targetWorker.id > 6 && targetWorker.id > b.worker.id,
     "victim worker is a real higher-ID persisted employee");
 
