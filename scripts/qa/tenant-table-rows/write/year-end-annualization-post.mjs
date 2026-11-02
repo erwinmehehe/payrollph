@@ -161,7 +161,7 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
         { format: '2316-print', mime: 'text/html', starts: 'inline;', audit: 'BIR 2316 internal printable review worksheet generated' },
         { format: 'alphalist', mime: 'text/csv', starts: 'attachment;', audit: 'Year-end Alphalist source extract generated' },
       ];
-      let ownSnapshot = after;
+      let previousOwnExportState = after;
       for (const spec of exportModes) {
         const selection = spec.format === 'alphalist' ? '' : '&employeeId=' + c.workerId;
         const url = query(c.orgId, spec.format, selection);
@@ -184,13 +184,13 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
           assert.match(ownArtifact.text, /Employer TIN,Employer Branch,Employee TIN/);
         }
         const afterOwnExport = await state(c.orgId);
-        assert.equal(afterOwnExport.audit.length, ownSnapshot.audit.length + 1);
+        assert.equal(afterOwnExport.audit.length, previousOwnExportState.audit.length + 1);
         assert.equal(afterOwnExport.audit.at(-1)?.action, spec.audit);
         for (const name of ['runs', 'entries', 'adjustments', 'historical', 'priorEvidence']) {
-          assert.deepEqual(afterOwnExport[name], ownSnapshot[name],
+          assert.deepEqual(afterOwnExport[name], previousOwnExportState[name],
             spec.format + ' must never mutate fiscal or source rows');
         }
-        ownSnapshot = afterOwnExport;
+        previousOwnExportState = afterOwnExport;
 
         const denied = expectStatus(await request(
           query(c.victim.org.id, spec.format, selection), { cookie }), 403,
@@ -198,7 +198,7 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
         assert.ok(!denied.text.includes(c.victim.marker));
         assert.deepEqual(await state(c.victim.org.id), victimState,
           'victim payroll, tax and audit unchanged after ' + spec.format + ' denial');
-        assert.deepEqual(await state(c.orgId), ownSnapshot,
+        assert.deepEqual(await state(c.orgId), previousOwnExportState,
           'victim ' + spec.format + ' denial must not mutate attacker employer either');
         if (spec.format !== 'alphalist') {
           const forged = expectStatus(await request(
@@ -206,7 +206,7 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
             { cookie }), 404, 'forged real victim worker ID under own ' + spec.format);
           assert.ok(!forged.text.includes(c.victim.marker));
           assert.deepEqual(await state(c.victim.org.id), victimState);
-          assert.deepEqual(await state(c.orgId), ownSnapshot);
+          assert.deepEqual(await state(c.orgId), previousOwnExportState);
         }
       }
       return { ownAnnualizationAndBinding: 2, ownedJsonRead: 1, ownedPreflightRead: 2,
