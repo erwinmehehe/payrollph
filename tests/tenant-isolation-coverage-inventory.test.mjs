@@ -2378,8 +2378,15 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
+    assert.equal(method.status, "COVERED", "Whole method needs source-specific PG16 four-part POST proof");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.workflowRunId, 41452144006);
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "49360001aa6ca2911f1e99617ba3ad34d82a6a67");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "40c37e9966b5261ab1953d907a76843e339d90b8");
+    assert.equal(method.testedBy?.workflowBlobSha, "b46cfbb441918cefd193580cf428f45f55606bb4");
     assert.equal(currentBlob, expected.routeBlobSha);
     assert.deepEqual(method.reviewedUncertified, expected);
     assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
@@ -2471,8 +2478,15 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
           "independentSecurityReview": "PENDING",
           "productionCertified": false
     };
-    assert.equal(method.status, "GAP", "Review-only PG16 proof does not award coverage");
-    assert.equal(method.testedBy, null, "No unauthorized tenant-method credit");
+    assert.equal(method.status, "COVERED", "Whole method needs source-specific PG16 four-part POST proof");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.workflowRunId, 41452144006);
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "49360001aa6ca2911f1e99617ba3ad34d82a6a67");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "40c37e9966b5261ab1953d907a76843e339d90b8");
+    assert.equal(method.testedBy?.workflowBlobSha, "b46cfbb441918cefd193580cf428f45f55606bb4");
     assert.equal(expected.credits, 0);
     assert.equal(expected.actualPg16Http, "PENDING", "New final-head acceptance still required");
     assert.equal(expected.independentSecurityReview, "PENDING");
@@ -4277,6 +4291,28 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
+          ["leave","governed-handoffs"].includes(entry.route)) {
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.file, "scripts/qa/tenant-workflow-leave-handoff-http.mjs");
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-workflow-leave-handoff-pg16.yml");
+        assert.equal(proof.workflowRunId, 41452144006);
+        assert.equal(proof.verifiedPrHeadSha, "49360001aa6ca2911f1e99617ba3ad34d82a6a67");
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        const expectLines = entry.route === "leave" ? [284,385,388,413] : [188,400,403,413];
+        assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine], expectLines);
+        for (const line of expectLines)
+          assert.ok(evidenceLine(proof.file,line,entry.route + " four-part proof").length > 15);
+        continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",

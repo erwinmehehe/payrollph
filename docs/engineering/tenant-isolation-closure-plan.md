@@ -6,6 +6,10 @@
 
 **Proposed combined inventory: 498 methods = 383 COVERED + 10 PUBLIC-BY-DESIGN + 105 GAP.** `main@04029a8b6eb9f273f5755f882efc02bb1e9ae5b0` contributes 382 already source-pinned methods. This branch adds **only POST /api/compensation** with its five creation variants (`component`, `cycle`, `band`, `component_assignment`, `proposal`) and real own/employer-foreign PostgreSQL 16 evidence. Its existing `PATCH /api/compensation` proof remains separately credited; this PR updates only its shifted family row reference (46 to 49) without a second credit. The 27 newer main commits, including separate workforce-planning proof and global worker authorization changes, are preserved. **All 17 page/action gaps and remaining 105 method gaps remain unaccepted.** Fresh exact-head PG16/CI and human tenant/compensation/maintainer review are required. No live payroll, provider, filing or production release is authorized.
 
+## 2026-11-02 PR #1736 workflow write SOLO_VERIFIED_DEV_RECOVERY (DRAFT)
+
+**Current proposed ledger: 498 API methods = 389 COVERED / 10 PUBLIC-BY-DESIGN / 99 GAP.** `POST leave` and `POST governed-handoffs` have exact-current-source/runner/workflow pinned four-part evidence from [fictional PG16 localhost run 41452144006](https://github.com/erwinmehehe/payrollph/actions/runs/41452144006), passed on head `49360001aa6ca2911f1e99617ba3ad34d82a6a67`. Both independently signed-in fictional attacker employers performed successful own leave create/revise and governed separation/roster plus replay, changed-source follow-up and audit-trigger rollback; authentic higher-ID victim employee/leave/separation/claim IDs denied, forged selectors rejected and before/after payroll, leave, approvals, audit and outbox SQL unchanged after denied requests. Governed-handoffs' transactional source repair (route hash `258ec66f80e24e4d7ac484fb4be789573b1a9820`) is specifically retained. Sole reviewer is `@erwinmehehe`. Evidence label **SOLO_VERIFIED_DEV_RECOVERY**, not independent review. The same method identities appear in existing draft [#1727](https://github.com/erwinmehehe/payrollph/pull/1727) with **older merged #1735 source hashes**: these are *alternative candidate branches*, never add both sets of credits into a combined manifest; if later integrated, preserve only latest exact matching source/proof receipt and count each method once. No production database, Neon, provider, money, payout, CSP enablement, deployment or merge. Keep draft.
+
 ## Safety boundary and method evidence contract
 
 Operate only on fictional three-employer fixtures (victim employer A plus attackers B and C), dedicated localhost Next.js in production mode, real disposable PostgreSQL 16 (`/app_db`), temporary test-process-only flags and dummy secrets. **Never** use Neon, a production endpoint/DB, real bank details, real workers, production SQL, deploy flags, new migrations, provider HTTP calls or actual money movement. Preserve `requireDisposable`, existing tests, exact HTTP statuses, and maker/checker/payroll calculation behavior. The existing CI provisioning via `npm run db:push` targets only ephemeral PG; no migration files or production schema are changed by this plan.
@@ -75,11 +79,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 36 | 0 | 4 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 20 | 0 | 13 | INCOMPLETE |
 
-Frozen subtotal: **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **305 COVERED + 2 PUBLIC-BY-DESIGN + 99 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
