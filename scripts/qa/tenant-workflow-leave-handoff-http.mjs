@@ -23,7 +23,7 @@ function requireDisposable(env = process.env) {
 }
 requireDisposable();
 
-const [{db, pool}, schema, {eq, asc}, fixture] = await Promise.all([
+const [{db, pool}, schema, {eq, asc, and, sql}, fixture] = await Promise.all([
   import("../../src/db/index.ts"), import("../../src/db/schema.ts"),
   import("drizzle-orm"), import("./tenant-table-http.mjs"),
 ]);
@@ -32,7 +32,7 @@ const {
   approvalChainPolicies, approvalChainInstances, approvalChainInstanceSteps,
   leavePolicies, leaveRequests, leaveRequestIntervalSets, leaveRequestIntervals,
   separationRecords, worksites, shiftDefinitions, openShifts, openShiftClaims,
-  auditEvents, payrollRuns, outbox,
+  auditEvents, payrollRuns, outbox, workforceTimesheets,
 } = schema;
 const {seedEmployer, addWorker, standaloneMakeSession, standaloneRequest} = fixture;
 const marker = randomUUID().replaceAll("-", "").slice(0, 10);
@@ -56,7 +56,7 @@ async function ownOrgSnapshot(orgId) {
     approvalChainInstances, approvalChainInstanceSteps, leavePolicies,
     leaveRequests, leaveRequestIntervalSets, leaveRequestIntervals,
     separationRecords, worksites, shiftDefinitions, openShifts, openShiftClaims,
-    auditEvents, payrollRuns, outbox,
+    auditEvents, payrollRuns, outbox, workforceTimesheets,
   };
   const result = {};
   for (const [name, table] of Object.entries(tables)) {
@@ -94,6 +94,7 @@ async function setupEmployer(e) {
   await db.insert(userOrganizations).values({
     organizationId: e.org.id, userId: checker.id, role: "hr", active: true,
   });
+  e.checker = checker;
   await db.insert(approvalChainPolicies).values({
     organizationId: e.org.id, code: "tenant-qa-chain", name: "Fictional human review",
     purpose: "automation", active: true, createdByUserId: e.owner.id,
@@ -180,6 +181,7 @@ try {
   const sepId = new Map([[a,aSep.id],[b,bSep.id],[v,victimSep.id]]);
   const claimId = new Map([[a,aClaim.id],[b,bClaim.id],[v,victimClaim.id]]);
   // POSITIVE #1 (handoffs): both genuine action variants for each independent employer.
+  const firstHandoffs = new Map();
   for (const e of [a,b,v]) {
     for (const [kind,id] of [["hcm_separation_readiness",sepId.get(e)],
       ["wfm_roster_claim_review",claimId.get(e)]]) {
@@ -194,6 +196,7 @@ try {
       need(saved?.organizationId === e.org.id && saved.sourceType === kind &&
         saved.policyCode === "tenant-qa-chain" && saved.status === "pending",
       "own governed handoff belongs to authenticated employer and active policy");
+      firstHandoffs.set(e.label + ":" + kind, r.json.approval);
     }
   }
   // POSITIVE #2 (leave create): two independent signed-in own submissions + real victim.
