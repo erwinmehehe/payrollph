@@ -2556,6 +2556,72 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+
+  // This *single* changed GET remains GAP despite a passing nonempty
+  // recommendation + SQL-fault candidate: acceptance is still independently
+  // pending. Unlike an unrestricted exception, every reviewed source and
+  // executable proof blob must match exactly or full CI fails closed.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/workforce/greedy-roster/route.ts GET") {
+    const reviewed = method.reviewedUncertified;
+    const expected = {
+      "kind": "greedy-roster-get-eligible-and-sql-fault-review-only-zero-credit",
+      "routeBlobSha": "b04fb6d310bd878934d3a13b42b9caae1c1395bb",
+      "proofFile": "scripts/qa/tenant-wrk01-greedy-roster-http.mjs",
+      "proofBlobSha": "c7d3595859235be8d9f9de72b60d773361a4cd7b",
+      "contractFile": "scripts/qa/tenant-wrk01-greedy-roster-contract.mjs",
+      "contractBlobSha": "d20a0a90ece55fb5805829a05a1a64df69155d68",
+      "contractTestFile": "tests/tenant-wrk01-greedy-roster-contract.test.mjs",
+      "contractTestBlobSha": "32e2ecfc5a638d6be3a1e991e33c16eb5221450a",
+      "workflowFile": ".github/workflows/tenant-wrk01-greedy-roster-http.yml",
+      "workflowBlobSha": "ca1ab8248da33a2d1c81d2908a67b43570b9f6a8",
+      "lastPassingPg16Run": "41417733172",
+      "verifiedPrHeadSha": "53d3ac47487a55b35f062f5dfb382c97e5252230",
+      "coverageCredits": 0,
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false
+    };
+    assert.equal(currentBlob, expected.routeBlobSha,
+      "Greedy roster source changed; renew exact source and tenant review");
+    assert.equal(manifest.allApiRouteFiles[
+      "src/app/api/workforce/greedy-roster/route.ts"].gitBlobSha, currentBlob);
+    assert.equal(method.testedBy, null,
+      "Unaccepted whole-method GET must not silently become covered");
+    assert.match(method.reason, /^Still GAP: actual nonempty eligible-worker/);
+    assert.deepEqual(reviewed, expected,
+      "Zero-credit source review must not expand or claim security approval");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Greedy roster proof changed; rerun and re-review: " + file);
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    for (const anchor of [
+      'seedEmployer("ATTA"', 'seedEmployer("ATTB"',
+      'seedEmployer("VICTIM"', 'seedEmployer("ELIG"',
+      "assertSuggestedGreedyRoster(positiveResponse",
+      "const forgedEligible = await read(eligible",
+      "source-bound eligible recommendation",
+      "cross-unit and stolen-site positive-roster refusals",
+      "staffing_requirements_wfm_qa_missing",
+      "assertAllUnchanged",
+    ]) assert.ok(proof.includes(anchor),
+      "Genuine eligible/foreign/SQL fault proof missing: " + anchor);
+    const source = readFileSync(
+      "src/app/api/workforce/greedy-roster/route.ts", "utf8");
+    assert.match(source, /assertOrganizationRole/);
+    assert.match(source, /getAccess\(user\.id,organizationId\)/);
+    assert.match(source, /error:"Verified staffing evidence could not be loaded\."/);
+    assert.ok(!source.includes("error:error instanceof Error?error.message"),
+      "No raw SQL/driver error may reach a tenant");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wrk01-greedy-roster-http\.mjs/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

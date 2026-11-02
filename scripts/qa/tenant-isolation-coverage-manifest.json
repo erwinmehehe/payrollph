@@ -35500,8 +35500,25 @@
           "name": "GET",
           "line": 17,
           "status": "GAP",
-          "reason": "Whole-method PG16 proof pending: historical all-unfilled roster did not exercise nonempty employee recommendations. Route now sanitizes source exceptions; require fresh actual HTTP eligible worker, foreign/cross-unit denials, forged selectors and forced database-failure checks before re-crediting.",
-          "testedBy": null
+          "reason": "Still GAP: actual nonempty eligible-worker, cross-tenant and forced SQL-error PG16 localhost HTTP proof passed at source-matched head 53d3ac4 (run 41417733172); independent whole-method/security acceptance and fresh final-head validation remain pending. Zero method credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "greedy-roster-get-eligible-and-sql-fault-review-only-zero-credit",
+            "routeBlobSha": "b04fb6d310bd878934d3a13b42b9caae1c1395bb",
+            "proofFile": "scripts/qa/tenant-wrk01-greedy-roster-http.mjs",
+            "proofBlobSha": "c7d3595859235be8d9f9de72b60d773361a4cd7b",
+            "contractFile": "scripts/qa/tenant-wrk01-greedy-roster-contract.mjs",
+            "contractBlobSha": "d20a0a90ece55fb5805829a05a1a64df69155d68",
+            "contractTestFile": "tests/tenant-wrk01-greedy-roster-contract.test.mjs",
+            "contractTestBlobSha": "32e2ecfc5a638d6be3a1e991e33c16eb5221450a",
+            "workflowFile": ".github/workflows/tenant-wrk01-greedy-roster-http.yml",
+            "workflowBlobSha": "ca1ab8248da33a2d1c81d2908a67b43570b9f6a8",
+            "lastPassingPg16Run": "41417733172",
+            "verifiedPrHeadSha": "53d3ac47487a55b35f062f5dfb382c97e5252230",
+            "coverageCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
