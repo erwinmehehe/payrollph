@@ -1683,7 +1683,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
 
   // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
   // These changes preserve the historical POST/PATCH handlers byte-for-byte,
-  // preserve all existing method credits, and do NOT promote the open GET GAP.
+  // preserve all existing method credits. The separate three-method review now proposes a source-pinned GET credit.
   if (isNewOrChanged && (
     key.startsWith("src/app/api/workforce/demand-observations/issued/route.ts ") ||
     key.startsWith("src/app/api/workforce/demand-staffing/policies/route.ts ")
@@ -1708,12 +1708,18 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(baseline.api[routePath], before, "Original WFM demand baseline must remain stable");
     const expectedStatuses = issued
       ? { GET: "COVERED", POST: "GAP" }
-      : { GET: "GAP", POST: "COVERED", PATCH: "COVERED" };
+      : { GET: "COVERED", POST: "COVERED", PATCH: "COVERED" };
     assert.equal(method.status, expectedStatuses[method.name],
       "WFM permission fix cannot silently promote, downgrade or omit another method");
     if (method.status === "GAP") assert.equal(method.testedBy, null,
       "Unreviewed method cannot borrow a feature-OFF or static proof credit");
-    else {
+    else if (!issued && method.name === "GET") {
+      assert.equal(method.testedBy?.routeBlobSha, after,
+        "Credited approved-policy GET must cite the current authorization-overlay source");
+      assert.equal(method.testedBy?.file,
+        "scripts/qa/tenant-demand-approved-policy-get-http.mjs",
+        "Historical POST/PATCH must not substitute for the real GET proof");
+    } else {
       assert.equal(method.testedBy?.routeBlobSha, before,
         "Historical covered method evidence must keep its original source hash");
       assert.equal(method.testedBy?.file, issued
@@ -1729,7 +1735,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       routeBlobSha: after,
       onlyReadHandlerChanged: true,
       changedMethod: "GET",
-      statusBefore: method.status,
+      statusBefore: !issued && method.name === "GET" ? "GAP" : method.status,
       runnerFile: "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
       runnerBlobSha: "595539e672a3dc121f709b44ce045f432d7d9d92",
       contractFile: "tests/tenant-wfm-demand-read-overlay.test.mjs",
@@ -4122,6 +4128,63 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      // Three deliberately disjoint WFM read/preview receipts. They do not
+      // borrow the already-credited staffing-policy POST/PATCH evidence.
+      const wfmThree = {
+        "scripts/qa/tenant-wrk01-greedy-roster-http.mjs": {
+          route: "src/app/api/workforce/greedy-roster/route.ts", method: "GET",
+          contract: "scripts/qa/tenant-wrk01-greedy-roster-contract.mjs", job: 124808879396,
+          own: /const own = await read\(e\);/, foreign: /await denied\(actor\.label \+ " foreign organization"/,
+          forged: /const forged = await read\(actor, actor\.cookie/, unchanged: /assertGreedySqlUnchanged\(/,
+        },
+        "scripts/qa/tenant-wfm-three-method-post-http.mjs": {
+          route: "src/app/api/workforce/roster-rules/preview/route.ts", method: "POST",
+          contract: "scripts/qa/tenant-wfm-three-method-contract.mjs", job: 124808879396,
+          own: /const own = await post\(bodyFor\(employer, patch\), employer\.cookie\)/,
+          foreign: /const response = await post\(body, attacker\.cookie\)/,
+          forged: /stolen employee/, unchanged: /assertRosterPreviewImmutable\(/,
+        },
+        "scripts/qa/tenant-demand-approved-policy-get-http.mjs": {
+          route: "src/app/api/workforce/demand-staffing/policies/route.ts", method: "GET",
+          contract: "scripts/qa/tenant-demand-approved-policy-get-contract.mjs", job: 124808879584,
+          own: /const own = await request\(url, \{ cookie: attacker\.cookie \}\)/,
+          foreign: /await denied\(endpoint\(victim\.org\.id, victimRow\.worksiteId/,
+          forged: /const forged = await request\(url \+ "&policyId="/,
+          unchanged: /assert\.deepEqual\(await snapshot\(e\.org\.id\), before\.get\(e\.org\.id\)/,
+        },
+      };
+      const wfmSpec = wfmThree[proof?.file];
+      if (wfmSpec) {
+        assert.equal(path, wfmSpec.route, "WFM proof cannot be borrowed by another API route");
+        assert.equal(method.name, wfmSpec.method, "WFM proof must match the actual HTTP method");
+        assert.equal(proof.verifiedPrHeadSha, "a5c70e563580c5ab9cb6d8db7610f3950148a27e");
+        assert.equal(proof.workflowRunId, 41293308290);
+        assert.equal(proof.workflowJobId, wfmSpec.job);
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(proof.routeBlobSha, gitBlobSha(readFileSync(path)),
+          "WFM route drift requires a new exact-head real-HTTP proof");
+        assert.equal(proof.proofBlobSha, gitBlobSha(readFileSync(proof.file)),
+          "WFM HTTP proof changed since the passing job");
+        assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync(wfmSpec.contract)),
+          "WFM response/tenant proof contract changed");
+        const workflowFile = ".github/workflows/tenant-wfm-three-method-http.yml";
+        assert.equal(proof.workflowFile, workflowFile);
+        const workflow = readFileSync(workflowFile, "utf8");
+        assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)),
+          "Synthetic allowlist/flag profiles or CI job drifted");
+        assert.match(workflow, /image: postgres:16/);
+        for (const [field, pattern] of [
+          ["ownPositiveLine", wfmSpec.own],
+          ["foreignDenialLine", wfmSpec.foreign],
+          ["forgedSelectorLine", wfmSpec.forged],
+          ["unchangedDbLine", wfmSpec.unchanged],
+        ]) assert.match(evidenceLine(proof.file, proof[field], path + " " + field), pattern);
+        assert.ok(proof.victimIdOrderingLine > 0);
+        assert.match(proof.evidence, /^https:\/\/github\.com\/erwinmehehe\/payrollph\/actions\/runs\/41293308290\/job\/124808879(?:396|584)$/);
+        continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
