@@ -80,7 +80,7 @@ test("MNY-02 exact route remains GAP; source hash matches and no silent credit",
   const bytes = Buffer.from(code, "utf8");
   const blob = createHash("sha1").update("blob " + bytes.length + "\0")
     .update(bytes).digest("hex");
-  assert.equal(blob, "bb5b9cd2b0a0ca2d9ec3d66bfab80ebdf344d653");
+  assert.equal(blob, "56583ab43e7dc39101bb17122b4e9bdcbbaad81a");
   assert.equal(row.gitBlobSha, blob);
   assert.match(code, /export async function POST\(request: Request\)/);
   assert.match(code, /TREASURY_POLICY_ADMIN_ROLES = \["owner"\]/);
@@ -90,6 +90,10 @@ test("MNY-02 exact route remains GAP; source hash matches and no silent credit",
   assert.match(code, /if \(pendingPayoutChange\)/);
   assert.match(code, /db\.transaction\(async \(tx\) =>/);
   assert.match(code, /await recordAuditEvent\(/);
+  assert.match(code, /await recordAuditEvent\([\s\S]*\}, tx\);\s*\}\);\s*\} catch \{/,
+    "Treasury state and audit must commit or roll back together");
+  assert.match(code, /Treasury controls could not be saved\./,
+    "No SQL exception text may be reflected to the browser");
 });
 
 test("disposable guard refuses hosted systems, other DBs, money and external secrets", () => {
@@ -192,6 +196,12 @@ test("workflow uses real PostgreSQL 16 localhost HTTP, no providers and no manif
   assert.match(script, /forgedOperatorDenials\+\+/);
   assert.match(script, /assertSavedTreasury\(/);
   assert.match(script, /MNY02_TREASURY_PROOF_OK/);
+  assert.match(script, /CI_ONLY_TREASURY_AUDIT_FAILURE/,
+    "Disposable PG16 must prove injected audit failure rolls back all writes");
+  assert.ok(script.includes("RETURNS trigger LANGUAGE plpgsql AS $$ "),
+    "PL/pgSQL trigger body must open with paired dollar quotes");
+  assert.ok(script.includes("RETURN NEW; END; $$;"),
+    "PL/pgSQL trigger body must close with paired dollar quotes");
   // Inspect actual URL hostnames, not arbitrary substrings of a URL. A URL
   // may contain these strings in the path, userinfo, or an unrelated host.
   const urls = [...yaml.matchAll(/https?:\/\/[^\s"'<>]+/g)]
