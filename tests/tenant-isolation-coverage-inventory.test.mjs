@@ -2038,7 +2038,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       routeBlobSha: "336cacb025603264af7b8c47e196aa29e8053f62",
       priorGetPrefixFnv64: "4417b941777ae2cd",
       proofFile: "scripts/qa/tenant-payout-profiles-patch-http.mjs",
-      proofBlobSha: "a5e13e69d9b80ceaff40111210415a9e777fd3d5",
+      proofBlobSha: "b3e420fa3daad60b2750da1172492150c36b860d",
       contractFile: "tests/tenant-payout-profiles-patch-audit.test.mjs",
       contractBlobSha: "e6fe6a6828a8cbd5b274037c5632c1bcbbd58d73",
       workflowFile: ".github/workflows/tenant-payout-profiles-patch-http.yml",
