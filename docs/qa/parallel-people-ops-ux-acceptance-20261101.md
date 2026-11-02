@@ -1,14 +1,14 @@
 # Parallel People Operations UX — independent no-money acceptance packet
 
 Status: **TEST CANDIDATE / HUMAN UAT NOT RUN / NO REAL PAYROLL CERTIFICATION**.
-Source baseline at creation: `2026c5490be61086b626e0269259e0172205557c` (1 November 2026, Asia/Manila). The three feature branches are independent candidates and are **not** merged into this QA branch.
+Source baseline at creation: `2026c5490be61086b626e0269259e0172205557c` (1 November 2026, Asia/Manila). Refreshed onto `main` at `1c94f20034e2c5de3dbae47b6ec0760f1ded7710` (2 November 2026). WFM manager triage #1689 has since merged into `main`. The remaining UX branches #1687 and #1688 are independent drafts and are **not** merged into this QA branch.
 
 ## Scope and roles
 
 This packet checks the existing feature boundaries that the following draft PRs must preserve when considered independently:
 - First Payroll journey (draft #1687): one guided, role-aware navigation shortcut, without changing payroll readiness or release.
 - HR Work Queue (draft #1688): search only the verified employer's loaded case list, mobile assignment and honest unknown/error states.
-- WFM manager triage (draft #1689): read-only source signal filtering, strict dates and unavailable-source warnings.
+- WFM manager triage (merged #1689 into `main`): read-only source signal filtering, strict dates and unavailable-source warnings.
 
 Use fictitious Employer A and Employer B, same synthetic case/worker IDs where possible, and company-wide HR, manager, payroll-only, checker and employee roles. Never include real identifiers, pay amounts, personal documents or authentic bank data in source-controlled artifacts.
 
