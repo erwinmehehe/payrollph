@@ -53,12 +53,13 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
     seed: async employer => {
       const [{ computeSss }, { encryptGovernmentId }, { findFilingForm },
         { loadStatutoryRemittanceState, statutoryLiabilityKeys },
-        { evaluateRemittanceMonthClose }] = await Promise.all([
+        { evaluateRemittanceMonthClose }, { buildStatutoryRemittanceSnapshot }] = await Promise.all([
           import("../../../../src/lib/payroll-rules.ts"),
           import("../../../../src/lib/government-id-crypto.ts"),
           import("../../../../src/lib/filing-evidence.ts"),
           import("../../../../src/lib/statutory-remittance-state.ts"),
           import("../../../../src/lib/statutory-remittance-close.ts"),
+          import("../../../../src/lib/statutory-remittance.ts"),
         ]);
       const sss = computeSss(20000);
       const total = money(sss.employee + sss.employerTotal);
@@ -92,17 +93,26 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
         employeeId: worker.id, periodLabel: run.periodLabel,
         content: "FICTIONAL PG16 SECURITY PROOF ONLY: no salary, bank or agency transfer.",
       });
+      const sourceSnapshot = buildStatutoryRemittanceSnapshot({
+        agency: "SSS", applicableMonth: month,
+        entries: [{ employeeId: worker.id, grossPay: entry.grossPay,
+          lineItems: entry.lineItems, trace: entry.trace }],
+        employees: [{ id: worker.id, employeeNo: worker.employeeNo }],
+      });
+      assert.equal(money(sourceSnapshot.expectedTotal), total,
+        "fictional reconciled batch must match source-computed liability");
       const [batch] = await db.insert(batches).values({
         organizationId: employer.org.id, legalEntityId: employer.entity.id,
         agency: "SSS", applicableMonth: month, dueDate: "2026-06-30",
         status: "reconciled", employeeCount: 1,
-        expectedEmployeeShare: money(sss.employee), expectedEmployerShare: money(sss.employerTotal),
-        expectedTotal: total, amountPaid: total,
+        expectedEmployeeShare: money(sourceSnapshot.expectedEmployeeShare),
+        expectedEmployerShare: money(sourceSnapshot.expectedEmployerShare),
+        expectedTotal: money(sourceSnapshot.expectedTotal), amountPaid: total,
         paymentReference: "FICTIONAL-NO-BANK-PAYMENT-" + employer.marker,
         agencyReceiptReference: "FICTIONAL-NO-AGENCY-RECEIPT-" + employer.marker,
         paidAt: new Date("2026-06-10T12:00:00Z"), paymentRecordedBy: actor,
         reconciledAt: new Date("2026-06-15T12:00:00Z"), reconciledBy: actor,
-        snapshotHash: sha("FICTIONAL REAL-RULE SSS " + employer.marker),
+        snapshotHash: sourceSnapshot.snapshotHash,
         createdBy: actor,
       }).returning();
       const [artifact] = await db.insert(postingEvidence).values({
@@ -115,8 +125,9 @@ export function createRows({ assert, db, eq, asc, auditBusinessSnapshot }) {
       await db.insert(members).values({
         batchId: batch.id, organizationId: employer.org.id,
         legalEntityId: employer.entity.id, employeeId: worker.id,
-        employeeNo: worker.employeeNo, employeeShare: money(sss.employee),
-        employerShare: money(sss.employerTotal), totalContribution: total,
+        employeeNo: worker.employeeNo, employeeShare: money(sourceSnapshot.members[0].employeeShare),
+        employerShare: money(sourceSnapshot.members[0].employerShare),
+        totalContribution: money(sourceSnapshot.members[0].totalContribution),
         postingStatus: "confirmed", postedAmount: total,
         postingReference: "FICTIONAL-NO-POSTING-" + employer.marker,
         postedAt: new Date("2026-06-15T12:00:00Z"), confirmedBy: actor,
