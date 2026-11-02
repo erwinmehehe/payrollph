@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
 import { buildFirstPayrollReadiness } from "../src/lib/first-payroll-readiness";
-import { FIRST_PAYROLL_STEPS, buildFirstPayrollJourney } from "../src/lib/first-payroll-journey";
+import { FIRST_PAYROLL_STEPS, buildFirstPayrollJourney, findFirstPayrollResumeStep } from "../src/lib/first-payroll-journey";
 
 const base = { workspaceName: "Pilot Employer", employees: [{ status: "Active", bankAccount: "enc:v1:fixture", bankCode: "BPI" }], memberships: [{ role: "payroll" }, { role: "checker" }] };
 
@@ -73,4 +73,41 @@ test("seven canonical journey steps own role handoff metadata, not duplicated co
   assert.equal(FIRST_PAYROLL_STEPS.find(x=>x.key==="time")?.owner,"hr");
   const journey = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: [] }));
   assert.deepEqual(journey.map(step => step.key), keys);
+});
+
+
+test("resume shortcut selects only an actionable permitted step, never a completion or release claim", () => {
+  const readiness = buildFirstPayrollReadiness({ ...base, payrollStatuses: [] });
+  const steps = buildFirstPayrollJourney(readiness);
+  const allowed = ["Settings", "People", "Time & attendance", "Payroll", "Approvals", "Exports"];
+  assert.equal(findFirstPayrollResumeStep(steps, allowed)?.key, "time");
+  assert.equal(findFirstPayrollResumeStep(steps, ["Settings"]), null);
+  assert.equal(findFirstPayrollResumeStep(steps, ["People"]), null);
+  assert.equal(findFirstPayrollResumeStep(steps, ["Time & attendance"])?.key, "time");
+  assert.equal(findFirstPayrollResumeStep(steps, []), null);
+  const released = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Released"] }));
+  assert.equal(findFirstPayrollResumeStep(released, allowed)?.key, "exports");
+  assert.equal(findFirstPayrollResumeStep(released, ["Time & attendance"]), null,
+    "A released run should not suggest redoing attendance instead of the export handoff");
+  assert.equal(findFirstPayrollResumeStep(released, ["Exports"])?.key, "exports");
+  assert.equal(findFirstPayrollResumeStep(released, []), null,
+    "Release does not expose an unauthorized export shortcut");
+  const unavailable = steps.map(step => ({ ...step, state: "upcoming" as const }));
+  assert.equal(findFirstPayrollResumeStep(unavailable, allowed), null);
+});
+
+test("guided first payroll renders the next-action navigation without implying release certification", () => {
+  const readiness = buildFirstPayrollReadiness({ ...base, payrollStatuses: [] });
+  const html = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, {
+    readiness, guided: true, allowedPages: ["Time & attendance"],
+    onPage: () => {}, onNewRun: () => {},
+  }));
+  assert.match(html, /Suggested next action:/);
+  assert.match(html, /Continue setup/);
+  assert.match(html, /does not verify payroll, approve a run, or authorize payment/);
+  const restricted = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, {
+    readiness, guided: true, allowedPages: [],
+    onPage: () => {}, onNewRun: () => {},
+  }));
+  assert.doesNotMatch(restricted, /Continue setup/);
 });
