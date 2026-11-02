@@ -2,14 +2,28 @@
 
 import { AlertTriangle, BriefcaseBusiness, FileBarChart2, UsersRound, UserPlus, UserX, WalletCards } from "lucide-react";
 import type { PeopleIntelligenceSummary } from "@/lib/hcm-people-intelligence";
+import { describePeopleEvidenceCoverage } from "@/lib/hcm-people-evidence-coverage";
 import { Metric, money, shortMoney } from "./ui";
 
 const count = (value: number | null) => value == null ? "Unverified" : value.toLocaleString("en-PH");
-const days = (value: number | null) => value == null ? "—" : `${value.toFixed(1)} days`;
+const days = (value: number | null) => value == null ? "Not verifiable" : `${value.toFixed(1)} days`;
 
 export function PeopleIntelligenceOverview({ report }: { report: PeopleIntelligenceSummary }) {
+  const evidence = describePeopleEvidenceCoverage(report.coverage);
   return (
     <>
+      <section aria-label="People Intelligence source coverage" className="card" style={{ marginBottom: 16, padding: 16 }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <strong className={evidence.status === "partial" ? "text-amber-800" : "text-slate-900"}>
+            {evidence.label}
+          </strong>
+          <span className="text-xs text-slate-600">As of {report.asOf} · {report.windowDays}-day window</span>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-700">{evidence.detail}</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">
+          Current vacancies and requisitions are not reconstructed for past dates. Median time-to-hire measures recorded requisition creation to recorded hire, not time-to-fill. Missing records are never counted as zero.
+        </p>
+      </section>
       <section className="stats-grid" aria-label="People Intelligence summary">
         <Metric
           label="Verified headcount"
@@ -52,7 +66,7 @@ export function PeopleIntelligenceOverview({ report }: { report: PeopleIntellige
         <Metric
           label="Open requisitions"
           value={count(report.activeRequisitions)}
-          hint={`Median time to hire: ${days(report.medianHireDays)}`}
+          hint={`Median recorded time to hire: ${days(report.medianHireDays)} · not time-to-fill`}
           icon={<BriefcaseBusiness size={16} className="i-green" />}
           tone="blue"
         />
