@@ -155,14 +155,31 @@ try {
   check(beforeMismatch?.legalEntityId === a.entity.id,
     "A's persisted payout profile must exist before stale-tenant test");
   const auditBeforeMismatch = await auditSnapshot(a.org.id);
-  const [staleRow] = await db.update(schema.payoutProfiles)
-    .set({ organizationId: victim.org.id })
-    .where(and(
-      eq(schema.payoutProfiles.id, beforeMismatch.id),
-      eq(schema.payoutProfiles.organizationId, a.org.id),
-    )).returning();
-  check(staleRow?.organizationId === victim.org.id,
-    "Fixture must create an actual foreign-tagged profile row");
+  // The production tenant-scope trigger correctly rejects corrupt ownership.
+  // Create this pre-existing bad-row scenario only in the guard-verified,
+  // empty, disposable PG16 CI database. SET LOCAL is confined to this test
+  // connection and transaction; application requests retain all triggers.
+  const roleBefore = await pgClient.query("SELECT current_setting('session_replication_role') AS role");
+  check(roleBefore.rows[0]?.role === "origin",
+    "Test fixture must start with PostgreSQL tenant triggers enabled");
+  await pgClient.query("BEGIN");
+  try {
+    await pgClient.query("SET LOCAL session_replication_role = 'replica'");
+    const { rows: [staleRow] } = await pgClient.query(
+      "UPDATE public.payout_profiles SET organization_id = $1 " +
+      "WHERE id = $2 AND organization_id = $3 RETURNING id, organization_id",
+      [victim.org.id, beforeMismatch.id, a.org.id],
+    );
+    check(staleRow?.organization_id === victim.org.id,
+      "Fixture must create an actual foreign-tagged profile row");
+    await pgClient.query("COMMIT");
+  } catch (error) {
+    await pgClient.query("ROLLBACK");
+    throw error;
+  }
+  const roleAfter = await pgClient.query("SELECT current_setting('session_replication_role') AS role");
+  check(roleAfter.rows[0]?.role === "origin",
+    "PostgreSQL tenant triggers must be restored before calling the real PATCH route");
   try {
     const foreignTaggedBefore = await profileSnapshot(victim.org.id);
     const mismatch = exact(await patch(a, body(a, "attempt to adopt stale foreign profile")), 409,
