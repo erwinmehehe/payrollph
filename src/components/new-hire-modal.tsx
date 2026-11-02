@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
-import { taskFirstUiEnabled, uiMoney, reportOnboardingStepValidity } from "@/lib/task-first-ui";
+import { taskFirstUiEnabled, uiMoney, reportOnboardingStepValidity, philippineUiCalendarDay } from "@/lib/task-first-ui";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 
 /**
@@ -32,7 +32,7 @@ export function NewHireModal({
     rateAmount: "",
     standardWorkDaysPerMonth: "22",
     standardHoursPerDay: "8",
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: philippineUiCalendarDay(new Date()),
     region: "NCR",
     restDay: "",
     mwe: false,

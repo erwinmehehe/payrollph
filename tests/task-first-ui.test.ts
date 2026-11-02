@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { employeeNeedsPayout,positiveId,readWorkspaceLocation,uiMoney,unpaidPayslipLabel,workspaceSearch,reportOnboardingStepValidity, summarizeTaskFirstPayroll } from "../src/lib/task-first-ui";
+import { employeeNeedsPayout,positiveId,readWorkspaceLocation,uiMoney,uiDate,philippineUiCalendarDay,unpaidPayslipLabel,workspaceSearch,reportOnboardingStepValidity, summarizeTaskFirstPayroll } from "../src/lib/task-first-ui";
 
 test("onboarding stops at the first invalid control and allows a corrected step", () => {
   let valid = false;
@@ -67,4 +68,21 @@ test("signed deductions are kept from stored entries rather than clamped gross-m
   const run = { id: 53, status: "Processed", grossPay: "500.00", netPay: "520.00", employeeCount: 1 };
   const entry = { payrollRunId: 53, grossPay: "500.00", netPay: "520.00", deductions: "-20.00" };
   assert.equal(summarizeTaskFirstPayroll(run, [entry]).deductions, -20);
+});
+
+
+test("task-first calendar rejects impossible pay dates and accepts real leap days", () => {
+  for (const value of ["2026-02-30", "2026-04-31", "2025-02-29", "2026-00-01", "2026-13-01"]) {
+    assert.equal(uiDate(value), "Not scheduled", value);
+  }
+  assert.match(uiDate("2024-02-29"), /February 29, 2024/);
+});
+
+test("new-hire default uses Philippine calendar date across the UTC boundary", () => {
+  assert.equal(philippineUiCalendarDay(new Date("2026-11-01T15:59:00.000Z")), "2026-11-01");
+  assert.equal(philippineUiCalendarDay(new Date("2026-11-01T16:30:00.000Z")), "2026-11-02");
+  assert.equal(philippineUiCalendarDay(new Date("not-a-date")), "");
+  const newHire = readFileSync("src/components/new-hire-modal.tsx", "utf8");
+  assert.ok(newHire.includes("startDate: philippineUiCalendarDay(new Date())"));
+  assert.ok(!newHire.includes("startDate: new Date().toISOString().slice(0, 10)"));
 });

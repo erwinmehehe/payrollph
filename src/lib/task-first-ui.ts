@@ -26,10 +26,27 @@ export function uiMoney(value: string | number | null | undefined) {
 }
 export function uiDate(value: string | null | undefined) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Not scheduled";
+  // Date.parse normalizes impossible days (e.g. February 30) into March.
+  // Reject these before displaying any payroll schedule information.
+  const calendarDay = new Date(value + "T00:00:00.000Z");
+  if (!Number.isFinite(calendarDay.getTime()) || calendarDay.toISOString().slice(0, 10) !== value) return "Not scheduled";
   const date = new Date(value+"T12:00:00+08:00");
   if (!Number.isFinite(date.getTime())) return "Not scheduled";
   return new Intl.DateTimeFormat("en-PH",{year:"numeric",month:"long",day:"numeric",timeZone:"Asia/Manila"}).format(date);
 }
+/** Calendar date for PH new-hire defaults. UTC ISO dates are wrong after midnight in Manila. */
+export function philippineUiCalendarDay(instant: Date): string {
+  if (!Number.isFinite(instant.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(instant);
+  const part = (type: "year" | "month" | "day") => parts.find(item => item.type === type)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
 /** A deep link can refer only to objects already authorized and loaded in this employer workspace. */
 export function readWorkspaceLocation(search: string, scope: { organizationId:number; pages:readonly string[]; runIds:readonly number[]; employeeIds:readonly number[] }): WorkspaceLocation {
   const fallback: WorkspaceLocation = { organizationId:scope.organizationId,page:"Overview" };
