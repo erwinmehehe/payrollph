@@ -506,6 +506,10 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   const xenditPayoutWebhookCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-webhook-xendit-payout-http.mjs").length;
   assert.equal(xenditPayoutWebhookCredits, 1, "exactly the xendit payout webhook POST is credited by its receipt");
+  // webhooks/paymongo/transfers POST: second provider-callback receipt, guarded by its own inventory test.
+  const paymongoTransferWebhookCredits = [...methodsByKey.values()].filter(method =>
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs").length;
+  assert.equal(paymongoTransferWebhookCredits, 1, "exactly the PayMongo transfer webhook POST is credited by its receipt");
   const worksitesPostCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-worksites-actions-http.mjs").length;
   assert.equal(worksitesPostCredits, 1, "exactly the worksites POST is credited by the ten-action receipt");
@@ -575,11 +579,11 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   assert.equal(finalHeadPromotionCredits, 6, "No unreviewed GAP or overlapping open-PR method credited");
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - finalHeadPromotionCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + finalHeadPromotionCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + finalHeadPromotionCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
