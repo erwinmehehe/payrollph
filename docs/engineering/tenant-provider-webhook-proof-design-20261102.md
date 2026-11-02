@@ -50,12 +50,12 @@ Same evidence labels as the rest of the manifest, adapted:
 
 Each step is one draft PR from fresh main, with the two-phase promotion (proof first, credit second citing the exact-head run) used for the WRK-02 batches.
 
-## Decisions needed from the owner
+## Decisions (made by the maintainer's delegate; revisit only if a proof contradicts them)
 
-1. **Credit rule for signature-authenticated callbacks.** Either extend the manifest's route-specific alternative to "authenticated provider event for own object accepted, authenticated event naming a real victim object refused with unchanged victim SQL", or keep these routes GAP permanently. I recommend the extension, written into the manifest criteria in its own PR first so the rule is reviewed separately from any credit.
-2. **PayMongo global lookup.** If the proof shows the receipt match is the only containment, should the route also require the run's organization to be bound by a configured allow-list (as Xendit payout does), or is the receipt match accepted as the control?
-3. **Resend scope.** Whether delivery-status updates keyed by provider message id are acceptable as platform-level, or must be organization-bound.
-4. **Subscriptions.** Whether the proof may run with `XENDIT_BILLING_ENABLED=true` against synthetic secrets in CI only.
+1. **Credit rule: extend it.** Done in #1693 as `proofPolicy.providerCallback`, in its own PR so the rule is reviewed apart from any credit.
+2. **PayMongo global lookup: accept the receipt match as the control, no allow-list.** PayMongo is one platform account serving every tenant, so an organization allow-list (right for the single-tenant Xendit payout pin) would break legitimate events. The proof must show cross-bound events (run A with run B's transfer id or reference, and the reverse) are ignored with no write. If it shows any write or any response difference that reveals another tenant's transfer, that becomes a hardening PR before credit.
+3. **Resend: platform-level is accepted, but the gaps get fixed.** Delivery status keyed by outbox id and provider is acceptable for a platform account. Two defects are fixed in a separate source PR, not hidden by the proof: events for a row with no stored provider message id are rejected rather than accepted, and duplicate detection moves from a global 500-row audit scan to a unique key.
+4. **Subscriptions: yes.** The proof may run with `XENDIT_BILLING_ENABLED=true` and synthetic secrets in the CI job only.
 
 ## Not changed by this document
 
