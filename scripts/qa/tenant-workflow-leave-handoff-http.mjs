@@ -298,6 +298,16 @@ try {
   const victimLeave=ownLeaves.get(v);
   need(victimLeave.id > ownLeaves.get(b).id && victimLeave.id > 6,
     "victim leave is real, with higher ID than attacker leaves");
+  // Real connected victim timesheet: revision code can mark these rows stale.
+  const submittedTimesheets = new Map();
+  for (const e of [a,b,v]) {
+    const [t] = await db.insert(workforceTimesheets).values({
+      organizationId:e.org.id,employeeId:e.leaveWorker.id,
+      periodStart:"2026-11-19",periodEnd:"2026-11-19",
+      status:"submitted",snapshotHash:"a".repeat(64),
+    }).returning();
+    submittedTimesheets.set(e,t);
+  }
   // POST revise_intervals is another reachable action of the SAME leave method.
   for(const e of [a,b]) {
     const row=ownLeaves.get(e);
@@ -310,7 +320,19 @@ try {
       r.json.intervalSet.leaveRequestId===row.id &&
       r.json.intervalSet.revision===2,
       "own precise timing revision writes only the selected employer");
+    const ownTimesheet = submittedTimesheets.get(e);
+    const [stale] = await db.select().from(workforceTimesheets).where(and(
+      eq(workforceTimesheets.id,ownTimesheet.id),
+      eq(workforceTimesheets.organizationId,e.org.id)));
+    need(stale?.status === "stale" &&
+      r.json.staleTimesheetIds.includes(ownTimesheet.id),
+      "own revision stales only its persisted own submitted timesheet");
   }
+  const [victimSubmitted] = await db.select().from(workforceTimesheets)
+    .where(eq(workforceTimesheets.id,submittedTimesheets.get(v).id));
+  need(victimSubmitted?.status === "submitted",
+    "victim's real submitted timesheet stays intact after own revisions");
+
   const baseline = new Map(await Promise.all([a,b,v].map(async e =>
     [e.org.id,await ownOrgSnapshot(e.org.id)])));
   // DENIAL #2 and FORGERY #4: real victim selectors, not fabricated IDs.
