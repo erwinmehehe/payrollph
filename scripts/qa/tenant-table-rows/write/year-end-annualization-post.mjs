@@ -3,7 +3,7 @@
 import { inArray } from 'drizzle-orm';
 import {
   payrollRuns, payrollEntries, yearEndAdjustments, auditEvents,
-  historicalPayrollEntries, yearEndPriorEvidence, legalEntities,
+  historicalPayrollEntries, yearEndPriorEvidence, legalEntities, employees,
 } from '../../../../src/db/schema.ts';
 
 export const fixtureOrder = {};
