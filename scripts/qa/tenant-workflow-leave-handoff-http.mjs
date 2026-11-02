@@ -188,6 +188,13 @@ try {
   // POSITIVE #2 (leave create): two independent signed-in own submissions + real victim.
   const ownLeaves = new Map();
   for (const e of [a,b,v]) {
+    if (e===v) {
+      for (let j=0;j<6;j++) await db.insert(leaveRequests).values({
+        organizationId:v.org.id, employeeId:targetWorker.id,
+        leaveType:"Vacation", startDate:"2026-11-19", endDate:"2026-11-19",
+        days:"1.0", reason:"Inert victim-side higher-ID proof padding", status:"Pending",
+      });
+    }
     const r = status(await post("/api/leave",e.cookie,
       leaveBody(e,e===v?targetWorker.id:e.worker.id)),201,e.label+" own leave POST");
     need(r.json?.organizationId === e.org.id &&
@@ -203,7 +210,7 @@ try {
     ownLeaves.set(e,r.json);
   }
   const victimLeave=ownLeaves.get(v);
-  need(victimLeave.id > b.id && victimLeave.id > 0,
+  need(victimLeave.id > ownLeaves.get(b).id && victimLeave.id > 6,
     "victim leave is real, with higher ID than attacker leaves");
   // POST revise_intervals is another reachable action of the SAME leave method.
   for(const e of [a,b]) {
