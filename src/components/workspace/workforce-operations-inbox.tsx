@@ -4,12 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Clock3, RefreshCcw, ShieldCheck } from "lucide-react";
 import {
   buildWfmOpsSignals,
+  filterWfmOpsSignals,
+  isValidWfmOpsPeriod,
   projectAttendanceOps,
   projectTimesheetOps,
   recentAttendanceWindow,
   suggestCompletedHalfMonth,
   type AttendanceOpsCounts,
   type TimesheetOpsCounts,
+  type WfmOpsSignalFilter,
 } from "@/lib/workforce-operations-inbox";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { Metric, Status } from "./ui";
@@ -52,11 +55,9 @@ export function WorkforceOperationsInbox({
   const [periodEnd, setPeriodEnd] = useState(defaultPeriod.periodEnd);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const [priorityFilter, setPriorityFilter] = useState<WfmOpsSignalFilter>("all");
   const sequence = useRef(0);
-  const validDates = /^\d{4}-\d{2}-\d{2}$/;
-  const periodValid = validDates.test(periodStart) && validDates.test(periodEnd) && periodEnd >= periodStart
-    && !Number.isNaN(Date.parse(periodStart + "T00:00:00Z"))
-    && !Number.isNaN(Date.parse(periodEnd + "T00:00:00Z"));
+  const periodValid = isValidWfmOpsPeriod(periodStart, periodEnd);
   const scope = [organizationId, periodStart, periodEnd].join(":");
 
   const load = useCallback(async (signal: AbortSignal, requestId: number) => {
@@ -87,6 +88,8 @@ export function WorkforceOperationsInbox({
   const attendance = visible?.attendance.state === "ok" ? visible.attendance.data : null;
   const timesheets = visible?.timesheets.state === "ok" ? visible.timesheets.data : null;
   const signals = buildWfmOpsSignals(attendance, timesheets);
+  const visibleSignals = filterWfmOpsSignals(signals, priorityFilter);
+  const urgentKinds = signals.filter(signal => signal.priority === "urgent").length;
   const loading = !visible && periodValid;
   const bothAvailable = attendance !== null && timesheets !== null;
 
@@ -133,13 +136,29 @@ export function WorkforceOperationsInbox({
             Timesheet policy: <strong>{timesheets.enforcement === "block" ? "blocking when required" : "advisory"}</strong>. This screen does not verify all payroll release controls.
           </div>}
           {signals.length > 0 ? (
-            <div className="policy-lines workforce-triage-signals" style={{ padding: "0 18px 18px" }}>
-              {signals.map(item => <div key={item.id} className="workforce-triage-signal">
-                <div><Status value={item.priority === "urgent" ? "Urgent" : "Review"}/> <strong>{item.count} · {item.label}</strong></div>
-                <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : onOpenTab("timesheets", { periodStart, periodEnd })}>
-                  Open source review →
-                </button>
-              </div>)}
+            <div style={{ padding: "0 18px 18px" }}>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm">{signals.length} source signal types, including {urgentKinds} urgent. Counts can overlap across categories.</p>
+                <label className="flex items-center gap-2 text-sm">Show priority
+                  <select className="rounded border p-2" aria-label="Filter workforce triage priority" value={priorityFilter}
+                    onChange={event => setPriorityFilter(event.target.value as WfmOpsSignalFilter)}>
+                    <option value="all">All signals</option>
+                    <option value="urgent">Urgent only</option>
+                    <option value="review">Review only</option>
+                  </select>
+                </label>
+              </div>
+              <div className="policy-lines workforce-triage-signals">
+                {visibleSignals.map(item => <div key={item.id} className="workforce-triage-signal">
+                  <div><Status value={item.priority === "urgent" ? "Urgent" : "Review"}/> <strong>{item.count} · {item.label}</strong></div>
+                  <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : onOpenTab("timesheets", { periodStart, periodEnd })}>
+                    Open source review →
+                  </button>
+                </div>)}
+              </div>
+              {visibleSignals.length === 0 && <div className="notice notice-slate" role="status">
+                No {priorityFilter === "urgent" ? "urgent" : "review"} signals in the available sources. Unavailable sources remain unknown; this is not payroll clearance.
+              </div>}
             </div>
           ) : bothAvailable ? (
             <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>No triage signals in the selected source windows. This does not independently certify payroll readiness.</div>
