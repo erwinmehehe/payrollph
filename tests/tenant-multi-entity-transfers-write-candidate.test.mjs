@@ -57,8 +57,14 @@ test("POST and PATCH transfer failures never expose unexpected SQL diagnostics",
   const patch = route.slice(route.indexOf("export async function PATCH"));
   assert.ok(post.includes('return fail("Could not request transfer.");'),
     "POST SQL errors must use a fixed message");
-  assert.ok(patch.includes("safeTransferDecisionErrors.has(error.message)"),
-    "PATCH SQL errors must be handled through a fixed allowlist");
+  assert.ok(route.includes("class TransferDecisionConflict extends Error"),
+    "Only a typed business conflict may be shown to users");
+  assert.ok(patch.includes("error instanceof TransferDecisionConflict"),
+    "PATCH must not classify safe exceptions using database-provided message text");
+  assert.equal((patch.match(/throw new TransferDecisionConflict\(/g) ?? []).length, 9,
+    "All nine existing business-conflict throw sites must be typed");
+  assert.doesNotMatch(patch, /throw new Error\(/,
+    "Raw Error instances in PATCH must not be exposed as reviewer conflicts");
   assert.ok(patch.includes('error.message : "Transfer could not be decided."'),
     "Unknown PATCH failures must use a fixed response");
   assert.doesNotMatch(post, /return fail\(error instanceof Error \? error\.message/,
@@ -77,4 +83,15 @@ test("POST and PATCH transfer failures never expose unexpected SQL diagnostics",
   assert.match(workflow, /MULTI_ENTITY_TRANSFERS_ENABLED: "true"/);
   assert.match(proof, /for \(const attacker of \[attackerB, attackerC\]\)/);
   assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), victimBefore/);
+  for (const marker of [
+    "CREATE TRIGGER ci_transfer_post_error",
+    "CREATE TRIGGER ci_transfer_patch_error",
+    "DROP TRIGGER IF EXISTS ci_transfer_post_error",
+    "DROP TRIGGER IF EXISTS ci_transfer_patch_error",
+    'deniedFault.data?.error === "Could not request transfer."',
+    'deniedFault.data?.error === "Transfer could not be decided."',
+    "CI_INTERNAL_DATABASE_DIAGNOSTIC",
+    "assert.deepEqual(await snapshot(1), beforePostFault",
+    "assert.deepEqual(await snapshot(1), beforePatchFault",
+  ]) assert.ok(proof.includes(marker), "Missing synthetic real-HTTP SQL-fault verification: " + marker);
 });

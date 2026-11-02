@@ -29,17 +29,14 @@ function validDate(ymd: string) {
 }
 const managementRoles = new Set(["owner", "admin", "bookkeeper", "hr"]);
 
-// Only explicit business conflicts are safe to disclose. Never send SQL diagnostics.
-const safeTransferDecisionErrors = new Set([
-  "Transfer decision was changed. Reload.",
-  "Review conflict.",
-  "Source employer or service date changed. Request a new review.",
-  "Historical assignment is missing or move date is invalid.",
-  "New payroll appeared after approval; cannot mix employers.",
-  "Concurrent transfer conflict.",
-  "The worker changed concurrently.",
-  "Transfer already applied.",
-]);
+// Only explicit business conflicts may be shown. SQL and driver failures
+// must receive a generic response, even if their text matches a business error.
+class TransferDecisionConflict extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TransferDecisionConflict";
+  }
+}
 
 async function transferGrants(organizationId: number, userId: number): Promise<number[]> {
   return (await db.select({ id: userLegalEntityGrants.legalEntityId })
@@ -309,12 +306,12 @@ export async function PATCH(request: Request) {
       await tx.execute(sql`select pg_advisory_xact_lock(4219, ${requestRow.employeeId})`);
       const [live] = await tx.select().from(entityTransferRequests)
         .where(eq(entityTransferRequests.id, id)).limit(1);
-      if (!live || live.status !== requestRow.status) throw new Error("Transfer decision was changed. Reload.");
+      if (!live || live.status !== requestRow.status) throw new TransferDecisionConflict("Transfer decision was changed. Reload.");
       if (action === "reject") {
         const [updated] = await tx.update(entityTransferRequests).set({
           status: "rejected", approvedByUserId: user.id, approvedAt: new Date(),
         }).where(and(eq(entityTransferRequests.id, id), eq(entityTransferRequests.status, "pending_approval"))).returning();
-        if (!updated) throw new Error("Review conflict.");
+        if (!updated) throw new TransferDecisionConflict("Review conflict.");
         await tx.insert(auditEvents).values({ organizationId: live.organizationId,
           actor: user.name, action: "Legal entity transfer rejected",
           resource: String(live.employeeId), metadata: { transferId: id, reviewerId: user.id } });
@@ -326,7 +323,7 @@ export async function PATCH(request: Request) {
           status: "approved", approvedByUserId: user.id, approvedAt: new Date(),
         }).where(and(eq(entityTransferRequests.id, id),
           eq(entityTransferRequests.status, "pending_approval"))).returning();
-        if (!approved) throw new Error("Review conflict.");
+        if (!approved) throw new TransferDecisionConflict("Review conflict.");
         updated = approved;
       }
       if (updated.effectiveDate <= today) {
@@ -335,7 +332,7 @@ export async function PATCH(request: Request) {
         )).limit(1);
         if (!worker || worker.legalEntityId !== updated.fromLegalEntityId
           || worker.startDate !== updated.serviceStartDate)
-          throw new Error("Source employer or service date changed. Request a new review.");
+          throw new TransferDecisionConflict("Source employer or service date changed. Request a new review.");
         const [current] = await tx.select().from(employeeEntityAssignments).where(and(
           eq(employeeEntityAssignments.organizationId, updated.organizationId),
           eq(employeeEntityAssignments.employeeId, updated.employeeId),
@@ -343,19 +340,19 @@ export async function PATCH(request: Request) {
           sql`${employeeEntityAssignments.effectiveUntil} is null`,
         )).limit(1);
         if (!current || current.effectiveFrom >= updated.effectiveDate)
-          throw new Error("Historical assignment is missing or move date is invalid.");
+          throw new TransferDecisionConflict("Historical assignment is missing or move date is invalid.");
         const conflict = await tx.select({ id: payrollRuns.id }).from(payrollRuns)
           .innerJoin(payrollEntries, eq(payrollEntries.payrollRunId, payrollRuns.id))
           .where(and(eq(payrollRuns.organizationId, updated.organizationId),
             eq(payrollRuns.legalEntityId, updated.fromLegalEntityId),
             eq(payrollEntries.employeeId, updated.employeeId),
             gte(payrollRuns.periodEnd, updated.effectiveDate))).limit(1);
-        if (conflict.length) throw new Error("New payroll appeared after approval; cannot mix employers.");
+        if (conflict.length) throw new TransferDecisionConflict("New payroll appeared after approval; cannot mix employers.");
         const [closed] = await tx.update(employeeEntityAssignments).set({
           effectiveUntil: previousDate(updated.effectiveDate),
         }).where(and(eq(employeeEntityAssignments.id, current.id),
           sql`${employeeEntityAssignments.effectiveUntil} is null`)).returning();
-        if (!closed) throw new Error("Concurrent transfer conflict.");
+        if (!closed) throw new TransferDecisionConflict("Concurrent transfer conflict.");
         await tx.insert(employeeEntityAssignments).values({
           organizationId: updated.organizationId, employeeId: updated.employeeId,
           legalEntityId: updated.toLegalEntityId, effectiveFrom: updated.effectiveDate,
@@ -364,7 +361,7 @@ export async function PATCH(request: Request) {
           .where(and(eq(employees.id, updated.employeeId),
             eq(employees.organizationId, updated.organizationId),
             eq(employees.legalEntityId, updated.fromLegalEntityId))).returning();
-        if (!changed) throw new Error("The worker changed concurrently.");
+        if (!changed) throw new TransferDecisionConflict("The worker changed concurrently.");
         await tx.insert(workerEmploymentEvents).values({
           organizationId: updated.organizationId, employeeId: updated.employeeId,
           effectiveDate: updated.effectiveDate, eventType: "legal_employer_transfer",
@@ -377,7 +374,7 @@ export async function PATCH(request: Request) {
           status: "applied", appliedAt: new Date(),
         }).where(and(eq(entityTransferRequests.id, id),
           eq(entityTransferRequests.status, "approved"))).returning();
-        if (!applied) throw new Error("Transfer already applied.");
+        if (!applied) throw new TransferDecisionConflict("Transfer already applied.");
         updated = applied;
       }
       await tx.insert(auditEvents).values({
@@ -392,7 +389,7 @@ export async function PATCH(request: Request) {
     });
     return Response.json({ transfer: summarizeEntityTransfer(result) });
   } catch (error) {
-    return fail(error instanceof Error && safeTransferDecisionErrors.has(error.message)
+    return fail(error instanceof TransferDecisionConflict
       ? error.message : "Transfer could not be decided.");
   }
 }
