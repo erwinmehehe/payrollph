@@ -131,7 +131,7 @@ async function seedClaim(e, employeeId = e.worker.id) {
   }).returning();
   return row;
 }
-const leaveBody = (e, workerId = e.worker.id) => ({
+const leaveBody = (e, workerId = e.leaveWorker.id) => ({
   organizationId: e.org.id, employeeId: workerId, leaveType: "Vacation",
   startDate: "2026-11-19", endDate: "2026-11-19", days: 1,
   reason: "Synthetic one-day leave, no real employee",
@@ -172,6 +172,10 @@ try {
     "real victim separation ID exceeds both attacker source IDs");
   need(victimClaim.id > 6 && victimClaim.id > bClaim.id,
     "real victim roster claim ID exceeds both attacker source IDs");
+  // Leave eligibility rejects draft-separation workers: use distinct, real active HR workers.
+  for (const e of [a,b,v]) e.leaveWorker = await addWorker(e,"LEAVE",{payProfile:false});
+  need(v.leaveWorker.id > 6 && v.leaveWorker.id > b.leaveWorker.id,
+    "victim leave worker is a real higher-ID employee with no separation");
 
   const sepId = new Map([[a,aSep.id],[b,bSep.id],[v,victimSep.id]]);
   const claimId = new Map([[a,aClaim.id],[b,bClaim.id],[v,victimClaim.id]]);
@@ -197,15 +201,15 @@ try {
   for (const e of [a,b,v]) {
     if (e===v) {
       for (let j=0;j<6;j++) await db.insert(leaveRequests).values({
-        organizationId:v.org.id, employeeId:targetWorker.id,
+        organizationId:v.org.id, employeeId:v.leaveWorker.id,
         leaveType:"Vacation", startDate:"2026-11-19", endDate:"2026-11-19",
         days:"1.0", reason:"Inert victim-side higher-ID proof padding", status:"Pending",
       });
     }
     const r = status(await post("/api/leave",e.cookie,
-      leaveBody(e,e===v?targetWorker.id:e.worker.id)),201,e.label+" own leave POST");
+      leaveBody(e,e.leaveWorker.id)),201,e.label+" own leave POST");
     need(r.json?.organizationId === e.org.id &&
-      r.json.employeeId === (e===v?targetWorker.id:e.worker.id) &&
+      r.json.employeeId === e.leaveWorker.id &&
       r.json.status === "Pending" && Number.isInteger(r.json.id) &&
       Number.isInteger(r.json.approvalTaskId),
     "real leave POST returns persisted own leave and independent checker task");
@@ -237,9 +241,9 @@ try {
   // DENIAL #2 and FORGERY #4: real victim selectors, not fabricated IDs.
   for(const e of attackers) {
     await assertDenied(post("/api/leave",e.cookie,{
-      ...leaveBody(e,targetWorker.id),organizationId:v.org.id,
+      ...leaveBody(e,v.leaveWorker.id),organizationId:v.org.id,
     }),403,v,"foreign leave organization+worker");
-    await assertDenied(post("/api/leave",e.cookie,leaveBody(e,targetWorker.id)),
+    await assertDenied(post("/api/leave",e.cookie,leaveBody(e,v.leaveWorker.id)),
       404,v,"forged victim employee in own leave workspace");
     await assertDenied(post("/api/leave",e.cookie,{
       organizationId:e.org.id,action:"revise_intervals",leaveId:victimLeave.id,
