@@ -161,7 +161,7 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
 
-Original source-inventory baseline (historical): [`main@8c2a62135fd6e23db4603197822339cc1020ec27`](https://github.com/erwinmehehe/payrollph/commit/8c2a62135fd6e23db4603197822339cc1020ec27). The archived partition JSON files preserve the earlier `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214` snapshot and do not substitute for current-head HTTP acceptance. HTTP-method classification is per exported handler, not per file. `COVERED` is only credited where the existing `scripts/qa/tenant-second-pass-http.mjs` proves a real own-tenant positive control followed by a victim-only denial. `PUBLIC-BY-DESIGN` has method-level public-resource rationale. Others remain **GAP** regardless of helper names or anonymous responses.
+Original source-inventory baseline (historical): [`main@8c2a62135fd6e23db4603197822339cc1020ec27`](https://github.com/erwinmehehe/payrollph/commit/8c2a62135fd6e23db4603197822339cc1020ec27). The archived partition JSON files preserve the earlier `main@d94c1f3e0e1a8b1de0d15186923f3ed641314214` snapshot and do not substitute for current-head HTTP acceptance. HTTP-method classification is per exported handler, not per file. `COVERED` requires a cited method-specific proof or credited proof family satisfying the applicable policy; `scripts/qa/tenant-second-pass-http.mjs` is one historical proof source, not the only allowed source. `PUBLIC-BY-DESIGN` has method-level public-resource rationale. Others remain **GAP** regardless of helper names or anonymous responses.
 
 The original `.github/workflows/security-http-smoke.yml`, 42-file `scripts/qa/tenant-second-pass-manifest.mjs`, and the non-waivable `requireDisposable` guard in `scripts/qa/tenant-second-pass-http.mjs` are preserved.
 
@@ -265,7 +265,7 @@ Both independent attacker employers first receive real 200/201 own-record eviden
 
 ## Complete API method matrix
 
-Every one of the 290 route files and 493 exported handlers is in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
+All 295 API route files and 498 exported methods in the current manifest are listed in the following source-line tables. The JSON manifest stores git blob SHA, source signal, helper symbol, identifier reference, valid test location (where found), and per-method result.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
 # API methods — inventory appendix A (partitions 00–10)
