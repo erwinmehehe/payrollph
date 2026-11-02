@@ -530,6 +530,19 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // WRK-01 staffing-policy POST/PATCH are two additional, independently
   // source-pinned fictional PG16 methods. Never count the unproven GET.
   const staffingPolicyMethods = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods;
+  const wfmThreeMethods = [
+    ["src/app/api/workforce/demand-staffing/policies/route.ts", "GET", "scripts/qa/tenant-demand-approved-policy-get-http.mjs"],
+    ["src/app/api/workforce/greedy-roster/route.ts", "GET", "scripts/qa/tenant-wrk01-greedy-roster-http.mjs"],
+    ["src/app/api/workforce/roster-rules/preview/route.ts", "POST", "scripts/qa/tenant-wfm-three-method-post-http.mjs"],
+  ];
+  for (const [path, verb, evidence] of wfmThreeMethods) {
+    const method = manifest.allApiRouteFiles[path]?.methods.find(m => m.name === verb);
+    assert.equal(method?.status, "COVERED", path + " " + verb + ": exact WFM PG16 proof required");
+    assert.equal(method.testedBy.file, evidence);
+    assert.equal(method.testedBy.workflowRunId, 41293308290);
+    assert.equal(method.testedBy.independentSecurityReview, "PENDING");
+  }
+  const wfmThreeCredits = wfmThreeMethods.length;
   const staffingPolicyCredits = staffingPolicyMethods.filter(method =>
     method.status === "COVERED" &&
     method.testedBy?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs").length;
@@ -558,11 +571,11 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - wfmThreeCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + wfmThreeCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
