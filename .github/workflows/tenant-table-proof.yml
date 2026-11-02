@@ -34,8 +34,6 @@ on:
       - 'tests/tenant-table-invariants.test.mjs'
       - 'tests/tenant-allowlist-reads.test.mjs'
       - 'tests/hcm-effective-correction*'
-      - 'scripts/ci/payout-optional-workflow-scope.mjs'
-      - 'tests/ci-payout-optional-workflow-scope.test.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/**'
       - 'src/lib/**'
@@ -49,26 +47,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  payout-change-scope:
-    name: Fail-closed payout-only scope classifier
-    runs-on: ubuntu-24.04
-    outputs:
-      skip_heavy: ${{ steps.detect.outputs.skip_heavy }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Test fail-closed scope decisions
-        run: node --test tests/ci-payout-optional-workflow-scope.test.mjs
-      - name: Compare exact PR payout PATCH and manifest evidence
-        id: detect
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/ci/payout-optional-workflow-scope.mjs
   table:
-    needs: payout-change-scope
-    if: ${{ needs.payout-change-scope.outputs.skip_heavy != 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
