@@ -15325,7 +15325,7 @@
           "name": "POST",
           "line": 25,
           "status": "GAP",
-          "reason": "Provisional legal-employer grant containment of salary-preview POST. Two-attacker disposable PG16 real HTTP proof is only a candidate until exact-head checks and independent security acceptance. Still GAP, testedBy null; 0 method credits.",
+          "reason": "Provisional legal-employer grant containment of salary-preview POST. Two-attacker disposable PG16 real HTTP proof is only a candidate until exact-head checks and final-head sole-owner security acceptance. Still GAP, testedBy null; 0 method credits.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "hcm-salary-preview-legal-employer-grant-hardening-pending-review",
@@ -15345,8 +15345,10 @@
             "workflowBlobSha": "7cbb0a6a0389a4eb0f22cce61c34ed90939c5a97",
             "coverageCredits": 0,
             "testedBy": null,
-            "independentSecurityReview": "PENDING",
-            "exactHeadHttpResult": "PENDING"
+            "exactHeadHttpResult": "PENDING",
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         }
       ],
