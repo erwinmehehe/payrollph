@@ -26,7 +26,7 @@ export const TENANT_TABLE_PROFILES = Object.freeze({
     PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false",
     WFM_LOYVERSE_POS_ENABLED: "false",
     WFM_SQUARE_SANDBOX_ENABLED: "false",
-    CSP_ENABLED: "false",
+    NEXT_CSP_ENABLED: "false",
   },
   // Reads that are 404 unless their own plain release flag is on; kept off the default server so the
   // default rows are proven in the same shape as production.
