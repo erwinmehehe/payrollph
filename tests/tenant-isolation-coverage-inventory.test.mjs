@@ -829,6 +829,54 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
+  // PayMongo transfer callback: permit only the reviewed removal of the run-existence oracle, while the method stays GAP
+  // until the dedicated signed-callback proof is credited under proofPolicy.providerCallback.
+  if (isNewOrChanged && method.status === "GAP" &&
+      key === "src/app/api/webhooks/paymongo/transfers/route.ts POST") {
+    const review = method.reviewedUncertified;
+    const originalBlob = "68c6b8f2b7ba8f70417cc461e78270f6b2b9a17d";
+    const hardenedBlob = "b7606ef203779ec194e3a3c3b4d0664e77e3ac31";
+    assert.equal(currentBlob, hardenedBlob, "PayMongo callback route changed again: fresh source review required");
+    assert.equal(review?.kind, "paymongo-transfer-webhook-no-run-oracle-hardening-only-zero-credit");
+    assert.equal(review.originalRouteBlobSha, originalBlob);
+    assert.equal(review.routeBlobSha, hardenedBlob);
+    assert.equal(review.fullMethodCoverageCredits, 0);
+    assert.equal(review.ownForeignTenantProof, false);
+    assert.equal(review.goLiveApproval, false);
+    assert.equal(method.testedBy, null, "PayMongo callback POST remains GAP until its separate method proof is credited");
+    assert.match(method.reason, /GAP/);
+    const source = readFileSync("src/app/api/webhooks/paymongo/transfers/route.ts", "utf8");
+    const hardened = [
+      "  // Validate before touching the run so the response never depends on whether the run exists.",
+      "  if (!event.eventId || event.eventId.length > 180) {",
+      "    return Response.json({ error: \"Invalid provider event ID.\" }, { status: 400 });",
+      "  }",
+      "",
+      "  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);",
+      "  if (!run) {",
+      "    // Same response as a run that exists but does not hold this transfer: a signed",
+      "    // caller must not be able to tell a nonexistent run from another tenant's run.",
+      "    return Response.json({ ok: true, ignored: true, reason: \"unmatched-payroll-transfer\" });",
+      "  }",
+      "",
+    ].join(String.fromCharCode(10));
+    const former = [
+      "  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, event.runId)).limit(1);",
+      "  if (!run) {",
+      "    return Response.json({ ok: true, ignored: true, reason: \"unknown-payroll-run\" });",
+      "  }",
+      "",
+      "  if (!event.eventId || event.eventId.length > 180) {",
+      "    return Response.json({ error: \"Invalid provider event ID.\" }, { status: 400 });",
+      "  }",
+      "",
+    ].join(String.fromCharCode(10));
+    assert.equal(source.split(hardened).length - 1, 1, "the reviewed oracle removal must occur exactly once");
+    assert.equal(gitBlobSha(Buffer.from(source.replace(hardened, former))), originalBlob,
+      "PayMongo PR may change ONLY the reviewed run-lookup ordering and response");
+    return;
+  }
+
   // Signup is a public tenant-CREATION method, not an already authenticated
   // own/foreign employer method. Permit only the four reviewed anti-abuse
   // source substitutions, while keeping the entire POST method GAP.
