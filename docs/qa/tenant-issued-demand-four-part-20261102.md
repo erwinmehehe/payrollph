@@ -1,6 +1,6 @@
 # Issued aggregate demand and frozen score: exact-head four-part proof ratchet
 
-**DRAFT / ZERO COVERAGE CREDITS / NOT ACCEPTED.** The new changes are
+**DRAFT / TWO METHOD CREDITS, SOLO_VERIFIED_DEV_RECOVERY / NOT TENANT-WIDE ACCEPTED.** The new changes are
 test-only. No application route, authorization guard, enabled feature
 default, manifest status, money path or payroll operation is changed.
 Source baseline: `main@11b6d544cf6bd30c84fc524a088f90627dec09e6`.
@@ -48,16 +48,31 @@ positive without pretending the CI job waited 25 days.
   Existing payout, money, billing, worker, POS and external-provider
   key guards remain intact.
 
-## Credit and independent acceptance
+## Source-pinned sole-owner recovery for exactly two POST methods
 
-Only a **passing job on the exact final head** of this PR can be cited
-as candidate evidence. This branch does **not** modify the coverage
-manifest and returns `coverageCredits:0`, `productionTested:false`,
-and `independentlyAccepted:false`. Both methods remain `GAP` pending
-the full head-specific green run, nonoverlapping coverage-owner/security
-review and deliberate manifest reconciliation after the open roster
-family #1712 is resolved. Earlier historical runs are not substitutes
-for evidence on this head.
+The latest **exact-head** disposable PG16 real-HTTP proof ran successfully on PR
+`#1731@1834b73aab8e162e19b4b260e51b32e6fa1fbbec`:
+[run 41444835667/job 125275257980](https://github.com/erwinmehehe/payrollph/actions/runs/41444835667/job/125275257980).
+Both separately identified POSTs had genuine owned 201 writes, real higher-ID
+victim employer 403 refusals, unchanged victim/source/audit/worker/payroll SQL,
+and rejected forged worksite/issue/source selectors. Both authenticated
+attacker employers independently exercised the paths; 200 replay was never
+counted as the first positive, and source SHA and final score report hashes
+were checked against persisted actual fixture observations.
+
+This evidence is `SOLO_VERIFIED_DEV_RECOVERY` because the repository has
+**one owner/reviewer, @erwinmehehe**, not an independent second reviewer.
+The previously emitted test-only `coverageCredits:0` receipt deliberately
+does not mutate the authoritative manifest; the separate source-bound
+manifest now credits **only these two exact POST methods**. No other
+workforce-demand method or provider endpoint is certified. The ledger
+totals 389/10/99 and the frozen closure queue stays open.
+
+The required full GitHub CI on this ledger-changing final head must still
+pass before merge. Any change to the handler, contract, executed proof or
+workflow invalidates the pinned evidence and must receive new exact-head PG16
+verification. No independent review is claimed, and method-level recovery
+does not imply tenant-wide, statutory or production release acceptance.
 
 **Loyverse and Square Sandbox integrations remain BLOCKED and out of
 scope.** No synthetic HTTP calls to provider adapters, no third-party

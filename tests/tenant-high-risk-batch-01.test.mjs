@@ -564,11 +564,24 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     }
     assert.equal(method.testedBy.postgresMajor, 16);
   }
-  assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+  const issuedDemandSoloMethods = [
+    "POST workforce/demand-observations/issued",
+    "POST workforce/demand-observations/issued/score",
+  ];
+  for (const key of issuedDemandSoloMethods) {
+    const method = methodsByKey.get(key);
+    assert.equal(method?.status, "COVERED", key + ": independent attacker positives, victim, DB and forgery required");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.proofHeadCommit, "1834b73aab8e162e19b4b260e51b32e6fa1fbbec");
+    assert.equal(method.testedBy?.workflowRunId, 41444835667);
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+  }
+  const issuedDemandSoloCredits = issuedDemandSoloMethods.length;
+  assert.equal(manifest.metrics.coveredAfter - issuedDemandSoloCredits - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
-  assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
+  assert.equal(manifest.metrics.gap + issuedDemandSoloCredits + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
     tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
