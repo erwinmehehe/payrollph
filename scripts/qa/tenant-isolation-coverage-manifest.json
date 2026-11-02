@@ -31431,15 +31431,25 @@
       "businessIds": []
     },
     "src/app/api/webhooks/paymongo/transfers/route.ts": {
-      "gitBlobSha": "68c6b8f2b7ba8f70417cc461e78270f6b2b9a17d",
+      "gitBlobSha": "b7606ef203779ec194e3a3c3b4d0664e77e3ac31",
       "route": "webhooks/paymongo/transfers",
       "methods": [
         {
           "name": "POST",
           "line": 48,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: the reviewed change only makes a signed callback for a nonexistent run indistinguishable from one for another tenant's run. No own/foreign tenant proof is linked to this method yet.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "paymongo-transfer-webhook-no-run-oracle-hardening-only-zero-credit",
+            "originalRouteBlobSha": "68c6b8f2b7ba8f70417cc461e78270f6b2b9a17d",
+            "routeBlobSha": "b7606ef203779ec194e3a3c3b4d0664e77e3ac31",
+            "removedResponseReason": "unknown-payroll-run",
+            "sharedResponseReason": "unmatched-payroll-transfer",
+            "fullMethodCoverageCredits": 0,
+            "ownForeignTenantProof": false,
+            "goLiveApproval": false
+          }
         }
       ],
       "employerSources": {
