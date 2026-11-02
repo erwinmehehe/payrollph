@@ -22,12 +22,17 @@ export type TimesheetOpsCounts = {
   enforcement: "block" | "advisory";
 };
 
+export type CoverageOpsCounts = {
+  uncoveredRequirements: number;
+  uncoveredSlots: number;
+};
+
 export type WfmOpsSignal = {
   id: string;
   priority: "urgent" | "review";
   label: string;
   count: number;
-  destination: "attendance" | "timesheets";
+  destination: "attendance" | "timesheets" | "coverage";
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -115,9 +120,33 @@ export function projectTimesheetOps(payload: unknown): TimesheetOpsCounts {
   };
 }
 
+/** Project only approved manager-visible coverage counts; never retain worker rows,
+ * employee identifiers, pay data or proposed roster changes. */
+export function projectCoverageOps(payload: unknown): CoverageOpsCounts {
+  const body = object(payload);
+  if (!Array.isArray(body.coverage)) throw new Error("Coverage source unavailable.");
+  let uncoveredRequirements = 0;
+  let uncoveredSlots = 0;
+  const seen = new Set<number>();
+  for (const raw of body.coverage) {
+    const row = object(raw);
+    const requirementId = positiveId(row.requirementId);
+    if (seen.has(requirementId)) throw new Error("Duplicate staffing requirement evidence.");
+    seen.add(requirementId);
+    const gap = count(row.gap);
+    if (gap > 0) {
+      uncoveredRequirements += 1;
+      uncoveredSlots += gap;
+      if (!Number.isSafeInteger(uncoveredSlots)) throw new Error("Unbounded staffing gap evidence.");
+    }
+  }
+  return { uncoveredRequirements, uncoveredSlots };
+}
+
 export function buildWfmOpsSignals(
   attendance: AttendanceOpsCounts | null,
   timesheets: TimesheetOpsCounts | null,
+  coverage: CoverageOpsCounts | null = null,
 ): WfmOpsSignal[] {
   const signals: WfmOpsSignal[] = [];
   const add = (id: string, priority: "urgent" | "review", label: string, value: number, destination: WfmOpsSignal["destination"]) => {
@@ -136,6 +165,9 @@ export function buildWfmOpsSignals(
     add("timesheet-rejected", "review", "Returned timecards requiring correction", timesheets.rejected, "timesheets");
     add("timesheet-submitted", "review", "Submitted timecards awaiting checker review", timesheets.pendingReview, "timesheets");
     add("timesheet-unknown", "review", "Timecards with unfamiliar statuses", timesheets.otherStatuses, "timesheets");
+  }
+  if (coverage) {
+    add("uncovered-staffing", "urgent", "Uncovered staffing requirements in source window", coverage.uncoveredRequirements, "coverage");
   }
   return signals.sort((a, b) => Number(a.priority !== "urgent") - Number(b.priority !== "urgent") || a.id.localeCompare(b.id));
 }
