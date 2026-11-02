@@ -70,19 +70,46 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
         unchangedDbLine:unchanged, victimIdOrderingLine:ordering }, label + " source anchors drifted");
     const proofPath = review.sharedRunner ?? review.proofFile;
     const lines = readFileSync(proofPath, "utf8").split("\n");
-    for (const [kind, n] of Object.entries(review.sourceAnchors)) {
-      assert.ok(Number.isSafeInteger(n) && n > 0 && n <= lines.length, label + " " + kind);
-      assert.ok(lines[n - 1].trim().length > 0, label + " " + kind + " is blank");
-    }
-    const ownText = lines[own - 1], foreignText = lines[foreign - 1];
-    const forgedText = lines[forged - 1], invariantText = lines[unchanged - 1];
-    assert.match(ownText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " own request");
-    assert.match(foreignText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " victim request");
-    assert.match(forgedText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " forged request");
-    assert.match(invariantText, /assert\.deepEqual\(/, label + " actual victim DB comparison");
-    if (pr !== 1501) {
-      assert.equal(blobSha(review.proofFile), proofSha, label + " proof changed since exact final head");
+    if (pr === 1676) {
+      // The #1676 hashes and line numbers remain HISTORICAL metadata. The
+      // current BIR runner has new, UNACCEPTED real-HTTP check/download paths.
+      // Never silently pretend its new lines were the exact merged #1676 head.
+      assert.equal(blobSha(proofPath), "565e609167a4cd8e6df21c099ad5d15fe9a94f6e",
+        "BIR recovery candidate changed: obtain new exact-head PG16 proof first");
+      assert.notEqual(blobSha(proofPath), proofSha,
+        "a changed recovery runner cannot borrow the template-only #1676 job");
+      const current = lines.join("\n");
+      for (const evidence of [
+        'for (const name of ["ATTA", "ATTB", "VICTIM"])',
+        'victim.org.id > 6 && victim.worker.id > 6 && victim.entity.id > 6',
+        'const checked = expect(await e.context.post(',
+        'const downloaded = expect(await e.context.post(',
+        'actualSha === checkResult.fileSha256',
+        'for (const mode of ["template", "check", "download"])',
+        'legalEntityId: victim.entity.id',
+        'employeeNo: victim.worker.employeeNo',
+        'assert.deepEqual(await snapshot(victim), before.get(victim.org.id)',
+        'assert.deepEqual(await snapshot(attacker), before.get(attacker.org.id)',
+        'owned === 3 && ownedChecks === 3 && ownedDownloads === 3',
+        'denied === 16',
+        'credits: 0',
+      ]) assert.ok(current.includes(evidence),
+        "New BIR recovery source lost a required real-HTTP guard: " + evidence);
     } else {
+      for (const [kind, n] of Object.entries(review.sourceAnchors)) {
+        assert.ok(Number.isSafeInteger(n) && n > 0 && n <= lines.length, label + " " + kind);
+        assert.ok(lines[n - 1].trim().length > 0, label + " " + kind + " is blank");
+      }
+      const ownText = lines[own - 1], foreignText = lines[foreign - 1];
+      const forgedText = lines[forged - 1], invariantText = lines[unchanged - 1];
+      assert.match(ownText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " own request");
+      assert.match(foreignText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " victim request");
+      assert.match(forgedText, /(?:context\.post\(|request\(|post\(|call\(|expectStatus\(await request\()/, label + " forged request");
+      assert.match(invariantText, /assert\.deepEqual\(/, label + " actual victim DB comparison");
+    }
+    if (pr !== 1501 && pr !== 1676) {
+      assert.equal(blobSha(review.proofFile), proofSha, label + " proof changed since exact final head");
+    } else if (pr === 1501) {
       assert.equal(blobSha(review.proofFile), method.reviewedUncertified.proofBlobSha,
         "current filing atomicity proof pin must remain intact");
       assert.equal(method.reviewedUncertified.acceptedOutcomePositiveProven, false,
@@ -97,7 +124,7 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
         review.missingParts.join(" ").includes("mode=download"),
         "Template-only BIR evidence must not silently certify check/download");
     }
-    if ([1676,1675,1674].includes(pr)) {
+    if ([1675,1674].includes(pr)) {
       assert.ok(!/>\s*6\b/.test(lines[ordering - 1]),
         label + ": the final-head ordering assertion itself does not prove the >6 floor");
     }
