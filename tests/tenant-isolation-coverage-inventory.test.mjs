@@ -4334,6 +4334,13 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
       }
+      if (proof.file === "scripts/qa/tenant-issued-demand-http.mjs") {
+        // Only these two exact source-pinned POST methods use the standalone PG16
+        // write harness; their own, victim, forged, SQL and SHA pins are checked
+        // by the dedicated method verifier rather than the generic GET locator.
+        verifyIssuedDemandSoloRecovery(method, path, gitBlobSha(readFileSync(path)));
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
@@ -4776,13 +4783,6 @@ test("all credited proof links point to the claimed route and every recertified 
             evidence.includes("), 403,"),
             spec + ": authenticated own 200 and victim 403 HTTP pair required");
         }
-        continue;
-      }
-      if (proof.file === "scripts/qa/tenant-issued-demand-http.mjs") {
-        // Only these two exact source-pinned POST methods use the standalone PG16
-        // write harness; their own, victim, forged, SQL and SHA pins are checked
-        // by the dedicated method verifier rather than the generic GET locator.
-        verifyIssuedDemandSoloRecovery(method, path, gitBlobSha(readFileSync(path)));
         continue;
       }
       const ownLine = evidenceLine(proof.file, proof.ownPositiveLine, path + " own-positive");
