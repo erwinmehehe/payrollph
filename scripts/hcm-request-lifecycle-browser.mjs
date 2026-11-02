@@ -96,8 +96,34 @@ try {
   await page.evaluate(() => window.renderView("queue"));
   // The synthetic API fixture must carry the employer ID that the real GET
   // explicitly selects. Omitting it tests a malformed response, not an owned read.
-  await complete(await requestId("work-items?organizationId=1"), {items:[item(11,"Employer A case",1),item(12,"Second A case",1)],owners:[{id:1,name:"Synthetic owner"}]});
+  await complete(await requestId("work-items?organizationId=1"), {items:[{...item(11,"Employer A case",1),detail:"PRIVATE_A_DETAIL"},item(12,"Second A case",1)],owners:[{id:1,name:"Synthetic owner"}]});
   await visible("Employer A case");
+
+  // Automated mobile/keyboard regression only. Physical-device and assistive-
+  // technology acceptance must still be witnessed independently.
+  for (const width of [375, 390]) {
+    await page.setViewportSize({ width, height: 812 });
+    const mobile = page.getByRole("list", { name: "Work items on mobile" });
+    await mobile.waitFor({ state: "visible" });
+    assert.equal(await mobile.getByRole("listitem").count(), 2, "Both tenant-A cards must be visible on mobile");
+    const search = page.getByRole("searchbox", { name: "Find a loaded work item" });
+    await search.fill("Second A");
+    await page.getByText(/Showing 1 of 2 loaded items/).waitFor();
+    assert.equal(await mobile.getByRole("listitem").count(), 1, "Only the matching loaded card is visible");
+    await search.fill("PRIVATE_A_DETAIL");
+    await page.getByText("No loaded work items match this search. Clear search to see this employer's work items.", { exact: true }).waitFor();
+    assert.equal(await mobile.getByRole("listitem").count(), 0, "Private case detail must not be searchable");
+    await page.getByRole("button", { name: "Clear search" }).click();
+    const mobileAction = mobile.getByRole("button", { name: "Assign / SLA" }).first();
+    await mobileAction.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("dialog", { name: "Assign #11" }).waitFor();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    assert.equal(await page.getByRole("dialog").count(), 0, "Keyboard-opened mobile editor must close");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+      "HR mobile queue has horizontal overflow at " + width + "px");
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole("button", {name:"Assign / SLA"}).first().click();
   const oldHistory = await requestId("caseId=11");
   await page.getByRole("button", {name:"Cancel", exact:true}).click();
@@ -126,6 +152,17 @@ try {
   await complete(tenantBRead, {items:[item(21,"Employer B case",2)],owners:[]});
   await visible("Employer B case");
   assert.equal(await page.evaluate(() => window.pending.filter(r=>r.url.includes("work-items?organizationId=2")).length), 2, "StrictMode creates two reads; old save must not add another");
+
+  // Returning A -> B -> A must not reuse the retired editor, search or case list.
+  await page.getByRole("spinbutton", { name: "Organization ID" }).fill("1");
+  await absent("Employer B case");
+  await complete(await requestId("work-items?organizationId=1"), {items:[item(31,"Employer A returned",1)],owners:[]});
+  await visible("Employer A returned");
+  assert.equal(await page.getByRole("searchbox", { name: "Find a loaded work item" }).inputValue(), "");
+  await page.getByRole("spinbutton", { name: "Organization ID" }).fill("2");
+  await absent("Employer A returned");
+  await complete(await requestId("work-items?organizationId=2"), {items:[item(21,"Employer B case",2)],owners:[]});
+  await visible("Employer B case");
   await page.getByRole("button", {name:"Refresh",exact:true}).click();
   await absent("Employer B case");
   await absent("No work items found for this filter.");
