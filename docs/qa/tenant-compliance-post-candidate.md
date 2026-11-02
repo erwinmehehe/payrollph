@@ -9,10 +9,10 @@ statutory filing are made. Baseline `main@11b6d544cf6bd30c84fc524a088f90627dec09
 | Method | Positive real HTTP | Real victim denial | Victim SQL before/after | Forged selector | Credit |
 | --- | --- | --- | --- | --- | --- |
 | POST compliance/contribution-issues | Candidate: review, update, referral, resolution | Candidate: 403 for higher-ID employer | Candidate: cases, events, tasks, remittances, closures, payroll, year-end and audit | Candidate: actual higher-ID victim case 404 | **0** |
-| POST compliance/payroll-month-close | **Missing** legitimate certification with populated, independently ready released-payroll + remittance + BIR evidence | Not yet tested | Not yet tested | Not yet tested (foreign legalEntityId) | **0** |
+| POST compliance/payroll-month-close | **New candidate:** real 200 own certification of historical 2026-05 with Released source-rule SSS payroll, independently certified reconciled remittance + active hashed proof, synthetic BIR 1601-C operational acknowledgement, payout/journal/close records, no high run findings | Shared runner: real higher-ID victim employer 403 | Victim closures, runs, remittance, filings, payroll and business audit unchanged after refusal | Real higher-ID victim legalEntityId forged under own org: 409 | **0**, exact-head PG16 + independent review pending |
 | POST compliance/statutory-remittances | **New candidate:** genuine 201 create_batch from released, assurance-checked SSS liabilities for both September and August; genuine 200 record_payment, confirm_member_posting, and mark_member_exception with persisted SQL/audit | Both attacker logins must deny real victim employer 403 for all actions | Complete victim batches, members, evidence, posted artifacts, payroll, tax, closure and audit snapshots before/after every refusal | Genuine higher-ID victim batchId/memberId 404; genuine foreign legalEntityId 409 | **0**, exact final-head job pending |
 
-Both compliance rows run in the same isolated PG16/localhost workflow with
+All three compliance rows run in the same isolated PG16/localhost workflow with
 the dedicated `compliance-posts` profile; any failure fails the entire job.
 The contribution case is a table-driven row against real production-mode localhost
 HTTP and a **fresh disposable PG16**. The shared fixture generates two independent
@@ -33,14 +33,26 @@ The method remains GAP even if the candidate subset passes.
 
 ## Required next actions before any coverage promotion
 
-Payroll month-close requires an actually ready historical month, a verified
-BIR 1601-C acknowledgement, a valid independent statutory remittance
+Payroll month-close requires an actually ready historical month, a recorded
+BIR 1601-C operational acknowledgement, a valid independent statutory remittance
 certification, a released/closed payroll audit state and independent certifier.
-The present `buildPayrollMonthCloseState` loads remittance state but
-`liveRemittanceCertification` does not supply `paymentEvidence` to
-`evaluateRemittanceMonthClose`, which requires active hashed payment evidence
-for each batch. Review this potential readiness integration blocker before
-attempting an own-positive fixture. **Do not bypass the proof requirement.**
+The reproduced source-readiness defect was that `liveRemittanceCertification`
+failed to supply tenant- and batch-scoped `paymentEvidence` to
+`evaluateRemittanceMonthClose`; this branch now supplies exactly the same
+scoped projection as the canonical remittance month-close route. A regression
+test proves a missing active payment proof still blocks certification.
+
+The new disposable-only four-part [payroll month-close fixture](../../scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs)
+seeds a source-consistent **fictional** historical month, including a valid
+positive SSS liability, recorded hashed payment artifact, confirmed posting,
+current-version BIR acceptance **record only**, separate named certifier, and
+synthetic payout/journal/close audit events. A 200 own POST must create a new
+persisted payroll close and audit row; the victim company 403, real foreign
+legal-entity selector 409, and unchanged victim SQL are required for each
+independent attacker. **No money, bank action, agency filing, government
+acknowledgement or operational payment occurred.** This security test is not
+proof of real BIR/agency acceptance and remains zero-credit until the final
+PR-head PG16 run passes and the independent proof review is completed.
 
 The new [statutory remittance row](../../scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs)
 exercises all four distinct handlers, not a blocked-action shortcut. It
