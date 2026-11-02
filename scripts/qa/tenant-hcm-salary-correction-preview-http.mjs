@@ -258,7 +258,7 @@ async function main() {
       revokedSameSessionDenied: true, persistedSourcesUnchanged: true,
       moneyChanges: 0, outsideProviders: 0,
       methodStatus: "GAP", newCoverageCredits: 0,
-      evidenceStatus: "SOLO_VERIFIED_DEV_RECOVERY_CANDIDATE", soleReviewer: "repository owner",
+      reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY", soleReviewer: "repository owner",
     }));
   } finally {
     if (nextServer && nextServer.exitCode === null) {
