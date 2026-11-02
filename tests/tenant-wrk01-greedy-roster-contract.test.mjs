@@ -158,7 +158,7 @@ test("denials must not include roster source, foreign PII markers or victim audi
     { audit: [], runs: [] }, { audit: [], runs: [23] }, "victim"));
 });
 
-test("live tenant manifest remains GAP, with no guessed proof credits", () => {
+test("greedy-roster has one exact-job provisional method proof, without independent acceptance", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles[
@@ -167,8 +167,12 @@ test("live tenant manifest remains GAP, with no guessed proof credits", () => {
   assert.equal(METHOD, "GET workforce/greedy-roster");
   assert.equal(ENDPOINT, "/api/workforce/greedy-roster");
   const method = entry.methods.find(x => x.name === "GET");
-  assert.equal(method.status, "GAP");
-  assert.equal(method.testedBy, null);
+  assert.equal(method.status, "COVERED");
+  assert.equal(method.testedBy?.file, "scripts/qa/tenant-wrk01-greedy-roster-http.mjs");
+  assert.equal(method.testedBy?.workflowRunId, 41293308290);
+  assert.equal(method.testedBy?.workflowJobId, 124808879396);
+  assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+  assert.equal(method.testedBy?.productionCertified, false);
 });
 
 test("focused CI actually runs same-method PostgreSQL/localhost source, forged and immutable controls", () => {
