@@ -156,9 +156,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 387 |
+| coveredAfter | 389 |
 | publicByDesign | 10 |
-| gap | 101 |
+| gap | 99 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
