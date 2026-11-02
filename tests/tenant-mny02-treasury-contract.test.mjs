@@ -66,7 +66,7 @@ function fixture() {
   }};
 }
 
-test("MNY-02 exact route remains GAP; source hash matches and no silent credit", () => {
+test("MNY-02 exact route retains pinned source, PG16 proof credit and no changes to the policy guard", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/api/treasury-controls/route.ts";
@@ -74,8 +74,14 @@ test("MNY-02 exact route remains GAP; source hash matches and no silent credit",
   assert.equal(METHOD, "POST treasury-controls");
   assert.equal(ENDPOINT, "/api/treasury-controls");
   assert.equal(row.route, "treasury-controls");
-  assert.equal(row.methods.find(m => m.name === "POST").status, "GAP");
-  assert.equal(row.methods.find(m => m.name === "POST").testedBy, null);
+  const write = row.methods.find(m => m.name === "POST");
+  assert.equal(write.status, "COVERED", "The exact-head own/foreign/forged/unchanged PG16 proof is required");
+  assert.equal(write.reviewedUncertified, undefined);
+  assert.equal(write.testedBy.file, "scripts/qa/tenant-mny02-treasury-http.mjs");
+  assert.equal(write.testedBy.proofHeadSha, "b7ea3bf6ea693b1cbb001060c0d234b86046bd9c");
+  assert.equal(write.testedBy.workflowRunId, 41319237095);
+  assert.equal(write.testedBy.proofBlobSha, "06ccd8204c45e93edf9db34fc465e7685b39eb73");
+  assert.equal(write.testedBy.routeBlobSha, row.gitBlobSha);
   const code = readFileSync(path, "utf8");
   const bytes = Buffer.from(code, "utf8");
   const blob = createHash("sha1").update("blob " + bytes.length + "\0")
@@ -176,7 +182,7 @@ test("denied requests never expose policy success, operator, private body or hea
     ["FICTIONAL-VICTIM-PRIVATE"]));
 });
 
-test("workflow uses real PostgreSQL 16 localhost HTTP, no providers and no manifest credit", () => {
+test("workflow uses real PostgreSQL 16 localhost HTTP with all providers disabled", () => {
   const yaml = readFileSync(".github/workflows/tenant-mny02-treasury-http.yml", "utf8");
   const script = readFileSync("scripts/qa/tenant-mny02-treasury-http.mjs", "utf8");
   assert.match(yaml, /image: postgres:16/);

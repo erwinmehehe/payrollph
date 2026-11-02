@@ -1,6 +1,12 @@
-# Tenant isolation closure plan — 490 API methods and 20 page/action surfaces
+# Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
 > **NOT ACCEPTED — baseline only.** Audited GitHub `main@28e1224448342c34a4899fb67660b3da504530c1` on 2026-10-21: 289 route files, 490 HTTP methods, **76 COVERED / 8 PUBLIC-BY-DESIGN / 406 GAP**, plus **20 page/action GAPs**. No additional methods are certified by writing this plan. This document is a **frozen 406-method closure queue**; later PRs must update the live manifest and the inventory headline independently. Manifest acceptance stays **NOT ACCEPTED**; an independent owner/reviewer decides acceptance.
+
+## Current 2026-11-02 reconciliation — DRAFT, NOT ACCEPTED
+
+**Current source-pinned API ledger: 498 methods = 392 COVERED + 10 PUBLIC-BY-DESIGN + 96 GAP** across 295 routes, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). This narrowly promotes six distinct GAP write methods with genuine own-positive, real higher-ID victim denial, unchanged victim PostgreSQL/audit snapshots and forged-selector rejection, on **passing exact-final-head disposable PostgreSQL 16 real-HTTP proof**. The six are POST leave/conversion ([#1675 run 41264782087](https://github.com/erwinmehehe/payrollph/actions/runs/41264782087)), POST payroll/overpayment-preflight ([#1674 run 41264867045](https://github.com/erwinmehehe/payrollph/actions/runs/41264867045)), POST outbox ([#1684 run 41306939767](https://github.com/erwinmehehe/payrollph/actions/runs/41306939767)), POST treasury-controls ([#1683 run 41319237095](https://github.com/erwinmehehe/payrollph/actions/runs/41319237095)), POST compliance/labor-inspection ([#1714 run 41392987376](https://github.com/erwinmehehe/payrollph/actions/runs/41392987376)) and POST earned-wage ([#1669 run 41366324196](https://github.com/erwinmehehe/payrollph/actions/runs/41366324196)). The [live manifest](../../scripts/qa/tenant-isolation-coverage-manifest.json) and [inventory method rows](tenant-isolation-coverage-inventory.md) pin exact source and proof blobs and assertion lines.
+
+**Not credited:** POST bir/annual-employer/candidate: #1676 proves `template` only, not the separate `check` and `download` own-positive/victim/forgery cases; multi-entity/transfers POST/PATCH are still held by open #1711 while SQL error privacy is repaired; payout-profiles PATCH is held by open #1709 while foreign-row adoption is repaired. Source-only routes, partial linked approvals and the scenarios POST/#1655 SQL-fault/review hold remain GAP. #1649 only added root workforce-planning POST/PATCH proof (zero credits) and #1647 concerns allocations, not root. This is provisional evidence accounting, **not independent tenant-security approval**, not production acceptance and not authorization to enable money, payout, provider or NEXT_CSP flags.
 
 ## 2026-10-31 PR #1646 sync with main@04029a8b — NOT ACCEPTED
 
@@ -68,18 +74,18 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 22 | 0 | 11 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 22 | 0 | 11 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 24 | 0 | 9 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 22 | 0 | 5 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 35 | 0 | 5 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 36 | 0 | 4 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 18 | 0 | 15 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 19 | 0 | 14 | INCOMPLETE |
 
-Frozen subtotal: **302 COVERED + 2 PUBLIC-BY-DESIGN + 102 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **308 COVERED + 2 PUBLIC-BY-DESIGN + 96 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All method GAPs remain unaccepted, including those in incomplete batches.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
