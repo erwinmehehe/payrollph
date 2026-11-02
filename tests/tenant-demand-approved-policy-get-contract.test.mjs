@@ -43,8 +43,12 @@ test("WRK-01 approved-mode GET is distinct from the previous draft-only source c
   const route = manifest.allApiRouteFiles[
     "src/app/api/workforce/demand-staffing/policies/route.ts"];
   const method = route.methods.find(x => x.name === "GET");
-  assert.equal(method.status, "GAP", "only exact-head reviewed HTTP can change coverage");
-  assert.equal(method.testedBy, null);
+  assert.equal(method.status, "COVERED", "only exact-head reviewed HTTP may support provisional credit");
+  assert.equal(method.testedBy?.file, "scripts/qa/tenant-demand-approved-policy-get-http.mjs");
+  assert.equal(method.testedBy?.workflowRunId, 41293308290);
+  assert.equal(method.testedBy?.workflowJobId, 124808879584);
+  assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+  assert.equal(method.testedBy?.productionCertified, false);
   const proof = readFileSync(
     "scripts/qa/tenant-demand-approved-policy-get-http.mjs", "utf8");
   const workflow = readFileSync(
