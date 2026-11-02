@@ -1,5 +1,7 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
+> **RELEASE BLOCKER:** 97 API methods and 17 business-ID page entries remain unverified. **NOT ACCEPTED**: 97 method gaps and 17 page/action gaps. No production, external-provider, payment, filing or tenant-wide acceptance is granted.
+
 > **2026-11-02 #1730 SOLO_VERIFIED_DEV_RECOVERY (DRAFT / NOT ACCEPTED):** 498 API methods = **391 COVERED / 10 PUBLIC-BY-DESIGN / 97 GAP**; 17 page/action GAPs remain. Four exact year-end/prior-evidence GET/POST methods have disposable PG16 real-HTTP own/victim/forged/unchanged-victim SQL proof, [annualization and draft exports](https://github.com/erwinmehehe/payrollph/actions/runs/41446394887), [prior evidence](https://github.com/erwinmehehe/payrollph/actions/runs/41446394999). Owner `@erwinmehehe` is the only reviewer; no independent signoff implied. No live payroll, money, payout, provider, CSP or BIR filing authority.
 
 > **PayMongo transfer webhook provisional evidence:** 387 COVERED / 10 PUBLIC-BY-DESIGN / 101 GAP. webhooks/paymongo/transfers POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277) from head `c510fc14e`, merged as `918085a37`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production/payout authorization.

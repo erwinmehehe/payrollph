@@ -217,6 +217,30 @@ test("already credited and partial-action methods are not double-counted", () =>
     "POST invitations", "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
+    if (key === "GET year-end") {
+      // This PR proposes one separately sourced, exact-head fictional PG16 proof
+      // for the year-end GET JSON and export modes. Do not borrow an unrelated
+      // historical sweep or treat the sole owner as independent review.
+      const method = methods.get(key);
+      const receipt = method?.testedBy;
+      assert.equal(method?.status, "COVERED", key);
+      assert.equal(receipt?.prNumber, 1730);
+      assert.equal(receipt?.verifiedPrHeadSha, "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5");
+      assert.equal(receipt?.workflowRunId, 41446394887);
+      assert.equal(receipt?.file, "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs");
+      assert.equal(receipt?.proofBlobSha, "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19");
+      assert.equal(receipt?.workflowBlobSha, "9e6ca6431b168e05afecc5e40a42b1973ad1f675");
+      assert.equal(receipt?.routeBlobSha,
+        manifest.allApiRouteFiles["src/app/api/year-end/route.ts"].gitBlobSha);
+      assert.deepEqual(receipt?.methodActions,
+        ["json", "preflight", "2316", "2316-print", "alphalist"]);
+      assert.equal(receipt?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(receipt?.ownerIsOnlyReviewer, true);
+      assert.equal(receipt?.independentlyAccepted, false);
+      assert.equal(receipt?.productionCertified, false);
+      assert.equal(receipt?.productionTested, false);
+      continue;
+    }
     if (key === "PATCH performance/follow-through-governance") {
       verifyPerformanceCoreCredit(key, methods.get(key));
       assert.notEqual(methods.get(key).testedBy.verifiedMainCommit, base, "new complete proof is not borrowed historical promotion evidence");

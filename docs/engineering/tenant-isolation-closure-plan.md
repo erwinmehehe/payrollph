@@ -8,6 +8,8 @@
 
 ## 2026-11-02 PR #1730 year-end four-part SOLO_VERIFIED_DEV_RECOVERY (DRAFT)
 
+**Live queue reconciliation: 498 methods = 391 COVERED + 10 PUBLIC-BY-DESIGN + 97 GAP**. Four provisional year-end method credits are pending exact-final-head broad CI and maintainer review. This current tally does not rewrite the historical 406-method frozen queue or authorize deployment.
+
 **Current proposed source-pinned ledger: 498 API methods = 391 COVERED / 10 PUBLIC-BY-DESIGN / 97 GAP**; 17 scoped page/action GAPs remain. Both `GET/POST year-end` and `GET/POST year-end/prior-evidence` passed method-specific real-HTTP tests on exact PR head `066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5`, with two independent signed-in fictional attacker employers, a real higher-ID victim, legitimate source-bound own responses, foreign and forged-selector denials, and unchanged victim payroll/year-end/evidence/audit PostgreSQL snapshots. [Year-end annualization and draft 2316/print/Alphalist export PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/41446394887) and [separate prior-evidence save/read/approve PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/41446394999) are both green on the same final proof head; [JSON read PG16](https://github.com/erwinmehehe/payrollph/actions/runs/41446394862) also passed. `@erwinmehehe` is the repository's only reviewer. The evidence label `SOLO_VERIFIED_DEV_RECOVERY` makes **no claim of independent review**. Existing worker/provider/payout/money/CSP gates stay OFF; no official BIR submissions, production data, global tenant acceptance, or release. Keep draft, do not merge.
 
 ## Safety boundary and method evidence contract
