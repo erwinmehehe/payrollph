@@ -10,8 +10,10 @@ statutory filing are made. Baseline `main@11b6d544cf6bd30c84fc524a088f90627dec09
 | --- | --- | --- | --- | --- | --- |
 | POST compliance/contribution-issues | Candidate: review, update, referral, resolution | Candidate: 403 for higher-ID employer | Candidate: cases, events, tasks, remittances, closures, payroll, year-end and audit | Candidate: actual higher-ID victim case 404 | **0** |
 | POST compliance/payroll-month-close | **Missing** legitimate certification with populated, independently ready released-payroll + remittance + BIR evidence | Not yet tested | Not yet tested | Not yet tested (foreign legalEntityId) | **0** |
-| POST compliance/statutory-remittances | **Missing** legitimate positive of all four actions: create_batch, record_payment, confirm_member_posting, mark_member_exception | Not yet tested | Not yet tested | Not yet tested (foreign batch/member/legalEntity IDs) | **0** |
+| POST compliance/statutory-remittances | **New candidate:** genuine 201 create_batch from released, assurance-checked SSS liabilities for both September and August; genuine 200 record_payment, confirm_member_posting, and mark_member_exception with persisted SQL/audit | Both attacker logins must deny real victim employer 403 for all actions | Complete victim batches, members, evidence, posted artifacts, payroll, tax, closure and audit snapshots before/after every refusal | Genuine higher-ID victim batchId/memberId 404; genuine foreign legalEntityId 409 | **0**, exact final-head job pending |
 
+Both compliance rows run in the same isolated PG16/localhost workflow with
+the dedicated `compliance-posts` profile; any failure fails the entire job.
 The contribution case is a table-driven row against real production-mode localhost
 HTTP and a **fresh disposable PG16**. The shared fixture generates two independent
 authenticated fictional attacker employers and one real higher-ID victim. The row
@@ -40,10 +42,20 @@ The present `buildPayrollMonthCloseState` loads remittance state but
 for each batch. Review this potential readiness integration blocker before
 attempting an own-positive fixture. **Do not bypass the proof requirement.**
 
-Statutory remittances must exercise each distinct action, with real persisted
-batch/member/evidence rows and independent checks for victim legal employer,
-batch and member IDs. This PR does not invent completed remittances or claim
-that a denied cross-tenant call is sufficient proof.
+The new [statutory remittance row](../../scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs)
+exercises all four distinct handlers, not a blocked-action shortcut. It
+creates two actual fictional `Released` payroll months and computes the
+full SSS employee/employer liability using the repository's **real SSS rule**,
+then encrypts a fictional 10-digit member number before reconciliation.
+One month is confirmed and reconciled, the other records a posting exception.
+Each of the six owned action positives requires a matching real persisted
+batch/member/evidence/audit transition. Real victim org denial and real
+higher-ID forged batch, member and legal-entity ID rejection are all asserted
+for **both independently authenticated attackers**. The receipt bytes are
+explicitly marked fictional, not agency-issued evidence; none are uploaded
+outside disposable PG16 and **no money is moved**. An unaudited fictional
+receipt does not validate real statutory remittance readiness. Exact-final-head
+CI must pass before the method receives any credit.
 
 ## Safety
 
