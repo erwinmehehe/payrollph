@@ -1,17 +1,9 @@
 name: Draft 1302 isolated tenant read evidence (no money)
 
+# PR #1302 merged in October 2026; retain this historical proof by manual request
+# instead of launching an always-skipped workflow on unrelated pull requests.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main]
-    paths:
-      - '.github/workflows/draft-1302-tenant-read-proof.yml'
-      - 'scripts/qa/tenant-second-pass-http.mjs'
-      - 'scripts/qa/pr-1302-tenant-proof.mjs'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
-      - 'scripts/qa/tenant-manifest-driven-http.mjs'
-      - 'src/app/api/**'
-      - 'src/lib/**'
+  workflow_dispatch:
 
 # Supersede only older PR attempts; main/manual runs retain independent groups.
 concurrency:
@@ -23,7 +15,7 @@ permissions:
 
 jobs:
   tenant-http-proof:
-    if: ${{ github.event.pull_request.number == 1302 && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
