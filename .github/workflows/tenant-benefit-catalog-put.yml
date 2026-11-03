@@ -12,7 +12,6 @@ on:
       - 'scripts/qa/tenant-benefit-catalog-put-contract.mjs'
       - 'tests/benefit-catalog-tenant.test.ts'
       - 'tests/tenant-benefit-catalog-put-contract.test.mjs'
-      - 'tests/tenant-isolation-coverage-inventory.test.mjs'
 
 permissions:
   contents: read
