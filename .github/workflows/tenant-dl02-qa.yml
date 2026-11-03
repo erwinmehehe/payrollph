@@ -11,7 +11,6 @@ on:
       - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
       - 'tests/tenant-dl02-scanner-workflow.test.mjs'
       - 'src/app/api/compliance/statutory-remittances/payment-evidence/**'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/report-builder/saved/**'
       - 'src/app/api/hcm-report-builder/**'
       - 'src/app/api/reports/builder/**'
