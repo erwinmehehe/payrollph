@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-group-conditions";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { recordAuditEvent } from "@/lib/audit";
 import { type GovernedHandoffEvidence, frozenGovernedHandoffEvidence } from "@/lib/governed-approval-handoffs";
 
 export type ApprovalChainStepDefinition = {
@@ -154,9 +155,13 @@ export async function createApprovalFromConfiguredChain(input: {
   amountCurrency?: string;
   amountBasis?: string;
   sourceEvidence?: GovernedHandoffEvidence;
+  // When set, audit and the source-bound approval MUST commit or roll back together.
+  // Only server-generated metadata is allowed; never populated directly from HTTP JSON.
+  auditEvent?: { actor: string; action: string; resource: string; metadata?: Record<string, unknown> };
 }) {
   const chainCode = String(input.chainCode ?? "").trim();
   if (!chainCode) {
+    if (input.auditEvent) throw new Error("An audited handoff requires a configured approval chain.");
     const [task] = await db.insert(approvalTasks).values({
       organizationId: input.organizationId,
       title: input.title.slice(0, 180),
@@ -200,6 +205,18 @@ export async function createApprovalFromConfiguredChain(input: {
   const routedSteps = await freezeDynamicGroupApprovalSteps(input.organizationId, eligibleSteps);
 
   return db.transaction(async (tx) => {
+    // Keep the human handoff, approval task/step and audit record in ONE PG transaction.
+    // If audit insertion fails, PostgreSQL rolls back every approval mutation.
+    const writeAuditedHandoff = async (approvalChainId: number) => {
+      if (!input.auditEvent) return;
+      await recordAuditEvent({
+        organizationId: input.organizationId,
+        actor: input.auditEvent.actor,
+        action: input.auditEvent.action,
+        resource: input.auditEvent.resource,
+        metadata: { ...input.auditEvent.metadata, approvalChainId },
+      }, tx);
+    };
     const [existing] = await tx.select().from(approvalChainInstances).where(and(
       eq(approvalChainInstances.organizationId, input.organizationId),
       eq(approvalChainInstances.sourceType, input.sourceType),
@@ -232,6 +249,7 @@ export async function createApprovalFromConfiguredChain(input: {
         ? await tx.select().from(approvalTasks).where(eq(approvalTasks.id, step.approvalTaskId)).limit(1)
         : [];
       if (!task) throw new Error("Existing approval chain instance is missing its current approval task.");
+      await writeAuditedHandoff(existing.id);
       return { task, chainInstance: existing, chainStep: step ?? null };
     }
 
@@ -280,6 +298,7 @@ export async function createApprovalFromConfiguredChain(input: {
       approvalTaskId: task.id,
     }).returning();
 
+    await writeAuditedHandoff(instance.id);
     return { task, chainInstance: instance, chainStep: step };
   });
 }
