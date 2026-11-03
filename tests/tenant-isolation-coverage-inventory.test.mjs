@@ -2901,9 +2901,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "Attribution/consent source contract changed without review");
     const currentSource = readFileSync(routeFile, "utf8");
     const reverted = currentSource
-      .replace('import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";\\n', "")
-      .replace('  const attribution = { ...sanitizeMarketingAttribution(body.attribution), ...marketingConsentEvidence() };\\n', "")
-      .replace('      attribution,\\n', '      attribution: marketingConsentEvidence(),\\n');
+      .replace('import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";\n', "")
+      .replace('  const attribution = { ...sanitizeMarketingAttribution(body.attribution), ...marketingConsentEvidence() };\n', "")
+      .replace('      attribution,\n', '      attribution: marketingConsentEvidence(),\n');
     assert.equal(gitBlobSha(Buffer.from(reverted)), originalSha,
       "Only reviewed attribution sanitization and persistence may change the handler");
     const required = [
