@@ -9,7 +9,6 @@ import {
   PEOPLE_PAYROLL_ROLES,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
@@ -211,22 +210,21 @@ export async function POST(request: Request) {
       fallbackApprover: sourceType === "wfm_roster_claim_review" ? "Workforce Manager" : "People Operations",
       dueLabel: "Human source-bound review required",
       priority: "High",
-    });
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Governed WFM/HCM human approval handoff requested",
-      resource: source.label,
-      metadata: {
-        sourceType,
-        sourceId,
-        sourceHash: source.sourceHash,
-        approvalChainId: routed.chainInstance?.id ?? null,
-        approvalPolicyCode: chainCode,
-        initiatedByUserId: sourceEvidence.initiatedByUserId,
-        sourceMutation: false,
-        payrollOrRosterMutation: false,
+      // The chain helper writes this audit row INSIDE the approval transaction.
+      // Its approvalChainId is bound to the persisted instance, not to request JSON.
+      auditEvent: {
+        actor: user.name,
+        action: "Governed WFM/HCM human approval handoff requested",
+        resource: source.label,
+        metadata: {
+          sourceType,
+          sourceId,
+          sourceHash: source.sourceHash,
+          approvalPolicyCode: chainCode,
+          initiatedByUserId: sourceEvidence.initiatedByUserId,
+          sourceMutation: false,
+          payrollOrRosterMutation: false,
+        },
       },
     });
     return Response.json({
