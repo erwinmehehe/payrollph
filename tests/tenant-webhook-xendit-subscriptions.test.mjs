@@ -86,7 +86,23 @@ test("PG16 victim discriminator refuses IDs under seven or not higher than both 
   const a = { ...fixtureEmployer(1), billing: { subscription: { id: 1 }, checkout: { id: 1 } } };
   const b = { ...fixtureEmployer(2), billing: { subscription: { id: 2 }, checkout: { id: 2 } } };
   const victim = { ...fixtureEmployer(9), billing: { subscription: { id: 9 }, checkout: { id: 9 } } };
-  assert.doesNotThrow(() => assertFictionalHighIdVictim(a, b, victim));
+  const fillers = Array.from({ length: 6 }, (_, i) => ({
+    ...fixtureEmployer(i + 3),
+    billing: { subscription: { id: i + 3 }, checkout: { id: i + 3 } },
+  }));
+  assert.doesNotThrow(() => assertFictionalHighIdVictim(a, b, victim, fillers));
+  for (const field of ["org", "entity", "unit", "owner", "worker"]) {
+    const raised = structuredClone(fillers);
+    raised[5][field].id = 10;
+    assert.throws(() => assertFictionalHighIdVictim(a, b, victim, raised),
+      /Higher-ID real victim/, "victim must be above every filler " + field + " ID");
+  }
+  for (const field of ["subscription", "checkout"]) {
+    const raised = structuredClone(fillers);
+    raised[5].billing[field].id = 10;
+    assert.throws(() => assertFictionalHighIdVictim(a, b, victim, raised),
+      /Higher-ID real victim/, "victim must be above every filler billing " + field + " ID");
+  }
   for (const field of ["org", "entity", "unit", "owner", "worker"]) {
     for (const bad of [1, 2, 6, 7.25]) {
       const mutated = structuredClone(victim);
@@ -131,4 +147,11 @@ test("snapshot guard preserves all nine employers and detects a forged victim wr
   delete omitted.FILL2;
   assert.throws(() => assertEmployerSnapshotIsolation(before, omitted, ["ATTA"]),
     /All seeded employers/, "missing employer snapshot must fail closed");
+  // A symmetric omission previously passed because only the key sets were compared.
+  const incompleteBefore = structuredClone(before);
+  delete incompleteBefore.FILL2;
+  assert.throws(() => assertEmployerSnapshotIsolation(incompleteBefore, omitted, ["ATTA"]),
+    /All seeded employers/, "missing employer in both snapshots must fail closed");
+  assert.throws(() => assertEmployerSnapshotIsolation(before, own, ["GHOST"]),
+    /Only seeded employers/, "unknown allowed employer must not bypass the immutability guard");
 });
