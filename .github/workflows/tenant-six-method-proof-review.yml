@@ -1,0 +1,44 @@
+name: Tenant six-method exact-head GAP review (source only)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/qa/tenant-isolation-coverage-manifest.json
+      - docs/engineering/tenant-isolation-closure-plan.md
+      - docs/engineering/tenant-isolation-coverage-inventory*.md
+      - docs/qa/tenant-six-method-proof-review-2026-11-02.md
+      - tests/tenant-six-method-proof-review.test.mjs
+      - .github/workflows/tenant-six-method-proof-review.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-only-gap-guard-and-repin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+      BIR_1604C_DAT_CANDIDATE_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      CSP_REPORT_ONLY: "false"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Fetch source ledger baseline (no external applications or databases)
+        run: git fetch --no-tags origin main
+      - name: Reject unearned credits and stale source-line anchors
+        run: node --test tests/tenant-six-method-proof-review.test.mjs
+      - name: Read-only exact-line manifest repin against latest origin/main
+        run: node scripts/qa/tenant-manifest-repin.mjs --base origin/main

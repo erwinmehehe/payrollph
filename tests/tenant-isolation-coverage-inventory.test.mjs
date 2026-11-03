@@ -148,7 +148,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     } else {
       assert.ok(method.name === "POST" || method.name === "PATCH");
       assert.equal(method.testedBy, null);
-      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false},
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false,"reconciliationReview":{"kind":"exact-final-merged-head-four-part-review-withheld-2026-11-02","proofPr":1662,"proofFinalHead":"c7001c59b9f60b55192bfb1d1876a18e0f18f482","passedJob":"https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobShaAtFinalHead":"21909753364cda9cead239a8a495b1e2a40abc9d","reviewedRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","sourceAnchors":method.name === "PATCH" ? {"ownPositiveLine":176,"foreignDenialLine":156,"forgedSelectorLine":166,"unchangedDbLine":224,"victimIdOrderingLine":131} : {"ownPositiveLine":139,"foreignDenialLine":153,"forgedSelectorLine":160,"unchangedDbLine":224,"victimIdOrderingLine":131},"missingParts":[method.name === "PATCH" ? "Two independent own-employer positive PATCH controls missing (all reject/approve/apply are organization 1)." : "Two independent own-employer positive POST controls missing (both owns use organization 1).","Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."],"fullMethodCoverageCredits":0,"independentReview":"PENDING","productionTested":false}},
         "Source and PG16 evidence must match the uncredited transfer review");
     }
     for (const [file, sha] of [
@@ -718,17 +718,52 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed.helperFile, "src/lib/filing-evidence-store.ts");
     assert.equal(reviewed.proofFile, "scripts/qa/tenant-table-rows/write/compliance-filing.mjs");
     assert.equal(reviewed.testFile, "tests/tenant-compliance-filing-contract.test.mjs");
-    for (const [file,sha] of [
+    // The original STA-01 rejected-only source is historical. This separate
+    // draft adds a fictional ACCEPTED-path candidate without coverage credit.
+    // Pin both generations independently; don't transfer the older receipt.
+    const currentCandidatePins = {
+      "scripts/qa/tenant-table-rows/write/compliance-filing.mjs":
+        "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
+      "tests/tenant-compliance-filing-contract.test.mjs":
+        "fe286bc91140a8dbc11dc1eebf7594fa18f97ed1",
+    };
+    assert.equal(reviewed.proofBlobSha,
+      "6bb8bf721e73b47b2b79e26b27ec36f1c22aae34",
+      "Retain prior rejected-only proof as historical evidence");
+    assert.equal(reviewed.testBlobSha,
+      "9befe55be39ec7fb783958561da4182edc060ae4",
+      "Retain prior rejected-only contract as historical evidence");
+    for (const [file, historicalSha] of [
       [reviewed.helperFile, reviewed.helperBlobSha],
       [reviewed.proofFile, reviewed.proofBlobSha],
       [reviewed.testFile, reviewed.testBlobSha],
     ]) {
-      assert.match(sha, /^[a-f0-9]{40}$/);
-      assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "Filing atomicity security helper/proof modified without re-review: " + file);
+      assert.match(historicalSha, /^[a-f0-9]{40}$/);
+      const expected = currentCandidatePins[file] ?? historicalSha;
+      assert.equal(gitBlobSha(readFileSync(file)), expected,
+        "Filing current candidate/helper modified without re-review: " + file);
     }
-    assert.equal(reviewed.atomicAuditRollbackRequired, true);
+    const candidate = readFileSync(reviewed.proofFile, "utf8");
+    const sourceRule = readFileSync("scripts/qa/tenant-compliance-filing-contract.mjs", "utf8");
+    assert.match(sourceRule, /periodEnd: "2025-07-31"/,
+      "SSS accepted-path source must end at the final month cutoff");
+    assert.match(candidate, /generateGovernmentDraft\(ctx\.seeded\.runId, "sss-r3"\)/,
+      "Do not use a made-up hash to bypass the real source-integrity check");
+    assert.match(candidate, /fileSha256: sourceHash/,
+      "Filing must bind to the SHA-256 of the regenerated source bytes");
+    for (const token of [
+      "for (let pad = 0; pad < 6; pad++)",
+      "Number.isSafeInteger(filing.id) && filing.id > 6",
+      "const acceptedHttp = expectStatus(await request(",
+      'persistedAccepted.status, "accepted"',
+      'acceptedAudit.action, "SSS R-3 filing accepted"',
+      "acceptedOwnDecisionPG16: true",
+      "acceptedVictimDbAndAuditUnchanged: true",
+    ]) assert.ok(candidate.includes(token),
+      "Filing accepted-path candidate missing required fictional PG16 control: " + token);
+    assert.equal(reviewed.reconciliationReview?.fullMethodCoverageCredits, 0);
     assert.equal(reviewed.acceptedOutcomePositiveProven, false);
+    assert.equal(reviewed.atomicAuditRollbackRequired, true);
     assert.equal(reviewed.fullMethodCoverageCredits, 0);
     assert.equal(reviewed.noProviderOrAgencySubmission, true);
     assert.equal(method.testedBy, null, "Rejected-only proof must stay GAP");

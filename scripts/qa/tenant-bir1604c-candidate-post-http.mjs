@@ -5,7 +5,7 @@
  * No BIR filing, accepted evidence, real wages or production data.
  */
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { request } from "playwright";
 
@@ -61,12 +61,20 @@ const contexts = [];
 try {
   const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
   const employers = [];
+  // Use only real, disposable SQL source IDs for the strict victim > 6 rule.
+  // These six fictional employer/worker fixtures have no annual tax/payroll data
+  // and are never addressed by any authenticated request in this proof.
+  for (let pad = 0; pad < 6; pad++) {
+    await seedEmployer("PAD" + pad, nonce, standaloneMakeSession);
+  }
   // Seed adversaries before the victim: all victim record IDs genuinely higher.
   for (const name of ["ATTA", "ATTB", "VICTIM"])
     employers.push(await seedEmployer(name, nonce, standaloneMakeSession));
   const [a, b, victim] = employers;
-  check(victim.org.id > b.org.id && victim.worker.id > b.worker.id &&
-    victim.entity.id > b.entity.id,
+  check(victim.org.id > 6 && victim.worker.id > 6 && victim.entity.id > 6 &&
+    victim.org.id > a.org.id && victim.org.id > b.org.id &&
+    victim.worker.id > a.worker.id && victim.worker.id > b.worker.id &&
+    victim.entity.id > a.entity.id && victim.entity.id > b.entity.id,
     "Real populated victim has higher org, legal-employer and employee IDs");
   for (const e of employers) {
     await db.update(schema.legalEntities).set({
@@ -119,7 +127,35 @@ try {
     taxYear: year, mode: "template", records: [],
   });
   const digests = new Map();
-  let owned = 0, denied = 0;
+  const reviewed = new Map();
+  let owned = 0, ownedChecks = 0, ownedDownloads = 0, denied = 0;
+  // Mirror the established, entirely fictional 2025 browser acceptance input.
+  // No test default below is suitable for a human filing or live Form 2316.
+  function fictionalReviewedRecord(template) {
+    const row = plain(template.records[0]);
+    const overrides = {
+      REGION_NUM: "NCR", EMPLOYMENT_FROM: "01/01/2025",
+      EMPLOYMENT_TO: "12/31/2025", EMPLOYMENT_STATUS: "R",
+      REASON_SEPARATION: "NA", SUBS_FILING: "Y",
+      PRES_NONTAX_GROSS_COMP_INCOME: "100000.00",
+      PRES_NONTAX_13TH_MONTH: "50000.00",
+      PRES_TOTAL_NONTAX_COMP_INCOME: "100000.00",
+      TAX_BASIC_SAL: "500000.00", PRES_TOTAL_COMP: "600000.00",
+      GROSS_COMP_INCOME: "600000.00", PRES_TAX_WTHLD: "42500.00",
+    };
+    for (const [field, value] of Object.entries(row.fields)) {
+      if (value === null) row.fields[field] = overrides[field] ?? "0.00";
+    }
+    row.reviewedBy = "Synthetic PG16 QA reviewer, never BIR-filed";
+    row.sourceReference = "fictional-reviewed-ledger-" + nonce;
+    row.priorEmployerReview = "none-confirmed";
+    delete row.missingManualFields;
+    return row;
+  }
+  const bodyFor = (e, mode, chosen = e) => ({
+    ...scope(chosen), mode, sourceDigest: digests.get(chosen.org.id),
+    records: mode === "template" ? [] : [reviewed.get(chosen.org.id)],
+  });
   for (const e of employers) {
     const get = expect(await e.context.get(
       "/api/bir/annual-employer?organizationId=" + e.org.id +
@@ -142,40 +178,114 @@ try {
       result.records[0]?.employeeNo === e.worker.employeeNo,
       "Own template must contain ONLY source-bound owned employee");
     check(result.sourceDigest === digest, "Response must preserve real digest");
+    reviewed.set(e.org.id, fictionalReviewedRecord(result));
     owned++;
+
+    // Unlike the historical template-only proof, exercise BOTH sensitive
+    // successful candidate modes using the stored own-employer review source.
+    const beforeCheck = await snapshot(e);
+    const checked = expect(await e.context.post(
+      "/api/bir/annual-employer/candidate", {
+        data: bodyFor(e, "check"),
+      }), 200, "Real own reviewed-source candidate check");
+    const checkResult = await checked.json();
+    check(checkResult.status === "DRAFT-UNVALIDATED" &&
+      checkResult.validatedAgainstModuleV70 === "not run" &&
+      checkResult.sourceDigest === digest &&
+      /^[a-f0-9]{64}$/.test(checkResult.fileSha256) &&
+      checkResult.recordCount === 1, "Own check is source-derived, not official BIR validation");
+    check((checked.headers()["cache-control"] ?? "").includes("no-store"),
+      "Private check result must not be cached");
+    assert.deepEqual(await snapshot(e), beforeCheck,
+      "A candidate check is purely read-only on the genuine own employer");
+    ownedChecks++;
+
+    const downloaded = expect(await e.context.post(
+      "/api/bir/annual-employer/candidate", {
+        data: bodyFor(e, "download"),
+      }), 200, "Real own reviewed-source draft DAT download");
+    const candidateBytes = await downloaded.body();
+    const actualSha = createHash("sha256").update(candidateBytes).digest("hex");
+    check(candidateBytes.toString("ascii").startsWith("H1604C,") &&
+      candidateBytes.toString("ascii").includes("D1,") &&
+      candidateBytes.toString("ascii").includes("C1,") &&
+      candidateBytes.toString("ascii").endsWith("\r\n"),
+      "Own draft DAT must contain real, nonempty fictional source-bound bytes");
+    check(actualSha === checkResult.fileSha256 &&
+      actualSha === downloaded.headers()["x-bir-file-sha256"] &&
+      downloaded.headers()["x-bir-source-digest"] === digest &&
+      downloaded.headers()["x-bir-module-v7-0"] === "not-run" &&
+      (downloaded.headers()["cache-control"] ?? "").includes("no-store"),
+      "Own download bytes, hash, source and unvalidated status must agree");
+    const afterDownload = await snapshot(e);
+    check(afterDownload.audit.length === beforeCheck.audit.length + 1 &&
+      afterDownload.audit.at(-1)?.action === "bir1604c.candidate.downloaded" &&
+      afterDownload.audit.at(-1)?.organizationId === e.org.id,
+      "Draft DAT can add only its own source-provenance audit receipt");
+    assert.deepEqual({ ...afterDownload, audit: beforeCheck.audit }, beforeCheck,
+      "Draft DAT must not mutate own payroll, annual tax, employees or remittance");
+    ownedDownloads++;
   }
   const before = new Map();
   for (const e of employers) before.set(e.org.id, await snapshot(e));
 
+  // Every accepted action gets its own real attacker/victim and forged-entity
+  // denial. Check/download additionally reject the genuine foreign employee
+  // even when the attacker supplies its own organization and legal employer.
   for (const attacker of [a, b]) {
-    const ownDigest = digests.get(attacker.org.id);
-    const victimDigest = digests.get(victim.org.id);
-    const foreignOrg = expect(await attacker.context.post(
-      "/api/bir/annual-employer/candidate", {
-        data: { ...scope(victim), sourceDigest: victimDigest },
-      }), 403, "Authenticated foreign employer denied before candidate source");
-    const forgedEntity = expect(await attacker.context.post(
-      "/api/bir/annual-employer/candidate", {
-        data: { ...scope(attacker), legalEntityId: victim.entity.id, sourceDigest: ownDigest },
-      }), 404, "Own org with real foreign legal-entity ID cannot read candidate");
-    for (const response of [foreignOrg, forgedEntity]) {
-      const body = await response.text();
-      check(!body.includes(victim.marker) && !body.includes(victim.worker.employeeNo),
-        "Victim worker and employer marker must not leak in denial");
-      check(!body.includes("333222111"), "Foreign BIR TIN must never be returned");
+    for (const mode of ["template", "check", "download"]) {
+      const foreignOrg = expect(await attacker.context.post(
+        "/api/bir/annual-employer/candidate", {
+          data: bodyFor(attacker, mode, victim),
+        }), 403, "Authenticated foreign employer cannot " + mode + " victim source");
+      const forgedEntity = expect(await attacker.context.post(
+        "/api/bir/annual-employer/candidate", {
+          data: { ...bodyFor(attacker, mode), legalEntityId: victim.entity.id },
+        }), 404, "Real victim legal-employer selector rejected for " + mode);
+      for (const response of [foreignOrg, forgedEntity]) {
+        const responseText = await response.text();
+        check(!responseText.includes(victim.marker) &&
+          !responseText.includes(victim.worker.employeeNo),
+          "Victim worker and employer marker must not leak on denied " + mode);
+        check(!responseText.includes("333222111"),
+          "Foreign BIR TIN must never appear in a denied " + mode);
+      }
+      denied += 2;
+      if (mode !== "template") {
+        const foreignReviewedRow = {
+          ...plain(reviewed.get(attacker.org.id)),
+          employeeNo: victim.worker.employeeNo,
+        };
+        const forgedEmployee = expect(await attacker.context.post(
+          "/api/bir/annual-employer/candidate", {
+            data: { ...bodyFor(attacker, mode), records: [foreignReviewedRow] },
+          }), 422, "Foreign worker ID cannot pass an own " + mode + " review");
+        check((await forgedEmployee.json()).code === "BIR_REVIEW_BLOCKED",
+          "Foreign employee reference must fail protected identity source binding");
+        denied++;
+      }
+      // Assert no read/denial/mis-scoped request can mutate victim PG records.
+      assert.deepEqual(await snapshot(victim), before.get(victim.org.id),
+        "Real victim source, annual rows and audit immutable after denied " + mode);
+      assert.deepEqual(await snapshot(attacker), before.get(attacker.org.id),
+        "Rejected selector cannot mutate attacker source or its own audit");
+      assertions += 2;
     }
-    denied += 2;
   }
   for (const e of employers) {
     assert.deepEqual(await snapshot(e), before.get(e.org.id),
       "Denied foreign requests must not change victim/attacker source, audit or filings");
     assertions++;
   }
-  check(owned === 3 && denied === 4, "Three own templates and four foreign denials mandatory");
+  check(owned === 3 && ownedChecks === 3 && ownedDownloads === 3 &&
+    denied === 16, "Two independently authenticated attackers and victim must pass all three own modes, with sixteen denials");
   console.log(JSON.stringify({
     kind: "bir1604c-candidate-POST-actual-HTTPS-PG16-cross-employer",
-    realOwnTemplates: owned, realForeignDenials: denied,
+    realOwnTemplates: owned, realOwnChecks: ownedChecks,
+    realOwnDraftDownloads: ownedDownloads, realForeignDenials: denied,
     twoIndependentAttackers: true, higherIdVictim: true,
+    persistedVictimIdAboveSix: victim.org.id > 6 && victim.entity.id > 6 &&
+      victim.worker.id > 6, allThreeModesExercised: true,
     unchangedAnnualAndAuditSourcesAfterDenials: true,
     actualProductionFiling: false, acceptedByBIR: false,
     externalMoneyOrAgencyCalls: 0, credits: 0,
