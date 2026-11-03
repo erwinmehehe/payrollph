@@ -23,7 +23,7 @@ function requireDisposable(env = process.env) {
 }
 requireDisposable();
 
-const [{db, pool}, schema, {eq, asc}, fixture] = await Promise.all([
+const [{db, pool}, schema, {eq, asc, and, sql}, fixture] = await Promise.all([
   import("../../src/db/index.ts"), import("../../src/db/schema.ts"),
   import("drizzle-orm"), import("./tenant-table-http.mjs"),
 ]);
@@ -32,7 +32,7 @@ const {
   approvalChainPolicies, approvalChainInstances, approvalChainInstanceSteps,
   leavePolicies, leaveRequests, leaveRequestIntervalSets, leaveRequestIntervals,
   separationRecords, worksites, shiftDefinitions, openShifts, openShiftClaims,
-  auditEvents, payrollRuns, outbox,
+  auditEvents, payrollRuns, outbox, workforceTimesheets,
 } = schema;
 const {seedEmployer, addWorker, standaloneMakeSession, standaloneRequest} = fixture;
 const marker = randomUUID().replaceAll("-", "").slice(0, 10);
@@ -56,7 +56,7 @@ async function ownOrgSnapshot(orgId) {
     approvalChainInstances, approvalChainInstanceSteps, leavePolicies,
     leaveRequests, leaveRequestIntervalSets, leaveRequestIntervals,
     separationRecords, worksites, shiftDefinitions, openShifts, openShiftClaims,
-    auditEvents, payrollRuns, outbox,
+    auditEvents, payrollRuns, outbox, workforceTimesheets,
   };
   const result = {};
   for (const [name, table] of Object.entries(tables)) {
@@ -94,6 +94,7 @@ async function setupEmployer(e) {
   await db.insert(userOrganizations).values({
     organizationId: e.org.id, userId: checker.id, role: "hr", active: true,
   });
+  e.checker = checker;
   await db.insert(approvalChainPolicies).values({
     organizationId: e.org.id, code: "tenant-qa-chain", name: "Fictional human review",
     purpose: "automation", active: true, createdByUserId: e.owner.id,
@@ -180,6 +181,7 @@ try {
   const sepId = new Map([[a,aSep.id],[b,bSep.id],[v,victimSep.id]]);
   const claimId = new Map([[a,aClaim.id],[b,bClaim.id],[v,victimClaim.id]]);
   // POSITIVE #1 (handoffs): both genuine action variants for each independent employer.
+  const firstHandoffs = new Map();
   for (const e of [a,b,v]) {
     for (const [kind,id] of [["hcm_separation_readiness",sepId.get(e)],
       ["wfm_roster_claim_review",claimId.get(e)]]) {
@@ -194,8 +196,81 @@ try {
       need(saved?.organizationId === e.org.id && saved.sourceType === kind &&
         saved.policyCode === "tenant-qa-chain" && saved.status === "pending",
       "own governed handoff belongs to authenticated employer and active policy");
+      firstHandoffs.set(e.label + ":" + kind, r.json.approval);
     }
   }
+
+  // Both handoff source types must support a genuine idempotent replay and a
+  // changed-source follow-up without adopting another tenant's approval.
+  for (const e of attackers) {
+    for (const [kind,id] of [["hcm_separation_readiness",sepId.get(e)],
+      ["wfm_roster_claim_review",claimId.get(e)]]) {
+      const original = firstHandoffs.get(e.label + ":" + kind);
+      const instancesBefore = await db.select().from(approvalChainInstances)
+        .where(eq(approvalChainInstances.organizationId,e.org.id));
+      const tasksBefore = await db.select().from(approvalTasks)
+        .where(eq(approvalTasks.organizationId,e.org.id));
+      const replay = status(await post("/api/governed-handoffs",e.cookie,
+        handoffBody(e,kind,id)),201,e.label+" idempotent "+kind+" own retry");
+      need(replay.json.approval.id === original.id &&
+        replay.json.approval.taskId === original.taskId &&
+        replay.json.approval.sourceHash === original.sourceHash,
+        kind+" exact own replay returns same persisted source-bound chain and task");
+      assert.equal((await db.select().from(approvalChainInstances)
+        .where(eq(approvalChainInstances.organizationId,e.org.id))).length,
+        instancesBefore.length, "idempotent replay may not duplicate approval instances");
+      assert.equal((await db.select().from(approvalTasks)
+        .where(eq(approvalTasks.organizationId,e.org.id))).length,
+        tasksBefore.length, "idempotent replay may not duplicate approval tasks");
+
+      if (kind === "hcm_separation_readiness") {
+        await db.update(separationRecords).set({noticeDate:"2026-11-17"}).where(and(
+          eq(separationRecords.organizationId,e.org.id),eq(separationRecords.id,id)));
+      } else {
+        await db.update(openShiftClaims).set({
+          reason:"Synthetic changed claim evidence for independent human review",
+        }).where(and(eq(openShiftClaims.organizationId,e.org.id),eq(openShiftClaims.id,id)));
+      }
+      const changed = status(await post("/api/governed-handoffs",e.cookie,
+        handoffBody(e,kind,id)),201,e.label+" changed-source "+kind+" own follow-up");
+      need(changed.json.approval.id !== original.id &&
+        changed.json.approval.sourceHash !== original.sourceHash &&
+        changed.json.approval.taskId !== original.taskId,
+        kind+" changed real source creates NEW version-bound approval and task");
+      const [fresh] = await db.select().from(approvalChainInstances)
+        .where(eq(approvalChainInstances.id,changed.json.approval.id));
+      need(fresh?.organizationId === e.org.id && fresh.sourceType === kind &&
+        fresh.sourceKey === id + ":" + changed.json.approval.sourceHash,
+        "changed handoff has persisted employer-bound new source hash/version");
+    }
+  }
+
+  // A deliberate PostgreSQL audit insert failure must NEVER commit an approval.
+  // Without the separately labelled atomic source fix, this 409 would silently
+  // leave orphan approval/task/step rows and the SQL snapshot would fail.
+  const faultSep = await seedSeparation(a);
+  const faultBefore = await ownOrgSnapshot(a.org.id);
+  await db.execute(sql.raw("CREATE FUNCTION tenant_qa_fail_handoff_audit() RETURNS trigger LANGUAGE plpgsql AS $audit$ BEGIN IF NEW.action = 'Governed WFM/HCM human approval handoff requested' THEN RAISE EXCEPTION 'SYNTHETIC_AUDIT_FAULT_PRIVATE_ONLY'; END IF; RETURN NEW; END; $audit$"));
+  await db.execute(sql.raw("CREATE TRIGGER tenant_qa_handoff_audit_denial BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION tenant_qa_fail_handoff_audit()"));
+  try {
+    const failed = await assertDenied(post("/api/governed-handoffs",a.cookie,
+      handoffBody(a,"hcm_separation_readiness",faultSep.id)),
+      409,v,"own governed handoff forced audit failure must roll back all writes");
+    need(failed.json.code === "GOVERNED_HANDOFF_UNAVAILABLE" &&
+      !failed.text.includes("SYNTHETIC_AUDIT_FAULT_PRIVATE_ONLY"),
+      "audit fault returns sanitized 409 without revealing exception or SQL");
+    assert.deepEqual(await ownOrgSnapshot(a.org.id),faultBefore,
+      "forced audit exception leaves zero orphaned approval, task, step or audit changes");
+  } finally {
+    await db.execute(sql.raw("DROP TRIGGER tenant_qa_handoff_audit_denial ON audit_events"));
+    await db.execute(sql.raw("DROP FUNCTION tenant_qa_fail_handoff_audit()"));
+  }
+  const recovered = status(await post("/api/governed-handoffs",a.cookie,
+    handoffBody(a,"hcm_separation_readiness",faultSep.id)),
+    201,"audit-failed source retries successfully without half-committed records");
+  need(recovered.json?.approval?.id>0 && recovered.json?.approval?.taskId>0,
+    "audit-failed source becomes a persisted real handoff after recovery");
+
   // POSITIVE #2 (leave create): two independent signed-in own submissions + real victim.
   const ownLeaves = new Map();
   for (const e of [a,b,v]) {
@@ -223,6 +298,16 @@ try {
   const victimLeave=ownLeaves.get(v);
   need(victimLeave.id > ownLeaves.get(b).id && victimLeave.id > 6,
     "victim leave is real, with higher ID than attacker leaves");
+  // Real connected victim timesheet: revision code can mark these rows stale.
+  const submittedTimesheets = new Map();
+  for (const e of [a,b,v]) {
+    const [t] = await db.insert(workforceTimesheets).values({
+      organizationId:e.org.id,employeeId:e.leaveWorker.id,
+      periodStart:"2026-11-19",periodEnd:"2026-11-19",
+      status:"submitted",snapshotHash:"a".repeat(64),
+    }).returning();
+    submittedTimesheets.set(e,t);
+  }
   // POST revise_intervals is another reachable action of the SAME leave method.
   for(const e of [a,b]) {
     const row=ownLeaves.get(e);
@@ -235,7 +320,64 @@ try {
       r.json.intervalSet.leaveRequestId===row.id &&
       r.json.intervalSet.revision===2,
       "own precise timing revision writes only the selected employer");
+    const ownTimesheet = submittedTimesheets.get(e);
+    const [stale] = await db.select().from(workforceTimesheets).where(and(
+      eq(workforceTimesheets.id,ownTimesheet.id),
+      eq(workforceTimesheets.organizationId,e.org.id)));
+    need(stale?.status === "stale" &&
+      r.json.staleTimesheetIds.includes(ownTimesheet.id),
+      "own revision stales only its persisted own submitted timesheet");
   }
+  const [victimSubmitted] = await db.select().from(workforceTimesheets)
+    .where(eq(workforceTimesheets.id,submittedTimesheets.get(v).id));
+  need(victimSubmitted?.status === "submitted",
+    "victim's real submitted timesheet stays intact after own revisions");
+
+  // Checker revocation during POST /leave: force HTTP to block at the
+  // transaction's SELECT FOR SHARE AFTER it selected an approver in preflight.
+  // Revoking that role before releasing the worker lock must reject all writes.
+  const revokeWorker = await addWorker(a,"REVOKE",{payProfile:false});
+  const beforeRevocation = await ownOrgSnapshot(a.org.id);
+  const holder = await pool.connect();
+  let held = false;
+  let pendingLeave;
+  try {
+    await holder.query("BEGIN");
+    await holder.query(
+      "SELECT id FROM employees WHERE organization_id = $1 AND id = $2 FOR UPDATE",
+      [a.org.id,revokeWorker.id]);
+    held = true;
+    pendingLeave = post("/api/leave",a.cookie,leaveBody(a,revokeWorker.id));
+    let blocked = false;
+    for (let attempt=0; attempt<150; attempt++) {
+      const waiting = await pool.query("SELECT pid FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query ILIKE '%from employees%' AND query ILIKE '%for share%'");
+      if (waiting.rows.length > 0) { blocked = true; break; }
+      await new Promise(resolve => setTimeout(resolve,60));
+    }
+    need(blocked, "leave request reached transaction's shared employee lock after initial checker selection");
+    await db.update(userOrganizations).set({active:false}).where(and(
+      eq(userOrganizations.organizationId,a.org.id),
+      eq(userOrganizations.userId,a.checker.id)));
+    await holder.query("COMMIT");
+    held = false;
+    const refused = status(await pendingLeave,409,
+      "leave POST rejects approver revoked between preflight and transaction");
+    need(refused.json.code === "LEAVE_APPROVER_CHANGED",
+      "revoked checker is rejected by the in-transaction membership/role recheck");
+    const after = await ownOrgSnapshot(a.org.id);
+    for (const [table, rows] of Object.entries(beforeRevocation)) {
+      if (table === "userOrganizations") continue; // intentionally revoked checker
+      assert.deepEqual(after[table], rows,
+        "revoked HR checker creates no "+table+" business, timesheet or audit mutation");
+    }
+    need(after.userOrganizations.find(x=>x.userId===a.checker.id)?.active===false,
+      "checker is really revoked in disposable PostgreSQL before leave commits");
+  } finally {
+    if (held) await holder.query("ROLLBACK");
+    holder.release();
+    if (pendingLeave) await pendingLeave.catch(()=>null);
+  }
+
   const baseline = new Map(await Promise.all([a,b,v].map(async e =>
     [e.org.id,await ownOrgSnapshot(e.org.id)])));
   // DENIAL #2 and FORGERY #4: real victim selectors, not fabricated IDs.
