@@ -29,6 +29,7 @@ jobs:
       CENTRAL_SCHEDULER_ENABLED: 'false'
       XENDIT_BILLING_ENABLED: 'false'
       DEMO_MODE: 'false'
+      NEXT_CSP_ENABLED: 'false'
       # Never leave localhost or send a real email; a local SMTP sink captures it.
       SMTP_URL: 'smtp://127.0.0.1:2525'
       MAIL_FROM: 'PayrollPH QA <no-reply@example.invalid>'
