@@ -80,6 +80,10 @@ test("one real POST, two-actor PG16 HTTP proof and audit rollback are still zero
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles["src/app/api/compliance/labor-inspection/route.ts"];
   assert.deepEqual(entry.methods.map(m => [m.name, m.status]),
-    [["GET", "COVERED"], ["POST", "GAP"]]);
-  assert.equal(entry.methods.find(m => m.name === "POST")?.testedBy, null);
+    [["GET", "COVERED"], ["POST", "COVERED"]]);
+  const proof = entry.methods.find(m => m.name === "POST")?.testedBy;
+  assert.equal(proof?.file, "scripts/qa/tenant-labor-inspection-post-http.mjs");
+  assert.equal(proof?.workflowRunId, 41392987376);
+  assert.equal(proof?.proofHeadSha, "e2e408735dd42c5104b55318bca0e74e67eaf019");
+  assert.deepEqual(proof?.methodActions, ["assign", "acknowledge", "close"]);
 });
