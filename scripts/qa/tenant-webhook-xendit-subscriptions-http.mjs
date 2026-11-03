@@ -13,6 +13,35 @@ import { requireDisposableXenditSubscriptionsWebhook } from "./tenant-webhook-xe
 const ENDPOINT = "/api/webhooks/xendit/subscriptions";
 const AMOUNT_CENTS = 150000;
 
+// A low or merely greater-than-attacker victim ID is insufficient for the
+// frozen closure-plan rule. Check real persisted IDs for every relevant scope.
+export function assertFictionalHighIdVictim(a, b, victim) {
+  for (const field of ["org", "entity", "unit", "owner", "worker"]) {
+    const id = victim[field]?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 6 &&
+      id > a[field]?.id && id > b[field]?.id,
+    "Higher-ID real victim " + field + " must exceed six and both attackers");
+  }
+  for (const field of ["subscription", "checkout"]) {
+    const id = victim.billing?.[field]?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 6 &&
+      id > a.billing?.[field]?.id && id > b.billing?.[field]?.id,
+    "Higher-ID real victim " + field + " must exceed six and both attackers");
+  }
+}
+
+// Compare the complete seeded cohort, including the six filler employers.
+// An omitted employer snapshot is a proof failure, not a silent exemption.
+export function assertEmployerSnapshotIsolation(before, after, allowed = []) {
+  assert.deepEqual(Object.keys(after).sort(), Object.keys(before).sort(),
+    "All seeded employers must remain in the isolation snapshot");
+  for (const [label, previous] of Object.entries(before)) {
+    if (!allowed.includes(label)) {
+      assert.deepEqual(after[label], previous, label + ": other employer billing and audit rows unchanged");
+    }
+  }
+}
+
 export async function proveXenditSubscriptionsWebhook() {
   // No application or database imports are permitted before this hard refusal.
   requireDisposableXenditSubscriptionsWebhook();
@@ -37,9 +66,14 @@ export async function proveXenditSubscriptionsWebhook() {
 
     const a = await helpers.seedEmployer("ATTA", nonce, helpers.standaloneMakeSession);
     const b = await helpers.seedEmployer("ATTB", nonce, helpers.standaloneMakeSession);
+    // Seed six genuine extra employers between the two attackers and the victim.
+    // Their billing, workers and audit are also snapshotted on every assertion.
+    const fillers = [];
+    for (let i = 0; i < 6; i++) {
+      fillers.push(await helpers.seedEmployer("FILL" + i, nonce, helpers.standaloneMakeSession));
+    }
     const victim = await helpers.seedEmployer("VICTIM", nonce, helpers.standaloneMakeSession);
-    const employers = [a, b, victim];
-    assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id, "victim employer must have higher real ID");
+    const employers = [a, b, ...fillers, victim];
 
     async function seedCheckout(employer) {
       const [subscription] = await db.insert(s.subscriptions).values({
@@ -55,6 +89,7 @@ export async function proveXenditSubscriptionsWebhook() {
       return { subscription, checkout, referenceId: checkout.referenceId, planId: checkout.providerPlanId };
     }
     for (const employer of employers) employer.billing = await seedCheckout(employer);
+    assertFictionalHighIdVictim(a, b, victim);
     // A's earlier, superseded checkout: its callbacks must never reactivate the newer plan.
     const [oldCheckout] = await db.insert(billing.saasBillingCheckouts).values({
       organizationId: a.org.id, subscriptionId: a.billing.subscription.id,
@@ -84,11 +119,7 @@ export async function proveXenditSubscriptionsWebhook() {
     ));
     async function unchangedExcept(before, ...allowed) {
       const after = await snapshots();
-      for (const e of employers) {
-        if (!allowed.includes(e.label)) {
-          assert.deepEqual(after[e.label], before[e.label], e.label + ": other employer billing and audit rows unchanged");
-        }
-      }
+      assertEmployerSnapshotIsolation(before, after, allowed);
       return after;
     }
 
@@ -141,7 +172,8 @@ export async function proveXenditSubscriptionsWebhook() {
     const counts = {
       ownPaid: 0, ownPastDue: 0, duplicates: 0, concurrentDuplicates: 0, forgedSelectorsIgnored: 0,
       stalePlanIgnored: 0, amountCurrencyRefusals: 0, crossBoundRefusals: 0, authNegatives: 0,
-      providerAuthorityVictimOnly: 0,
+      providerAuthorityVictimOnly: 0, invalidIdentityRefusals: 0,
+      ignoredEvents: 0, forgedReplayIgnored: 0,
     };
 
     // Authentication failures cannot be used as tenant coverage credit.
@@ -151,6 +183,20 @@ export async function proveXenditSubscriptionsWebhook() {
     result(await send(eventBody(a, { businessId: "biz-synthetic-" + "0".repeat(16) })), 403,
       { error: "Incorrect billing merchant." }, "wrong merchant");
     counts.authNegatives += 3;
+    await unchangedExcept(before);
+
+    // A correct synthetic platform token must NOT make a missing plan or
+    // reference authoritative, and unknown event names must do no work.
+    before = await snapshots();
+    const missingIdentity = { error: "Subscription identity is missing." };
+    result(await send(eventBody(a, { referenceId: "" })), 422, missingIdentity,
+      "signed callback missing reference");
+    result(await send(eventBody(victim, { planId: "" })), 422, missingIdentity,
+      "signed callback missing provider plan");
+    counts.invalidIdentityRefusals += 2;
+    result(await send(eventBody(victim, { event: "unrecognized.subscription.event" })),
+      200, { received: true, ignored: true }, "signed unknown event ignored");
+    counts.ignoredEvents++;
     await unchangedExcept(before);
 
     // Own, authenticated, real-row positive: the callback resolves A's checkout by reference + plan;
@@ -186,12 +232,36 @@ export async function proveXenditSubscriptionsWebhook() {
     await unchangedExcept(before);
     counts.duplicates++;
 
+    // Changing both top-level and nested tenant selectors on a repeated valid
+    // event must neither create a second invoice nor mutate the higher-ID victim.
+    before = await snapshots();
+    const forgedReplay = {
+      ...ownEvent,
+      organizationId: victim.org.id,
+      subscriptionId: victim.billing.subscription.id,
+      data: {
+        ...ownEvent.data,
+        organization_id: victim.org.id,
+        organizationId: victim.org.id,
+        subscription_id: victim.billing.subscription.id,
+        subscriptionId: victim.billing.subscription.id,
+        legalEntityId: victim.entity.id,
+      },
+    };
+    result(await send(forgedReplay), 200,
+      { received: true, handled: false, duplicate: true }, "forged victim-selector replay");
+    await unchangedExcept(before);
+    counts.forgedReplayIgnored++;
+
     // A valid provider may report B's own subscription too; the shared token must not attach it elsewhere.
     before = await snapshots();
     result(await send(eventBody(b, { n: 1 })), 200, { received: true, handled: true, status: "paid" }, "B own paid cycle");
     after = await unchangedExcept(before, "ATTB");
     assert.equal(after.ATTB.invoices.length, before.ATTB.invoices.length + 1);
     assert.equal(after.ATTB.billingEvents.at(-1).organizationId, b.org.id);
+    assert.equal(after.ATTB.auditEvents.length, before.ATTB.auditEvents.length + 1,
+      "B's own successful callback requires its own audit receipt");
+    assert.equal(after.ATTB.auditEvents.at(-1).organizationId, b.org.id);
     counts.ownPaid++;
 
     // Forged selectors ignored: A's failed cycle wins even when top-level and nested organization,
@@ -250,6 +320,8 @@ export async function proveXenditSubscriptionsWebhook() {
       eventBody(victim, { planId: a.billing.planId, n: 3 }), // victim reference, A plan
       eventBody(b, { planId: victim.billing.planId, n: 3 }), // B reference, victim plan
       eventBody(a, { referenceId: victim.billing.referenceId, n: 3 }), // victim reference, A plan
+      eventBody(a, { planId: b.billing.planId, n: 3 }), // A reference, B plan
+      eventBody(b, { referenceId: a.billing.referenceId, n: 3 }), // A reference, B plan
     ]) {
       const refused = await send(payload);
       assert.equal(refused.status, 503, "cross-bound pair must be refused: " + refused.text.slice(0, 200));
@@ -277,6 +349,9 @@ export async function proveXenditSubscriptionsWebhook() {
     after = await unchangedExcept(before, "VICTIM");
     assert.equal(after.VICTIM.invoices.length, before.VICTIM.invoices.length + 1);
     assert.equal(after.VICTIM.billingEvents.at(-1).organizationId, victim.org.id);
+    assert.equal(after.VICTIM.auditEvents.length, before.VICTIM.auditEvents.length + 1,
+      "A legitimate victim provider event must audit only that victim");
+    assert.equal(after.VICTIM.auditEvents.at(-1).organizationId, victim.org.id);
     counts.providerAuthorityVictimOnly++;
 
     console.log(JSON.stringify({
