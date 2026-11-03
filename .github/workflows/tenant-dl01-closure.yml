@@ -10,7 +10,6 @@ on:
       - 'scripts/qa/tenant-dl01-rows/**'
       - 'scripts/qa/tenant-dl01-network-preload.mjs'
       - 'scripts/qa/tenant-dl01-local-adapters.mjs'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'docs/engineering/tenant-isolation-closure-plan.md'
       - 'tests/tenant-dl01-closure-source.test.mjs'
   workflow_dispatch:
