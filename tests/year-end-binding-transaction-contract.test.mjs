@@ -59,3 +59,13 @@ test("binding options and December cutoff are fail-closed inside the transaction
     "CUTOFF_UNVERIFIED"), route, queue), false,
     "the binding cutoff must be revalidated within the serializable snapshot");
 });
+
+
+test("concurrent year-end binding conflicts are 409 without disguising audit vetoes", () => {
+  assert.match(route, /candidate\.code === "40001" \|\| candidate\.code === "40P01"/);
+  assert.match(route, /if \(boundRun && \(databaseConflict \|\| changedRun\)\)/);
+  assert.match(route, /code: "YEAR_END_BINDING_CONFLICT"/);
+  assert.match(route, /status: 409, headers: \{ "Cache-Control": "private, no-store" \}/);
+  assert.match(route, /throw error;/,
+    "unrecognized SQL failures must remain failures instead of false success");
+});
