@@ -245,11 +245,29 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
             positionId: c.victim.seeded["PATCH workforce-planning"].id,
             employeeId: worker.id, effectiveFrom: todayPh,
           }), 404, "foreign root assignment target refused", client);
+
+          // The foreign-worker denial must resolve an existing open own
+          // vacancy first. Reusing a just-filled vacancy would produce 409
+          // before the employee lookup and would not prove tenant isolation.
+          const [foreignWorkerVacancy] = await db.insert(t.positions).values({
+            organizationId: c.orgId, code: "FOREIGN-WORKER-" + c.marker,
+            jobProfileId: profile.id, orgUnitId: c.unitId,
+            legalEntityId: c.entityId, employmentType: "Regular",
+            status: "open", annualBudget: "100000.00",
+            createdByUserId: c.owner.id,
+          }).returning();
+          await denyAndPreserve(c, "POST", base(c, "assignment", {
+            positionId: foreignWorkerVacancy.id,
+            employeeId: c.victim.worker.id, effectiveFrom: todayPh,
+          }), 404, "real higher-ID foreign worker denied on valid own vacancy", client);
+          assert.equal((await snapshot(c.orgId)).positions.find(
+            row => row.id === foreignWorkerVacancy.id)?.status, "open",
+            "foreign worker attempt cannot fill the attacker's own vacancy");
           directAssignmentProofs = 1;
         }
         return {
           positiveEntityTypes: ["job_family","job_level","job_grade","org_unit","plan","profile","position"],
-          forgedReferences: 4, blockedDirectAssignments: 1, directAssignmentProofs,
+          forgedReferences: 5, blockedDirectAssignments: 1, directAssignmentProofs,
           certifiedMethod: false,
         };
       },

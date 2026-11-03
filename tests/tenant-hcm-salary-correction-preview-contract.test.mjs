@@ -14,6 +14,8 @@ const env = {
   HCM_SALARY_CORRECTION_PREVIEW_ENABLED: "true",
   PAYMONGO_DISBURSEMENTS_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
   XENDIT_BILLING_ENABLED: "false", DEMO_MODE: "false",
+  WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
+  NEXT_CSP_ENABLED: "false",
 };
 
 test("refuse live endpoints, missing CI, disabled feature and provider credentials", () => {
@@ -68,6 +70,9 @@ test("real HTTP script includes nonempty owned evidence and a distinct higher-ID
     'import("../../src/db/index.ts")',
     '["ATTA", "ATTB", "VICTIM"]',
     "victim.worker.id > attacker.siblingWorker.id",
+    "forged higher-ID victim legal employer and employee",
+    "eq(s.payrollRuns.organizationId, orgId)",
+    "assert.equal(denied, 18)",
     "proveOwnedSalaryPreview(ownA, a)",
     "proveOwnedSalaryPreview(ownB, b)",
     "actor.siblingWorker.id, actor.siblingEntity.id",

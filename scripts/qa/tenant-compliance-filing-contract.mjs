@@ -11,8 +11,8 @@ export const FILING_METHOD = "PATCH compliance/filing-validations/[id]";
 // aggregate every Released run paid in the same employer/month or tax year.
 export const FILING_PERIOD = Object.freeze({
   periodStart: "2025-07-01",
-  periodEnd: "2025-07-15",
-  payDate: "2025-07-15",
+  periodEnd: "2025-07-31",
+  payDate: "2025-07-31",
   applicableMonth: "2025-07",
 });
 
