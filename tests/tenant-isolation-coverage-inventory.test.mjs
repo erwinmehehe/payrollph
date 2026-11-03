@@ -2279,11 +2279,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
       "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
       "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-      "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+      "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
       "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-      "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+      "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
       "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-      "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+      "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
       "previousDedicatedPg16Run": "41203115190",
       "newMethodCredits": 0,
       "uncreditedMethods": [
@@ -2291,8 +2291,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
         "PATCH"
       ],
       "exactHeadPg16": "PENDING",
-      "independentSecurityReview": "PENDING",
-      "productionCertified": false
+      "productionCertified": false,
+      "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+      "soleOwnerReviewer": "erwinmehehe",
+      "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
     };
     assert.deepEqual(method.reviewedUncertified, expected,
       "WRK-02 method lacks its exact uncredited proof review");
@@ -2312,7 +2314,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       [expected.workflowFile, expected.workflowBlobSha],
     ]) {
       assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "WRK-02 fixture/contract/workflow changed; renew independent review: " + file);
+        "WRK-02 fixture/contract/workflow changed; renew sole-owner source review: " + file);
     }
     const source = readFileSync(routeFile, "utf8");
     const patch = source.split("export async function PATCH(request: Request) {")[1] ?? "";
@@ -2335,6 +2337,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.ok(fixture.includes(token), "WRK-02 synthetic proof lost: " + token);
     assert.match(contract, /simultaneous vacancy freezes cannot double-write/);
     assert.match(contract, /coverage remains uncredited/);
+    for (const token of [
+      "real higher-ID foreign worker denied on valid own vacancy",
+      "positionId: foreignWorkerVacancy.id",
+      "employeeId: c.victim.worker.id, effectiveFrom: todayPh",
+      "forgedReferences: 5, blockedDirectAssignments: 1",
+    ]) assert.ok(fixture.includes(token), "WRK-02 current proof lost: " + token);
+    for (const flag of ["NEXT_CSP_ENABLED=false", "WORKER_ENABLED=false",
+      "CENTRAL_SCHEDULER_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+      assert.ok(workflow.includes(flag), "WRK-02 CI safety flag missing: " + flag);
+    }
+
     assert.match(workflow, /TENANT_TABLE_FAMILY: workforce-planning-root/);
     assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED/);
     assert.match(workflow, /XENDIT_PAYOUTS_ENABLED/);

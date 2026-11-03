@@ -33111,11 +33111,11 @@
             "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
             "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
             "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
             "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
             "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
             "previousDedicatedPg16Run": "41203115190",
             "newMethodCredits": 0,
             "uncreditedMethods": [
@@ -33123,8 +33123,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         },
         {
@@ -33138,11 +33140,11 @@
             "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
             "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
             "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
             "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
             "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
             "previousDedicatedPg16Run": "41203115190",
             "newMethodCredits": 0,
             "uncreditedMethods": [
@@ -33150,8 +33152,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         },
         {
@@ -33165,11 +33169,11 @@
             "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
             "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
             "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
             "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
             "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
             "previousDedicatedPg16Run": "41203115190",
             "newMethodCredits": 0,
             "uncreditedMethods": [
@@ -33177,8 +33181,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         }
       ],
