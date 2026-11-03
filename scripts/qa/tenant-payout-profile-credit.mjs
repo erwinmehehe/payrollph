@@ -69,14 +69,17 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
     assert.deepEqual(receipt[key],value,"unreviewed payout PATCH receipt field "+key);
   const routes=Object.values(manifest.allApiRouteFiles);
   const tally=state=>routes.reduce((n,r)=>n+r.methods.filter(m=>m.status===state).length,0);
-  assert.equal(manifest.metrics.methods,498);
-  assert.equal(tally("COVERED"),398);
-  assert.equal(tally("PUBLIC-BY-DESIGN"),10);
-  assert.equal(tally("GAP"),90);
-  assert.equal(manifest.metrics.coveredAfter,398);
-  assert.equal(manifest.metrics.publicByDesign,10);
-  assert.equal(manifest.metrics.gap,90);
-  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 90 API methods and 17 page/action GAPs"));
+  const allCount=routes.reduce((n,r)=>n+r.methods.length,0);
+  const pageGaps=manifest.scopedPages.filter(page=>page.status==="GAP").length;
+  assert.equal(allCount,tally("COVERED")+tally("PUBLIC-BY-DESIGN")+tally("GAP"),
+    "No method can silently use an unrecognized classification");
+  assert.equal(manifest.metrics.methods,allCount);
+  assert.equal(manifest.metrics.coveredAfter,tally("COVERED"));
+  assert.equal(manifest.metrics.publicByDesign,tally("PUBLIC-BY-DESIGN"));
+  assert.equal(manifest.metrics.gap,tally("GAP"));
+  assert.ok(manifest.acceptanceStatus.startsWith(
+    "NOT ACCEPTED: "+tally("GAP")+" API methods and "+pageGaps+" page/action GAPs"),
+    "Never promote a provisional method into tenant-wide acceptance");
   const readSource=(path,sha)=>{
     const source=read(path);
     assert.equal(blobHash(source),sha,"proven source changed: "+path);

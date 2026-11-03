@@ -2,6 +2,8 @@
 
 ## 2026-11-03 payout-profile PATCH — proposed one-method provisional source-pinned recovery (NOT ACCEPTED)
 
+**Current live coverage totals:** 498 methods = 398 COVERED + 10 PUBLIC-BY-DESIGN + 90 GAP. These are provisional method-level counts, not global acceptance.
+
 **Current PR proposal:** 498 methods = **398 COVERED + 10 PUBLIC-BY-DESIGN + 90 GAP**; scoped pages/actions remain **4 provisionally covered / 17 GAP**. This proposes exactly one status change: `PATCH /api/payout-profiles`, with the previously credited GET unchanged. The [passing fictional PG16 localhost real-HTTP job](https://github.com/erwinmehehe/payrollph/actions/runs/41633732030/job/125909512360) from exact PR #1746 head `7ab91ca7d3d2e62b4232b83f78d90bdff0d77173` executed both distinct legitimate employer writes, a real higher-ID victim-only profile, foreign-employer 403, forged victim legal-entity 404, victim DB/audit/payroll invariance, transaction rollback on audit failure, and refusal to adopt a cross-employer legacy conflict row. The route, original proof runner and workflow blobs are identical to current main. The proof runner's zero-credit diagnostic means the runner never alters the ledger itself. The dedicated manifest receipt is separately source-pinned and counted **only after the maintainer accepts this review and exact new-PR-head CI passes**.
 
 **Security/finance acceptance remains PENDING.** This is not a verified production payout path, a provider transaction, a statutory approval, or global tenant-isolation certification. The frozen 406-method historical closure queue and its subtotal below remain intact for auditability; older dated counts are historical snapshots.

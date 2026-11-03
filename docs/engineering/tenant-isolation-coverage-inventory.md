@@ -5,7 +5,7 @@
 > **2026-11-03 PR #1712 following merged #1727 (DRAFT, NOT ACCEPTED):** 498 methods = **397 COVERED / 10 PUBLIC-BY-DESIGN / 91 GAP**; 4 provisionally covered pages/actions and 17 GAP. Exactly two new WRK-01 methods: roster-rules preview POST and greedy-roster GET, with exact-source fictional PG16 own-positive, foreign, forged and unchanged-DB proof, including a nonempty eligible worker and SQL-fault sanitation. Main's current #1736 leave/handoff atomic audit fix and proof pins remain unchanged; no duplicate credit. Staffing-policy manage GET remains GAP. Sole-owner `SOLO_VERIFIED_DEV_RECOVERY`, not independent or production acceptance; final integrated-head CI and owner decision required.
 
 > **2026-11-03 PR #1727 reconciliation (DRAFT / NOT ACCEPTED):** Current 498 methods = **395 COVERED / 10 PUBLIC-BY-DESIGN / 93 GAP**, plus 21 scoped page/action surfaces = 4 provisionally covered / 17 gaps. Six additional POST methods are backed by source-matched exact-original-head PG16 proof: `POST leave/conversion`, `POST payroll/overpayment-preflight`, `POST outbox`, `POST treasury-controls`, `POST compliance/labor-inspection`, `POST earned-wage`. The already-covered `POST leave` and `POST governed-handoffs` retain main's newer #1736 proof run 41452144006; obsolete #1735 proof is **not** credited or overwriting the current route pins. Owner-only evidence is **SOLO_VERIFIED_DEV_RECOVERY**, not independent approval. Final merged-head CI still required.
-> **Remaining GAPs:** BIR annual candidate POST, multi-entity transfers POST/PATCH, payout profile PATCH, workforce planning root/scenarios and other unproven methods stay uncredited. No real data, money, payout, provider or CSP activation.
+> **Historical #1727 remaining GAPs:** BIR annual candidate POST, multi-entity transfers POST/PATCH, payout profile PATCH, workforce planning root/scenarios and other unproven methods stay uncredited. No real data, money, payout, provider or CSP activation.
 
 > **2026-11-02 #1736 SOLO_VERIFIED_DEV_RECOVERY (DRAFT / NOT ACCEPTED):** 498 API methods = **389 COVERED / 10 PUBLIC-BY-DESIGN / 99 GAP**; 17 page/action GAPs remain. Both leave and governed-handoff POSTs have current-source [exact-head PG16 real-HTTP proof 41452144006](https://github.com/erwinmehehe/payrollph/actions/runs/41452144006), different source SHA from earlier draft #1727 governed proof. Only one receipt per method after integration. Owner `@erwinmehehe` is the only reviewer; no independent signoff or production/payroll/payout/CSP/ledger release.
 
@@ -52,9 +52,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 91 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 90 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 91 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remain GAP. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 90 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remain GAP. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -163,9 +163,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 397 |
+| coveredAfter | 398 |
 | publicByDesign | 10 |
-| gap | 91 |
+| gap | 90 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |

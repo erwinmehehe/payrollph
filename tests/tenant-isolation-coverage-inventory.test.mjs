@@ -4528,6 +4528,15 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.independentSecurityReview, "PENDING");
         continue; // Only the six pinned sources; every other method uses strict standard guards.
       }
+      if (entry.route === "payout-profiles" && method.name === "PATCH") {
+        // This is a single source-pinned provisional development receipt,
+        // never a new generic proof-source exemption or a security approval.
+        assert.equal(path, "src/app/api/payout-profiles/route.ts");
+        assert.equal(proof.file, PAYOUT_PATCH_EVIDENCE.file);
+        assert.equal(verifyPayoutProfileCredit(manifest), 1,
+          "Exact route, proof, workflow, source anchors, receipt and release holds required");
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
