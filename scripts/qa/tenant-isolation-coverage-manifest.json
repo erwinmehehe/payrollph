@@ -38159,14 +38159,40 @@
           "line": 23,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "year-end-binding-atomic-source-only-zero-credit",
+            "priorRouteBlobSha": "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+            "routeBlobSha": "69c558d6d7a3ee3976403619e01245dc61da2a42",
+            "contractFile": "tests/year-end-binding-transaction-contract.test.mjs",
+            "contractBlobSha": "ff46d4d4c3a3c1e1ad080be102fa0cd189f30cd8",
+            "annualizationBlobSha": "dc8552b6ed63ec0ed463e8955505b69ce90ec7a9",
+            "queueBlobSha": "961cfb5535063a9683b04dbd5260c2a9730ffd66",
+            "credits": 0,
+            "actualPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "POST",
           "line": 378,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "year-end-binding-atomic-source-only-zero-credit",
+            "priorRouteBlobSha": "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+            "routeBlobSha": "69c558d6d7a3ee3976403619e01245dc61da2a42",
+            "contractFile": "tests/year-end-binding-transaction-contract.test.mjs",
+            "contractBlobSha": "ff46d4d4c3a3c1e1ad080be102fa0cd189f30cd8",
+            "annualizationBlobSha": "dc8552b6ed63ec0ed463e8955505b69ce90ec7a9",
+            "queueBlobSha": "961cfb5535063a9683b04dbd5260c2a9730ffd66",
+            "credits": 0,
+            "actualPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {

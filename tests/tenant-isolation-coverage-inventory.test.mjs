@@ -2370,6 +2370,37 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   }
 
 
+  if (isNewOrChanged && ["src/app/api/year-end/route.ts GET", "src/app/api/year-end/route.ts POST"].includes(key)) {
+    // Exact reviewed source candidate only: no HTTP or financial acceptance.
+    const expected = {
+      kind: "year-end-binding-atomic-source-only-zero-credit",
+      priorRouteBlobSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+      routeBlobSha: "69c558d6d7a3ee3976403619e01245dc61da2a42",
+      contractFile: "tests/year-end-binding-transaction-contract.test.mjs",
+      contractBlobSha: "ff46d4d4c3a3c1e1ad080be102fa0cd189f30cd8",
+      annualizationBlobSha: "dc8552b6ed63ec0ed463e8955505b69ce90ec7a9",
+      queueBlobSha: "961cfb5535063a9683b04dbd5260c2a9730ffd66",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    for (const [file, hash] of [
+      [expected.contractFile, expected.contractBlobSha],
+      ["src/lib/year-end.ts", expected.annualizationBlobSha],
+      ["src/lib/payroll-engine.ts", expected.queueBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), hash);
+    const source = readFileSync("src/app/api/year-end/route.ts", "utf8");
+    assert.equal(gitBlobSha(Buffer.from(source.split("export async function POST")[0])),
+      "393d137811d1bf40561004314646f80ff644f80f", "GET and shared pre-POST source must remain unchanged");
+    for (const token of ["onBoundToPayrollRun: async (tx, boundSummary) => {",
+      "await enqueuePayrollRun(boundRun.id, undefined, tx);", "}, tx);"])
+      assert.ok(source.includes(token));
+    return;
+  }
+
   if (isNewOrChanged && key === "src/app/api/leave/route.ts POST") {
     const expected = {
       kind: "leave-POST-revalidate-active-checker-source-only",
