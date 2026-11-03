@@ -15,26 +15,34 @@ const AMOUNT_CENTS = 150000;
 
 // A low or merely greater-than-attacker victim ID is insufficient for the
 // frozen closure-plan rule. Check real persisted IDs for every relevant scope.
-export function assertFictionalHighIdVictim(a, b, victim) {
+export function assertFictionalHighIdVictim(a, b, victim, fillers = []) {
+  const predecessors = [a, b, ...fillers];
   for (const field of ["org", "entity", "unit", "owner", "worker"]) {
     const id = victim[field]?.id;
     assert.ok(Number.isSafeInteger(id) && id > 6 &&
-      id > a[field]?.id && id > b[field]?.id,
-    "Higher-ID real victim " + field + " must exceed six and both attackers");
+      predecessors.every(e => Number.isSafeInteger(e[field]?.id) && id > e[field].id),
+    "Higher-ID real victim " + field + " must exceed six and every preceding employer");
   }
   for (const field of ["subscription", "checkout"]) {
     const id = victim.billing?.[field]?.id;
     assert.ok(Number.isSafeInteger(id) && id > 6 &&
-      id > a.billing?.[field]?.id && id > b.billing?.[field]?.id,
-    "Higher-ID real victim " + field + " must exceed six and both attackers");
+      predecessors.every(e => Number.isSafeInteger(e.billing?.[field]?.id) && id > e.billing[field].id),
+    "Higher-ID real victim " + field + " must exceed six and every preceding employer");
   }
 }
 
 // Compare the complete seeded cohort, including the six filler employers.
 // An omitted employer snapshot is a proof failure, not a silent exemption.
 export function assertEmployerSnapshotIsolation(before, after, allowed = []) {
-  assert.deepEqual(Object.keys(after).sort(), Object.keys(before).sort(),
+  // Comparing only before/after keys misses a cohort accidentally omitted from BOTH.
+  const expected = ["ATTA", "ATTB", ...Array.from({ length: 6 }, (_, i) => "FILL" + i), "VICTIM"].sort();
+  assert.deepEqual(Object.keys(before).sort(), expected,
+    "All seeded employers must appear in the baseline snapshot");
+  assert.deepEqual(Object.keys(after).sort(), expected,
     "All seeded employers must remain in the isolation snapshot");
+  for (const label of allowed) {
+    assert.ok(expected.includes(label), "Only seeded employers may be allowed to change");
+  }
   for (const [label, previous] of Object.entries(before)) {
     if (!allowed.includes(label)) {
       assert.deepEqual(after[label], previous, label + ": other employer billing and audit rows unchanged");
@@ -89,7 +97,7 @@ export async function proveXenditSubscriptionsWebhook() {
       return { subscription, checkout, referenceId: checkout.referenceId, planId: checkout.providerPlanId };
     }
     for (const employer of employers) employer.billing = await seedCheckout(employer);
-    assertFictionalHighIdVictim(a, b, victim);
+    assertFictionalHighIdVictim(a, b, victim, fillers);
     // A's earlier, superseded checkout: its callbacks must never reactivate the newer plan.
     const [oldCheckout] = await db.insert(billing.saasBillingCheckouts).values({
       organizationId: a.org.id, subscriptionId: a.billing.subscription.id,
