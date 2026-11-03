@@ -179,19 +179,33 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
 });
 
 test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", () => {
-  const counts = { COVERED:0, "PUBLIC-BY-DESIGN":0, GAP:0 };
+  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
     counts[method.status]++;
   }
   assert.equal(allMethods.length, 498);
-  const baseline = JSON.parse(execFileSync("git", ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-  assert.deepEqual(counts, { COVERED:baseline.metrics.coveredAfter,
-    "PUBLIC-BY-DESIGN":baseline.metrics.publicByDesign, GAP:baseline.metrics.gap });
-  for (const { path, method } of allMethods) {
-    assert.equal(method.status, baseline.allApiRouteFiles[path].methods.find(row => row.name === method.name).status,
-      path + " " + method.name + ": this review must not promote or downgrade a method");
-  }
+
+  // GitHub Actions shallow PR checkouts do not necessarily have origin/main.
+  // Pin *every* main method status and the frozen subtotal to the reviewed
+  // exact-base snapshot. This is a strict fallback, not an acceptance waiver.
+  const fixtureFile = "tests/fixtures/tenant-six-method-main-ledger-20261103.json";
+  const snapshot = JSON.parse(readFileSync(fixtureFile, "utf8"));
+  assert.equal(blobSha(fixtureFile), "edcb541381843bf3e5c4bdd3f36be34892effcb8",
+    "Main ledger fixture changed; renew source-level security review");
+  assert.equal(snapshot.schema, "payrollph-six-method-main-ledger-snapshot-v1");
+  assert.equal(snapshot.sourceCommit, "d3fee31d4be2eb2f73523cf09b01ee097f5141fc");
+  assert.equal(snapshot.sourceManifestGitBlobSha, "0f58fe100b624116127c736d73a235a6934b8ef9");
+  assert.equal(snapshot.sourceClosurePlanGitBlobSha, "1d02e2acd62ff1f28f507fd2d88337ce7f48905f");
+  assert.equal(Object.keys(snapshot.methodStatuses).length, 295);
+  const methodStatuses = manifest => Object.fromEntries(
+    Object.entries(manifest.allApiRouteFiles).map(([path, data]) => [
+      path, Object.fromEntries(data.methods.map(row => [row.name, row.status])),
+    ]),
+  );
+  assert.deepEqual(methodStatuses(m), snapshot.methodStatuses,
+    "No one of the 498 methods may be promoted, removed or downgraded in this review");
+  assert.deepEqual(counts, snapshot.counts, "Live status totals must match reviewed main");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -199,8 +213,35 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const baselinePlan = execFileSync("git", ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"], { encoding: "utf8" });
-  const frozen = baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:"));
-  assert.ok(frozen && plan.includes(frozen), "preserve main's complete frozen ledger line");
+  assert.ok(plan.includes(snapshot.frozenSubtotal),
+    "Preserve the frozen subtotal from the exact main-base review");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
+
+  // When a full checkout has origin/main, also verify that it agrees with the
+  // exact-base fixture. A changed main requires a deliberate re-review/re-pin.
+  let hasMainRef = false;
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "refs/remotes/origin/main"],
+      { stdio: "ignore" });
+    hasMainRef = true;
+  } catch {
+    // Missing remote ref is normal in CI with fetch-depth: 1.
+  }
+  if (hasMainRef) {
+    const baseline = JSON.parse(execFileSync("git",
+      ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
+      { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
+    assert.deepEqual(methodStatuses(baseline), snapshot.methodStatuses,
+      "origin/main method statuses changed; rebase and renew the ledger review");
+    assert.deepEqual({
+      COVERED: baseline.metrics.coveredAfter,
+      "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
+      GAP: baseline.metrics.gap,
+    }, snapshot.counts, "origin/main totals changed; renew ledger review");
+    const baselinePlan = execFileSync("git",
+      ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
+      { encoding: "utf8" });
+    assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
+      snapshot.frozenSubtotal, "origin/main frozen ledger changed; renew review");
+  }
 });
