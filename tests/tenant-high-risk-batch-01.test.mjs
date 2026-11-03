@@ -589,36 +589,36 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     }
     assert.equal(method.testedBy.postgresMajor, 16);
   }
-  const soloWorkflowKeys = ["POST leave", "POST governed-handoffs"];
-  const soloWorkflowCredits = soloWorkflowKeys.filter(key => {
-    const row = methodsByKey.get(key);
-    assert.equal(row?.status, "COVERED", key + ": four-part exact-head owner-only PG16 proof");
-    assert.equal(row.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
-    assert.equal(row.testedBy?.workflowRunId, 41431907703);
-    assert.equal(row.testedBy?.ownerIsOnlyReviewer, true);
+  const workflowSoloCredits = ["POST leave", "POST governed-handoffs"].filter(key => {
+    const x = methodsByKey.get(key);
+    assert.equal(x?.status,"COVERED",key + ": PG16 four-part real HTTP method proof");
+    assert.equal(x.testedBy?.evidenceLabel,"SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(x.testedBy?.workflowRunId,41452144006);
+    assert.equal(x.testedBy?.verifiedPrHeadSha,"49360001aa6ca2911f1e99617ba3ad34d82a6a67");
     return true;
   }).length;
-  assert.equal(soloWorkflowCredits, 2, "Cannot borrow or double-credit workflow POST methods");
+  assert.equal(workflowSoloCredits,2);
   const finalHeadPromotionKeys = [
     "POST leave/conversion", "POST payroll/overpayment-preflight", "POST outbox",
     "POST treasury-controls", "POST compliance/labor-inspection", "POST earned-wage",
   ];
   const finalHeadPromotionCredits = finalHeadPromotionKeys.filter(key => {
     const m = methodsByKey.get(key);
-    assert.equal(m?.status, "COVERED", key + ": explicit source-matched four-part promotion required");
-    assert.equal(m.testedBy?.postgresMajor, 16, key + ": must use disposable PostgreSQL 16");
-    assert.ok(m.testedBy?.proofBlobSha && m.testedBy?.workflowRunId,
-      key + ": receipt must link a specific final-head successful run");
+    assert.equal(m?.status, "COVERED", key + ": source-matched method-specific proof required");
+    assert.equal(m.testedBy?.postgresMajor, 16);
+    assert.equal(m.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(m.testedBy?.independentlyAccepted, false);
+    assert.ok(m.testedBy?.proofBlobSha && m.testedBy?.workflowRunId);
     return true;
   }).length;
-  assert.equal(finalHeadPromotionCredits, 6, "No unreviewed GAP or overlapping open-PR method credited");
+  assert.equal(finalHeadPromotionCredits, 6, "Six disjoint methods; leave and handoff already counted");
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits - soloWorkflowCredits - wfmProvisionalCredits - greedySoloCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + finalHeadPromotionCredits + soloWorkflowCredits + wfmProvisionalCredits + greedySoloCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
