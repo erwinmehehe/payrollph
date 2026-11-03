@@ -40,6 +40,12 @@ test("root POST exercises all approved architecture, plan and position creation 
     "direct assignment proof must be a real positive HTTP action");
   assert.match(family, /position_assigned/,
     "assignment proof must check persisted employment event");
+  assert.match(family, /real higher-ID foreign worker denied on valid own vacancy/,
+    "foreign-worker test must not use a filled or missing own position");
+  assert.match(family, /employeeId: c\.victim\.worker\.id, effectiveFrom: todayPh/,
+    "forged worker must be a real victim employee, not a fabricated numeric ID");
+  assert.match(family, /forgedReferences: 5, blockedDirectAssignments: 1, directAssignmentProofs/,
+    "new forged reference must be included in the family branch receipt");
 });
 
 test("root PATCH explicitly exercises direct freeze, governed approval and closure without auto-release", () => {
@@ -102,5 +108,10 @@ test("no payroll, provider or production authorization is carried in the Batch 3
   assert.match(workflow, /TENANT_TABLE_FAMILY: workforce-planning-root/);
   assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED/);
   assert.match(workflow, /XENDIT_PAYOUTS_ENABLED/);
+  for (const flag of ["NEXT_CSP_ENABLED=false", "WORKER_ENABLED=false",
+    "CENTRAL_SCHEDULER_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+    assert.ok(workflow.includes(flag),
+      "dedicated root PG16 workflow must explicitly disable " + flag);
+  }
   assert.match(workflow, /tenant-write-table-http\.mjs/);
 });
