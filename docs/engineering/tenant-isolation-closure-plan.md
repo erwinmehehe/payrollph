@@ -2,7 +2,7 @@
 
 ## 2026-11-03 #1730 reconciled after merged #1728 — DRAFT / NOT ACCEPTED
 
-**Combined provisional ledger: 498 API methods = 406 COVERED + 10 PUBLIC-BY-DESIGN + 82 GAP.** Frozen 406-method subtotal = **322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP**. This branch retains all three distinct #1728 STA-01 compliance POST credits (25 COVERED / 2 GAP in STA-01), and separately carries four exact-source #1730 year-end/prior-evidence method credits (DL-01: 22 COVERED / 2 PUBLIC / 2 GAP; MNY-01: 26 COVERED / 7 GAP). All 17 page/action gaps remain. No tenant-wide acceptance or live financial, BIR, payroll, provider, payout, SQL, CSP or feature activation is authorized. New exact-head CI, security and real localhost synthetic PG16 proofs are mandatory before source merge.
+**Combined provisional ledger: 498 methods = 406 COVERED + 10 PUBLIC-BY-DESIGN + 82 GAP.** Frozen 406-method subtotal = **322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP**. This branch retains all three distinct #1728 STA-01 compliance POST credits (25 COVERED / 2 GAP in STA-01), and separately carries four exact-source #1730 year-end/prior-evidence method credits (DL-01: 22 COVERED / 2 PUBLIC / 2 GAP; MNY-01: 26 COVERED / 7 GAP). All 17 page/action gaps remain. No tenant-wide acceptance or live financial, BIR, payroll, provider, payout, SQL, CSP or feature activation is authorized. New exact-head CI, security and real localhost synthetic PG16 proofs are mandatory before source merge.
 
 ## 2026-11-03 #1728 integrated with merged #1712 — SOURCE MERGE CANDIDATE, NOT ACCEPTED
 
