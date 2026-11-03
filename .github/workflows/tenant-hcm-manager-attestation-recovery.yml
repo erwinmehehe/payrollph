@@ -9,7 +9,6 @@ on:
       - 'scripts/qa/tenant-hcm-manager-attestation-recovery-http.mjs'
       - 'tests/tenant-hcm-manager-attestation-recovery.test.mjs'
       - 'scripts/qa/tenant-table-rows/read/hcm-manager-attestation.mjs'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/hcm/employment-term-decisions/**'
       - 'src/lib/hcm-manager-attestation.ts'
       - 'src/lib/access.ts'
