@@ -185,7 +185,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
     cases.filter(c => !skipOpenCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
 });
 
-test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", () => {
+test("live and frozen tenant ledgers allow only two pinned issued-demand credits", () => {
   const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
@@ -210,9 +210,78 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
       path, Object.fromEntries(data.methods.map(row => [row.name, row.status])),
     ]),
   );
-  assert.deepEqual(methodStatuses(m), snapshot.methodStatuses,
-    "No one of the 498 methods may be promoted, removed or downgraded in this review");
-  assert.deepEqual(counts, snapshot.counts, "Live status totals must match reviewed main");
+  // This branch can add only two already-executed, source-pinned #1731
+  // provisional method credits. Do not exempt arbitrary COVERED changes,
+  // relax the six-method GAP hold, or treat sole-owner proof as acceptance.
+  const permittedPromotions = [
+    {
+      path: "src/app/api/workforce/demand-observations/issued/route.ts",
+      verb: "POST",
+      routeSha: "549156b2e143c71bd33385fb1cc49a95cb120dfc",
+      proofFile: "scripts/qa/tenant-issued-demand-http.mjs",
+      proofSha: "a63e9aa94b9c85000433e9a40c778af449888757",
+      workflowFile: ".github/workflows/tenant-issued-demand-http.yml",
+      workflowSha: "caf01bd8e2c17e8cd5bfd17528cd56d7503aa312",
+      proofHead: "1834b73aab8e162e19b4b260e51b32e6fa1fbbec",
+      workflowRunId: 41444835667,
+    },
+    {
+      path: "src/app/api/workforce/demand-observations/issued/score/route.ts",
+      verb: "POST",
+      routeSha: "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
+      proofFile: "scripts/qa/tenant-issued-demand-http.mjs",
+      proofSha: "a63e9aa94b9c85000433e9a40c778af449888757",
+      workflowFile: ".github/workflows/tenant-issued-demand-http.yml",
+      workflowSha: "caf01bd8e2c17e8cd5bfd17528cd56d7503aa312",
+      proofHead: "1834b73aab8e162e19b4b260e51b32e6fa1fbbec",
+      workflowRunId: 41444835667,
+    },
+  ];
+  const expectedStatuses = Object.fromEntries(
+    Object.entries(snapshot.methodStatuses).map(([path, rows]) => [path, { ...rows }]),
+  );
+  for (const pin of permittedPromotions) {
+    const label = pin.verb + " " + pin.path;
+    assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " must start GAP on main");
+    const row = m.allApiRouteFiles[pin.path]?.methods.find(method => method.name === pin.verb);
+    assert.equal(row?.status, "COVERED", label + " is the only permitted credit");
+    const receipt = row.testedBy;
+    assert.equal(receipt?.prNumber, 1731, label + " proof must belong to this PR");
+    assert.equal(receipt?.proofHeadCommit, pin.proofHead, label + " executed proof head");
+    assert.equal(receipt?.workflowRunId, pin.workflowRunId, label + " executed workflow");
+    assert.ok(receipt?.evidence?.includes("/actions/runs/" + pin.workflowRunId + "/job/"),
+      label + " must cite the executed proof job");
+    assert.equal(receipt?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(receipt?.ownerIsOnlyReviewer, true);
+    assert.equal(receipt?.independentlyAccepted, false);
+    assert.equal(receipt?.productionCertified, false);
+    assert.equal(receipt?.postgresMajor, 16);
+    for (const [field, file, expectedSha] of [
+      ["routeBlobSha", pin.path, pin.routeSha],
+      ["proofBlobSha", pin.proofFile, pin.proofSha],
+      ["workflowBlobSha", pin.workflowFile, pin.workflowSha],
+    ]) {
+      assert.equal(receipt?.[field], expectedSha, label + " immutable " + field);
+      assert.equal(blobSha(file), expectedSha, label + " actual file hash " + file);
+    }
+    assert.equal(receipt?.file, pin.proofFile);
+    assert.equal(receipt?.workflowFile, pin.workflowFile);
+    expectedStatuses[pin.path][pin.verb] = "COVERED";
+  }
+  assert.equal(blobSha("scripts/qa/tenant-issued-demand-contract.mjs"),
+    "a4a7714a42ada86a55192b160e3f5f2761af0500",
+    "The original contract must remain byte-identical to the passed source proof");
+  assert.equal(blobSha("tests/tenant-issued-demand-contract.test.mjs"),
+    "0df0028ceda0413256575f3847c950194f6e73f3",
+    "The original contract tests must remain byte-identical to the passed source proof");
+  assert.deepEqual(methodStatuses(m), expectedStatuses,
+    "Only the two exact-source #1731 POST methods may change status from main");
+  const expectedCounts = {
+    ...snapshot.counts,
+    COVERED: snapshot.counts.COVERED + permittedPromotions.length,
+    GAP: snapshot.counts.GAP - permittedPromotions.length,
+  };
+  assert.deepEqual(counts, expectedCounts, "Live totals must include exactly two #1731 credits");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -220,8 +289,13 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  assert.ok(plan.includes(snapshot.frozenSubtotal),
-    "Preserve the frozen subtotal from the exact main-base review");
+  const expectedFrozenSubtotal = snapshot.frozenSubtotal.replace(
+    "313 COVERED + 2 PUBLIC-BY-DESIGN + 91 GAP = 406",
+    "315 COVERED + 2 PUBLIC-BY-DESIGN + 89 GAP = 406",
+  );
+  assert.notEqual(expectedFrozenSubtotal, snapshot.frozenSubtotal);
+  assert.ok(plan.includes(expectedFrozenSubtotal),
+    "Frozen 406-method queue must reconcile only the two source-pinned #1731 credits");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
