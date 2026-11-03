@@ -12,7 +12,6 @@ on:
       - 'src/app/api/approvals/**'
       - 'src/lib/**'
       - 'src/db/**'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'docs/qa/tenant-onboarding-receipt.json'
 permissions:
   contents: read
