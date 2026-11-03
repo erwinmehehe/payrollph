@@ -6,6 +6,7 @@ import {
 } from "@/lib/marketing-leads";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { sha256 } from "@/lib/crypto";
+import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";
 import { hasMarketingEnquiryConsent, marketingConsentEvidence, marketingHoneypotTripped } from "@/lib/marketing-consent";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { normalizeEmail, validEmail } from "@/lib/validation";
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
   const frequency = String(body.frequency ?? "").trim().slice(0, 40);
   const entities = String(body.entities ?? "").trim().slice(0, 40);
   const notes = String(body.notes ?? "").trim().slice(0, 1000);
+  const attribution = { ...sanitizeMarketingAttribution(body.attribution), ...marketingConsentEvidence() };
 
   const problems: string[] = [];
   if (!hasMarketingEnquiryConsent(body)) problems.push("Please agree to the privacy notice before submitting.");
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
       entities,
       notes,
       sourcePath: "/payroll-outsourcing",
-      attribution: marketingConsentEvidence(),
+      attribution,
     });
   } catch {
     // Provider errors can embed enquiry contact fields. Keep logs PII-free.
