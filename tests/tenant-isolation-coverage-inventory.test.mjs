@@ -1529,15 +1529,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       hcmHoldFile: "src/lib/multi-entity-hcm-hold.ts",
       hcmHoldBlobSha: "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
       contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
-      contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+      contractBlobSha: "68e68dc9dff3a6bc51801c525a7d241b7abb3ab5",
       proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
-      proofBlobSha: "243827a6b4481a25fc5a95259843862da117f5f0",
+      proofBlobSha: "8a5c8ea4e9ad64896b4051963fc17a374a2ee4c4",
       workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
-      workflowBlobSha: "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
+      workflowBlobSha: "7cbb0a6a0389a4eb0f22cce61c34ed90939c5a97",
       coverageCredits: 0,
       testedBy: null,
-      independentSecurityReview: "PENDING",
       exactHeadHttpResult: "PENDING",
+      reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY",
+      soleOwnerReviewer: "erwinmehehe",
+      reviewStatus: "PENDING_EXACT_FINAL_HEAD",
     });
     for (const [file, sha] of [
       [reviewed.testFile, reviewed.testBlobSha],
@@ -1549,6 +1551,24 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
       "New salary preview proof/source change requires renewed security review");
     assert.equal(method.testedBy, null, "Salary preview POST remains GAP");
+    const currentProof = readFileSync(reviewed.proofFile, "utf8");
+    for (const token of [
+      "NEXT_CSP_ENABLED: \"false\"",
+      "WORKER_ENABLED: \"false\"",
+      "CENTRAL_SCHEDULER_ENABLED: \"false\"",
+      ".innerJoin(s.payrollRuns, eq(s.payrollEntries.payrollRunId, s.payrollRuns.id))",
+      "assert.deepEqual(await snapshots(), before",
+      "forged higher-ID victim legal employer and employee",
+      "assert.equal(denied, 18)",
+    ]) assert.ok(currentProof.includes(token),
+      "Salary-preview refreshed proof lost protected real-HTTP case: " + token);
+    const currentWorkflow = readFileSync(reviewed.workflowFile, "utf8");
+    for (const flag of ["WORKER_ENABLED=false", "CENTRAL_SCHEDULER_ENABLED=false",
+      "NEXT_CSP_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+      assert.ok(currentWorkflow.includes(flag),
+        "Salary-preview disposable CI safety flag missing: " + flag);
+    }
+
     // The global inventory test recomputes live totals from every current route.
     // A focused uncredited GAP must not pin a historic repository-wide count.
     assert.equal(reviewed.coverageCredits, 0);
