@@ -1,9 +1,9 @@
 {
   "schema": "payrollph-six-method-main-ledger-snapshot-v1",
-  "sourceCommit": "4060a9df277411af84436e65a91bc4f1b6980d46",
-  "sourceManifestGitBlobSha": "1431719037c952eb247647fdca2e26df448a22e6",
+  "sourceCommit": "78a8a69b3c924200ad9e522ff7e716c376a7ce20",
+  "sourceManifestGitBlobSha": "656b0f190924e40c337e8b6291c14a0776b6f746",
   "sourceClosurePlanGitBlobSha": "86a92231daafa1accc8c0a263d30c6112c8ba8ba",
-  "notes": "Source-pinned current main after merged #1727 and #1712; preserves the exact 498-method status map, including two distinct WRK-01 provisional credits. This six-method GAP review grants zero new credits. Repinned to main after reconciliation, without weakening source checks or independent/production acceptance requirements.",
+  "notes": "Exact reviewed main after #1727, #1712 and #1743. Invitation source-only review changed metadata without method credits; 498 method statuses remain identical. This six-method PR grants zero new coverage credits. Renew pinned source review whenever main changes.",
   "counts": {
     "COVERED": 397,
     "PUBLIC-BY-DESIGN": 10,
