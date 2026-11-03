@@ -59,10 +59,10 @@ test("separate proof-file citations resolve their own exact source lines", () =>
   for (const route of ["compliance/payroll-month-close", "compliance/statutory-remittances"]) {
     const proof = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
       .methods.find(method => method.name === "POST").testedBy;
-    assert.match(proof.sourceRowFile, /^scripts\\/qa\\/tenant-table-rows\\/write\\//);
+    assert.match(proof.sourceRowFile, /^scripts\/qa\/tenant-table-rows\/write\//);
     assert.notEqual(proof.file, proof.sourceRowFile);
-    const rowLines = readFileSync(proof.sourceRowFile, "utf8").split("\\n");
-    const sharedLines = readFileSync(proof.file, "utf8").split("\\n");
+    const rowLines = readFileSync(proof.sourceRowFile, "utf8").split("\n");
+    const sharedLines = readFileSync(proof.file, "utf8").split("\n");
     for (const field of [
       "sourceRowOwnPositiveLine", "sourceRowForeignDenialLine",
       "sourceRowForgedSelectorLine", "sourceRowUnchangedDbLine",
