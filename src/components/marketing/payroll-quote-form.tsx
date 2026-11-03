@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { obtainIntakeProof } from "@/lib/public-intake-proof-client";
+import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 import { PrivacyConsentFields } from "@/components/marketing/privacy-consent-fields";
 import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
 
@@ -44,7 +45,7 @@ export function PayrollQuoteForm() {
       const response = await fetch("/api/payroll-outsourcing/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, intakeProof, privacyConsent, website }),
+        body: JSON.stringify({ ...form, intakeProof, privacyConsent, website, attribution: readMarketingAttribution() }),
       });
       const payload = await response.json().catch(() => ({}));
 
