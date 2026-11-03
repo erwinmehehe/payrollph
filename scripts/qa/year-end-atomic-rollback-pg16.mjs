@@ -187,6 +187,30 @@ async function proveEmployer(e, fixture, victim, victimFixture) {
   assert.deepEqual(await snapshot(e.org.id), after, "duplicate submission cannot duplicate jobs or adjustment");
 }
 
+async function proveConcurrentBinding(e) {
+  const fixture = await seedYearEnd(e);
+  const before = await snapshot(e.org.id);
+  // Two independent HTTP requests race for the same employer/year/cutoff.
+  // One must commit; the loser must return a reviewable conflict, not a
+  // duplicate job, partial payroll adjustment or leaked SQL exception.
+  const results = await Promise.all([
+    requestBind(e, fixture.final.id),
+    requestBind(e, fixture.final.id),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort((a, b) => a - b), [200, 409],
+    "concurrent bindings must have exactly one committed winner and one safe 409");
+  const failed = results.find((r) => r.status === 409);
+  assert.ok(!failed.text.includes("40001") && !failed.text.includes("deadlock"),
+    "SQL serialization diagnostics must not reach the public HTTP response");
+  const after = await snapshot(e.org.id);
+  assert.equal(after.runs.find((r) => r.id === fixture.final.id).status, "Queued");
+  assert.equal(after.jobs.filter((job) => job.payrollRunId === fixture.final.id).length, 1);
+  assert.equal(after.adjustments.filter((row) => row.payrollRunId === fixture.final.id).length, 1);
+  assert.deepEqual(after.audit.slice(before.audit.length).map((row) => row.action), [
+    "Year-end annualization computed", "Payroll job queued", "Year-end tax adjustments bound to payroll",
+  ], "the losing concurrent request may commit no additional audit or payroll state");
+}
+
 async function main() {
   requireTenantTableDisposable();
   for (const flag of [
@@ -206,12 +230,19 @@ async function main() {
   for (const employer of employers) fixtures.set(employer.org.id, await seedYearEnd(employer));
   await proveEmployer(a, fixtures.get(a.org.id), victim, fixtures.get(victim.org.id));
   await proveEmployer(b, fixtures.get(b.org.id), victim, fixtures.get(victim.org.id));
+  const concurrent = await seedEmployer("ATTA", nonce + "race", standaloneMakeSession);
+  employers.push(concurrent);
+  const victimBeforeConcurrent = await snapshot(victim.org.id);
+  await proveConcurrentBinding(concurrent);
+  assert.deepEqual(await snapshot(victim.org.id), victimBeforeConcurrent,
+    "concurrent own-employer settlement may not touch unrelated victim financial state");
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
   console.log(JSON.stringify({
     kind: "year-end-binding-pg16-atomic-rollback",
     independentFictionalEmployers: 2, higherIdVictimDenied: true,
     injectedVetoes: ["final-binding-audit", "queue-job-insert"],
     completeSqlRollback: true, exactAuditCount: true, exactQueuedJobCount: true,
+    concurrentSingleWinner: true, concurrentLoserConflict409: true,
     noProvidersOrMoney: true, securityReviewPending: true, methodCredits: 0,
   }));
 }
