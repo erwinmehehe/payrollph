@@ -198,12 +198,12 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
   // exact-base snapshot. This is a strict fallback, not an acceptance waiver.
   const fixtureFile = "tests/fixtures/tenant-six-method-main-ledger-20261103.json";
   const snapshot = JSON.parse(readFileSync(fixtureFile, "utf8"));
-  assert.equal(blobSha(fixtureFile), "1cb333370bef3edbcbd79b679dc948388a774953",
+  assert.equal(blobSha(fixtureFile), "afdcadd31972e3124359d2e9208f516a4fbae189",
     "Main ledger fixture changed; renew source-level security review");
   assert.equal(snapshot.schema, "payrollph-six-method-main-ledger-snapshot-v1");
-  assert.equal(snapshot.sourceCommit, "1572750758e375387d3e9abb0dbad2ce899ce640");
-  assert.equal(snapshot.sourceManifestGitBlobSha, "4758e9ca12e62505a9c751a98e4bb61b5db0d6a4");
-  assert.equal(snapshot.sourceClosurePlanGitBlobSha, "1e9c0019b9fb888a66f4bfd23db57e4169f43339");
+  assert.equal(snapshot.sourceCommit, "4060a9df277411af84436e65a91bc4f1b6980d46");
+  assert.equal(snapshot.sourceManifestGitBlobSha, "1431719037c952eb247647fdca2e26df448a22e6");
+  assert.equal(snapshot.sourceClosurePlanGitBlobSha, "86a92231daafa1accc8c0a263d30c6112c8ba8ba");
   assert.equal(Object.keys(snapshot.methodStatuses).length, 295);
   const methodStatuses = manifest => Object.fromEntries(
     Object.entries(manifest.allApiRouteFiles).map(([path, data]) => [

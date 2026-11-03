@@ -1,15 +1,15 @@
 {
   "schema": "payrollph-six-method-main-ledger-snapshot-v1",
-  "sourceCommit": "1572750758e375387d3e9abb0dbad2ce899ce640",
-  "sourceManifestGitBlobSha": "4758e9ca12e62505a9c751a98e4bb61b5db0d6a4",
-  "sourceClosurePlanGitBlobSha": "1e9c0019b9fb888a66f4bfd23db57e4169f43339",
-  "notes": "Source-pinned current main after merged #1727 credits; 498 method-status map guards this review against unearned promotions in shallow CI. Re-pin only after source-level review of main changes.",
+  "sourceCommit": "4060a9df277411af84436e65a91bc4f1b6980d46",
+  "sourceManifestGitBlobSha": "1431719037c952eb247647fdca2e26df448a22e6",
+  "sourceClosurePlanGitBlobSha": "86a92231daafa1accc8c0a263d30c6112c8ba8ba",
+  "notes": "Source-pinned current main after merged #1727 and #1712; preserves the exact 498-method status map, including two distinct WRK-01 provisional credits. This six-method GAP review grants zero new credits. Repinned to main after reconciliation, without weakening source checks or independent/production acceptance requirements.",
   "counts": {
-    "COVERED": 395,
+    "COVERED": 397,
     "PUBLIC-BY-DESIGN": 10,
-    "GAP": 93
+    "GAP": 91
   },
-  "frozenSubtotal": "Frozen subtotal: **311 COVERED + 2 PUBLIC-BY-DESIGN + 93 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.",
+  "frozenSubtotal": "Frozen subtotal: **313 COVERED + 2 PUBLIC-BY-DESIGN + 91 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.",
   "methodStatuses": {
     "src/app/api/account/email/route.ts": {
       "POST": "GAP"
@@ -1022,7 +1022,7 @@
       "PATCH": "COVERED"
     },
     "src/app/api/workforce/greedy-roster/route.ts": {
-      "GET": "GAP"
+      "GET": "COVERED"
     },
     "src/app/api/workforce/labor-costing/route.ts": {
       "GET": "COVERED",
@@ -1040,7 +1040,7 @@
       "POST": "COVERED"
     },
     "src/app/api/workforce/roster-rules/preview/route.ts": {
-      "POST": "GAP"
+      "POST": "COVERED"
     },
     "src/app/api/workforce/roster-rules/route.ts": {
       "GET": "COVERED",
