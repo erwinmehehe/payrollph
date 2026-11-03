@@ -119,6 +119,88 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
+  // POST-only immutable-timeline SQL fix: exact-source, review-only and zero credit.
+  // Reconstruct the original route, and retain the employer guard and both
+  // current HTTP proof plus contract/workflow identities. GET is unchanged.
+  if (isNewOrChanged &&
+      key === "src/app/api/compliance/contribution-issues/route.ts POST") {
+    const routeFile = "src/app/api/compliance/contribution-issues/route.ts";
+    const original = "4d18274c78b8c6c5006490ea3190843c6f72b106";
+    const fixed = "8c2ac7e8d59c862295f44023ed3d12b1d900f26a";
+    assert.equal(currentBlob, fixed, "Contribution case source drift requires security review");
+    assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, fixed);
+    assert.equal(method.status, "COVERED", "Exact-head PG16 own/victim/forged/unchanged four-part method proof required");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.workflowRunId, 41446327305);
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "contribution-referral-SQL-event-contract-PG16-review-only",
+      originalRouteBlobSha: original, routeBlobSha: fixed,
+      proofFile: "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs",
+      proofBlobSha: "dfcf1615be01bb151e13a5d74c080299575ce53a",
+      contractFile: "tests/statutory-contribution-case-resolution-gates-v5.test.ts",
+      contractBlobSha: "ad68fc98c56f25cd7d9423bce8a98baebf4db003",
+      timelineContractFile: "tests/statutory-contribution-case-timeline.test.ts",
+      timelineContractBlobSha: "39e8a235c7b0d480416bd0ac23fd206653067e50",
+      workflowFile: ".github/workflows/tenant-compliance-post-candidate.yml",
+      workflowBlobSha: "e9641c0a85bb97101ec28803c0b36d2387667114",
+      credits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    });
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.timelineContractFile, review.timelineContractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Contribution proof/contract/workflow drift requires fresh review: " + file);
+    const src = readFileSync(routeFile, "utf8");
+    const oldEvent = '          eventType: "referred_to_agency",';
+    const newEvent =
+      '          // Agency referral keeps the case in review; the immutable timeline permits payroll_update, not a separate referral event type.\n' +
+      '          eventType: "payroll_update",';
+    assert.equal(src.split(newEvent).length, 2, "Exact referral source correction required once");
+    assert.equal(gitBlobSha(Buffer.from(src.replace(newEvent, oldEvent))), original,
+      "Authorization, case writes and all other route bytes must match reviewed source");
+    const post = src.slice(src.indexOf("export async function POST("));
+    const auth = post.indexOf("const denied = await requirePayrollOperator(user.id, organizationId)");
+    const read = post.indexOf("const [issue] = await db.select().from(statutoryContributionIssueCases)");
+    assert.ok(auth > 0 && read > auth, "Scope must be authorized before case read");
+    for (const guard of [
+      "enforceSameOriginMutation(request)", "getSessionUser()",
+      "enforceSensitiveActionRateLimit(request",
+      "eq(statutoryContributionIssueCases.id, caseId)",
+      "eq(statutoryContributionIssueCases.organizationId, organizationId)",
+    ]) assert.ok(post.includes(guard), "Cannot weaken contribution check: " + guard);
+    const begin = post.indexOf('if (resolutionOutcome === "referred_to_agency")');
+    const end = post.indexOf("return Response.json({ case: result, resolved: false });", begin);
+    assert.ok(begin > 0 && end > begin, "Referral must remain an open-case outcome");
+    const referral = post.slice(begin, end);
+    assert.match(referral, /status:\s*"in_review"/);
+    assert.match(referral, /resolvedAt:\s*null/);
+    assert.match(referral, /eventType:\s*"payroll_update"/);
+    assert.match(referral, /visibility:\s*"employee"/);
+    assert.match(referral, /Referred to the agency for verification\./);
+    const proof = readFileSync(review.proofFile, "utf8");
+    for (const token of [
+      "key: 'POST compliance/contribution-issues'",
+      "'add_update'", "resolutionOutcome: 'referred_to_agency'",
+      "resolutionOutcome: 'employee_advised'",
+      "for (const [action, extra, status, eventType] of actionBodies)",
+      "requestBody(c.victim.org.id, c.victimSeeded.id, action, extra)",
+      "requestBody(c.orgId, c.victimSeeded.id, action, extra)",
+      "assert.deepEqual(await victimState(), seededVictim",
+      "credit: 0",
+    ]) assert.ok(proof.includes(token), "Lost real victim/four-action proof: " + token);
+    const wf = readFileSync(review.workflowFile, "utf8");
+    assert.match(wf, /image: postgres:16/);
+    assert.match(wf, /node --import tsx scripts\/qa\/tenant-write-table-http\.mjs/);
+    return;
+  }
+
   // Transfer write hardening remains a strictly uncredited PG16 review
   // candidate. The historical GET source and exact method credit are preserved.
   if (isNewOrChanged && key.startsWith("src/app/api/multi-entity/transfers/route.ts ")) {
@@ -4527,6 +4609,39 @@ test("all credited proof links point to the claimed route and every recertified 
           "Changed POST workflow requires a new executed localhost proof");
         assert.equal(proof.independentSecurityReview, "PENDING");
         continue; // Only the six pinned sources; every other method uses strict standard guards.
+      }
+      if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
+          ["compliance/contribution-issues", "compliance/payroll-month-close", "compliance/statutory-remittances"].includes(entry.route)) {
+        const pinned = new Map([
+          ["compliance/contribution-issues", ["scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs", 43, "dfcf1615be01bb151e13a5d74c080299575ce53a"]],
+          ["compliance/payroll-month-close", ["scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs", 49, "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193"]],
+          ["compliance/statutory-remittances", ["scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs", 75, "f24a7349c902dae0bc41a3989c8a88df24aedb6f"]],
+        ]);
+        const [rowFile, rowLine, rowSha] = pinned.get(entry.route);
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.file, "scripts/qa/tenant-write-table-http.mjs");
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-compliance-post-candidate.yml");
+        assert.equal(proof.workflowRunId, 41446327305);
+        assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        assert.equal(proof.sourceRowFile, rowFile);
+        assert.equal(proof.sourceRowLine, rowLine);
+        assert.equal(proof.sourceRowBlobSha, rowSha);
+        assert.equal(gitBlobSha(readFileSync(rowFile)), rowSha);
+        assert.ok(evidenceLine(rowFile, rowLine, entry.route + " action").includes("POST " + entry.route));
+        assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine], [112,125,129,149]);
+        for (const field of ["sourceRowOwnPositiveLine","sourceRowForeignDenialLine","sourceRowForgedSelectorLine","sourceRowUnchangedDbLine"])
+          assert.ok(evidenceLine(rowFile, proof[field], entry.route + " four-part " + field).length > 14);
+        continue;
       }
       if (entry.route === "payout-profiles" && method.name === "PATCH") {
         // This is a single source-pinned provisional development receipt,

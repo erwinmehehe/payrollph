@@ -101,8 +101,52 @@ test("credit refresh retains statuses and pins both the family row and actual sh
       const record = Object.values(manifest.allApiRouteFiles).find((r) => r.route === route);
       const proof = record.methods.find((m) => m.name === verb).testedBy;
       if (proof?.file !== "scripts/qa/tenant-table-http.mjs" && proof?.file !== "scripts/qa/tenant-write-table-http.mjs") continue;
-      assert.equal(proof.rowFile, row.file);
-      assert.equal(proof.rowLine, row.line);
+      if (proof.sourceRowFile !== undefined) {
+        // Only the three independently exercised fictional compliance POST
+        // family rows may use the newer sourceRow* metadata. Never accept
+        // incomplete source pointers or silently repin a stale shared receipt.
+        const reviewedComplianceKeys = new Set([
+          "POST compliance/contribution-issues",
+          "POST compliance/payroll-month-close",
+          "POST compliance/statutory-remittances",
+        ]);
+        assert.ok(reviewedComplianceKeys.has(row.key), "unreviewed alternate family proof: " + row.key);
+        assert.equal(proof.prNumber, 1728);
+        assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
+        assert.equal(proof.workflowRunId, 41446327305);
+        assert.equal(proof.sourceRowFile, row.file);
+        assert.equal(proof.sourceRowLine, row.line + 1,
+          "sourceRowLine identifies the literal method key after the row opener");
+        const sourceMethodLine = readFileSync(row.file, "utf8").split("\n")[proof.sourceRowLine - 1];
+        assert.ok(sourceMethodLine.includes("key:") && sourceMethodLine.includes(row.key),
+          "source-row line must identify the actual credited method");
+        assert.ok(Array.isArray(proof.methodActions) && proof.methodActions.length > 0);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        const gitBlobSha = content => {
+          const bytes = Buffer.from(content);
+          return createHash("sha1").update("blob " + bytes.length + "\0")
+            .update(bytes).digest("hex");
+        };
+        assert.equal(proof.sourceRowBlobSha, gitBlobSha(readFileSync(row.file)),
+          "source-row fixture changed after the executed PG16 proof");
+        assert.equal(proof.proofBlobSha, gitBlobSha(readFileSync(proof.file)),
+          "shared HTTP runner changed since the linked proof");
+        assert.equal(proof.workflowBlobSha, gitBlobSha(readFileSync(proof.workflowFile)),
+          "dedicated disposable workflow changed since the linked proof");
+        assert.equal(proof.routeBlobSha, record.gitBlobSha);
+        for (const anchor of ["sourceRowOwnPositiveLine", "sourceRowForeignDenialLine",
+          "sourceRowForgedSelectorLine", "sourceRowUnchangedDbLine"]) {
+          const lines = readFileSync(row.file, "utf8").split("\n");
+          assert.ok(Number.isSafeInteger(proof[anchor]) && proof[anchor] > 0 &&
+            proof[anchor] <= lines.length && lines[proof[anchor] - 1].trim(),
+            "source-row four-part proof anchor missing: " + anchor);
+        }
+      } else {
+        assert.equal(proof.rowFile, row.file);
+        assert.equal(proof.rowLine, row.line);
+      }
       const source = readFileSync(proof.file, "utf8").split("\n");
       assert.match(source[proof.ownPositiveLine - 1], /const owned = expectStatus/);
       assert.match(source[proof.foreignDenialLine - 1], /const foreign = expectStatus/);

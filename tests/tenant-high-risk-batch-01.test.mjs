@@ -16,6 +16,7 @@ import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/ten
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const source = readFileSync("scripts/qa/tenant-high-risk-01-http.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
@@ -395,8 +396,42 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   const tableMethods = Object.entries(manifest.allApiRouteFiles).flatMap(([, route]) =>
     route.methods.filter(m => ["scripts/qa/tenant-table-http.mjs", "scripts/qa/tenant-write-table-http.mjs"].includes(m.testedBy?.file))
       .map(m => [m.name + " " + route.route, m]));
+  // These three separately reviewed multi-action POST receipts use sourceRowFile,
+  // not the generic one-action table rowFile contract. The inventory guard also
+  // validates their route/proof/workflow blob pins and four-part PG16 assertions.
+  const reviewedComplianceRows = new Map([
+    ["POST compliance/contribution-issues", { file: "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs", line: 43, sha: "dfcf1615be01bb151e13a5d74c080299575ce53a", actions: ["start_review", "add_update", "refer_to_agency", "resolve"] }],
+    ["POST compliance/payroll-month-close", { file: "scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs", line: 49, sha: "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193", actions: ["certify_ready_month"] }],
+    ["POST compliance/statutory-remittances", { file: "scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs", line: 75, sha: "f24a7349c902dae0bc41a3989c8a88df24aedb6f", actions: ["create_batch", "record_payment", "confirm_member_posting", "mark_member_exception"] }],
+  ]);
+  let reviewedComplianceCount = 0;
   for (const [key, m] of tableMethods) {
     assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
+    const standalone = reviewedComplianceRows.get(key);
+    if (standalone) {
+      const proof = m.testedBy;
+      assert.equal(proof.file, "scripts/qa/tenant-write-table-http.mjs");
+      assert.equal(proof.rowFile, undefined, key + ": dedicated proof must retain source-row provenance");
+      assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(proof.prNumber, 1728);
+      assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
+      assert.equal(proof.workflowRunId, 41446327305);
+      assert.equal(proof.independentlyAccepted, false);
+      assert.equal(proof.productionCertified, false);
+      assert.deepEqual(proof.methodActions, standalone.actions, key + ": all independently executed actions required");
+      assert.equal(proof.sourceRowFile, standalone.file);
+      assert.equal(proof.sourceRowLine, standalone.line);
+      assert.equal(proof.sourceRowBlobSha, standalone.sha);
+      const bytes = readFileSync(standalone.file);
+      assert.equal(createHash("sha1").update("blob " + bytes.length + String.fromCharCode(0)).update(bytes).digest("hex"), standalone.sha,
+        key + ": changed source row requires new PG16 receipt and review");
+      const sourceRow = bytes.toString("utf8").split(String.fromCharCode(10))[standalone.line - 1] ?? "";
+      assert.ok(sourceRow.includes('key: "' + key + '"') || sourceRow.includes("key: '" + key + "'"),
+        key + ": dedicated source line must identify the exact method");
+      reviewedComplianceCount++;
+      continue;
+    }
+    assert.ok(m.testedBy?.rowFile, key + ": generic table credit requires its own pinned table row");
     const writes = m.testedBy.file === "scripts/qa/tenant-write-table-http.mjs";
     const lines = writes ? writeTableSource : tableSource;
     const rowLines = readFileSync(m.testedBy.rowFile, "utf8").split("\n");
@@ -407,6 +442,8 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
       ? /const foreign = expectStatus\(await request\(urlFor\("foreign"\),/ : /const foreign = expectStatus\(await request\(item\.foreign,/);
     assert.match(lines[m.testedBy.unchangedDbLine - 1] ?? "", /assert\.deepEqual\(victimAfter, victimBefore,/);
   }
+  assert.equal(reviewedComplianceCount, reviewedComplianceRows.size,
+    "Exactly the three separately source-pinned compliance POSTs may use the standalone proof contract");
   // This newly added route is outside the historical API pool below. Its
   // distinct verifier is checked separately; it must not inflate old credits.
   const managerDirectReportCredits = manifest.allApiRouteFiles["src/app/api/hcm/manager-direct-reports/route.ts"].methods
@@ -613,9 +650,21 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
     return true;
   }).length;
   assert.equal(finalHeadPromotionCredits, 6, "Six disjoint methods; leave and handoff already counted");
+  const complianceSoloCredits = ["POST compliance/contribution-issues", "POST compliance/payroll-month-close", "POST compliance/statutory-remittances"]
+    .filter(key => {
+      const credit = methodsByKey.get(key);
+      assert.equal(credit?.status, "COVERED", key + ": real PG16 four-part compliance proof");
+      assert.equal(credit.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(credit.testedBy?.workflowRunId, 41446327305);
+      return true;
+    }).length;
+  assert.equal(complianceSoloCredits, 3);
   const payoutProfilePatchCredits = verifyPayoutProfileCredit(manifest);
   assert.equal(payoutProfilePatchCredits, 1,
     "Only the exact-source PG16 payout-profile PATCH may reconcile the historical baseline");
+  // These three compliance POST methods are already included in tableMethods.
+  // Assert their independent proof above, but do not subtract/add them twice
+  // when reconstructing the unchanged historical coverage baseline.
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - payoutProfilePatchCredits, 124,

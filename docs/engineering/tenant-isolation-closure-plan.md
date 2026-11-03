@@ -1,18 +1,28 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
-## 2026-11-03 payout-profile PATCH — proposed one-method provisional source-pinned recovery (NOT ACCEPTED)
+## 2026-11-03 PR #1749 payout-profile PATCH — one provisional source-pinned recovery (NOT ACCEPTED)
 
-**Current live coverage totals:** 498 methods = 398 COVERED + 10 PUBLIC-BY-DESIGN + 90 GAP. These are provisional method-level counts, not global acceptance.
+**Current live coverage totals:** 498 methods = 401 COVERED + 10 PUBLIC-BY-DESIGN + 87 GAP. Page/action count remains 4 provisionally covered / 17 GAP. This is exactly one proposed newly covered method, `PATCH /api/payout-profiles`, on top of current main's 400/10/88 and its already merged compliance POST credits. Prior dated merge candidates and the original frozen method snapshot are historical records; the current frozen 406-method subtotal below accounts for the single PATCH credit and the earlier three compliance POSTs.
 
-**Current PR proposal:** 498 methods = **398 COVERED + 10 PUBLIC-BY-DESIGN + 90 GAP**; scoped pages/actions remain **4 provisionally covered / 17 GAP**. This proposes exactly one status change: `PATCH /api/payout-profiles`, with the previously credited GET unchanged. The [passing fictional PG16 localhost real-HTTP job](https://github.com/erwinmehehe/payrollph/actions/runs/41633732030/job/125909512360) from exact PR #1746 head `7ab91ca7d3d2e62b4232b83f78d90bdff0d77173` executed both distinct legitimate employer writes, a real higher-ID victim-only profile, foreign-employer 403, forged victim legal-entity 404, victim DB/audit/payroll invariance, transaction rollback on audit failure, and refusal to adopt a cross-employer legacy conflict row. The route, original proof runner and workflow blobs are identical to current main. The proof runner's zero-credit diagnostic means the runner never alters the ledger itself. The dedicated manifest receipt is separately source-pinned and counted **only after the maintainer accepts this review and exact new-PR-head CI passes**.
+[Exact source-pinned PG16 real-HTTP job 41633732030](https://github.com/erwinmehehe/payrollph/actions/runs/41633732030/job/125909512360) on head `7ab91ca7d3d2e62b4232b83f78d90bdff0d77173` passed separate authenticated own writes and profile/audit persistence for two employers, a real higher-ID victim (>6), foreign employer 403, forged legal entity 404, unchanged victim profile/audit/payroll SQL, injected audit-insert failure rollback, and a stale cross-employer profile conflict denial. The route, runner and workflow blobs match current main byte-for-byte. An exact-current-PR-head rerun, full CI, CodeQL/security checks and authorized maintainer sign-off remain required before merge.
 
-**Security/finance acceptance remains PENDING.** This is not a verified production payout path, a provider transaction, a statutory approval, or global tenant-isolation certification. The frozen 406-method historical closure queue and its subtotal below remain intact for auditability; older dated counts are historical snapshots.
+**SOLO_VERIFIED_DEV_RECOVERY, owner acceptance PENDING, independent security review PENDING.** This is a source-matched provisional tenant method accounting change, not tenant-wide acceptance or production payout/bank/provider authorization. No payout, money, production SQL, payroll processing, feature activation or deployment was performed.
 
-## 2026-11-03 PR #1712 after merged #1727 — DRAFT / NOT ACCEPTED
+## 2026-11-03 #1728 integrated with merged #1712 — SOURCE MERGE CANDIDATE, NOT ACCEPTED
+
+**Current integrated proposal: 498 methods = 400 COVERED + 10 PUBLIC-BY-DESIGN + 88 GAP; frozen 406 queue = 316 COVERED + 2 PUBLIC-BY-DESIGN + 88 GAP.** Preserves #1712's two WRK-01 credits and adds only three disjoint STA-01 compliance POST method proofs from #1728. WRK-01 frozen = 32 COVERED / 7 GAP; STA-01 frozen = 25 COVERED / 2 GAP. All 17 page/action GAPs remain. Existing source/PG16 receipts are retained; updated integration-head CI, security HTTP, isolated PostgreSQL and owner review must pass before merge. Not independent tenant-wide or production acceptance; no live SQL, provider, payout or feature activation.
+
+## 2026-11-03 PR #1712 after merged #1727 — MERGED / GLOBAL ISOLATION NOT ACCEPTED
 
 **Proposed integrated ledger: 498 methods = 397 COVERED + 10 PUBLIC-BY-DESIGN + 91 GAP; frozen 406 queue = 313 COVERED + 2 PUBLIC-BY-DESIGN + 91 GAP.** Main already includes six distinct #1727 credits and newer #1736 source-matched `POST leave` and `POST governed-handoffs` proofs, with no duplicate credits. #1712 adds only `POST workforce/roster-rules/preview` ([PG16 receipt 41293308290](https://github.com/erwinmehehe/payrollph/actions/runs/41293308290)) and `GET workforce/greedy-roster` ([PG16 eligible-worker receipt 41447125405](https://github.com/erwinmehehe/payrollph/actions/runs/41447125405)); unchanged source, proof and workflow identities are pinned. `GET workforce/demand-staffing/policies` remains GAP due to unproved manage mode. Evidence is sole-owner `SOLO_VERIFIED_DEV_RECOVERY`, not independent review; all 17 page/action GAPs remain, and final integrated-head CI and owner merge decision are required. No production/Neon SQL, payroll, provider, payout, CSP, worker activation or deployment.
 
 > **NOT ACCEPTED — baseline only.** Audited GitHub `main@28e1224448342c34a4899fb67660b3da504530c1` on 2026-10-21: 289 route files, 490 HTTP methods, **76 COVERED / 8 PUBLIC-BY-DESIGN / 406 GAP**, plus **20 page/action GAPs**. No additional methods are certified by writing this plan. This document is a **frozen 406-method closure queue**; later PRs must update the live manifest and the inventory headline independently. Manifest acceptance stays **NOT ACCEPTED**; an independent owner/reviewer decides acceptance.
+
+## 2026-11-03 #1728 compliance POST source-pinned integration — SOLO_VERIFIED_DEV_RECOVERY (NOT ACCEPTED)
+
+**Current proposed combined ledger: 498 methods = 398 COVERED + 10 PUBLIC-BY-DESIGN + 90 GAP.** From current main's 395/10/93, three method-specific POSTs were GAP on main and gain provisional owner-only evidence: `POST compliance/contribution-issues`, `POST compliance/payroll-month-close`, and `POST compliance/statutory-remittances`. Original source-pinned fictional PostgreSQL 16 localhost four-part run [41446327305](https://github.com/erwinmehehe/payrollph/actions/runs/41446327305) passed on original proof head `d3cdcf020a559ae85c813d656620832dd0a46d4e`. The branch's previously reviewed contribution referral event correction is preserved exactly with its existing source reconstruction guard, not reauthored. Main's #1727, #1736 and other more recent receipts remain untouched. The new combined merge head must pass its own exact-head CI, audit and tenant proofs before merge.
+
+**Scope and hold:** All three are labelled **SOLO_VERIFIED_DEV_RECOVERY**, not independent approval. No double-counting, tenant-wide acceptance, production SQL, Neon, live workers, official statutory remittance, money, payout, provider, CSP activation or deployment. **17 page/action GAPs remain.**
 
 ## 2026-11-03 PR #1727 main integration — DRAFT, NOT ACCEPTED
 
@@ -105,7 +115,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 24 | 0 | 9 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 22 | 0 | 5 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
@@ -114,7 +124,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 
-Frozen subtotal: **313 COVERED + 2 PUBLIC-BY-DESIGN + 91 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **317 COVERED + 2 PUBLIC-BY-DESIGN + 87 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
