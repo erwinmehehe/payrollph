@@ -113,7 +113,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 24 | 0 | 9 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
