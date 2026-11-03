@@ -2,8 +2,10 @@
 
 ## Why the PR matrix became noisy
 
-The shared `scripts/qa/tenant-isolation-coverage-manifest.json` is edited by
-multiple independent API method proofs. Historically, its name appeared as a
+The shared `scripts/qa/tenant-isolation-coverage-manifest.json`, central
+`tests/tenant-isolation-coverage-inventory.test.mjs` and
+`docs/engineering/tenant-isolation-closure-plan.md` are edited by multiple
+independent API method proofs. Historically, its name appeared as a
 `pull_request.paths` trigger in many module-specific PostgreSQL 16 acceptance
 workflows. An update to one method therefore launched unrelated HR, Web Bundy,
 remittance, journal and broad DL-01/DL-02 runners, each creating a disposable
@@ -23,8 +25,8 @@ database and often rebuilding Next.js.
 
 ## Specialized proof scope
 
-Fourteen feature-specific workflows no longer use the shared manifest file as
-a **standalone PR trigger**. Their route, own proof runner, workflow, and other
+Fourteen feature-specific workflows no longer use those global inventory
+artifacts as **standalone PR triggers**. Their route, own proof runner, workflow, and other
 previously listed shared dependencies remain unchanged. If a PR changes an
 affected API handler, proof fixture or shared authorization/schema dependency
 listed by its workflow, the same real PostgreSQL/HTTP proof still runs.
@@ -44,6 +46,6 @@ as a skipped job on every current PR.
 ## Regression guard
 
 `tests/ci-tenant-workflow-paths.test.mjs` runs in the required CI validation
-job. It blocks reintroduction of the global manifest trigger into unrelated
-feature suites and checks that centralized required statuses and targeted
+job. It blocks reintroduction of broad shared inventory/closure-plan triggers into
+unrelated feature suites and checks that centralized required statuses and targeted
 ledger watchers remain in place.
