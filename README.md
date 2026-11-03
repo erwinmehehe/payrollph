@@ -117,20 +117,12 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Competitor columns are explicitly labelled as our reading of public positioning, **not** independently verified
 - The honest-status block states that the four remaining gaps are all blocked on external access, not code
 
-### Tenant isolation (fixed a systemic IDOR)
-- Before this pass, most session routes trusted `organizationId` from the query string or request body.
-  Any signed-in user could substitute another tenant's id and read their payroll, export their data,
-  or invite users into their workspace.
-- Every session-authenticated route now calls one shared gate, `assertMembership(userId, organizationId)`
-  in `src/lib/access.ts`, which returns **403** unless the user is a member of that workspace.
-- Routes addressed by a resource id (`/api/payroll-runs/[id]/process`, `/release`, `/exports`,
-  approvals, delegations, provisioning, data requests) resolve the resource's own organization and
-  check against that. The URL id is never treated as authorization.
-- The self-service link no longer accepts `organizationId` from the body at all; it resolves the
-  caller's own memberships and constrains the employee lookup with `IN (…)`.
-- Verified with a user scoped to a single workspace: **17/17 cross-tenant attempts return 403**,
-  including job-status, process, release, and exports on a foreign run; own-workspace access still returns 200.
-- `tests/tenancy.test.ts` fails the build if any session route drops the gate.
+### Tenant isolation (targeted hardening; full coverage is still being verified)
+- Earlier reviews found that some session routes trusted an `organizationId` supplied by the requester. Without server-side authorization, this could expose another employer's records.
+- Targeted fixes added membership checks such as `assertMembership(userId, organizationId)` in `src/lib/access.ts`. Resource-ID routes must also verify the resource's actual organization and the actor's authorization. A client-provided organization or resource ID is not proof of access.
+- A historical tenant-isolation smoke test reported **17/17** expected cross-tenant denials across its selected requests. That result covers only those tested cases. It is **not** a claim that every API method or page/action is isolated, nor a production/payroll release approval.
+- The authoritative method-by-method status is maintained in [the tenant isolation coverage manifest](scripts/qa/tenant-isolation-coverage-manifest.json) and [the closure plan](docs/engineering/tenant-isolation-closure-plan.md). [Issue #1740](https://github.com/erwinmehehe/payrollph/issues/1740) tracks unclaimed gaps and must be reconciled against the latest main and open PRs.
+- A `GAP` means full method-specific isolation evidence has not been accepted; it does **not** by itself establish an exploitable vulnerability. Do not promote a method to `COVERED` without current-source, disposable PostgreSQL real-HTTP evidence for legitimate own-tenant access, a real foreign-tenant denial, forged-selector rejection, unchanged victim database/audit state, and the applicable current-head checks and maintainer review.
 
 ### Employee self-service portal
 - A session with `role="employee"` is linked to exactly one employee record and lands on a personal portal
