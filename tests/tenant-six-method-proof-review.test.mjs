@@ -299,17 +299,30 @@ test("six-method review preserves the baseline with only three source-pinned #17
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-    assert.deepEqual(methodStatuses(baseline), snapshot.methodStatuses,
-      "origin/main method statuses changed; rebase and renew the ledger review");
+    // Main has three accepted-in-ledger, source-pinned #1728 compliance POSTs.
+    // It must NOT already contain this branch's fourth payout PATCH credit.
+    const mainExpected = JSON.parse(JSON.stringify(expectedStatuses));
+    assert.equal(mainExpected[payoutRoute].PATCH, "COVERED");
+    mainExpected[payoutRoute].PATCH = "GAP";
+    assert.deepEqual(methodStatuses(baseline), mainExpected,
+      "origin/main changed outside the three exact-source compliance credits; renew review");
+    const mainExpectedCounts = {
+      COVERED: snapshot.counts.COVERED + compliancePostCredits.length,
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+      GAP: snapshot.counts.GAP - compliancePostCredits.length,
+    };
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
-    }, snapshot.counts, "origin/main totals changed; renew ledger review");
+    }, mainExpectedCounts, "origin/main cannot borrow payout PATCH or other new credit");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
+    const mainFrozenSubtotal = snapshot.frozenSubtotal
+      .replace("313 COVERED", "316 COVERED")
+      .replace("91 GAP", "88 GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-      snapshot.frozenSubtotal, "origin/main frozen ledger changed; renew review");
+      mainFrozenSubtotal, "origin/main frozen ledger changed beyond three #1728 compliance credits");
   }
 });
