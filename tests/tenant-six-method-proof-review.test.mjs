@@ -5,6 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -184,14 +185,22 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
     counts[method.status]++;
   }
   assert.equal(allMethods.length, 498);
-  assert.deepEqual(counts, { COVERED:387, "PUBLIC-BY-DESIGN":10, GAP:101 });
+  const baseline = JSON.parse(execFileSync("git", ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
+  assert.deepEqual(counts, { COVERED:baseline.metrics.coveredAfter,
+    "PUBLIC-BY-DESIGN":baseline.metrics.publicByDesign, GAP:baseline.metrics.gap });
+  for (const { path, method } of allMethods) {
+    assert.equal(method.status, baseline.allApiRouteFiles[path].methods.find(row => row.name === method.name).status,
+      path + " " + method.name + ": this review must not promote or downgrade a method");
+  }
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
   assert.equal(m.metrics.gap, counts.GAP);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
-  assert.ok(inventory.includes("387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP"));
-  assert.ok(plan.includes("Frozen subtotal **303 COVERED + 2 PUBLIC-BY-DESIGN + 101 GAP = 406**"));
+  assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
+  const baselinePlan = execFileSync("git", ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"], { encoding: "utf8" });
+  const frozen = baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:"));
+  assert.ok(frozen && plan.includes(frozen), "preserve main's complete frozen ledger line");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 });

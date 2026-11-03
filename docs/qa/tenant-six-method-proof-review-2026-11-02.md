@@ -2,7 +2,7 @@
 
 **NOT ACCEPTED. No production environment, DB, Neon, SQL operation, bank, payout, provider event, CSP or real person is used here.** This is a source-and-CI-receipt review; it does not run the audited HTTP proofs again. No release gates are activated.
 
-Originally audited `main@11b6d544cf6bd30c84fc524a088f90627dec09e6`; refreshed against `main@9fb1ddd79a7517085097dae4d0e66e2552efc0f9` without adding credits. The manifest now retains **498 API methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP**, and **4 provisionally covered + 17 GAP** page/action surfaces. **This review adds zero credits.** Do not update the historical frozen queue or historical accepted proof SHA pins to disguise these holds.
+Originally audited `main@11b6d544cf6bd30c84fc524a088f90627dec09e6`; refreshed against `main@9fb1ddd79a7517085097dae4d0e66e2552efc0f9` without adding credits. That historical snapshot retained **498 API methods = 387 COVERED + 10 PUBLIC-BY-DESIGN + 101 GAP**, and **4 provisionally covered + 17 GAP** page/action surfaces. **This review adds zero credits.** Do not update the historical frozen queue or historical accepted proof SHA pins to disguise these holds.
 
 ## The exact four-part review and the strict victim-ID gate
 
