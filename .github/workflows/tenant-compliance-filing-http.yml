@@ -1,4 +1,4 @@
-name: Filing validation tenant PATCH (fictional PG16, rejected only)
+name: Filing validation tenant PATCH (fictional PG16, rejected and accepted paths)
 
 on:
   pull_request:
@@ -113,7 +113,7 @@ jobs:
           done
           cat /tmp/tenant-compliance-filing-next.log
           exit 1
-      - name: Prove two employers, higher-ID victim, forged filing ID and immutable rejection
+      - name: Prove two employers, synthetic accepted/rejected, victim denial and immutable DB/audit
         run: node --import tsx scripts/qa/tenant-compliance-filing-run.mjs
       - name: Show local server logs only on failure
         if: failure()
