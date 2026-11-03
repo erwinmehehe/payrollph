@@ -16,6 +16,7 @@ import {
   requireDisposableIssuedDemand, assertDemandWriteDenied,
   assertIssuedOwnHttp, assertScoredOwnHttp, assertDemandPrivate,
   assertNoOtherEmployerLeak, assertImmutableIssuedDemandSql,
+  assertCompleteIssuedDemandProofCounts,
 } from "./tenant-issued-demand-contract.mjs";
 
 const DAY = 86_400_000;
@@ -462,6 +463,11 @@ export async function proveIssuedDemandPosts() {
       "POST workforce/demand-observations/issued",
       "POST workforce/demand-observations/issued/score",
     ]);
+    // A green job is worthless if a future refactor silently skips any
+    // legitimate-positive, real-victim, forged-selector, MFA or replay branch.
+    // Both attacker employers and the allowlisted real higher-ID victim must
+    // exercise all evidence paths, not just the easiest happy-path request.
+    assertCompleteIssuedDemandProofCounts(counts);
     console.log(JSON.stringify({
       kind: "tenant-issued-demand-post-candidate",
       exactMethods: ISSUED_DEMAND_POST_METHODS, fictionalEmployers: 4,
