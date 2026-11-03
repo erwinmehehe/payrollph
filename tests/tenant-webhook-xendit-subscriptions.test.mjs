@@ -51,7 +51,7 @@ test("proof is inbound-only, one callback route, zero manifest credits", () => {
     "stale plan ignored",
     "for (let i = 0; i < 6; i++)",
     "const employers = [a, b, ...fillers, victim]",
-    "assertFictionalHighIdVictim(a, b, victim)",
+    "assertFictionalHighIdVictim(a, b, victim, fillers)",
     "assertEmployerSnapshotIsolation(before, after, allowed)",
     "signed callback missing reference",
     "signed callback missing provider plan",
