@@ -185,7 +185,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
     cases.filter(c => !skipOpenCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
 });
 
-test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", () => {
+test("live and frozen tenant ledgers allow only four pinned year-end credits", () => {
   const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
@@ -210,9 +210,100 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
       path, Object.fromEntries(data.methods.map(row => [row.name, row.status])),
     ]),
   );
-  assert.deepEqual(methodStatuses(m), snapshot.methodStatuses,
-    "No one of the 498 methods may be promoted, removed or downgraded in this review");
-  assert.deepEqual(counts, snapshot.counts, "Live status totals must match reviewed main");
+  // #1730 proposes exactly four source-pinned synthetic PG16 method credits.
+  // The historical six-method GAP hold is separate and must stay unchanged.
+  // These receipts are sole-owner development evidence, NOT independent review.
+  const permittedPromotions = [
+    {
+      path: "src/app/api/year-end/route.ts",
+      verb: "GET",
+      routeSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+      proofFile: "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs",
+      proofSha: "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",
+      workflowFile: ".github/workflows/tenant-year-end-post-candidate.yml",
+      workflowSha: "9e6ca6431b168e05afecc5e40a42b1973ad1f675",
+      proofHead: "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5",
+      workflowRunId: 41446394887,
+      actions: ["json", "preflight", "2316", "2316-print", "alphalist"],
+    },
+    {
+      path: "src/app/api/year-end/route.ts",
+      verb: "POST",
+      routeSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+      proofFile: "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs",
+      proofSha: "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",
+      workflowFile: ".github/workflows/tenant-year-end-post-candidate.yml",
+      workflowSha: "9e6ca6431b168e05afecc5e40a42b1973ad1f675",
+      proofHead: "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5",
+      workflowRunId: 41446394887,
+      actions: ["annualization", "bind-run"],
+    },
+    {
+      path: "src/app/api/year-end/prior-evidence/route.ts",
+      verb: "GET",
+      routeSha: "d2fc2fa7c4257d7e33545c8a23ea310abae7077d",
+      proofFile: "scripts/qa/tenant-sta01-prior-evidence-http.mjs",
+      proofSha: "350d22bee1fdbd726b85a32967d510994f6bfe00",
+      workflowFile: ".github/workflows/tenant-sta01-prior-evidence-http.yml",
+      workflowSha: "91bc91ceb677ac7ebf52c8edf78bcd2e43f3528d",
+      proofHead: "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5",
+      workflowRunId: 41446394999,
+      actions: ["read-decrypted"],
+    },
+    {
+      path: "src/app/api/year-end/prior-evidence/route.ts",
+      verb: "POST",
+      routeSha: "d2fc2fa7c4257d7e33545c8a23ea310abae7077d",
+      proofFile: "scripts/qa/tenant-sta01-prior-evidence-http.mjs",
+      proofSha: "350d22bee1fdbd726b85a32967d510994f6bfe00",
+      workflowFile: ".github/workflows/tenant-sta01-prior-evidence-http.yml",
+      workflowSha: "91bc91ceb677ac7ebf52c8edf78bcd2e43f3528d",
+      proofHead: "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5",
+      workflowRunId: 41446394999,
+      actions: ["save", "approve"],
+    },
+  ];
+  const expectedStatuses = Object.fromEntries(
+    Object.entries(snapshot.methodStatuses).map(([path, rows]) => [path, { ...rows }]),
+  );
+  for (const pin of permittedPromotions) {
+    const label = pin.verb + " " + pin.path;
+    assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " must start GAP on main");
+    const row = m.allApiRouteFiles[pin.path]?.methods.find(method => method.name === pin.verb);
+    assert.equal(row?.status, "COVERED", label + " is the only permitted credit");
+    const receipt = row.testedBy;
+    assert.equal(receipt?.prNumber, 1730, label + " proof must belong to this PR");
+    assert.equal(receipt?.verifiedPrHeadSha, pin.proofHead, label + " executed proof head");
+    assert.equal(receipt?.workflowRunId, pin.workflowRunId, label + " executed workflow");
+    assert.ok(receipt?.evidence?.includes("/actions/runs/" + pin.workflowRunId),
+      label + " must cite the executed proof run");
+    assert.equal(receipt?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(receipt?.ownerIsOnlyReviewer, true);
+    assert.equal(receipt?.independentlyAccepted, false);
+    assert.equal(receipt?.productionCertified, false);
+    assert.equal(receipt?.productionTested, false);
+    assert.equal(receipt?.postgresMajor, 16);
+    assert.deepEqual(receipt?.methodActions, pin.actions, label + " exact actions proven");
+    for (const [field, file, expectedSha] of [
+      ["routeBlobSha", pin.path, pin.routeSha],
+      ["proofBlobSha", pin.proofFile, pin.proofSha],
+      ["workflowBlobSha", pin.workflowFile, pin.workflowSha],
+    ]) {
+      assert.equal(receipt?.[field], expectedSha, label + " immutable " + field);
+      assert.equal(blobSha(file), expectedSha, label + " actual file hash " + file);
+    }
+    assert.equal(receipt?.file, pin.proofFile);
+    assert.equal(receipt?.workflowFile, pin.workflowFile);
+    expectedStatuses[pin.path][pin.verb] = "COVERED";
+  }
+  assert.deepEqual(methodStatuses(m), expectedStatuses,
+    "Only the four exact-source #1730 GET/POST methods may change status from main");
+  const expectedCounts = {
+    ...snapshot.counts,
+    COVERED: snapshot.counts.COVERED + permittedPromotions.length,
+    GAP: snapshot.counts.GAP - permittedPromotions.length,
+  };
+  assert.deepEqual(counts, expectedCounts, "Live totals must include exactly four #1730 credits");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -220,8 +311,13 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  assert.ok(plan.includes(snapshot.frozenSubtotal),
-    "Preserve the frozen subtotal from the exact main-base review");
+  const expectedFrozenSubtotal = snapshot.frozenSubtotal.replace(
+    "313 COVERED + 2 PUBLIC-BY-DESIGN + 91 GAP = 406",
+    "317 COVERED + 2 PUBLIC-BY-DESIGN + 87 GAP = 406",
+  );
+  assert.notEqual(expectedFrozenSubtotal, snapshot.frozenSubtotal);
+  assert.ok(plan.includes(expectedFrozenSubtotal),
+    "Frozen 406-method queue must reconcile only the four source-pinned #1730 credits");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
