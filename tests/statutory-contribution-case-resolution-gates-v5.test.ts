@@ -29,10 +29,17 @@ test("agency referral remains in review instead of pretending the case is resolv
   assert.ok(route.includes("Employee contribution issue referred to agency"));
 });
 
-test("agency referral writes an employee-visible immutable timeline event", () => {
-  assert.ok(route.includes('eventType: "referred_to_agency"'));
-  assert.ok(route.includes('visibility: "employee"'));
-  assert.ok(route.includes("Referred to the agency for verification."));
+test("agency referral writes an allowed employee-visible timeline event without closing the case", () => {
+  const start = route.indexOf('if (resolutionOutcome === "referred_to_agency")');
+  const end = route.indexOf("return Response.json({ case: result, resolved: false });", start);
+  assert.ok(start >= 0 && end > start, "referral must be its own open-case branch");
+  const referral = route.slice(start, end);
+  assert.match(referral, /eventType:\s*"payroll_update"/,
+    "the immutable SQL event-type CHECK permits payroll_update, not referred_to_agency");
+  assert.match(referral, /visibility:\s*"employee"/);
+  assert.match(referral, /status:\s*"in_review"/);
+  assert.match(referral, /Referred to the agency for verification\./);
+  assert.match(referral, /Employee contribution issue referred to agency/);
 });
 
 test("employee and payroll UI communicate that referral keeps the case open", () => {

@@ -185,7 +185,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
     cases.filter(c => !skipOpenCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
 });
 
-test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", () => {
+test("six-method review preserves the baseline with only three source-pinned #1728 POST credits", () => {
   const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
@@ -210,9 +210,58 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
       path, Object.fromEntries(data.methods.map(row => [row.name, row.status])),
     ]),
   );
-  assert.deepEqual(methodStatuses(m), snapshot.methodStatuses,
-    "No one of the 498 methods may be promoted, removed or downgraded in this review");
-  assert.deepEqual(counts, snapshot.counts, "Live status totals must match reviewed main");
+  // The six-method review itself grants ZERO credits. A separate and already
+  // source-pinned #1728 proposal adds exactly three disjoint STA-01 POSTs.
+  // Keep the reviewed 498-method baseline immutable, then apply ONLY those
+  // three explicitly named, proven, non-production changes for this PR.
+  const compliancePostCredits = [
+    ["src/app/api/compliance/contribution-issues/route.ts",
+      "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs",
+      "dfcf1615be01bb151e13a5d74c080299575ce53a"],
+    ["src/app/api/compliance/payroll-month-close/route.ts",
+      "scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs",
+      "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193"],
+    ["src/app/api/compliance/statutory-remittances/route.ts",
+      "scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs",
+      "f24a7349c902dae0bc41a3989c8a88df24aedb6f"],
+  ];
+  const expectedStatuses = JSON.parse(JSON.stringify(snapshot.methodStatuses));
+  for (const [path, sourceRowFile, sourceRowSha] of compliancePostCredits) {
+    assert.equal(expectedStatuses[path]?.POST, "GAP", path + ": source baseline must be GAP");
+    const route = m.allApiRouteFiles[path];
+    const method = route?.methods.find(row => row.name === "POST");
+    assert.equal(method?.status, "COVERED", path + ": #1728 POST status");
+    const proof = method.testedBy;
+    assert.ok(proof, path + ": a provisional credit requires source-pinned evidence");
+    assert.equal(proof.prNumber, 1728, path + ": unique PR owner");
+    assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
+    assert.equal(proof.workflowRunId, 41446327305);
+    assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(proof.postgresMajor, 16);
+    assert.equal(proof.independentlyAccepted, false);
+    assert.equal(proof.productionCertified, false);
+    assert.equal(proof.productionTested, false);
+    assert.equal(proof.sourceRowFile, sourceRowFile);
+    assert.equal(proof.sourceRowBlobSha, sourceRowSha);
+    assert.equal(blobSha(sourceRowFile), sourceRowSha,
+      path + ": fictional PG16 proof row modified without review");
+    assert.equal(proof.routeBlobSha, route.gitBlobSha);
+    assert.equal(blobSha(path), route.gitBlobSha,
+      path + ": handler changed since source review");
+    assert.equal(proof.proofBlobSha, blobSha("scripts/qa/tenant-write-table-http.mjs"));
+    assert.equal(proof.workflowBlobSha,
+      blobSha(".github/workflows/tenant-compliance-post-candidate.yml"));
+    expectedStatuses[path].POST = "COVERED";
+  }
+  assert.deepEqual(methodStatuses(m), expectedStatuses,
+    "No methods except the three exact #1728 POSTs may change from the reviewed 498-method baseline");
+  const expectedCounts = {
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length,
+    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+    GAP: snapshot.counts.GAP - compliancePostCredits.length,
+  };
+  assert.deepEqual(counts, expectedCounts,
+    "Only the three source-pinned #1728 credits may alter the live ledger totals");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -220,8 +269,12 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  assert.ok(plan.includes(snapshot.frozenSubtotal),
-    "Preserve the frozen subtotal from the exact main-base review");
+  const currentFrozenSubtotal = snapshot.frozenSubtotal
+    .replace("313 COVERED", "316 COVERED")
+    .replace("91 GAP", "88 GAP");
+  assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
+    currentFrozenSubtotal,
+    "The current frozen subtotal must include exactly three #1728 STA-01 credits");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the

@@ -419,7 +419,8 @@ export async function POST(request: Request) {
           organizationId,
           caseId,
           employeeId: issue.employeeId,
-          eventType: "referred_to_agency",
+          // Agency referral keeps the case in review; the immutable timeline permits payroll_update, not a separate referral event type.
+          eventType: "payroll_update",
           visibility: "employee",
           message: `Referred to the agency for verification. ${resolutionNote}`,
           actorUserId: user.id,
