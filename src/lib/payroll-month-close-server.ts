@@ -9,6 +9,7 @@ import {
   statutoryContributionIssueCases,
   statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMonthClosures,
+  statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { findFilingForm, provesOperationalFiling } from "@/lib/filing-evidence";
 import { buildLaborInspectionReadiness } from "@/lib/labor-inspection-readiness-server";
@@ -97,12 +98,32 @@ async function liveRemittanceCertification(organizationId: number, legalEntityId
     eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
   ));
 
+  // Match the statutory remittance certification route: an active hashed payment
+  // proof is part of the current remittance snapshot, not an optional shortcut.
+  const paymentEvidence = monthBatchIds.length
+    ? await db.select({
+        id: statutoryRemittancePaymentEvidence.id,
+        batchId: statutoryRemittancePaymentEvidence.batchId,
+        fileName: statutoryRemittancePaymentEvidence.fileName,
+        fileSha256: statutoryRemittancePaymentEvidence.fileSha256,
+        byteSize: statutoryRemittancePaymentEvidence.byteSize,
+        status: statutoryRemittancePaymentEvidence.status,
+        uploadedByUserId: statutoryRemittancePaymentEvidence.uploadedByUserId,
+        uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
+        uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
+      }).from(statutoryRemittancePaymentEvidence).where(and(
+        eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+        inArray(statutoryRemittancePaymentEvidence.batchId, monthBatchIds),
+      ))
+    : [];
+
   const evaluation = evaluateRemittanceMonthClose({
     applicableMonth,
     batches: state.batches,
     members: state.members,
     alerts: state.alerts,
     corrections,
+    paymentEvidence,
     issueCases,
     requiredAgencies,
     allPayrollRunsReleased:
