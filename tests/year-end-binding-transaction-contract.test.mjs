@@ -9,7 +9,10 @@ const route = readFileSync("src/app/api/year-end/route.ts", "utf8");
 const queue = readFileSync("src/lib/payroll-engine.ts", "utf8");
 
 const boundPathIsAtomic = (yearEndSource, routeSource, queueSource) =>
-  yearEndSource.includes('}, { isolationLevel: "serializable" });')
+  yearEndSource.includes("YEAR_END_BINDING_REQUIRES_MATCHED_RUN_AND_ATOMIC_CALLBACK")
+  && yearEndSource.includes("YEAR_END_UNBOUND_CALLBACK_NOT_ALLOWED")
+  && yearEndSource.includes("YEAR_END_BINDING_REQUIRES_DECEMBER_31_CUTOFF")
+  && yearEndSource.includes('}, { isolationLevel: "serializable" });')
   && yearEndSource.includes("await options.onBoundToPayrollRun(tx, summary);")
   && yearEndSource.indexOf("await options.onBoundToPayrollRun(tx, summary);")
     < yearEndSource.lastIndexOf('}, { isolationLevel: "serializable" });')
@@ -42,4 +45,17 @@ test("regression guard rejects a split queue or an independently committed audit
   assert.equal(boundPathIsAtomic(yearEnd, route, queue.replace(
     "if (transaction) await queueInTransaction(transaction);",
     "await db.transaction(queueInTransaction);")), false);
+});
+
+
+test("binding options and December cutoff are fail-closed inside the transaction", () => {
+  assert.match(yearEnd, /if \(options\.bindToPayrollRunId != null &&\s+\(options\.includePayrollRunId !== options\.bindToPayrollRunId \|\| !options\.onBoundToPayrollRun\)\) \{\s+throw new Error\("YEAR_END_BINDING_REQUIRES_MATCHED_RUN_AND_ATOMIC_CALLBACK"\)/);
+  assert.match(yearEnd, /if \(options\.onBoundToPayrollRun && options\.bindToPayrollRunId == null\) \{\s+throw new Error\("YEAR_END_UNBOUND_CALLBACK_NOT_ALLOWED"\)/);
+  assert.match(yearEnd, /if \(options\.bindToPayrollRunId != null && !String\(candidate\.periodEnd\)\.endsWith\("-12-31"\)\) \{\s+throw new Error\("YEAR_END_BINDING_REQUIRES_DECEMBER_31_CUTOFF"\)/);
+  assert.equal(boundPathIsAtomic(yearEnd.replace("YEAR_END_BINDING_REQUIRES_MATCHED_RUN_AND_ATOMIC_CALLBACK",
+    "BINDING_WITHOUT_CALLBACK_ALLOWED"), route, queue), false,
+    "a binding may not silently commit without its queue and final audit");
+  assert.equal(boundPathIsAtomic(yearEnd.replace("YEAR_END_BINDING_REQUIRES_DECEMBER_31_CUTOFF",
+    "CUTOFF_UNVERIFIED"), route, queue), false,
+    "the binding cutoff must be revalidated within the serializable snapshot");
 });
