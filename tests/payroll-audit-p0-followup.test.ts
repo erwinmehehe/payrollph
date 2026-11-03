@@ -16,6 +16,7 @@ import { settlePayrollRun } from "../src/lib/payroll-settlement";
 import { generateGovernmentDraft, generateJournalCsv } from "../src/lib/exporters";
 import { computePagIbig, computePhilHealth, computeSss } from "../src/lib/payroll-rules";
 import { runYearEndAnnualization } from "../src/lib/year-end";
+import { recordAuditEvent } from "../src/lib/audit";
 
 function traceValue(trace: unknown, key: string) {
   const inputs = trace && typeof trace === "object"
@@ -257,9 +258,31 @@ test("year-end refund or collection is bound to final payroll and settled atomic
         includePayrollRunId: finalRun.id,
         bindToPayrollRunId: finalRun.id,
         approvedBy: "Audit",
+        onBoundToPayrollRun: async (tx, boundSummary) => {
+          // The queue reset and final binding receipt must participate in the
+          // same serializable transaction as adjustment replacement.
+          await enqueuePayrollRun(finalRun.id, undefined, tx);
+          await recordAuditEvent({
+            organizationId: org.id,
+            actor: "Audit",
+            action: "Year-end tax adjustments bound to payroll",
+            resource: finalRun.periodLabel,
+            metadata: {
+              taxYear: 2026,
+              payrollRunId: finalRun.id,
+              refunds: boundSummary.refunds,
+              collections: boundSummary.collections,
+              totalRefund: boundSummary.totalRefund,
+              totalCollect: boundSummary.totalCollect,
+              requiresRecalculation: true,
+            },
+          }, tx);
+        },
       },
     );
     assert.equal(summary.boundPayrollRunId, finalRun.id);
+    const [requeued] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, finalRun.id));
+    assert.equal(requeued.status, "Queued", "binding and queue commit together");
 
     const [bound] = await db.select().from(yearEndAdjustments).where(and(
       eq(yearEndAdjustments.organizationId, org.id),
@@ -270,7 +293,6 @@ test("year-end refund or collection is bound to final payroll and settled atomic
     assert.notEqual(Number(bound.adjustment), 0);
     assert.equal(bound.status, "approved");
 
-    await enqueuePayrollRun(finalRun.id);
     await drainPayrollQueue(20, finalRun.id);
 
     const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, finalRun.id));
