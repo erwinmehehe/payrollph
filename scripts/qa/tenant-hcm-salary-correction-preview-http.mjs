@@ -18,6 +18,8 @@ export function requireDisposableSalaryPreview(env = process.env) {
     HCM_SALARY_CORRECTION_PREVIEW_ENABLED: "true",
     PAYMONGO_DISBURSEMENTS_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
     XENDIT_BILLING_ENABLED: "false", DEMO_MODE: "false",
+    WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
+    NEXT_CSP_ENABLED: "false",
   };
   for (const [name, value] of Object.entries(required)) {
     assert.equal(env[name], value, "SALARY_PREVIEW_REFUSED: " + name);
@@ -137,12 +139,16 @@ async function main() {
     const snapshot = async (orgId) => {
       const own = table => db.select().from(table)
         .where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
-      const [workers, profiles, revisions, payroll, grants, audits] = await Promise.all([
+      const [workers, profiles, revisions, payroll, payrollEntries, grants, audits] = await Promise.all([
         own(s.employees), own(s.employeePayProfiles),
         own(s.employeePayRevisions), own(s.payrollRuns),
+        db.select().from(s.payrollEntries)
+          .innerJoin(s.payrollRuns, eq(s.payrollEntries.payrollRunId, s.payrollRuns.id))
+          .where(eq(s.payrollRuns.organizationId, orgId))
+          .orderBy(asc(s.payrollEntries.id)),
         own(s.userLegalEntityGrants), own(s.auditEvents),
       ]);
-      return { workers, profiles, revisions, payroll, grants, audits };
+      return { workers, profiles, revisions, payroll, payrollEntries, grants, audits };
     };
     const snapshots = async () => Promise.all(actors.map(x => snapshot(x.org.id)));
 
@@ -204,6 +210,7 @@ async function main() {
         {name: "ungranted sibling selector on own worker", body: bodyFor(actor, actor.worker.id, actor.siblingEntity.id), status: 403},
         {name: "higher-ID real foreign employer", body: bodyFor(victim), status: 403},
         {name: "foreign worker object under owned employer", body: bodyFor(actor, victim.worker.id), status: 404},
+        {name: "forged higher-ID victim legal employer and employee", body: bodyFor(actor, victim.worker.id, victim.entity.id), status: 403},
         {name: "conflicting entity header", body: bodyFor(actor), extraHeaders: {"x-legal-entity-id": String(actor.siblingEntity.id)}, status: 403},
         {name: "duplicate query entity selectors", body: bodyFor(actor), query: "?legalEntityId=" + actor.entity.id + "&legalEntityId=" + actor.entity.id, status: 403},
         {name: "noncanonical body selector", body: {...bodyFor(actor), legalEntityId: "0" + actor.entity.id}, status: 403},
@@ -224,7 +231,7 @@ async function main() {
           "denied " + check.name + " must preserve all employers' SQL");
       }
     }
-    assert.equal(denied, 16);
+    assert.equal(denied, 18);
 
     // The same authenticated session must lose access when its entity grant is
     // revoked, even though its tenant-wide owner membership remains active.
@@ -247,10 +254,11 @@ async function main() {
       separateOwnerAttackers: 2, higherIdVictim: true,
       ownRevisionBacked200: 2, ungrantedSiblingDenied: 4,
       realForeignTenantDenied: 2, crossWorkerObjectDenied: 2,
-      selectorForgeryDenied: 6, totalNegativeDenials: denied,
+      selectorForgeryDenied: 8, totalNegativeDenials: denied,
       revokedSameSessionDenied: true, persistedSourcesUnchanged: true,
       moneyChanges: 0, outsideProviders: 0,
       methodStatus: "GAP", newCoverageCredits: 0,
+      reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY", soleReviewer: "repository owner",
     }));
   } finally {
     if (nextServer && nextServer.exitCode === null) {

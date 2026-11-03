@@ -29,7 +29,21 @@ test("Extended actual PG16 BIR test is additive, two-attacker and zero-credit", 
     'result.records[0]?.employeeNo === e.worker.employeeNo',
     'legalEntityId: victim.entity.id',
     'await snapshot(e), before.get(e.org.id)',
-    'owned === 3 && denied === 4',
+    'owned === 3 && ownedChecks === 3 && ownedDownloads === 3',
+    'denied === 16',
+    'for (let pad = 0; pad < 6; pad++)',
+    'victim.org.id > 6 && victim.worker.id > 6 && victim.entity.id > 6',
+    'for (const mode of ["template", "check", "download"])',
+    'bodyFor(attacker, mode, victim)',
+    'data: { ...bodyFor(attacker, mode), legalEntityId: victim.entity.id }',
+    'employeeNo: victim.worker.employeeNo',
+    'assert.deepEqual(await snapshot(victim), before.get(victim.org.id)',
+    'assert.deepEqual(await snapshot(attacker), before.get(attacker.org.id)',
+    'actualSha === checkResult.fileSha256',
+    'afterDownload.audit.length === beforeCheck.audit.length + 1',
+    'realOwnChecks: ownedChecks',
+    'realOwnDraftDownloads: ownedDownloads',
+    'allThreeModesExercised: true',
     'acceptedByBIR: false',
     'credits: 0',
   ]) assert.ok(runner.includes(token), "Missing BIR tenant proof control: " + token);
@@ -37,4 +51,19 @@ test("Extended actual PG16 BIR test is additive, two-attacker and zero-credit", 
   assert.ok(workflow.includes("node --import tsx scripts/bir-1604c-synthetic-browser.mjs"),
     "Previously accepted synthetic feature/browser acceptance must remain intact");
   assert.ok(workflow.includes("image: postgres:16"));
+});
+
+test("All candidate POST modes require the real accepted path, not only template denial", () => {
+  for (const mode of ['"template"', '"check"', '"download"'])
+    assert.ok(route.includes(mode), "Missing accepted BIR action " + mode);
+  assert.ok(runner.includes('const candidateBytes = await downloaded.body()'),
+    "Download must inspect actual draft DAT bytes");
+  assert.ok(runner.includes('const checkResult = await checked.json()'),
+    "Check must exercise real HTTP with real current source digest");
+  assert.ok(runner.includes('for (const attacker of [a, b])'),
+    "Two independent own employers must be tested");
+  assert.ok(runner.includes('if (mode !== "template")'),
+    "Foreign employee selector refusal must cover check/download");
+  assert.ok(!runner.includes('realOwnChecks: 0') && !runner.includes('realOwnDraftDownloads: 0'),
+    "No hardcoded fake coverage counters");
 });

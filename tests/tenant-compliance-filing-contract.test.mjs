@@ -283,7 +283,7 @@ test("filing outcome and audit share one PostgreSQL commit, including audit-veto
   assert.match(proof, /atomicAuditInsertRollbackProven: true/);
 });
 
-test("manifest is still GAP; synthetic rejection is not external agency acceptance", () => {
+test("manifest is still GAP; fictional accepted status is NOT an external agency acknowledgement", () => {
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles)
@@ -302,4 +302,36 @@ test("manifest is still GAP; synthetic rejection is not external agency acceptan
   assert.ok(source.includes("proveOwnRejectedFiling("));
   assert.ok(source.includes("proveFilingStateUntouched("));
   assert.ok(source.includes('outcome: "accepted"'));
+});
+
+test("accepted outcome branch uses a second real own PG16 filing, exact audit and victim-denial controls", () => {
+  const proof = readFileSync("scripts/qa/tenant-table-rows/write/compliance-filing.mjs", "utf8");
+  for (const anchor of [
+    'for (let pad = 0; pad < 6; pad++)',
+    'Number.isSafeInteger(filing.id) && filing.id > 6',
+    'const [acceptFixture] = await db.insert(governmentFilingValidations).values({',
+    'acceptedOwnDecisionPG16: true',
+    'acceptedForeignAndForgedDenied: true',
+    'acceptedVictimDbAndAuditUnchanged: true',
+    'acceptedBranchNoRealAgencySubmission: true',
+    'const acceptedHttp = expectStatus(await request(',
+    'status, "accepted"',
+    'persistedAccepted.status, "accepted"',
+    'acceptedAudit.action, "SSS R-3 filing accepted"',
+    'acceptedAudit.organizationId, ctx.orgId',
+    'acceptedHttp.json?.record',
+    'beforeAccepted.filings.filter',
+    'victimBeforeAccepted,',
+    'ctx.victimSeeded.id',
+    'method: "PATCH", cookie, body: deniedCase.body',
+    'proveFilingStateUntouched(afterAccepted, await state(ctx.orgId))',
+  ]) assert.ok(proof.includes(anchor), "Missing accepted-case PG16 HTTP/SQL proof: " + anchor);
+  assert.ok(proof.includes('note: "Fictional branch-coverage acceptance only; never submitted to SSS"'),
+    "An accepted branch is not an actual government submission");
+  // Read the actual dedicated CI workflow. A missing local binding previously
+  // failed before checking the disposable PostgreSQL 16 proof environment.
+  const workflow = readFileSync(
+    ".github/workflows/tenant-compliance-filing-http.yml", "utf8");
+  assert.ok(workflow.includes("image: postgres:16"),
+    "Accepted-path proof must be confined to a disposable PostgreSQL 16 job");
 });
