@@ -262,10 +262,10 @@ async function prove() {
     const rollbackBefore = await snapshotAll();
     await pool.query(
       "create function ci_careers_edg01_audit_veto() returns trigger " +
-      "language plpgsql as $ begin " +
+      "language plpgsql as $$ begin " +
       "if new.action = 'Careers requisition unpublished' then " +
       "raise exception 'CI_CAREERS_AUDIT_VETO'; end if; " +
-      "return new; end $");
+      "return new; end $$");
     try {
       await pool.query(
         "create trigger ci_careers_edg01_audit_veto_trigger " +
