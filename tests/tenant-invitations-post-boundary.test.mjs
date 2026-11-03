@@ -3,7 +3,7 @@ import {test} from "node:test";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {requireDisposableInvitations,proveOwnInvitationRead,proveOwnInvitationPost,proveUnchanged} from "../scripts/qa/tenant-invitations-post-boundary.mjs";
-const env={GITHUB_ACTIONS:"true",CI:"true",NODE_ENV:"production",TENANT_SECOND_PASS_MODE:"isolated-ci-only",DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",SECURITY_SMOKE_URL:"http://127.0.0.1:3000",APP_BASE_URL:"https://payroll.example.test",REQUIRE_PRIVILEGED_MFA:"true",WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",XENDIT_BILLING_ENABLED:"false",DEMO_MODE:"false",SMTP_URL:"smtp://127.0.0.1:2525",MAIL_FROM:"PayrollPH QA <no-reply@example.invalid>"};
+const env={GITHUB_ACTIONS:"true",CI:"true",NODE_ENV:"production",TENANT_SECOND_PASS_MODE:"isolated-ci-only",DATABASE_URL:"postgresql://postgres:postgres@127.0.0.1:5432/app_db",SECURITY_SMOKE_URL:"http://127.0.0.1:3000",APP_BASE_URL:"https://payroll.example.test",REQUIRE_PRIVILEGED_MFA:"true",WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",XENDIT_BILLING_ENABLED:"false",DEMO_MODE:"false",NEXT_CSP_ENABLED:"false",SMTP_URL:"smtp://127.0.0.1:2525",MAIL_FROM:"PayrollPH QA <no-reply@example.invalid>"};
 test("refuse non-disposable environment and providers",()=>{
  assert.doesNotThrow(()=>requireDisposableInvitations(env));
  for(const [k,v] of Object.entries(env)){
@@ -39,6 +39,7 @@ test("strict SMTP allowlist cannot be replaced by remote delivery or weaker prov
   assert.throws(()=>requireDisposableInvitations({...env,SMTP_URL:smtp}));
  }
  assert.throws(()=>requireDisposableInvitations({...env,XENDIT_BILLING_ENABLED:"true"}));
+ assert.throws(()=>requireDisposableInvitations({...env,NEXT_CSP_ENABLED:"true"}));
  assert.throws(()=>requireDisposableInvitations({...env,MAIL_FROM:"Somebody <real@example.com>"}));
 });
 test("owned POST requires a real SMTP token-hash, delivered outbox and actor audit",()=>{
@@ -110,6 +111,8 @@ test("actual same-method POST proof includes real forged victim selectors and no
   "const mailBefore=smtp.captured.length",
   "smtp.captured.length,mailBefore",
   "smtp.captured.length,forgedMailBefore",
+  "for(const actor of [a,b])",
+  "assert.equal(forgedUnitDenials,2",
   "smtp.captured.length,unitDeniedMailBefore",
   "smtp.captured.length,revokedMailBefore",
   "smtp.captured.length,duplicateMailBefore",
