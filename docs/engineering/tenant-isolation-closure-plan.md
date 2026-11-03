@@ -1,6 +1,10 @@
-# Tenant isolation closure plan — 490 API methods and 20 page/action surfaces
+# Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
 > **NOT ACCEPTED — baseline only.** Audited GitHub `main@28e1224448342c34a4899fb67660b3da504530c1` on 2026-10-21: 289 route files, 490 HTTP methods, **76 COVERED / 8 PUBLIC-BY-DESIGN / 406 GAP**, plus **20 page/action GAPs**. No additional methods are certified by writing this plan. This document is a **frozen 406-method closure queue**; later PRs must update the live manifest and the inventory headline independently. Manifest acceptance stays **NOT ACCEPTED**; an independent owner/reviewer decides acceptance.
+
+## 2026-11-03 PR #1727 main integration — DRAFT, NOT ACCEPTED
+
+Current live proposed ledger **498 methods = 395 COVERED + 10 PUBLIC-BY-DESIGN + 93 GAP**. Six newly promoted disjoint POST methods: `POST leave/conversion`, `POST payroll/overpayment-preflight`, `POST outbox`, `POST treasury-controls`, `POST compliance/labor-inspection`, `POST earned-wage`. Two additional originally proposed methods, `POST leave` and `POST governed-handoffs`, were **dropped as new credits**: both are already covered on main by the newer #1736 source-matched proof [41452144006](https://github.com/erwinmehehe/payrollph/actions/runs/41452144006), not #1727's older #1735 receipt. Main's updated governed-handoff audit atomicity, proof pins and SQL safety guards are preserved. The six retained historical PG16/HTTP receipts had exact route/proof/workflow blobs matching current main; the new combined integration head still requires CI. Evidence labelled **SOLO_VERIFIED_DEV_RECOVERY** only, never independent security acceptance. Frozen 406-method subset: **311 COVERED + 2 PUBLIC-BY-DESIGN + 93 GAP**; page/action 4 covered provisionally, 17 gaps. No production SQL, Neon, API route changes, payment, payout, provider, CSP, real data, feature rollout or deployment.
 
 ## 2026-11-02 merged-proof four-part re-audit on main@11b6d544 — ZERO CREDITS / NOT ACCEPTED
 
@@ -87,18 +91,18 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 20 | 2 | 4 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 22 | 0 | 11 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 22 | 0 | 11 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 24 | 0 | 9 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 22 | 0 | 5 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 30 | 0 | 9 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 36 | 0 | 4 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 20 | 0 | 13 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 
-Frozen subtotal: **305 COVERED + 2 PUBLIC-BY-DESIGN + 99 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **311 COVERED + 2 PUBLIC-BY-DESIGN + 93 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

@@ -34,7 +34,7 @@ const allMethods = Object.entries(m.allApiRouteFiles).flatMap(([path, value]) =>
 const inventory = readFileSync("docs/engineering/tenant-isolation-coverage-inventory.md", "utf8");
 const plan = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
 
-test("six exact method identities stay GAP, zero credits and source/head anchored", () => {
+test("four uncredited methods stay GAP; two main-owned provisional credits are preserved", () => {
   assert.equal(cases.length, 6);
   for (const [verb, route, pr, head, proofSha, own, foreign, forged, unchanged, ordering, missing] of cases) {
     const path = "src/app/api/" + route + "/route.ts";
@@ -42,17 +42,24 @@ test("six exact method identities stay GAP, zero credits and source/head anchore
     assert.ok(entry, path);
     const method = entry.methods.find(row => row.name === verb);
     const label = verb + " " + route;
-    assert.equal(method?.status, "GAP", label);
-    assert.equal(method.testedBy, null, label + " must never borrow a partial receipt");
     if (skipOpenCredit.has(label)) {
-      assert.equal(method.reason, "No valid own-object + real victim-only denial was linked to this method",
-        label + ": concurrent open #1727 owns any proposed credit; keep main entry unchanged");
-      assert.equal(method.reviewedUncertified, undefined, label + ": no overlapping metadata change");
-      const skippedRow = inventory.split("\n").find(line => line.includes("[\x60" + route + "\x60 " + verb + "]("));
-      assert.ok(skippedRow?.includes("NO VALID METHOD PROOF") && skippedRow.includes("**GAP**"),
-        label + ": skipped inventory citation must be unchanged");
+      // #1727 has now merged these two source-matched provisional credits to
+      // main. This review must leave their existing proof and credit untouched.
+      assert.equal(method?.status, "COVERED", label + ": preserve already-merged main credit");
+      assert.equal(method.testedBy?.proofHeadSha, head, label + " original verified head");
+      assert.equal(method.testedBy?.proofBlobSha, proofSha, label + " original proof bytes");
+      assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(method.testedBy?.independentlyAccepted, false);
+      assert.equal(method.testedBy?.productionCertified, false);
+      assert.equal(method.reviewedUncertified, undefined, label + ": no new method review metadata");
+      const skippedRow = inventory.split("\n").find(line =>
+        line.includes("[`" + route + "` " + verb + "]("));
+      assert.ok(skippedRow?.includes("**COVERED**") && skippedRow.includes("PG16 own POST"),
+        label + ": inventory must keep main's existing provisional proof");
       continue;
     }
+    assert.equal(method?.status, "GAP", label);
+    assert.equal(method.testedBy, null, label + " must never borrow a partial receipt");
     assert.match(method.reason, /Still GAP:/, label);
     const review = method.reviewedUncertified?.reconciliationReview;
     assert.ok(review && typeof review === "object", label);
@@ -191,12 +198,12 @@ test("live and frozen tenant ledgers remain exactly unchanged and unaccepted", (
   // exact-base snapshot. This is a strict fallback, not an acceptance waiver.
   const fixtureFile = "tests/fixtures/tenant-six-method-main-ledger-20261103.json";
   const snapshot = JSON.parse(readFileSync(fixtureFile, "utf8"));
-  assert.equal(blobSha(fixtureFile), "edcb541381843bf3e5c4bdd3f36be34892effcb8",
+  assert.equal(blobSha(fixtureFile), "1cb333370bef3edbcbd79b679dc948388a774953",
     "Main ledger fixture changed; renew source-level security review");
   assert.equal(snapshot.schema, "payrollph-six-method-main-ledger-snapshot-v1");
-  assert.equal(snapshot.sourceCommit, "d3fee31d4be2eb2f73523cf09b01ee097f5141fc");
-  assert.equal(snapshot.sourceManifestGitBlobSha, "0f58fe100b624116127c736d73a235a6934b8ef9");
-  assert.equal(snapshot.sourceClosurePlanGitBlobSha, "1d02e2acd62ff1f28f507fd2d88337ce7f48905f");
+  assert.equal(snapshot.sourceCommit, "1572750758e375387d3e9abb0dbad2ce899ce640");
+  assert.equal(snapshot.sourceManifestGitBlobSha, "4758e9ca12e62505a9c751a98e4bb61b5db0d6a4");
+  assert.equal(snapshot.sourceClosurePlanGitBlobSha, "1e9c0019b9fb888a66f4bfd23db57e4169f43339");
   assert.equal(Object.keys(snapshot.methodStatuses).length, 295);
   const methodStatuses = manifest => Object.fromEntries(
     Object.entries(manifest.allApiRouteFiles).map(([path, data]) => [
