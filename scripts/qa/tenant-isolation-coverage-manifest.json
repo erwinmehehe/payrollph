@@ -21126,12 +21126,12 @@
       ]
     },
     "src/app/api/payroll-outsourcing/quote/route.ts": {
-      "gitBlobSha": "0950bcb93b5ab1848e1a58be643ef6696be71222",
+      "gitBlobSha": "1b4e5363ceeef9ebe30e2dd5657d21482fe1e8a6",
       "route": "payroll-outsourcing/quote",
       "methods": [
         {
           "name": "POST",
-          "line": 16,
+          "line": 17,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null
@@ -21146,11 +21146,11 @@
       },
       "guards": [
         {
-          "line": 10,
+          "line": 11,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 17,
+          "line": 18,
           "token": "enforceSameOriginMutation"
         }
       ],
