@@ -21265,15 +21265,26 @@
       ]
     },
     "src/app/api/payroll-outsourcing/quote/route.ts": {
-      "gitBlobSha": "0950bcb93b5ab1848e1a58be643ef6696be71222",
+      "gitBlobSha": "1b4e5363ceeef9ebe30e2dd5657d21482fe1e8a6",
       "route": "payroll-outsourcing/quote",
       "methods": [
         {
           "name": "POST",
-          "line": 16,
+          "line": 17,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: publicly reachable payroll-outsourcing quote POST accepts anonymous enquiries, not tenant-scoped reads. An attribution-only source change preserves the existing same-origin, honeypot, intake-proof, consent and rate-limit controls; no tenant-isolation credit, production certification or independent review is claimed.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "public-outsourcing-attribution-source-only-zero-tenant-credit",
+            "originalRouteBlobSha": "0950bcb93b5ab1848e1a58be643ef6696be71222",
+            "routeBlobSha": "1b4e5363ceeef9ebe30e2dd5657d21482fe1e8a6",
+            "contractFile": "tests/marketing-outsourcing-attribution.test.ts",
+            "contractBlobSha": "d188e159ca475d793b4b18647da3fde110906e87",
+            "methodCredits": 0,
+            "reviewedPublicBoundary": "ANONYMOUS_MARKETING_INTAKE_NOT_TENANT_COVERAGE",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -21285,11 +21296,11 @@
       },
       "guards": [
         {
-          "line": 10,
+          "line": 11,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 17,
+          "line": 18,
           "token": "enforceSameOriginMutation"
         }
       ],
