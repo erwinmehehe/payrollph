@@ -133,6 +133,16 @@ export async function runYearEndAnnualization(
     onBoundToPayrollRun?: (tx: YearEndTransaction, summary: BoundYearEndSummary) => Promise<void>;
   } = {},
 ) {
+  // A payroll binding must never persist approved/settled adjustments unless
+  // the same transaction also completes the matching queue and audit writes.
+  if (options.bindToPayrollRunId != null &&
+      (options.includePayrollRunId !== options.bindToPayrollRunId || !options.onBoundToPayrollRun)) {
+    throw new Error("YEAR_END_BINDING_REQUIRES_MATCHED_RUN_AND_ATOMIC_CALLBACK");
+  }
+  if (options.onBoundToPayrollRun && options.bindToPayrollRunId == null) {
+    throw new Error("YEAR_END_UNBOUND_CALLBACK_NOT_ALLOWED");
+  }
+
   await ensureMigrationSchema();
   const usePriorEvidence = priorEvidenceEnabled();
   if (usePriorEvidence && criticalReleaseFlagEnabled("multiEntity")) throw new Error("PRIOR_MULTI_ENTITY_DEFERRED");
@@ -169,6 +179,11 @@ export async function runYearEndAnnualization(
     }
     if (candidate.status !== "Needs review") {
       throw new Error("Apply year-end tax only to a freshly calculated payroll run in Needs review status.");
+    }
+    // Recheck the December cutoff inside the serializable snapshot, not only
+    // in the HTTP preflight where the payroll run could have changed.
+    if (options.bindToPayrollRunId != null && !String(candidate.periodEnd).endsWith("-12-31")) {
+      throw new Error("YEAR_END_BINDING_REQUIRES_DECEMBER_31_CUTOFF");
     }
     includedRun = candidate;
   }
