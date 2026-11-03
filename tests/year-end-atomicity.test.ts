@@ -117,14 +117,38 @@ test("failing audit insert rolls back deletion and replacement of year-end finan
   }
 });
 
-test("failed adjustment FK insert rolls back deletion and leaves the old calculation intact", async () => {
+test("failed adjustment FK insert inside binding callback rolls back deletion and prior financial state", async () => {
   const { org, prior } = await fixture();
   try {
-    await assert.rejects(runYearEndAnnualization(
-      org.id, YEAR, "Fictional finance", { bindToPayrollRunId: -1 },
-    ), (error: unknown) => isPgError(error, "23503"));
+    const [finalRun] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Fictional year-end final cutoff",
+      periodStart: "2026-12-16",
+      periodEnd: "2026-12-31",
+      payDate: "2026-12-31",
+      status: "Needs review",
+    }).returning();
+    // Supply a valid, matching year-end binding and mandatory callback so
+    // the FK failure occurs AFTER annualization has deleted the old row and
+    // inserted a replacement. The 23503 must roll all of that back.
+    await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional finance", {
+      includePayrollRunId: finalRun.id,
+      bindToPayrollRunId: finalRun.id,
+      onBoundToPayrollRun: async (tx) => {
+        await tx.insert(yearEndAdjustments).values({
+          organizationId: org.id,
+          employeeId: prior.employeeId,
+          taxYear: YEAR,
+          grossCompensation: "0.00",
+          payrollRunId: -1,
+        });
+      },
+    }), (error: unknown) => isPgError(error, "23503"));
     assertPriorUnchanged(prior, await adjustmentRows(org.id));
-    assert.equal((await countAudit(org.id)).length, 0);
+    assert.equal((await countAudit(org.id)).length, 0,
+      "The rolled-back bound adjustment must leave no annualization audit");
+    const [runAfter] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, finalRun.id));
+    assert.equal(runAfter.status, "Needs review", "FK failure must not change the final run");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
