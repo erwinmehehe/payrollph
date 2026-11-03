@@ -4,8 +4,16 @@ on:
     branches: [main]
     paths:
       - 'scripts/qa/first-payroll-full-*.mjs'
+      - 'scripts/qa/first-payroll-browser-journey.mjs'
       - 'tests/first-payroll-*.test.*'
       - 'src/components/workspace/production-pilot-signoff.tsx'
+      - 'src/components/workspace/clean-role-dashboard.tsx'
+      - 'src/components/workspace/approvals.tsx'
+      - 'src/components/workspace/checker-variance.tsx'
+      - 'src/components/workspace/payroll-run.tsx'
+      - 'src/components/workspace/exports.tsx'
+      - 'src/components/workspace/owner-payroll-release.tsx'
+      - 'src/components/workspace/panels.tsx'
       - 'src/app/api/employees/**'
       - 'src/app/api/workforce/timesheets/**'
       - 'src/app/api/payroll-runs/**'
@@ -75,12 +83,15 @@ jobs:
           cat /tmp/first-payroll-full.log
           exit 1
       - run: env -u NODE_ENV node --import tsx scripts/qa/first-payroll-full-http.mjs
+      - name: Full browser payroll lifecycle with three distinct fictional roles
+        run: env -u NODE_ENV node --import tsx scripts/qa/first-payroll-browser-journey.mjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: first-payroll-full-reconciliation
           path: |
             outputs/first-payroll-full.json
+            outputs/first-payroll-browser-journey.json
             outputs/first-payroll-*.png
           retention-days: 7
       - if: failure()
