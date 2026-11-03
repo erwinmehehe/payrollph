@@ -90,8 +90,20 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         // A *Line citation can name its own *File (rowLine/rowFile or
         // victimUnchangedLine/victimUnchangedFile). Never pin it against the
         // primary proof file when the manifest declares a companion file.
+        // Method-specific source rows carry several *Line anchors in the
+        // SAME sourceRowFile. Treating sourceRowOwnPositiveLine as a separate
+        // sourceRowOwnPositiveFile falls back to the unrelated shared runner
+        // and produces false "past end" failures. Still check every exact
+        // base/current line and never silently waive missing source-row files.
+        if (field.startsWith("sourceRow") && field.endsWith("Line") &&
+            typeof proof.sourceRowFile !== "string") {
+          review.push(`${method.name} ${path} ${field}: missing dedicated sourceRowFile`);
+          continue;
+        }
         const companionFile = field === "victimUnchangedAt"
-          ? "victimUnchangedFile" : field === "line" ? null : field.replace(/Line$/, "File");
+          ? "victimUnchangedFile" : field === "line" ? null
+          : field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"
+          : field.replace(/Line$/, "File");
         const file = companionFile && typeof proof[companionFile] === "string"
           ? proof[companionFile] : proof.file;
         const oldFile = companionFile && typeof cited?.[companionFile] === "string"
