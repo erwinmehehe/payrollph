@@ -2378,8 +2378,15 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
+    assert.equal(method.status, "COVERED", "Whole method needs source-specific PG16 four-part POST proof");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.workflowRunId, 41452144006);
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "49360001aa6ca2911f1e99617ba3ad34d82a6a67");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "40c37e9966b5261ab1953d907a76843e339d90b8");
+    assert.equal(method.testedBy?.workflowBlobSha, "b46cfbb441918cefd193580cf428f45f55606bb4");
     assert.equal(currentBlob, expected.routeBlobSha);
     assert.deepEqual(method.reviewedUncertified, expected);
     assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
@@ -2451,23 +2458,61 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
 
 
   if (isNewOrChanged && key === "src/app/api/governed-handoffs/route.ts POST") {
+    // A source fix must be independently pinned, even while GAP and uncredited.
+    // This is an inventory integrity check, NOT an authorization shortcut.
     const expected = {
-      kind: "governed-handoffs-POST-error-redaction-source-only",
-      priorRouteBlobSha: "85e937e999a10afd30348e748c510b2a55f160be", routeBlobSha: "fa7039cee62df7624e3124e75e6566294de32c68",
-      contractFile: "tests/tenant-governed-handoff-post-error-boundary.test.mjs", contractBlobSha: "8e839b7197203d3ea6b32281af78aaf0a5b3753b",
-      credits: 0, actualPg16Http: "PENDING",
-      independentSecurityReview: "PENDING", productionCertified: false,
+          "kind": "governed-handoffs-POST-atomic-audit-PG16-review-only",
+          "priorRouteBlobSha": "fa7039cee62df7624e3124e75e6566294de32c68",
+          "routeBlobSha": "258ec66f80e24e4d7ac484fb4be789573b1a9820",
+          "contractFile": "tests/tenant-governed-handoff-post-error-boundary.test.mjs",
+          "contractBlobSha": "8e839b7197203d3ea6b32281af78aaf0a5b3753b",
+          "proofFile": "scripts/qa/tenant-workflow-leave-handoff-http.mjs",
+          "proofBlobSha": "40c37e9966b5261ab1953d907a76843e339d90b8",
+          "workflowFile": ".github/workflows/tenant-workflow-leave-handoff-pg16.yml",
+          "workflowBlobSha": "b46cfbb441918cefd193580cf428f45f55606bb4",
+          "sourceFixCommit": "2fc684a4cb8d2469ae2b7ced7ef04e740738e49d",
+          "lastPassingHead": "ceba0eb16ab2c18add5ddfeac4b408e0be287e35",
+          "lastPassingRun": 41446174317,
+          "credits": 0,
+          "actualPg16Http": "PENDING",
+          "independentSecurityReview": "PENDING",
+          "productionCertified": false
     };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
+    assert.equal(method.status, "COVERED", "Whole method needs source-specific PG16 four-part POST proof");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.workflowRunId, 41452144006);
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "49360001aa6ca2911f1e99617ba3ad34d82a6a67");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "40c37e9966b5261ab1953d907a76843e339d90b8");
+    assert.equal(method.testedBy?.workflowBlobSha, "b46cfbb441918cefd193580cf428f45f55606bb4");
+    assert.equal(expected.credits, 0);
+    assert.equal(expected.actualPg16Http, "PENDING", "New final-head acceptance still required");
+    assert.equal(expected.independentSecurityReview, "PENDING");
     assert.equal(currentBlob, expected.routeBlobSha);
     assert.deepEqual(method.reviewedUncertified, expected);
-    assert.equal(gitBlobSha(readFileSync(expected.contractFile)), expected.contractBlobSha);
+    for (const [file, sha] of [
+      [expected.contractFile, expected.contractBlobSha],
+      [expected.proofFile, expected.proofBlobSha],
+      [expected.workflowFile, expected.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Governed handoff reviewed inputs changed without a renewed pin: " + file);
     const post = readFileSync("src/app/api/governed-handoffs/route.ts", "utf8")
       .split("export async function POST")[1];
-    assert.ok(!post.includes("error instanceof Error ? error.message"));
+    const chain = readFileSync("src/lib/approval-chains.ts", "utf8")
+      .split("export async function createApprovalFromConfiguredChain")[1];
     assert.ok(post.includes('code: "GOVERNED_HANDOFF_UNAVAILABLE"'));
     assert.ok(post.includes('"Cache-Control": "private, no-store"'));
+    assert.ok(!post.includes("error instanceof Error ? error.message"));
+    assert.ok(!post.includes("await recordAuditEvent("),
+      "Route cannot audit after the already-committed chain");
+    assert.ok(post.includes("auditEvent: {"),
+      "Route must supply a server-owned audit payload");
+    assert.ok(chain.includes("await writeAuditedHandoff(instance.id)"));
+    assert.ok(chain.includes("await writeAuditedHandoff(existing.id)"));
+    assert.ok(chain.includes("}, tx);"),
+      "Audit insertion must share the approval-chain transaction");
     return;
   }
 
@@ -4246,6 +4291,28 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
+          ["leave","governed-handoffs"].includes(entry.route)) {
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.equal(method.name, "POST");
+        assert.equal(proof.file, "scripts/qa/tenant-workflow-leave-handoff-http.mjs");
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-workflow-leave-handoff-pg16.yml");
+        assert.equal(proof.workflowRunId, 41452144006);
+        assert.equal(proof.verifiedPrHeadSha, "49360001aa6ca2911f1e99617ba3ad34d82a6a67");
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        const expectLines = entry.route === "leave" ? [284,385,388,413] : [188,400,403,413];
+        assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine], expectLines);
+        for (const line of expectLines)
+          assert.ok(evidenceLine(proof.file,line,entry.route + " four-part proof").length > 15);
+        continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
