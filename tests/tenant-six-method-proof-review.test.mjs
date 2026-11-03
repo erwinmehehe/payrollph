@@ -254,6 +254,66 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     expectedStatuses[path].POST = "COVERED";
   }
   const expectedMainStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const issuedPromotions = [
+    {
+      path: "src/app/api/workforce/demand-observations/issued/route.ts",
+      verb: "POST",
+      routeSha: "549156b2e143c71bd33385fb1cc49a95cb120dfc",
+      proofFile: "scripts/qa/tenant-issued-demand-http.mjs",
+      proofSha: "a63e9aa94b9c85000433e9a40c778af449888757",
+      workflowFile: ".github/workflows/tenant-issued-demand-http.yml",
+      workflowSha: "caf01bd8e2c17e8cd5bfd17528cd56d7503aa312",
+      proofHead: "1834b73aab8e162e19b4b260e51b32e6fa1fbbec",
+      workflowRunId: 41444835667,
+    },
+    {
+      path: "src/app/api/workforce/demand-observations/issued/score/route.ts",
+      verb: "POST",
+      routeSha: "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
+      proofFile: "scripts/qa/tenant-issued-demand-http.mjs",
+      proofSha: "a63e9aa94b9c85000433e9a40c778af449888757",
+      workflowFile: ".github/workflows/tenant-issued-demand-http.yml",
+      workflowSha: "caf01bd8e2c17e8cd5bfd17528cd56d7503aa312",
+      proofHead: "1834b73aab8e162e19b4b260e51b32e6fa1fbbec",
+      workflowRunId: 41444835667,
+    },
+  ];
+  for (const pin of issuedPromotions) {
+    const label = pin.verb + " " + pin.path;
+    assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " must start GAP on main");
+    const row = m.allApiRouteFiles[pin.path]?.methods.find(method => method.name === pin.verb);
+    assert.equal(row?.status, "COVERED", label + " is the only permitted credit");
+    const receipt = row.testedBy;
+    assert.equal(receipt?.prNumber, 1731, label + " proof must belong to this PR");
+    assert.equal(receipt?.proofHeadCommit, pin.proofHead, label + " executed proof head");
+    assert.equal(receipt?.workflowRunId, pin.workflowRunId, label + " executed workflow");
+    assert.ok(receipt?.evidence?.includes("/actions/runs/" + pin.workflowRunId + "/job/"),
+      label + " must cite the executed proof job");
+    assert.equal(receipt?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(receipt?.ownerIsOnlyReviewer, true);
+    assert.equal(receipt?.independentlyAccepted, false);
+    assert.equal(receipt?.productionCertified, false);
+    assert.equal(receipt?.postgresMajor, 16);
+    for (const [field, file, expectedSha] of [
+      ["routeBlobSha", pin.path, pin.routeSha],
+      ["proofBlobSha", pin.proofFile, pin.proofSha],
+      ["workflowBlobSha", pin.workflowFile, pin.workflowSha],
+    ]) {
+      assert.equal(receipt?.[field], expectedSha, label + " immutable " + field);
+      assert.equal(blobSha(file), expectedSha, label + " actual file hash " + file);
+    }
+    assert.equal(receipt?.file, pin.proofFile);
+    assert.equal(receipt?.workflowFile, pin.workflowFile);
+    expectedStatuses[pin.path][pin.verb] = "COVERED";
+  }
+  assert.equal(blobSha("scripts/qa/tenant-issued-demand-contract.mjs"),
+    "a4a7714a42ada86a55192b160e3f5f2761af0500",
+    "The original contract must remain byte-identical to the passed source proof");
+  assert.equal(blobSha("tests/tenant-issued-demand-contract.test.mjs"),
+    "0df0028ceda0413256575f3847c950194f6e73f3",
+    "The original contract tests must remain byte-identical to the passed source proof");
+  for (const pin of issuedPromotions) expectedMainStatuses[pin.path][pin.verb] = "COVERED";
+
   const permittedPromotions = [
     {
       path: "src/app/api/year-end/route.ts",
@@ -337,9 +397,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "No methods beyond three #1728 and four #1730 source-pinned methods may change from the 498-method baseline");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length + issuedPromotions.length,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length - issuedPromotions.length,
   };
   assert.deepEqual(counts, expectedCounts,
     "Only three #1728 and four #1730 exact source-pinned credits may alter the live ledger totals");
@@ -351,8 +411,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   const currentFrozenSubtotal = snapshot.frozenSubtotal
-    .replace("313 COVERED", "320 COVERED")
-    .replace("91 GAP", "84 GAP");
+    .replace("313 COVERED", "322 COVERED")
+    .replace("91 GAP", "82 GAP");
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
     "Frozen subtotal must include only three #1728 STA-01 and four #1730 year-end credits");
@@ -382,16 +442,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: snapshot.counts.COVERED + compliancePostCredits.length,
+      COVERED: snapshot.counts.COVERED + compliancePostCredits.length + issuedPromotions.length,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-      GAP: snapshot.counts.GAP - compliancePostCredits.length,
+      GAP: snapshot.counts.GAP - compliancePostCredits.length - issuedPromotions.length,
     }, "origin/main totals changed; re-review ledger before merging");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const expectedMainFrozen = snapshot.frozenSubtotal
-      .replace("313 COVERED", "316 COVERED")
-      .replace("91 GAP", "88 GAP");
+      .replace("313 COVERED", "318 COVERED")
+      .replace("91 GAP", "86 GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
       expectedMainFrozen, "origin/main frozen ledger changed; renew review");
   }

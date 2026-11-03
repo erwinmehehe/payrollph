@@ -43,6 +43,8 @@ jobs:
       XENDIT_PAYOUTS_ENABLED: "false"
       HCM_OVERPAYMENT_PREVIEW_ENABLED: "false"
       PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+      PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
       TRUSTED_APP_ORIGINS: "http://127.0.0.1:3000"
       WFM_LOYVERSE_POS_ENABLED: "false"
       WFM_SQUARE_SANDBOX_ENABLED: "false"
@@ -84,6 +86,8 @@ jobs:
             echo "XENDIT_BILLING_ENABLED=false"
             echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
             echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
             echo "WFM_LOYVERSE_POS_ENABLED=false"
             echo "WFM_SQUARE_SANDBOX_ENABLED=false"
             echo "WFM_LOYVERSE_ACCESS_TOKEN="
@@ -145,6 +149,9 @@ jobs:
           echo "::error::Disposable Next server did not become ready"
           tail -n 100 /tmp/tenant-issued-demand-next.log
           exit 1
+      # Strict count ratchet in tenant-issued-demand-http.mjs rejects a green
+      # proof if any real owner, higher-ID victim, forged selector or replay
+      # assertion is skipped, even if an unrelated subset succeeds.
       - name: Prove both owned POST writes, real foreign denial, exact source/score SQL and unchanged victim
         run: node --import tsx scripts/qa/tenant-issued-demand-http.mjs
       - name: Print only the isolated local test-server log on failure
