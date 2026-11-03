@@ -48,11 +48,35 @@ test("separate proof-file citations resolve their own exact source lines", () =>
   assert.ok(source.includes('typeof cited?.[companionFile] === "string"'),
     "the base citation must use its own declared source file");
 
+  // Three source-pinned compliance POST receipts live in dedicated
+  // sourceRowFile modules; their four-part anchors are not shared-runner lines.
+  assert.ok(source.includes('field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"'),
+    "source-row own/victim/forged/unchanged anchors must all select sourceRowFile");
+  assert.ok(source.includes('typeof proof.sourceRowFile !== "string"'),
+    "missing source-row evidence files must fail closed, not use shared runner");
+  const manifest = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  for (const route of ["compliance/payroll-month-close", "compliance/statutory-remittances"]) {
+    const proof = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
+      .methods.find(method => method.name === "POST").testedBy;
+    assert.match(proof.sourceRowFile, /^scripts\/qa\/tenant-table-rows\/write\//);
+    assert.notEqual(proof.file, proof.sourceRowFile);
+    const rowLines = readFileSync(proof.sourceRowFile, "utf8").split("\n");
+    const sharedLines = readFileSync(proof.file, "utf8").split("\n");
+    for (const field of [
+      "sourceRowOwnPositiveLine", "sourceRowForeignDenialLine",
+      "sourceRowForgedSelectorLine", "sourceRowUnchangedDbLine",
+    ]) {
+      assert.ok(Number.isInteger(proof[field]) && proof[field] > sharedLines.length,
+        route + " " + field + ": line must select its dedicated source row");
+      assert.ok(rowLines[proof[field] - 1]?.trim(),
+        route + " " + field + ": the source-row evidence must exist and be nonblank");
+    }
+  }
+
   // Real committed proof, not a mock: the whole DL-02 batch shares one
   // unchanged-victim snapshot citation in its large runner. Never resolve its
   // line number against a smaller per-route proof module or silently skip it.
-  const manifest = JSON.parse(readFileSync(
-    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const [route, name] of [
     ["src/app/api/self/photo/route.ts", "POST"],
     ["src/app/api/web-bundy/evidence/route.ts", "GET"],
