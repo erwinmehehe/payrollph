@@ -6,6 +6,11 @@ import test from "node:test";
 // Manifest integrity and source-pinning are enforced by the required Security
 // HTTP Smoke check and the dedicated source-only six-method review.
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
+const SHARED_INVENTORY_PATHS = [
+  MANIFEST,
+  "tests/tenant-isolation-coverage-inventory.test.mjs",
+  "docs/engineering/tenant-isolation-closure-plan.md",
+];
 const FEATURE_WORKFLOWS = [
   "remittance-action-tenant-isolation.yml",
   "salary-correction-cases-qa.yml",
@@ -64,15 +69,17 @@ function matches(pattern, file) {
   return new RegExp(regex + "$").test(file);
 }
 
-test("unrelated tenant real-HTTP suites do not run for a shared manifest-only change", () => {
+test("feature suites skip shared ledger, inventory test and closure-plan-only changes", () => {
   for (const filename of FEATURE_WORKFLOWS) {
     const paths = pullRequestPaths(filename);
     assert.ok(paths.includes(".github/workflows/" + filename),
       filename + ": own workflow changes must still trigger acceptance");
     assert.ok(paths.some((path) => path.startsWith("src/app/api/") || path.startsWith("scripts/qa/")),
       filename + ": must retain its executable route or proof runner trigger");
-    assert.equal(paths.some((path) => matches(path, MANIFEST)), false,
-      filename + ": broad manifest-only trigger starts unrelated expensive suite");
+    for (const sharedFile of SHARED_INVENTORY_PATHS) {
+      assert.equal(paths.some((path) => matches(path, sharedFile)), false,
+        filename + ": broad shared-inventory trigger starts an unrelated expensive suite: " + sharedFile);
+    }
   }
 });
 
