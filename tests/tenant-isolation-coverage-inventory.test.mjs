@@ -230,7 +230,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     } else {
       assert.ok(method.name === "POST" || method.name === "PATCH");
       assert.equal(method.testedBy, null);
-      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false},
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false,"reconciliationReview":{"kind":"exact-final-merged-head-four-part-review-withheld-2026-11-02","proofPr":1662,"proofFinalHead":"c7001c59b9f60b55192bfb1d1876a18e0f18f482","passedJob":"https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobShaAtFinalHead":"21909753364cda9cead239a8a495b1e2a40abc9d","reviewedRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","sourceAnchors":method.name === "PATCH" ? {"ownPositiveLine":176,"foreignDenialLine":156,"forgedSelectorLine":166,"unchangedDbLine":224,"victimIdOrderingLine":131} : {"ownPositiveLine":139,"foreignDenialLine":153,"forgedSelectorLine":160,"unchangedDbLine":224,"victimIdOrderingLine":131},"missingParts":[method.name === "PATCH" ? "Two independent own-employer positive PATCH controls missing (all reject/approve/apply are organization 1)." : "Two independent own-employer positive POST controls missing (both owns use organization 1).","Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."],"fullMethodCoverageCredits":0,"independentReview":"PENDING","productionTested":false}},
         "Source and PG16 evidence must match the uncredited transfer review");
     }
     for (const [file, sha] of [
@@ -800,17 +800,52 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed.helperFile, "src/lib/filing-evidence-store.ts");
     assert.equal(reviewed.proofFile, "scripts/qa/tenant-table-rows/write/compliance-filing.mjs");
     assert.equal(reviewed.testFile, "tests/tenant-compliance-filing-contract.test.mjs");
-    for (const [file,sha] of [
+    // The original STA-01 rejected-only source is historical. This separate
+    // draft adds a fictional ACCEPTED-path candidate without coverage credit.
+    // Pin both generations independently; don't transfer the older receipt.
+    const currentCandidatePins = {
+      "scripts/qa/tenant-table-rows/write/compliance-filing.mjs":
+        "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
+      "tests/tenant-compliance-filing-contract.test.mjs":
+        "fe286bc91140a8dbc11dc1eebf7594fa18f97ed1",
+    };
+    assert.equal(reviewed.proofBlobSha,
+      "6bb8bf721e73b47b2b79e26b27ec36f1c22aae34",
+      "Retain prior rejected-only proof as historical evidence");
+    assert.equal(reviewed.testBlobSha,
+      "9befe55be39ec7fb783958561da4182edc060ae4",
+      "Retain prior rejected-only contract as historical evidence");
+    for (const [file, historicalSha] of [
       [reviewed.helperFile, reviewed.helperBlobSha],
       [reviewed.proofFile, reviewed.proofBlobSha],
       [reviewed.testFile, reviewed.testBlobSha],
     ]) {
-      assert.match(sha, /^[a-f0-9]{40}$/);
-      assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "Filing atomicity security helper/proof modified without re-review: " + file);
+      assert.match(historicalSha, /^[a-f0-9]{40}$/);
+      const expected = currentCandidatePins[file] ?? historicalSha;
+      assert.equal(gitBlobSha(readFileSync(file)), expected,
+        "Filing current candidate/helper modified without re-review: " + file);
     }
-    assert.equal(reviewed.atomicAuditRollbackRequired, true);
+    const candidate = readFileSync(reviewed.proofFile, "utf8");
+    const sourceRule = readFileSync("scripts/qa/tenant-compliance-filing-contract.mjs", "utf8");
+    assert.match(sourceRule, /periodEnd: "2025-07-31"/,
+      "SSS accepted-path source must end at the final month cutoff");
+    assert.match(candidate, /generateGovernmentDraft\(ctx\.seeded\.runId, "sss-r3"\)/,
+      "Do not use a made-up hash to bypass the real source-integrity check");
+    assert.match(candidate, /fileSha256: sourceHash/,
+      "Filing must bind to the SHA-256 of the regenerated source bytes");
+    for (const token of [
+      "for (let pad = 0; pad < 6; pad++)",
+      "Number.isSafeInteger(filing.id) && filing.id > 6",
+      "const acceptedHttp = expectStatus(await request(",
+      'persistedAccepted.status, "accepted"',
+      'acceptedAudit.action, "SSS R-3 filing accepted"',
+      "acceptedOwnDecisionPG16: true",
+      "acceptedVictimDbAndAuditUnchanged: true",
+    ]) assert.ok(candidate.includes(token),
+      "Filing accepted-path candidate missing required fictional PG16 control: " + token);
+    assert.equal(reviewed.reconciliationReview?.fullMethodCoverageCredits, 0);
     assert.equal(reviewed.acceptedOutcomePositiveProven, false);
+    assert.equal(reviewed.atomicAuditRollbackRequired, true);
     assert.equal(reviewed.fullMethodCoverageCredits, 0);
     assert.equal(reviewed.noProviderOrAgencySubmission, true);
     assert.equal(method.testedBy, null, "Rejected-only proof must stay GAP");
@@ -1576,15 +1611,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       hcmHoldFile: "src/lib/multi-entity-hcm-hold.ts",
       hcmHoldBlobSha: "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
       contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
-      contractBlobSha: "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+      contractBlobSha: "68e68dc9dff3a6bc51801c525a7d241b7abb3ab5",
       proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
-      proofBlobSha: "243827a6b4481a25fc5a95259843862da117f5f0",
+      proofBlobSha: "8a5c8ea4e9ad64896b4051963fc17a374a2ee4c4",
       workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
-      workflowBlobSha: "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
+      workflowBlobSha: "7cbb0a6a0389a4eb0f22cce61c34ed90939c5a97",
       coverageCredits: 0,
       testedBy: null,
-      independentSecurityReview: "PENDING",
       exactHeadHttpResult: "PENDING",
+      reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY",
+      soleOwnerReviewer: "erwinmehehe",
+      reviewStatus: "PENDING_EXACT_FINAL_HEAD",
     });
     for (const [file, sha] of [
       [reviewed.testFile, reviewed.testBlobSha],
@@ -1596,6 +1633,24 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
       "New salary preview proof/source change requires renewed security review");
     assert.equal(method.testedBy, null, "Salary preview POST remains GAP");
+    const currentProof = readFileSync(reviewed.proofFile, "utf8");
+    for (const token of [
+      "NEXT_CSP_ENABLED: \"false\"",
+      "WORKER_ENABLED: \"false\"",
+      "CENTRAL_SCHEDULER_ENABLED: \"false\"",
+      ".innerJoin(s.payrollRuns, eq(s.payrollEntries.payrollRunId, s.payrollRuns.id))",
+      "assert.deepEqual(await snapshots(), before",
+      "forged higher-ID victim legal employer and employee",
+      "assert.equal(denied, 18)",
+    ]) assert.ok(currentProof.includes(token),
+      "Salary-preview refreshed proof lost protected real-HTTP case: " + token);
+    const currentWorkflow = readFileSync(reviewed.workflowFile, "utf8");
+    for (const flag of ["WORKER_ENABLED=false", "CENTRAL_SCHEDULER_ENABLED=false",
+      "NEXT_CSP_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+      assert.ok(currentWorkflow.includes(flag),
+        "Salary-preview disposable CI safety flag missing: " + flag);
+    }
+
     // The global inventory test recomputes live totals from every current route.
     // A focused uncredited GAP must not pin a historic repository-wide count.
     assert.equal(reviewed.coverageCredits, 0);
@@ -2306,11 +2361,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
       "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
       "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-      "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+      "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
       "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-      "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+      "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
       "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-      "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+      "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
       "previousDedicatedPg16Run": "41203115190",
       "newMethodCredits": 0,
       "uncreditedMethods": [
@@ -2318,8 +2373,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
         "PATCH"
       ],
       "exactHeadPg16": "PENDING",
-      "independentSecurityReview": "PENDING",
-      "productionCertified": false
+      "productionCertified": false,
+      "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+      "soleOwnerReviewer": "erwinmehehe",
+      "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
     };
     assert.deepEqual(method.reviewedUncertified, expected,
       "WRK-02 method lacks its exact uncredited proof review");
@@ -2339,7 +2396,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       [expected.workflowFile, expected.workflowBlobSha],
     ]) {
       assert.equal(gitBlobSha(readFileSync(file)), sha,
-        "WRK-02 fixture/contract/workflow changed; renew independent review: " + file);
+        "WRK-02 fixture/contract/workflow changed; renew sole-owner source review: " + file);
     }
     const source = readFileSync(routeFile, "utf8");
     const patch = source.split("export async function PATCH(request: Request) {")[1] ?? "";
@@ -2362,6 +2419,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.ok(fixture.includes(token), "WRK-02 synthetic proof lost: " + token);
     assert.match(contract, /simultaneous vacancy freezes cannot double-write/);
     assert.match(contract, /coverage remains uncredited/);
+    for (const token of [
+      "real higher-ID foreign worker denied on valid own vacancy",
+      "positionId: foreignWorkerVacancy.id",
+      "employeeId: c.victim.worker.id, effectiveFrom: todayPh",
+      "forgedReferences: 5, blockedDirectAssignments: 1",
+    ]) assert.ok(fixture.includes(token), "WRK-02 current proof lost: " + token);
+    for (const flag of ["NEXT_CSP_ENABLED=false", "WORKER_ENABLED=false",
+      "CENTRAL_SCHEDULER_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+      assert.ok(workflow.includes(flag), "WRK-02 CI safety flag missing: " + flag);
+    }
+
     assert.match(workflow, /TENANT_TABLE_FAMILY: workforce-planning-root/);
     assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED/);
     assert.match(workflow, /XENDIT_PAYOUTS_ENABLED/);

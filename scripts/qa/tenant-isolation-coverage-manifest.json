@@ -3024,8 +3024,34 @@
           "name": "POST",
           "line": 49,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: merged #1676 exact-final-head PG16/HTTPS proves the template action only (nonempty own template, real victim 403, forged entity 404, immutable victim PG). BIR candidate POST also supports check and download: neither has its own legitimate positive, real victim denial, forged-selector rejection or unchanged victim DB proof. The template-only run also omits the closure-plan real victim object ID > 6 assertion. No full-method four-part promotion; independent tax/security review PENDING.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "2026-11-02-six-method-merged-proof-review-only-zero-coverage-credit",
+            "reconciliationReview": {
+              "kind": "exact-final-merged-head-four-part-review-withheld-2026-11-02",
+              "proofPr": 1676,
+              "proofFinalHead": "abe1600a2df31f513cda152bed828fd5567fd72e",
+              "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/41223819624/job/124603701620",
+              "proofFile": "scripts/qa/tenant-bir1604c-candidate-post-http.mjs",
+              "proofBlobShaAtFinalHead": "b0344f6af31b58456772cd46a07af46291c11ad0",
+              "reviewedRouteBlobSha": "431fcc6375fb6d1a8a318bd70fb77ef47f40941a",
+              "sourceAnchors": {
+                "ownPositiveLine": 136,
+                "foreignDenialLine": 153,
+                "forgedSelectorLine": 157,
+                "unchangedDbLine": 170,
+                "victimIdOrderingLine": 68
+              },
+              "missingParts": [
+                "Unexecuted mode=check and mode=download legitimate positives and corresponding same-method victim-denial, forged-selector and unchanged-victim-PG assertions.",
+                "Persisted victim-exclusive object ID > 6 not asserted at final-head proof (only greater than attacker IDs)."
+              ],
+              "fullMethodCoverageCredits": 0,
+              "independentReview": "PENDING",
+              "productionTested": false
+            }
+          }
         }
       ],
       "employerSources": {
@@ -5467,7 +5493,7 @@
           "name": "PATCH",
           "line": 21,
           "status": "GAP",
-          "reason": "Still GAP: merged #1501 fictional PG16/real-HTTP rejection-only evidence covers own/foreign/forged/persisted audit but does NOT exercise a successful accepted filing outcome. This separate STA-01 source change binds the conditional outcome update and actor-bound audit to one transaction, with disposable CI audit-failure rollback evidence. Exact-head CI and independent security/filing-owner review remain required; no agency confirmation, provider action, payroll release or coverage credit.",
+          "reason": "Still GAP: #1501 final-head PG16 write-table runner proves only a successful fictional rejected filing outcome plus victim/forged denials and unchanged DB/audit. Accepted-outcome positive is absent, and current transactional-audit route has changed since #1501; no source-matched whole-PATCH proof, agency submission or credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "sta01-filing-outcome-audit-atomicity-only-no-full-PATCH-credit",
@@ -5482,7 +5508,31 @@
             "atomicAuditRollbackRequired": true,
             "acceptedOutcomePositiveProven": false,
             "fullMethodCoverageCredits": 0,
-            "noProviderOrAgencySubmission": true
+            "noProviderOrAgencySubmission": true,
+            "reconciliationReview": {
+              "kind": "exact-final-merged-head-four-part-review-withheld-2026-11-02",
+              "proofPr": 1501,
+              "proofFinalHead": "893977583b4ac7e4d49da5b03327f7bc5c8e4a53",
+              "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40623785506/job/122603765458",
+              "proofFile": "scripts/qa/tenant-table-rows/write/compliance-filing.mjs",
+              "proofBlobShaAtFinalHead": "c7e0660e218646d5848e56c3e60aaeb0b283f4b4",
+              "sharedRunner": "scripts/qa/tenant-write-table-http.mjs",
+              "reviewedRouteBlobSha": "09f642a67035dc9ce22fa502d80518ba18641b0f",
+              "sourceAnchors": {
+                "ownPositiveLine": 112,
+                "foreignDenialLine": 125,
+                "forgedSelectorLine": 129,
+                "unchangedDbLine": 149,
+                "victimIdOrderingLine": 74
+              },
+              "missingParts": [
+                "No legitimate accepted-outcome PATCH positive; only rejected outcome and invalid accepted input.",
+                "#1501's route source was superseded by later transactional-audit source; current method lacks exact-current-source accepted-outcome proof."
+              ],
+              "fullMethodCoverageCredits": 0,
+              "independentReview": "PENDING",
+              "productionTested": false
+            }
           }
         }
       ],
@@ -15525,15 +15575,17 @@
             "hcmHoldFile": "src/lib/multi-entity-hcm-hold.ts",
             "hcmHoldBlobSha": "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
             "contractFile": "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
-            "contractBlobSha": "36d99baf1d6ac697c5db1f4294dc601e99c555d3",
+            "contractBlobSha": "68e68dc9dff3a6bc51801c525a7d241b7abb3ab5",
             "proofFile": "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
-            "proofBlobSha": "243827a6b4481a25fc5a95259843862da117f5f0",
+            "proofBlobSha": "8a5c8ea4e9ad64896b4051963fc17a374a2ee4c4",
             "workflowFile": ".github/workflows/tenant-hcm-salary-correction-preview.yml",
-            "workflowBlobSha": "4c64894eceed4f45d0f6ab19af949af9584cd3c4",
+            "workflowBlobSha": "7cbb0a6a0389a4eb0f22cce61c34ed90939c5a97",
             "coverageCredits": 0,
             "testedBy": null,
-            "independentSecurityReview": "PENDING",
-            "exactHeadHttpResult": "PENDING"
+            "exactHeadHttpResult": "PENDING",
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         }
       ],
@@ -19973,7 +20025,7 @@
           "name": "POST",
           "line": 89,
           "status": "GAP",
-          "reason": "Still GAP: transfer POST/PATCH fail closed on driver errors; PATCH now uses typed business conflicts rather than comparing database-provided error text. Synthetic PostgreSQL/HTTPS fault probes and existing maker-checker tests require exact-head CI and independent tenant/payroll/security review.",
+          "reason": "Still GAP: transfer POST/PATCH fail closed on driver errors; PATCH now uses typed business conflicts rather than comparing database-provided error text. Synthetic PostgreSQL/HTTPS fault probes and existing maker-checker tests require exact-head CI and independent tenant/payroll/security review. Historical #1662 POST evidence does not prove two independent own-employer successes or an appropriately ordered higher-ID victim transfer. Merged #1711 changed the route/proof; do not borrow the historical receipt for credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited",
@@ -19988,14 +20040,37 @@
             "coverageCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reconciliationReview": {
+              "kind": "exact-final-merged-head-four-part-review-withheld-2026-11-02",
+              "proofPr": 1662,
+              "proofFinalHead": "c7001c59b9f60b55192bfb1d1876a18e0f18f482",
+              "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463",
+              "proofFile": "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+              "proofBlobShaAtFinalHead": "21909753364cda9cead239a8a495b1e2a40abc9d",
+              "reviewedRouteBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+              "sourceAnchors": {
+                "ownPositiveLine": 139,
+                "foreignDenialLine": 153,
+                "forgedSelectorLine": 160,
+                "unchangedDbLine": 224,
+                "victimIdOrderingLine": 131
+              },
+              "missingParts": [
+                "Two independent own-employer positive POST controls missing (both owns use organization 1).",
+                "Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."
+              ],
+              "fullMethodCoverageCredits": 0,
+              "independentReview": "PENDING",
+              "productionTested": false
+            }
           }
         },
         {
           "name": "PATCH",
           "line": 248,
           "status": "GAP",
-          "reason": "Still GAP: transfer POST/PATCH fail closed on driver errors; PATCH now uses typed business conflicts rather than comparing database-provided error text. Synthetic PostgreSQL/HTTPS fault probes and existing maker-checker tests require exact-head CI and independent tenant/payroll/security review.",
+          "reason": "Still GAP: transfer POST/PATCH fail closed on driver errors; PATCH now uses typed business conflicts rather than comparing database-provided error text. Synthetic PostgreSQL/HTTPS fault probes and existing maker-checker tests require exact-head CI and independent tenant/payroll/security review. Historical #1662 PATCH evidence does not prove two independent own-employer successes or an appropriately ordered higher-ID victim transfer. Merged #1711 changed the route/proof; do not borrow the historical receipt for credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited",
@@ -20010,7 +20085,30 @@
             "coverageCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reconciliationReview": {
+              "kind": "exact-final-merged-head-four-part-review-withheld-2026-11-02",
+              "proofPr": 1662,
+              "proofFinalHead": "c7001c59b9f60b55192bfb1d1876a18e0f18f482",
+              "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463",
+              "proofFile": "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+              "proofBlobShaAtFinalHead": "21909753364cda9cead239a8a495b1e2a40abc9d",
+              "reviewedRouteBlobSha": "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
+              "sourceAnchors": {
+                "ownPositiveLine": 176,
+                "foreignDenialLine": 156,
+                "forgedSelectorLine": 166,
+                "unchangedDbLine": 224,
+                "victimIdOrderingLine": 131
+              },
+              "missingParts": [
+                "Two independent own-employer positive PATCH controls missing (all reject/approve/apply are organization 1).",
+                "Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."
+              ],
+              "fullMethodCoverageCredits": 0,
+              "independentReview": "PENDING",
+              "productionTested": false
+            }
           }
         }
       ],
@@ -33135,11 +33233,11 @@
             "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
             "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
             "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
             "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
             "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
             "previousDedicatedPg16Run": "41203115190",
             "newMethodCredits": 0,
             "uncreditedMethods": [
@@ -33147,8 +33245,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         },
         {
@@ -33162,11 +33262,11 @@
             "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
             "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
             "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
             "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
             "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
             "previousDedicatedPg16Run": "41203115190",
             "newMethodCredits": 0,
             "uncreditedMethods": [
@@ -33174,8 +33274,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         },
         {
@@ -33189,11 +33291,11 @@
             "originalRouteBlobSha": "0535a1bb935bc61c777b33c1ea01f161a314e8d2",
             "routeBlobSha": "0b045a5fdbddbf07020a2d5ab4a961578d5c9cb1",
             "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
-            "fixtureBlobSha": "9b635aa76b2b9b1c62641894b4d5f3e64982f452",
+            "fixtureBlobSha": "410c851f39e7a304ee2e4c404df605d6a388d0fb",
             "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-            "contractBlobSha": "0012d487d28e1471fbb27b88b9d0a0fa733781ec",
+            "contractBlobSha": "74b36c8cbf0c183754899f53bfaa3c06eac96e11",
             "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
-            "workflowBlobSha": "113ea820160143ea170d8a6f33801d4721190015",
+            "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
             "previousDedicatedPg16Run": "41203115190",
             "newMethodCredits": 0,
             "uncreditedMethods": [
@@ -33201,8 +33303,10 @@
               "PATCH"
             ],
             "exactHeadPg16": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "reviewPolicy": "SOLO_VERIFIED_DEV_RECOVERY",
+            "soleOwnerReviewer": "erwinmehehe",
+            "reviewStatus": "PENDING_EXACT_FINAL_HEAD"
           }
         }
       ],
