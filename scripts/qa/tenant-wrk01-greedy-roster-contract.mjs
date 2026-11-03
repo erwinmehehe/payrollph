@@ -119,6 +119,55 @@ export function assertOwnGreedyRoster(response, own, forbidden = []) {
   return result;
 }
 
+
+/** Verify the sensitive nonempty employee recommendation branch separately. */
+export function assertSuggestedGreedyRoster(response, own, forbidden = []) {
+  assert.equal(response.status, 200, "eligible own manager must receive actual HTTP 200");
+  assertGreedyNoStore(response.headers);
+  const result = response.json;
+  assert.ok(result && typeof result === "object" && !Array.isArray(result));
+  assert.deepEqual(Object.keys(result).sort(),
+    ["status", "automaticallyPublished", "roster", "unfilled",
+      "summary", "boundary", "source"].sort());
+  assert.equal(result.status, "review_required");
+  assert.equal(result.automaticallyPublished, false);
+  assert.ok(result.boundary.includes("No roster, payroll or funds were changed."));
+  assert.equal(result.source.organizationId, own.org.id);
+  assert.equal(result.source.worksiteId, own.site.id);
+  assert.equal(result.source.startDate, own.workDate);
+  assert.equal(result.source.endDate, own.workDate);
+  assert.equal(result.source.slotCount, 1);
+  assert.equal(result.source.candidateCount, 1);
+  assert.equal(result.source.sourceVersion, "wfm-greedy-roster-v1");
+  assert.equal(result.summary.required, 1);
+  assert.equal(result.summary.existing, 0);
+  assert.equal(result.summary.suggested, 1);
+  assert.equal(result.summary.unfilled, 0);
+  assert.deepEqual(result.unfilled, []);
+  assert.ok(Array.isArray(result.roster) && result.roster.length === 1,
+    "a source-backed eligible worker must actually be suggested");
+  const [row] = result.roster;
+  assert.equal(row.requirementId, own.requirement.id);
+  assert.equal(row.employeeId, own.worker.id,
+    "suggested employee ID must be the genuine own-employer SQL employee");
+  assert.equal(row.employeeName,
+    (own.worker.firstName + " " + own.worker.lastName).trim(),
+    "suggested employee name must be the own-employer SQL identity");
+  assert.equal(row.worksiteId, own.site.id);
+  assert.equal(row.workDate, own.workDate);
+  assert.equal(row.shiftDefinitionId, own.shift.id);
+  assert.equal(row.paidMinutes, 420);
+  assert.equal(row.source, "suggested");
+  assert.equal(typeof row.unpopular, "boolean");
+  assert.ok(Array.isArray(row.warnings));
+  assert.ok(Array.isArray(result.summary.fairnessProjectedMinutes)
+    && result.summary.fairnessProjectedMinutes.length === 1);
+  assert.equal(result.summary.fairnessProjectedMinutes[0].employeeId, own.worker.id);
+  assert.ok(result.summary.fairnessProjectedMinutes[0].scheduledMinutes >= 420);
+  assertNoGreedyLeak(response, forbidden);
+  return result;
+}
+
 export function assertGreedyDenied(response, status, forbidden = []) {
   assert.equal(response.status, status,
     "unexpected failed GET: " + String(response.text).slice(0, 160));

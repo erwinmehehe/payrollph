@@ -538,6 +538,31 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   // WRK-01 staffing-policy POST/PATCH are two additional, independently
   // source-pinned fictional PG16 methods. Never count the unproven GET.
   const staffingPolicyMethods = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods;
+  const wfmProvisional = [
+    ["src/app/api/workforce/roster-rules/preview/route.ts", "POST", "scripts/qa/tenant-wfm-three-method-post-http.mjs"],
+  ];
+  const greedyPending = manifest.allApiRouteFiles["src/app/api/workforce/greedy-roster/route.ts"].methods
+    .find(method => method.name === "GET");
+  assert.equal(greedyPending.status, "COVERED");
+  assert.equal(greedyPending.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(greedyPending.testedBy?.workflowRunId, 41447125405);
+  assert.equal(greedyPending.testedBy?.verifiedPrHeadSha, "8245efd876c38f2b7ba02ece12ac515b8775d6ed");
+  assert.equal(greedyPending.testedBy?.ownerIsOnlyReviewer, true);
+  assert.equal(greedyPending.testedBy?.postgresMajor, 16);
+  const greedySoloCredits = 1;
+  for (const [path, verb, file] of wfmProvisional) {
+    const method = manifest.allApiRouteFiles[path]?.methods.find(item => item.name === verb);
+    assert.equal(method?.status, "COVERED", path + " must have separate own/foreign PG16 receipt");
+    assert.equal(method.testedBy.file, file);
+    assert.equal(method.testedBy.workflowRunId, 41293308290);
+    assert.equal(method.testedBy.verifiedPrHeadSha, "a5c70e563580c5ab9cb6d8db7610f3950148a27e");
+    assert.equal(method.testedBy.independentSecurityReview, "PENDING");
+    assert.equal(method.testedBy.productionCertified, false);
+  }
+  const wfmProvisionalCredits = wfmProvisional.length;
+  const policyGet = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods.find(x => x.name === "GET");
+  assert.equal(policyGet.status, "GAP", "approved-only proof cannot certify manage-mode GET");
+  assert.equal(policyGet.testedBy, null);
   const staffingPolicyCredits = staffingPolicyMethods.filter(method =>
     method.status === "COVERED" &&
     method.testedBy?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs").length;
@@ -598,11 +623,11 @@ const mergedProofCredits = verifyMergedProofCredits(manifest);
   assert.equal(yearEndSoloCredits, 4);
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits - workflowSoloCredits - yearEndSoloCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   assert.equal(manifest.metrics.gap + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + finalHeadPromotionCredits + workflowSoloCredits + yearEndSoloCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
