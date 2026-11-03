@@ -6,6 +6,7 @@ import {
   FORBIDDEN_PROVIDER_ENV, requireDisposableIssuedDemand,
   assertDemandWriteDenied, assertDemandPrivate, assertNoOtherEmployerLeak,
   assertIssuedOwnHttp, assertScoredOwnHttp, assertImmutableIssuedDemandSql,
+  REQUIRED_ISSUED_DEMAND_PROOF_COUNTS, assertCompleteIssuedDemandProofCounts,
 } from "../scripts/qa/tenant-issued-demand-contract.mjs";
 
 const path = name => readFileSync(name, "utf8");
@@ -22,6 +23,8 @@ function isolatedEnv() {
     WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
     PAYMONGO_DISBURSEMENTS_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
     XENDIT_BILLING_ENABLED: "false",
+    PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false",
+    NEXT_CSP_ENABLED: "false",
     HCM_OVERPAYMENT_PREVIEW_ENABLED: "false", PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
     WFM_OPERATIONAL_DEMAND_ENABLED: "true",
     WFM_ISSUED_DEMAND_FORECASTS_ENABLED: "true",
@@ -86,6 +89,8 @@ test("preflight rejects all hosted, wildcard, provider-enabled, money-enabled an
     ["CENTRAL_SCHEDULER_ENABLED", "true"],
     ["PAYMONGO_DISBURSEMENTS_ENABLED", "true"],
     ["XENDIT_PAYOUTS_ENABLED", "true"], ["XENDIT_BILLING_ENABLED", "true"],
+    ["PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED", "true"],
+    ["NEXT_CSP_ENABLED", "true"],
     ["WFM_OPERATIONAL_DEMAND_ENABLED", "false"],
     ["WFM_ISSUED_DEMAND_FORECASTS_ENABLED", "false"],
     ["WFM_SQUARE_SANDBOX_ENABLED", "true"],
@@ -232,4 +237,19 @@ test("source/denial snapshot equality rejects any changed payroll, worker or aud
     { ...before, employees: [{ id: 1, salary: "500" }] }, "illicit worker action"));
   assert.throws(() => assertImmutableIssuedDemandSql(before,
     { ...before, audit: [] }, "audit removal"));
+});
+
+test("four-part proof count ratchet rejects omitted positive, victim, forged and replay assertions", () => {
+  const valid = { ...REQUIRED_ISSUED_DEMAND_PROOF_COUNTS };
+  assert.doesNotThrow(() => assertCompleteIssuedDemandProofCounts(valid));
+  for (const field of Object.keys(valid)) {
+    assert.throws(() => assertCompleteIssuedDemandProofCounts({
+      ...valid, [field]: valid[field] - 1,
+    }), "must not accept a runner that skips " + field);
+  }
+  const runner = path("scripts/qa/tenant-issued-demand-http.mjs");
+  const assertion = runner.indexOf("assertCompleteIssuedDemandProofCounts(counts);");
+  const receipt = runner.indexOf("kind: \"tenant-issued-demand-post-candidate\"");
+  assert.ok(assertion > 0 && receipt > assertion,
+    "coverage-like output is forbidden before checking every four-part branch");
 });
