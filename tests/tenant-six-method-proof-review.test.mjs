@@ -291,17 +291,27 @@ test("six-method review preserves the baseline with only three source-pinned #17
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-    assert.deepEqual(methodStatuses(baseline), snapshot.methodStatuses,
-      "origin/main method statuses changed; rebase and renew the ledger review");
+    // The pinned fixture predates #1728. Exactly three source-pinned POST
+    // credits merged to main, proven by the allowlist and SHA checks above.
+    // Reject ALL unrelated method, tally, and frozen-queue changes.
+    assert.deepEqual(methodStatuses(baseline), expectedStatuses,
+      "origin/main may differ from the historical fixture only by the three pinned #1728 POSTs");
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
-    }, snapshot.counts, "origin/main totals changed; renew ledger review");
+    }, {
+      COVERED: snapshot.counts.COVERED + compliancePostCredits.length,
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+      GAP: snapshot.counts.GAP - compliancePostCredits.length,
+    }, "origin/main must reflect exactly three source-pinned #1728 credits");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
+    const reviewedMainFrozen = snapshot.frozenSubtotal
+      .replace("313 COVERED", "316 COVERED")
+      .replace("91 GAP", "88 GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-      snapshot.frozenSubtotal, "origin/main frozen ledger changed; renew review");
+      reviewedMainFrozen, "origin/main frozen queue may include only three #1728 credits");
   }
 });
