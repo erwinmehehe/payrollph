@@ -13,6 +13,8 @@ on:
       - 'tests/benefit-catalog-tenant.test.ts'
       - 'tests/tenant-benefit-catalog-put-contract.test.mjs'
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'scripts/ci/tenant-proof-relevance.mjs'
+      - 'tests/tenant-proof-relevance.test.mjs'
       - 'tests/tenant-isolation-coverage-inventory.test.mjs'
 
 permissions:
@@ -23,8 +25,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  relevance:
+    name: Tenant proof relevance (fast)
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify fail-closed tenant proof relevance rules
+        run: node --test tests/tenant-proof-relevance.test.mjs
+      - name: Fetch exact PR base for relevance comparison
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+      - name: Classify tenant proof relevance
+        id: scope
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TENANT_WORKFLOW_FILE: .github/workflows/tenant-benefit-catalog-put.yml
+        run: node scripts/ci/tenant-proof-relevance.mjs
+
   benefit-catalog-put:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    needs: relevance
+    if: ${{ !cancelled() && (needs.relevance.result != 'success' || needs.relevance.outputs.run == 'true') && (github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
