@@ -17,8 +17,12 @@ test("historical issued GET credit survives exact GET overlay plus POST-only aut
   // role-before-pilot reordering. The compatibility validator reconstructs
   // both earlier blobs byte-for-byte and refuses unrelated changes.
   assert.equal(entry.gitBlobSha, "549156b2e143c71bd33385fb1cc49a95cb120dfc");
-  assert.equal(entry.methods.find(m => m.name === "POST")?.status, "GAP");
-  assert.equal(entry.methods.find(m => m.name === "POST")?.testedBy, null);
+  const issuedPost = entry.methods.find(m => m.name === "POST");
+  assert.equal(issuedPost?.status, "COVERED",
+    "Issued POST now has a distinct real-HTTP PG16 credit, not the older GET receipt");
+  assert.equal(issuedPost?.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(issuedPost?.testedBy?.workflowRunId, 41444835667);
+  assert.equal(issuedPost?.testedBy?.independentlyAccepted, false);
   assert.equal(entry.methods.find(m => m.name === "GET")?.testedBy?.routeBlobSha,
     "d9e6ae99e687b691ca428e58c6c34ff077769a41",
     "Historical proof must keep naming its original reviewed source");
@@ -64,7 +68,7 @@ test("historical GET credit cannot be promoted or used to certify issued POST", 
     entry => { entry.methods.find(m => m.name === "GET").testedBy.routeBlobSha = entry.gitBlobSha; },
     entry => { entry.methods.find(m => m.name === "GET").reviewedUncertified.methodCredits = 1; },
     entry => { entry.methods.find(m => m.name === "GET").reviewedUncertified.productionCertified = true; },
-    entry => { entry.methods.find(m => m.name === "POST").status = "COVERED"; },
+    entry => { entry.methods.find(m => m.name === "POST").status = "GAP"; },
     entry => { entry.methods.find(m => m.name === "POST").testedBy = { routeBlobSha: entry.gitBlobSha }; },
     entry => { entry.gitBlobSha = "d9e6ae99e687b691ca428e58c6c34ff077769a41"; },
   ]) {
