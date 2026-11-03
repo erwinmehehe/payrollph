@@ -7,7 +7,6 @@ on:
       - '.github/workflows/tenant-clock-lifecycle.yml'
       - 'scripts/qa/tenant-clock-*.mjs'
       - 'tests/tenant-clock-*.test.mjs'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'src/app/api/web-bundy/**'
       - 'src/lib/**'
       - 'src/db/**'
