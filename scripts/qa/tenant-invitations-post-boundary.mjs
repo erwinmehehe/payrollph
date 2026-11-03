@@ -16,6 +16,7 @@ export function requireDisposableInvitations(env=process.env) {
     WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",
     PAYMONGO_DISBURSEMENTS_ENABLED:"false",XENDIT_PAYOUTS_ENABLED:"false",
     XENDIT_BILLING_ENABLED:"false",DEMO_MODE:"false",
+    NEXT_CSP_ENABLED:"false",
     SMTP_URL:"smtp://127.0.0.1:2525",
     MAIL_FROM:"PayrollPH QA <no-reply@example.invalid>",
   };
@@ -250,20 +251,27 @@ async function main() {
     assert.equal(forbidden,4);
 
     // A signed-in owner cannot bind a real foreign unit to an owned employer's invitation.
-    const forgedMailBefore=smtp.captured.length;
-    const forgedUnit=await http.standaloneRequest("/api/invitations",{
-      method:"POST",cookie:a.cookie,body:{
-        organizationId:a.org.id,email:(a.marker+"-wrong-unit@example.invalid").toLowerCase(),
-        role:"employee",orgUnitId:victim.unit.id
-      }
-    });
-    assert.equal(forgedUnit.status,404,"foreign persisted unit must be invisible under own employer");
-    assert.ok(!forgedUnit.text.includes(victim.marker));
-    assert.equal(smtp.captured.length,forgedMailBefore,
-      "foreign unit must not generate an invitation email");
-    for(let i=0;i<employers.length;i++)
-      proveUnchanged(before[i],await snapshot(employers[i].org.id),
-        "forged foreign org unit cannot change "+employers[i].label);
+    let forgedUnitDenials=0;
+    for(const actor of [a,b]) {
+      const forgedMailBefore=smtp.captured.length;
+      const forgedUnit=await http.standaloneRequest("/api/invitations",{
+        method:"POST",cookie:actor.cookie,body:{
+          organizationId:actor.org.id,
+          email:(actor.marker+"-wrong-unit@example.invalid").toLowerCase(),
+          role:"employee",orgUnitId:victim.unit.id
+        }
+      });
+      assert.equal(forgedUnit.status,404,
+        "each independently signed-in employer must deny the real foreign unit");
+      assert.ok(!forgedUnit.text.includes(victim.marker));
+      assert.equal(smtp.captured.length,forgedMailBefore,
+        "foreign unit must not generate an invitation email");
+      for(let i=0;i<employers.length;i++)
+        proveUnchanged(before[i],await snapshot(employers[i].org.id),
+          actor.label+" forged foreign org unit cannot change "+employers[i].label);
+      forgedUnitDenials++;
+    }
+    assert.equal(forgedUnitDenials,2,"both real owner sessions must deny foreign unit IDs");
 
     // Distinct attackers must ALSO create actual own invitations, with a
     // persisted token hash, outbox delivery through localhost SMTP and audit.
@@ -551,7 +559,7 @@ async function main() {
 
     console.log(JSON.stringify({kind:"tenant-invitations-post-boundary-pg16",
       independentAttackers:2,higherIdVictim:true,populatedOwnGets:3,
-      foreignGetDenials:2,foreignPostDenials:2,forgedUnitDenied:true,
+      foreignGetDenials:2,foreignPostDenials:2,forgedUnitDenials,
       legitimatePostCreationProved:true,ownOutboxAndAuditVerified:true,
       localSmtpDelivered:4,victimUnchanged:true,
       unitAdminOwnGetScoped:true,unitAdminSameUnitEmployeePost:true,

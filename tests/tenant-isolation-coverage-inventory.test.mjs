@@ -1419,9 +1419,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   }
 
   // Unit-scoped invitation hardening fixes a source-identified privilege gap.
-  // GET keeps existing employer-level PG16 proof. POST has NOT yet earned
-  // a successful real-HTTP persisted own/victim proof or reviewer acceptance.
-  // Strict source pins prevent this waiver from silently covering new behavior.
+  // GET keeps existing employer-level PG16 proof. POST's real signed-in PG16
+  // candidate passed on the prior PR head; exact new-head proof/owner acceptance
+  // remains pending, so this proof is pinned and still grants ZERO credits.
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/invitations/route.ts POST") {
     const reviewed = method.reviewedUncertified;
@@ -1436,11 +1436,26 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       testFile: "tests/invitation-tenant-scope.test.ts",
       testBlobSha: "c8ac8f624e970acd228334de436747603122e737",
       coverageCredits: 0,
-      realHttpPostAcceptance: "NOT_RUN",
-      independentSecurityReview: "PENDING",
+      realHttpPostAcceptance: "PRIOR_HEAD_PASSED_RECHECK_PENDING",
+      proofFile: "scripts/qa/tenant-invitations-post-boundary.mjs",
+      proofBlobSha: "88c97d386e243dbf1327ed097ddb05763bd5bd81",
+      contractFile: "tests/tenant-invitations-post-boundary.test.mjs",
+      contractBlobSha: "e11a5f8683b511ee0eb39df5bb5e8cc2b9f1b323",
+      workflowFile: ".github/workflows/tenant-invitations-post-boundary.yml",
+      workflowBlobSha: "8f8ac8954544e6e7b5128b6202c7ad621b217d6a",
+      previousDedicatedPg16Run: "41455750910",
+      previousDedicatedHead: "76f2b7bbc6674bb1f44897cfb219959ad93cb01a",
+      reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY",
+      reviewStatus: "PENDING_EXACT_FINAL_HEAD",
     });
     assert.equal(gitBlobSha(readFileSync(reviewed.helperFile)), reviewed.helperBlobSha);
     assert.equal(gitBlobSha(readFileSync(reviewed.testFile)), reviewed.testBlobSha);
+    for (const [sourceFile, blobSha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(sourceFile)), blobSha,
+      "Invite POST proof was modified without updating the exact-source receipt: " + sourceFile);
     assert.equal(method.testedBy, null, "Unreviewed invitation POST must remain GAP");
     const route = readFileSync("src/app/api/invitations/route.ts", "utf8");
     const get = route.slice(route.indexOf("export async function GET("),
