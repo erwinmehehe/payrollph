@@ -2659,6 +2659,79 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
+  // This exact-source greedy GET receives SOLO_VERIFIED_DEV_RECOVERY four-part
+  // coverage after a genuine nonempty owned worker and SQL-fault PG16 run.
+  // The earlier zero-credit source review is kept as historical provenance;
+  // every tested blob and the owner-only method receipt remain pinned.
+  if (isNewOrChanged &&
+      key === "src/app/api/workforce/greedy-roster/route.ts GET") {
+    const reviewed = method.reviewedUncertified;
+    const expected = {
+      "kind": "greedy-roster-get-eligible-and-sql-fault-review-only-zero-credit",
+      "routeBlobSha": "b04fb6d310bd878934d3a13b42b9caae1c1395bb",
+      "proofFile": "scripts/qa/tenant-wrk01-greedy-roster-http.mjs",
+      "proofBlobSha": "c7d3595859235be8d9f9de72b60d773361a4cd7b",
+      "contractFile": "scripts/qa/tenant-wrk01-greedy-roster-contract.mjs",
+      "contractBlobSha": "d20a0a90ece55fb5805829a05a1a64df69155d68",
+      "contractTestFile": "tests/tenant-wrk01-greedy-roster-contract.test.mjs",
+      "contractTestBlobSha": "2b1cd041d3e502887408a54ccd5e4696b75a8825",
+      "workflowFile": ".github/workflows/tenant-wrk01-greedy-roster-http.yml",
+      "workflowBlobSha": "ca1ab8248da33a2d1c81d2908a67b43570b9f6a8",
+      "lastPassingPg16Run": "41456591968",
+      "verifiedPrHeadSha": "9899ba2d08ce717bb3fd284c7d756da9dcc3dc43",
+      "coverageCredits": 0,
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false
+    };
+    assert.equal(currentBlob, expected.routeBlobSha,
+      "Greedy roster source changed; renew exact source and tenant review");
+    assert.equal(manifest.allApiRouteFiles[
+      "src/app/api/workforce/greedy-roster/route.ts"].gitBlobSha, currentBlob);
+    assert.equal(method.status, "COVERED", "Eligible-worker four-part exact-head PG16 GET is required");
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-wrk01-greedy-roster-http.mjs");
+    assert.equal(method.testedBy?.workflowRunId, 41447125405);
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "8245efd876c38f2b7ba02ece12ac515b8775d6ed");
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy?.ownerReviewer, "@erwinmehehe");
+    assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
+    assert.equal(method.testedBy?.independentlyAccepted, false);
+    assert.equal(method.testedBy?.routeBlobSha, currentBlob);
+    assert.equal(method.testedBy?.proofBlobSha, "c7d3595859235be8d9f9de72b60d773361a4cd7b");
+    assert.equal(method.testedBy?.workflowBlobSha, "ca1ab8248da33a2d1c81d2908a67b43570b9f6a8");
+    assert.deepEqual(reviewed, expected,
+      "Zero-credit source review must not expand or claim security approval");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Greedy roster proof changed; rerun and re-review: " + file);
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    for (const anchor of [
+      'seedEmployer("ATTA"', 'seedEmployer("ATTB"',
+      'seedEmployer("VICTIM"', 'seedEmployer("ELIG"',
+      "assertSuggestedGreedyRoster(positiveResponse",
+      "const forgedEligible = await read(eligible",
+      "source-bound eligible recommendation",
+      "cross-unit and stolen-site positive-roster refusals",
+      "staffing_requirements_wfm_qa_missing",
+      "assertAllUnchanged",
+    ]) assert.ok(proof.includes(anchor),
+      "Genuine eligible/foreign/SQL fault proof missing: " + anchor);
+    const source = readFileSync(
+      "src/app/api/workforce/greedy-roster/route.ts", "utf8");
+    assert.match(source, /assertOrganizationRole/);
+    assert.match(source, /getAccess\(user\.id,organizationId\)/);
+    assert.match(source, /error:"Verified staffing evidence could not be loaded\."/);
+    assert.ok(!source.includes("error:error instanceof Error?error.message"),
+      "No raw SQL/driver error may reach a tenant");
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-wrk01-greedy-roster-http\.mjs/);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -4319,6 +4392,72 @@ test("all credited proof links point to the claimed route and every recertified 
       // Six specific POST proofs are independently guarded by the
       // "2026-11-02 exact-head promotion sweep" test below. Do not widen the
       // generic evidence-source allowlist or let an unrelated route borrow one.
+      // These two WRK-01 source-specific methods retain exact PG16 receipts.
+      const wfmTwo = {
+        "scripts/qa/tenant-wfm-three-method-post-http.mjs": {
+          route: "src/app/api/workforce/roster-rules/preview/route.ts", method: "POST",
+          contract: "scripts/qa/tenant-wfm-three-method-contract.mjs", job: 124808879396,
+          own: /const own = await post\(bodyFor\(employer, patch\), employer\.cookie\)/,
+          foreign: /const response = await post\(body, attacker\.cookie\)/,
+          forged: /stolen employee/, unchanged: /assertRosterPreviewImmutable\(/,
+        },
+      };
+      const wfmSpec = wfmTwo[proof?.file];
+      if (wfmSpec) {
+        assert.equal(path, wfmSpec.route, "WFM proof cannot be borrowed by another API route");
+        assert.equal(method.name, wfmSpec.method, "WFM proof must match the actual HTTP method");
+        assert.equal(proof.verifiedPrHeadSha, "a5c70e563580c5ab9cb6d8db7610f3950148a27e");
+        assert.equal(proof.workflowRunId, 41293308290);
+        assert.equal(proof.workflowJobId, wfmSpec.job);
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(proof.routeBlobSha, gitBlobSha(readFileSync(path)),
+          "WFM route drift requires a new exact-head real-HTTP proof");
+        assert.equal(proof.proofBlobSha, gitBlobSha(readFileSync(proof.file)),
+          "WFM HTTP proof changed since the passing job");
+        assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync(wfmSpec.contract)),
+          "WFM response/tenant proof contract changed");
+        const workflowFile = ".github/workflows/tenant-wfm-three-method-http.yml";
+        assert.equal(proof.workflowFile, workflowFile);
+        const workflow = readFileSync(workflowFile, "utf8");
+        assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)),
+          "Synthetic allowlist/flag profiles or CI job drifted");
+        assert.match(workflow, /image: postgres:16/);
+        for (const [field, pattern] of [
+          ["ownPositiveLine", wfmSpec.own],
+          ["foreignDenialLine", wfmSpec.foreign],
+          ["forgedSelectorLine", wfmSpec.forged],
+          ["unchangedDbLine", wfmSpec.unchanged],
+        ]) assert.match(evidenceLine(proof.file, proof[field], path + " " + field), pattern);
+        assert.ok(proof.victimIdOrderingLine > 0);
+        assert.match(proof.evidence, /^https:\/\/github\.com\/erwinmehehe\/payrollph\/actions\/runs\/41293308290\/job\/124808879396$/);
+        continue;
+      }
+      if (proof?.file === "scripts/qa/tenant-wrk01-greedy-roster-http.mjs") {
+        assert.equal(path, "src/app/api/workforce/greedy-roster/route.ts");
+        assert.equal(method.name, "GET");
+        assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.workflowRunId, 41447125405);
+        assert.equal(proof.verifiedPrHeadSha, "8245efd876c38f2b7ba02ece12ac515b8775d6ed");
+        assert.equal(proof.postgresMajor, 16);
+        for (const [field, line, marker] of [
+          ["ownPositiveLine", 427, "assertSuggestedGreedyRoster(positiveResponse"],
+          ["foreignDenialLine", 289, "await denied(actor.label + \" foreign organization\""],
+          ["forgedSelectorLine", 432, "const forgedEligible = await read(eligible"],
+          ["unchangedDbLine", 429, "await assertAllUnchanged(positiveBaseline"],
+          ["victimIdOrderingLine", 191, "victim[key].id > 6"],
+        ]) {
+          assert.equal(proof[field], line, "Repin actual line of four-part GET assertion");
+          assert.ok(evidenceLine(proof.file, line, field).includes(marker));
+        }
+        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        continue;
+      }
       const promotedWrites = new Map([
         ["leave/conversion", ["scripts/qa/tenant-leave-conversion-post-http.mjs", 41264782087]],
         ["payroll/overpayment-preflight", ["scripts/qa/tenant-overpayment-preflight-post-http.mjs", 41264867045]],
