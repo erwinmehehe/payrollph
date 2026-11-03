@@ -35,7 +35,7 @@ test("regression guard rejects a split queue or an independently committed audit
     "await enqueuePayrollRun(boundRun.id);"), queue), false);
   assert.equal(boundPathIsAtomic(yearEnd, route.replace(
     "onBoundToPayrollRun: async (tx, boundSummary) => {",
-    "onBoundToPayrollRun: async (tx, boundSummary) => { /* removed */"), queue), false);
+    "onBoundToPayrollRun: async (boundSummary) => {"), queue), false);
   assert.equal(boundPathIsAtomic(yearEnd.replace(
     "await options.onBoundToPayrollRun(tx, summary);",
     "void options.onBoundToPayrollRun(tx, summary);"), route, queue), false);
