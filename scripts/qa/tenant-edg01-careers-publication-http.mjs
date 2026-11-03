@@ -265,7 +265,7 @@ async function prove() {
       "language plpgsql as $$ begin " +
       "if new.action = 'Careers requisition unpublished' then " +
       "raise exception 'CI_CAREERS_AUDIT_VETO'; end if; " +
-      "return new; end $$");
+      "return new; end; $$");
     try {
       await pool.query(
         "create trigger ci_careers_edg01_audit_veto_trigger " +
