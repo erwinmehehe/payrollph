@@ -33,6 +33,11 @@ test("SLA outbox dedupe references the existing partial unique index", () => {
   assert.match(route, /await client\.query\("ROLLBACK"\)/);
 });
 
+test("HCM proof concurrency cancels stale runs only within the same PR or ref", () => {
+  assert.ok(workflow.includes('group: hcm-sla-worker-tenant-${{ github.event.pull_request.number || github.ref }}'));
+  assert.ok(workflow.includes('cancel-in-progress: true'));
+});
+
 test("disposable PG16 proof denies tenant sessions and cross-employer notifications", () => {
   for (const key of [
     '["GITHUB_ACTIONS", "true"]',
