@@ -87,6 +87,15 @@ async function prove() {
         { organizationId: e.org.id, jobProfileId: profile.id,
           code: "EDG-CLOSED-" + label, status: "filled", orgUnitId: e.unit.id },
       ]).returning();
+      // Real victim requisition IDs must exceed six, not merely exceed the
+      // two attacker IDs. These inert, cancelled fixtures are never public.
+      if (label !== "VICTIM") {
+        await db.insert(s.jobRequisitions).values([0, 1].map(index => ({
+          organizationId: e.org.id, positionId: null,
+          title: e.marker + " synthetic cancelled ID padding " + index,
+          department: e.marker + " recruiting", status: "cancelled",
+        })));
+      }
       const [job, closedJob] = await db.insert(s.jobRequisitions).values([
         { organizationId: e.org.id, positionId: position.id,
           title: e.marker + " fictional career opening",
@@ -146,6 +155,15 @@ async function prove() {
       assert.ok(target > a[field].id && target > b[field].id,
         "victim " + field + " requires real higher persisted ID");
     }
+
+    assert.ok(victim.job.id > 6,
+      "EDG01_CAREERS_REFUSED: real victim requisition ID must be greater than six");
+    const persistedVictimJob = await db.select({ id: s.jobRequisitions.id,
+      organizationId: s.jobRequisitions.organizationId })
+      .from(s.jobRequisitions).where(eq(s.jobRequisitions.id, victim.job.id));
+    assert.deepEqual(persistedVictimJob,
+      [{ id: victim.job.id, organizationId: victim.org.id }],
+      "higher-ID victim is a real persisted requisition, not an invented selector");
 
     const snapshot = async id => {
       const rows = table => db.select().from(table)
@@ -239,6 +257,31 @@ async function prove() {
       await expectDenied(() => patch(attacker, attacker.org.id, attacker.job.id, true, false),
         403, attacker.label + " revoked employer membership denies publication");
     }
+    // Fault-injected real PG16 audit INSERT: publication state and its audit
+    // must commit atomically. This DDL exists ONLY in the disposable CI DB.
+    const rollbackBefore = await snapshotAll();
+    await pool.query(
+      "create function ci_careers_edg01_audit_veto() returns trigger " +
+      "language plpgsql as $ begin " +
+      "if new.action = 'Careers requisition unpublished' then " +
+      "raise exception 'CI_CAREERS_AUDIT_VETO'; end if; " +
+      "return new; end $");
+    try {
+      await pool.query(
+        "create trigger ci_careers_edg01_audit_veto_trigger " +
+        "before insert on audit_events for each row " +
+        "execute function ci_careers_edg01_audit_veto()");
+      const rollbackHttp = await patch(victim, victim.org.id,
+        victim.job.id, false, true);
+      assert.equal(rollbackHttp.status, 500,
+        "injected audit INSERT failure must not return a successful publish decision");
+      assertUnchanged(rollbackBefore, await snapshotAll(),
+        "audit failure must roll back all three employers' job and audit rows");
+    } finally {
+      await pool.query(
+        "drop trigger if exists ci_careers_edg01_audit_veto_trigger on audit_events");
+      await pool.query("drop function if exists ci_careers_edg01_audit_veto()");
+    }
     assert.equal(successes, 5);
     assert.equal(denials, 20);
     const final = await snapshotAll();
@@ -253,6 +296,7 @@ async function prove() {
       wrongEmployerAndObjectRefused: true, companyWideOnly: true,
       staleAndClosedBlocked: true, realMfaRevocationDenied: true,
       victimAndDraftPayrollUnchanged: true,
+      victimRequisitionIdOverSix: true, auditInsertRollback: true,
       disposablePg16: true, localhostProductionMode: true,
       coverageCredits: 0, globalTenantIsolationAccepted: false,
       productionCertified: false, moneyMoved: false,
