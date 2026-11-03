@@ -5,6 +5,9 @@ import {
   requireDisposableXenditSubscriptionsWebhook,
   XENDIT_SUBSCRIPTIONS_WEBHOOK_METHODS,
 } from "../scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs";
+import {
+  assertFictionalHighIdVictim, assertEmployerSnapshotIsolation,
+} from "../scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs";
 
 const good = () => ({
   GITHUB_ACTIONS: "true", CI: "true", NODE_ENV: "production",
@@ -46,6 +49,15 @@ test("proof is inbound-only, one callback route, zero manifest credits", () => {
     "concurrent duplicates must not double-write",
     "forged selectors ignored",
     "stale plan ignored",
+    "for (let i = 0; i < 6; i++)",
+    "const employers = [a, b, ...fillers, victim]",
+    "assertFictionalHighIdVictim(a, b, victim)",
+    "assertEmployerSnapshotIsolation(before, after, allowed)",
+    "signed callback missing reference",
+    "signed callback missing provider plan",
+    "forged victim-selector replay",
+    "B's own successful callback requires its own audit receipt",
+    "A legitimate victim provider event must audit only that victim",
     "productionTested: false",
     "methodCoverageCredit: false",
   ]) {
@@ -60,6 +72,63 @@ test("proof is inbound-only, one callback route, zero manifest credits", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles["src/app/api/webhooks/xendit/subscriptions/route.ts"];
   assert.ok(entry, "webhook method still inventoried");
-  assert.ok(["GAP", "COVERED"].includes(entry.methods.find(m => m.name === "POST")?.status),
-    "credit is written only by the restricted credit script after the exact-head run");
+  const method = entry.methods.find(m => m.name === "POST");
+  assert.equal(method?.status, "GAP", "Only a separate reviewed promotion may change the method from GAP");
+  assert.equal(method?.testedBy, null, "A source-only proof candidate cannot self-credit the method");
+});
+
+function fixtureEmployer(id) {
+  return Object.fromEntries(["org", "entity", "unit", "owner", "worker"]
+    .map(field => [field, { id }]));
+}
+
+test("PG16 victim discriminator refuses IDs under seven or not higher than both attackers", () => {
+  const a = { ...fixtureEmployer(1), billing: { subscription: { id: 1 }, checkout: { id: 1 } } };
+  const b = { ...fixtureEmployer(2), billing: { subscription: { id: 2 }, checkout: { id: 2 } } };
+  const victim = { ...fixtureEmployer(9), billing: { subscription: { id: 9 }, checkout: { id: 9 } } };
+  assert.doesNotThrow(() => assertFictionalHighIdVictim(a, b, victim));
+  for (const field of ["org", "entity", "unit", "owner", "worker"]) {
+    for (const bad of [1, 2, 6, 7.25]) {
+      const mutated = structuredClone(victim);
+      mutated[field].id = bad;
+      assert.throws(() => assertFictionalHighIdVictim(a, b, mutated),
+        /Higher-ID real victim/, field + " must be a higher, persisted integer");
+    }
+  }
+  for (const field of ["subscription", "checkout"]) {
+    for (const bad of [2, 6, null, 6.5]) {
+      const mutated = structuredClone(victim);
+      mutated.billing[field].id = bad;
+      assert.throws(() => assertFictionalHighIdVictim(a, b, mutated),
+        /Higher-ID real victim/, field + " must not borrow a fake, low or attacker-owned ID");
+    }
+  }
+});
+
+test("snapshot guard preserves all nine employers and detects a forged victim write", () => {
+  const before = Object.fromEntries(
+    ["ATTA", "ATTB", "FILL0", "FILL1", "FILL2", "FILL3", "FILL4", "FILL5", "VICTIM"]
+      .map(label => [label, {
+        subscriptions: [{ id: 1, status: label }],
+        invoices: [], auditEvents: [], billingEvents: [], employees: [{ marker: label }],
+      }])
+  );
+  assert.doesNotThrow(() => assertEmployerSnapshotIsolation(before, structuredClone(before)));
+  const own = structuredClone(before);
+  own.ATTA.invoices.push({ id: 1, organizationId: 1 });
+  assert.doesNotThrow(() => assertEmployerSnapshotIsolation(before, own, ["ATTA"]));
+  assert.throws(() => assertEmployerSnapshotIsolation(before, own),
+    /other employer billing and audit rows unchanged/, "a business write needs explicit own-scope allowance");
+  const victimMutated = structuredClone(own);
+  victimMutated.VICTIM.auditEvents.push({ actor: "forged" });
+  assert.throws(() => assertEmployerSnapshotIsolation(before, victimMutated, ["ATTA"]),
+    /other employer billing and audit rows unchanged/, "forged selectors cannot mutate victim audit");
+  const fillerMutated = structuredClone(own);
+  fillerMutated.FILL5.employees[0].marker = "stolen";
+  assert.throws(() => assertEmployerSnapshotIsolation(before, fillerMutated, ["ATTA"]),
+    /other employer billing and audit rows unchanged/, "filler employers are not ignored");
+  const omitted = structuredClone(own);
+  delete omitted.FILL2;
+  assert.throws(() => assertEmployerSnapshotIsolation(before, omitted, ["ATTA"]),
+    /All seeded employers/, "missing employer snapshot must fail closed");
 });
