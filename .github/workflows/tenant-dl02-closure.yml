@@ -12,7 +12,6 @@ on:
       - 'scripts/qa/tenant-dl02-fixture-reader.mjs'
       - 'scripts/qa/tenant-dl02-rows/**'
       - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
-      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'tests/tenant-dl02-closure-source.test.mjs'
       - 'tests/tenant-dl02-fixture-reader.test.mjs'
       - 'src/app/api/self/photo/**'
