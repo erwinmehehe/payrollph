@@ -2,7 +2,7 @@ name: Tenant leave + governed handoff four-part PG16 HTTP proof
 
 on:
   push:
-    branches: [qa/tenant-workflow-leave-handoff-pg16-20261102]
+    branches: [qa/tenant-workflow-leave-handoff-pg16-20261102, qa/tenant-workflow-followup-atomic-20261102]
   pull_request:
     branches: [main]
     paths:

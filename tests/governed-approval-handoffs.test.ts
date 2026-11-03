@@ -84,10 +84,18 @@ test("handoff routing requires MFA, active tenant-owned approval policy, org sco
     "createApprovalFromConfiguredChain({",
     "sourceEvidence,",
     "governedHandoffSourceKey(sourceId, source.sourceHash)",
-    "recordAuditEvent({",
+    "auditEvent: {",
     "sourceMutation: false",
     "payrollOrRosterMutation: false",
   ]) assert.ok(api.includes(predicate), predicate);
+  // The route passes audit input; the chain helper must persist the event inside
+  // the same transaction as approval creation, including idempotent replays.
+  const chain = read("src/lib/approval-chains.ts");
+  assert.ok(chain.includes("return db.transaction(async (tx) => {"), "approval creation must be transactional");
+  assert.ok(chain.includes("await recordAuditEvent({"), "the chain helper must persist an audit event");
+  assert.ok(chain.includes("}, tx);"), "audit insert must use the approval transaction");
+  assert.ok(chain.includes("await writeAuditedHandoff(existing.id);"), "replays must be audited");
+  assert.ok(chain.includes("await writeAuditedHandoff(instance.id);"), "new approvals must be audited");
   assert.equal(api.includes("db.update(openShiftClaims)"), false);
   assert.equal(api.includes("db.update(separationRecords)"), false);
   assert.equal(api.includes("db.update(payrollRuns)"), false);
