@@ -291,17 +291,17 @@ test("six-method review preserves the baseline with only three source-pinned #17
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-    assert.deepEqual(methodStatuses(baseline), snapshot.methodStatuses,
-      "origin/main method statuses changed; rebase and renew the ledger review");
+    assert.deepEqual(methodStatuses(baseline), expectedStatuses,
+      "origin/main changed beyond the three exact-source #1728 methods; re-review ledger");
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
-    }, snapshot.counts, "origin/main totals changed; renew ledger review");
+    }, expectedCounts, "origin/main totals changed beyond the three verified compliance credits");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-      snapshot.frozenSubtotal, "origin/main frozen ledger changed; renew review");
+      currentFrozenSubtotal, "origin/main frozen ledger changed beyond the source-pinned #1728 credits");
   }
 });
