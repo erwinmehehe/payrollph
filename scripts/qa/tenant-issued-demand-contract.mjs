@@ -9,6 +9,20 @@ export const ISSUED_DEMAND_POST_METHODS = Object.freeze([
   "POST workforce/demand-observations/issued",
   "POST workforce/demand-observations/issued/score",
 ]);
+export const REQUIRED_ISSUED_DEMAND_PROOF_COUNTS = Object.freeze({
+  ownIssue201: 3, ownIssueReplay200: 2,
+  ownScore201: 3, ownScoreReplay200: 2,
+  foreignEmployer403: 4, forgedSite403: 2,
+  forgedIssue403: 2, earlyScore409: 2,
+  changedKey409: 2, forgedSource409: 2,
+  invalidInput400: 4, anonymous401: 4,
+  excludedPilot404: 2, nonmemberExcludedEmployer403: 4,
+  missingMfa403: 4,
+});
+export function assertCompleteIssuedDemandProofCounts(actual) {
+  assert.deepEqual(actual, REQUIRED_ISSUED_DEMAND_PROOF_COUNTS,
+    "ISSUED_DEMAND_PROOF_INCOMPLETE: all real two-attacker positive, victim, forged, immutable and MFA branches are mandatory");
+}
 export const ISSUE_PATH = "/api/workforce/demand-observations/issued";
 export const SCORE_PATH = ISSUE_PATH + "/score";
 export const FORBIDDEN_PROVIDER_ENV = Object.freeze([
@@ -36,6 +50,8 @@ export function requireDisposableIssuedDemand(env = process.env) {
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
     XENDIT_PAYOUTS_ENABLED: "false",
     XENDIT_BILLING_ENABLED: "false",
+    PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false",
+    NEXT_CSP_ENABLED: "false",
     HCM_OVERPAYMENT_PREVIEW_ENABLED: "false",
     PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
     WFM_OPERATIONAL_DEMAND_ENABLED: "true",

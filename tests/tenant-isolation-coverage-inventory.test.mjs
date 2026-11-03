@@ -93,6 +93,89 @@ function evidenceLine(path, number, subject) {
     subject + ": proof requires an existing file:line reference");
   return lines[number - 1];
 }
+/** Exact-source sole-owner verification for the two distinct issued-demand POST methods.
+ * The old GET overlay proof does NOT authorize either POST. */
+function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
+  const specs = {
+    "src/app/api/workforce/demand-observations/issued/route.ts": {
+      own: 262, foreign: 300, forged: 310, unchanged: 102, ordered: 62,
+      routeSha: "549156b2e143c71bd33385fb1cc49a95cb120dfc",
+      endpoint: "ISSUE_PATH",
+    },
+    "src/app/api/workforce/demand-observations/issued/score/route.ts": {
+      own: 340, foreign: 389, forged: 397, unchanged: 102, ordered: 249,
+      routeSha: "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
+      endpoint: "SCORE_PATH",
+    },
+  };
+  const spec = specs[routePath];
+  assert.ok(spec, routePath + ": no unreviewed method can borrow the solo recovery");
+  assert.equal(method.name, "POST");
+  assert.equal(method.status, "COVERED");
+  assert.equal(currentBlob, spec.routeSha, "changed handler needs new PG16 four-part proof");
+  const proof = method.testedBy;
+  assert.equal(proof?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(proof.ownerReviewer, "erwinmehehe");
+  assert.equal(proof.ownerIsOnlyReviewer, true);
+  assert.equal(proof.independentlyAccepted, false, "do not invent a second reviewer");
+  assert.equal(proof.prNumber, 1731);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.proofHeadCommit, "1834b73aab8e162e19b4b260e51b32e6fa1fbbec");
+  assert.equal(proof.workflowRunId, 41444835667);
+  assert.equal(proof.workflowJobId, 125275257980);
+  assert.equal(proof.evidence,
+    "https://github.com/erwinmehehe/payrollph/actions/runs/41444835667/job/125275257980");
+  assert.deepEqual([
+    proof.line, proof.ownPositiveLine, proof.foreignDenialLine, proof.unchangedDbLine,
+    proof.forgedSelectorLine, proof.victimIdOrderingLine,
+  ], [spec.own, spec.own, spec.foreign, spec.unchanged, spec.forged, spec.ordered],
+  "distinct own/foreign/forged/unchanged proof citations must stay exact");
+  const blobPins = [
+    [routePath, proof.routeBlobSha, spec.routeSha],
+    [proof.file, proof.proofBlobSha, "a63e9aa94b9c85000433e9a40c778af449888757"],
+    ["scripts/qa/tenant-issued-demand-contract.mjs", proof.contractBlobSha, "a4a7714a42ada86a55192b160e3f5f2761af0500"],
+    ["tests/tenant-issued-demand-contract.test.mjs", proof.testBlobSha, "0df0028ceda0413256575f3847c950194f6e73f3"],
+    [proof.workflowFile, proof.workflowBlobSha, "caf01bd8e2c17e8cd5bfd17528cd56d7503aa312"],
+  ];
+  for (const [file, pinned, expected] of blobPins) {
+    assert.equal(pinned, expected, file + ": unexpected proof source");
+    assert.equal(gitBlobSha(readFileSync(file)), expected,
+      file + ": edited route/proof/contract/workflow requires exact-head revalidation");
+  }
+  assert.equal(proof.file, "scripts/qa/tenant-issued-demand-http.mjs");
+  const lines = readableLines(proof.file);
+  assert.ok(lines[spec.own - 1].includes("const result = await allowed(" + spec.endpoint),
+    "real owned HTTP 201 must execute the exact POST");
+  assert.ok(lines[spec.foreign - 1].includes("await refused(" + spec.endpoint),
+    "real victim employer must be denied by the same POST");
+  assert.ok(lines[spec.forged - 1].includes("await refused(" + spec.endpoint),
+    "real victim selector must be refused");
+  assert.match(lines[spec.unchanged - 1], /await unchangedAll\(before, label\)/,
+    "every negative request must compare all four employers' PostgreSQL/audit snapshots");
+  assert.match(lines[spec.ordered - 1], /victim\.(?:org|scorableIssue)\.id > Math\.max/,
+    "real seeded victim ID must exceed both attacker IDs");
+  const suite = lines.join("\n");
+  assert.match(suite, /for \(const actor of attackers\)/);
+  assert.match(suite, /assertCompleteIssuedDemandProofCounts\(counts\)/);
+  assert.match(suite, /assert\.equal\(created\.length, 1\)/);
+  assert.match(suite, /assertNoOtherEmployerLeak/);
+  assert.match(suite, /requireDisposableIssuedDemand\(\)/);
+  assert.ok(suite.indexOf("requireDisposableIssuedDemand();") <
+    suite.indexOf('import("../../src/db/index.ts")'),
+    "strict disposable guard must precede all database imports");
+  const workflow = readFileSync(proof.workflowFile, "utf8");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /npm start -- -H 127\.0\.0\.1/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-issued-demand-http\.mjs/);
+  assert.match(workflow, /XENDIT_PAYOUTS_ENABLED: "false"/);
+  assert.match(workflow, /WFM_LOYVERSE_POS_ENABLED: "false"/);
+  assert.match(workflow, /WFM_SQUARE_SANDBOX_ENABLED: "false"/);
+  assert.equal(proof.productionCertified, false);
+  assert.equal(proof.providerCalls, 0);
+  assert.equal(proof.payrollWrites, 0);
+  assert.equal(proof.rosterWrites, 0);
+}
+
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(method.status),
     key + ": invalid coverage status");
@@ -1856,8 +1939,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const path = "src/app/api/workforce/demand-observations/issued/score/route.ts";
     assert.equal(currentBlob, "5658c67c7758e78c68738f0e848edfcfc8bd17c3",
       "Issued final-score security edit requires renewed exact-source review");
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null, "Source reorder alone is not full POST evidence");
+    verifyIssuedDemandSoloRecovery(method, path, currentBlob);
+    // The earlier POST pilot-order fix alone was not sufficient; this exact
+    // method has since passed a genuine two-attacker PG16 HTTP four-part proof.
     const route = readFileSync(path, "utf8");
     assert.equal(gitBlobSha(Buffer.from(restoreIssuedDemandPostPilotOrder(route))),
       "91170340cd1bc1e43547e4d29d4b213bf45efe12",
@@ -1947,13 +2031,16 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     }
     assert.equal(baseline.api[routePath], before, "Original WFM demand baseline must remain stable");
     const expectedStatuses = issued
-      ? { GET: "COVERED", POST: "GAP" }
+      ? { GET: "COVERED", POST: "COVERED" }
       : { GET: "GAP", POST: "COVERED", PATCH: "COVERED" };
     assert.equal(method.status, expectedStatuses[method.name],
       "WFM permission fix cannot silently promote, downgrade or omit another method");
-    if (method.status === "GAP") assert.equal(method.testedBy, null,
-      "Unreviewed method cannot borrow a feature-OFF or static proof credit");
-    else {
+    if (issued && method.name === "POST") {
+      verifyIssuedDemandSoloRecovery(method, routePath, currentBlob);
+    } else if (method.status === "GAP") {
+      assert.equal(method.testedBy, null,
+        "Unreviewed method cannot borrow a feature-OFF or static proof credit");
+    } else {
       assert.equal(method.testedBy?.routeBlobSha, before,
         "Historical covered method evidence must keep its original source hash");
       assert.equal(method.testedBy?.file, issued
@@ -1969,7 +2056,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       routeBlobSha: after,
       onlyReadHandlerChanged: true,
       changedMethod: "GET",
-      statusBefore: method.status,
+      statusBefore: issued && method.name === "POST" ? "GAP" : method.status,
       runnerFile: "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
       runnerBlobSha: "595539e672a3dc121f709b44ce045f432d7d9d92",
       contractFile: "tests/tenant-wfm-demand-read-overlay.test.mjs",
@@ -4551,6 +4638,13 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.match(proof.independentReview, /^PENDING/);
         continue; // GET (manage mode unproven) stays GAP; no sibling credit.
+      }
+      if (proof.file === "scripts/qa/tenant-issued-demand-http.mjs") {
+        // Only these two exact source-pinned POST methods use the standalone PG16
+        // write harness; their own, victim, forged, SQL and SHA pins are checked
+        // by the dedicated method verifier rather than the generic GET locator.
+        verifyIssuedDemandSoloRecovery(method, path, gitBlobSha(readFileSync(path)));
+        continue;
       }
       if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
           ["leave","governed-handoffs"].includes(entry.route)) {
