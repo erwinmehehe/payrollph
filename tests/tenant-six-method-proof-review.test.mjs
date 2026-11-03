@@ -185,7 +185,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
     cases.filter(c => !skipOpenCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
 });
 
-test("live and frozen tenant ledgers allow only four pinned year-end credits", () => {
+test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end credits", () => {
   const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
@@ -210,9 +210,50 @@ test("live and frozen tenant ledgers allow only four pinned year-end credits", (
       path, Object.fromEntries(data.methods.map(row => [row.name, row.status])),
     ]),
   );
-  // #1730 proposes exactly four source-pinned synthetic PG16 method credits.
-  // The historical six-method GAP hold is separate and must stay unchanged.
-  // These receipts are sole-owner development evidence, NOT independent review.
+  // The six-method review itself grants ZERO credits. A separate and already
+  // source-pinned #1728 proposal adds exactly three disjoint STA-01 POSTs.
+  // Keep the reviewed 498-method baseline immutable, then apply ONLY those
+  // three explicitly named, proven, non-production changes for this PR.
+  const compliancePostCredits = [
+    ["src/app/api/compliance/contribution-issues/route.ts",
+      "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs",
+      "dfcf1615be01bb151e13a5d74c080299575ce53a"],
+    ["src/app/api/compliance/payroll-month-close/route.ts",
+      "scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs",
+      "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193"],
+    ["src/app/api/compliance/statutory-remittances/route.ts",
+      "scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs",
+      "f24a7349c902dae0bc41a3989c8a88df24aedb6f"],
+  ];
+  const expectedStatuses = JSON.parse(JSON.stringify(snapshot.methodStatuses));
+  for (const [path, sourceRowFile, sourceRowSha] of compliancePostCredits) {
+    assert.equal(expectedStatuses[path]?.POST, "GAP", path + ": source baseline must be GAP");
+    const route = m.allApiRouteFiles[path];
+    const method = route?.methods.find(row => row.name === "POST");
+    assert.equal(method?.status, "COVERED", path + ": #1728 POST status");
+    const proof = method.testedBy;
+    assert.ok(proof, path + ": a provisional credit requires source-pinned evidence");
+    assert.equal(proof.prNumber, 1728, path + ": unique PR owner");
+    assert.equal(proof.verifiedPrHeadSha, "d3cdcf020a559ae85c813d656620832dd0a46d4e");
+    assert.equal(proof.workflowRunId, 41446327305);
+    assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(proof.postgresMajor, 16);
+    assert.equal(proof.independentlyAccepted, false);
+    assert.equal(proof.productionCertified, false);
+    assert.equal(proof.productionTested, false);
+    assert.equal(proof.sourceRowFile, sourceRowFile);
+    assert.equal(proof.sourceRowBlobSha, sourceRowSha);
+    assert.equal(blobSha(sourceRowFile), sourceRowSha,
+      path + ": fictional PG16 proof row modified without review");
+    assert.equal(proof.routeBlobSha, route.gitBlobSha);
+    assert.equal(blobSha(path), route.gitBlobSha,
+      path + ": handler changed since source review");
+    assert.equal(proof.proofBlobSha, blobSha("scripts/qa/tenant-write-table-http.mjs"));
+    assert.equal(proof.workflowBlobSha,
+      blobSha(".github/workflows/tenant-compliance-post-candidate.yml"));
+    expectedStatuses[path].POST = "COVERED";
+  }
+  const expectedMainStatuses = JSON.parse(JSON.stringify(expectedStatuses));
   const permittedPromotions = [
     {
       path: "src/app/api/year-end/route.ts",
@@ -263,9 +304,6 @@ test("live and frozen tenant ledgers allow only four pinned year-end credits", (
       actions: ["save", "approve"],
     },
   ];
-  const expectedStatuses = Object.fromEntries(
-    Object.entries(snapshot.methodStatuses).map(([path, rows]) => [path, { ...rows }]),
-  );
   for (const pin of permittedPromotions) {
     const label = pin.verb + " " + pin.path;
     assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " must start GAP on main");
@@ -297,13 +335,14 @@ test("live and frozen tenant ledgers allow only four pinned year-end credits", (
     expectedStatuses[pin.path][pin.verb] = "COVERED";
   }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Only the four exact-source #1730 GET/POST methods may change status from main");
+    "No methods beyond three #1728 and four #1730 source-pinned methods may change from the 498-method baseline");
   const expectedCounts = {
-    ...snapshot.counts,
-    COVERED: snapshot.counts.COVERED + permittedPromotions.length,
-    GAP: snapshot.counts.GAP - permittedPromotions.length,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length,
+    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length,
   };
-  assert.deepEqual(counts, expectedCounts, "Live totals must include exactly four #1730 credits");
+  assert.deepEqual(counts, expectedCounts,
+    "Only three #1728 and four #1730 exact source-pinned credits may alter the live ledger totals");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -311,13 +350,12 @@ test("live and frozen tenant ledgers allow only four pinned year-end credits", (
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const expectedFrozenSubtotal = snapshot.frozenSubtotal.replace(
-    "313 COVERED + 2 PUBLIC-BY-DESIGN + 91 GAP = 406",
-    "317 COVERED + 2 PUBLIC-BY-DESIGN + 87 GAP = 406",
-  );
-  assert.notEqual(expectedFrozenSubtotal, snapshot.frozenSubtotal);
-  assert.ok(plan.includes(expectedFrozenSubtotal),
-    "Frozen 406-method queue must reconcile only the four source-pinned #1730 credits");
+  const currentFrozenSubtotal = snapshot.frozenSubtotal
+    .replace("313 COVERED", "320 COVERED")
+    .replace("91 GAP", "84 GAP");
+  assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
+    currentFrozenSubtotal,
+    "Frozen subtotal must include only three #1728 STA-01 and four #1730 year-end credits");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
@@ -334,17 +372,27 @@ test("live and frozen tenant ledgers allow only four pinned year-end credits", (
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-    assert.deepEqual(methodStatuses(baseline), snapshot.methodStatuses,
-      "origin/main method statuses changed; rebase and renew the ledger review");
+    // Current main includes only the three reviewed #1728 compliance POST
+    // credits. No #1730 year-end method may already be promoted in origin/main
+    // or silently inherit a different head's source validation.
+    assert.deepEqual(methodStatuses(baseline), expectedMainStatuses,
+      "origin/main method statuses differ from exactly three #1728 compliance credits");
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
-    }, snapshot.counts, "origin/main totals changed; renew ledger review");
+    }, {
+      COVERED: snapshot.counts.COVERED + compliancePostCredits.length,
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+      GAP: snapshot.counts.GAP - compliancePostCredits.length,
+    }, "origin/main totals changed; re-review ledger before merging");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
+    const expectedMainFrozen = snapshot.frozenSubtotal
+      .replace("313 COVERED", "316 COVERED")
+      .replace("91 GAP", "88 GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-      snapshot.frozenSubtotal, "origin/main frozen ledger changed; renew review");
+      expectedMainFrozen, "origin/main frozen ledger changed; renew review");
   }
 });
