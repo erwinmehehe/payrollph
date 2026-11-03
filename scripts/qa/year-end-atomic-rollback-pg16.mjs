@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../../src/db";
-import { auditEvents, payrollEntries, payrollJobs, payrollRuns, yearEndAdjustments, sessions } from "../../src/db/schema";
+import { auditEvents, payrollEntries, payrollJobs, payrollRuns, yearEndAdjustments, payrollMonthClosures, sessions } from "../../src/db/schema";
 import {
   requireTenantTableDisposable, seedEmployer, standaloneMakeSession,
   standaloneRequest, standaloneExpectStatus,
@@ -29,6 +29,8 @@ async function snapshot(orgId) {
     runs, entries, jobs,
     adjustments: await db.select().from(yearEndAdjustments)
       .where(eq(yearEndAdjustments.organizationId, orgId)).orderBy(asc(yearEndAdjustments.id)),
+    monthClosures: await db.select().from(payrollMonthClosures)
+      .where(eq(payrollMonthClosures.organizationId, orgId)).orderBy(asc(payrollMonthClosures.id)),
     audit: await db.select().from(auditEvents)
       .where(eq(auditEvents.organizationId, orgId)).orderBy(asc(auditEvents.id)),
   });
@@ -211,6 +213,31 @@ async function proveConcurrentBinding(e) {
   ], "the losing concurrent request may commit no additional audit or payroll state");
 }
 
+async function proveStandaloneEnqueueGuards(e, fixture) {
+  const { enqueuePayrollRun } = await import("../../src/lib/payroll-engine.ts");
+  const releasedBefore = await snapshot(e.org.id);
+  await assert.rejects(() => enqueuePayrollRun(fixture.released.id),
+    /PAYROLL_RECALCULATION_NOT_ALLOWED/,
+    "direct helper callers must never overwrite released payroll");
+  assert.deepEqual(await snapshot(e.org.id), releasedBefore,
+    "direct released-run denial may not mutate payroll, jobs or audit");
+
+  // A synthetic, signed month-close must veto a direct helper call, even
+  // without a route-level certification check.
+  await db.insert(payrollMonthClosures).values({
+    organizationId: e.org.id, legalEntityId: e.entity.id,
+    applicableMonth: "2026-12", status: "certified",
+    snapshotHash: "a".repeat(64), evidenceSnapshot: { fictional: true, source: "isolated-ci-only" },
+    certifiedByName: "Fictional independent month-close",
+  });
+  const certifiedBefore = await snapshot(e.org.id);
+  await assert.rejects(() => enqueuePayrollRun(fixture.wrongCutoff.id),
+    /PAYROLL_MONTH_CERTIFIED_IMMUTABLE/,
+    "standalone enqueue cannot recalculate a certified payroll month");
+  assert.deepEqual(await snapshot(e.org.id), certifiedBefore,
+    "certified month veto must preserve register, queue and all audit rows");
+}
+
 async function main() {
   requireTenantTableDisposable();
   for (const flag of [
@@ -230,6 +257,7 @@ async function main() {
   for (const employer of employers) fixtures.set(employer.org.id, await seedYearEnd(employer));
   await proveEmployer(a, fixtures.get(a.org.id), victim, fixtures.get(victim.org.id));
   await proveEmployer(b, fixtures.get(b.org.id), victim, fixtures.get(victim.org.id));
+  await proveStandaloneEnqueueGuards(a, fixtures.get(a.org.id));
   const concurrent = await seedEmployer("ATTA", nonce + "race", standaloneMakeSession);
   employers.push(concurrent);
   const victimBeforeConcurrent = await snapshot(victim.org.id);
@@ -243,6 +271,7 @@ async function main() {
     injectedVetoes: ["final-binding-audit", "queue-job-insert"],
     completeSqlRollback: true, exactAuditCount: true, exactQueuedJobCount: true,
     concurrentSingleWinner: true, concurrentLoserConflict409: true,
+    standaloneReleasedAndCertifiedMonthVetoes: true,
     noProvidersOrMoney: true, securityReviewPending: true, methodCredits: 0,
   }));
 }
