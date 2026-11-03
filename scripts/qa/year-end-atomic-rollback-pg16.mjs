@@ -100,13 +100,13 @@ async function requestBind(e, runId, orgId = e.org.id) {
   });
 }
 
-async function withInsertVeto(table, name, predicate, action) {
+async function withInsertVeto(table, predicate, action) {
   // The private fixture owns the entire localhost PG16 database. The trigger
   // is installed on that database only, with a verified numeric selector.
   const functionName = "qa_year_end_atomic_veto";
   const triggerName = "qa_year_end_atomic_veto";
   assert.ok(["audit_events", "payroll_jobs"].includes(table));
-  await pool.query("CREATE FUNCTION " + functionName + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'QA_YEAR_END_ATOMIC_VETO'; END $$");
+  await pool.query("CREATE FUNCTION " + functionName + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'QA_YEAR_END_ATOMIC_VETO'; END; $");
   try {
     await pool.query("CREATE TRIGGER " + triggerName + " BEFORE INSERT ON " + table
       + " FOR EACH ROW WHEN (" + predicate + ") EXECUTE FUNCTION " + functionName + "()");
@@ -123,7 +123,7 @@ async function withInsertVeto(table, name, predicate, action) {
 async function proveVeto(e, fixture, victim, label, table, predicate) {
   const before = await snapshot(e.org.id);
   const victimBefore = await snapshot(victim.org.id);
-  await withInsertVeto(table, label, predicate, async () => {
+  await withInsertVeto(table, predicate, async () => {
     const refused = await requestBind(e, fixture.final.id);
     assert.equal(refused.status, 500,
       label + ": the actual SQL veto must abort HTTP, got " + refused.status + " " + refused.text.slice(0, 150));
