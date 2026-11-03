@@ -106,7 +106,7 @@ async function withInsertVeto(table, predicate, action) {
   const functionName = "qa_year_end_atomic_veto";
   const triggerName = "qa_year_end_atomic_veto";
   assert.ok(["audit_events", "payroll_jobs"].includes(table));
-  await pool.query("CREATE FUNCTION " + functionName + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'QA_YEAR_END_ATOMIC_VETO'; END; $");
+  await pool.query("CREATE FUNCTION " + functionName + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'QA_YEAR_END_ATOMIC_VETO'; END; $$");
   try {
     await pool.query("CREATE TRIGGER " + triggerName + " BEFORE INSERT ON " + table
       + " FOR EACH ROW WHEN (" + predicate + ") EXECUTE FUNCTION " + functionName + "()");
