@@ -17,6 +17,10 @@ annualization committed but not queued.
   continue using their existing internally atomic queue transaction.
 - Add an `onBoundToPayrollRun(tx, summary)` callback **inside** the existing
   serializable annualization transaction, after adjustment and audit writes.
+- Fail closed before annualization if a caller supplies a binding run without the
+  matching included run and the completion callback, or supplies a callback
+  without a binding. Recheck the December 31 cutoff in the serializable
+  database snapshot rather than trusting an earlier HTTP preflight.
 - The bound year-end POST performs queue/reset/job insertion and its second audit
   inside that same parent transaction. Any audit, queue or SQL failure should
   abort the annualization and payroll requeue together.
