@@ -112,7 +112,7 @@ export async function proveSelfProfileHttp() {
     // Advance the disposable worker sequence with a real inserted row, not a guessed ID.
     // Delete only the throwaway unreferenced worker before snapshotting the victim.
     for (const ordinal of [1, 2]) {
-      const paddingWorker = await addWorker(second, "HIGH-ID-SEQ-" + ordinal, { payProfile: false });
+      const paddingWorker = await addWorker(second, "P" + ordinal, { payProfile: false });
       await db.delete(employees).where(eq(employees.id, paddingWorker.id));
     }
     const victim = await seed("VICTIM");
