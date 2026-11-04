@@ -256,6 +256,8 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
             status: "open", annualBudget: "100000.00",
             createdByUserId: c.owner.id,
           }).returning();
+          assert.ok(c.victim.worker.id > 6 && c.victim.worker.id > worker.id,
+            "POST foreign worker must be a real higher-ID victim, never a fabricated object");
           await denyAndPreserve(c, "POST", base(c, "assignment", {
             positionId: foreignWorkerVacancy.id,
             employeeId: c.victim.worker.id, effectiveFrom: todayPh,
@@ -296,7 +298,7 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
       state: snapshot,
       ownBody: c => ({ id: c.seeded.id, status: "frozen" }),
       foreignBody: c => ({ id: c.victimSeeded.id, status: "frozen" }),
-      forged: { status: 404, body: c => ({ id: c.victimSeeded.frozenId + 100000, status: "frozen" }) },
+      forged: { status: 404, body: c => ({ id: c.victimSeeded.frozenId, status: "approved" }) },
       expect: (before, after, c, response) => {
         const row = after.positions.find(r => r.id === c.seeded.id);
         const prior = before.positions.find(r => r.id === c.seeded.id);
@@ -351,6 +353,12 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
         ]) {
           await denyAndPreserve(c, "PATCH", { id, status }, 409, label, client);
         }
+        assert.ok(c.victimSeeded.frozenId > 6 &&
+          c.victimSeeded.frozenId > c.seeded.frozenId,
+          "PATCH forged selector must identify a persisted, higher-ID real victim position");
+        const realForged = await denyAndPreserve(c, "PATCH", {
+          id: c.victimSeeded.frozenId, status: "approved",
+        }, 404, "forged real victim frozen-position decision", client);
         const foreignPosition = await denyAndPreserve(c, "PATCH", {
           id: c.victimSeeded.plannedId, status: "approved",
         }, 404, "foreign governed approval request", client);
@@ -359,6 +367,8 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
         }, 404, "unknown position id matches foreign 404", client);
         assert.equal(foreignPosition.text, missingPosition.text,
           "foreign and missing positions must be indistinguishable to a non-member");
+        assert.equal(realForged.text, missingPosition.text,
+          "real victim forged selector and missing ID must have identical 404 bodies");
 
         // Parallel same-vacancy freezes may have one idempotent 200 or a stale
         // 409, but must only commit one transition and one audit record.
