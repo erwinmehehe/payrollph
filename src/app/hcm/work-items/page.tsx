@@ -222,7 +222,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
             {i.status !== "resolved" && <button type="button" className="mt-3 rounded-lg border px-3 py-2 font-semibold text-emerald-800" onClick={() => edit(i)}>Assign / SLA</button>}
           </li>)}
         </ul>
-        {visibleItems.length===0&&<p className="p-8 text-center text-slate-500">{items.length===0 ? "No work items found for this filter." : "No loaded work items match this search or local filter. Reset view to see this employer's loaded work items."}</p>}</div>
+        {visibleItems.length===0&&<p className="p-8 text-center text-slate-500">{items.length===0 ? "No work items found for this filter." : unassignedOnly ? "No loaded work items match this search or owner filter. Reset view to see this employer's loaded work items." : "No loaded work items match this search. Clear search to see this employer's work items."}</p>}</div>
     ) : (
       <div role="status" className="rounded-xl border bg-white p-8 text-center text-slate-600">
         {loading ? "Work items are loading…" : loadError ? "Work items could not be loaded. Use Refresh to retry." : "Select a valid organization to see work items."}
