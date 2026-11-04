@@ -130,6 +130,7 @@ async function main() {
       actors.push(e);
     }
     const [a, b, victim] = actors;
+    assert.ok(victim.worker.id > 6, "real seeded victim salary-preview worker ID must exceed six");
     for (const attacker of [a, b]) {
       assert.ok(victim.org.id > attacker.org.id &&
         victim.worker.id > attacker.siblingWorker.id &&
