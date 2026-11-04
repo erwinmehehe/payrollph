@@ -130,18 +130,42 @@ export function assertHistoricalDemandSourceCompatible(path, record,
   assert.deepEqual(record.methods.map(m => m.name), Object.keys(spec.statuses),
     "WFM demand methods changed; no old receipt may be reused");
   for (const method of record.methods) {
-    assert.equal(method.status, spec.statuses[method.name],
-      "WFM overlay cannot upgrade or downgrade any method credit");
-    if (method.status === "GAP") assert.equal(method.testedBy, null);
-    else assert.equal(method.testedBy?.routeBlobSha, spec.before,
-      "Historical method proof must remain on the original route");
+    const issuedSoloPost = path === PREFIX + "demand-observations/issued/route.ts" &&
+      method.name === "POST" && method.status === "COVERED";
+    if (issuedSoloPost) {
+      // A later, distinct successful real-HTTP POST receipt does not alter the
+      // source-only historical GET overlay's original method status or credit.
+      // Require exact source/proof/workflow rather than bypassing that guard.
+      const proof = method.testedBy;
+      assert.equal(spec.statuses.POST, "GAP");
+      assert.equal(proof?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(proof?.ownerReviewer, "erwinmehehe");
+      assert.equal(proof?.ownerIsOnlyReviewer, true);
+      assert.equal(proof?.independentlyAccepted, false);
+      assert.equal(proof?.workflowRunId, 41444835667);
+      assert.equal(proof?.proofHeadCommit, "1834b73aab8e162e19b4b260e51b32e6fa1fbbec");
+      assert.equal(proof?.postgresMajor, 16);
+      assert.equal(proof?.routeBlobSha, record.gitBlobSha);
+      assert.equal(proof?.file, "scripts/qa/tenant-issued-demand-http.mjs");
+      assert.equal(proof?.proofBlobSha, gitBlobSha(read(proof.file)));
+      assert.equal(proof?.workflowFile, ".github/workflows/tenant-issued-demand-http.yml");
+      assert.equal(proof?.workflowBlobSha, gitBlobSha(read(proof.workflowFile)));
+      assert.equal(proof?.productionCertified, false);
+    } else {
+      assert.equal(method.status, spec.statuses[method.name],
+        "Old WFM overlay must retain each separate historical method credit");
+      if (method.status === "GAP") assert.equal(method.testedBy, null);
+      else assert.equal(method.testedBy?.routeBlobSha, spec.before,
+        "Historical GET proof must remain on the original route");
+    }
     const review = method.reviewedUncertified;
     assert.equal(review?.kind, K);
     assert.equal(review.previousRouteBlobSha, spec.before);
     assert.equal(review.routeBlobSha, spec.after);
     assert.equal(review.onlyReadHandlerChanged, true);
     assert.equal(review.changedMethod, "GET");
-    assert.equal(review.statusBefore, method.status);
+    assert.equal(review.statusBefore, spec.statuses[method.name],
+      "Historical source-only overlay must retain its old status without reclassifying later POST proof");
     assert.equal(review.methodCredits, 0);
     assert.equal(review.independentlyAccepted, false);
     assert.equal(review.productionCertified, false);

@@ -28,3 +28,19 @@ Both the runner's fail-closed environment and workflow now require `NEXT_CSP_ENA
 Repository owner `@erwinmehehe` is the **sole reviewer**; no independent reviewer exists. When completely verified, use `SOLO_VERIFIED_DEV_RECOVERY` rather than an independent-review claim.
 
 No Neon/production SQL, real recipients, external SMTP, provider tokens, agency, payment, payout, worker or CSP activation, deployment or merge.
+
+## 2026-11-03 full-method recovery attempt — still zero credit
+
+The source route is unchanged. The refreshed disposable-PG16 proof now exercises
+all seven declared invitation roles through genuine owned POST/SMTP/outbox/audit
+writes, company-wide administrator non-owner success, two independent employers'
+foreign and forged-unit denial, a persisted higher-ID (>6) victim invitation,
+and loss of a formerly authorized owner's active employer grant in the same
+session. The runner will report `methodFullyCovered:true` only after every
+assertion passes. It reports `coverageCredits:0` because a proof run itself
+cannot change the manifest.
+
+**Do not promote from this note alone.** A new successful exact-PR-head
+GitHub Actions run of `tenant-invitations-post-boundary.yml`, source SHA
+matching, complete evidence anchors and owner review are still required.
+No remote email, real customer accounts, migrations, payroll, payout or deploy.
