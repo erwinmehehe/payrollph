@@ -365,8 +365,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       actions: ["save", "approve"],
     },
   ];
+  const creditedYearEndPromotions = permittedPromotions.filter(pin =>
+    pin.path !== "src/app/api/year-end/route.ts");
   for (const pin of permittedPromotions) {
     const label = pin.verb + " " + pin.path;
+    if (pin.path === "src/app/api/year-end/route.ts") {
+      const held = m.allApiRouteFiles[pin.path]?.methods.find(method => method.name === pin.verb);
+      assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " historical status");
+      assert.equal(held?.status, "GAP", label + " requires exact new-source proof");
+      assert.equal(held?.testedBy, null);
+      assert.equal(held?.reviewedUncertified?.kind, "year-end-binding-atomic-source-only-zero-credit");
+      assert.equal(held?.reviewedUncertified?.routeBlobSha, "e4741d98c23e068f4ecd7032e172ce60b95852cf");
+      assert.equal(blobSha(pin.path), "e4741d98c23e068f4ecd7032e172ce60b95852cf");
+      continue;
+    }
     assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " must start GAP on main");
     const row = m.allApiRouteFiles[pin.path]?.methods.find(method => method.name === pin.verb);
     assert.equal(row?.status, "COVERED", label + " is the only permitted credit");
@@ -400,14 +412,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Only the source-pinned payout PATCH is added beyond four #1730 methods and prior credits");
+    "Preserves #1749 payout PATCH plus two original prior-evidence methods; source-changed year-end GET/POST are GAP, zero credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length + issuedPromotions.length + payoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length - issuedPromotions.length - payoutCredits,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits,
   };
   assert.deepEqual(counts, expectedCounts,
-    "Exactly one additional source-pinned #1749 payout credit is permitted");
+    "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -416,11 +428,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   const currentFrozenSubtotal = snapshot.frozenSubtotal
-    .replace("313 COVERED", "323 COVERED")
-    .replace("91 GAP", "81 GAP");
+    .replace("313 COVERED", "321 COVERED")
+    .replace("91 GAP", "83 GAP");
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
-    "Frozen subtotal must add just the separate provisional payout-profile PATCH");
+    "Frozen subtotal preserves payout PATCH but invalidates two old-source year-end receipts");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
@@ -437,32 +449,57 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-    // Current main includes all four #1730 year-end methods, plus optionally
-    // this exact #1749 payout PATCH after merge. Reject any unrelated drift.
     const payoutMethod = baseline.allApiRouteFiles["src/app/api/payout-profiles/route.ts"]
       .methods.find(method => method.name === "PATCH");
     const baselineHasPayout = payoutMethod?.status === "COVERED";
     if (baselineHasPayout) verifyPayoutProfileCredit(baseline);
-    assert.deepEqual(methodStatuses(baseline),
-      baselineHasPayout ? expectedStatuses : expectedBeforePayout,
-      "origin/main must preserve the four year-end credits and at most one payout PATCH");
+    const mainYearEnd = baseline.allApiRouteFiles["src/app/api/year-end/route.ts"];
+    const baselineHasOldRoute = mainYearEnd.methods.every(method => method.status === "COVERED");
+    if (baselineHasOldRoute) {
+      assert.equal(mainYearEnd.gitBlobSha, "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+        "old-source year-end receipts must be pinned before supersession");
+      for (const method of mainYearEnd.methods) {
+        assert.equal(method.testedBy?.routeBlobSha, mainYearEnd.gitBlobSha);
+        assert.equal(method.testedBy?.workflowRunId, 41446394887);
+        assert.equal(method.testedBy?.independentlyAccepted, false);
+      }
+    } else {
+      for (const method of mainYearEnd.methods) {
+        assert.equal(method.status, "GAP");
+        assert.equal(method.testedBy, null);
+      }
+    }
+    const expectedOriginalMain = JSON.parse(JSON.stringify(
+      baselineHasPayout ? expectedStatuses : expectedBeforePayout));
+    if (baselineHasOldRoute) {
+      expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
+      expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
+    }
+    assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
+      "origin/main can contain only its original #1730 year-end source receipts and separately pinned payout");
+    const expectedMainYearEndCredits = creditedYearEndPromotions.length +
+      (baselineHasOldRoute ? 2 : 0);
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
     }, {
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
-        issuedPromotions.length + permittedPromotions.length + (baselineHasPayout ? payoutCredits : 0),
+        issuedPromotions.length + expectedMainYearEndCredits +
+        (baselineHasPayout ? payoutCredits : 0),
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
-        issuedPromotions.length - permittedPromotions.length - (baselineHasPayout ? payoutCredits : 0),
+        issuedPromotions.length - expectedMainYearEndCredits -
+        (baselineHasPayout ? payoutCredits : 0),
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
+    const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
+      (baselineHasPayout ? 1 : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
-      .replace("313 COVERED", baselineHasPayout ? "323 COVERED" : "322 COVERED")
-      .replace("91 GAP", baselineHasPayout ? "81 GAP" : "82 GAP");
+      .replace("313 COVERED", frozenCovered + " COVERED")
+      .replace("91 GAP", (404 - frozenCovered) + " GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
       expectedMainFrozen, "origin/main frozen ledger drift");
   }
