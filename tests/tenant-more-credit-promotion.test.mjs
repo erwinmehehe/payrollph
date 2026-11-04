@@ -14,8 +14,8 @@ test("three historical credits remain distinct from the later source-pinned self
   assert.equal(verifyMoreCredits(manifest), 3);
   const profile = manifest.allApiRouteFiles["src/app/api/self/profile/route.ts"];
   const patch = profile.methods.find(m => m.name === "PATCH");
-  assert.equal(patch?.status, "COVERED", "New #1739 exact-source receipt, not the old #1518 receipt");
-  assert.equal(patch?.testedBy?.proofPullRequest, 1739);
+  assert.equal(patch?.status, "COVERED", "New #1762 exact-source receipt, not the old #1518 receipt");
+  assert.equal(patch?.testedBy?.proofPullRequest, 1762);
   assert.equal(patch?.testedBy?.independentlyAccepted, false);
   assert.equal(patch?.reviewedUncertified, undefined);
   assert.equal(profile.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3");

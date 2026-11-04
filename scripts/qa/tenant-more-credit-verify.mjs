@@ -157,12 +157,12 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     "new atomic handler may not borrow historical #1518 route evidence");
   checkFile(profileRoute, profile.gitBlobSha);
   if (profileMethod?.status === "COVERED") {
-    // The #1739 receipt is for this *current* route, not the older #1518 route.
-    // Demand all three exact final-head PG16 source, contract, line and CI pins.
+    // Only a new exact-source PG16 receipt may supersede the older hold.
+    // Require all three disjoint route/contract/workflow and victim SQL proofs.
     const recovery = verifyFiveMethodCredits(manifest, file => Buffer.from(read(file)));
     assert.equal(recovery.methodsCredited, FIVE_METHOD_EVIDENCE.length);
     assert.equal(profileMethod.reviewedUncertified, undefined,
-      "Credited source must not retain an old uncredited hold");
+      "A credited source must not retain its earlier zero-credit hold");
   } else {
   assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without final-head sole-owner acceptance");
   assert.equal(profileMethod?.testedBy, null, "old #1518 route proof must not certify merged #1524");
@@ -175,7 +175,7 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
   assert.equal(atomic?.routeBlobSha, profile.gitBlobSha);
   assert.equal(atomic?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
   assert.equal(atomic?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
-  assert.equal(atomic?.fileBlobSha, "9a42da956c03c643fbe744a626d796055c57e48d");
+  assert.equal(atomic?.fileBlobSha, "5464195dc5021833751cc2cb05b1db0e1aacdbf3");
   checkFile(atomic.file, atomic.fileBlobSha);
   assert.equal(atomic?.testFile, "tests/tenant-self-profile-contract.test.mjs");
   assert.equal(atomic?.testBlobSha, "894554479e0069ce76a1737daa1852e0caeea077");
@@ -187,11 +187,15 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
   assert.equal(atomic.contractBlobSha, "ff33b4626f1c052d3d2ded4fbfa2cbbcf9883658");
   checkFile(atomic.contractFile, atomic.contractBlobSha);
   assert.equal(atomic.workflowFile, ".github/workflows/tenant-self-profile-http.yml");
-  assert.equal(atomic.workflowBlobSha, "f87cf4434859281fad052d8baa920677c5dd37af");
+  assert.equal(atomic.workflowBlobSha, "b69b93889d7e4a42c2d842cc1a8328eb56e26187");
   checkFile(atomic.workflowFile, atomic.workflowBlobSha);
 
   assert.match(read("scripts/qa/tenant-self-profile-atomic-http.mjs"),
     /profileAuditRollbackProven: true/);
+  assert.match(read("scripts/qa/tenant-self-profile-atomic-http.mjs"),
+    /victim\.worker\.id > 6/);
+  assert.match(read("scripts/qa/tenant-self-profile-atomic-http.mjs"),
+    /await unchangedVictim\("membership revoked/);
   assert.match(read(".github/workflows/tenant-self-profile-http.yml"), /image: postgres:16/);
   assert.match(read(".github/workflows/tenant-self-profile-http.yml"),
     /node --import tsx scripts\/qa\/tenant-self-profile-atomic-http\.mjs/);

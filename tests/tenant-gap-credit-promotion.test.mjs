@@ -251,9 +251,9 @@ test("already credited and partial-action methods are not double-counted", () =>
   assert.equal(recovered.methodsCredited, 3);
   assert.equal(recovered.methodsHeld, 2);
   for (const [key, proofPr, proofRun] of [
-    ["PATCH self/profile", 1739, 41751126605],
-    ["POST hcm/salary-corrections/preview", 1738, 41632939949],
-    ["POST invitations", 1746, 41751301676],
+    ["PATCH self/profile", 1762, 41830570387],
+    ["POST hcm/salary-corrections/preview", 1762, 41830569945],
+    ["POST invitations", 1762, 41830569741],
   ]) {
     const method = methods.get(key);
     assert.equal(method?.status, "COVERED", key + ": exact-source provisional receipt");
