@@ -1,4 +1,4 @@
-> **2026-11-04 targeted three-method provisional reconciliation:** The three named POST/PATCH rows below are newly COVERED solely by source-matched exact-final-head fictional-PG16 receipts. `SOLO_VERIFIED_DEV_RECOVERY`, owner `@erwinmehehe` only, independent review PENDING. Current global ledger 410/10/78; 17 separate page/action GAPs. Other historical rows are unchanged.
+> **2026-11-04 targeted three-method provisional reconciliation:** The three named POST/PATCH rows below are newly COVERED solely by source-matched exact-final-head fictional-PG16 receipts. `SOLO_VERIFIED_DEV_RECOVERY`, owner `@erwinmehehe` only, independent review PENDING. Current global ledger 408/10/80; 17 separate page/action GAPs. Other historical rows are unchanged.
 
 <!-- Generated from source-pinned GitHub blob inspection; NOT isolation acceptance -->
 # API methods — inventory appendix B (partitions 11–20)
