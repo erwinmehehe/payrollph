@@ -11,7 +11,7 @@ The previous handler loaded a globally addressed payroll-run ID before establish
 - Resolve run IDs only through an active organization membership with a company-wide owner/admin role. Foreign, revoked, unit-scoped and nonexistent run IDs are indistinguishable no-store 404 responses.
 - Confirm the current user is the engagement's designated approver; keep pilot/live status, MFA, independent checker, fingerprint and required implementation gates.
 - Lock membership, engagement and run rows in a transaction. Recheck the active grant, designation, run state and evidence gates before approving. Re-approval updates are scoped to BOTH the run and engagement.
-- Commit the approval row and audit receipt atomically. Payroll math, financial rails, provider switches, schema, employee data, main and other pull-request evidence remain unchanged.
+- Compute the payroll fingerprint using the transaction's own connection; this also avoids deadlock when PG_POOL_MAX=1. Commit the approval row and audit receipt atomically. Payroll math, financial rails, provider switches, schema, employee data, main and other pull-request evidence remain unchanged.
 
 ## Tests included
 
