@@ -286,9 +286,9 @@ export async function proveXenditSubscriptionsWebhook() {
     const auditFailureEvent = eventBody(a, { n: 47 });
     before = await snapshots();
     await pool.query(
-      "CREATE FUNCTION public.ci_reject_xendit_subscription_audit() RETURNS trigger LANGUAGE plpgsql AS $ " +
+      "CREATE FUNCTION public.ci_reject_xendit_subscription_audit() RETURNS trigger LANGUAGE plpgsql AS $ci_xendit_audit$ " +
       "BEGIN IF NEW.action = 'recurring.cycle.succeeded' THEN " +
-      "RAISE EXCEPTION 'CI_ONLY_XENDIT_SUBSCRIPTION_AUDIT_REJECTED'; END IF; RETURN NEW; END $"
+      "RAISE EXCEPTION 'CI_ONLY_XENDIT_SUBSCRIPTION_AUDIT_REJECTED'; END IF; RETURN NEW; END $ci_xendit_audit$"
     );
     await pool.query(
       "CREATE TRIGGER ci_reject_xendit_subscription_audit BEFORE INSERT ON public.audit_events " +
