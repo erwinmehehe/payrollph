@@ -1,6 +1,8 @@
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
-> **2026-11-04 WFM staffing-policy GET provisional recovery, DRAFT / NOT ACCEPTED:** 498 methods = **406 COVERED / 10 PUBLIC-BY-DESIGN / 82 GAP** plus 17 page/action GAPs. One new candidate credit only, from exact same-commit successful [manage/foreign/overlay PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/41164870341/job/124430238281) and [populated approved-mode PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/41164870305/job/124430150239). Exact new-head CI and owner review pending; #1760 separately changes shared inventory. Historical snapshots below refer to earlier commits.
+> **2026-11-04 #1764 synced on main (DRAFT / NOT ACCEPTED):** Only static `GET /api/v1` changes classification from GAP to **PUBLIC-BY-DESIGN**, without tenant-scoped COVERED credit. Earlier-head synthetic PG16 localhost HTTP evidence passed; the integrated head requires fresh exact-source CI and independent review. **498 methods = 405 COVERED / 11 PUBLIC-BY-DESIGN / 82 GAP; 17 page/action GAPs.** No money, payroll, provider, production data, or rollout. [Method rationale](../qa/tenant-v1-public-metadata.md).
+
+> **2026-11-04 WFM staffing-policy GET provisional recovery, DRAFT / NOT ACCEPTED:** 498 methods = **406 COVERED / 11 PUBLIC-BY-DESIGN / 81 GAP** plus 17 page/action GAPs. One new candidate credit only, from exact same-commit successful [manage/foreign/overlay PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/41164870341/job/124430238281) and [populated approved-mode PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/41164870305/job/124430150239). Exact new-head CI and owner review pending; #1760 separately changes shared inventory. Historical snapshots below refer to earlier commits.
 
 
 
@@ -71,9 +73,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 82 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 81 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 82 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET now has a separate provisional two-mode proof on this branch; web-bundy/evidence POST remains GAP. Self-profile PATCH remains GAP on latest main; separate draft #1760 proposes its own source-pinned credit. Historical source-only proof statements below are not new method credits. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 81 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. Staffing-policy GET now has a separate provisional two-mode proof on this branch; web-bundy/evidence POST remains GAP. Self-profile PATCH remains GAP on latest main; separate draft #1760 proposes its own source-pinned credit. Historical source-only proof statements below are not new method credits. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -183,8 +185,8 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | methods | 498 |
 | coveredBefore | 20 |
 | coveredAfter | 406 |
-| publicByDesign | 10 |
-| gap | 82 |
+| publicByDesign | 11 |
+| gap | 81 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -722,7 +724,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`v1/payslips/[id]` GET](../../src/app/api/v1/payslips/[id]/route.ts#L8) | apiKey | NONE FOUND | none found | [three-org HTTP L691](../../scripts/qa/tenant-second-pass-http.mjs#L691) | **COVERED** |
 | [`v1/payslips` GET](../../src/app/api/v1/payslips/route.ts#L7) | NONE FOUND | NONE FOUND | none found | [three-org HTTP L690](../../scripts/qa/tenant-second-pass-http.mjs#L690) | **COVERED** |
 | [`v1/provider-events` GET](../../src/app/api/v1/provider-events/route.ts#L13) | query | NONE FOUND | none found | [three-org HTTP L707](../../scripts/qa/tenant-second-pass-http.mjs#L707) | **COVERED** |
-| [`v1` GET](../../src/app/api/v1/route.ts#L6) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`v1` GET](../../src/app/api/v1/route.ts#L6) | GLOBAL STATIC METADATA | No session or employer lookup | Tenant selectors ignored | [public catalog contract](../../tests/tenant-v1-public-catalog.test.mjs) and [earlier-head isolated PG16 HTTP](../../scripts/qa/tenant-v1-public-http.mjs) | **PUBLIC-BY-DESIGN** |
 | [`web-bundy/consent` POST](../../src/app/api/web-bundy/consent/route.ts#L16) | session, body | getSessionUser L4, enforceSameOriginMutation L6, enforceSameOriginMutation L18, getSessionUser L19 | body.organizationId L22 | [Clock lifecycle PG16 HTTP](../../scripts/qa/tenant-clock-http.mjs#L14) — [receipt](../qa/tenant-clock-receipt.json) | **COVERED** |
 | [`web-bundy/evidence` GET](../../src/app/api/web-bundy/evidence/route.ts#L60) | session, query, body | getSessionUser L5, enforceSameOriginMutation L7, getSessionUser L28, enforceSameOriginMutation L90 | params.get("organizationId") L63 | [reviewed fictional PG16 HTTP DL-02](../../scripts/qa/tenant-dl02-rows/web-bundy.mjs#L58) ([dispatch run](https://github.com/erwinmehehe/payrollph/actions/runs/40859482784); previous main head, inputs blob-identical) | **COVERED** |
 | [`web-bundy/evidence` POST](../../src/app/api/web-bundy/evidence/route.ts#L88) | session, query, body | getSessionUser L5, enforceSameOriginMutation L7, getSessionUser L28, enforceSameOriginMutation L90 | params.get("organizationId") L63 | [Clock lifecycle PG16 HTTP](../../scripts/qa/tenant-clock-http.mjs#L14) — [receipt](../qa/tenant-clock-receipt.json) | **COVERED** |
