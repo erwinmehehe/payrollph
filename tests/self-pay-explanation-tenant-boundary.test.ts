@@ -38,7 +38,10 @@ test("active membership and employer attribution are checked before any payroll 
 });
 
 test("previous payroll evidence requires an actual entry owned by the same employee", () => {
-  const previous = route.slice(route.indexOf("const [previous] = await db"), route.indexOf("return Response.json({"));
+  const priorStart = route.indexOf("const [previous] = await db");
+  const priorEnd = route.indexOf("return Response.json({", priorStart);
+  assert.ok(priorStart >= 0 && priorEnd > priorStart);
+  const previous = route.slice(priorStart, priorEnd);
   assert.match(previous, /\.from\(payrollEntries\)/);
   assert.match(previous, /\.innerJoin\(payrollRuns, eq\(payrollEntries\.payrollRunId, payrollRuns\.id\)\)/);
   assert.match(previous, /eq\(payrollEntries\.employeeId, session\.employeeId\)/);
