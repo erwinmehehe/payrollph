@@ -2521,7 +2521,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     for (const token of [
       "real higher-ID foreign worker denied on valid own vacancy",
       "positionId: foreignWorkerVacancy.id",
-      "employeeId: c.victim.worker.id, effectiveFrom: todayPh",
+      "employeeId: c.victimSeeded.assignmentWorkerId, effectiveFrom: todayPh",
       "forgedReferences: 5, blockedDirectAssignments: 1",
     ]) assert.ok(fixture.includes(token), "WRK-02 current proof lost: " + token);
     for (const flag of ["NEXT_CSP_ENABLED=false", "WORKER_ENABLED=false",
