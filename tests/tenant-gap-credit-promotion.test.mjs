@@ -368,7 +368,11 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   }
   assert.equal(seen.size, 406, "The historic 406-method queue cannot shrink or grow");
   assert.equal(total.COVERED + total["PUBLIC-BY-DESIGN"] + total.GAP, seen.size);
-  assert.ok(current.includes(`Frozen subtotal: **${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406**`),
+  // The proposal may date-stamp its single live subtotal, but the entire
+  // 406-method count is still derived from the original source-linked rows.
+  const subtotalLines = current.split("\\n").filter(line => line.startsWith("Frozen subtotal"));
+  assert.equal(subtotalLines.length, 1, "Exactly one live frozen-batch subtotal must be documented");
+  assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406**`),
     "The frozen queue subtotal must reflect the actual source-linked statuses");
   assert.equal(total.GAP, manifest.metrics.gap, "Every live method GAP must remain in the frozen closure queue");
 });
