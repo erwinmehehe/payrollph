@@ -1,5 +1,10 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-04 PR #1762 five-method exact-final-head PG16 source recovery — DRAFT / ZERO NEW CREDITS
+
+**Starting refreshed `origin/main@c2876177bce3278a34ec2323031d2102b6d80330`: 498 methods = 407 COVERED + 10 PUBLIC-BY-DESIGN + 81 GAP; frozen 406-method queue = 323 COVERED + 2 PUBLIC-BY-DESIGN + 81 GAP; 17 separate page/action GAPs.** New source-bound real-HTTP PG16 proof candidates cover transfers POST/PATCH (independent A/C own positives, genuine ordered victim transfer), atomic self-profile PATCH (and merged #1523's explicit no-credit note), salary-preview POST, and full-role invitations POST (real >6 victim invitation and revoked owner). **No coverage status is promoted before a passing exact-final-head job and repin.** See [method-by-method recovery ledger](../qa/tenant-five-method-final-head-recovery-20261104.md). Evidence category `SOLO_VERIFIED_DEV_RECOVERY`, repository owner @erwinmehehe sole reviewer; not independent production acceptance. No real payroll/production data/Neon, money, payout, provider, scheduler, CSP or deployment.
+
+
 ## 2026-11-04 #1749 reconciled on main@150dcd7e4b66 — DRAFT, NOT ACCEPTED
 
 **Provisional source-pinned ledger: 498 methods = 407 COVERED + 10 PUBLIC-BY-DESIGN + 81 GAP; frozen 406-method queue = 323 COVERED + 2 PUBLIC-BY-DESIGN + 81 GAP.** All four #1730 year-end/prior-evidence methods and prior source-pinned receipts remain unchanged. The only new provisional method is `PATCH /api/payout-profiles` with a historic exact-source PG16 proof. Independent security review and owner acceptance remain PENDING. No money/provider activation, production release or tenant-wide certification; 17 page/action GAPs remain.
