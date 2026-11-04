@@ -165,7 +165,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         eq(managedPayrollRunApprovals.payrollRunId, run.id),
       ))
       .limit(1);
-    const fingerprint = await managedPayrollRunFingerprint(run.id);
+    const fingerprint = await managedPayrollRunFingerprint(run.id, tx);
     if (existing) {
       const valid =
         existing.approverUserId === engagement.clientApproverUserId
