@@ -275,7 +275,7 @@ try {
   const cSecondary = await one(
     "INSERT INTO legal_entities (organization_id,code,legal_name,display_name,primary_entity) VALUES(3,'CI-C-SECOND','Synthetic C alternate employer','C alternate',false) RETURNING id");
   const cCheckerUser = await one(
-    "INSERT INTO users (email,name,role,password_hash,totp_enabled,active) SELECT 'entity-c-checker@example.test','Fictional C independent checker','admin',password_hash,true,true FROM users WHERE email='entity-checker@example.test' RETURNING id");
+    "INSERT INTO users (email,name,role,password_hash,totp_enabled,active) SELECT 'entity-c-checker@example.test','Fictional C independent checker','admin',password_hash,false,true FROM users WHERE email='entity-checker@example.test' RETURNING id");
   await sql.query(
     "INSERT INTO user_organizations (user_id,organization_id,role,active) VALUES($1,3,'admin',true)",
     [cCheckerUser.id]);

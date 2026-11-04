@@ -57,6 +57,19 @@ test("PG16 real-HTTPS transfer write fixture is the only proposed family and nev
     "First new run must pass and receive independent review before earning any credits");
 });
 
+test("second employer checker completes local login, not an unsatisfied TOTP challenge", () => {
+  // A 200 requiresTotp challenge is not an authenticated session cookie.
+  // Keep this disposable-only checker aligned with the original synthetic checker,
+  // while production route MFA and session-cookie guards remain unchanged.
+  const source = "'entity-c-checker@example.test','Fictional C independent checker','admin',password_hash,";
+  assert.ok(proof.includes(source + "false,true FROM users"),
+    "The fictional checker must not receive an MFA challenge without a seeded authenticator");
+  assert.ok(!proof.includes(source + "true,true FROM users"),
+    "Regression: uncompleted TOTP challenge must not substitute for a signed-in checker");
+  assert.ok(proof.includes("session?.secure && session.httpOnly"),
+    "The browser proof must still require a real Secure HttpOnly session");
+});
+
 test("POST and PATCH transfer failures never expose unexpected SQL diagnostics", () => {
   const post = route.slice(route.indexOf("export async function POST"), route.indexOf("export async function PATCH"));
   const patch = route.slice(route.indexOf("export async function PATCH"));
