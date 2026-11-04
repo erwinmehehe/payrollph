@@ -2,13 +2,13 @@
 
 ## 2026-11-04 #1760 CURRENT PROVISIONAL COVERAGE PROPOSAL — NOT ACCEPTED
 
-**Current ledger: 498 methods = 408 COVERED + 10 PUBLIC-BY-DESIGN + 80 GAP.** Integrated with `main@db7a943edd71` after merged #1762/#1763 and #1744. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. Frozen 406 methods: **324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
+**Current ledger: 498 methods = 408 COVERED + 11 PUBLIC-BY-DESIGN + 79 GAP.** Reconciled with main@a40ed20d907c, including merged #1762/#1763/#1764/#1765. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. Frozen 406 methods: **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
 
 ## Current method-specific evidence and held transfers
 
 ## 2026-11-04 source-identical final-head PG16 proof recovery after #1762 — SOLO_VERIFIED_DEV_RECOVERY / DRAFT / NOT ACCEPTED
 
-**Current source and passing QA receipt base:** `main@db7a943edd71`, #1762 exact proof-head `8b915bc17574b`; **498 API methods = 408 COVERED + 10 PUBLIC-BY-DESIGN + 80 GAP**; frozen 406 = **324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP**. This is three distinct provisional credits above main's 405/10/83, not a claim of global security acceptance. Both year-end source-revoked methods and both transfer write methods stay GAP, and 17 page/action GAPs remain.
+**Source-matched PG16 proof base:** `main@db7a943edd71`, #1762 exact proof-head `8b915bc17574b`; **498 API methods = 408 COVERED + 11 PUBLIC-BY-DESIGN + 79 GAP**; frozen 406 = **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP**. This is three distinct provisional credits above integrated main's 405/11/82, not a claim of global security acceptance. Both year-end source-revoked methods and both transfer write methods stay GAP, and 17 page/action GAPs remain.
 
 | Exact API method | Credit | Exact final-head fictional-PG16 real-HTTP evidence and reason |
 |---|---|---|
@@ -20,6 +20,10 @@
 
 The three credited exact route, runner, contract and workflow Git blob SHAs now match the updated **#1762 exact source final proof head**, validated by successful throwaway PG16 real-HTTP jobs; no stale #1738/#1739/#1746 runner pins are retained. The new ledger head still needs its own CI / source guard / `tenant-manifest-repin.mjs --base origin/main` and owner review before any later merge decision. **Only `@erwinmehehe` is owner/reviewer**; evidence label `SOLO_VERIFIED_DEV_RECOVERY` does not assert independent security acceptance. All production/Neon SQL, real users, payroll, payout, payment, provider, remote email and CSP activation remain forbidden/OFF.
 
+
+## 2026-11-04 #1764 static API v1 public catalog — DRAFT / NOT ACCEPTED
+
+**Current proposed ledger: 498 methods = 405 COVERED + 11 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP.** The unchanged `GET /api/v1` returns public documentation, not employer data, and is reclassified PUBLIC-BY-DESIGN only. An earlier-head disposable PG16/localhost HTTP equality and unchanged-DB proof passed; the synced head requires fresh CI and independent security review. No tenant-scoped method credits, no frozen-batch or global acceptance. 17 page/action GAPs remain. No customer data, provider connectivity, money or production activation.
 
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
@@ -166,9 +170,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 4 | 0 | 29 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 21 | 1 | 11 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

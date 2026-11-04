@@ -431,12 +431,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(method.testedBy.independentlyAccepted, false);
     expectedStatuses[path][evidence.method] = "COVERED";
   }
+  // Preserve #1764's one static-public catalog exception, without tenant credit.
+  const publicCatalogPath = "src/app/api/v1/route.ts";
+  assert.equal(expectedStatuses[publicCatalogPath]?.GET, "GAP");
+  const publicCatalog = m.allApiRouteFiles[publicCatalogPath]?.methods.find(row => row.name === "GET");
+  assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
+  assert.equal(publicCatalog?.testedBy, null);
+  expectedStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited,
-    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited,
+    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -448,7 +455,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -488,6 +495,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
+    assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
+      "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
+    expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
@@ -504,10 +514,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0),
-      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
-        (baselineHasPayout ? payoutCredits : 0),
+        (baselineHasPayout ? payoutCredits : 0) - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
@@ -516,7 +526,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       (baselineHasPayout ? 1 : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("91 GAP", (404 - frozenCovered) + " GAP");
+      .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
+      .replace("91 GAP", (403 - frozenCovered) + " GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
       expectedMainFrozen, "origin/main frozen ledger drift");
   }

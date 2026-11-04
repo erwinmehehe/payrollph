@@ -1,0 +1,132 @@
+name: Tenant MWE decision PATCH (fictional PG16 HTTP, no method credit)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-mwe-decision-patch-http.yml'
+      - 'scripts/qa/tenant-mwe-decision-patch-contract.mjs'
+      - 'scripts/qa/tenant-mwe-decision-patch-http.mjs'
+      - 'tests/tenant-mwe-decision-patch.test.mjs'
+      - 'src/app/api/employees/**/mwe-classifications/**'
+      - 'src/lib/mwe-classification.ts'
+      - 'src/lib/access.ts'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'src/db/schema.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-mwe-patch-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  mwe-decision-patch-isolation:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export isolated localhost profile and disable all live providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import {TENANT_TABLE_BASE_ENV} from "./scripts/qa/tenant-table-env.mjs"; for (const [key,value] of Object.entries(TENANT_TABLE_BASE_ENV)) process.stdout.write(key+"="+value+"\n")' >> "$GITHUB_ENV"
+          {
+            echo "TENANT_MWE_DECISION_MODE=fictional-pg16-only"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "PAYMONGO_WALLET_ID="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "STRIPE_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "OPENAI_API_KEY="
+            echo "NEON_DATABASE_URL="
+          } >> "$GITHUB_ENV"
+      - name: Guard test, source pin and static mutation negatives before database creation
+        run: |
+          node --check scripts/qa/tenant-mwe-decision-patch-contract.mjs
+          node --check scripts/qa/tenant-mwe-decision-patch-http.mjs
+          node --test tests/tenant-mwe-decision-patch.test.mjs
+      - name: Generate disposable encryption inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create throwaway PostgreSQL 16 schema only
+        run: npm run db:push
+      - name: Apply isolated baseline migrations only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Install synthetic HCM work-item fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode Next app against throwaway PostgreSQL
+        run: npm run build
+      - name: Start localhost-only application
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/mwe-decision-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 65); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 80 /tmp/mwe-decision-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "Local MWE fixture application did not start"
+          tail -n 80 /tmp/mwe-decision-next.log
+          exit 1
+      - name: Two-attacker and nine-employer real HTTP own approvals and rejects, stolen ID refusals, immutable SQL
+        run: node --import tsx scripts/qa/tenant-mwe-decision-patch-http.mjs
+      - name: Bounded localhost diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/mwe-decision-next.log || true
