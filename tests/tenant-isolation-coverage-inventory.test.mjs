@@ -1,4 +1,5 @@
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
+import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
@@ -2377,33 +2378,20 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return;
   }
 
-  // PATCH /api/payout-profiles: the historical GET is byte-identical to the
-  // previously accepted own/foreign PG16 read. New PATCH audit atomicity and
-  // two-attacker HTTP evidence are a ZERO-credit candidate pending review.
+  // PATCH /api/payout-profiles: one source-pinned *provisional* method credit.
+  // Retain the historical GET proof separately; never infer payout activation.
+  // The passing PG16 workflow must match the exact route, proof and workflow
+  // blobs, and the sole-owner acceptance still remains pending.
   if (isNewOrChanged && key === "src/app/api/payout-profiles/route.ts PATCH") {
     const routeFile = "src/app/api/payout-profiles/route.ts";
-    const reviewed = method.reviewedUncertified;
-    const expected = {
-      kind: "payout-profile-PATCH-atomic-audit-and-foreign-denial-PG16-zero-credit",
-      originalRouteBlobSha: "91d402d92ea03e66fa56951fef09187001f5f3ed",
-      routeBlobSha: "336cacb025603264af7b8c47e196aa29e8053f62",
-      priorGetPrefixFnv64: "4417b941777ae2cd",
-      proofFile: "scripts/qa/tenant-payout-profiles-patch-http.mjs",
-      proofBlobSha: "70c32de8fae81048c68772fba928c4adfb997987",
-      contractFile: "tests/tenant-payout-profiles-patch-audit.test.mjs",
-      contractBlobSha: "9f12d693c43187924c1f5b51463171720e60933a",
-      workflowFile: ".github/workflows/tenant-payout-profiles-patch-http.yml",
-      workflowBlobSha: "a06a4210dd6aef54cb332ab72cbefafd897f2e7c",
-      credits: 0, exactHeadPg16Http: "PENDING",
-      independentSecurityReview: "PENDING", productionCertified: false,
-    };
-    assert.equal(method.status, "GAP", "A source fix cannot self-credit the PATCH method");
-    assert.equal(method.testedBy, null, "Prior GET read proof does not cover payout profile mutations");
-    assert.match(method.reason, /^Still GAP: payout-profile PATCH/);
-    assert.equal(currentBlob, expected.routeBlobSha, "Payout profile source changed; renew independent review");
+    const reviewed = method.testedBy;
+    const expected = PAYOUT_PATCH_EVIDENCE;
+    assert.equal(method.status, "COVERED", "only source-pinned passing PATCH may receive provisional credit");
+    assert.equal(method.reviewedUncertified, undefined, "no lingering zero-credit status");
+    assert.equal(verifyPayoutProfileCredit(manifest), 1);
+    assert.equal(currentBlob, expected.routeBlobSha, "Payout route changed: repeat PG16 proof");
     assert.equal(baseline.api[routeFile], expected.originalRouteBlobSha,
-      "Unreviewed source must preserve original audited GET baseline");
-    assert.deepEqual(reviewed, expected, "Only exact uncredited payout PATCH evidence is allowed");
+      "Historical GET baseline must remain unchanged");
     for (const [file, sha] of [
       [reviewed.proofFile, reviewed.proofBlobSha],
       [reviewed.contractFile, reviewed.contractBlobSha],
@@ -4883,6 +4871,15 @@ test("all credited proof links point to the claimed route and every recertified 
           assert.ok(evidenceLine(rowFile, proof[field], entry.route + " four-part " + field).length > 14);
         continue;
       }
+      if (entry.route === "payout-profiles" && method.name === "PATCH") {
+        // This is a single source-pinned provisional development receipt,
+        // never a new generic proof-source exemption or a security approval.
+        assert.equal(path, "src/app/api/payout-profiles/route.ts");
+        assert.equal(proof.file, PAYOUT_PATCH_EVIDENCE.file);
+        assert.equal(verifyPayoutProfileCredit(manifest), 1,
+          "Exact route, proof, workflow, source anchors, receipt and release holds required");
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
@@ -6134,7 +6131,7 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
   const held = [
     ["bir/annual-employer/candidate", "POST"],
     ["multi-entity/transfers", "POST"], ["multi-entity/transfers", "PATCH"],
-    ["payout-profiles", "PATCH"], ["workforce-planning", "POST"],
+    ["workforce-planning", "POST"],
     ["workforce-planning", "PATCH"], ["workforce-planning/scenarios", "POST"],
   ];
   for (const [route, name] of held) {

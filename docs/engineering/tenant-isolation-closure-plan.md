@@ -1,8 +1,12 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
-## 2026-11-04 #1744 reconciled with main@150dcd7e4b66 — TWO YEAR-END METHODS HELD
+## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
-**Source-change hold: 498 methods = 404 COVERED + 10 PUBLIC-BY-DESIGN + 84 GAP; frozen 406 = 320 COVERED + 2 PUBLIC-BY-DESIGN + 84 GAP.** Main's two `year-end/prior-evidence` GET/POST credits remain source-pinned and unchanged. The separately credited `year-end` GET and POST methods return to **GAP, zero current credits** on this draft branch because #1744 changes their shared handler source from `7572c611` to `ced0d118`. An older production-mode PostgreSQL 16 proof cannot silently certify the revised route. Audit-atomicity, queue and annualization fixes require exact-head proof and independent payroll/security review before method promotion or merge. All 17 page/action gaps remain. No payroll money, provider, filing, feature activation or production release.
+**Current draft ledger: 498 = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route ced0d118. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.
+
+## 2026-11-04 #1749 reconciled on main@150dcd7e4b66 — DRAFT, NOT ACCEPTED
+
+**Provisional source-pinned ledger: 498 methods = 407 COVERED + 10 PUBLIC-BY-DESIGN + 81 GAP; frozen 406-method queue = 323 COVERED + 2 PUBLIC-BY-DESIGN + 81 GAP.** All four #1730 year-end/prior-evidence methods and prior source-pinned receipts remain unchanged. The only new provisional method is `PATCH /api/payout-profiles` with a historic exact-source PG16 proof. Independent security review and owner acceptance remain PENDING. No money/provider activation, production release or tenant-wide certification; 17 page/action GAPs remain.
 
 ## 2026-11-03 #1730 reconciled after merged #1728 — DRAFT / NOT ACCEPTED
 
@@ -127,7 +131,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 24 | 0 | 9 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
@@ -138,7 +142,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 
-Frozen subtotal: **320 COVERED + 2 PUBLIC-BY-DESIGN + 84 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

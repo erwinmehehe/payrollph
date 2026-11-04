@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 
 const route = readFileSync("src/app/api/payout-profiles/route.ts", "utf8");
 const script = readFileSync("scripts/qa/tenant-payout-profiles-patch-http.mjs", "utf8");
@@ -74,8 +75,9 @@ test("PG16 real HTTP candidate proves two own writes, actual foreign denial and 
   assert.match(workflow, /node --import tsx scripts\/qa\/tenant-payout-profiles-patch-http\.mjs/);
   const methods = manifest.allApiRouteFiles["src/app/api/payout-profiles/route.ts"].methods;
   assert.deepEqual(methods.map(m => [m.name, m.status]), [
-    ["GET", "COVERED"], ["PATCH", "GAP"],
-  ], "Do not borrow prior GET HTTP proof to certify PATCH without independent review");
+    ["GET", "COVERED"], ["PATCH", "COVERED"],
+  ], "Only the exact dedicated PATCH proof may credit the write; GET stays unchanged");
+  assert.equal(verifyPayoutProfileCredit(manifest), 1);
 });
 
 test("victim payout profile is a genuine persisted higher-ID target before foreign/forged denial", () => {
@@ -94,4 +96,24 @@ test("victim payout profile is a genuine persisted higher-ID target before forei
     "victim's real own-positive audit must be preserved after each denial");
   assert.ok(script.includes('staleForeignTaggedUpsertDenied: true'),
     "the original foreign-tagged conflict regression must remain fully exercised");
+});
+
+test("payout PATCH one-method provisional credit rejects forged receipts, extra credits and source drift",()=>{
+  const path="src/app/api/payout-profiles/route.ts";
+  const tamper=fn=>{
+    const changed=structuredClone(manifest);
+    fn(changed,changed.allApiRouteFiles[path].methods.find(m=>m.name==="PATCH"));
+    assert.throws(()=>verifyPayoutProfileCredit(changed));
+  };
+  tamper((_m,method)=>{method.status="GAP";});
+  tamper((_m,method)=>{method.testedBy.workflowRunId=0;});
+  tamper((_m,method)=>{method.testedBy.verifiedPrHeadSha="0".repeat(40);});
+  tamper((_m,method)=>{method.testedBy.foreignDenialLine=107;});
+  tamper((_m,method)=>{method.testedBy.routeBlobSha="0".repeat(40);});
+  tamper((_m,method)=>{method.testedBy.ownerIsOnlyReviewer=false;});
+  tamper((_m,method)=>{method.testedBy.independentlyAccepted=true;});
+  tamper((m,_method)=>{m.metrics.coveredAfter++;});
+  assert.throws(()=>verifyPayoutProfileCredit(manifest, file =>
+    readFileSync(file,"utf8")+(file==="scripts/qa/tenant-payout-profiles-patch-http.mjs"?
+      "\\n// source changed":"")));
 });

@@ -48,3 +48,9 @@ annualization committed but not queued.
 No production/Neon database, real employee/payroll data, workers, bank or agency
 calls, payout/provider credentials, actual money movement, feature activation
 or deployment is authorized by this draft.
+
+## November 4 ledger source-supersession review
+
+The merged `main` includes 407 provisional COVERED / 81 GAP methods, including #1749 payout PATCH. The changed `/api/year-end` handler invalidates both historical #1730 source-specific GET/POST receipts. This draft intentionally reports **405 COVERED / 83 GAP**, with the changed pair GAP and zero current credits; the unchanged prior-evidence pair and payout method retain their original exact-source evidence. The shared anti-downgrade invariant now permits only this exact, paired, old/new Git-blob-pinned evidence supersession and rejects all other downgrades. This is no new proof or certification.
+
+[Prior-head fictional PG16 atomic rollback and concurrency run](https://github.com/erwinmehehe/payrollph/actions/runs/41752747046/job/126321535094) passed with two independent employers, populated higher-ID victim, separate injected audit and queue failures, full SQL rollback and one successful concurrent binding. Its actual runner reported `methodCredits: 0`. Repeat exact-head CI and full method-specific HTTP acceptance, then obtain independent financial/security review before any credit restoration, merge or deployment.
