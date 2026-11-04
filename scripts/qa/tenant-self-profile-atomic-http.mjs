@@ -26,7 +26,7 @@ export async function proveSelfProfileHttp() {
   ]);
   const {
     organizations, legalEntities, orgUnits, employees, employeePayProfiles,
-    users, userOrganizations, sessions, timePunches, payrollRuns, auditEvents,
+    users, userOrganizations, sessions, timePunches, payrollRuns, payrollEntries, auditEvents,
   } = schema;
   const {
     seedEmployer, addWorker, standaloneMakeSession,
@@ -37,12 +37,16 @@ export async function proveSelfProfileHttp() {
   const organizationRows = (source, orgId) => db.select().from(source)
     .where(eq(source.organizationId, orgId)).orderBy(asc(source.id));
   const snapshot = async (orgId) => {
-    const [staff, profiles, punches, payroll, units, entities, memberships, audit] =
+    const [staff, profiles, punches, payroll, payrollEntriesByEmployer, units, entities, memberships, audit] =
       await Promise.all([
         organizationRows(employees, orgId),
         organizationRows(employeePayProfiles, orgId),
         organizationRows(timePunches, orgId),
         organizationRows(payrollRuns, orgId),
+        db.select().from(payrollEntries)
+          .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+          .where(eq(payrollRuns.organizationId, orgId))
+          .orderBy(asc(payrollEntries.id)),
         organizationRows(orgUnits, orgId),
         organizationRows(legalEntities, orgId),
         organizationRows(userOrganizations, orgId),
@@ -50,6 +54,7 @@ export async function proveSelfProfileHttp() {
       ]);
     return {
       employees: staff, payProfiles: profiles, punches, payroll,
+      payrollEntries: payrollEntriesByEmployer,
       orgUnits: units, legalEntities: entities, memberships,
       audit: invariants.auditBusinessSnapshot(audit),
     };
@@ -81,6 +86,16 @@ export async function proveSelfProfileHttp() {
     const session = await standaloneMakeSession(ess.id);
     await db.update(sessions).set({ mfaVerifiedAt: new Date() })
       .where(eq(sessions.id, session.id));
+    const [fictionalRun] = await db.insert(payrollRuns).values({
+      organizationId: e.org.id, legalEntityId: e.entity.id,
+      periodLabel: "Fictional self-profile evidence only",
+      periodStart: "2026-01-01", periodEnd: "2026-01-15",
+      payDate: "2026-01-15", status: "Draft",
+    }).returning();
+    await db.insert(payrollEntries).values({
+      payrollRunId: fictionalRun.id, employeeId: e.worker.id,
+      grossPay: "1000.00", deductions: "0.00", netPay: "1000.00",
+    });
     return { ...e, peer, ess, selfCookie: session.cookie };
   }
 
@@ -114,6 +129,8 @@ export async function proveSelfProfileHttp() {
     };
     const victimSeeded = await snapshot(victim.org.id);
     assert.equal(victimSeeded.employees.length, 2);
+    assert.equal(victimSeeded.payrollEntries.length, 1,
+      "victim unchanged-DB check needs a genuinely populated payroll entry");
     const victimOwnResponse = await checked(ENDPOINT, {
       method: "PATCH", cookie: victim.selfCookie, body: contact(victim),
     }, 200, "victim independently edits their own persisted contact", victim);
@@ -148,6 +165,8 @@ export async function proveSelfProfileHttp() {
     let ownSuccesses = 0, forgedSelectors = 0, blockedWrites = 0;
     for (const own of attackers) {
       assert.equal((await snapshot(own.org.id)).employees.length, 2);
+      assert.equal((await snapshot(own.org.id)).payrollEntries.length, 1,
+        "attacker SQL invariants require real owned payroll entries");
       // Disallowed payroll, government and tenant fields cannot form a contact edit.
       const beforeForbidden = await snapshot(own.org.id);
       const forbidden = await checked(ENDPOINT, {

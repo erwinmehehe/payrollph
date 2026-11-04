@@ -69,6 +69,7 @@ jobs:
             echo 'XENDIT_BILLING_ENABLED=false'
             echo 'WORKER_ENABLED=false'
             echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'NEXT_CSP_ENABLED=false'
           } >> "$GITHUB_ENV"
       - name: Static contract, negative controls and syntax gate
         run: |
