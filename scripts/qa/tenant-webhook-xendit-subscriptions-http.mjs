@@ -141,7 +141,7 @@ export async function proveXenditSubscriptionsWebhook() {
     const counts = {
       ownPaid: 0, ownPastDue: 0, duplicates: 0, concurrentDuplicates: 0, forgedSelectorsIgnored: 0,
       stalePlanIgnored: 0, amountCurrencyRefusals: 0, crossBoundRefusals: 0, authNegatives: 0,
-      providerAuthorityVictimOnly: 0,
+      providerAuthorityVictimOnly: 0, auditAtomicRollbacks: 0, auditRetryRecovered: 0,
     };
 
     // Authentication failures cannot be used as tenant coverage credit.
@@ -278,6 +278,55 @@ export async function proveXenditSubscriptionsWebhook() {
     assert.equal(after.VICTIM.invoices.length, before.VICTIM.invoices.length + 1);
     assert.equal(after.VICTIM.billingEvents.at(-1).organizationId, victim.org.id);
     counts.providerAuthorityVictimOnly++;
+
+
+    // The audit insert must be part of the same transaction as the billing
+    // write and event dedupe row. Inject a real PostgreSQL trigger failure on
+    // this disposable localhost-only database, then retry the same callback.
+    const auditFailureEvent = eventBody(a, { n: 47 });
+    before = await snapshots();
+    await pool.query(
+      "CREATE FUNCTION public.ci_reject_xendit_subscription_audit() RETURNS trigger LANGUAGE plpgsql AS $ " +
+      "BEGIN IF NEW.action = 'recurring.cycle.succeeded' THEN " +
+      "RAISE EXCEPTION 'CI_ONLY_XENDIT_SUBSCRIPTION_AUDIT_REJECTED'; END IF; RETURN NEW; END $"
+    );
+    await pool.query(
+      "CREATE TRIGGER ci_reject_xendit_subscription_audit BEFORE INSERT ON public.audit_events " +
+      "FOR EACH ROW EXECUTE FUNCTION public.ci_reject_xendit_subscription_audit()"
+    );
+    try {
+      const rejected = await send(auditFailureEvent);
+      assert.equal(rejected.status, 500,
+        "A rejected audit insert must fail the complete subscription callback");
+      await unchangedExcept(before);
+      counts.auditAtomicRollbacks++;
+    } finally {
+      await pool.query("DROP TRIGGER ci_reject_xendit_subscription_audit ON public.audit_events");
+      await pool.query("DROP FUNCTION public.ci_reject_xendit_subscription_audit()");
+    }
+
+    // If the first transaction truly rolled back, the same provider event is
+    // not deduplicated, and it can now commit one invoice + one audit receipt.
+    before = await snapshots();
+    result(await send(auditFailureEvent), 200,
+      { received: true, handled: true, status: "paid" },
+      "audit failure recovery must process the rolled-back callback");
+    after = await unchangedExcept(before, "ATTA");
+    assert.equal(after.ATTA.billingEvents.length, before.ATTA.billingEvents.length + 1,
+      "retry records the formerly rolled-back provider event exactly once");
+    assert.equal(after.ATTA.invoices.length, before.ATTA.invoices.length + 1,
+      "retry records exactly one invoice");
+    assert.equal(after.ATTA.auditEvents.length, before.ATTA.auditEvents.length + 1,
+      "retry records exactly one matching business audit");
+    assert.equal(after.ATTA.auditEvents.at(-1).organizationId, a.org.id);
+    assert.equal(after.ATTA.auditEvents.at(-1).action, "recurring.cycle.succeeded");
+    counts.auditRetryRecovered++;
+
+    before = await snapshots();
+    result(await send(auditFailureEvent), 200,
+      { received: true, handled: false, duplicate: true },
+      "successful retry must be idempotent");
+    await unchangedExcept(before);
 
     console.log(JSON.stringify({
       proof: "xendit-subscriptions-webhook",
