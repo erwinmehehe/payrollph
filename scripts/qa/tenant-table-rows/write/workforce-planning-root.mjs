@@ -101,7 +101,7 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
         // Seed worker comparators attacker-first, victim-last before any HTTP
         // request. Two real inserts per employer ensure the victim worker ID
         // exceeds 6 and both legitimate own assignment worker IDs.
-        await addWorker(e, "ROOTASSIGNBASE");
+        await addWorker(e, "RA0");
         const assignmentWorker = await addWorker(e, "ROOTASSIGN");
         return { id: profile.id, jobProfileId: profile.id, familyId: family.id,
           planId: plan.id, assignmentWorkerId: assignmentWorker.id };
