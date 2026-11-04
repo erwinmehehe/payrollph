@@ -411,12 +411,21 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
-  assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves #1749 payout PATCH plus two original prior-evidence methods; source-changed year-end GET/POST are GAP, zero credits");
+  // #1764 changes precisely one static catalog GET from GAP to public metadata.
+  // Keep the main-derived security baseline immutable for the origin/main check below.
+  const expectedCandidateStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const publicCatalogPath = "src/app/api/v1/route.ts";
+  assert.equal(expectedCandidateStatuses[publicCatalogPath]?.GET, "GAP");
+  const publicCatalog = m.allApiRouteFiles[publicCatalogPath]?.methods.find(row => row.name === "GET");
+  assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
+  assert.equal(publicCatalog?.testedBy, null, "public catalog is not a tenant-scoped COVERED receipt");
+  expectedCandidateStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
+  assert.deepEqual(methodStatuses(m), expectedCandidateStatuses,
+    "Only #1764 public GET may change on top of the source-pinned tenant credits");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits,
-    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits,
+    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
@@ -427,12 +436,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const currentFrozenSubtotal = snapshot.frozenSubtotal
+  const preCatalogFrozenSubtotal = snapshot.frozenSubtotal
     .replace("313 COVERED", "321 COVERED")
     .replace("91 GAP", "83 GAP");
+  assert.match(preCatalogFrozenSubtotal,
+    /^Frozen subtotal: \*\*321 COVERED \+ 2 PUBLIC-BY-DESIGN \+ 83 GAP = 406\*\*/,
+    "The #1744 reconciliation must be present before the v1 public exception");
+  // One frozen EDG-02 GAP becomes public; no additional method may be credited.
+  const currentFrozenSubtotal = preCatalogFrozenSubtotal.replace(
+    "321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP",
+    "321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP",
+  );
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
-    "Frozen subtotal preserves payout PATCH but invalidates two old-source year-end receipts");
+    "Only the one public v1 GET may change the frozen queue subtotal");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
