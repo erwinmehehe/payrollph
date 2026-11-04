@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const ROOT = "src/app/api/";
@@ -94,21 +95,11 @@ export function verifyFiveMethodCredits(
   manifest = JSON.parse(readFileSync(MANIFEST, "utf8")),
   read = path => readFileSync(path),
 ) {
-  const tally = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
-  for (const file of Object.values(manifest.allApiRouteFiles)) {
-    for (const method of file.methods) {
-      assert.ok(Object.hasOwn(tally, method.status), "Unknown method status");
-      tally[method.status]++;
-    }
-  }
-  assert.deepEqual(tally, { COVERED: 410, "PUBLIC-BY-DESIGN": 10, GAP: 78 });
-  assert.equal(manifest.metrics.methods, 498);
-  assert.equal(manifest.metrics.routeFiles, 295);
-  assert.equal(manifest.metrics.coveredAfter, 410);
-  assert.equal(manifest.metrics.publicByDesign, 10);
-  assert.equal(manifest.metrics.gap, 78);
+  // Keep live ledger totals derived from actual method statuses, never pinned
+  // to the counts of this historical proof batch. Compare to the base when
+  // the CI checkout provides origin/main.
+  const { live } = assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.filter(p => p.status === "GAP").length, 17);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 78 API methods and 17 page\/action GAPs/);
 
   for (const e of EVIDENCE) {
     const path = ROOT + e.route + "/route.ts";
@@ -173,7 +164,7 @@ export function verifyFiveMethodCredits(
     assert.match(m.reason, /two independently owned employers/);
   }
   return { status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
-    methodsHeld: 2, covered: 410, publicByDesign: 10, gap: 78, pageActionGaps: 17,
+    methodsHeld: 2, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap, pageActionGaps: 17,
     productionTested: false, independentlyAccepted: false };
 }
 
