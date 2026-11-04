@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -399,15 +400,34 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
+  const expectedAfterPayout = JSON.parse(JSON.stringify(expectedStatuses));
+
+  // Three unrelated methods have now passed on their own exact-final-head
+  // fictional-PG16/real-HTTP receipts. Run the strict byte/anchor/CI-receipt
+  // verifier before allowing ONLY these three distinct new promotions.
+  const recovery = verifyFiveMethodCredits(m);
+  assert.equal(recovery.methodsCredited, 3);
+  assert.equal(recovery.methodsHeld, 2);
+  for (const evidence of EVIDENCE) {
+    const path = "src/app/api/" + evidence.route + "/route.ts";
+    assert.equal(expectedStatuses[path]?.[evidence.method], "GAP",
+      path + ": only a previously GAP method may receive new proof credit");
+    const method = m.allApiRouteFiles[path].methods.find(row => row.name === evidence.method);
+    assert.equal(method.testedBy.workflowRunId, evidence.run);
+    assert.equal(method.testedBy.routeBlobSha, evidence.routeSha);
+    assert.equal(method.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy.independentlyAccepted, false);
+    expectedStatuses[path][evidence.method] = "COVERED";
+  }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Only the source-pinned payout PATCH is added beyond four #1730 methods and prior credits");
+    "Only payout PATCH and exactly 3 independently source-pinned final-head recovery credits are permitted");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length + issuedPromotions.length + payoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length - issuedPromotions.length - payoutCredits,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited,
   };
   assert.deepEqual(counts, expectedCounts,
-    "Exactly one additional source-pinned #1749 payout credit is permitted");
+    "Only the three exact-head method receipts add new #1760 provisional credits");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -415,12 +435,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const currentFrozenSubtotal = snapshot.frozenSubtotal
-    .replace("313 COVERED", "323 COVERED")
-    .replace("91 GAP", "81 GAP");
-  assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-    currentFrozenSubtotal,
-    "Frozen subtotal must add just the separate provisional payout-profile PATCH");
+  assert.ok(plan.includes(
+    "Frozen subtotal (2026-11-04 proposal): **326 COVERED + 2 PUBLIC-BY-DESIGN + 78 GAP = 406**"),
+    "New frozen batch totals must reconcile the three distinct PII/EDG credits");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
@@ -444,7 +461,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineHasPayout = payoutMethod?.status === "COVERED";
     if (baselineHasPayout) verifyPayoutProfileCredit(baseline);
     assert.deepEqual(methodStatuses(baseline),
-      baselineHasPayout ? expectedStatuses : expectedBeforePayout,
+      baselineHasPayout ? expectedAfterPayout : expectedBeforePayout,
       "origin/main must preserve the four year-end credits and at most one payout PATCH");
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
