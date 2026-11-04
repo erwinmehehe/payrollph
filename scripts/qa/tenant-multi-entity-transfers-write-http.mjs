@@ -258,7 +258,114 @@ try {
   check(assignment.legal_entity_id === primaryId,
     "New employer-of-record assignment is owned and current");
 
-  assert.deepEqual(await snapshot(2), victimBefore,
+
+  // SECOND truly independent owning employer: employer C was only a group
+  // reader in the shared browser fixture. Turn that fictional account into
+  // its own actual company owner using PG16 membership and legal-entity
+  // grants. This never changes production role policy or the route.
+  const cMakerUser = await one("SELECT id FROM users WHERE email='entity-attacker-c@example.test'");
+  await sql.query("UPDATE users SET role='owner' WHERE id=$1", [cMakerUser.id]);
+  await sql.query(
+    "UPDATE user_organizations SET role='owner' WHERE organization_id=3 AND user_id=$1",
+    [cMakerUser.id]);
+  const cWorker = await one(
+    "SELECT id,organization_id,legal_entity_id FROM employees WHERE employee_no='C-01'");
+  const cPrimary = await one(
+    "SELECT id FROM legal_entities WHERE organization_id=3 AND code='PRIMARY'");
+  const cSecondary = await one(
+    "INSERT INTO legal_entities (organization_id,code,legal_name,display_name,primary_entity) VALUES(3,'CI-C-SECOND','Synthetic C alternate employer','C alternate',false) RETURNING id");
+  const cCheckerUser = await one(
+    "INSERT INTO users (email,name,role,password_hash,totp_enabled,active) SELECT 'entity-c-checker@example.test','Fictional C independent checker','admin',password_hash,true,true FROM users WHERE email='entity-checker@example.test' RETURNING id");
+  await sql.query(
+    "INSERT INTO user_organizations (user_id,organization_id,role,active) VALUES($1,3,'admin',true)",
+    [cCheckerUser.id]);
+  for (const [userId, entityId] of [
+    [cMakerUser.id, cPrimary.id], [cMakerUser.id, cSecondary.id],
+    [cCheckerUser.id, cPrimary.id], [cCheckerUser.id, cSecondary.id],
+  ]) {
+    await sql.query(
+      "INSERT INTO user_legal_entity_grants (organization_id,user_id,legal_entity_id) VALUES(3,$1,$2)",
+      [userId, entityId]);
+  }
+  check(cWorker.organization_id === 3 && cWorker.legal_entity_id === cPrimary.id,
+    "A second genuinely independent employer has a persisted source worker");
+  const cChecker = await login("entity-c-checker@example.test", "198.51.100.27");
+  const cBody = () => ({
+    organizationId: 3, employeeId: cWorker.id, toLegalEntityId: cSecondary.id,
+    effectiveDate: future, reason: "Fictional tenant C owner transfer only",
+  });
+  const cProposed = status(await call(attackerC, "POST", path, cBody(), cPrimary.id),
+    201, "Independent employer C must create a genuine own POST");
+  const cOwnId = cProposed.data?.transfer?.id;
+  const cOwnRow = await one(
+    "SELECT organization_id,employee_id,status,requested_by_user_id FROM entity_transfer_requests WHERE id=$1",
+    [cOwnId]);
+  check(cOwnRow.organization_id === 3 && cOwnRow.employee_id === cWorker.id &&
+    cOwnRow.status === "pending_approval" && cOwnRow.requested_by_user_id === cMakerUser.id,
+    "C actual own HTTP POST must persist C maker and C worker");
+  const cRejected = status(await call(cChecker, "PATCH", path,
+    { organizationId: 3, id: cOwnId, action: "reject" }, cPrimary.id),
+    200, "Independent employer C checker must reject its own transfer");
+  check(cRejected.data?.transfer?.status === "rejected",
+    "C independent PATCH reject persisted");
+  const cProposedAgain = status(await call(attackerC, "POST", path, cBody(), cPrimary.id),
+    201, "Independent employer C must POST another own transfer after rejection");
+  const cOwnNextId = cProposedAgain.data?.transfer?.id;
+  check(Number.isSafeInteger(cOwnNextId) && cOwnNextId > cOwnId,
+    "Independent C second HTTP POST created a distinct real transfer");
+  const cApproved = status(await call(cChecker, "PATCH", path,
+    { organizationId: 3, id: cOwnNextId, action: "approve" }, cPrimary.id),
+    200, "Independent employer C checker must approve its own transfer");
+  check(cApproved.data?.transfer?.status === "approved",
+    "C independent PATCH approve persisted");
+  const cApprovedRow = await one(
+    "SELECT organization_id,approved_by_user_id,status FROM entity_transfer_requests WHERE id=$1",
+    [cOwnNextId]);
+  check(cApprovedRow.organization_id === 3 && cApprovedRow.approved_by_user_id === cCheckerUser.id
+    && cApprovedRow.status === "approved",
+    "C reviewer and tenant are persisted, not merely echoed in HTTP");
+
+  // HIGH-ID VICTIM INSERTED LAST, after A and C own POST/PATCH successes.
+  // A fabricated missing ID is never used as a victim proof.
+  const orderedVictimWorker = await one(
+    "SELECT id,organization_id,legal_entity_id FROM employees WHERE employee_no='B-VICTIM-6'");
+  const orderedVictim = await one(
+    "INSERT INTO entity_transfer_requests(organization_id,employee_id,from_legal_entity_id,to_legal_entity_id,effective_date,status,reason,service_start_date,requested_by_user_id,continuity_note) VALUES(2,$1,$2,$3,$4,'pending_approval','Real higher-ID victim transfer','2026-01-01',$5,'synthetic immutable victim') RETURNING id",
+    [orderedVictimWorker.id, victimEntity.id, victimSecondary.id, future, foreign.id]);
+  check(orderedVictimWorker.organization_id === 2 && orderedVictimWorker.id > 6 &&
+    orderedVictim.id > Math.max(6, ownId, nextId, due.id, cOwnId, cOwnNextId),
+    "Real victim transfer ID >6 and strictly greater than both independent employers' own IDs");
+  const newVictimBefore = await snapshot(2);
+  check(newVictimBefore.entity_transfer_requests.some(row => row.id === orderedVictim.id),
+    "The real higher-ID victim row is read back from PostgreSQL before attack");
+  for (const [actor, orgId, source, selectorEntity] of [
+    [a, 1, sourceWorker, primaryId],
+    [attackerC, 3, cWorker, cPrimary.id],
+  ]) {
+    const beforeOwn = await snapshot(orgId);
+    status(await call(actor, "PATCH", path,
+      { organizationId: orgId, id: orderedVictim.id, action: "reject" }, selectorEntity),
+      404, "Real higher-ID foreign transfer ID must look absent in own employer");
+    status(await call(actor, "PATCH", path,
+      { organizationId: 2, id: orderedVictim.id, action: "approve" }, victimEntity.id),
+      403, "Forged actual victim employer selector must be rejected");
+    status(await call(actor, "POST", path,
+      { organizationId: orgId, employeeId: orderedVictimWorker.id,
+        toLegalEntityId: orgId === 1 ? secondaryEntity.id : cSecondary.id,
+        effectiveDate: future, reason: "Fictional forged real worker" }, selectorEntity),
+      404, "Foreign real worker under own employer is denied");
+    status(await call(actor, "POST", path,
+      { organizationId: orgId, employeeId: source.id,
+        toLegalEntityId: victimEntity.id, effectiveDate: future,
+        reason: "Fictional forged legal-employer ID" }, selectorEntity),
+      403, "Real victim legal employer cannot be selected by either attacker");
+    assert.deepEqual(await snapshot(orgId), beforeOwn,
+      "Denied victim transfer and forged selectors must not mutate the attacker's employer");
+    assert.deepEqual(await snapshot(2), newVictimBefore,
+      "Each denied victim ID or forged selector must leave victim transfer, people, payroll and audit SQL unchanged");
+  }
+
+  assert.deepEqual(await snapshot(2), newVictimBefore,
     "Foreign POST/PATCH, forged selectors and own decisions must leave victim transfers, workers, payroll and audit unchanged");
   const finished = await one(
     "SELECT status FROM entity_transfer_requests WHERE id=$1 AND organization_id=2", [victimMove.id]);
@@ -266,7 +373,10 @@ try {
   console.log(JSON.stringify({
     kind: "tenant-multi-entity-transfer-write-PG16-http-candidate",
     methods: ["POST /api/multi-entity/transfers", "PATCH /api/multi-entity/transfers"],
-    ownPost201: 2, ownPatchActions: ["reject", "approve", "apply"],
+    ownPost201: 4, independentEmployerOwnedPost201: 2,
+    independentEmployerOwnedPatch200: 2,
+    realVictimTransferIdAboveSixAndBothEmployers: true,
+    ownPatchActions: ["reject", "approve", "apply"],
     foreignTenantDenials: 4, forgedSelectorsDenied: true,
     victimStateUnchanged: true, fictionalDataOnly: true,
     methodCredits: 0, independentlyAccepted: false,
