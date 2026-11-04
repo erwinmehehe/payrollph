@@ -64,4 +64,8 @@ test("revoked grant and switched engagement are rechecked under database locks b
   );
   assert.ok(body.indexOf("activeManagedPayrollClientApprover(") < firstWrite, "grant checked before first write");
   assert.ok(body.includes("}, tx)"), "approval and audit must be one transaction");
+  assert.match(body, /managedPayrollRunFingerprint\(run\.id, tx\)/);
+  const fingerprintHelper = readFileSync("src/lib/managed-payroll.ts", "utf8");
+  assert.match(fingerprintHelper, /reader: Pick<typeof db, "select"> = db/);
+  assert.match(fingerprintHelper, /await reader\.select\(/);
 });
