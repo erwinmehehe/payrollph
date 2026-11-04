@@ -98,7 +98,13 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
           organizationId: e.org.id, name: e.marker + " seeded source plan",
           startDate: "2026-01-01", endDate: "2026-12-31",
         }).returning();
-        return { id: profile.id, jobProfileId: profile.id, familyId: family.id, planId: plan.id };
+        // Seed worker comparators attacker-first, victim-last before any HTTP
+        // request. Two real inserts per employer ensure the victim worker ID
+        // exceeds 6 and both legitimate own assignment worker IDs.
+        await addWorker(e, "ROOTASSIGNBASE");
+        const assignmentWorker = await addWorker(e, "ROOTASSIGN");
+        return { id: profile.id, jobProfileId: profile.id, familyId: family.id,
+          planId: plan.id, assignmentWorkerId: assignmentWorker.id };
       },
       state: snapshot,
       ownBody: familyBody,
@@ -202,7 +208,10 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
           assert.equal(await isGovernedPositionAssignmentWorkspace(c.orgId), false,
             "dedicated synthetic employer must genuinely be ungoverned");
           const t = await tables();
-          const worker = await addWorker(c, "ROOTASSIGN");
+          const [worker] = await db.select().from(t.employees).where(
+            eq(t.employees.id, c.seeded.assignmentWorkerId)).limit(1);
+          assert.ok(worker && worker.organizationId === c.orgId,
+            "assignment worker must be the persisted own-employer seed");
           const [vacancy] = await db.insert(t.positions).values({
             organizationId: c.orgId, code: "ASSIGN-" + c.marker,
             jobProfileId: profile.id, orgUnitId: c.unitId, legalEntityId: c.entityId,
@@ -256,11 +265,12 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
             status: "open", annualBudget: "100000.00",
             createdByUserId: c.owner.id,
           }).returning();
-          assert.ok(c.victim.worker.id > 6 && c.victim.worker.id > worker.id,
+          assert.ok(c.victimSeeded.assignmentWorkerId > 6 &&
+            c.victimSeeded.assignmentWorkerId > worker.id,
             "POST foreign worker must be a real higher-ID victim, never a fabricated object");
           await denyAndPreserve(c, "POST", base(c, "assignment", {
             positionId: foreignWorkerVacancy.id,
-            employeeId: c.victim.worker.id, effectiveFrom: todayPh,
+            employeeId: c.victimSeeded.assignmentWorkerId, effectiveFrom: todayPh,
           }), 404, "real higher-ID foreign worker denied on valid own vacancy", client);
           assert.equal((await snapshot(c.orgId)).positions.find(
             row => row.id === foreignWorkerVacancy.id)?.status, "open",
