@@ -115,3 +115,19 @@ test("no payroll, provider or production authorization is carried in the Batch 3
   }
   assert.match(workflow, /tenant-write-table-http\.mjs/);
 });
+
+test("root write proofs use a real higher-ID victim for the forged selector, never a fabricated 404", () => {
+  assert.match(family, /id: c\.victimSeeded\.frozenId, status: "approved"/,
+    "PATCH forged selector must be a genuine persisted victim-only position");
+  assert.doesNotMatch(family, /c\.victimSeeded\.frozenId\s*\+\s*100000/,
+    "a fabricated unknown ID cannot substitute for cross-employer proof");
+  assert.match(family, /c\.victimSeeded\.frozenId > 6/);
+  assert.match(family, /c\.victimSeeded\.frozenId > c\.seeded\.frozenId/);
+  assert.match(family, /forged real victim frozen-position decision/);
+  assert.match(family, /realForged\.text, missingPosition\.text/,
+    "foreign selectors must have the same public 404 response as unknown objects");
+  assert.match(family, /c\.victim\.worker\.id > 6 && c\.victim\.worker\.id > worker\.id/,
+    "POST assignment denial must use the real higher-ID victim worker on an open own vacancy");
+  assert.match(family, /assert\.deepEqual\(await snapshot\(c\.victim\.org\.id\), victimBefore/,
+    "the victim's PostgreSQL source rows must remain unchanged");
+});
