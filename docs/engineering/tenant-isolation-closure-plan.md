@@ -1,5 +1,9 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-04 API v1 static public catalog — DRAFT, NOT ACCEPTED
+
+**Candidate live ledger: 498 methods = 405 COVERED + 11 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP.** Only `GET /api/v1` is reclassified from GAP to PUBLIC-BY-DESIGN, not COVERED: its response describes public API operations, imports no DB/session helper and does not select an employer. [Focused source and negative-control tests](../../tests/tenant-v1-public-catalog.test.mjs) plus a [three-real-employer PG16/localhost HTTP equality and unchanged-SQL candidate](../../scripts/qa/tenant-v1-public-http.mjs) are required. The exact PR-head CI and independent review are PENDING. The remaining 82 API GAPs and 17 page/action GAPs remain; this is not tenant-wide certification, real API tenant-data proof, deployment, provider, payout, payroll or production permission.
+
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
 **Current draft ledger: 498 methods = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route e4741d98. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.
