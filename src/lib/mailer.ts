@@ -557,60 +557,73 @@ export async function recordEmailProviderEvent(input: {
   detail?: string | null;
 }) {
   await ensureOutboxDeliverySchema();
-  const [row] = await db
-    .select()
-    .from(outbox)
-    .where(eq(outbox.id, input.outboxId))
-    .limit(1);
+  // One transaction holds the outbox row lock across the match, the duplicate check, the delivery-state update and the
+  // audit receipt, so two concurrent deliveries of one event produce exactly one write and a failed audit write
+  // rolls the state change back instead of being swallowed (the provider then retries the delivery).
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(outbox)
+      .where(eq(outbox.id, input.outboxId))
+      .for("update")
+      .limit(1);
 
-  if (
-    !row
-    || row.provider !== input.provider
-    || (row.providerMessageId && row.providerMessageId !== input.providerMessageId)
-  ) {
-    return { matched: false as const, duplicate: false as const };
-  }
+    // A provider event may only update a row that already carries the SAME provider message id, which is stored
+    // when the send succeeded. A row without a stored id has not been delivered by this provider, so an event
+    // naming it cannot be genuine and must not be able to write its state or plant a message id. Every refusal
+    // returns the same body, so the callback does not reveal whether an outbox id exists.
+    if (
+      !row
+      || row.provider !== input.provider
+      || !row.providerMessageId
+      || row.providerMessageId !== input.providerMessageId
+    ) {
+      return { matched: false as const, duplicate: false as const };
+    }
 
-  const events = await db
-    .select()
-    .from(auditEvents)
-    .where(eq(auditEvents.action, "Email provider delivery event"))
-    .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
-    .limit(500);
+    // Exact duplicate check against this row's own receipts, not a global recent-event window.
+    if (row.organizationId !== null) {
+      const receipts = await tx
+        .select()
+        .from(auditEvents)
+        .where(and(
+          eq(auditEvents.organizationId, row.organizationId),
+          eq(auditEvents.action, "Email provider delivery event"),
+          eq(auditEvents.resource, `outbox #${row.id}`),
+        ));
+      const duplicate = receipts.some((event) => {
+        const metadata = auditMetadata(event);
+        return metadata.provider === input.provider && metadata.eventId === input.eventId;
+      });
+      if (duplicate) return { matched: true as const, duplicate: true as const, outboxId: row.id };
+    }
 
-  const duplicate = events.some((event) => {
-    const metadata = auditMetadata(event);
-    return metadata.provider === input.provider && metadata.eventId === input.eventId;
-  });
-  if (duplicate) {
-    return { matched: true as const, duplicate: true as const, outboxId: row.id };
-  }
-
-  await db.update(outbox).set({
-    providerMessageId: input.providerMessageId,
-    deliveryStatus: input.deliveryStatus,
-    deliveryDetail: input.detail ?? null,
-    deliveryUpdatedAt: new Date(input.occurredAt),
-  }).where(eq(outbox.id, row.id));
-
-  await writeMailAudit({
-    organizationId: row.organizationId,
-    actor: `system:${input.provider}-webhook`,
-    action: "Email provider delivery event",
-    outboxId: row.id,
-    purpose: row.purpose,
-    metadata: {
-      provider: input.provider,
-      eventId: input.eventId,
-      providerMessageId: input.providerMessageId,
-      eventType: input.eventType,
+    await tx.update(outbox).set({
       deliveryStatus: input.deliveryStatus,
-      occurredAt: input.occurredAt,
-      detail: input.detail ?? null,
-    },
-  });
+      deliveryDetail: input.detail ?? null,
+      deliveryUpdatedAt: new Date(input.occurredAt),
+    }).where(eq(outbox.id, row.id));
 
-  return { matched: true as const, duplicate: false as const, outboxId: row.id };
+    await recordAuditEvent({
+      organizationId: row.organizationId,
+      actor: `system:${input.provider}-webhook`,
+      action: "Email provider delivery event",
+      resource: `outbox #${row.id}`,
+      metadata: {
+        outboxId: row.id,
+        purpose: row.purpose,
+        provider: input.provider,
+        eventId: input.eventId,
+        providerMessageId: input.providerMessageId,
+        eventType: input.eventType,
+        deliveryStatus: input.deliveryStatus,
+        occurredAt: input.occurredAt,
+        detail: input.detail ?? null,
+      },
+    }, tx);
+
+    return { matched: true as const, duplicate: false as const, outboxId: row.id };
+  });
 }
 
 export async function recentOutboxWithAttempts(limit = 50, organizationId: number) {
