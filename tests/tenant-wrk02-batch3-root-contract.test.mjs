@@ -123,7 +123,7 @@ test("root write proofs use a real higher-ID victim for the forged selector, nev
     "a fabricated unknown ID cannot substitute for cross-employer proof");
   assert.match(family, /c\.victimSeeded\.frozenId > 6/);
   assert.match(family, /c\.victimSeeded\.frozenId > c\.seeded\.frozenId/);
-  assert.match(family, /await addWorker\(e, "ROOTASSIGNBASE"\)/);
+  assert.match(family, /await addWorker\(e, "RA0"\)/);
   assert.match(family, /const assignmentWorker = await addWorker\(e, "ROOTASSIGN"\)/);
   assert.match(family, /assignmentWorkerId: assignmentWorker\.id/);
   assert.match(family, /forged real victim frozen-position decision/);
