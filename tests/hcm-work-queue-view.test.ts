@@ -42,3 +42,9 @@ test("view controls remain behind the verified queue guard, without changing cas
   assert.ok(page.includes('key={JSON.stringify([organizationId, filter])}'));
   assert.ok(page.includes('method:"PATCH"'), "Existing authoritative assignment endpoint remains unchanged");
 });
+
+test("search-only empty state stays compatible while owner-only filtering offers reset", () => {
+  const page = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  assert.ok(page.includes("No loaded work items match this search. Clear search to see this employer's work items."));
+  assert.ok(page.includes("No loaded work items match this search or owner filter. Reset view to see this employer's loaded work items."));
+});
