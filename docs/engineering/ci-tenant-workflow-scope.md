@@ -1,51 +1,48 @@
-# Tenant-isolation CI scope
+# Targeted tenant-isolation CI path scope
 
-## Why the PR matrix became noisy
+## Safety-first revision
 
-The shared `scripts/qa/tenant-isolation-coverage-manifest.json`, central
-`tests/tenant-isolation-coverage-inventory.test.mjs` and
-`docs/engineering/tenant-isolation-closure-plan.md` are edited by multiple
-independent API method proofs. Historically, its name appeared as a
-`pull_request.paths` trigger in many module-specific PostgreSQL 16 acceptance
-workflows. An update to one method therefore launched unrelated HR, Web Bundy,
-remittance, journal and broad DL-01/DL-02 runners, each creating a disposable
-database and often rebuilding Next.js.
+This PR reduces **manifest-only** CI fan-out in the following two workflows,
+where no previously accepted source-pinned proof receipt is changed:
 
-## Required security gates stay unchanged
+- `.github/workflows/remittance-action-tenant-isolation.yml`
+- `.github/workflows/tenant-discipline-case-boundary.yml`
 
-- The `CI / check` ruleset context remains required and fails closed on
-  regression, PostgreSQL role/audit, lint, TypeScript, schema or build failures.
-- `Security HTTP Smoke / security-http-smoke` remains required and executes
-  the tenant-isolation coverage manifest and second-pass real HTTP checks.
-- `Payout Payroll Isolation / payout-payroll-isolation` remains required.
-- `CodeQL Security / Analyze JavaScript and TypeScript` remains required.
-- `Tenant six-method exact-head GAP review` continues to trigger on manifest
-  changes, as does the source-only tenant GAP factory. The dedicated payout
-  profile PATCH workflow retains its manifest trigger.
+Their own workflow, route, related fixture and source/test paths still trigger
+their jobs. The remittance workflow keeps its PostgreSQL 16 real-HTTP matrix.
+The discipline source-only workflow is **not** an independently accepted real
+HTTP method proof.
 
-## Specialized proof scope
+## Why the broader optimization was withdrawn
 
-Fourteen feature-specific workflows no longer use those global inventory
-artifacts as **standalone PR triggers**. Their route, own proof runner, workflow, and other
-previously listed shared dependencies remain unchanged. If a PR changes an
-affected API handler, proof fixture or shared authorization/schema dependency
-listed by its workflow, the same real PostgreSQL/HTTP proof still runs.
+The initial draft modified 14 module workflows and moved the historical #1302
+workflow to manual-only. Exact-source guards correctly rejected several
+changed workflow blobs. A successfully executed PG16 receipt belongs to the
+**workflow source that ran**, not merely to the route or test runner. Replacing
+a stored blob SHA without renewed execution and review would break that chain.
+The #1302 source contract also requires its PR trigger to remain.
 
-A manifest-only edit must never be mistaken for new coverage credit. The
-central coverage/inventory guards must still pass. Before approving a new API
-method credit, update and execute that method's specific real HTTP suite on the
-exact PR head, verify independent evidence and source pins, and obtain review.
-Where a dedicated workflow is not invoked by the PR diff, deliberately modify
-its own test/workflow or use an available manual dispatch; do not green-light
-the manifest on a source-only check alone.
+The 12 potentially source-pinned workflows and the #1302 workflow have now
+been restored byte-for-byte from `main`. No acceptance guard, provisional
+tenant coverage credit, release flag or provider behavior was changed.
 
-The legacy PR #1302 workflow is manual-only because #1302 merged on
-2026-10-21. Historical proof remains available for explicit inspection, not
-as a skipped job on every current PR.
+## Unchanged required checks
 
-## Regression guard
+- Core CI `check` still validates source inventory and regression tests.
+- Security HTTP Smoke `security-http-smoke` still blocks unreviewed method drift.
+- Payout Payroll Isolation and CodeQL remain in their existing required lanes.
+- Dedicated six-method and GAP source-only manifest watchers remain intact.
 
-`tests/ci-tenant-workflow-paths.test.mjs` runs in the required CI validation
-job. It blocks reintroduction of broad shared inventory/closure-plan triggers into
-unrelated feature suites and checks that centralized required statuses and targeted
-ledger watchers remain in place.
+## Test and limitations
+
+`tests/ci-tenant-workflow-paths.test.mjs` is included in the core CI lane.
+It verifies the two narrow path filters, the twelve unchanged source-pinned
+workflows' manifest and self-triggers, and the required security lanes.
+
+This is a small, safe reduction in CI fan-out, **not** the original projected
+25-to-10 workflow reduction. Any broader optimization must independently
+re-execute and review the affected exact-source PG16 proofs and reconcile the
+existing receipt chain before altering the protected workflows.
+
+**Draft only: no production activation, no credit promotion and no merge
+approval until exact-head CI and independent review pass.**

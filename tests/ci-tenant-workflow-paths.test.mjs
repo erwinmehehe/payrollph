@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-// Changing the shared ledger must not launch every independent PG16 HTTP suite.
-// Manifest integrity and source-pinning are enforced by the required Security
-// HTTP Smoke check and the dedicated source-only six-method review.
+// Scope only uncredited, non-source-pinned workflows. Accepted or pending
+// byte-pinned PG16 workflows MUST retain their manifest triggers and exact
+// executed blobs. The required security and source-only checks are unchanged.
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const SHARED_INVENTORY_PATHS = [
   MANIFEST,
@@ -13,10 +13,12 @@ const SHARED_INVENTORY_PATHS = [
 ];
 const FEATURE_WORKFLOWS = [
   "remittance-action-tenant-isolation.yml",
+  "tenant-discipline-case-boundary.yml"
+];
+const SOURCE_PINNED_WORKFLOWS = [
   "salary-correction-cases-qa.yml",
   "tenant-benefit-catalog-put.yml",
   "tenant-clock-lifecycle.yml",
-  "tenant-discipline-case-boundary.yml",
   "tenant-dl01-closure.yml",
   "tenant-dl02-closure.yml",
   "tenant-dl02-qa.yml",
@@ -25,7 +27,7 @@ const FEATURE_WORKFLOWS = [
   "tenant-hcm-sla-escalate-http.yml",
   "tenant-onboarding-http.yml",
   "tenant-table-proof.yml",
-  "tenant-v1-journal-http.yml",
+  "tenant-v1-journal-http.yml"
 ];
 
 function workflow(filename) {
@@ -69,7 +71,7 @@ function matches(pattern, file) {
   return new RegExp(regex + "$").test(file);
 }
 
-test("feature suites skip shared ledger, inventory test and closure-plan-only changes", () => {
+test("only non-source-pinned scopes skip manifest-only changes", () => {
   for (const filename of FEATURE_WORKFLOWS) {
     const paths = pullRequestPaths(filename);
     assert.ok(paths.includes(".github/workflows/" + filename),
@@ -80,6 +82,16 @@ test("feature suites skip shared ledger, inventory test and closure-plan-only ch
       assert.equal(paths.some((path) => matches(path, sharedFile)), false,
         filename + ": broad shared-inventory trigger starts an unrelated expensive suite: " + sharedFile);
     }
+  }
+});
+
+test("source-pinned tenant proof workflows retain all shared manifest triggers", () => {
+  for (const filename of SOURCE_PINNED_WORKFLOWS) {
+    const paths = pullRequestPaths(filename);
+    assert.ok(paths.some(pattern => matches(pattern, MANIFEST)),
+      filename + ": exact-source PG16 proof cannot silently lose its ledger trigger");
+    assert.ok(paths.includes(".github/workflows/" + filename),
+      filename + ": changing an executed proof workflow must trigger renewed evidence");
   }
 });
 
@@ -103,10 +115,9 @@ test("shared ledger changes retain mandatory security and targeted source review
   assert.match(workflow("codeql.yml"), /name: Analyze JavaScript and TypeScript/);
 });
 
-test("merged historical PR 1302 proof is manual-only", () => {
+test("historical PR 1302 source guard keeps its PR trigger", () => {
   const historical = workflow("draft-1302-tenant-read-proof.yml");
-  assert.doesNotMatch(historical, /^  pull_request:$/m,
-    "merged PR 1302 cannot launch a skipped job on current PRs");
+  assert.match(historical, /^  pull_request:$/m,
+    "the source-pinned #1302 contract requires the PR event");
   assert.match(historical, /^  workflow_dispatch:$/m);
-  assert.match(historical, /if: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}/);
 });

@@ -17,6 +17,7 @@ on:
       - 'scripts/qa/salary-correction-case-tenant-proof.mjs'
       - 'scripts/qa/tenant-second-pass-http.mjs'
       - 'scripts/qa/tenant-ci-synthetic-proof-scanner.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
 
 permissions:
   contents: read

@@ -1,0 +1,143 @@
+name: Tenant year-end POST annualization and binding candidate (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-year-end-post-candidate.yml"
+      - "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs"
+      - "scripts/qa/tenant-write-table-http.mjs"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/tenant-table-invariants.mjs"
+      - "scripts/qa/tenant-table-env.mjs"
+      - "src/app/api/year-end/**"
+      - "src/lib/year-end*"
+      - "src/lib/annualization*"
+      - "src/lib/security-request.ts"
+      - "src/db/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-yearend-post-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  annualize-and-bind-isolated:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      WFM_LOYVERSE_POS_ENABLED: "false"
+      WFM_SQUARE_SANDBOX_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exact locked repository dependencies
+        run: npm ci
+      - name: Export disposable non-money isolated profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+          {
+            echo "TENANT_TABLE_FAMILY=year-end-annualization-post"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "WFM_LOYVERSE_POS_ENABLED=false"
+            echo "WFM_SQUARE_SANDBOX_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
+            echo "YEAR_END_PRIOR_EVIDENCE_ENABLED=false"
+            echo "MULTI_ENTITY_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "WFM_LOYVERSE_ACCESS_TOKEN="
+            echo "WFM_SQUARE_SANDBOX_ACCESS_TOKEN="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Compile and validate the real table-driven source contract before database access
+        run: |
+          node --check scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs
+          node --test tests/tenant-table-families.test.mjs
+      - name: One-time synthetic encryption and signing material only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$key"
+          echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
+      - name: Build empty disposable PG16 schema
+        run: npm run db:push
+      - name: Apply isolated and reviewed supplemental baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare fictional HCM SQL-only fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Bootstrap fictional allowlist employers before server initialization
+        run: node --import tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Build production-mode Next using only localhost SQL
+        run: npm run build
+      - name: Start isolated localhost-only HTTP server, never deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-year-end-post-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 100 /tmp/tenant-year-end-post-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Next localhost server never became ready"
+          tail -n 100 /tmp/tenant-year-end-post-next.log
+          exit 1
+      - name: Assert real own annualization and Dec31 binding, real victim 403, forged worker/run IDs and immutable victim DB
+        run: node --import tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Print only disposable Next logs on failure
+        if: failure()
+        run: tail -n 120 /tmp/tenant-year-end-post-next.log || true

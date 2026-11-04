@@ -16,6 +16,8 @@ on:
       - 'scripts/qa/tenant-hcm-salary-correction-preview-http.mjs'
       - 'tests/tenant-hcm-salary-correction-preview-contract.test.mjs'
       - 'tests/hcm-salary-correction-entity-tenant.test.ts'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'tests/tenant-isolation-coverage-inventory.test.mjs'
       - 'tests/env-secrets-documented.test.mjs'
       - 'docs/qa/hcm-salary-correction-entity-tenant.md'
 

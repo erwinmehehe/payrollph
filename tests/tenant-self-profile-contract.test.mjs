@@ -12,6 +12,7 @@ const safe = Object.freeze({
   SECURITY_SMOKE_URL: "http://127.0.0.1:3000",
   DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
   WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
+  NEXT_CSP_ENABLED: "false",
   PAYMONGO_DISBURSEMENTS_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
   XENDIT_BILLING_ENABLED: "false", DEMO_MODE: "false",
   PAYMONGO_SECRET_KEY: "", XENDIT_SECRET_KEY: "", XENDIT_PAYOUT_SECRET_KEY: "",
@@ -37,6 +38,8 @@ function evidence() {
         emergencyPhone: "09000000002", basicRate: "90000.00" },
     ],
     payroll: [{ id: 5, organizationId: 11, status: "Draft" }],
+    payrollEntries: [{ id: 9, payrollRunId: 5, employeeId: 21,
+      grossPay: "1000.00", deductions: "0.00", netPay: "1000.00" }],
     payProfiles: [{ id: 3, organizationId: 11, rateAmount: "20000.00" }],
     punches: [{ id: 2, organizationId: 11, employeeId: 21 }],
     orgUnits: [{ id: 7, organizationId: 11 }],
@@ -71,6 +74,7 @@ test("profile proof can run only with isolated CI PG16 and disabled workers/prov
     ["DATABASE_URL", "postgresql://other:secret@127.0.0.1:5432/app_db"],
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/app_db?sslmode=require"],
     ["WORKER_ENABLED", "true"], ["CENTRAL_SCHEDULER_ENABLED", "true"],
+    ["NEXT_CSP_ENABLED", "true"],
     ["PAYMONGO_DISBURSEMENTS_ENABLED", "true"], ["XENDIT_PAYOUTS_ENABLED", "true"],
     ["XENDIT_BILLING_ENABLED", "true"], ["DEMO_MODE", "true"],
     ["PAYMONGO_SECRET_KEY", "real"], ["XENDIT_SECRET_KEY", "real"],
@@ -100,6 +104,7 @@ test("false positive PATCH, other worker edit, payroll edit or audit omission fa
     x => { x.after.employees[1].mobile = "09990000000"; },
     x => { x.after.employees.push({ id: 99, organizationId: 99 }); },
     x => { x.after.payroll[0].status = "Released"; },
+    x => { x.after.payrollEntries[0].netPay = "999999.00"; },
     x => { x.after.payProfiles[0].rateAmount = "100000.00"; },
     x => { x.after.punches[0].employeeId = 99; },
     x => { x.after.orgUnits[0].organizationId = 99; },
@@ -194,6 +199,10 @@ test("focused workflow must execute the real PG16 localhost runner rather than a
   assert.match(runner, /assert\.deepEqual\(await snapshot\(victim\.org\.id\), victimBefore/);
   assert.match(runner, /workerEmployeeId: first\.peer\.id/);
   assert.match(runner, /CREATE FUNCTION ci_self_profile_reject_audit/);
+  assert.match(runner, /grossPay: "1000.00"/,
+    "real PostgreSQL payroll entry must be seeded for each fictional employer");
+  assert.match(runner, /payrollEntries: payrollEntriesByEmployer/,
+    "snapshot must include actual entries from employer-scoped payroll runs");
   // The audit-veto fixture must parse in PostgreSQL before it can exercise
   // rollback. Single-dollar delimiters are invalid PL/pgSQL dollar quoting.
   const auditSql = runner.match(/CREATE FUNCTION ci_self_profile_reject_audit[\s\S]*?CREATE TRIGGER ci_self_profile_reject_audit/)?.[0];

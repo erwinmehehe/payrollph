@@ -8,6 +8,8 @@ on:
       - "scripts/qa/tenant-hcm-sla-escalate-http.mjs"
       - "tests/tenant-hcm-sla-escalate-contract.test.mjs"
       - "tests/hcm-work-item-sla.test.ts"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "tests/tenant-isolation-coverage-inventory.test.mjs"
       - ".github/workflows/tenant-hcm-sla-escalate-http.yml"
   workflow_dispatch:
 

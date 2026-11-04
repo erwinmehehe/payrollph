@@ -18,6 +18,7 @@ on:
       - 'src/db/**'
       - 'scripts/qa/tenant-table-http.mjs'
       - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
 
 permissions:
   contents: read
