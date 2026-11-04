@@ -47,6 +47,7 @@ on:
       - "scripts/multi-entity-synthetic-*"
       - "scripts/qa/multi-entity-group-report-http.mjs"
       - "scripts/qa/tenant-multi-entity-transfers-write-http.mjs"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
       - "tests/tenant-multi-entity-transfers-write-candidate.test.mjs"
       - "scripts/multi-entity-registration-synthetic-http.mjs"
       - "scripts/multi-entity-loopback-https.mjs"
@@ -217,6 +218,10 @@ jobs:
           MULTI_ENTITY_TRANSFERS_ENABLED: "true"
           MULTI_ENTITY_REGISTRATIONS_ENABLED: "false"
           REQUIRE_PRIVILEGED_MFA: "false"
+          WORKER_ENABLED: "false"
+          CENTRAL_SCHEDULER_ENABLED: "false"
+          XENDIT_BILLING_ENABLED: "false"
+          NEXT_CSP_ENABLED: "false"
           APP_BASE_URL: https://127.0.0.1:3002
           TRUSTED_APP_ORIGINS: https://127.0.0.1:3002
         shell: bash

@@ -1,12 +1,17 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
-## 2026-11-04 API v1 static public catalog — DRAFT, NOT ACCEPTED
+## 2026-11-04 #1764 static API v1 public catalog — DRAFT / NOT ACCEPTED
 
-**Candidate live ledger: 498 methods = 405 COVERED + 11 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP.** Only `GET /api/v1` is reclassified from GAP to PUBLIC-BY-DESIGN, not COVERED: its response describes public API operations, imports no DB/session helper and does not select an employer. [Focused source and negative-control tests](../../tests/tenant-v1-public-catalog.test.mjs) plus a [three-real-employer PG16/localhost HTTP equality and unchanged-SQL candidate](../../scripts/qa/tenant-v1-public-http.mjs) are required. The exact PR-head CI and independent review are PENDING. The remaining 82 API GAPs and 17 page/action GAPs remain; this is not tenant-wide certification, real API tenant-data proof, deployment, provider, payout, payroll or production permission.
+**Current proposed ledger: 498 methods = 405 COVERED + 11 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP.** The unchanged `GET /api/v1` returns public documentation, not employer data, and is reclassified PUBLIC-BY-DESIGN only. An earlier-head disposable PG16/localhost HTTP equality and unchanged-DB proof passed; the synced head requires fresh CI and independent security review. No tenant-scoped method credits, no frozen-batch or global acceptance. 17 page/action GAPs remain. No customer data, provider connectivity, money or production activation.
 
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
 **Current draft ledger: 498 methods = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route e4741d98. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.
+
+## 2026-11-04 PR #1762 five-method exact-final-head PG16 source recovery — DRAFT / ZERO NEW CREDITS
+
+**Historical pre-#1744 baseline `origin/main@c2876177bce3278a34ec2323031d2102b6d80330`: 498 methods = 407 COVERED + 10 PUBLIC-BY-DESIGN + 81 GAP. Latest main revokes two old-source year-end credits, so the current ledger is 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP, with frozen 406-method queue 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP and 17 separate page/action GAPs.** New source-bound real-HTTP PG16 proof candidates cover transfers POST/PATCH (independent A/C own positives, genuine ordered victim transfer), atomic self-profile PATCH (and merged #1523's explicit no-credit note), salary-preview POST, and full-role invitations POST (real >6 victim invitation and revoked owner). **No coverage status is promoted before a passing exact-final-head job and repin.** See [method-by-method recovery ledger](../qa/tenant-five-method-final-head-recovery-20261104.md). Evidence category `SOLO_VERIFIED_DEV_RECOVERY`, repository owner @erwinmehehe sole reviewer; not independent production acceptance. No real payroll/production data/Neon, money, payout, provider, scheduler, CSP or deployment.
+
 
 ## 2026-11-04 #1749 reconciled on main@150dcd7e4b66 — DRAFT, NOT ACCEPTED
 
@@ -144,9 +149,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 21 | 1 | 11 | INCOMPLETE |
 
-Frozen subtotal: **321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

@@ -109,7 +109,14 @@ export async function proveSelfProfileHttp() {
     // an own worker and a same-employer coworker with distinct private markers.
     const first = await seed("ATTA");
     const second = await seed("ATTB");
+    // Advance the disposable worker sequence with a real inserted row, not a guessed ID.
+    // Delete only the throwaway unreferenced worker before snapshotting the victim.
+    for (const ordinal of [1, 2]) {
+      const paddingWorker = await addWorker(second, "P" + ordinal, { payProfile: false });
+      await db.delete(employees).where(eq(employees.id, paddingWorker.id));
+    }
     const victim = await seed("VICTIM");
+    assert.ok(victim.worker.id > 6, "real victim worker ID must exceed six");
     const attackers = [first, second];
     for (const a of attackers) {
       assert.ok(victim.org.id > a.org.id, "victim employer must have a higher real ID");
