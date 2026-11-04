@@ -7,8 +7,8 @@ export type PrivateReceiptReadBinding = {
   id: number;
   organizationId: number;
   employeeId: number;
-  receiptStorageKey: string | null;
-  receiptSha256: string | null;
+  receiptStorageKey?: string | null;
+  receiptSha256?: string | null;
 };
 
 export function receiptReadBindingUnchanged(
