@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import {
   APPROVED_POLICY_GET, assertApprovedPolicyHttp, assertApprovedPolicyDenial,
 } from "../scripts/qa/tenant-demand-approved-policy-get-contract.mjs";
@@ -43,8 +44,8 @@ test("WRK-01 approved-mode GET is distinct from the previous draft-only source c
   const route = manifest.allApiRouteFiles[
     "src/app/api/workforce/demand-staffing/policies/route.ts"];
   const method = route.methods.find(x => x.name === "GET");
-  assert.equal(method.status, "GAP", "only exact-head reviewed HTTP can change coverage");
-  assert.equal(method.testedBy, null);
+  assert.equal(method.status, "COVERED", "distinct two-mode source-identical PG16 jobs prove GET");
+  assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
   const proof = readFileSync(
     "scripts/qa/tenant-demand-approved-policy-get-http.mjs", "utf8");
   const workflow = readFileSync(

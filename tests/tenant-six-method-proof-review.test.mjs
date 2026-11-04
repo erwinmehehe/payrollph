@@ -400,6 +400,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
+  // Origin/main intentionally still has this method as GAP; later this PR
+  // adds exactly one separately source-proven GET method to expectedStatuses.
+  const expectedBeforeStaffing = JSON.parse(JSON.stringify(expectedStatuses));
   const staffingGetCredits = verifyStaffingPolicyGetCredit(m);
   assert.equal(expectedStatuses["src/app/api/workforce/demand-staffing/policies/route.ts"].GET, "GAP");
   expectedStatuses["src/app/api/workforce/demand-staffing/policies/route.ts"].GET = "COVERED";
@@ -448,7 +451,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineHasPayout = payoutMethod?.status === "COVERED";
     if (baselineHasPayout) verifyPayoutProfileCredit(baseline);
     assert.deepEqual(methodStatuses(baseline),
-      baselineHasPayout ? expectedStatuses : expectedBeforePayout,
+      baselineHasPayout ? expectedBeforeStaffing : expectedBeforePayout,
       "origin/main must preserve the four year-end credits and at most one payout PATCH");
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,

@@ -9,7 +9,10 @@ const clone = v => JSON.parse(JSON.stringify(v));
 test("source-current dual-mode PG16 proves one provisional staffing GET method only", () => {
   const m = load();
   assert.equal(verifyStaffingPolicyGetCredit(m), 1);
-  assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.gap, 498);
+  const liveMethodCount = Object.values(m.allApiRouteFiles)
+    .reduce((sum, route) => sum + route.methods.length, 0);
+  assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.gap,
+    liveMethodCount);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 17);
 });
