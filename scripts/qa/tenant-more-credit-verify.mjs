@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { verifyCredit as verifyClockCredit } from "./tenant-clock-credit.mjs";
 import { assertHistoricalDemandSourceCompatible } from "./tenant-wfm-demand-overlay-history.mjs";
+import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -155,6 +156,14 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
   assert.equal(profile?.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3",
     "new atomic handler may not borrow historical #1518 route evidence");
   checkFile(profileRoute, profile.gitBlobSha);
+  if (profileMethod?.status === "COVERED") {
+    // The #1739 receipt is for this *current* route, not the older #1518 route.
+    // Demand all three exact final-head PG16 source, contract, line and CI pins.
+    const recovery = verifyFiveMethodCredits(manifest, file => Buffer.from(read(file)));
+    assert.equal(recovery.methodsCredited, FIVE_METHOD_EVIDENCE.length);
+    assert.equal(profileMethod.reviewedUncertified, undefined,
+      "Credited source must not retain an old uncredited hold");
+  } else {
   assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without final-head sole-owner acceptance");
   assert.equal(profileMethod?.testedBy, null, "old #1518 route proof must not certify merged #1524");
   const atomic = profileMethod.reviewedUncertified;
@@ -186,6 +195,8 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
   assert.match(read(".github/workflows/tenant-self-profile-http.yml"), /image: postgres:16/);
   assert.match(read(".github/workflows/tenant-self-profile-http.yml"),
     /node --import tsx scripts\/qa\/tenant-self-profile-atomic-http\.mjs/);
+  }
+
   for (const [path, verb] of [
     ["src/app/api/workforce/demand-staffing/policies/route.ts", "GET"],
     ["src/app/api/workforce/demand-observations/issued/route.ts", "POST"],
