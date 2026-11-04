@@ -98,7 +98,13 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
           organizationId: e.org.id, name: e.marker + " seeded source plan",
           startDate: "2026-01-01", endDate: "2026-12-31",
         }).returning();
-        return { id: profile.id, jobProfileId: profile.id, familyId: family.id, planId: plan.id };
+        // Seed worker comparators attacker-first, victim-last before any HTTP
+        // request. Two real inserts per employer ensure the victim worker ID
+        // exceeds 6 and both legitimate own assignment worker IDs.
+        await addWorker(e, "RA0");
+        const assignmentWorker = await addWorker(e, "RA1");
+        return { id: profile.id, jobProfileId: profile.id, familyId: family.id,
+          planId: plan.id, assignmentWorkerId: assignmentWorker.id };
       },
       state: snapshot,
       ownBody: familyBody,
@@ -202,7 +208,10 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
           assert.equal(await isGovernedPositionAssignmentWorkspace(c.orgId), false,
             "dedicated synthetic employer must genuinely be ungoverned");
           const t = await tables();
-          const worker = await addWorker(c, "ROOTASSIGN");
+          const [worker] = await db.select().from(t.employees).where(
+            eq(t.employees.id, c.seeded.assignmentWorkerId)).limit(1);
+          assert.ok(worker && worker.organizationId === c.orgId,
+            "assignment worker must be the persisted own-employer seed");
           const [vacancy] = await db.insert(t.positions).values({
             organizationId: c.orgId, code: "ASSIGN-" + c.marker,
             jobProfileId: profile.id, orgUnitId: c.unitId, legalEntityId: c.entityId,
@@ -256,9 +265,12 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
             status: "open", annualBudget: "100000.00",
             createdByUserId: c.owner.id,
           }).returning();
+          assert.ok(c.victimSeeded.assignmentWorkerId > 6 &&
+            c.victimSeeded.assignmentWorkerId > worker.id,
+            "POST foreign worker must be a real higher-ID victim, never a fabricated object");
           await denyAndPreserve(c, "POST", base(c, "assignment", {
             positionId: foreignWorkerVacancy.id,
-            employeeId: c.victim.worker.id, effectiveFrom: todayPh,
+            employeeId: c.victimSeeded.assignmentWorkerId, effectiveFrom: todayPh,
           }), 404, "real higher-ID foreign worker denied on valid own vacancy", client);
           assert.equal((await snapshot(c.orgId)).positions.find(
             row => row.id === foreignWorkerVacancy.id)?.status, "open",
@@ -296,7 +308,7 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
       state: snapshot,
       ownBody: c => ({ id: c.seeded.id, status: "frozen" }),
       foreignBody: c => ({ id: c.victimSeeded.id, status: "frozen" }),
-      forged: { status: 404, body: c => ({ id: c.victimSeeded.frozenId + 100000, status: "frozen" }) },
+      forged: { status: 404, body: c => ({ id: c.victimSeeded.frozenId, status: "approved" }) },
       expect: (before, after, c, response) => {
         const row = after.positions.find(r => r.id === c.seeded.id);
         const prior = before.positions.find(r => r.id === c.seeded.id);
@@ -351,6 +363,12 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
         ]) {
           await denyAndPreserve(c, "PATCH", { id, status }, 409, label, client);
         }
+        assert.ok(c.victimSeeded.frozenId > 6 &&
+          c.victimSeeded.frozenId > c.seeded.frozenId,
+          "PATCH forged selector must identify a persisted, higher-ID real victim position");
+        const realForged = await denyAndPreserve(c, "PATCH", {
+          id: c.victimSeeded.frozenId, status: "approved",
+        }, 404, "forged real victim frozen-position decision", client);
         const foreignPosition = await denyAndPreserve(c, "PATCH", {
           id: c.victimSeeded.plannedId, status: "approved",
         }, 404, "foreign governed approval request", client);
@@ -359,6 +377,8 @@ export function createRows({ addWorker, assert, asc, auditBusinessSnapshot, audi
         }, 404, "unknown position id matches foreign 404", client);
         assert.equal(foreignPosition.text, missingPosition.text,
           "foreign and missing positions must be indistinguishable to a non-member");
+        assert.equal(realForged.text, missingPosition.text,
+          "real victim forged selector and missing ID must have identical 404 bodies");
 
         // Parallel same-vacancy freezes may have one idempotent 200 or a stale
         // 409, but must only commit one transition and one audit record.
