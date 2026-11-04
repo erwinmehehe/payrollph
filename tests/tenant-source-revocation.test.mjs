@@ -31,8 +31,12 @@ function prior(liveManifest) {
 }
 function check(doc, old=prior(live)) { return assertLiveTenantCounts(assert, doc, {}, old); }
 test("only the exact old year-end GET/POST proof pair is superseded; payout remains covered", () => {
-  assert.equal(live.metrics.coveredAfter, 405);
-  assert.equal(live.metrics.gap, 83);
+  // Guard method status and source evidence, never a moving live-count constant.
+  assert.deepEqual(live.allApiRouteFiles[path].methods.map(method =>
+    [method.name, method.status, method.testedBy, method.reviewedUncertified?.credits]),
+  [["GET", "GAP", null, 0], ["POST", "GAP", null, 0]]);
+  assert.equal(live.metrics.coveredAfter + live.metrics.publicByDesign + live.metrics.gap,
+    live.metrics.methods);
   assert.ok(check(live));
   assert.equal(live.allApiRouteFiles["src/app/api/payout-profiles/route.ts"].methods
     .find(m => m.name === "PATCH").status, "COVERED");
@@ -44,7 +48,9 @@ test("changed source, evidence pins, reviewer state, or half-revocation fail clo
     d => { d.allApiRouteFiles[path].methods[0].reviewedUncertified.independentSecurityReview = "ACCEPTED"; },
     d => { d.allApiRouteFiles[path].methods[1].status = "COVERED";
       d.metrics.coveredAfter++; d.metrics.gap--;
-      d.acceptanceStatus = d.acceptanceStatus.replace("NOT ACCEPTED: 83 API methods", "NOT ACCEPTED: 82 API methods"); },
+      d.acceptanceStatus = d.acceptanceStatus.replace(
+        "NOT ACCEPTED: " + live.metrics.gap + " API methods",
+        "NOT ACCEPTED: " + (live.metrics.gap - 1) + " API methods"); },
   ];
   for (const mutate of mutations) {
     const d = structuredClone(live); mutate(d);
@@ -60,6 +66,8 @@ test("unrelated payout credit cannot be revoked along with the year-end pair", (
   assert.equal(method.status, "COVERED");
   method.status = "GAP"; method.testedBy = null;
   d.metrics.coveredAfter--; d.metrics.gap++;
-  d.acceptanceStatus = d.acceptanceStatus.replace("NOT ACCEPTED: 83 API methods", "NOT ACCEPTED: 84 API methods");
+  d.acceptanceStatus = d.acceptanceStatus.replace(
+    "NOT ACCEPTED: " + live.metrics.gap + " API methods",
+    "NOT ACCEPTED: " + (live.metrics.gap + 1) + " API methods");
   assert.throws(() => check(d), "only two explicitly source-invalidated methods may be revoked");
 });
