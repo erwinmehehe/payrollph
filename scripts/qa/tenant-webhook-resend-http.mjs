@@ -14,6 +14,7 @@ import { requireDisposableResendWebhook } from "./tenant-webhook-resend-contract
 
 const ENDPOINT = "/api/webhooks/resend";
 const RECEIPT_ACTION = "Email provider delivery event";
+const EVENT_OCCURRED_AT = "2026-11-04T10:00:00.000Z";
 const COHORT = ["ATTA", "ATTB", ...Array.from({ length: 6 }, (_, i) => "FILL" + i), "VICTIM"];
 
 // A low or merely greater-than-attacker victim ID is insufficient for the frozen closure-plan rule.
@@ -67,6 +68,14 @@ export function assertExpectedOwnedDelivery(before, after, label, expected) {
   assert.deepEqual(Object.keys(current).sort(), Object.keys(old).sort(), label + ": snapshot schema cannot change");
   const organizationId = old.outbox[0]?.organizationId;
   assert.ok(Number.isSafeInteger(organizationId), "Real stored owner organization required");
+  const target = old.outbox.find(row => row.id === expected.outboxId);
+  assert.ok(target, label + ": an authorized delivery must name a persisted outbox row");
+  assert.ok(typeof expected.eventType === "string" && expected.eventType.startsWith("email."),
+    label + ": expected signed provider event type required");
+  assert.ok(typeof expected.occurredAt === "string" &&
+    Number.isFinite(Date.parse(expected.occurredAt)) &&
+    new Date(expected.occurredAt).toISOString() === expected.occurredAt,
+  label + ": an exact ISO provider event timestamp is required");
   assert.deepEqual(current.employees, old.employees, label + ": a delivery callback cannot change employees");
 
   assert.equal(current.outbox.length, old.outbox.length, label + ": a callback never creates or removes outbox rows");
@@ -87,6 +96,10 @@ export function assertExpectedOwnedDelivery(before, after, label, expected) {
     }
     assert.equal(current.outbox[i].deliveryStatus, expected.deliveryStatus, label + ": delivery status");
     assert.equal(current.outbox[i].deliveryDetail, expected.deliveryDetail ?? null, label + ": delivery detail");
+    assert.notEqual(current.outbox[i].deliveryUpdatedAt, old.outbox[i].deliveryUpdatedAt,
+      label + ": an accepted delivery must actually update its event timestamp");
+    assert.equal(current.outbox[i].deliveryUpdatedAt, expected.occurredAt,
+      label + ": persisted timestamp must match the signed provider event");
   }
   assert.equal(touched, 1, label + ": the named outbox row must exist");
 
@@ -104,6 +117,11 @@ export function assertExpectedOwnedDelivery(before, after, label, expected) {
     assert.equal(row.metadata?.provider, "resend", label + ": receipt provider");
     assert.equal(row.metadata?.providerMessageId, expected.providerMessageId, label + ": receipt message id");
     assert.equal(row.metadata?.deliveryStatus, expected.deliveryStatus, label + ": receipt status");
+    assert.equal(row.metadata?.outboxId, expected.outboxId, label + ": receipt must name the persisted outbox id");
+    assert.equal(row.metadata?.purpose, target.purpose, label + ": receipt must preserve the target message purpose");
+    assert.equal(row.metadata?.eventType, expected.eventType, label + ": receipt must preserve signed event type");
+    assert.equal(row.metadata?.occurredAt, expected.occurredAt, label + ": receipt must preserve signed event time");
+    assert.equal(row.metadata?.detail, expected.deliveryDetail ?? null, label + ": receipt must preserve delivery detail");
   }
 }
 
@@ -193,7 +211,7 @@ export async function proveResendWebhook() {
     function eventBody(outboxId, providerMessage, options = {}) {
       return {
         type: options.type ?? "email.delivered",
-        created_at: options.createdAt ?? "2026-11-04T10:00:00.000Z",
+        created_at: options.createdAt ?? EVENT_OCCURRED_AT,
         data: {
           email_id: providerMessage,
           tags: options.tags ?? { app: "linaw", outbox_id: String(outboxId) },
@@ -269,7 +287,7 @@ export async function proveResendWebhook() {
     result(own, 200, { ok: true, matched: true, duplicate: false, outboxId: a.mail.sent.id }, "A own delivery");
     let after = await unchangedExcept(before, beforeGlobal, "ATTA");
     assertExpectedOwnedDelivery(before, after, "ATTA", {
-      outboxId: a.mail.sent.id, deliveryStatus: "delivered", eventId: ownId,
+      outboxId: a.mail.sent.id, deliveryStatus: "delivered", eventType: "email.delivered", occurredAt: EVENT_OCCURRED_AT, eventId: ownId,
       providerMessageId: a.mail.sent.providerMessageId, receipts: 1,
     });
     counts.ownDeliveries++;
@@ -305,7 +323,7 @@ export async function proveResendWebhook() {
       { ok: true, matched: true, duplicate: false, outboxId: b.mail.sent.id }, "B own bounce");
     after = await unchangedExcept(before, beforeGlobal, "ATTB");
     assertExpectedOwnedDelivery(before, after, "ATTB", {
-      outboxId: b.mail.sent.id, deliveryStatus: "bounced", deliveryDetail: "Fictional mailbox full", eventId: bounceId,
+      outboxId: b.mail.sent.id, deliveryStatus: "bounced", deliveryDetail: "Fictional mailbox full", eventType: "email.bounced", occurredAt: EVENT_OCCURRED_AT, eventId: bounceId,
       providerMessageId: b.mail.sent.providerMessageId, receipts: 1,
     });
     counts.ownDeliveries++;
@@ -351,7 +369,7 @@ export async function proveResendWebhook() {
     assert.equal(raced.filter(r => r.json?.matched === true && r.json?.duplicate === true).length, 7);
     after = await unchangedExcept(before, beforeGlobal, "ATTB");
     assertExpectedOwnedDelivery(before, after, "ATTB", {
-      outboxId: b.mail.second.id, deliveryStatus: "delayed", eventId: raceId,
+      outboxId: b.mail.second.id, deliveryStatus: "delayed", eventType: "email.delivery_delayed", occurredAt: EVENT_OCCURRED_AT, eventId: raceId,
       providerMessageId: b.mail.second.providerMessageId, receipts: 1,
     });
     counts.concurrentDuplicates++;
@@ -385,7 +403,7 @@ export async function proveResendWebhook() {
       { ok: true, matched: true, duplicate: false, outboxId: a.mail.second.id }, "rolled-back callback recovers on retry");
     after = await unchangedExcept(before, beforeGlobal, "ATTA");
     assertExpectedOwnedDelivery(before, after, "ATTA", {
-      outboxId: a.mail.second.id, deliveryStatus: "delivered", eventId: rollbackId,
+      outboxId: a.mail.second.id, deliveryStatus: "delivered", eventType: "email.delivered", occurredAt: EVENT_OCCURRED_AT, eventId: rollbackId,
       providerMessageId: a.mail.second.providerMessageId, receipts: 1,
     });
     counts.auditRetryRecovered++;
@@ -427,7 +445,7 @@ export async function proveResendWebhook() {
       { ok: true, matched: true, duplicate: false, outboxId: victim.mail.sent.id }, "victim own delivery");
     after = await unchangedExcept(before, beforeGlobal, "VICTIM");
     assertExpectedOwnedDelivery(before, after, "VICTIM", {
-      outboxId: victim.mail.sent.id, deliveryStatus: "delivered", eventId: victimId,
+      outboxId: victim.mail.sent.id, deliveryStatus: "delivered", eventType: "email.delivered", occurredAt: EVENT_OCCURRED_AT, eventId: victimId,
       providerMessageId: victim.mail.sent.providerMessageId, receipts: 1,
     });
     assert.equal(after.VICTIM.outbox.find(r => r.id === victim.mail.unsent.id).providerMessageId, null);

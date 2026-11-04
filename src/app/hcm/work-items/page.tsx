@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { findLoadedHcmWorkItems, isVerifiedHcmWorkQueueResponse, summarizeVerifiedWorkQueue, type HcmWorkQueueItem, type HcmWorkQueueOwner } from "@/lib/hcm-work-queue-summary";
+import { deriveLoadedWorkQueueView, type WorkQueueViewSort } from "@/lib/hcm-work-queue-view";
 
 type Item = HcmWorkQueueItem;
 type Owner = HcmWorkQueueOwner;
@@ -33,6 +34,8 @@ export default function HcmWorkQueue() {
 function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filter:string}) {
   const [revision,setRevision] = useState(0);
   const [search,setSearch] = useState("");
+  const [sort,setSort] = useState<WorkQueueViewSort>("due");
+  const [unassignedOnly,setUnassignedOnly] = useState(false);
   const [queue,setQueue] = useState<{revision:number; items:Item[]; owners:Owner[]; error:string}|null>(null);
   const [selected,setSelected] = useState<Item|null>(null);
   const [team,setTeam] = useState("");
@@ -163,14 +166,14 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   }
   // A pending, denied or failed read is unknown, never an empty queue.
   const summary = summarizeVerifiedWorkQueue(items, activeQueue !== null && !loadError);
-  const visibleItems = summary ? findLoadedHcmWorkItems(items, search) : [];
+  const visibleItems = summary ? deriveLoadedWorkQueueView(findLoadedHcmWorkItems(items, search), sort, unassignedOnly) : [];
   return <>
     <button className="mb-4 rounded-lg bg-emerald-800 px-4 py-2 font-medium text-white" onClick={refresh} disabled={loading||!validOrganization}>{loading?"Loading...":"Refresh"}</button>
     {!validOrganization && <p role="status" className="mb-4 text-slate-600">Choose a valid organization to load its queue.</p>}
     {loading && <p role="status" className="mb-4 text-slate-600">Loading work items…</p>}
     {(error||loadError) && <p role="alert" className="mb-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-rose-800">{error||loadError}</p>}
     <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Queue summary" aria-busy={loading}>
-      {[[summary?.total ?? null,"Items in current view"],[summary?.overdue ?? null,"Overdue"],[summary?.unassigned ?? null,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value === null ? "—" : value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
+      {[[summary?.total ?? null,"Items loaded for this queue"],[summary?.overdue ?? null,"Overdue"],[summary?.unassigned ?? null,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value === null ? "—" : value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
     </section>
     {!summary && <p role="status" className="mb-4 text-sm text-slate-600">Queue counts are unavailable until the selected employer’s work items load successfully.</p>}
     {summary && <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4">
@@ -178,8 +181,23 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
         <input id="work-items-quick-find" type="search" className="rounded-lg border px-3 py-2" value={search}
           onChange={event => setSearch(event.target.value)} placeholder="Title, case type, team or owner" />
       </label>
+      <label htmlFor="work-items-sort" className="flex flex-col gap-1 text-sm font-semibold">Order loaded items
+        <select id="work-items-sort" className="rounded-lg border px-3 py-2" value={sort}
+          onChange={event => setSort(event.target.value as WorkQueueViewSort)}>
+          <option value="due">SLA due first</option>
+          <option value="newest">Highest case ID first</option>
+          <option value="title">Title A to Z</option>
+        </select>
+      </label>
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+        <input type="checkbox" aria-label="Show only work items without a named owner"
+          className="h-4 w-4" checked={unassignedOnly} onChange={event => setUnassignedOnly(event.target.checked)} />
+        Without named owner
+      </label>
       <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={!search.trim()} onClick={() => setSearch("")}>Clear search</button>
-      <p className="w-full text-sm text-slate-600" role="status">Showing {visibleItems.length} of {items.length} loaded items. Search only filters this employer&apos;s verified view.</p>
+      <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={!search.trim() && !unassignedOnly && sort === "due"}
+        onClick={() => { setSearch(""); setSort("due"); setUnassignedOnly(false); }}>Reset view</button>
+      <p className="w-full text-sm text-slate-600" role="status">Showing {visibleItems.length} of {items.length} loaded items. Search only filters this employer&apos;s verified view. Summary counts cover all loaded items in the selected queue, before local search or owner filters.</p>
     </div>}
     {summary ? (
       <div className="rounded-xl border bg-white"><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[850px] text-left text-sm">
@@ -204,7 +222,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
             {i.status !== "resolved" && <button type="button" className="mt-3 rounded-lg border px-3 py-2 font-semibold text-emerald-800" onClick={() => edit(i)}>Assign / SLA</button>}
           </li>)}
         </ul>
-        {visibleItems.length===0&&<p className="p-8 text-center text-slate-500">{items.length===0 ? "No work items found for this filter." : "No loaded work items match this search. Clear search to see this employer's work items."}</p>}</div>
+        {visibleItems.length===0&&<p className="p-8 text-center text-slate-500">{items.length===0 ? "No work items found for this filter." : unassignedOnly ? "No loaded work items match this search or owner filter. Reset view to see this employer's loaded work items." : "No loaded work items match this search. Clear search to see this employer's work items."}</p>}</div>
     ) : (
       <div role="status" className="rounded-xl border bg-white p-8 text-center text-slate-600">
         {loading ? "Work items are loading…" : loadError ? "Work items could not be loaded. Use Refresh to retry." : "Select a valid organization to see work items."}

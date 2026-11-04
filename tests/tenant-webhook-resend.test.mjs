@@ -160,8 +160,8 @@ test("snapshot guard preserves all nine employers and detects a forged victim wr
 test("owned delivery is bounded to the named row, its three state columns and one exact receipt", () => {
   const base = {
     outbox: [
-      { id: 1, organizationId: 1, provider: "resend", providerMessageId: "m1", deliveryStatus: "accepted", deliveryDetail: null, deliveryUpdatedAt: null },
-      { id: 2, organizationId: 1, provider: "resend", providerMessageId: "m2", deliveryStatus: "accepted", deliveryDetail: null, deliveryUpdatedAt: null },
+      { id: 1, organizationId: 1, provider: "resend", purpose: "payslip-ready", providerMessageId: "m1", deliveryStatus: "accepted", deliveryDetail: null, deliveryUpdatedAt: null },
+      { id: 2, organizationId: 1, provider: "resend", purpose: "payslip-ready", providerMessageId: "m2", deliveryStatus: "accepted", deliveryDetail: null, deliveryUpdatedAt: null },
     ],
     auditEvents: [{ id: 5, organizationId: 1, action: "old", actor: "original" }],
     employees: [{ id: 6, organizationId: 1, marker: "private" }],
@@ -172,9 +172,9 @@ test("owned delivery is bounded to the named row, its three state columns and on
   after.ATTA.outbox[0].deliveryUpdatedAt = "2026-11-04T10:00:00.000Z";
   after.ATTA.auditEvents.push({
     id: 7, organizationId: 1, action: "Email provider delivery event", actor: "system:resend-webhook", resource: "outbox #1",
-    metadata: { eventId: "evt_1", provider: "resend", providerMessageId: "m1", deliveryStatus: "delivered" },
+    metadata: { outboxId: 1, purpose: "payslip-ready", eventId: "evt_1", provider: "resend", providerMessageId: "m1", eventType: "email.delivered", occurredAt: "2026-11-04T10:00:00.000Z", deliveryStatus: "delivered", detail: null },
   });
-  const expectation = { outboxId: 1, deliveryStatus: "delivered", eventId: "evt_1", providerMessageId: "m1", receipts: 1 };
+  const expectation = { outboxId: 1, deliveryStatus: "delivered", eventType: "email.delivered", occurredAt: "2026-11-04T10:00:00.000Z", eventId: "evt_1", providerMessageId: "m1", receipts: 1 };
   assert.doesNotThrow(() => assertExpectedOwnedDelivery(before, after, "ATTA", expectation));
   const mutate = fn => {
     const changed = structuredClone(after);
@@ -183,6 +183,8 @@ test("owned delivery is bounded to the named row, its three state columns and on
   };
   mutate(owner => { owner.employees[0].marker = "cross-feature-corruption"; });
   mutate(owner => { owner.outbox[0].providerMessageId = "planted"; });
+  mutate(owner => { owner.outbox[0].deliveryUpdatedAt = null; });
+  mutate(owner => { owner.outbox[0].deliveryUpdatedAt = "2026-11-04T10:00:01.000Z"; });
   mutate(owner => { owner.outbox[0].provider = "postmark"; });
   mutate(owner => { owner.outbox[1].deliveryStatus = "delivered"; });
   mutate(owner => { owner.outbox.push({ id: 3, organizationId: 1 }); });
@@ -191,5 +193,10 @@ test("owned delivery is bounded to the named row, its three state columns and on
   mutate(owner => { owner.auditEvents[1].organizationId = 999; });
   mutate(owner => { owner.auditEvents[1].resource = "outbox #2"; });
   mutate(owner => { owner.auditEvents[1].metadata.eventId = "other"; });
+  mutate(owner => { owner.auditEvents[1].metadata.outboxId = 2; });
+  mutate(owner => { owner.auditEvents[1].metadata.purpose = "unrelated"; });
+  mutate(owner => { owner.auditEvents[1].metadata.eventType = "email.failed"; });
+  mutate(owner => { owner.auditEvents[1].metadata.occurredAt = "2026-11-03T10:00:00.000Z"; });
+  mutate(owner => { owner.auditEvents[1].metadata.detail = "wrong"; });
   mutate(owner => { owner.auditEvents[1].actor = "someone"; });
 });
