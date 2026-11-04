@@ -32144,7 +32144,7 @@
       ]
     },
     "src/app/api/webhooks/xendit/subscriptions/route.ts": {
-      "gitBlobSha": "43e28a950a048d54c4890ce23341d447b9f4a515",
+      "gitBlobSha": "e41f93868e6b2540cfffed632e03e0354d4fb294",
       "route": "webhooks/xendit/subscriptions",
       "methods": [
         {
@@ -32152,7 +32152,28 @@
           "line": 31,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "xendit-subscriptions-audit-atomicity-PG16-review-only",
+            "originalRouteBlobSha": "43e28a950a048d54c4890ce23341d447b9f4a515",
+            "routeBlobSha": "e41f93868e6b2540cfffed632e03e0354d4fb294",
+            "proofFile": "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs",
+            "proofBlobSha": "0e2c4f389c54ec256fc77964735c2ec8073092f4",
+            "contractFile": "tests/tenant-webhook-xendit-subscriptions.test.mjs",
+            "contractBlobSha": "a16b6d99645a167ab92cf8362a482345cb72ba15",
+            "gateFile": "scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs",
+            "gateBlobSha": "de031df58ad736fdee747762d6a5df0e59bc22db",
+            "workflowFile": ".github/workflows/tenant-webhook-xendit-subscriptions-http.yml",
+            "workflowBlobSha": "034bd3e771d8d142fa9e872cb6d4ff682d371942",
+            "priorPassingPg16RunId": 41746883429,
+            "priorPassingPg16JobId": 126302023847,
+            "priorPassingHeadSha": "d9ddca539a95af21780a19d222d9ae26ad47ab19",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false,
+            "providerActivated": false
+          }
         }
       ],
       "employerSources": {
