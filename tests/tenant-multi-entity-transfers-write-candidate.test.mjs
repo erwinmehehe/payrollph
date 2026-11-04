@@ -40,7 +40,12 @@ test("PG16 real-HTTPS transfer write fixture is the only proposed family and nev
   assert.match(proof, /const approved = status\(await call\(b, "PATCH"/);
   assert.match(proof, /const applied = status\(await call\(b, "PATCH"/);
   assert.match(proof, /for \(const attacker of \[attackerB, attackerC\]\)/);
-  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), victimBefore/);
+  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), newVictimBefore/);
+  assert.match(proof, /const cProposed = status\(await call\(attackerC, "POST"/);
+  assert.match(proof, /const cRejected = status\(await call\(cChecker, "PATCH"/);
+  assert.match(proof, /const cApproved = status\(await call\(cChecker, "PATCH"/);
+  assert.match(proof, /orderedVictim\.id > Math\.max\(6, ownId, nextId, due\.id, cOwnId, cOwnNextId\)/);
+  assert.match(proof, /const newVictimBefore = await snapshot\(2\)/);
   assert.match(proof, /methodCredits: 0, independentlyAccepted: false/);
   assert.match(workflow, /MULTI_ENTITY_TRANSFERS_ENABLED: "true"/);
   assert.match(workflow, /node scripts\/qa\/tenant-multi-entity-transfers-write-http\.mjs/);
@@ -82,7 +87,7 @@ test("POST and PATCH transfer failures never expose unexpected SQL diagnostics",
     "Explicit business conflict should remain available: " + message);
   assert.match(workflow, /MULTI_ENTITY_TRANSFERS_ENABLED: "true"/);
   assert.match(proof, /for \(const attacker of \[attackerB, attackerC\]\)/);
-  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), victimBefore/);
+  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), newVictimBefore/);
   for (const marker of [
     "CREATE TRIGGER ci_transfer_post_error",
     "CREATE TRIGGER ci_transfer_patch_error",
