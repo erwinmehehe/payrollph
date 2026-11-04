@@ -292,7 +292,9 @@ test("already credited and partial-action methods are not double-counted", () =>
   assert.equal(profile?.status, "GAP", "merged #1524 route changed after #1518's proof");
   assert.equal(profile?.testedBy, null);
   assert.equal(profile?.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(profile?.reviewedUncertified?.independentReview, "PENDING");
+  assert.equal(profile?.reviewedUncertified?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(profile?.reviewedUncertified?.soleOwnerReviewer, "erwinmehehe");
+  assert.equal(profile?.reviewedUncertified?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),

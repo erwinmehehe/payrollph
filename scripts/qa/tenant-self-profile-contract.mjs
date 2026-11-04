@@ -26,6 +26,7 @@ export function requireDisposableSelfProfile(env = process.env) {
     && database.username === "postgres"
     && env.WORKER_ENABLED === "false"
     && env.CENTRAL_SCHEDULER_ENABLED === "false"
+    && env.NEXT_CSP_ENABLED === "false"
     && env.PAYMONGO_DISBURSEMENTS_ENABLED === "false"
     && env.XENDIT_PAYOUTS_ENABLED === "false"
     && env.XENDIT_BILLING_ENABLED === "false"
@@ -63,7 +64,9 @@ export function assertOwnProfileMutation(before, after, actor, response, expecte
     "PATCH must return only the editable profile envelope");
   assert.deepEqual(response.json.profile, expected,
     "response must reflect exact persisted own contact fields, not a fabricated success");
-  for (const key of ["payroll", "payProfiles", "punches", "orgUnits", "legalEntities"]) {
+  assert.ok(Array.isArray(before.payrollEntries) && before.payrollEntries.length > 0,
+    "an actual fictional payroll entry must exist before the contact mutation");
+  for (const key of ["payroll", "payrollEntries", "payProfiles", "punches", "orgUnits", "legalEntities"]) {
     assert.deepEqual(after[key], before[key], key + " cannot be rewritten by an employee contact edit");
   }
   assert.ok(before.employees.length >= 2, "real own and coworker rows required");
