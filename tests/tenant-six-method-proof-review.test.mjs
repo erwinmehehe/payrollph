@@ -411,12 +411,21 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
-  assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves #1749 payout PATCH plus two original prior-evidence methods; source-changed year-end GET/POST are GAP, zero credits");
+  // #1764 changes precisely one static catalog GET from GAP to public metadata.
+  // Keep the main-derived security baseline immutable for the origin/main check below.
+  const expectedCandidateStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const publicCatalogPath = "src/app/api/v1/route.ts";
+  assert.equal(expectedCandidateStatuses[publicCatalogPath]?.GET, "GAP");
+  const publicCatalog = m.allApiRouteFiles[publicCatalogPath]?.methods.find(row => row.name === "GET");
+  assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
+  assert.equal(publicCatalog?.testedBy, null, "public catalog is not a tenant-scoped COVERED receipt");
+  expectedCandidateStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
+  assert.deepEqual(methodStatuses(m), expectedCandidateStatuses,
+    "Only #1764 public GET may change on top of the source-pinned tenant credits");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits,
-    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits,
+    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
