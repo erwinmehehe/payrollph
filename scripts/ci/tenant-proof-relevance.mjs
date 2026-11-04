@@ -83,6 +83,12 @@ export function proofRequired({ changed, paths, manifestBefore, manifestAfter,
   const specific = paths.filter(p => p !== MANIFEST && p !== INVENTORY);
   if (changed.some(file => specific.some(pattern => matchesGlob(pattern, file))))
     return true;
+  // An unrelated source, workflow or test change can indirectly affect this
+  // proof even when it is not listed in this workflow's own paths filter.
+  // Only manifest-only unaccepted SHA repins, optionally accompanied by
+  // inventory hash-only edits, may skip the actual PostgreSQL proof.
+  if (changed.some(file => file !== MANIFEST && file !== INVENTORY))
+    return true;
   // Inventory-only SHA substitutions cannot establish that the affected
   // method is GAP and uncredited. Require the reviewed manifest change too.
   if (!changed.includes(MANIFEST)) return true;
