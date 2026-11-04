@@ -436,12 +436,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const currentFrozenSubtotal = snapshot.frozenSubtotal
+  const preCatalogFrozenSubtotal = snapshot.frozenSubtotal
     .replace("313 COVERED", "321 COVERED")
     .replace("91 GAP", "83 GAP");
+  assert.match(preCatalogFrozenSubtotal,
+    /^Frozen subtotal: \*\*321 COVERED \+ 2 PUBLIC-BY-DESIGN \+ 83 GAP = 406\*\*/,
+    "The #1744 reconciliation must be present before the v1 public exception");
+  // One frozen EDG-02 GAP becomes public; no additional method may be credited.
+  const currentFrozenSubtotal = preCatalogFrozenSubtotal.replace(
+    "321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP",
+    "321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP",
+  );
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
-    "Frozen subtotal preserves payout PATCH but invalidates two old-source year-end receipts");
+    "Only the one public v1 GET may change the frozen queue subtotal");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
