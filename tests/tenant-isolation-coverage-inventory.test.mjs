@@ -4919,6 +4919,14 @@ test("all credited proof links point to the claimed route and every recertified 
           "Exact route, proof, workflow, source anchors, receipt and release holds required");
         continue;
       }
+      // One separately source-pinned WFM GET credit. Keep the generic
+      // evidence-file allowlist closed and do not borrow the write receipts.
+      if (path === "src/app/api/workforce/demand-staffing/policies/route.ts" &&
+          method.name === "GET") {
+        assert.equal(proof.file, "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs");
+        assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
