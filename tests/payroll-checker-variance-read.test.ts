@@ -70,6 +70,10 @@ test("checker source identity rejects stale same-status runs and revised employe
   ]), first, "Modified pay codes invalidate cached checker categories");
   assert.equal(checkerVarianceSourceKey(0, current, entries), null);
   assert.equal(checkerVarianceSourceKey(11, undefined, entries), null);
+  assert.equal(checkerVarianceSourceKey(11, { ...current, legalEntityId: 0 }, entries), null,
+    "Invalid employer IDs must not retain cached checker evidence");
+  assert.equal(checkerVarianceSourceKey(11, { ...current, scopeOrgUnitId: -1 }, entries), null,
+    "Invalid organizational-unit IDs must not retain cached checker evidence");
 
   const ui = readFileSync("src/components/workspace/clean-role-dashboard.tsx", "utf8");
   assert.ok(ui.includes("entries={data.payrollEntries}"));
@@ -148,7 +152,7 @@ test("HTTP non-OK, HTML masquerading as 200, and malformed JSON do not authorize
   }) as typeof fetch;
   const abort = new AbortController();
   assert.deepEqual(await readVerifiedPayrollCheckerVariance(11, expected, fetcher, abort.signal), valid);
-  assert.equal(requests[0].uri, "/api/payroll-runs/35/variance");
+  assert.equal(requests[0].uri, "/api/payroll-runs/35/variance?legalEntityId=100");
   assert.equal(requests[0].init?.signal, abort.signal);
   assert.equal(requests[0].init?.cache, "no-store");
   for (const status of [403, 404, 503]) {
@@ -168,6 +172,44 @@ test("HTTP non-OK, HTML masquerading as 200, and malformed JSON do not authorize
     () => readVerifiedPayrollCheckerVariance(0, expected, fetcher), /valid employer/,
   );
   assert.equal(requests.length, 1, "invalid scope must not send a request");
+});
+
+test("checker variance binds the selected legal employer and fails closed on mismatched evidence", async () => {
+  const requests: string[] = [];
+  const fetcher = (async (uri: string | URL | Request) => {
+    requests.push(String(uri));
+    return Response.json(valid);
+  }) as typeof fetch;
+
+  assert.deepEqual(await readVerifiedPayrollCheckerVariance(11, expected, fetcher), valid);
+  assert.equal(requests[0], "/api/payroll-runs/35/variance?legalEntityId=100");
+
+  // A preference or intermediary that returns another legal employer is not
+  // authority to re-scope the selected payroll run.
+  await assert.rejects(
+    () => readVerifiedPayrollCheckerVariance(11, { ...expected, legalEntityId: 200 }, fetcher),
+    /incomplete, inconsistent, or from another employer/,
+  );
+  assert.equal(requests[1], "/api/payroll-runs/35/variance?legalEntityId=200");
+
+  for (const legalEntityId of [0, -1, 2.5, Number.MAX_SAFE_INTEGER + 1, Number.NaN]) {
+    await assert.rejects(
+      () => readVerifiedPayrollCheckerVariance(11, { ...expected, legalEntityId }, fetcher),
+      /valid employer and payroll run/,
+    );
+  }
+  assert.equal(requests.length, 2, "Unsafe employer selectors cannot trigger a network request");
+
+  // Feature-OFF and legacy runs with null employer keep their original path.
+  const legacy = { ...valid, legalEntityId: null, run: { ...valid.run, legalEntityId: null } };
+  const legacyFetcher = (async (uri: string | URL | Request) => {
+    requests.push(String(uri));
+    return Response.json(legacy);
+  }) as typeof fetch;
+  assert.deepEqual(await readVerifiedPayrollCheckerVariance(
+    11, { ...expected, legalEntityId: null }, legacyFetcher,
+  ), legacy);
+  assert.equal(requests[2], "/api/payroll-runs/35/variance");
 });
 
 test("API and UI preserve independent payroll decision, exact run task matching and fail-closed Retry", () => {
