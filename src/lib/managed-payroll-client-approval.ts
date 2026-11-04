@@ -24,7 +24,7 @@ export function activeManagedPayrollClientApprover(
     && membership.active === true
     && membership.userId === actorUserId
     && membership.organizationId === organizationId
-    && membership.orgUnitId == null
+    && membership.orgUnitId === null
     && (membership.role === "owner" || membership.role === "admin")
     && engagement
     && engagement.organizationId === organizationId
