@@ -1076,6 +1076,70 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
+  // Xendit billing callback audit atomicity: exact-source, uncredited PG16
+  // rollback evidence. A source fix must not silently change tenant method
+  // classification or turn on a live billing integration.
+  if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.ts POST") {
+    const routeFile = "src/app/api/webhooks/xendit/subscriptions/route.ts";
+    const expected = {
+      "kind": "xendit-subscriptions-audit-atomicity-PG16-review-only",
+      "originalRouteBlobSha": "43e28a950a048d54c4890ce23341d447b9f4a515",
+      "routeBlobSha": "e41f93868e6b2540cfffed632e03e0354d4fb294",
+      "proofFile": "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs",
+      "proofBlobSha": "524ed38bd167d21bd1aba9f1ee985456e9ecc891",
+      "contractFile": "tests/tenant-webhook-xendit-subscriptions.test.mjs",
+      "contractBlobSha": "35a9a0a31255f9a11b28fcd1bfbc3c7053eb2849",
+      "gateFile": "scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs",
+      "gateBlobSha": "de031df58ad736fdee747762d6a5df0e59bc22db",
+      "workflowFile": ".github/workflows/tenant-webhook-xendit-subscriptions-http.yml",
+      "workflowBlobSha": "034bd3e771d8d142fa9e872cb6d4ff682d371942",
+      "priorPassingPg16RunId": 41746883429,
+      "priorPassingPg16JobId": 126302023847,
+      "priorPassingHeadSha": "d9ddca539a95af21780a19d222d9ae26ad47ab19",
+      "coverageCredits": 0,
+      "exactHeadPg16Http": "PENDING",
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false,
+      "providerActivated": false
+    };
+    assert.equal(currentBlob, expected.routeBlobSha,
+      "Xendit audit-atomic source changed: independent review and new PG16 proof required");
+    assert.equal(method.status, "GAP", "Xendit callback has no accepted tenant-method credit");
+    assert.equal(method.testedBy, null, "Uncredited rollback evidence is not method acceptance");
+    assert.deepEqual(method.reviewedUncertified, expected,
+      "Only the exact Xendit audit rollback fix can remain in pending review");
+    for (const [path, sha] of [
+      [expected.proofFile, expected.proofBlobSha],
+      [expected.contractFile, expected.contractBlobSha],
+      [expected.gateFile, expected.gateBlobSha],
+      [expected.workflowFile, expected.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(path)), sha,
+      "Xendit rollback source/contract/workflow drift requires new review: " + path);
+    const route = readFileSync(routeFile, "utf8");
+    const transaction = route.indexOf("const result = await db.transaction(async (tx) => {");
+    const audit = route.indexOf("await recordAuditEvent({", transaction);
+    const auditInTx = route.indexOf("}, tx);", audit);
+    const response = route.lastIndexOf("return Response.json({ received: true, ...result });");
+    assert.ok(transaction >= 0 && audit > transaction && auditInTx > audit &&
+      response > auditInTx, "Audit must be awaited inside the billing transaction");
+    for (const outcome of ["paid", "past_due", "inactive"]) {
+      assert.ok(route.includes('return auditedOutcome("' + outcome + '");'),
+        "All successful billing outcomes must audit before transaction commit: " + outcome);
+    }
+    const runner = readFileSync(expected.proofFile, "utf8");
+    for (const token of [
+      "CI_ONLY_XENDIT_SUBSCRIPTION_AUDIT_REJECTED",
+      "assert.equal(rejected.status, 500",
+      "counts.auditAtomicRollbacks++",
+      "counts.auditRetryRecovered++",
+      "await unchangedExcept(before);",
+      "send(auditFailureEvent)",
+    ]) assert.ok(runner.includes(token), "Missing disposable PG16 rollback proof: " + token);
+    assert.ok(readFileSync(expected.workflowFile, "utf8").includes("image: postgres:16"),
+      "Source proof must run with real disposable PostgreSQL 16");
+    return; // No acceptance, coverage credit or production permission.
+  }
+
   // PayMongo transfer callback: permit only the reviewed removal of the run-existence oracle, while the method stays GAP
   // until the dedicated signed-callback proof is credited under proofPolicy.providerCallback.
   if (isNewOrChanged && method.status === "GAP" &&
