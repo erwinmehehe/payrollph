@@ -132,3 +132,37 @@ test("isolated workflow provisions PG16, applies optional careers SQL locally an
   assert.ok(w.indexOf("--migrate") < w.indexOf("npm run build"),
     "the unnumbered experimental column must exist before the test server builds");
 });
+
+
+test("real victim-ID ordering and audit failure rollback cannot be silently skipped", () => {
+  const runner = readFileSync("scripts/qa/tenant-edg01-careers-publication-http.mjs", "utf8");
+  const count = text => runner.split(text).length - 1;
+  for (const anchor of [
+    'if (label !== "VICTIM")',
+    'synthetic cancelled ID padding',
+    'assert.ok(victim.job.id > 6',
+    'persistedVictimJob',
+    'where(eq(s.jobRequisitions.id, victim.job.id))',
+    'const rollbackBefore = await snapshotAll()',
+    "ci_careers_edg01_audit_veto",
+    "before insert on audit_events",
+    'const rollbackHttp = await patch(victim, victim.org.id,',
+    'assert.equal(rollbackHttp.status, 500',
+    '"audit failure must roll back all three employers',
+    'drop trigger if exists ci_careers_edg01_audit_veto_trigger',
+    'victimRequisitionIdOverSix: true, auditInsertRollback: true',
+  ]) {
+    assert.ok(runner.includes(anchor), "required executed PG16 proof missing: " + anchor);
+  }
+  assert.equal(count("ci_careers_edg01_audit_veto()"), 3,
+    "veto function must be created, called and removed in the disposable runner");
+  assert.ok(runner.indexOf("const rollbackBefore = await snapshotAll()") <
+    runner.indexOf("const rollbackHttp = await patch(victim, victim.org.id,"),
+    "rollback snapshot must be taken before the actual HTTP write");
+  assert.ok(runner.indexOf("const rollbackHttp = await patch(victim, victim.org.id,") <
+    runner.indexOf('"audit failure must roll back all three employers'),
+    "no mutation acceptance without actual denied HTTP and post-rollback SQL comparison");
+  assert.ok(runner.indexOf("requireDisposableCareersEnv()") <
+    runner.indexOf('import("../../src/db/index.ts")'),
+    "do not open DB before refusing non-disposable targets");
+});
