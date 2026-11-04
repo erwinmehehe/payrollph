@@ -119,5 +119,6 @@ test("historical PR 1302 source guard keeps its PR trigger", () => {
   const historical = workflow("draft-1302-tenant-read-proof.yml");
   assert.match(historical, /^  pull_request:$/m,
     "the source-pinned #1302 contract requires the PR event");
-  assert.match(historical, /^  workflow_dispatch:$/m);
+  assert.match(historical, /github\.event\.pull_request\.number == 1302/,
+    "historical source proof must only run for its original PR");
 });
