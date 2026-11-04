@@ -411,9 +411,15 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
-  // Distinct PII-02 MWE PATCH provisional method; preserve the unchanged
-  // main-derived expected statuses for origin/main source reconciliation.
+  // #1764 changes precisely one static catalog GET from GAP to public metadata.
+  // Keep the main-derived security baseline immutable for the origin/main check below.
   const expectedCandidateStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const publicCatalogPath = "src/app/api/v1/route.ts";
+  assert.equal(expectedCandidateStatuses[publicCatalogPath]?.GET, "GAP");
+  const publicCatalog = m.allApiRouteFiles[publicCatalogPath]?.methods.find(row => row.name === "GET");
+  assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
+  assert.equal(publicCatalog?.testedBy, null, "public catalog is not a tenant-scoped COVERED receipt");
+  expectedCandidateStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
   const mweDecisionPath = "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts";
   assert.equal(expectedCandidateStatuses[mweDecisionPath].PATCH, "GAP");
   const decisionMethod = m.allApiRouteFiles[mweDecisionPath].methods.find(x => x.name === "PATCH");
@@ -422,11 +428,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(decisionMethod?.testedBy?.independentlyAccepted, false);
   expectedCandidateStatuses[mweDecisionPath].PATCH = "COVERED";
   assert.deepEqual(methodStatuses(m), expectedCandidateStatuses,
-    "Only the source-pinned MWE decision may be added to the existing #1744/#1749 method credits");
+    "Only #1764 public GET and PII-02 MWE PATCH may change on top of source-pinned tenant credits");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + 1,
-    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 1,
+    "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 2,
   };
   assert.deepEqual(counts, expectedCounts,
     "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
@@ -437,19 +443,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const priorFrozenSubtotal = snapshot.frozenSubtotal
+  const preCatalogFrozenSubtotal = snapshot.frozenSubtotal
     .replace("313 COVERED", "321 COVERED")
     .replace("91 GAP", "83 GAP");
-  assert.match(priorFrozenSubtotal,
+  assert.match(preCatalogFrozenSubtotal,
     /^Frozen subtotal: \*\*321 COVERED \+ 2 PUBLIC-BY-DESIGN \+ 83 GAP = 406\*\*/,
-    "Must retain the original #1744 frozen method baseline before a separate PII-02 credit");
-  const currentFrozenSubtotal = priorFrozenSubtotal.replace(
+    "The #1744 reconciliation must be present before the v1 public exception");
+  // One EDG-02 GAP becomes public; one PII-02 GAP becomes provisionally covered.
+  const currentFrozenSubtotal = preCatalogFrozenSubtotal.replace(
     "321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP",
-    "322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP",
+    "322 COVERED + 3 PUBLIC-BY-DESIGN + 81 GAP",
   );
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
-    "Frozen subtotal preserves payout PATCH but invalidates two old-source year-end receipts");
+    "Only the public v1 GET and the provisional MWE PATCH change the frozen queue subtotal");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
@@ -469,6 +476,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const payoutMethod = baseline.allApiRouteFiles["src/app/api/payout-profiles/route.ts"]
       .methods.find(method => method.name === "PATCH");
     const baselineHasPayout = payoutMethod?.status === "COVERED";
+    const baselineHasPublicCatalog = baseline.allApiRouteFiles["src/app/api/v1/route.ts"]
+      .methods.some(method => method.name === "GET" && method.status === "PUBLIC-BY-DESIGN");
     if (baselineHasPayout) verifyPayoutProfileCredit(baseline);
     const mainYearEnd = baseline.allApiRouteFiles["src/app/api/year-end/route.ts"];
     const baselineHasOldRoute = mainYearEnd.methods.every(method => method.status === "COVERED");
@@ -488,6 +497,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedStatuses : expectedBeforePayout));
+    if (baselineHasPublicCatalog) {
+      expectedOriginalMain["src/app/api/v1/route.ts"].GET = "PUBLIC-BY-DESIGN";
+    }
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
@@ -504,8 +516,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0),
-      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-      GAP: snapshot.counts.GAP - compliancePostCredits.length -
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + (baselineHasPublicCatalog ? 1 : 0),
+      GAP: snapshot.counts.GAP - (baselineHasPublicCatalog ? 1 : 0) - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0),
     }, "origin/main has unexplained method count drift");
@@ -516,7 +528,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       (baselineHasPayout ? 1 : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("91 GAP", (404 - frozenCovered) + " GAP");
+      .replace("91 GAP", (404 - frozenCovered - (baselineHasPublicCatalog ? 1 : 0)) + " GAP")
+      .replace("2 PUBLIC-BY-DESIGN", (2 + (baselineHasPublicCatalog ? 1 : 0)) + " PUBLIC-BY-DESIGN");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
       expectedMainFrozen, "origin/main frozen ledger drift");
   }

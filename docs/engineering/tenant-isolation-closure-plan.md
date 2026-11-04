@@ -2,7 +2,11 @@
 
 ## 2026-11-04 PII-02 MWE PATCH exact-source method recovery — DRAFT / NOT ACCEPTED
 
-**Current proposed live ledger: 498 methods = 406 COVERED + 10 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP.** One PII-02 classification decision PATCH is provisionally credited only, subject to its own exact-head synthetic PG16 and localhost production Next real-HTTP proof. Both owner approval and rejection, genuine higher-ID victim denial, forged selected legal-employer rejection, revoked membership and unchanged victim audit/employee/classification/payroll SQL must pass. Source guard first joins active membership before global-ID lookups and revalidates employer attribution under a transaction lock. PII-02 remains incomplete; 17 page/action GAPs remain. Independent security and payroll/tax owner review required. No production data, provider, money movement, statutory approval, or deployment.
+**Current proposed live ledger: 498 methods = 406 COVERED + 11 PUBLIC-BY-DESIGN + 81 GAP; frozen 406 = 322 COVERED + 3 PUBLIC-BY-DESIGN + 81 GAP.** One PII-02 classification decision PATCH is provisionally credited only, subject to its own exact-head synthetic PG16 and localhost production Next real-HTTP proof. Both owner approval and rejection, genuine higher-ID victim denial, forged selected legal-employer rejection, revoked membership and unchanged victim audit/employee/classification/payroll SQL must pass. Source guard first joins active membership before global-ID lookups and revalidates employer attribution under a transaction lock. PII-02 remains incomplete; 17 page/action GAPs remain. Independent security and payroll/tax owner review required. No production data, provider, money movement, statutory approval, or deployment.
+
+## 2026-11-04 #1764 static API v1 public catalog — DRAFT / NOT ACCEPTED
+
+**Current proposed ledger: 498 methods = 405 COVERED + 11 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP.** The unchanged `GET /api/v1` returns public documentation, not employer data, and is reclassified PUBLIC-BY-DESIGN only. An earlier-head disposable PG16/localhost HTTP equality and unchanged-DB proof passed; the synced head requires fresh CI and independent security review. No tenant-scoped method credits, no frozen-batch or global acceptance. 17 page/action GAPs remain. No customer data, provider connectivity, money or production activation.
 
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
@@ -149,9 +153,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 21 | 1 | 11 | INCOMPLETE |
 
-Frozen subtotal: **322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **322 COVERED + 3 PUBLIC-BY-DESIGN + 81 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
