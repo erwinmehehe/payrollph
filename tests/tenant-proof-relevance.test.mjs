@@ -28,8 +28,7 @@ const source = [
 ].join("\n");
 const paths = workflowPaths(source);
 const args = {
-  paths, changed: [MANIFEST, INVENTORY,
-    "scripts/qa/tenant-edg01-careers-publication-http.mjs"],
+  paths, changed: [MANIFEST, INVENTORY],
   manifestBefore: sample(old), manifestAfter: sample(updated),
   inventoryBefore: 'const a = "' + old + '";',
   inventoryAfter: 'const a = "' + updated + '";',
@@ -44,10 +43,25 @@ test("read workflow filters without broadening source patterns", () => {
   assert.equal(matchesGlob("scripts/qa/tenant-edg01-*.mjs", "scripts/qa/tenant-edg01-http.mjs"), true);
 });
 
-test("unrelated unaccepted source SHA repins skip expensive proof", () => {
+test("only unaccepted manifest and inventory hash repins skip expensive proof", () => {
   assert.equal(onlyUnacceptedManifestRepins(sample(old), sample(updated)), true);
   assert.equal(onlyInventoryHashRepins(args.inventoryBefore, args.inventoryAfter), true);
   assert.equal(proofRequired(args), false);
+  assert.equal(proofRequired({ ...args, changed: [MANIFEST] }), false);
+});
+
+test("unrelated code, tests and configuration cannot bypass a proof via manifest repin", () => {
+  for (const changedPath of [
+    "scripts/qa/tenant-edg01-careers-publication-http.mjs",
+    "src/lib/tenant-authorization-helper.ts",
+    "tests/another-security-contract.test.mjs",
+    ".github/workflows/unrelated-proof.yml",
+    "scripts/ci/unrelated-classifier.mjs",
+  ]) {
+    assert.equal(proofRequired({
+      ...args, changed: [...args.changed, changedPath],
+    }), true, changedPath + ": non-repin change must run the PostgreSQL proof");
+  }
 });
 
 test("targeted API, helper or workflow changes still run", () => {
