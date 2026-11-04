@@ -15,6 +15,27 @@ const FEATURE_WORKFLOWS = [
   "remittance-action-tenant-isolation.yml",
   "tenant-discipline-case-boundary.yml"
 ];
+// Fail closed on every real feature trigger. Checking only that one route or
+// QA path remains would let a future edit silently skip tenant acceptance
+// when another source, runner, or fixture changes.
+const FEATURE_REQUIRED_PATHS = {
+  "remittance-action-tenant-isolation.yml": [
+    "src/app/api/compliance/remittance-actions/route.ts",
+    "src/lib/statutory-remittance-task-scope.ts",
+    "src/lib/statutory-remittance-actions.ts",
+    "src/lib/statutory-remittance-escalations.ts",
+    "scripts/qa/remittance-action-entity-http.mjs",
+    "tests/statutory-remittance-task-scope.test.ts",
+    ".github/workflows/remittance-action-tenant-isolation.yml",
+  ],
+  "tenant-discipline-case-boundary.yml": [
+    ".github/workflows/tenant-discipline-case-boundary.yml",
+    "src/app/api/discipline/route.ts",
+    "tests/tenant-discipline-case-boundary.test.mjs",
+    "scripts/qa/tenant-table-rows/read/people.mjs",
+    "scripts/qa/tenant-table-rows/write/people.mjs",
+  ],
+};
 const SOURCE_PINNED_WORKFLOWS = [
   "salary-correction-cases-qa.yml",
   "tenant-benefit-catalog-put.yml",
@@ -76,8 +97,8 @@ test("only non-source-pinned scopes skip manifest-only changes", () => {
     const paths = pullRequestPaths(filename);
     assert.ok(paths.includes(".github/workflows/" + filename),
       filename + ": own workflow changes must still trigger acceptance");
-    assert.ok(paths.some((path) => path.startsWith("src/app/api/") || path.startsWith("scripts/qa/")),
-      filename + ": must retain its executable route or proof runner trigger");
+    assert.deepEqual([...paths].sort(), [...FEATURE_REQUIRED_PATHS[filename]].sort(),
+      filename + ": all route, helper, proof runner, fixture, test and workflow triggers must stay intact");
     for (const sharedFile of SHARED_INVENTORY_PATHS) {
       assert.equal(paths.some((path) => matches(path, sharedFile)), false,
         filename + ": broad shared-inventory trigger starts an unrelated expensive suite: " + sharedFile);
