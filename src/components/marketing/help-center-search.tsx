@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Search, X } from "lucide-react";
 import { HELP_AUDIENCES, HELP_ARTICLES, searchHelpArticles, type HelpAudience } from "@/lib/help-center-content";
@@ -19,14 +19,14 @@ export function HelpCenterSearch() {
   const articles = useMemo(() => searchHelpArticles(query, audience), [query, audience]);
   const [guideNavigation, setGuideNavigation] = useState<{ slug: string; revision: number } | null>(null);
 
-  function openGuide(slug: string) {
+  const openGuide = useCallback((slug: string) => {
     if (!HELP_ARTICLES.some((article) => article.slug === slug)) return;
     // All these guides are public; reset the local role/search view so the
     // target is present before opening its existing step-by-step content.
     setQuery("");
     setAudience("All");
     setGuideNavigation((current) => ({ slug, revision: (current?.revision ?? 0) + 1 }));
-  }
+  }, []);
 
   // Employee self-service links land on /help#guide-slug. Expand the guide
   // after hydration so the user can read steps rather than a closed card.
@@ -38,7 +38,7 @@ export function HelpCenterSearch() {
     openHashGuide();
     window.addEventListener("hashchange", openHashGuide);
     return () => window.removeEventListener("hashchange", openHashGuide);
-  }, []);
+  }, [openGuide]);
 
   useEffect(() => {
     if (!guideNavigation) return;
