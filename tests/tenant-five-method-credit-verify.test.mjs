@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { tallyTenantManifest } from "./helpers/tenant-counts.mjs";
 
 const readManifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const mutation = (change) => {
@@ -14,9 +15,22 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   assert.deepEqual(EVIDENCE.map(e => e.method + " " + e.route).sort(), [
     "PATCH self/profile", "POST hcm/salary-corrections/preview", "POST invitations",
   ].sort());
-  assert.deepEqual(verifyFiveMethodCredits(), {
+  const manifest = readManifest();
+  const live = tallyTenantManifest(manifest);
+  assert.equal(live.coveredAfter + live.publicByDesign + live.gap, 498,
+    "All 498 API methods must still have exactly one status");
+  const yearEnd = manifest.allApiRouteFiles["src/app/api/year-end/route.ts"];
+  assert.equal(yearEnd.gitBlobSha, "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+    "Atomic year-end changed source must not borrow the old PG16 receipts");
+  for (const method of yearEnd.methods) {
+    assert.ok(["GET", "POST"].includes(method.name));
+    assert.equal(method.status, "GAP", "Changed year-end method requires a new complete proof");
+    assert.equal(method.testedBy, null, "Revoked year-end method is uncredited");
+    assert.equal(method.reviewedUncertified?.kind, "year-end-binding-atomic-source-only-zero-credit");
+  }
+  assert.deepEqual(verifyFiveMethodCredits(manifest), {
     status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
-    methodsHeld: 2, covered: 410, publicByDesign: 10, gap: 78,
+    methodsHeld: 2, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap,
     pageActionGaps: 17, productionTested: false, independentlyAccepted: false,
   });
 });
