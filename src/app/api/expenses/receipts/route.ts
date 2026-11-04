@@ -16,6 +16,7 @@ import { claimCanAttachReceipt, receiptObjectIdentityMatches } from "@/lib/spend
 import { readVerifiedSpendReceipt } from "@/lib/spend-receipt-storage";
 import { SPEND_PENDING_RECEIPT_PREFIX, reconcilePendingSpendReceipt } from "@/lib/spend-receipt-object-reconciliation";
 import { receiptGrantMatches } from "@/lib/spend-receipt-tenant";
+import { receiptReadBindingUnchanged } from "@/lib/spend-receipt-read-boundary";
 
 export const dynamic = "force-dynamic";
 const enabled = () => spendPayrollEnabled() &&
@@ -28,6 +29,24 @@ type ReceiptTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const notFound = () => Response.json({ error: "Receipt not found." }, {
   status: 404, headers: { "Cache-Control": "private, no-store" },
 });
+
+/**
+ * An ID-only claim lookup is never an employer authorization grant.
+ * Bind it to an ACTIVE membership in the claim's real organization before
+ * any existence, employee, evidence or object-storage metadata is exposed.
+ */
+async function findMemberReceiptClaim(user: ReceiptUser, id: number): Promise<ReceiptClaim | null> {
+  const [match] = await db.select({ claim: expenseClaims })
+    .from(expenseClaims)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.organizationId, expenseClaims.organizationId),
+      eq(userOrganizations.userId, user.id),
+      eq(userOrganizations.active, true),
+    ))
+    .where(eq(expenseClaims.id, id))
+    .limit(1);
+  return match?.claim ?? null;
+}
 
 /** A session's global employeeId does not grant receipts in another employer. */
 async function activeReceiptGrant(user: ReceiptUser, claim: ReceiptClaim) {
@@ -96,15 +115,18 @@ async function authorize(user: ReceiptUser,
     if (denied) return notFound();
     return await activeReceiptGrant(user, claim) ? null : notFound();
   }
+  // A real out-of-scope private claim must be indistinguishable from a
+  // nonexistent claim, including for revoked roles and custom permission sets.
   const denied = await assertOrganizationRole(user.id, claim.organizationId, PEOPLE_PAYROLL_ROLES);
-  if (denied) return denied;
+  if (denied) return notFound();
   const access = await getAccess(user.id, claim.organizationId);
+  if (!access) return notFound();
   const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
     eq(employees.id, claim.employeeId), eq(employees.organizationId, claim.organizationId),
   )).limit(1);
-  if (!employee) return Response.json({ error: "Receipt not found." }, { status: 404 });
+  if (!employee) return notFound();
   const scope = assertScope(access, employee.orgUnitId);
-  return scope.ok ? null : Response.json({ error: "Receipt not found." }, { status: 404 });
+  return scope.ok ? null : notFound();
 }
 
 export async function GET(request: Request) {
@@ -113,8 +135,8 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("claimId"));
   if (!validId(id)) return Response.json({ error: "Valid claimId required." }, { status: 422 });
-  const [core] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
-  if (!core) return Response.json({ error: "Receipt not found." }, { status: 404 });
+  const core = await findMemberReceiptClaim(user, id);
+  if (!core) return notFound();
   const denied = await authorize(user, core);
   if (denied) return denied;
   const mfa = requireSensitiveActionMfa(user);
@@ -135,9 +157,15 @@ export async function GET(request: Request) {
   } catch {
     return Response.json({ error: "Private receipt storage is unavailable." }, { status: 503 });
   }
-  // External object storage may take time; do not return private bytes based
-  // on a membership that was revoked while those bytes were being fetched.
-  const readDenied = await authorize(user, core);
+  // Remote storage I/O can outlive membership, claim reassignment, or receipt
+  // replacement. Re-resolve through the ACTIVE tenant grant and compare the
+  // exact employer/worker/object identity and SHA after storage readback.
+  const freshCore = await findMemberReceiptClaim(user, id);
+  if (!freshCore || freshCore.organizationId !== core.organizationId
+    || freshCore.employeeId !== core.employeeId) return notFound();
+  const [freshClaim] = await loadSpendClaimEvidence(db, [freshCore]);
+  if (!receiptReadBindingUnchanged(claim, freshClaim)) return notFound();
+  const readDenied = await authorize(user, freshCore);
   if (readDenied) return readDenied;
   await recordAuditEvent({
     organizationId: claim.organizationId, actor: user.name,
@@ -165,8 +193,8 @@ export async function POST(request: Request) {
   if (!validId(id) || !(file instanceof File)) {
     return Response.json({ error: "Valid claimId and one receipt PDF, PNG or JPG are required." }, { status: 422 });
   }
-  const [core] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
-  if (!core) return Response.json({ error: "Receipt not found." }, { status: 404 });
+  const core = await findMemberReceiptClaim(user, id);
+  if (!core) return notFound();
   const denied = await authorize(user, core);
   if (denied) return denied;
   const mfa = requireSensitiveActionMfa(user);
