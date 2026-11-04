@@ -441,39 +441,83 @@ export async function POST(request: Request) {
     }
   }
 
-  const summary = await runYearEndAnnualization(
+  const boundRun = targetRun;
+  let summary: Awaited<ReturnType<typeof runYearEndAnnualization>>;
+  try {
+    summary = await runYearEndAnnualization(
     organizationId,
     taxYear,
     user.name,
-    targetRun
+    boundRun
       ? {
-          includePayrollRunId: targetRun.id,
-          bindToPayrollRunId: targetRun.id,
+          includePayrollRunId: boundRun.id,
+          bindToPayrollRunId: boundRun.id,
           approvedBy: user.name,
+          onBoundToPayrollRun: async (tx, boundSummary) => {
+            // Preserve one all-or-nothing unit: annual tax adjustment, queue
+            // replacement, job creation, and both audit receipts.
+            await enqueuePayrollRun(boundRun.id, undefined, tx);
+            await recordAuditEvent({
+              organizationId,
+              actor: user.name,
+              action: "Year-end tax adjustments bound to payroll",
+              resource: boundRun.periodLabel,
+              metadata: {
+                taxYear,
+                payrollRunId: boundRun.id,
+                refunds: boundSummary.refunds,
+                collections: boundSummary.collections,
+                totalRefund: boundSummary.totalRefund,
+                totalCollect: boundSummary.totalCollect,
+                requiresRecalculation: true,
+              },
+            }, tx);
+          },
         }
       : {},
-  );
-
-  if (targetRun) {
-    // Requeue from the approved annualization snapshot so the register,
-    // payslips and release settlement all include the exact refund/collection.
-    await enqueuePayrollRun(targetRun.id);
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Year-end tax adjustments bound to payroll",
-      resource: targetRun.periodLabel,
-      metadata: {
-        taxYear,
-        payrollRunId: targetRun.id,
-        refunds: summary.refunds,
-        collections: summary.collections,
-        totalRefund: summary.totalRefund,
-        totalCollect: summary.totalCollect,
-        requiresRecalculation: true,
-      },
-    });
+    );
+  } catch (error) {
+    // A concurrent binding can invalidate the preflight while the second
+    // request waits on the serializable employer/year lock. Return a safe
+    // reviewable conflict instead of a generic 500; never retry a financial
+    // transaction automatically or hide unrelated SQL/audit failures.
+    let current: unknown = error;
+    let databaseConflict = false;
+    for (let depth = 0; depth < 4 && current && typeof current === "object"; depth++) {
+      const candidate = current as { code?: unknown; cause?: unknown };
+      if (candidate.code === "40001" || candidate.code === "40P01") {
+        databaseConflict = true;
+        break;
+      }
+      current = candidate.cause;
+    }
+    const message = error instanceof Error ? error.message : "";
+    const changedRun = [
+      "Apply year-end tax only to a freshly calculated payroll run",
+      "Year-end tax adjustments for",
+      "YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED",
+      "PAYROLL_RECALCULATION_NOT_ALLOWED",
+      "PAYROLL_RECALCULATION_CLAIM_LOST",
+      "PAYROLL_RECALCULATION_SOURCE_CHANGED",
+    ].some((code) => message.includes(code));
+    // An unbound recompute over approved or run-bound adjustments is refused with a stable conflict; bound
+    // requests keep their YEAR_END_BINDING_CONFLICT response below.
+    if (!boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED") || message.includes("PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED") ||
+      message.includes("have already been settled in payroll"))) {
+      return Response.json({
+        code: "YEAR_END_RECOMPUTE_BLOCKED",
+        error: "Year-end adjustments for this tax year are already approved, bound to a payroll run or settled and cannot be recomputed in place. Use a separately audited correction.",
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
+    if (boundRun && (databaseConflict || changedRun)) {
+      return Response.json({
+        code: "YEAR_END_BINDING_CONFLICT",
+        error: "The final payroll changed while year-end settlement was prepared. Refresh and review the current status before retrying.",
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
+    throw error;
   }
+
   if (summary.employees === 0) {
     return Response.json({
       ...summary,

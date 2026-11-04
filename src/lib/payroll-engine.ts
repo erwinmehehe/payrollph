@@ -239,8 +239,17 @@ function toLocalIso(date: Date) {
   return `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}T${parts.get("hour")}:${parts.get("minute")}`;
 }
 
-export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK) {
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+type PayrollQueueTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// Passing an existing transaction lets year-end settlement, its requeue, and
+// all corresponding audit rows commit or roll back as a single unit.
+export async function enqueuePayrollRun(
+  runId: number,
+  chunkSize = DEFAULT_CHUNK,
+  transaction?: PayrollQueueTransaction,
+) {
+  const connection = transaction ?? db;
+  const [run] = await connection.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
 
   const employeeWhere = run.legalEntityId
@@ -270,7 +279,7 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
           payrollEmploymentStatus(String(run.periodStart)),
           lte(employees.startDate, run.periodEnd),
         );
-  const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
+  const employeeRows = await connection.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
   if (employeeRows.length === 0) {
     throw new Error("Payroll scope has no active employees. Add or reactivate an employee before calculating.");
   }
@@ -279,7 +288,7 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   // Any direct caller (API, worker, integration, script) must preserve final
   // payroll. The HTTP route check alone is not a financial integrity boundary.
   // Hold the payroll-run row lock across the guard AND all destructive writes.
-  await db.transaction(async (tx) => {
+  const queueInTransaction = async (tx: PayrollQueueTransaction) => {
     await tx.execute(sql`SELECT id FROM payroll_runs WHERE id = ${runId} FOR UPDATE`);
     const [lockedRun] = await tx.select().from(payrollRuns)
       .where(eq(payrollRuns.id, runId)).limit(1);
@@ -355,7 +364,9 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
         legalEntityId: run.legalEntityId,
       },
     }, tx);
-  });
+  };
+  if (transaction) await queueInTransaction(transaction);
+  else await db.transaction(queueInTransaction);
 
   return { runId, totalChunks, employeeCount: employeeRows.length };
 }

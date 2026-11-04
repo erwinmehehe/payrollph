@@ -87,7 +87,11 @@ test("destructive queue rewrites and status claim are under the same lock/transa
   const start = s.indexOf("export async function enqueuePayrollRun");
   const end = s.indexOf("export async function processNextPayrollJob", start);
   const source = s.slice(start, end);
-  assert.match(source, /db.transaction\(async \(tx\) =>/);
+  // Both standalone and parent-transaction callers must execute the exact
+  // same locked and guarded queue mutation, never an unscoped write.
+  assert.match(source, /const queueInTransaction = async \(tx: PayrollQueueTransaction\) => \{/);
+  assert.match(source, /if \(transaction\) await queueInTransaction\(transaction\);/);
+  assert.match(source, /else await db\.transaction\(queueInTransaction\);/);
   assert.match(source, /SELECT id FROM payroll_runs WHERE id = \$\{runId\} FOR UPDATE/);
   assert.match(source, /PAYROLL_RECALCULATION_NOT_ALLOWED/);
   assert.match(source, /PAYROLL_MONTH_CERTIFIED_IMMUTABLE/);
