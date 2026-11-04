@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -399,12 +400,15 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
+  const staffingGetCredits = verifyStaffingPolicyGetCredit(m);
+  assert.equal(expectedStatuses["src/app/api/workforce/demand-staffing/policies/route.ts"].GET, "GAP");
+  expectedStatuses["src/app/api/workforce/demand-staffing/policies/route.ts"].GET = "COVERED";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Only the source-pinned payout PATCH is added beyond four #1730 methods and prior credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length + issuedPromotions.length + payoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + permittedPromotions.length + issuedPromotions.length + payoutCredits + staffingGetCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length - issuedPromotions.length - payoutCredits,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - permittedPromotions.length - issuedPromotions.length - payoutCredits - staffingGetCredits,
   };
   assert.deepEqual(counts, expectedCounts,
     "Exactly one additional source-pinned #1749 payout credit is permitted");
@@ -416,8 +420,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   const currentFrozenSubtotal = snapshot.frozenSubtotal
-    .replace("313 COVERED", "323 COVERED")
-    .replace("91 GAP", "81 GAP");
+    .replace("313 COVERED", "324 COVERED")
+    .replace("91 GAP", "80 GAP");
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
     "Frozen subtotal must add just the separate provisional payout-profile PATCH");
