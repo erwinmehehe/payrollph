@@ -157,8 +157,8 @@ export function verifyFiveMethodCredits(
     }
     const workflow = read(e.workflow).toString();
     assert.match(workflow, /postgres:16/, e.route + " disposable PG16");
-    for (const flag of ["NEXT_CSP_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
-      assert.ok(workflow.includes(flag), e.route + " must keep " + flag);
+    for (const flag of ["NEXT_CSP_ENABLED", "XENDIT_BILLING_ENABLED"]) {
+      assert.match(workflow, new RegExp(flag + "(?:=|:\\s*[\'\\\"]?)false"), e.route + " must keep " + flag + " OFF");
     }
   }
   const transferPath = ROOT + "multi-entity/transfers/route.ts";
