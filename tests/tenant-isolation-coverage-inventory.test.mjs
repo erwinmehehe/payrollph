@@ -5656,7 +5656,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
       // This exact, uncredited PG16 candidate is not a COVERED promotion.
       if (path === "src/app/hcm/work-items/page.tsx") {
         const reviewed = entry.reviewedUncertified;
-        const pageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
+        const pageSha = "5b777c882742b95829504fdb96c383b8f80ad30a";
+        const previousUiPageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
         const historicalPageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
         const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
         assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
@@ -5690,7 +5691,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.deepEqual(pendingUiChange, {
           kind: "hcm-work-items-client-local-search-and-responsive-cards-review-only",
           previousPageBlobSha: historicalPageSha,
-          pageBlobSha: pageSha,
+          pageBlobSha: previousUiPageSha,
           helperBlobSha: "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
           unitTestBlobSha: "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
           browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
@@ -5699,6 +5700,26 @@ test("page and server-action inventory cannot silently omit new or changed busin
           independentlyAccepted: false,
           productionCertified: false,
         }, "UI changes need their own exact-source, zero-credit review record");
+        // Preserve historical PG16 and mobile-search source receipts.
+        // The new local sort/owner filter is only a separate, unaccepted
+        // review candidate. No page or API coverage credit is conferred.
+        const pendingViewChange = entry.pendingViewChange;
+        assert.deepEqual(pendingViewChange, {
+          kind: "hcm-work-items-client-local-sla-sort-and-unassigned-filter-review-only",
+          previousPageBlobSha: previousUiPageSha,
+          pageBlobSha: pageSha,
+          helperFile: "src/lib/hcm-work-queue-view.ts",
+          helperBlobSha: "97a455fa7c2eeda0fb91ca681922665b91909434",
+          unitTestFile: "tests/hcm-work-queue-view.test.ts",
+          unitTestBlobSha: "790a470197dc816df4e3eaec20d0f4e6e33cb2eb",
+          browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
+          browserScriptBlobSha: "793ef20c5f75e55b8162054087a8ab0388fafda3",
+          coverageCredits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Sort and owner filter require their own exact-source zero-credit record");
+        assert.equal(gitBlobSha(readFileSync(pendingViewChange.helperFile)), pendingViewChange.helperBlobSha,
+          "HR view helper changed without source review");
+        assert.equal(gitBlobSha(readFileSync(pendingViewChange.unitTestFile)), pendingViewChange.unitTestBlobSha,
+          "HR view unit test changed without source review");
         assert.equal(gitBlobSha(readFileSync(pendingUiChange.browserScript)),
           pendingUiChange.browserScriptBlobSha,
           "Browser tenant-retirement proof changed without renewed review");
@@ -5738,8 +5759,10 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(page, /"use client"/);
         assert.match(page, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
         assert.match(page, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
-        assert.match(page, /const visibleItems = summary \? findLoadedHcmWorkItems\(items, search\) : \[\]/,
+        assert.match(page, /const visibleItems = summary \? deriveLoadedWorkQueueView\(findLoadedHcmWorkItems\(items, search\), sort, unassignedOnly\) : \[\]/,
           "Search must operate only after verified employer rows load");
+        assert.match(page, /aria-label="Show only work items without a named owner"/,
+          "Unassigned local filter must be explicit");
         assert.match(page, /aria-label="Work items on mobile"/,
           "Responsive cards must only show verified, employer-scoped work items");
         const route = readFileSync("src/app/api/hcm/work-items/route.ts", "utf8");

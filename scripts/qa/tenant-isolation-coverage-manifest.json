@@ -41641,7 +41641,7 @@
     },
     {
       "path": "src/app/hcm/work-items/page.tsx",
-      "blob": "268f84811df574a7240d2fe17996f4674630d3b2",
+      "blob": "5b777c882742b95829504fdb96c383b8f80ad30a",
       "ids": [
         {
           "line": 13,
@@ -41864,6 +41864,20 @@
         "pageBlobSha": "268f84811df574a7240d2fe17996f4674630d3b2",
         "helperBlobSha": "d7e56a5c97aee6a6fb50de64119eaf4fa84e3fed",
         "unitTestBlobSha": "714f0d9d02cac0d3a595d3a445377520ac9dd5a7",
+        "browserScript": "scripts/hcm-request-lifecycle-browser.mjs",
+        "browserScriptBlobSha": "793ef20c5f75e55b8162054087a8ab0388fafda3",
+        "coverageCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      },
+      "pendingViewChange": {
+        "kind": "hcm-work-items-client-local-sla-sort-and-unassigned-filter-review-only",
+        "previousPageBlobSha": "268f84811df574a7240d2fe17996f4674630d3b2",
+        "pageBlobSha": "5b777c882742b95829504fdb96c383b8f80ad30a",
+        "helperFile": "src/lib/hcm-work-queue-view.ts",
+        "helperBlobSha": "97a455fa7c2eeda0fb91ca681922665b91909434",
+        "unitTestFile": "tests/hcm-work-queue-view.test.ts",
+        "unitTestBlobSha": "790a470197dc816df4e3eaec20d0f4e6e33cb2eb",
         "browserScript": "scripts/hcm-request-lifecycle-browser.mjs",
         "browserScriptBlobSha": "793ef20c5f75e55b8162054087a8ab0388fafda3",
         "coverageCredits": 0,
