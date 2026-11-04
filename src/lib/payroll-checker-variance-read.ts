@@ -74,7 +74,9 @@ export function checkerVarianceSourceKey(
     lineItems?: unknown; trace?: unknown;
   }>,
 ): string | null {
-  if (!id(organizationId) || !run || !id(run.id)) return null;
+  if (!id(organizationId) || !run || !id(run.id) ||
+      (run.legalEntityId != null && !id(run.legalEntityId)) ||
+      (run.scopeOrgUnitId != null && !id(run.scopeOrgUnitId))) return null;
   return JSON.stringify([
     organizationId, run.id, run.legalEntityId ?? null,
     run.scopeOrgUnitId ?? null, run.periodLabel, run.periodStart,
@@ -210,8 +212,17 @@ export async function readVerifiedPayrollCheckerVariance(
   organizationId: number, expected: PayrollVarianceExpectedRun,
   fetcher: typeof fetch = fetch, signal?: AbortSignal,
 ): Promise<VerifiedVariancePayload> {
-  if (!id(organizationId) || !id(expected.id)) throw Error("Choose a valid employer and payroll run.");
-  const response = await fetcher("/api/payroll-runs/" + expected.id + "/variance", {
+  if (!id(organizationId) || !id(expected.id) ||
+      (expected.legalEntityId != null && !id(expected.legalEntityId))) {
+    throw Error("Choose a valid employer and payroll run.");
+  }
+  // The variance API already enforces resolveMultiEntityContext and
+  // assertEntityResource. Bind that server decision to the selected run
+  // rather than relying on a potentially stale saved employer preference.
+  // Feature-OFF / legacy null scopes retain the original URL.
+  const entitySelector = expected.legalEntityId == null
+    ? "" : "?legalEntityId=" + expected.legalEntityId;
+  const response = await fetcher("/api/payroll-runs/" + expected.id + "/variance" + entitySelector, {
     cache: "no-store", signal,
   });
   if (!response.ok) throw Error("Payroll checker evidence unavailable. Retry before approving.");
