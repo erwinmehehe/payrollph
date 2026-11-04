@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeMweClassifications, employees } from "@/db/schema";
+import { employeeMweClassifications, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
   assertOrganizationRole,
@@ -14,6 +14,12 @@ import {
 } from "@/lib/security-request";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { decideMweClassificationRequest } from "@/lib/mwe-classification";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
+
+const classificationNotFound = () => Response.json(
+  { error: "MWE classification request not found." },
+  { status: 404, headers: { "Cache-Control": "private, no-store" } },
+);
 
 export async function PATCH(
   request: Request,
@@ -29,20 +35,31 @@ export async function PATCH(
   const values = await params;
   const employeeId = Number(values.id);
   const classificationId = Number(values.classificationId);
-  if (!Number.isInteger(employeeId) || !Number.isInteger(classificationId)) {
+  if (!Number.isSafeInteger(employeeId) || employeeId <= 0 ||
+      !Number.isSafeInteger(classificationId) || classificationId <= 0) {
     return Response.json({ error: "Invalid employee or classification id." }, { status: 400 });
   }
 
-  const [classification] = await db.select().from(employeeMweClassifications).where(and(
-    eq(employeeMweClassifications.id, classificationId),
-    eq(employeeMweClassifications.employeeId, employeeId),
-  )).limit(1);
-  if (!classification) return Response.json({ error: "MWE classification request not found." }, { status: 404 });
+  // Make foreign and unknown IDs indistinguishable before any classification
+  // or employee data is loaded. A global ID is never a tenant grant.
+  const [visible] = await db.select({ classification: employeeMweClassifications })
+    .from(employeeMweClassifications)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.organizationId, employeeMweClassifications.organizationId),
+      eq(userOrganizations.userId, user.id),
+      eq(userOrganizations.active, true),
+    ))
+    .where(and(
+      eq(employeeMweClassifications.id, classificationId),
+      eq(employeeMweClassifications.employeeId, employeeId),
+    )).limit(1);
+  const classification = visible?.classification;
+  if (!classification) return classificationNotFound();
   const [employee] = await db.select().from(employees).where(and(
     eq(employees.id, employeeId),
     eq(employees.organizationId, classification.organizationId),
   )).limit(1);
-  if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
+  if (!employee) return classificationNotFound();
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -58,6 +75,15 @@ export async function PATCH(
     "This employee is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+
+  // Organization membership and unit access alone do not authorize a second
+  // legal employer within the same workspace. Feature-OFF stays legacy.
+  const entity = await resolveMultiEntityContext({
+    userId: user.id, organizationId: classification.organizationId, request,
+  });
+  if (!entity.ok) return entity.response;
+  const employerDenied = assertEntityResource(entity.context, employee.legalEntityId);
+  if (employerDenied) return employerDenied;
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
@@ -85,6 +111,7 @@ export async function PATCH(
     decidedByName: user.name,
     decision,
     decisionNote: String(body.decisionNote ?? "").trim() || null,
+    expectedLegalEntityId: entity.context.enabled ? entity.context.legalEntityId : undefined,
   });
 
   if (result.kind === "not_found") return Response.json({ error: "Classification request not found." }, { status: 404 });

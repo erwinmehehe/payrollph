@@ -1,5 +1,9 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-04 PII-02 MWE PATCH exact-source method recovery — DRAFT / NOT ACCEPTED
+
+**Current proposed live ledger: 498 methods = 406 COVERED + 10 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP.** One PII-02 classification decision PATCH is provisionally credited only, subject to its own exact-head synthetic PG16 and localhost production Next real-HTTP proof. Both owner approval and rejection, genuine higher-ID victim denial, forged selected legal-employer rejection, revoked membership and unchanged victim audit/employee/classification/payroll SQL must pass. Source guard first joins active membership before global-ID lookups and revalidates employer attribution under a transaction lock. PII-02 remains incomplete; 17 page/action GAPs remain. Independent security and payroll/tax owner review required. No production data, provider, money movement, statutory approval, or deployment.
+
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
 **Current draft ledger: 498 methods = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route e4741d98. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.
@@ -140,14 +144,14 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 34 | 0 | 4 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 
-Frozen subtotal: **321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal: **322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

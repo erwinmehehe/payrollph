@@ -411,12 +411,22 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
-  assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves #1749 payout PATCH plus two original prior-evidence methods; source-changed year-end GET/POST are GAP, zero credits");
+  // Distinct PII-02 MWE PATCH provisional method; preserve the unchanged
+  // main-derived expected statuses for origin/main source reconciliation.
+  const expectedCandidateStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const mweDecisionPath = "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts";
+  assert.equal(expectedCandidateStatuses[mweDecisionPath].PATCH, "GAP");
+  const decisionMethod = m.allApiRouteFiles[mweDecisionPath].methods.find(x => x.name === "PATCH");
+  assert.equal(decisionMethod?.status, "COVERED");
+  assert.equal(decisionMethod?.testedBy?.file, "scripts/qa/tenant-mwe-decision-http.mjs");
+  assert.equal(decisionMethod?.testedBy?.independentlyAccepted, false);
+  expectedCandidateStatuses[mweDecisionPath].PATCH = "COVERED";
+  assert.deepEqual(methodStatuses(m), expectedCandidateStatuses,
+    "Only the source-pinned MWE decision may be added to the existing #1744/#1749 method credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + 1,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
@@ -427,9 +437,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const currentFrozenSubtotal = snapshot.frozenSubtotal
+  const priorFrozenSubtotal = snapshot.frozenSubtotal
     .replace("313 COVERED", "321 COVERED")
     .replace("91 GAP", "83 GAP");
+  assert.match(priorFrozenSubtotal,
+    /^Frozen subtotal: \*\*321 COVERED \+ 2 PUBLIC-BY-DESIGN \+ 83 GAP = 406\*\*/,
+    "Must retain the original #1744 frozen method baseline before a separate PII-02 credit");
+  const currentFrozenSubtotal = priorFrozenSubtotal.replace(
+    "321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP",
+    "322 COVERED + 2 PUBLIC-BY-DESIGN + 82 GAP",
+  );
   assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
     currentFrozenSubtotal,
     "Frozen subtotal preserves payout PATCH but invalidates two old-source year-end receipts");

@@ -231,6 +231,8 @@ export async function decideMweClassificationRequest(input: {
   decidedByName: string;
   decision: "approve" | "reject";
   decisionNote?: string | null;
+  /** Selected employer required only when multi-entity is enabled. */
+  expectedLegalEntityId?: number | null;
 }) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`
@@ -250,11 +252,17 @@ export async function decideMweClassificationRequest(input: {
       return { kind: "forbidden" as const, message: "Maker-checker control: the requester cannot decide their own MWE classification." };
     }
 
+    // Hold the current employer attribution stable until the approval/rejection
+    // and its audit commit. A reassignment cannot bypass the request preflight.
     const [employee] = await tx.select().from(employees).where(and(
       eq(employees.id, request.employeeId),
       eq(employees.organizationId, input.organizationId),
-    )).limit(1);
+    )).for("share").limit(1);
     if (!employee) return { kind: "conflict" as const, message: "The employee record no longer exists." };
+    if (input.expectedLegalEntityId !== undefined &&
+        employee.legalEntityId !== input.expectedLegalEntityId) {
+      return { kind: "forbidden" as const, message: "Legal employer is not available to this account." };
+    }
 
     const decidedAt = new Date();
     if (input.decision === "reject") {
