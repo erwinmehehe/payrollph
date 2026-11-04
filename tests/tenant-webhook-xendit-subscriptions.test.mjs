@@ -7,6 +7,7 @@ import {
 } from "../scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs";
 import {
   assertFictionalHighIdVictim, assertEmployerSnapshotIsolation,
+  assertExpectedOwnedBillingDelta,
 } from "../scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs";
 
 const good = () => ({
@@ -135,6 +136,10 @@ test("snapshot guard preserves all nine employers and detects a forged victim wr
   assert.doesNotThrow(() => assertEmployerSnapshotIsolation(before, own, ["ATTA"]));
   assert.throws(() => assertEmployerSnapshotIsolation(before, own),
     /other employer billing and audit rows unchanged/, "a business write needs explicit own-scope allowance");
+  const ownEmployeeMutated = structuredClone(own);
+  ownEmployeeMutated.ATTA.employees[0].marker = "unexpected worker write";
+  assert.throws(() => assertEmployerSnapshotIsolation(before, ownEmployeeMutated, ["ATTA"]),
+    /only billing tables may change/, "even an authorized callback cannot change its own employees");
   const victimMutated = structuredClone(own);
   victimMutated.VICTIM.auditEvents.push({ actor: "forged" });
   assert.throws(() => assertEmployerSnapshotIsolation(before, victimMutated, ["ATTA"]),
@@ -154,4 +159,43 @@ test("snapshot guard preserves all nine employers and detects a forged victim wr
     /All seeded employers/, "missing employer in both snapshots must fail closed");
   assert.throws(() => assertEmployerSnapshotIsolation(before, own, ["GHOST"]),
     /Only seeded employers/, "unknown allowed employer must not bypass the immutability guard");
+});
+
+test("owned billing receipts are bounded to expected counts, historical rows and columns", () => {
+  const base = {
+    subscriptions: [{ id: 1, organizationId: 1, status: "trialing" }],
+    checkouts: [{ id: 2, organizationId: 1, status: "awaiting_payment", referenceId: "own-ref" }],
+    billingState: [],
+    billingEvents: [{ id: 3, organizationId: 1, eventType: "recurring.plan.activated" }],
+    invoices: [{ id: 4, organizationId: 1, status: "paid", currency: "PHP" }],
+    auditEvents: [{ id: 5, organizationId: 1, action: "old", actor: "original" }],
+    employees: [{ id: 6, organizationId: 1, marker: "private" }],
+  };
+  const before = { ATTA: structuredClone(base) };
+  const after = structuredClone(before);
+  after.ATTA.subscriptions[0].status = "active";
+  after.ATTA.checkouts[0].status = "active";
+  after.ATTA.billingState.push({ id: 7, organizationId: 1, lastPaidCycleId: "owned-cycle" });
+  after.ATTA.billingEvents.push({ id: 8, organizationId: 1, eventType: "recurring.cycle.succeeded" });
+  after.ATTA.invoices.push({ id: 9, organizationId: 1, status: "paid", currency: "PHP" });
+  after.ATTA.auditEvents.push({ id: 10, organizationId: 1, action: "recurring.cycle.succeeded",
+    actor: "Xendit verified webhook" });
+  const expectation = {
+    eventType: "recurring.cycle.succeeded",
+    billingEvents: 1, invoices: 1, auditEvents: 1, billingStateAdded: 1,
+    subscriptionColumns: ["status"], checkoutColumns: ["status"],
+  };
+  assert.doesNotThrow(() => assertExpectedOwnedBillingDelta(before, after, "ATTA", expectation));
+  const mutate = fn => {
+    const changed = structuredClone(after);
+    fn(changed.ATTA);
+    assert.throws(() => assertExpectedOwnedBillingDelta(before, changed, "ATTA", expectation));
+  };
+  mutate(owner => { owner.employees[0].marker = "cross-feature-corruption"; });
+  mutate(owner => { owner.invoices.push({ id: 11, organizationId: 1, status: "paid" }); });
+  mutate(owner => { owner.invoices[0].status = "cancelled"; });
+  mutate(owner => { owner.auditEvents[1].organizationId = 999; });
+  mutate(owner => { owner.checkouts[0].referenceId = "other-tenant-reference"; });
+  mutate(owner => { owner.billingState[0].organizationId = 999; });
+  mutate(owner => { owner.billingEvents[1].eventType = "recurring.cycle.failed"; });
 });
