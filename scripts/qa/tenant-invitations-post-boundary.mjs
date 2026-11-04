@@ -176,12 +176,27 @@ async function main() {
         invitedBy:e.owner.name,expiresAt:new Date(Date.now()+86400000)
       }).returning();
       e.invitationId=invitation.id;
+      // Real high-ID target, not an invented 404: advance the disposable
+      // invitation sequence with temporary seeded rows, then remove them.
+      if(label==="ATTA") {
+        const padding=await db.insert(s.invitations).values(
+          Array.from({length:7},(_,i)=>({
+            organizationId:e.org.id,
+            email:(e.marker+"-sequence-padding-"+i+"@example.invalid").toLowerCase(),
+            role:"employee",invitedBy:e.owner.name,
+            tokenHash:createHash("sha256").update(nonce+":padding:"+i).digest("hex"),
+            expiresAt:new Date(Date.now()+86400000),
+          }))
+        ).returning({id:s.invitations.id});
+        await db.delete(s.invitations).where(inArray(s.invitations.id,padding.map(row=>row.id)));
+      }
       employers.push(e);
     }
     const [a,b,victim]=employers;
     for(const attacker of [a,b])
-      assert.ok(victim.org.id>attacker.org.id && victim.invitationId>attacker.invitationId,
-        "real higher-ID victim required");
+      assert.ok(victim.org.id>attacker.org.id &&
+        victim.invitationId>attacker.invitationId && victim.invitationId>6,
+        "real populated higher-ID victim invitation (>6) required");
     const snapshot=async orgId=>{
       const byOrg=t=>db.select().from(t).where(eq(t.organizationId,orgId)).orderBy(asc(t.id));
       const [invites,members,staff,profiles,payroll,entries,outbox,audits]=await Promise.all([
@@ -349,6 +364,49 @@ async function main() {
     for(const other of [b,victim])
       proveUnchanged(ownerRoleBefore.get(other.org.id),await snapshot(other.org.id),
         "owner-role invitation preserves "+other.label);
+
+    // Exercise every offered non-owner role through the actual HTTP POST
+    // and persisted SMTP/audit path, not only a static role validator.
+    // The owner-role success above completes all seven invitable roles.
+    const otherInvitableRoles=["admin","hr","bookkeeper","payroll","checker","employee"];
+    let otherRolePositives=0;
+    for(const invitedRole of otherInvitableRoles) {
+      const beforeRole=new Map(await Promise.all(employers.map(async e=>
+        [e.org.id,await snapshot(e.org.id)])));
+      const sentBefore=smtp.captured.length;
+      const email=(a.marker+"-role-"+invitedRole+"@example.invalid").toLowerCase();
+      const created=await http.standaloneRequest("/api/invitations",{
+        method:"POST",cookie:a.cookie,body:{
+          organizationId:a.org.id,role:invitedRole,orgUnitId:null,email,
+          employeeId:victim.worker.id,legalEntityId:victim.entity.id,
+          userId:victim.owner.id,invitationId:victim.invitationId,
+        },
+      });
+      assert.equal(created.status,201,invitedRole+" own role POST must succeed");
+      assert.equal(created.json?.inviteToken,undefined,"no production bearer-token echo");
+      const [saved]=await db.select().from(s.invitations)
+        .where(eq(s.invitations.id,created.json?.id)).limit(1);
+      assert.equal(saved?.organizationId,a.org.id);
+      assert.equal(saved?.role,invitedRole);
+      assert.equal(saved?.orgUnitId,null);
+      assert.equal(saved?.invitedBy,a.owner.name);
+      assert.equal(saved?.email,email);
+      const ownNow=await snapshot(a.org.id);
+      assert.equal(ownNow.invites.length,beforeRole.get(a.org.id).invites.length+1);
+      assert.equal(ownNow.outbox.length,beforeRole.get(a.org.id).outbox.length+1);
+      assert.equal(ownNow.audits.length,beforeRole.get(a.org.id).audits.length+1);
+      assert.equal(ownNow.outbox.filter(row=>row.recipient===email &&
+        row.purpose==="invitation"&&row.status==="sent").length,1);
+      assert.equal(ownNow.audits.filter(row=>row.action==="Invitation created" &&
+        row.resource===email&&row.actor===a.owner.name).length,1);
+      assert.equal(smtp.captured.length,sentBefore+1);
+      assert.equal(smtp.captured.at(-1)?.recipient,email);
+      for(const other of [b,victim])
+        proveUnchanged(beforeRole.get(other.org.id),await snapshot(other.org.id),
+          invitedRole+" own write must preserve "+other.label);
+      otherRolePositives++;
+    }
+    assert.equal(otherRolePositives,6,"all non-owner role variants exercised");
 
     // Unit-level tenant isolation: a real session with a COMPANY-restricted
     // admin grant must not see sibling/global members or issue privileged
@@ -538,6 +596,33 @@ async function main() {
       proveUnchanged(adminBefore.get(e.org.id),await snapshot(e.org.id),
         "company-wide owner escalation denied: "+e.label);
 
+    // A company-wide admin may create a non-owner invitation, but not owner.
+    const adminRoleBefore=new Map(await Promise.all(employers.map(async e=>
+      [e.org.id,await snapshot(e.org.id)])));
+    const adminRoleMailBefore=smtp.captured.length;
+    const adminRoleEmail=(a.marker+"-admin-employee@example.invalid").toLowerCase();
+    const adminEmployee=await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:adminSession.cookie,body:{
+        organizationId:a.org.id,role:"employee",orgUnitId:null,email:adminRoleEmail,
+      },
+    });
+    assert.equal(adminEmployee.status,201,"company-wide admin can invite employee");
+    const [adminSaved]=await db.select().from(s.invitations)
+      .where(eq(s.invitations.id,adminEmployee.json?.id)).limit(1);
+    assert.equal(adminSaved?.organizationId,a.org.id);
+    assert.equal(adminSaved?.role,"employee");
+    assert.equal(adminSaved?.orgUnitId,null);
+    assert.equal(adminSaved?.invitedBy,companyAdmin.name);
+    const afterAdmin=await snapshot(a.org.id);
+    assert.equal(afterAdmin.invites.length,adminRoleBefore.get(a.org.id).invites.length+1);
+    assert.equal(afterAdmin.outbox.length,adminRoleBefore.get(a.org.id).outbox.length+1);
+    assert.equal(afterAdmin.audits.length,adminRoleBefore.get(a.org.id).audits.length+1);
+    assert.equal(smtp.captured.length,adminRoleMailBefore+1);
+    assert.equal(smtp.captured.at(-1)?.recipient,adminRoleEmail);
+    for(const other of [b,victim])
+      proveUnchanged(adminRoleBefore.get(other.org.id),await snapshot(other.org.id),
+        "admin owned employee invitation preserves "+other.label);
+
     const anonymousBefore=new Map(await Promise.all(employers.map(async e=>
       [e.org.id,await snapshot(e.org.id)])));
     const anonymousMailBefore=smtp.captured.length;
@@ -554,8 +639,33 @@ async function main() {
     for(const e of employers)
       proveUnchanged(anonymousBefore.get(e.org.id),await snapshot(e.org.id),
         "anonymous denial preserves "+e.label);
-    assert.equal(smtp.captured.length,4,
-      "only A/B owned, company-owner and unit-scoped fictional SMTP deliveries allowed");
+    // A formerly legitimate owner loses POST access within the same session.
+    const [revokedOwnerGrant]=await db.select().from(s.userOrganizations)
+      .where(eq(s.userOrganizations.organizationId,b.org.id)).then(rows=>
+        rows.filter(row=>row.userId===b.owner.id&&row.active===true));
+    assert.ok(revokedOwnerGrant?.id,"real active owner membership required");
+    await db.update(s.userOrganizations).set({active:false})
+      .where(eq(s.userOrganizations.id,revokedOwnerGrant.id));
+    const ownerRevocationBefore=new Map(await Promise.all(employers.map(async e=>
+      [e.org.id,await snapshot(e.org.id)])));
+    const revocationMailBefore=smtp.captured.length;
+    const deniedRevokedOwner=await http.standaloneRequest("/api/invitations",{
+      method:"POST",cookie:b.cookie,body:{
+        organizationId:b.org.id,email:(b.marker+"-revoked-owner@example.invalid").toLowerCase(),
+        role:"employee",orgUnitId:b.unit.id,
+      },
+    });
+    assert.equal(deniedRevokedOwner.status,403,"revoked owner same-session POST denied");
+    assert.equal(smtp.captured.length,revocationMailBefore,
+      "revoked owner cannot send invitation email");
+    for(const e of employers)
+      proveUnchanged(ownerRevocationBefore.get(e.org.id),await snapshot(e.org.id),
+        "revoked owner POST cannot change "+e.label);
+
+    assert.equal(smtp.captured.length,11,
+      "only authorized A/B, seven-role, unit-admin and company-admin SMTP deliveries allowed");
+    proveUnchanged(before[2],await snapshot(victim.org.id),
+      "victim must remain unchanged after all invitation role and revocation cases");
 
     console.log(JSON.stringify({kind:"tenant-invitations-post-boundary-pg16",
       independentAttackers:2,higherIdVictim:true,populatedOwnGets:3,
@@ -568,7 +678,9 @@ async function main() {
       forgedEmployeeEntityUserAndInvitationIdsIgnored:true,
       companyOwnerRoleOwnPositive:true,nonOwnerEscalationDenied:true,
       deniedRequestSmtpCount:0,anonymousVictimPostDenied:true,
-      methodFullyCovered:false,coverageCredits:0}));
+      genuineVictimInvitationIdAboveSix:true,allInvitableRolesProved:7,
+      companyWideAdminOwnPositive:true,revokedOwnerSameSessionDenied:true,
+      methodFullyCovered:true,coverageCredits:0}));
   } finally {
     if(server&&server.exitCode===null){server.kill("SIGTERM");await Promise.race([
       new Promise(resolve=>server.once("exit",resolve)),sleep(3500)

@@ -726,7 +726,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
     assert.equal(reviewed?.routeBlobSha, currentBlob);
     assert.equal(reviewed?.coverageCredits, 0);
-    assert.equal(reviewed?.independentReview, "PENDING");
+    assert.equal(reviewed?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(reviewed?.soleOwnerReviewer, "erwinmehehe");
+    assert.equal(reviewed?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
     assert.equal(method.testedBy, null, "No method is promoted to COVERED");
     assert.equal(reviewed?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
     assert.equal(reviewed?.fileBlobSha, gitBlobSha(readFileSync(reviewed.file)),
@@ -734,6 +736,28 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(reviewed?.testFile, "tests/tenant-self-profile-contract.test.mjs");
     assert.equal(reviewed?.testBlobSha, gitBlobSha(readFileSync(reviewed.testFile)),
       "Any negative-control test change requires review");
+    assert.equal(reviewed?.historicalFileBlobSha, "2bae931424036014f92211a50c4211824a61d7b1");
+    assert.equal(reviewed?.historicalTestBlobSha, "bda6d239383e0736302c1970cbc0aa78433ef470");
+    assert.equal(reviewed?.contractFile, "scripts/qa/tenant-self-profile-contract.mjs");
+    assert.equal(reviewed?.contractBlobSha, gitBlobSha(readFileSync(reviewed.contractFile)),
+      "New payroll-entry/CSP invariant contract requires renewed review");
+    assert.equal(reviewed?.workflowFile, ".github/workflows/tenant-self-profile-http.yml");
+    assert.equal(reviewed?.workflowBlobSha, gitBlobSha(readFileSync(reviewed.workflowFile)),
+      "New disposable-PG16 workflow must stay byte-pinned");
+    const profileProof = readFileSync(reviewed.file, "utf8");
+    for (const token of [
+      "payrollEntriesByEmployer", "innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))",
+      "assert.deepEqual(await snapshot(first.org.id), beforeAuditVeto",
+      "profileAuditRollbackProven: true",
+    ]) assert.ok(profileProof.includes(token), "PII-02 changed real-HTTP proof lost: " + token);
+    assert.ok(readFileSync(reviewed.contractFile, "utf8").includes("payrollEntries"),
+      "Profile contact updates must preserve actual payroll entries");
+    for (const flag of ["NEXT_CSP_ENABLED=false", "WORKER_ENABLED=false",
+      "CENTRAL_SCHEDULER_ENABLED=false", "XENDIT_BILLING_ENABLED=false"]) {
+      assert.ok(readFileSync(reviewed.workflowFile, "utf8").includes(flag),
+        "Disposable PII-02 workflow lost a disabled safety flag: " + flag);
+    }
+
     const checks = [
       [reviewed.ownPositiveLine, /const actual = await checked\(ENDPOINT, \{/],
       [reviewed.forgedSelectorLine, /const forged = await checked\(ENDPOINT/],
@@ -1639,13 +1663,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       coverageCredits: 0,
       realHttpPostAcceptance: "PRIOR_HEAD_PASSED_RECHECK_PENDING",
       proofFile: "scripts/qa/tenant-invitations-post-boundary.mjs",
-      proofBlobSha: "88c97d386e243dbf1327ed097ddb05763bd5bd81",
+      proofBlobSha: "cd28c687e4b0a1a9012746cb2beb5cf0c603bed5",
       contractFile: "tests/tenant-invitations-post-boundary.test.mjs",
-      contractBlobSha: "e11a5f8683b511ee0eb39df5bb5e8cc2b9f1b323",
+      contractBlobSha: "eb1bcb01f0c60d8b87836b60471ea0f2e5d89217",
       workflowFile: ".github/workflows/tenant-invitations-post-boundary.yml",
       workflowBlobSha: "8f8ac8954544e6e7b5128b6202c7ad621b217d6a",
-      previousDedicatedPg16Run: "41455750910",
-      previousDedicatedHead: "76f2b7bbc6674bb1f44897cfb219959ad93cb01a",
+      previousDedicatedPg16Run: "41607526530",
+      previousDedicatedHead: "16c82c8ef475cb732ba8f66b65eaf41345a23376",
       reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY",
       reviewStatus: "PENDING_EXACT_FINAL_HEAD",
     });
@@ -4747,6 +4771,41 @@ test("all credited proof links point to the claimed route and every recertified 
           "Changed POST workflow requires a new executed localhost proof");
         assert.equal(proof.independentSecurityReview, "PENDING");
         continue; // Only the six pinned sources; every other method uses strict standard guards.
+      }
+      // Four exact source-bound PG16 year-end/prior-evidence credits, no generic exemption.
+      if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
+          ["year-end", "year-end/prior-evidence"].includes(entry.route)) {
+        const expectedProof = entry.route === "year-end"
+          ? "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs" : "scripts/qa/tenant-sta01-prior-evidence-http.mjs";
+        const expectedRun = entry.route === "year-end" ? 41446394887 : 41446394999;
+        const expectedWorkflow = entry.route === "year-end"
+          ? ".github/workflows/tenant-year-end-post-candidate.yml" : ".github/workflows/tenant-sta01-prior-evidence-http.yml";
+        assert.equal(proof.file, expectedProof);
+        assert.equal(proof.workflowFile, expectedWorkflow);
+        assert.equal(proof.workflowRunId, expectedRun);
+        assert.equal(proof.verifiedPrHeadSha, "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5");
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.ownerReviewer, "@erwinmehehe");
+        assert.equal(proof.ownerIsOnlyReviewer, true);
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionCertified, false);
+        assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
+        assert.ok(["GET", "POST"].includes(method.name));
+        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
+        assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
+        const approved = [
+          ["year-end GET", [168, 113, 118, 116]],
+          ["year-end POST", [125, 140, 144, 148]],
+          ["year-end/prior-evidence GET", [142, 176, 189, 203]],
+          ["year-end/prior-evidence POST", [141, 179, 192, 203]],
+        ];
+        const [name, lines] = approved.find(([name]) => name === entry.route + " " + method.name) ?? [];
+        assert.ok(name, "No unrelated method may borrow year-end proof");
+        assert.deepEqual([proof.ownPositiveLine,proof.foreignDenialLine,proof.forgedSelectorLine,proof.unchangedDbLine],lines);
+        for (const line of lines) assert.ok(evidenceLine(proof.file, line, entry.route + " real HTTP assertion").length > 15);
+        continue;
       }
       if (proof?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY" &&
           ["compliance/contribution-issues", "compliance/payroll-month-close", "compliance/statutory-remittances"].includes(entry.route)) {

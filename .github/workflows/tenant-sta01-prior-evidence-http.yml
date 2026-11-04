@@ -63,7 +63,29 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Export reviewed fictional localhost-only environment
-        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED=false"
+            echo "WFM_LOYVERSE_POS_ENABLED=false"
+            echo "WFM_SQUARE_SANDBOX_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "WFM_LOYVERSE_ACCESS_TOKEN="
+            echo "WFM_SQUARE_SANDBOX_ACCESS_TOKEN="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
       - name: Static syntax, refusal and no-credit contracts
         run: |
           node --check scripts/qa/tenant-sta01-prior-evidence-contract.mjs
