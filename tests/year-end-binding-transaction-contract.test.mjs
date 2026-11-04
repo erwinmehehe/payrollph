@@ -74,9 +74,15 @@ test("concurrent year-end binding conflicts are 409 without disguising audit vet
 // scripts/qa/year-end-atomic-rollback-pg16.mjs: an approved or run-bound adjustment must never be deleted by a
 // later recompute, whatever optional flag or breakdown marker is present.
 const recomputeGuardIsUnconditional = (yearEndSource, routeSource) => {
-  const guard = 'if (existingAdjustments.some(row => row.status !== "computed" || row.payrollRunId !== null)) {\n    throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");';
+  const guard = 'if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) && !releasedByUnpayableRun(row))) {\n    throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");';
+  // The one exception is exactly: flag off, no marker, approved, linked to a run that can no longer be paid.
+  const exception = '!usePriorEvidence && !hasOptionalMarker(row) && row.status === "approved" && row.payrollRunId !== null &&\n    UNPAYABLE_RUN_STATUSES.has(linkedRunStatus.get(row.payrollRunId) ?? "")';
+  const statuses = 'new Set(["Failed", "Cancelled", "Voided", "Superseded"])';
   const unboundMapping = routeSource.indexOf('if (!boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED")');
   return yearEndSource.includes(guard)
+    && yearEndSource.includes(exception)
+    && yearEndSource.includes("UNPAYABLE_RUN_STATUSES = " + statuses)
+    && yearEndSource.includes("eq(payrollRuns.organizationId, organizationId), inArray(payrollRuns.id, linkedRunIds)")
     && !/row\.payrollRunId !== null\) &&\s*\(usePriorEvidence/.test(yearEndSource)
     && unboundMapping > 0
     && routeSource.includes('code: "YEAR_END_RECOMPUTE_BLOCKED"')
@@ -87,8 +93,21 @@ test("approved or run-bound year-end adjustments are refused unconditionally, wi
   assert.ok(recomputeGuardIsUnconditional(yearEnd, route));
   // The earlier guard only fired when a feature flag or breakdown marker was present.
   assert.equal(recomputeGuardIsUnconditional(yearEnd.replace(
-    'row.status !== "computed" || row.payrollRunId !== null)) {',
+    'row.status !== "computed" || row.payrollRunId !== null) && !releasedByUnpayableRun(row))) {',
     'row.status !== "computed" || row.payrollRunId !== null) && usePriorEvidence) {'), route), false);
+  // Widening the exception to a payable status, dropping the marker or flag condition, or dropping the
+  // same-employer filter on the linked run must all fail this contract.
+  for (const [from, to] of [
+    ['new Set(["Failed", "Cancelled", "Voided", "Superseded"])', 'new Set(["Failed", "Cancelled", "Voided", "Superseded", "Released"])'],
+    ['new Set(["Failed", "Cancelled", "Voided", "Superseded"])', 'new Set(["Failed", "Cancelled", "Voided", "Superseded", "Needs review"])'],
+    ["!usePriorEvidence && !hasOptionalMarker(row) && row.status", "!hasOptionalMarker(row) && row.status"],
+    ["!usePriorEvidence && !hasOptionalMarker(row) && row.status", "!usePriorEvidence && row.status"],
+    ['row.status === "approved" && row.payrollRunId !== null &&', 'row.payrollRunId !== null &&'],
+    ["eq(payrollRuns.organizationId, organizationId), inArray(payrollRuns.id, linkedRunIds)", "inArray(payrollRuns.id, linkedRunIds)"],
+  ]) {
+    assert.ok(yearEnd.includes(from), "mutation target missing: " + from);
+    assert.equal(recomputeGuardIsUnconditional(yearEnd.replace(from, to), route), false, "must reject: " + to);
+  }
   assert.equal(recomputeGuardIsUnconditional(yearEnd, route.replace(
     'if (!boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED")',
     'if (boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED")')), false);

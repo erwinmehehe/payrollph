@@ -314,7 +314,23 @@ export async function runYearEndAnnualization(
   // Approved or run-bound adjustments are immutable, whether the request is bound or not and whether or not an
   // optional feature flag or breakdown marker is present. Deleting one would silently drop the numbered year-end
   // tax line from a payroll run that was already queued against it.
-  if (existingAdjustments.some(row => row.status !== "computed" || row.payrollRunId !== null)) {
+  // The single exception: an unmarked approved row whose run can no longer be paid (failed, cancelled, voided or
+  // superseded) is released, so a replacement final cutoff can be annualized. A live run, a settled row, a row with
+  // a prior-evidence or rounding-policy marker, or a request made while the prior-evidence flag is on stays blocked.
+  const UNPAYABLE_RUN_STATUSES = new Set(["Failed", "Cancelled", "Voided", "Superseded"]);
+  const linkedRunIds = [...new Set(existingAdjustments.flatMap(row => (row.payrollRunId === null ? [] : [row.payrollRunId])))];
+  const linkedRuns = linkedRunIds.length
+    ? await tx.select({ id: payrollRuns.id, status: payrollRuns.status }).from(payrollRuns)
+      .where(and(eq(payrollRuns.organizationId, organizationId), inArray(payrollRuns.id, linkedRunIds)))
+    : [];
+  const linkedRunStatus = new Map(linkedRuns.map(run => [run.id, run.status]));
+  const hasOptionalMarker = (row: typeof existingAdjustments[number]) => row.breakdown !== null &&
+    typeof row.breakdown === "object" && !Array.isArray(row.breakdown) &&
+    ("priorEvidence" in row.breakdown || "thirteenthRoundingPolicy" in row.breakdown);
+  const releasedByUnpayableRun = (row: typeof existingAdjustments[number]) =>
+    !usePriorEvidence && !hasOptionalMarker(row) && row.status === "approved" && row.payrollRunId !== null &&
+    UNPAYABLE_RUN_STATUSES.has(linkedRunStatus.get(row.payrollRunId) ?? "");
+  if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) && !releasedByUnpayableRun(row))) {
     throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");
   }
   // A rollback of the intake feature must never erase previously approved prior credits.

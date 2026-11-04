@@ -266,3 +266,65 @@ test("an approved or run-bound adjustment is never deleted by a later recompute,
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+test("only an unmarked approved row whose run can no longer be paid is released for recompute", async () => {
+  const { org, prior } = await fixture();
+  const savedFlags = [process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED, process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED];
+  delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
+  delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+  try {
+    const bindTo = async (status: string) => {
+      const [run] = await db.insert(payrollRuns).values({
+        organizationId: org.id, periodLabel: "Fictional final cutoff " + status,
+        periodStart: "2026-12-16", periodEnd: "2026-12-31", payDate: "2026-12-31", status,
+      }).returning();
+      await db.update(yearEndAdjustments).set({
+        status: "approved", payrollRunId: run.id, approvedAt: new Date(), approvedBy: "Fictional finance", breakdown: {},
+      }).where(eq(yearEndAdjustments.id, prior.id));
+      return run;
+    };
+    // A run that can still be paid keeps its approved year-end line, whatever the status name.
+    for (const status of ["Draft", "Queued", "Processing", "Needs review", "Approved", "Released"]) {
+      await bindTo(status);
+      const held = await adjustmentRows(org.id);
+      await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker"),
+        /YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED/, status + " run must hold its adjustment");
+      assert.deepEqual(await adjustmentRows(org.id), held, status + ": byte-identical");
+    }
+    // A run that can never be paid does not hold it, so a replacement final cutoff can be annualized.
+    for (const status of ["Failed", "Cancelled", "Voided", "Superseded"]) {
+      await bindTo(status);
+      const result = await runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker");
+      assert.equal(result.employees, 1, status + " run releases its adjustment");
+      const fresh = await adjustmentRows(org.id);
+      assert.equal(fresh.length, 1);
+      assert.equal(fresh[0].status, "computed");
+      assert.equal(fresh[0].payrollRunId, null);
+      prior.id = fresh[0].id;
+    }
+    // A prior-evidence marker or a settled row is never released, even for an unpayable run.
+    await bindTo("Voided");
+    await db.update(yearEndAdjustments).set({ breakdown: { priorEvidence: { id: 1, revision: 1, digest: "x" } } })
+      .where(eq(yearEndAdjustments.id, prior.id));
+    await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker"), /RECOMPUTE_BLOCKED/);
+    await db.update(yearEndAdjustments).set({ breakdown: {}, status: "settled" }).where(eq(yearEndAdjustments.id, prior.id));
+    await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker"), /already been settled/);
+    // A run that belongs to another employer never releases this employer's row.
+    const other = await fixture();
+    try {
+      const [foreignVoided] = await db.insert(payrollRuns).values({
+        organizationId: other.org.id, periodLabel: "Fictional foreign voided cutoff",
+        periodStart: "2026-12-16", periodEnd: "2026-12-31", payDate: "2026-12-31", status: "Voided",
+      }).returning();
+      await db.update(yearEndAdjustments).set({ status: "approved", payrollRunId: foreignVoided.id, breakdown: {} })
+        .where(eq(yearEndAdjustments.id, prior.id));
+      await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker"), /YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED/);
+    } finally {
+      await db.delete(organizations).where(eq(organizations.id, other.org.id));
+    }
+  } finally {
+    if (savedFlags[0] === undefined) delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED; else process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = savedFlags[0];
+    if (savedFlags[1] === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED; else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = savedFlags[1];
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
