@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/tenant-invitations-post-boundary.yml'
       - 'scripts/qa/tenant-invitations-post-boundary.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'tests/tenant-invitations-post-boundary.test.mjs'
       - 'docs/qa/tenant-invitations-post-boundary.md'
       - 'src/app/api/invitations/**'

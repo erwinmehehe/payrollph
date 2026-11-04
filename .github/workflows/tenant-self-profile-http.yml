@@ -9,6 +9,7 @@ on:
       - 'scripts/qa/tenant-self-profile-contract.mjs'
       - 'scripts/qa/tenant-self-profile-http.mjs'
       - 'scripts/qa/tenant-self-profile-atomic-http.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'tests/tenant-self-profile-contract.test.mjs'
       - 'docs/qa/tenant-self-profile-http.md'
       - 'src/app/api/self/profile/route.ts'
