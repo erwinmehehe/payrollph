@@ -40,7 +40,12 @@ test("PG16 real-HTTPS transfer write fixture is the only proposed family and nev
   assert.match(proof, /const approved = status\(await call\(b, "PATCH"/);
   assert.match(proof, /const applied = status\(await call\(b, "PATCH"/);
   assert.match(proof, /for \(const attacker of \[attackerB, attackerC\]\)/);
-  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), victimBefore/);
+  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), newVictimBefore/);
+  assert.match(proof, /const cProposed = status\(await call\(attackerC, "POST"/);
+  assert.match(proof, /const cRejected = status\(await call\(cChecker, "PATCH"/);
+  assert.match(proof, /const cApproved = status\(await call\(cChecker, "PATCH"/);
+  assert.match(proof, /orderedVictim\.id > Math\.max\(6, ownId, nextId, due\.id, cOwnId, cOwnNextId\)/);
+  assert.match(proof, /const newVictimBefore = await snapshot\(2\)/);
   assert.match(proof, /methodCredits: 0, independentlyAccepted: false/);
   assert.match(workflow, /MULTI_ENTITY_TRANSFERS_ENABLED: "true"/);
   assert.match(workflow, /node scripts\/qa\/tenant-multi-entity-transfers-write-http\.mjs/);
@@ -50,6 +55,19 @@ test("PG16 real-HTTPS transfer write fixture is the only proposed family and nev
   assert.deepEqual(methods.map(m => [m.name, m.status]),
     [["GET", "COVERED"], ["POST", "GAP"], ["PATCH", "GAP"]],
     "First new run must pass and receive independent review before earning any credits");
+});
+
+test("second employer checker completes local login, not an unsatisfied TOTP challenge", () => {
+  // A 200 requiresTotp challenge is not an authenticated session cookie.
+  // Keep this disposable-only checker aligned with the original synthetic checker,
+  // while production route MFA and session-cookie guards remain unchanged.
+  const source = "'entity-c-checker@example.test','Fictional C independent checker','admin',password_hash,";
+  assert.ok(proof.includes(source + "false,true FROM users"),
+    "The fictional checker must not receive an MFA challenge without a seeded authenticator");
+  assert.ok(!proof.includes(source + "true,true FROM users"),
+    "Regression: uncompleted TOTP challenge must not substitute for a signed-in checker");
+  assert.ok(proof.includes("session?.secure && session.httpOnly"),
+    "The browser proof must still require a real Secure HttpOnly session");
 });
 
 test("POST and PATCH transfer failures never expose unexpected SQL diagnostics", () => {
@@ -82,7 +100,7 @@ test("POST and PATCH transfer failures never expose unexpected SQL diagnostics",
     "Explicit business conflict should remain available: " + message);
   assert.match(workflow, /MULTI_ENTITY_TRANSFERS_ENABLED: "true"/);
   assert.match(proof, /for \(const attacker of \[attackerB, attackerC\]\)/);
-  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), victimBefore/);
+  assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), newVictimBefore/);
   for (const marker of [
     "CREATE TRIGGER ci_transfer_post_error",
     "CREATE TRIGGER ci_transfer_patch_error",

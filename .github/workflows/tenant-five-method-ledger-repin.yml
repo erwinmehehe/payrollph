@@ -1,0 +1,69 @@
+name: Five-method tenant proof source pins and repin (SOLO_VERIFIED_DEV_RECOVERY)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-five-method-ledger-repin.yml'
+      - '.github/workflows/multi-entity-browser-qa.yml'
+      - '.github/workflows/tenant-invitations-post-boundary.yml'
+      - '.github/workflows/tenant-self-profile-http.yml'
+      - '.github/workflows/tenant-hcm-salary-correction-preview.yml'
+      - 'scripts/qa/tenant-multi-entity-transfers-write-http.mjs'
+      - 'scripts/qa/tenant-invitations-post-boundary.mjs'
+      - 'scripts/qa/tenant-self-profile-atomic-http.mjs'
+      - 'scripts/qa/tenant-hcm-salary-correction-preview-http.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'tests/tenant-isolation-coverage-inventory.test.mjs'
+      - 'tests/tenant-invitations-post-boundary.test.mjs'
+      - 'tests/tenant-multi-entity-transfers-write-candidate.test.mjs'
+      - 'docs/engineering/tenant-isolation-closure-plan.md'
+      - 'docs/engineering/tenant-isolation-coverage-inventory*.md'
+      - 'docs/qa/tenant-five-method-final-head-recovery-20261104.md'
+permissions:
+  contents: read
+concurrency:
+  group: tenant-five-method-repin
+  cancel-in-progress: true
+jobs:
+  source-repin-and-contracts:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_CSP_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      OPENAI_API_KEY: ''
+      FAIL_CLOSED_GUARD_BASE_REF: origin/main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Fetch authoritative main for line-exact repin
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      - name: Execute repin tool, fail if evidence still needs a commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-manifest-repin.mjs --base origin/main --write
+          git diff --exit-code -- scripts/qa/tenant-isolation-coverage-manifest.json docs/engineering/tenant-isolation-coverage-inventory.md
+          node scripts/qa/tenant-manifest-repin.mjs --base origin/main
+      - name: Syntax and strict source-guard contracts
+        run: |
+          node --check scripts/qa/tenant-multi-entity-transfers-write-http.mjs
+          node --check scripts/qa/tenant-self-profile-atomic-http.mjs
+          node --check scripts/qa/tenant-hcm-salary-correction-preview-http.mjs
+          node --check scripts/qa/tenant-invitations-post-boundary.mjs
+          node --test tests/tenant-multi-entity-transfers-write-candidate.test.mjs tests/tenant-self-profile-contract.test.mjs tests/tenant-hcm-salary-correction-preview-contract.test.mjs tests/tenant-invitations-post-boundary.test.mjs
+      - name: Recompute method totals and reject any stale source pin or security regression
+        run: node --test tests/tenant-isolation-coverage-inventory.test.mjs

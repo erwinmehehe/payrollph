@@ -118,7 +118,7 @@ test("actual same-method POST proof includes real forged victim selectors and no
   "smtp.captured.length,duplicateMailBefore",
   "const accounts=memberIds.length",
   "db.select().from(s.users).where(inArray(s.users.id,memberIds))",
-  "localSmtpDelivered:4",
+  "localSmtpDelivered:11",
  ])assert.ok(runner.includes(marker),"missing real SQL/no-mail proof: "+marker);
  const ownPost=runner.indexOf("const realPost=await call(owner,owner,\"POST\")");
  const forgedSelectors=runner.indexOf("employeeId:victim.worker.id");

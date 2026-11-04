@@ -671,7 +671,7 @@ async function main() {
       independentAttackers:2,higherIdVictim:true,populatedOwnGets:3,
       foreignGetDenials:2,foreignPostDenials:2,forgedUnitDenials,
       legitimatePostCreationProved:true,ownOutboxAndAuditVerified:true,
-      localSmtpDelivered:4,victimUnchanged:true,
+      localSmtpDelivered:11,victimUnchanged:true,
       unitAdminOwnGetScoped:true,unitAdminSameUnitEmployeePost:true,
       unitAdminPrivilegeDenials:8,siblingAndGlobalHidden:true,
       foreignEmployerUnitDenials:2,sameSessionRevocationDenied:true,
