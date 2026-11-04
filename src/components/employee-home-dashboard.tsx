@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
@@ -115,6 +116,26 @@ export function EmployeeHomeDashboard({
             <small className="text-xs text-slate-600">{t("Review your contact details")}</small>
           </button>
         </div>
+      </section>
+      <section className="clean-card mt-4" aria-labelledby="employee-home-help-guides">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="employee-home-help-guides" className="text-base font-semibold">{t("Need help with a task?")}</h2>
+          <p className="text-xs text-slate-600">{t("Public step-by-step guides. No personal data shared.")}</p>
+        </div>
+        <nav aria-label="Employee help guides" className="mt-3 grid gap-2 sm:grid-cols-3">
+          <Link href="/help#find-released-payslips"
+            className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            {t("Find a payslip")} <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+          <Link href="/help#request-leave"
+            className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            {t("Track a leave request")} <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+          <Link href="/help#review-attendance"
+            className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            {t("Check attendance")} <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        </nav>
       </section>
       <section className="clean-card clean-employee-next">
         <span className="clean-icon blue">
