@@ -13,6 +13,143 @@ import { requireDisposableXenditSubscriptionsWebhook } from "./tenant-webhook-xe
 const ENDPOINT = "/api/webhooks/xendit/subscriptions";
 const AMOUNT_CENTS = 150000;
 
+// A low or merely greater-than-attacker victim ID is insufficient for the
+// frozen closure-plan rule. Check real persisted IDs for every relevant scope.
+export function assertFictionalHighIdVictim(a, b, victim, fillers = []) {
+  const predecessors = [a, b, ...fillers];
+  for (const field of ["org", "entity", "unit", "owner", "worker"]) {
+    const id = victim[field]?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 6 &&
+      predecessors.every(e => Number.isSafeInteger(e[field]?.id) && id > e[field].id),
+    "Higher-ID real victim " + field + " must exceed six and every preceding employer");
+  }
+  for (const field of ["subscription", "checkout"]) {
+    const id = victim.billing?.[field]?.id;
+    assert.ok(Number.isSafeInteger(id) && id > 6 &&
+      predecessors.every(e => Number.isSafeInteger(e.billing?.[field]?.id) && id > e.billing[field].id),
+    "Higher-ID real victim " + field + " must exceed six and every preceding employer");
+  }
+}
+
+// Compare the complete seeded cohort, including the six filler employers.
+// An omitted employer snapshot is a proof failure, not a silent exemption.
+export function assertEmployerSnapshotIsolation(before, after, allowed = []) {
+  // Comparing only before/after keys misses a cohort accidentally omitted from BOTH.
+  const expected = ["ATTA", "ATTB", ...Array.from({ length: 6 }, (_, i) => "FILL" + i), "VICTIM"].sort();
+  assert.deepEqual(Object.keys(before).sort(), expected,
+    "All seeded employers must appear in the baseline snapshot");
+  assert.deepEqual(Object.keys(after).sort(), expected,
+    "All seeded employers must remain in the isolation snapshot");
+  for (const label of allowed) {
+    assert.ok(expected.includes(label), "Only seeded employers may be allowed to change");
+    // Even a legitimately billed employer may not have its workers or unrelated
+    // tenant data changed by a provider callback.
+    assert.deepEqual(Object.keys(after[label]).sort(), Object.keys(before[label]).sort(),
+      label + ": no extra or missing snapshot tables");
+    const permittedBillingTables = new Set([
+      "subscriptions", "invoices", "auditEvents", "checkouts", "billingState", "billingEvents",
+    ]);
+    for (const [table, rows] of Object.entries(before[label])) {
+      if (!permittedBillingTables.has(table)) {
+        assert.deepEqual(after[label][table], rows,
+          label + ": only billing tables may change on an authorized callback (" + table + ")");
+      }
+    }
+  }
+  for (const [label, previous] of Object.entries(before)) {
+    if (!allowed.includes(label)) {
+      assert.deepEqual(after[label], previous, label + ": other employer billing and audit rows unchanged");
+    }
+  }
+}
+
+/**
+ * Bound every owned billing mutation to its declared row/column delta.
+ * Merely labeling an employer "allowed" must not hide extra invoices, audit
+ * rows, overwritten historical rows or non-billing side effects.
+ */
+export function assertExpectedOwnedBillingDelta(before, after, label, expected) {
+  const old = before[label];
+  const current = after[label];
+  assert.ok(old && current, "Owned employer snapshot must exist");
+  assert.deepEqual(Object.keys(current).sort(), Object.keys(old).sort(),
+    label + ": snapshot schema cannot change");
+
+  const organizationId = old.subscriptions[0]?.organizationId;
+  assert.ok(Number.isSafeInteger(organizationId), "Real stored owner organization required");
+  const appendOnly = [
+    ["billingEvents", expected.billingEvents ?? 0],
+    ["invoices", expected.invoices ?? 0],
+    ["auditEvents", expected.auditEvents ?? 0],
+  ];
+  for (const [table, additional] of appendOnly) {
+    assert.ok(Number.isSafeInteger(additional) && additional >= 0, table + ": valid expected delta");
+    assert.equal(current[table].length, old[table].length + additional,
+      label + ": exactly " + additional + " new " + table + " rows");
+    assert.deepEqual(current[table].slice(0, old[table].length), old[table],
+      label + ": prior " + table + " rows cannot be rewritten");
+    for (const row of current[table].slice(old[table].length)) {
+      assert.equal(row.organizationId, organizationId,
+        label + ": new " + table + " receipt must belong to the verified owner");
+      if (table === "billingEvents") {
+        assert.equal(row.eventType, expected.eventType,
+          label + ": event receipt must match the expected provider event");
+      }
+      if (table === "auditEvents") {
+        assert.equal(row.action, expected.eventType,
+          label + ": audit action must match the accepted event");
+        assert.equal(row.actor, "Xendit verified webhook",
+          label + ": audit must identify the authenticated provider");
+      }
+      if (table === "invoices") {
+        assert.equal(row.status, "paid", label + ": new invoice must be paid");
+        assert.equal(row.currency, "PHP", label + ": new invoice must use PHP");
+      }
+    }
+  }
+
+  const updatedRows = (table, allowedColumns, added = 0) => {
+    const originalRows = old[table];
+    const newRows = current[table];
+    assert.equal(newRows.length, originalRows.length + added,
+      label + ": bounded " + table + " row count");
+    const permitted = new Set(allowedColumns);
+    for (let i = 0; i < originalRows.length; i++) {
+      assert.equal(newRows[i].id, originalRows[i].id,
+        label + ": stable " + table + " row identity");
+      for (const column of new Set([...Object.keys(originalRows[i]), ...Object.keys(newRows[i])])) {
+        if (!permitted.has(column)) {
+          assert.deepEqual(newRows[i][column], originalRows[i][column],
+            label + ": unexpected " + table + "." + column + " mutation");
+        }
+      }
+    }
+    for (const row of newRows.slice(originalRows.length)) {
+      assert.equal(row.organizationId, organizationId,
+        label + ": inserted " + table + " row cannot cross tenant");
+    }
+  };
+  updatedRows("subscriptions", expected.subscriptionColumns ?? []);
+  updatedRows("checkouts", expected.checkoutColumns ?? []);
+  updatedRows("billingState", expected.billingStateColumns ?? [], expected.billingStateAdded ?? 0);
+  assert.deepEqual(current.employees, old.employees,
+    label + ": an owned billing callback cannot change employees");
+}
+
+const paidColumns = Object.freeze([
+  "status", "plan", "seatLimit", "amountCents", "provider", "providerRef",
+  "periodStart", "periodEnd", "cancelledAt", "updatedAt",
+]);
+const paidDelta = (stateAdded = 1) => ({
+  eventType: "recurring.cycle.succeeded",
+  billingEvents: 1, invoices: 1, auditEvents: 1,
+  subscriptionColumns: paidColumns,
+  checkoutColumns: ["status", "updatedAt"],
+  billingStateAdded: stateAdded,
+  billingStateColumns: ["providerPlanId", "lastPaidCycleId", "paidThrough",
+    "recoveryUrl", "updatedAt"],
+});
+
 export async function proveXenditSubscriptionsWebhook() {
   // No application or database imports are permitted before this hard refusal.
   requireDisposableXenditSubscriptionsWebhook();
@@ -37,9 +174,14 @@ export async function proveXenditSubscriptionsWebhook() {
 
     const a = await helpers.seedEmployer("ATTA", nonce, helpers.standaloneMakeSession);
     const b = await helpers.seedEmployer("ATTB", nonce, helpers.standaloneMakeSession);
+    // Seed six genuine extra employers between the two attackers and the victim.
+    // Their billing, workers and audit are also snapshotted on every assertion.
+    const fillers = [];
+    for (let i = 0; i < 6; i++) {
+      fillers.push(await helpers.seedEmployer("FILL" + i, nonce, helpers.standaloneMakeSession));
+    }
     const victim = await helpers.seedEmployer("VICTIM", nonce, helpers.standaloneMakeSession);
-    const employers = [a, b, victim];
-    assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id, "victim employer must have higher real ID");
+    const employers = [a, b, ...fillers, victim];
 
     async function seedCheckout(employer) {
       const [subscription] = await db.insert(s.subscriptions).values({
@@ -55,6 +197,7 @@ export async function proveXenditSubscriptionsWebhook() {
       return { subscription, checkout, referenceId: checkout.referenceId, planId: checkout.providerPlanId };
     }
     for (const employer of employers) employer.billing = await seedCheckout(employer);
+    assertFictionalHighIdVictim(a, b, victim, fillers);
     // A's earlier, superseded checkout: its callbacks must never reactivate the newer plan.
     const [oldCheckout] = await db.insert(billing.saasBillingCheckouts).values({
       organizationId: a.org.id, subscriptionId: a.billing.subscription.id,
@@ -84,11 +227,7 @@ export async function proveXenditSubscriptionsWebhook() {
     ));
     async function unchangedExcept(before, ...allowed) {
       const after = await snapshots();
-      for (const e of employers) {
-        if (!allowed.includes(e.label)) {
-          assert.deepEqual(after[e.label], before[e.label], e.label + ": other employer billing and audit rows unchanged");
-        }
-      }
+      assertEmployerSnapshotIsolation(before, after, allowed);
       return after;
     }
 
@@ -142,6 +281,8 @@ export async function proveXenditSubscriptionsWebhook() {
       ownPaid: 0, ownPastDue: 0, duplicates: 0, concurrentDuplicates: 0, forgedSelectorsIgnored: 0,
       stalePlanIgnored: 0, amountCurrencyRefusals: 0, crossBoundRefusals: 0, authNegatives: 0,
       providerAuthorityVictimOnly: 0, auditAtomicRollbacks: 0, auditRetryRecovered: 0,
+      invalidIdentityRefusals: 0,
+      ignoredEvents: 0, forgedReplayIgnored: 0,
     };
 
     // Authentication failures cannot be used as tenant coverage credit.
@@ -153,6 +294,20 @@ export async function proveXenditSubscriptionsWebhook() {
     counts.authNegatives += 3;
     await unchangedExcept(before);
 
+    // A correct synthetic platform token must NOT make a missing plan or
+    // reference authoritative, and unknown event names must do no work.
+    before = await snapshots();
+    const missingIdentity = { error: "Subscription identity is missing." };
+    result(await send(eventBody(a, { referenceId: "" })), 422, missingIdentity,
+      "signed callback missing reference");
+    result(await send(eventBody(victim, { planId: "" })), 422, missingIdentity,
+      "signed callback missing provider plan");
+    counts.invalidIdentityRefusals += 2;
+    result(await send(eventBody(victim, { event: "unrecognized.subscription.event" })),
+      200, { received: true, ignored: true }, "signed unknown event ignored");
+    counts.ignoredEvents++;
+    await unchangedExcept(before);
+
     // Own, authenticated, real-row positive: the callback resolves A's checkout by reference + plan;
     // only A's billing event, state, subscription, checkout, invoice and audit rows change.
     before = await snapshots();
@@ -160,6 +315,7 @@ export async function proveXenditSubscriptionsWebhook() {
     const own = await send(ownEvent);
     result(own, 200, { received: true, handled: true, status: "paid" }, "A own paid cycle");
     let after = await unchangedExcept(before, "ATTA");
+    assertExpectedOwnedBillingDelta(before, after, "ATTA", paidDelta());
     assert.equal(after.ATTA.billingEvents.length, before.ATTA.billingEvents.length + 1);
     assert.equal(after.ATTA.invoices.length, before.ATTA.invoices.length + 1);
     assert.equal(after.ATTA.auditEvents.length, before.ATTA.auditEvents.length + 1);
@@ -186,12 +342,37 @@ export async function proveXenditSubscriptionsWebhook() {
     await unchangedExcept(before);
     counts.duplicates++;
 
+    // Changing both top-level and nested tenant selectors on a repeated valid
+    // event must neither create a second invoice nor mutate the higher-ID victim.
+    before = await snapshots();
+    const forgedReplay = {
+      ...ownEvent,
+      organizationId: victim.org.id,
+      subscriptionId: victim.billing.subscription.id,
+      data: {
+        ...ownEvent.data,
+        organization_id: victim.org.id,
+        organizationId: victim.org.id,
+        subscription_id: victim.billing.subscription.id,
+        subscriptionId: victim.billing.subscription.id,
+        legalEntityId: victim.entity.id,
+      },
+    };
+    result(await send(forgedReplay), 200,
+      { received: true, handled: false, duplicate: true }, "forged victim-selector replay");
+    await unchangedExcept(before);
+    counts.forgedReplayIgnored++;
+
     // A valid provider may report B's own subscription too; the shared token must not attach it elsewhere.
     before = await snapshots();
     result(await send(eventBody(b, { n: 1 })), 200, { received: true, handled: true, status: "paid" }, "B own paid cycle");
     after = await unchangedExcept(before, "ATTB");
+    assertExpectedOwnedBillingDelta(before, after, "ATTB", paidDelta());
     assert.equal(after.ATTB.invoices.length, before.ATTB.invoices.length + 1);
     assert.equal(after.ATTB.billingEvents.at(-1).organizationId, b.org.id);
+    assert.equal(after.ATTB.auditEvents.length, before.ATTB.auditEvents.length + 1,
+      "B's own successful callback requires its own audit receipt");
+    assert.equal(after.ATTB.auditEvents.at(-1).organizationId, b.org.id);
     counts.ownPaid++;
 
     // Forged selectors ignored: A's failed cycle wins even when top-level and nested organization,
@@ -204,6 +385,10 @@ export async function proveXenditSubscriptionsWebhook() {
     }));
     result(forged, 200, { received: true, handled: true, status: "past_due" }, "forged selectors ignored");
     after = await unchangedExcept(before, "ATTA");
+    assertExpectedOwnedBillingDelta(before, after, "ATTA", {
+      eventType: "recurring.cycle.failed", billingEvents: 1, auditEvents: 1,
+      subscriptionColumns: ["status", "updatedAt"],
+    });
     assert.equal(after.ATTA.subscriptions[0].status, "past_due");
     assert.equal(after.ATTA.billingEvents.at(-1).organizationId, a.org.id);
     assert.equal(after.ATTA.billingEvents.length, before.ATTA.billingEvents.length + 1);
@@ -218,6 +403,7 @@ export async function proveXenditSubscriptionsWebhook() {
     assert.deepEqual(raced.map(r => r.json?.duplicate ? "duplicate" : r.json?.handled ? "handled" : "error").sort(),
       ["duplicate", "handled"], "concurrent duplicates must not double-write");
     after = await unchangedExcept(before, "ATTB");
+    assertExpectedOwnedBillingDelta(before, after, "ATTB", paidDelta(0));
     assert.equal(after.ATTB.billingEvents.length, before.ATTB.billingEvents.length + 1);
     assert.equal(after.ATTB.invoices.length, before.ATTB.invoices.length + 1);
     assert.equal(after.ATTB.auditEvents.length, before.ATTB.auditEvents.length + 1);
@@ -230,6 +416,9 @@ export async function proveXenditSubscriptionsWebhook() {
     }));
     result(stale, 200, { received: true, handled: false, stale: true }, "stale plan ignored");
     after = await unchangedExcept(before, "ATTA");
+    assertExpectedOwnedBillingDelta(before, after, "ATTA", {
+      eventType: "recurring.plan.activated", billingEvents: 1,
+    });
     assert.deepEqual(after.ATTA.subscriptions, before.ATTA.subscriptions, "stale callback must not change the subscription");
     assert.deepEqual(after.ATTA.billingState, before.ATTA.billingState, "stale callback must not change billing state");
     assert.deepEqual(after.ATTA.invoices, before.ATTA.invoices);
@@ -250,6 +439,8 @@ export async function proveXenditSubscriptionsWebhook() {
       eventBody(victim, { planId: a.billing.planId, n: 3 }), // victim reference, A plan
       eventBody(b, { planId: victim.billing.planId, n: 3 }), // B reference, victim plan
       eventBody(a, { referenceId: victim.billing.referenceId, n: 3 }), // victim reference, A plan
+      eventBody(a, { planId: b.billing.planId, n: 3 }), // A reference, B plan
+      eventBody(b, { referenceId: a.billing.referenceId, n: 3 }), // A reference, B plan
     ]) {
       const refused = await send(payload);
       assert.equal(refused.status, 503, "cross-bound pair must be refused: " + refused.text.slice(0, 200));
@@ -275,10 +466,13 @@ export async function proveXenditSubscriptionsWebhook() {
     before = await snapshots();
     result(await send(eventBody(victim, { n: 1 })), 200, { received: true, handled: true, status: "paid" }, "victim own paid cycle");
     after = await unchangedExcept(before, "VICTIM");
+    assertExpectedOwnedBillingDelta(before, after, "VICTIM", paidDelta());
     assert.equal(after.VICTIM.invoices.length, before.VICTIM.invoices.length + 1);
     assert.equal(after.VICTIM.billingEvents.at(-1).organizationId, victim.org.id);
+    assert.equal(after.VICTIM.auditEvents.length, before.VICTIM.auditEvents.length + 1,
+      "A legitimate victim provider event must audit only that victim");
+    assert.equal(after.VICTIM.auditEvents.at(-1).organizationId, victim.org.id);
     counts.providerAuthorityVictimOnly++;
-
 
     // The audit insert must be part of the same transaction as the billing
     // write and event dedupe row. Inject a real PostgreSQL trigger failure on
@@ -312,6 +506,7 @@ export async function proveXenditSubscriptionsWebhook() {
       { received: true, handled: true, status: "paid" },
       "audit failure recovery must process the rolled-back callback");
     after = await unchangedExcept(before, "ATTA");
+    assertExpectedOwnedBillingDelta(before, after, "ATTA", paidDelta(0));
     assert.equal(after.ATTA.billingEvents.length, before.ATTA.billingEvents.length + 1,
       "retry records the formerly rolled-back provider event exactly once");
     assert.equal(after.ATTA.invoices.length, before.ATTA.invoices.length + 1,
