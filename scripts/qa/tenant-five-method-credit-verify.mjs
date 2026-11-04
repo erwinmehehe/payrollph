@@ -160,8 +160,30 @@ export function verifyFiveMethodCredits(
     assert.equal(m?.status, "GAP", "incomplete " + method + " transfer proof cannot be counted");
     assert.equal(m?.testedBy, null);
     assert.equal(m?.reviewedUncertified?.coverageCredits, 0);
-    assert.ok(m.reason.includes("41407277583"), "re-pin current-source passing #1711 evidence");
-    assert.match(m.reason, /two independently owned employers/);
+    // Merged #1762 superseded #1711's review-only transfer references.
+    // Neither source-identical proof changes the transfer GAP classification.
+    const review = m.reviewedUncertified;
+    assert.equal(review?.kind, "multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited");
+    assert.equal(review?.routeBlobSha, transfers.gitBlobSha);
+    assert.equal(review?.exactHeadPg16Http, "PENDING");
+    assert.equal(review?.productionCertified, false);
+    assert.equal(review?.reconciliationReview?.fullMethodCoverageCredits, 0);
+    for (const [fileField, shaField, file, sha] of [
+      ["proofFile", "proofBlobSha", "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
+        "f628eb48ac5bd0064c7da5915d8b51c990ab3a32"],
+      ["contractFile", "contractBlobSha", "tests/tenant-multi-entity-transfers-write-candidate.test.mjs",
+        "98015ffb48b1832c5f618405b1c9b230e99876bb"],
+      ["workflowFile", "workflowBlobSha", ".github/workflows/multi-entity-browser-qa.yml",
+        "ae71b132c1e495f58a0589a5fc44a956e85fc924"],
+    ]) {
+      assert.equal(review?.[fileField], file, method + " transfer proof path");
+      assert.equal(review?.[shaField], sha, method + " transfer proof SHA");
+      assert.equal(gitBlobSha(read(file)), sha,
+        method + " transfer proof source drift requires fresh PG16 evidence");
+    }
+    assert.match(m.reason, /PR #1762 adds a stricter source-pinned synthetic PG16 recovery candidate/);
+    assert.match(m.reason, /two independent own-employer successes/);
+    assert.match(m.reason, /higher-ID victim transfer/);
   }
   return { status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
     methodsHeld: 2, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap, pageActionGaps: 17,
