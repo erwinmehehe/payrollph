@@ -93,7 +93,7 @@ test("real disposable PG16 runner exercises unit-visible read, eight privilege d
   "smtp.captured.filter(mail=>mail.recipient===ownUnitEmail)",
   "await db.update(s.userOrganizations).set({active:false})",
   "revoked unit administrator cannot issue invites",
-  "methodFullyCovered:false,coverageCredits:0",
+  "methodFullyCovered:true,coverageCredits:0",
  ])assert.ok(runner.includes(proof),"missing unit-isolation proof: "+proof);
  const start=runner.indexOf("const unitDeniedCases=[");
  const positive=runner.indexOf("const unitPositive=await http.standaloneRequest(");
@@ -140,7 +140,7 @@ test("company owner positive vs non-owner escalation and anonymous victim denial
   'assert.equal(anonymous.status,401',
   "smtp.captured.length,adminMailBefore",
   "smtp.captured.length,anonymousMailBefore",
-  "smtp.captured.length,4",
+  "smtp.captured.length,11",
   "companyOwnerRoleOwnPositive:true",
   "nonOwnerEscalationDenied:true",
   "anonymousVictimPostDenied:true",
@@ -151,3 +151,18 @@ test("company owner positive vs non-owner escalation and anonymous victim denial
   "non-owner denial cannot be mistaken for legitimate owner-role success");
 });
 
+
+test("recovery proof executes every invitable role, real high-ID victim, company admin own positive and revoked owner",()=>{
+ const runner=readFileSync("scripts/qa/tenant-invitations-post-boundary.mjs","utf8");
+ const roleSource=readFileSync("src/lib/roles.ts","utf8");
+ const roles=[...roleSource.matchAll(/\{ id: "([^"]+)", label:/g)].map(match=>match[1]);
+ assert.deepEqual(roles,["owner","admin","hr","bookkeeper","payroll","checker","employee"],
+   "new role requires a new real-HTTP proof before credit");
+ assert.ok(runner.includes('const otherInvitableRoles=["admin","hr","bookkeeper","payroll","checker","employee"]'));
+ assert.ok(runner.includes('assert.equal(otherRolePositives,6'));
+ assert.ok(runner.includes('victim.invitationId>attacker.invitationId && victim.invitationId>6'));
+ assert.ok(runner.includes('assert.equal(created.status,201,invitedRole+" own role POST must succeed")'));
+ assert.ok(runner.includes('company-wide admin can invite employee'));
+ assert.ok(runner.includes('revoked owner same-session POST denied'));
+ assert.ok(runner.includes('methodFullyCovered:true,coverageCredits:0'));
+});

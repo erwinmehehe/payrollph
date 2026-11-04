@@ -155,20 +155,32 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
   assert.equal(profile?.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3",
     "new atomic handler may not borrow historical #1518 route evidence");
   checkFile(profileRoute, profile.gitBlobSha);
-  assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without independent acceptance");
+  assert.equal(profileMethod?.status, "GAP", "no self-profile method credit without final-head sole-owner acceptance");
   assert.equal(profileMethod?.testedBy, null, "old #1518 route proof must not certify merged #1524");
   const atomic = profileMethod.reviewedUncertified;
   assert.equal(atomic?.kind, "pii02-self-profile-atomic-source-review-only");
   assert.equal(atomic?.coverageCredits, 0);
-  assert.equal(atomic?.independentReview, "PENDING");
+  assert.equal(atomic?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(atomic?.soleOwnerReviewer, "erwinmehehe");
+  assert.equal(atomic?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
   assert.equal(atomic?.routeBlobSha, profile.gitBlobSha);
   assert.equal(atomic?.originalRouteBlobSha, "85b5bbf1aff9e1777fc523d067586f9870dc87a6");
   assert.equal(atomic?.file, "scripts/qa/tenant-self-profile-atomic-http.mjs");
-  assert.equal(atomic?.fileBlobSha, "2bae931424036014f92211a50c4211824a61d7b1");
+  assert.equal(atomic?.fileBlobSha, "9a42da956c03c643fbe744a626d796055c57e48d");
   checkFile(atomic.file, atomic.fileBlobSha);
   assert.equal(atomic?.testFile, "tests/tenant-self-profile-contract.test.mjs");
-  assert.equal(atomic?.testBlobSha, "bda6d239383e0736302c1970cbc0aa78433ef470");
+  assert.equal(atomic?.testBlobSha, "894554479e0069ce76a1737daa1852e0caeea077");
   checkFile(atomic.testFile, atomic.testBlobSha);
+  assert.equal(atomic.historicalFileBlobSha, "2bae931424036014f92211a50c4211824a61d7b1",
+    "old self-profile proof must remain historical, not credited");
+  assert.equal(atomic.historicalTestBlobSha, "bda6d239383e0736302c1970cbc0aa78433ef470");
+  assert.equal(atomic.contractFile, "scripts/qa/tenant-self-profile-contract.mjs");
+  assert.equal(atomic.contractBlobSha, "ff33b4626f1c052d3d2ded4fbfa2cbbcf9883658");
+  checkFile(atomic.contractFile, atomic.contractBlobSha);
+  assert.equal(atomic.workflowFile, ".github/workflows/tenant-self-profile-http.yml");
+  assert.equal(atomic.workflowBlobSha, "f87cf4434859281fad052d8baa920677c5dd37af");
+  checkFile(atomic.workflowFile, atomic.workflowBlobSha);
+
   assert.match(read("scripts/qa/tenant-self-profile-atomic-http.mjs"),
     /profileAuditRollbackProven: true/);
   assert.match(read(".github/workflows/tenant-self-profile-http.yml"), /image: postgres:16/);
@@ -182,7 +194,20 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     const method = manifest.allApiRouteFiles[path]?.methods.find(m => m.name === verb);
     if (path === "src/app/api/web-bundy/consent/route.ts" && method?.status === "COVERED") {
       verifyClockCredit("POST web-bundy/consent", method);
-      continue; // Independently executed consent lifecycle; cannot borrow this historical promotion.
+      continue; // Distinct consent lifecycle proof; cannot borrow this historical promotion.
+    }
+    if (path === "src/app/api/workforce/demand-observations/issued/route.ts") {
+      assert.equal(method?.status, "COVERED",
+        "New exact-head owner-only PG16 POST proof must not be erased by historical GET overlay checks");
+      assert.equal(method?.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+      assert.equal(method?.testedBy?.workflowRunId, 41444835667);
+      assert.equal(method?.testedBy?.ownerReviewer, "erwinmehehe");
+      assert.equal(method?.testedBy?.ownerIsOnlyReviewer, true);
+      assert.equal(method?.testedBy?.routeBlobSha,
+        manifest.allApiRouteFiles[path].gitBlobSha);
+      assert.equal(method?.testedBy?.proofBlobSha,
+        gitBlob(read(method.testedBy.file)));
+      continue;
     }
     assert.equal(method?.status, "GAP", path + " " + verb + ": incomplete proof");
     assert.equal(method?.testedBy, null, path + " " + verb + ": borrowed method evidence");

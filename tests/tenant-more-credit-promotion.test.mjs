@@ -41,7 +41,15 @@ test("tampered source, forged receipt, fourth credit or profile acceptance all f
   });
   tamper(modified => {
     modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
-      .find(m => m.name === "PATCH").reviewedUncertified.independentReview = "APPROVED";
+      .find(m => m.name === "PATCH").reviewedUncertified.reviewStatus = "APPROVED";
+  });
+  tamper(modified => {
+    modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
+      .find(m => m.name === "PATCH").reviewedUncertified.reviewPolicy = "INDEPENDENT_REVIEW";
+  });
+  tamper(modified => {
+    modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
+      .find(m => m.name === "PATCH").reviewedUncertified.soleOwnerReviewer = "other-user";
   });
   tamper(modified => {
     modified.allApiRouteFiles["src/app/api/self/profile/route.ts"].methods
