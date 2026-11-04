@@ -109,6 +109,14 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
   };
 }
 
+type YearEndTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type BoundYearEndSummary = {
+  refunds: number;
+  collections: number;
+  totalRefund: number;
+  totalCollect: number;
+};
+
 /**
  * Aggregates every released payroll entry for the tax year and runs the
  * December annualization for each employee. Idempotent: re-running replaces
@@ -122,8 +130,19 @@ export async function runYearEndAnnualization(
     includePayrollRunId?: number;
     bindToPayrollRunId?: number;
     approvedBy?: string;
+    onBoundToPayrollRun?: (tx: YearEndTransaction, summary: BoundYearEndSummary) => Promise<void>;
   } = {},
 ) {
+  // A payroll binding must never persist approved/settled adjustments unless
+  // the same transaction also completes the matching queue and audit writes.
+  if (options.bindToPayrollRunId != null &&
+      (options.includePayrollRunId !== options.bindToPayrollRunId || !options.onBoundToPayrollRun)) {
+    throw new Error("YEAR_END_BINDING_REQUIRES_MATCHED_RUN_AND_ATOMIC_CALLBACK");
+  }
+  if (options.onBoundToPayrollRun && options.bindToPayrollRunId == null) {
+    throw new Error("YEAR_END_UNBOUND_CALLBACK_NOT_ALLOWED");
+  }
+
   await ensureMigrationSchema();
   const usePriorEvidence = priorEvidenceEnabled();
   if (usePriorEvidence && criticalReleaseFlagEnabled("multiEntity")) throw new Error("PRIOR_MULTI_ENTITY_DEFERRED");
@@ -160,6 +179,11 @@ export async function runYearEndAnnualization(
     }
     if (candidate.status !== "Needs review") {
       throw new Error("Apply year-end tax only to a freshly calculated payroll run in Needs review status.");
+    }
+    // Recheck the December cutoff inside the serializable snapshot, not only
+    // in the HTTP preflight where the payroll run could have changed.
+    if (options.bindToPayrollRunId != null && !String(candidate.periodEnd).endsWith("-12-31")) {
+      throw new Error("YEAR_END_BINDING_REQUIRES_DECEMBER_31_CUTOFF");
     }
     includedRun = candidate;
   }
@@ -287,9 +311,26 @@ export async function runYearEndAnnualization(
       `Year-end tax adjustments for ${taxYear} have already been settled in payroll and cannot be recomputed in place. Use a separately audited correction instead.`,
     );
   }
-  // Keep approved/bound adjustments immutable even when they are not settled.
-  if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) &&
-    (usePriorEvidence || (row.breakdown !== null && typeof row.breakdown === "object" && ("priorEvidence" in row.breakdown || "thirteenthRoundingPolicy" in row.breakdown))))) {
+  // Approved or run-bound adjustments are immutable, whether the request is bound or not and whether or not an
+  // optional feature flag or breakdown marker is present. Deleting one would silently drop the numbered year-end
+  // tax line from a payroll run that was already queued against it.
+  // The single exception: an unmarked approved row whose run can no longer be paid (failed, cancelled, voided or
+  // superseded) is released, so a replacement final cutoff can be annualized. A live run, a settled row, a row with
+  // a prior-evidence or rounding-policy marker, or a request made while the prior-evidence flag is on stays blocked.
+  const UNPAYABLE_RUN_STATUSES = new Set(["Failed", "Cancelled", "Voided", "Superseded"]);
+  const linkedRunIds = [...new Set(existingAdjustments.flatMap(row => (row.payrollRunId === null ? [] : [row.payrollRunId])))];
+  const linkedRuns = linkedRunIds.length
+    ? await tx.select({ id: payrollRuns.id, status: payrollRuns.status }).from(payrollRuns)
+      .where(and(eq(payrollRuns.organizationId, organizationId), inArray(payrollRuns.id, linkedRunIds)))
+    : [];
+  const linkedRunStatus = new Map(linkedRuns.map(run => [run.id, run.status]));
+  const hasOptionalMarker = (row: typeof existingAdjustments[number]) => row.breakdown !== null &&
+    typeof row.breakdown === "object" && !Array.isArray(row.breakdown) &&
+    ("priorEvidence" in row.breakdown || "thirteenthRoundingPolicy" in row.breakdown);
+  const releasedByUnpayableRun = (row: typeof existingAdjustments[number]) =>
+    !usePriorEvidence && !hasOptionalMarker(row) && row.status === "approved" && row.payrollRunId !== null &&
+    UNPAYABLE_RUN_STATUSES.has(linkedRunStatus.get(row.payrollRunId) ?? "");
+  if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) && !releasedByUnpayableRun(row))) {
     throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");
   }
   // A rollback of the intake feature must never erase previously approved prior credits.
@@ -460,7 +501,7 @@ export async function runYearEndAnnualization(
     },
   });
 
-  return {
+  const summary = {
     taxYear,
     runsIncluded: runIds.length,
     importedHistoryRows: importedHistory.length,
@@ -473,5 +514,12 @@ export async function runYearEndAnnualization(
     includedPayrollRunId: options.includePayrollRunId ?? null,
     boundPayrollRunId: options.bindToPayrollRunId ?? null,
   };
+
+  // A bound final-cutoff job and its audit must commit under this same
+  // serializable transaction; any queue or audit veto rolls back adjustments.
+  if (options.bindToPayrollRunId != null && options.onBoundToPayrollRun) {
+    await options.onBoundToPayrollRun(tx, summary);
+  }
+  return summary;
   }, { isolationLevel: "serializable" });
 }

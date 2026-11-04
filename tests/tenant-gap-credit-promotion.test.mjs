@@ -213,7 +213,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH approvals/[id]",
     "PATCH performance/follow-through-governance",
     "PATCH careers/admin",
-    "GET year-end", "GET workforce/demand-staffing/policies",
+    "GET year-end", "POST year-end", "GET workforce/demand-staffing/policies",
     "PATCH self/profile",
     "POST invitations", "PATCH compliance/filing-validations/[id]",
   ];
@@ -222,28 +222,22 @@ test("already credited and partial-action methods are not double-counted", () =>
       assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
       continue;
     }
-    if (key === "GET year-end") {
-      // This PR proposes one separately sourced, exact-head fictional PG16 proof
-      // for the year-end GET JSON and export modes. Do not borrow an unrelated
-      // historical sweep or treat the sole owner as independent review.
+    if (key === "GET year-end" || key === "POST year-end") {
+      // The #1730 receipts belong to the previous route blob. Both methods
+      // have zero current coverage credit after the atomic-binding rewrite.
+      // They cannot silently inherit the old PG16 source proof.
       const method = methods.get(key);
-      const receipt = method?.testedBy;
-      assert.equal(method?.status, "COVERED", key);
-      assert.equal(receipt?.prNumber, 1730);
-      assert.equal(receipt?.verifiedPrHeadSha, "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5");
-      assert.equal(receipt?.workflowRunId, 41446394887);
-      assert.equal(receipt?.file, "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs");
-      assert.equal(receipt?.proofBlobSha, "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19");
-      assert.equal(receipt?.workflowBlobSha, "9e6ca6431b168e05afecc5e40a42b1973ad1f675");
-      assert.equal(receipt?.routeBlobSha,
-        manifest.allApiRouteFiles["src/app/api/year-end/route.ts"].gitBlobSha);
-      assert.deepEqual(receipt?.methodActions,
-        ["json", "preflight", "2316", "2316-print", "alphalist"]);
-      assert.equal(receipt?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
-      assert.equal(receipt?.ownerIsOnlyReviewer, true);
-      assert.equal(receipt?.independentlyAccepted, false);
-      assert.equal(receipt?.productionCertified, false);
-      assert.equal(receipt?.productionTested, false);
+      const review = method?.reviewedUncertified;
+      assert.equal(method?.status, "GAP", key);
+      assert.equal(method?.testedBy, null, key + ": no accepted source-current method proof");
+      assert.equal(review?.kind, "year-end-binding-atomic-source-only-zero-credit", key);
+      assert.equal(review?.credits, 0, key);
+      assert.equal(review?.routeBlobSha,
+        manifest.allApiRouteFiles["src/app/api/year-end/route.ts"].gitBlobSha,
+        key + ": source hash must match the modified route");
+      assert.equal(review?.actualPg16Http, "PENDING", key);
+      assert.equal(review?.independentSecurityReview, "PENDING", key);
+      assert.equal(review?.productionCertified, false, key);
       continue;
     }
     if (key === "PATCH performance/follow-through-governance") {
