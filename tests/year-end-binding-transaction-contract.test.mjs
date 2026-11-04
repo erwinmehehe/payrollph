@@ -69,3 +69,32 @@ test("concurrent year-end binding conflicts are 409 without disguising audit vet
   assert.match(route, /throw error;/,
     "unrecognized SQL failures must remain failures instead of false success");
 });
+
+// Source-level companion to the PG16 regression in tests/year-end-atomicity.test.ts and the real-HTTP case in
+// scripts/qa/year-end-atomic-rollback-pg16.mjs: an approved or run-bound adjustment must never be deleted by a
+// later recompute, whatever optional flag or breakdown marker is present.
+const recomputeGuardIsUnconditional = (yearEndSource, routeSource) => {
+  const guard = 'if (existingAdjustments.some(row => row.status !== "computed" || row.payrollRunId !== null)) {\n    throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");';
+  const unboundMapping = routeSource.indexOf('if (!boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED")');
+  return yearEndSource.includes(guard)
+    && !/row\.payrollRunId !== null\) &&\s*\(usePriorEvidence/.test(yearEndSource)
+    && unboundMapping > 0
+    && routeSource.includes('code: "YEAR_END_RECOMPUTE_BLOCKED"')
+    && unboundMapping < routeSource.indexOf("if (boundRun && (databaseConflict || changedRun))");
+};
+
+test("approved or run-bound year-end adjustments are refused unconditionally, with a stable unbound 409", () => {
+  assert.ok(recomputeGuardIsUnconditional(yearEnd, route));
+  // The earlier guard only fired when a feature flag or breakdown marker was present.
+  assert.equal(recomputeGuardIsUnconditional(yearEnd.replace(
+    'row.status !== "computed" || row.payrollRunId !== null)) {',
+    'row.status !== "computed" || row.payrollRunId !== null) && usePriorEvidence) {'), route), false);
+  assert.equal(recomputeGuardIsUnconditional(yearEnd, route.replace(
+    'if (!boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED")',
+    'if (boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED")')), false);
+  assert.equal(recomputeGuardIsUnconditional(yearEnd, route.replace('code: "YEAR_END_RECOMPUTE_BLOCKED"', 'code: "OTHER"')), false);
+  // The settled and prior-evidence rollback guards are preserved.
+  assert.match(yearEnd, /have already been settled in payroll and cannot be recomputed in place/);
+  assert.match(yearEnd, /PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED/);
+  assert.match(route, /have already been settled in payroll/);
+});

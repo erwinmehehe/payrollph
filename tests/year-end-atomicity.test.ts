@@ -210,3 +210,59 @@ test("concurrent annualizations cannot interleave deletions or leave duplicate f
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+test("an approved or run-bound adjustment is never deleted by a later recompute, with every optional flag off", async () => {
+  const { org, prior } = await fixture();
+  const savedFlags = [process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED, process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED];
+  delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
+  delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED;
+  try {
+    const [finalRun] = await db.insert(payrollRuns).values({
+      organizationId: org.id, periodLabel: "Fictional year-end final cutoff",
+      periodStart: "2026-12-16", periodEnd: "2026-12-31", payDate: "2026-12-31", status: "Needs review",
+    }).returning();
+    // The state a legitimate binding leaves: nonzero, approved, linked to the final run, and no
+    // priorEvidence or thirteenthRoundingPolicy marker in its breakdown.
+    await db.update(yearEndAdjustments).set({
+      status: "approved", payrollRunId: finalRun.id, approvedAt: new Date(), approvedBy: "Fictional finance",
+    }).where(eq(yearEndAdjustments.id, prior.id));
+    const original = await adjustmentRows(org.id);
+    assert.equal(original.length, 1);
+    const markers = Object.keys((original[0].breakdown ?? {}) as Record<string, unknown>);
+    assert.ok(!markers.includes("priorEvidence") && !markers.includes("thirteenthRoundingPolicy"),
+      "fixture must not carry any optional marker");
+    const auditBefore = (await countAudit(org.id)).length;
+    const runBefore = (await db.select().from(payrollRuns).where(eq(payrollRuns.id, finalRun.id)))[0];
+
+    // Unbound recompute: the case the earlier guard let through.
+    await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker"),
+      /YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED/);
+    assert.deepEqual(await adjustmentRows(org.id), original, "the approved adjustment must be byte-identical");
+    assert.equal((await countAudit(org.id)).length, auditBefore, "a refused recompute leaves no audit receipt");
+    assert.deepEqual((await db.select().from(payrollRuns).where(eq(payrollRuns.id, finalRun.id)))[0], runBefore);
+
+    // A second bound request is refused the same way.
+    await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional finance", {
+      includePayrollRunId: finalRun.id, bindToPayrollRunId: finalRun.id, onBoundToPayrollRun: async () => {},
+    }), /YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED/);
+    assert.deepEqual(await adjustmentRows(org.id), original);
+
+    // Either half of the immutable state alone is enough to refuse.
+    for (const patch of [{ status: "computed", payrollRunId: finalRun.id }, { status: "approved", payrollRunId: null }] as const) {
+      await db.update(yearEndAdjustments).set(patch).where(eq(yearEndAdjustments.id, prior.id));
+      const held = await adjustmentRows(org.id);
+      await assert.rejects(runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker"),
+        /YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED/);
+      assert.deepEqual(await adjustmentRows(org.id), held);
+    }
+
+    // A plain computed row with no run link can still be recomputed.
+    await db.update(yearEndAdjustments).set({ status: "computed", payrollRunId: null, approvedAt: null, approvedBy: null })
+      .where(eq(yearEndAdjustments.id, prior.id));
+    assert.equal((await runYearEndAnnualization(org.id, YEAR, "Fictional payroll maker")).employees, 1);
+  } finally {
+    if (savedFlags[0] === undefined) delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED; else process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = savedFlags[0];
+    if (savedFlags[1] === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED; else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = savedFlags[1];
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});

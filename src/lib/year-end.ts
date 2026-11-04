@@ -311,9 +311,10 @@ export async function runYearEndAnnualization(
       `Year-end tax adjustments for ${taxYear} have already been settled in payroll and cannot be recomputed in place. Use a separately audited correction instead.`,
     );
   }
-  // Keep approved/bound adjustments immutable even when they are not settled.
-  if (existingAdjustments.some(row => (row.status !== "computed" || row.payrollRunId !== null) &&
-    (usePriorEvidence || (row.breakdown !== null && typeof row.breakdown === "object" && ("priorEvidence" in row.breakdown || "thirteenthRoundingPolicy" in row.breakdown))))) {
+  // Approved or run-bound adjustments are immutable, whether the request is bound or not and whether or not an
+  // optional feature flag or breakdown marker is present. Deleting one would silently drop the numbered year-end
+  // tax line from a payroll run that was already queued against it.
+  if (existingAdjustments.some(row => row.status !== "computed" || row.payrollRunId !== null)) {
     throw new Error("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED");
   }
   // A rollback of the intake feature must never erase previously approved prior credits.

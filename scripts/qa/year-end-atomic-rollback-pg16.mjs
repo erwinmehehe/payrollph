@@ -189,6 +189,70 @@ async function proveEmployer(e, fixture, victim, victimFixture) {
   assert.deepEqual(await snapshot(e.org.id), after, "duplicate submission cannot duplicate jobs or adjustment");
 }
 
+// A real NONZERO approved adjustment: tax withheld far above tax due produces a refund. The settled/zero case used
+// above never exercised the approved-row guard.
+async function seedNonzeroYearEnd(e) {
+  const fixture = await seedYearEnd(e);
+  await db.update(payrollEntries).set({
+    lineItems: [
+      { code: "BASIC", label: "Fictional earned salary", amount: "20000.00" },
+      { code: "WHT", label: "Fictional tax withheld", amount: "-5000.00" },
+    ],
+  }).where(eq(payrollEntries.payrollRunId, fixture.released.id));
+  return fixture;
+}
+
+async function requestUnbound(e, orgId = e.org.id) {
+  return standaloneRequest("/api/year-end", {
+    method: "POST", cookie: e.cookie, body: { organizationId: orgId, taxYear: 2026 },
+  });
+}
+
+async function proveApprovedBindingImmutable(e, victim) {
+  const fixture = await seedNonzeroYearEnd(e);
+  const victimBefore = await snapshot(victim.org.id);
+  const bound = standaloneExpectStatus(await requestBind(e, fixture.final.id), 200, "bind a nonzero adjustment");
+  assert.equal(bound.json?.employees, 1);
+  const afterBind = await snapshot(e.org.id);
+  const approved = afterBind.adjustments.filter((row) => row.employeeId === e.worker.id && row.taxYear === 2026);
+  assert.equal(approved.length, 1);
+  assert.equal(approved[0].status, "approved", "a nonzero refund must be approved, not settled");
+  assert.ok(Math.abs(Number(approved[0].adjustment)) > 0.004, "the adjustment must be nonzero");
+  assert.equal(approved[0].payrollRunId, fixture.final.id);
+  assert.ok(!("priorEvidence" in approved[0].breakdown) && !("thirteenthRoundingPolicy" in approved[0].breakdown),
+    "this is the unmarked state the earlier guard let through");
+
+  async function refusedUnbound(label) {
+    const before = await snapshot(e.org.id);
+    const refused = await requestUnbound(e);
+    assert.equal(refused.status, 409, label + ": unbound recompute must be a safe 409, got " + refused.status + " " + refused.text.slice(0, 150));
+    assert.equal(refused.json?.code, "YEAR_END_RECOMPUTE_BLOCKED", label);
+    assert.ok(!refused.text.includes(victim.marker) && !refused.text.includes("QA_") && !/\bat \S+\(/.test(refused.text),
+      label + ": the refusal must not leak victim data or a stack");
+    assert.deepEqual(await snapshot(e.org.id), before,
+      label + ": adjustment, run, queue, entries and audit must be byte-identical");
+    assert.deepEqual(await snapshot(victim.org.id), victimBefore, label + ": the foreign employer must stay byte-identical");
+  }
+
+  // 1. Queued, worker disabled: the exact window in which the worker later reads approved rows.
+  await refusedUnbound("after binding, before the worker");
+  // 2. After the worker calculated the run (simulated by returning it to review with its register intact).
+  await db.update(payrollRuns).set({ status: "Needs review" }).where(eq(payrollRuns.id, fixture.final.id));
+  await refusedUnbound("after worker calculation");
+  // 3. A settled row in the same employer/year keeps its own refusal, now also a stable 409.
+  await db.update(yearEndAdjustments).set({ status: "settled" }).where(eq(yearEndAdjustments.id, approved[0].id));
+  await refusedUnbound("after settlement");
+  // 4. A different employer cannot be recomputed through this one.
+  const crossBefore = await snapshot(victim.org.id);
+  standaloneExpectStatus(await requestUnbound(e, victim.org.id), 403, "unbound request naming another employer");
+  assert.deepEqual(await snapshot(victim.org.id), crossBefore, "foreign unbound request must leave the victim unchanged");
+  // 5. Bound re-submission keeps its own conflict response and changes nothing.
+  const rebindBefore = await snapshot(e.org.id);
+  const rebound = await requestBind(e, fixture.final.id);
+  assert.ok([409].includes(rebound.status), "bound re-submission must be refused, got " + rebound.status);
+  assert.deepEqual(await snapshot(e.org.id), rebindBefore, "refused re-binding must be byte-identical");
+}
+
 async function proveConcurrentBinding(e) {
   const fixture = await seedYearEnd(e);
   const before = await snapshot(e.org.id);
@@ -264,6 +328,9 @@ async function main() {
   await proveConcurrentBinding(concurrent);
   assert.deepEqual(await snapshot(victim.org.id), victimBeforeConcurrent,
     "concurrent own-employer settlement may not touch unrelated victim financial state");
+  const bypass = await seedEmployer("BYPASS", nonce, standaloneMakeSession);
+  employers.push(bypass);
+  await proveApprovedBindingImmutable(bypass, victim);
   await db.delete(sessions).where(inArray(sessions.userId, employers.map((e) => e.owner.id)));
   console.log(JSON.stringify({
     kind: "year-end-binding-pg16-atomic-rollback",
@@ -271,6 +338,7 @@ async function main() {
     injectedVetoes: ["final-binding-audit", "queue-job-insert"],
     completeSqlRollback: true, exactAuditCount: true, exactQueuedJobCount: true,
     concurrentSingleWinner: true, concurrentLoserConflict409: true,
+    nonzeroApprovedAdjustmentImmutable: true, unboundRecompute409Variants: ["queued", "after-worker", "settled"],
     standaloneReleasedAndCertifiedMonthVetoes: true,
     noProvidersOrMoney: true, securityReviewPending: true, methodCredits: 0,
   }));

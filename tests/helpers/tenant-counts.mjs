@@ -38,7 +38,7 @@ export function tallyTenantManifest(manifest) {
  */
 function reviewedYearEndSourceSupersession(beforeManifest, liveManifest) {
   const file = "src/app/api/year-end/route.ts";
-  const oldSha = "7572c6111cf40d398b3cc8c1f940efd0a9b8d362", newSha = "ced0d11895beed27c243d8bbb9dc8945ba40707e";
+  const oldSha = "7572c6111cf40d398b3cc8c1f940efd0a9b8d362", newSha = "e4741d98c23e068f4ecd7032e172ce60b95852cf";
   const before = beforeManifest.allApiRouteFiles?.[file];
   const after = liveManifest.allApiRouteFiles?.[file];
   const none = new Set();
@@ -47,10 +47,10 @@ function reviewedYearEndSourceSupersession(beforeManifest, liveManifest) {
   const expected = {
     "kind": "year-end-binding-atomic-source-only-zero-credit",
     "priorRouteBlobSha": "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-    "routeBlobSha": "ced0d11895beed27c243d8bbb9dc8945ba40707e",
+    "routeBlobSha": "e4741d98c23e068f4ecd7032e172ce60b95852cf",
     "contractFile": "tests/year-end-binding-transaction-contract.test.mjs",
-    "contractBlobSha": "5e9c4b9cb1974577345be3031281202ffbda2040",
-    "annualizationBlobSha": "5f669e7a727ba031a279de55de4a6537a1680d28",
+    "contractBlobSha": "15adc60ac6cdfa6d286ad4f4c88630b8bc2aa40f",
+    "annualizationBlobSha": "d0c372cde95721ec37a8e0693ac2d2f883e12e13",
     "queueBlobSha": "961cfb5535063a9683b04dbd5260c2a9730ffd66",
     "credits": 0,
     "actualPg16Http": "PENDING",

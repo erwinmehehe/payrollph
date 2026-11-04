@@ -500,6 +500,15 @@ export async function POST(request: Request) {
       "PAYROLL_RECALCULATION_CLAIM_LOST",
       "PAYROLL_RECALCULATION_SOURCE_CHANGED",
     ].some((code) => message.includes(code));
+    // An unbound recompute over approved or run-bound adjustments is refused with a stable conflict; bound
+    // requests keep their YEAR_END_BINDING_CONFLICT response below.
+    if (!boundRun && (message.includes("YEAR_END_BOUND_OR_APPROVED_RECOMPUTE_BLOCKED") || message.includes("PRIOR_EVIDENCE_DISABLED_RECOMPUTE_BLOCKED") ||
+      message.includes("have already been settled in payroll"))) {
+      return Response.json({
+        code: "YEAR_END_RECOMPUTE_BLOCKED",
+        error: "Year-end adjustments for this tax year are already approved, bound to a payroll run or settled and cannot be recomputed in place. Use a separately audited correction.",
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
     if (boundRun && (databaseConflict || changedRun)) {
       return Response.json({
         code: "YEAR_END_BINDING_CONFLICT",
