@@ -83,6 +83,9 @@ export function proofRequired({ changed, paths, manifestBefore, manifestAfter,
   const specific = paths.filter(p => p !== MANIFEST && p !== INVENTORY);
   if (changed.some(file => specific.some(pattern => matchesGlob(pattern, file))))
     return true;
+  // Inventory-only SHA substitutions cannot establish that the affected
+  // method is GAP and uncredited. Require the reviewed manifest change too.
+  if (!changed.includes(MANIFEST)) return true;
   if (changed.includes(MANIFEST) &&
       !onlyUnacceptedManifestRepins(manifestBefore, manifestAfter)) return true;
   if (changed.includes(INVENTORY) &&
