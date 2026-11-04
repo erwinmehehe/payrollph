@@ -83,3 +83,34 @@ production flags, and a manifest credit without separate acceptance.
 **Coverage credits: 0.** This is a bounded careers-publication proof, not
 public careers GET/POST, an accepted real customer, a production recruitment
 launch, a tenant-wide security certificate, or permission to move money.
+
+
+## November 4, 2026: standalone high-ID and audit-fault proof extension
+
+This narrow follow-up is independent of the currently open year-end, self-profile,
+invitations, payout-profile and issued-demand PRs. Its only application endpoint
+under test is PATCH /api/careers/admin.
+
+The existing real-HTTP three-employer evidence previously established a victim
+requisition ID higher than both attackers, but did not explicitly require that
+the numeric victim requisition ID exceed **6**. This branch inserts two
+cancelled, never-published, fictional requisitions per attacker before inserting
+the victim employer. The runner then reads back the victim job from PostgreSQL
+and fails unless its real returned ID is greater than 6 and belongs to the
+victim employer. The existing 403/409 forgery checks use that real ID.
+
+The runner also injects a **disposable-only PostgreSQL audit INSERT failure**
+for the victim's genuine published requisition, then sends an actual HTTP PATCH
+to unpublish it. The response must not be a success (the expected application
+response is HTTP 500), and complete before/after organization, membership,
+requisition, applicant, profile, payroll, audit and publication snapshots for
+all three employers must remain identical. The temporary trigger and function
+are dropped in a finally clause; they are not a migration or production SQL.
+
+**Acceptance is not implied.** Existing source and production release flags
+are unchanged. The coverage manifest remains **GAP / 0 additional credits** on
+this draft until exact-head dedicated PG16 HTTP, CI, CodeQL and applicable
+security checks pass and an authorized maintainer reviews the proof. The main
+ledger remains 400 COVERED / 10 PUBLIC-BY-DESIGN / 88 GAP at branch creation.
+No customer data, live recruitment, real emails, providers, payroll or
+deployment are used.
