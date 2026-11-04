@@ -82,7 +82,7 @@ async function main() {
         // Real, throwaway SQL inserts advance the worker sequence past six.
         // No padding worker survives or holds a pay profile or audit event.
         for (const ordinal of [1, 2]) {
-          const padding = await http.addWorker(actors[1], "SALARY-ID-PAD-" + ordinal,
+          const padding = await http.addWorker(actors[1], "P" + ordinal,
             { payProfile: false });
           await db.delete(s.employees).where(eq(s.employees.id, padding.id));
         }
