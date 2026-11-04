@@ -78,6 +78,15 @@ async function main() {
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
     const actors = [];
     for (const label of ["ATTA", "ATTB", "VICTIM"]) {
+      if (label === "VICTIM") {
+        // Real, throwaway SQL inserts advance the worker sequence past six.
+        // No padding worker survives or holds a pay profile or audit event.
+        for (const ordinal of [1, 2]) {
+          const padding = await http.addWorker(actors[1], "SALARY-ID-PAD-" + ordinal,
+            { payProfile: false });
+          await db.delete(s.employees).where(eq(s.employees.id, padding.id));
+        }
+      }
       const e = await http.seedEmployer(label, nonce, http.standaloneMakeSession);
       await db.insert(s.userLegalEntityGrants).values({
         organizationId: e.org.id, userId: e.owner.id, legalEntityId: e.entity.id,
