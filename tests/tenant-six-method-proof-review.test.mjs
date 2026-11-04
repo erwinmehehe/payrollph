@@ -432,26 +432,28 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-    // Current main includes only the three reviewed #1728 compliance POST
-    // credits. No #1730 year-end method may already be promoted in origin/main
-    // or silently inherit a different head's source validation.
-    assert.deepEqual(methodStatuses(baseline), expectedMainStatuses,
-      "origin/main method statuses differ from exactly three #1728 compliance credits");
+    // #1730 has now merged four separately proven year-end/prior-evidence
+    // methods into main. Keep this guard fail-closed: the source-only Careers
+    // SHA repin must not revert or silently add any of those method credits.
+    assert.deepEqual(methodStatuses(baseline), expectedStatuses,
+      "origin/main must retain exactly the reviewed #1728/#1731/#1730 method statuses");
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: snapshot.counts.COVERED + compliancePostCredits.length + issuedPromotions.length,
+      COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
+        issuedPromotions.length + permittedPromotions.length,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
-      GAP: snapshot.counts.GAP - compliancePostCredits.length - issuedPromotions.length,
-    }, "origin/main totals changed; re-review ledger before merging");
+      GAP: snapshot.counts.GAP - compliancePostCredits.length -
+        issuedPromotions.length - permittedPromotions.length,
+    }, "origin/main totals changed; renew source and coverage review");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const expectedMainFrozen = snapshot.frozenSubtotal
-      .replace("313 COVERED", "318 COVERED")
-      .replace("91 GAP", "86 GAP");
+      .replace("313 COVERED", "322 COVERED")
+      .replace("91 GAP", "82 GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
       expectedMainFrozen, "origin/main frozen ledger changed; renew review");
   }
