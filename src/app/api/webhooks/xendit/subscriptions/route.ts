@@ -93,6 +93,20 @@ export async function POST(request: Request) {
       return { handled: false, stale: true } as const;
     }
 
+    // A provider callback cannot commit billing state, its dedupe marker,
+    // or an invoice without the matching organization-bound business audit.
+    // Audit and billing always share this exact SQL transaction.
+    const auditedOutcome = async (status: "paid" | "past_due" | "inactive") => {
+      await recordAuditEvent({
+        organizationId: attempt.organizationId,
+        actor: "Xendit verified webhook",
+        action: event,
+        resource: "Subscription " + attempt.subscriptionId,
+        metadata: { eventKey, providerPlanId: planId, cycleId: cycleId || undefined, outcome: status },
+      }, tx);
+      return { handled: true, status } as const;
+    };
+
     if (event === "recurring.cycle.succeeded") {
       if (data.status !== "SUCCEEDED") {
         throw new Error("A payment success webhook must contain a succeeded cycle.");
@@ -135,7 +149,7 @@ export async function POST(request: Request) {
         status: "paid",
         paidAt: now,
       });
-      return { handled: true, status: "paid" } as const;
+      return auditedOutcome("paid");
     }
     if (event === "recurring.cycle.failed" || event === "recurring.cycle.retrying") {
       const recoveryLink = Array.isArray(data.attempt_details)
@@ -152,26 +166,17 @@ export async function POST(request: Request) {
       if (sub.status === "active" && !state?.cancelAtPeriodEnd) {
         await tx.update(subscriptions).set({ status: "past_due" }).where(eq(subscriptions.id, sub.id));
       }
-      return { handled: true, status: "past_due" } as const;
+      return auditedOutcome("past_due");
     }
     if (event === "recurring.plan.inactivated") {
       // Deactivation alone is NOT a refund and never destroys payroll history.
       await tx.update(subscriptions).set({
         status: state?.cancelAtPeriodEnd ? "cancel_at_period_end" : "cancelled",
       }).where(eq(subscriptions.id, sub.id));
-      return { handled: true, status: "inactive" } as const;
+      return auditedOutcome("inactive");
     }
     return { handled: true, status: "acknowledged" } as const;
   });
 
-  if (result.handled && ["paid", "past_due", "inactive"].includes(result.status)) {
-    await recordAuditEvent({
-      organizationId: attempt.organizationId,
-      actor: "Xendit verified webhook",
-      action: event,
-      resource: "Subscription " + attempt.subscriptionId,
-      metadata: { eventKey, providerPlanId: planId, cycleId: cycleId || undefined, outcome: result.status },
-    });
-  }
   return Response.json({ received: true, ...result });
 }
