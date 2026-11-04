@@ -124,7 +124,7 @@ test("root write proofs use a real higher-ID victim for the forged selector, nev
   assert.match(family, /c\.victimSeeded\.frozenId > 6/);
   assert.match(family, /c\.victimSeeded\.frozenId > c\.seeded\.frozenId/);
   assert.match(family, /await addWorker\(e, "RA0"\)/);
-  assert.match(family, /const assignmentWorker = await addWorker\(e, "ROOTASSIGN"\)/);
+  assert.match(family, /const assignmentWorker = await addWorker\(e, "RA1"\)/);
   assert.match(family, /assignmentWorkerId: assignmentWorker\.id/);
   assert.match(family, /forged real victim frozen-position decision/);
   assert.match(family, /realForged\.text, missingPosition\.text/,
