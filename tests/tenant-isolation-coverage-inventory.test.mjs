@@ -314,18 +314,22 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     } else {
       assert.ok(method.name === "POST" || method.name === "PATCH");
       assert.equal(method.testedBy, null);
-      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"f28258785c80f83c699d651543526153eb4f3dd9","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"0849f6b394e0fcdf2dc041ef17ee65b8d3e58476","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false,"reconciliationReview":{"kind":"exact-final-merged-head-four-part-review-withheld-2026-11-02","proofPr":1662,"proofFinalHead":"c7001c59b9f60b55192bfb1d1876a18e0f18f482","passedJob":"https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobShaAtFinalHead":"21909753364cda9cead239a8a495b1e2a40abc9d","reviewedRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","sourceAnchors":method.name === "PATCH" ? {"ownPositiveLine":176,"foreignDenialLine":156,"forgedSelectorLine":166,"unchangedDbLine":224,"victimIdOrderingLine":131} : {"ownPositiveLine":139,"foreignDenialLine":153,"forgedSelectorLine":160,"unchangedDbLine":224,"victimIdOrderingLine":131},"missingParts":[method.name === "PATCH" ? "Two independent own-employer positive PATCH controls missing (all reject/approve/apply are organization 1)." : "Two independent own-employer positive POST controls missing (both owns use organization 1).","Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."],"fullMethodCoverageCredits":0,"independentReview":"PENDING","productionTested":false}},
+      assert.deepEqual(method.reviewedUncertified, {"kind":"multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited","originalRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","routeBlobSha":"a4ac9ec92df17492c4c0918f08114660bc4c6ebe","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobSha":"b6f05d8093359e1e49d8bdca30b31699ac4311cd","contractFile":"tests/tenant-multi-entity-transfers-write-candidate.test.mjs","contractBlobSha":"0b76a0e9b3fe06008bcc0941593e119466616c91","workflowFile":".github/workflows/multi-entity-browser-qa.yml","workflowBlobSha":"ae71b132c1e495f58a0589a5fc44a956e85fc924","coverageCredits":0,"exactHeadPg16Http":"PENDING","independentSecurityReview":"PENDING","productionCertified":false,"reconciliationReview":{"kind":"exact-final-merged-head-four-part-review-withheld-2026-11-02","proofPr":1662,"proofFinalHead":"c7001c59b9f60b55192bfb1d1876a18e0f18f482","passedJob":"https://github.com/erwinmehehe/payrollph/actions/runs/41221508614/job/124596856463","proofFile":"scripts/qa/tenant-multi-entity-transfers-write-http.mjs","proofBlobShaAtFinalHead":"21909753364cda9cead239a8a495b1e2a40abc9d","reviewedRouteBlobSha":"a27a0b307cd5dd0ef2bb26a83eae0bb94248e733","sourceAnchors":method.name === "PATCH" ? {"ownPositiveLine":176,"foreignDenialLine":156,"forgedSelectorLine":166,"unchangedDbLine":224,"victimIdOrderingLine":131} : {"ownPositiveLine":139,"foreignDenialLine":153,"forgedSelectorLine":160,"unchangedDbLine":224,"victimIdOrderingLine":131},"missingParts":[method.name === "PATCH" ? "Two independent own-employer positive PATCH controls missing (all reject/approve/apply are organization 1)." : "Two independent own-employer positive POST controls missing (both owns use organization 1).","Real victim transfer ID greater than both own comparator transfer IDs is unproven (victim inserted first)."],"fullMethodCoverageCredits":0,"independentReview":"PENDING","productionTested":false}},
         "Source and PG16 evidence must match the uncredited transfer review");
     }
     for (const [file, sha] of [
       ["tests/tenant-multi-entity-transfers-write-candidate.test.mjs", "0b76a0e9b3fe06008bcc0941593e119466616c91"],
-      ["scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "f28258785c80f83c699d651543526153eb4f3dd9"],
-      [".github/workflows/multi-entity-browser-qa.yml", "0849f6b394e0fcdf2dc041ef17ee65b8d3e58476"],
+      ["scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "b6f05d8093359e1e49d8bdca30b31699ac4311cd"],
+      [".github/workflows/multi-entity-browser-qa.yml", "ae71b132c1e495f58a0589a5fc44a956e85fc924"],
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
       "A changed transfer security test must receive new exact-source review: " + file);
     const proof = readFileSync("scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "utf8");
     assert.match(proof, /CREATE TRIGGER ci_transfer_post_error/);
     assert.match(proof, /CREATE TRIGGER ci_transfer_patch_error/);
+    assert.match(proof, /const cProposed = status\(await call\(attackerC, "POST"/);
+    assert.match(proof, /const cRejected = status\(await call\(cChecker, "PATCH"/);
+    assert.match(proof, /orderedVictim\.id > Math\.max\(6, ownId, nextId, due\.id, cOwnId, cOwnNextId\)/);
+    assert.match(proof, /assert\.deepEqual\(await snapshot\(2\), newVictimBefore/);
     assert.ok(proof.includes("assert.deepEqual(await snapshot(1), beforePostFault"), "Missing POST unchanged-state assertion");
     assert.ok(proof.includes("assert.deepEqual(await snapshot(1), beforePatchFault"), "Missing PATCH unchanged-state assertion");
     return;
@@ -1730,11 +1734,11 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
       coverageCredits: 0,
       realHttpPostAcceptance: "PRIOR_HEAD_PASSED_RECHECK_PENDING",
       proofFile: "scripts/qa/tenant-invitations-post-boundary.mjs",
-      proofBlobSha: "cd28c687e4b0a1a9012746cb2beb5cf0c603bed5",
+      proofBlobSha: "4bf5a91c547aa8faf39a1411991e30f893508154",
       contractFile: "tests/tenant-invitations-post-boundary.test.mjs",
-      contractBlobSha: "eb1bcb01f0c60d8b87836b60471ea0f2e5d89217",
+      contractBlobSha: "f01af351f75a3a7cd24d5f685ecd2f684cdecf91",
       workflowFile: ".github/workflows/tenant-invitations-post-boundary.yml",
-      workflowBlobSha: "8f8ac8954544e6e7b5128b6202c7ad621b217d6a",
+      workflowBlobSha: "07367c81d79903935882f35726fb508c73c0ec5a",
       previousDedicatedPg16Run: "41607526530",
       previousDedicatedHead: "16c82c8ef475cb732ba8f66b65eaf41345a23376",
       reviewPolicy: "SOLO_VERIFIED_DEV_RECOVERY",
@@ -1788,7 +1792,7 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
       contractFile: "tests/tenant-hcm-salary-correction-preview-contract.test.mjs",
       contractBlobSha: "68e68dc9dff3a6bc51801c525a7d241b7abb3ab5",
       proofFile: "scripts/qa/tenant-hcm-salary-correction-preview-http.mjs",
-      proofBlobSha: "8a5c8ea4e9ad64896b4051963fc17a374a2ee4c4",
+      proofBlobSha: "f12a0814af026394bd243f204c73cea8f85244f2",
       workflowFile: ".github/workflows/tenant-hcm-salary-correction-preview.yml",
       workflowBlobSha: "7cbb0a6a0389a4eb0f22cce61c34ed90939c5a97",
       coverageCredits: 0,
