@@ -1,5 +1,9 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-04 #1760 CURRENT PROVISIONAL COVERAGE PROPOSAL — NOT ACCEPTED
+
+**Current ledger: 498 methods = 408 COVERED + 10 PUBLIC-BY-DESIGN + 80 GAP.** Integrated with `main@3b317af556d7`, which revoked two superseded year-end GET/POST receipts. Exactly three separately pinned PG16 receipts (PATCH self/profile, POST salary-corrections/preview and POST invitations) are provisionally credited. Transfers POST/PATCH and year-end GET/POST stay GAP without method-specific accepted proof. The frozen 406-method subset is 324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP; all 17 page/action GAPs remain. This does not certify tenant isolation, independent acceptance, production rollout, financial operations or payment providers.
+
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
 **Current draft ledger: 498 methods = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route e4741d98. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.

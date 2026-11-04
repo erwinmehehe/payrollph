@@ -7,6 +7,7 @@ import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
+import { verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -213,8 +214,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH performance/follow-through-governance",
     "PATCH careers/admin",
     "GET year-end", "POST year-end", "GET workforce/demand-staffing/policies",
-    "PATCH self/profile",
-    "POST invitations", "PATCH compliance/filing-validations/[id]",
+    "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
     if (key === "GET year-end" || key === "POST year-end") {
@@ -243,6 +243,25 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.status, "GAP", key);
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
+  }
+  // These three methods have newer, distinct exact-final-head PG16 receipts.
+  // Do not mistake their provisional coverage for a historical promotion or
+  // accept a status flip without the fail-closed SHA/line/CI verifier.
+  const recovered = verifyFiveMethodCredits(manifest);
+  assert.equal(recovered.methodsCredited, 3);
+  assert.equal(recovered.methodsHeld, 2);
+  for (const [key, proofPr, proofRun] of [
+    ["PATCH self/profile", 1739, 41751126605],
+    ["POST hcm/salary-corrections/preview", 1738, 41632939949],
+    ["POST invitations", 1746, 41751301676],
+  ]) {
+    const method = methods.get(key);
+    assert.equal(method?.status, "COVERED", key + ": exact-source provisional receipt");
+    assert.equal(method?.testedBy?.proofPullRequest, proofPr, key + ": distinct proof owner");
+    assert.equal(method?.testedBy?.workflowRunId, proofRun, key + ": executed PG16 proof");
+    assert.equal(method?.testedBy?.independentlyAccepted, false, key + ": not global acceptance");
+    assert.notEqual(method?.testedBy?.verifiedMainCommit, base,
+      key + ": cannot borrow a historical promotion");
   }
   // Allocations POST/PATCH have their own executed receipt (dedicated guard in the inventory test); never a promotion credit.
   for (const key of ["POST workforce-planning/allocations", "PATCH workforce-planning/allocations"]) {
@@ -283,12 +302,9 @@ test("already credited and partial-action methods are not double-counted", () =>
       "fe3ad8901bfa714d59639d9f59a13cf133eeab36", key);
   }
   const profile = methods.get("PATCH self/profile");
-  assert.equal(profile?.status, "GAP", "merged #1524 route changed after #1518's proof");
-  assert.equal(profile?.testedBy, null);
-  assert.equal(profile?.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(profile?.reviewedUncertified?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
-  assert.equal(profile?.reviewedUncertified?.soleOwnerReviewer, "erwinmehehe");
-  assert.equal(profile?.reviewedUncertified?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
+  assert.equal(profile?.status, "COVERED", "#1739's current-source receipt supersedes the #1518 hold");
+  assert.equal(profile?.reviewedUncertified, undefined, "Do not retain obsolete zero-credit hold");
+  assert.equal(profile?.testedBy?.routeBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3");
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),
