@@ -1,8 +1,12 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
+
+**Current draft ledger: 498 methods = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route e4741d98. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.
+
 ## 2026-11-04 three source-identical final-head PG16 credits — SOLO_VERIFIED_DEV_RECOVERY / DRAFT / NOT ACCEPTED
 
-**Source-of-truth branch base:** freshly fetched `origin/main@7d90cc64928feae2f3af8f79d0d37f52300a3449`. **Live proposal:** **498 API methods = 410 COVERED + 10 PUBLIC-BY-DESIGN + 78 GAP**; original frozen 406-method subset = **326 COVERED + 2 PUBLIC-BY-DESIGN + 78 GAP**. This is exactly +3 distinct provisional credits over main's 407/10/81. **Seventeen page/action GAPs remain**. No independent review, blanket tenant acceptance, payroll release or production activation.
+**Source-of-truth branch base:** freshly fetched `origin/main@7d90cc64928feae2f3af8f79d0d37f52300a3449`. **Live proposal:** **498 API methods = 408 COVERED + 10 PUBLIC-BY-DESIGN + 80 GAP**; original frozen 406-method subset = **324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP**. This is exactly +3 distinct provisional credits over latest main's 405/10/83 (the year-end GET/POST pair remains source-revoked). **Seventeen page/action GAPs remain**. No independent review, blanket tenant acceptance, payroll release or production activation.
 
 | Exact API method | Credit | Exact final-head fictional-PG16 real-HTTP evidence and reason |
 |---|---|---|
@@ -142,7 +146,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 27 | 0 | 6 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 37 | 0 | 2 | INCOMPLETE |
@@ -153,7 +157,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 4 | 0 | 29 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **326 COVERED + 2 PUBLIC-BY-DESIGN + 78 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **324 COVERED + 2 PUBLIC-BY-DESIGN + 80 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

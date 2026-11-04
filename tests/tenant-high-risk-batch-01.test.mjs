@@ -683,7 +683,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     assert.equal(method.testedBy?.ownerIsOnlyReviewer, true);
   }
   const issuedDemandSoloCredits = issuedDemandSoloMethods.length;
-  const yearEndSoloCredits = ["GET year-end", "POST year-end", "GET year-end/prior-evidence", "POST year-end/prior-evidence"]
+  const yearEndSoloCredits = ["GET year-end/prior-evidence", "POST year-end/prior-evidence"]
     .filter(key => {
       const credit = methodsByKey.get(key);
       assert.equal(credit?.status, "COVERED", key + ": require actual four-part PG16");
@@ -691,7 +691,11 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       assert.equal(credit.testedBy?.verifiedPrHeadSha, "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5");
       return true;
     }).length;
-  assert.equal(yearEndSoloCredits, 4);
+  assert.equal(yearEndSoloCredits, 2);
+  for (const held of ["GET year-end", "POST year-end"]) {
+    assert.equal(methodsByKey.get(held)?.status, "GAP", held + ": source superseded; no inherited #1730 proof");
+    assert.equal(methodsByKey.get(held)?.testedBy, null);
+  }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
     tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,

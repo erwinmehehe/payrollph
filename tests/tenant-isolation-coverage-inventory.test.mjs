@@ -2694,6 +2694,37 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
   }
 
 
+  if (isNewOrChanged && ["src/app/api/year-end/route.ts GET", "src/app/api/year-end/route.ts POST"].includes(key)) {
+    // Exact reviewed source candidate only: no HTTP or financial acceptance.
+    const expected = {
+      kind: "year-end-binding-atomic-source-only-zero-credit",
+      priorRouteBlobSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
+      routeBlobSha: "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+      contractFile: "tests/year-end-binding-transaction-contract.test.mjs",
+      contractBlobSha: "9562442c4d9e7d820027630cead6d753c0fc3767",
+      annualizationBlobSha: "7194658c42b9ef33c84acd84ab356c28c6303883",
+      queueBlobSha: "961cfb5535063a9683b04dbd5260c2a9730ffd66",
+      credits: 0, actualPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    };
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.equal(currentBlob, expected.routeBlobSha);
+    assert.deepEqual(method.reviewedUncertified, expected);
+    for (const [file, hash] of [
+      [expected.contractFile, expected.contractBlobSha],
+      ["src/lib/year-end.ts", expected.annualizationBlobSha],
+      ["src/lib/payroll-engine.ts", expected.queueBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), hash);
+    const source = readFileSync("src/app/api/year-end/route.ts", "utf8");
+    assert.equal(gitBlobSha(Buffer.from(source.split("export async function POST")[0])),
+      "393d137811d1bf40561004314646f80ff644f80f", "GET and shared pre-POST source must remain unchanged");
+    for (const token of ["onBoundToPayrollRun: async (tx, boundSummary) => {",
+      "await enqueuePayrollRun(boundRun.id, undefined, tx);", "}, tx);"])
+      assert.ok(source.includes(token));
+    return;
+  }
+
   if (isNewOrChanged && key === "src/app/api/leave/route.ts POST") {
     const expected = {
       kind: "leave-POST-revalidate-active-checker-source-only",
