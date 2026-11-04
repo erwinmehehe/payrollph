@@ -1,14 +1,54 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Search, X } from "lucide-react";
-import { HELP_AUDIENCES, searchHelpArticles, type HelpAudience } from "@/lib/help-center-content";
+import { HELP_AUDIENCES, HELP_ARTICLES, searchHelpArticles, type HelpAudience } from "@/lib/help-center-content";
+
+const QUICK_GUIDES = [
+  { slug: "find-released-payslips", label: "Download a payslip" },
+  { slug: "request-leave", label: "Request leave" },
+  { slug: "review-attendance", label: "Review attendance" },
+  { slug: "new-employee-checklists", label: "Onboard a new hire" },
+  { slug: "first-payroll-preparation", label: "Prepare first payroll" },
+] as const;
 
 export function HelpCenterSearch() {
   const [query, setQuery] = useState("");
   const [audience, setAudience] = useState<HelpAudience | "All">("All");
   const articles = useMemo(() => searchHelpArticles(query, audience), [query, audience]);
+  const [guideNavigation, setGuideNavigation] = useState<{ slug: string; revision: number } | null>(null);
+
+  const openGuide = useCallback((slug: string) => {
+    if (!HELP_ARTICLES.some((article) => article.slug === slug)) return;
+    // All these guides are public; reset the local role/search view so the
+    // target is present before opening its existing step-by-step content.
+    setQuery("");
+    setAudience("All");
+    setGuideNavigation((current) => ({ slug, revision: (current?.revision ?? 0) + 1 }));
+  }, []);
+
+  // Employee self-service links land on /help#guide-slug. Expand the guide
+  // after hydration so the user can read steps rather than a closed card.
+  useEffect(() => {
+    function openHashGuide() {
+      const slug = window.location.hash.slice(1);
+      if (HELP_ARTICLES.some((article) => article.slug === slug)) openGuide(slug);
+    }
+    openHashGuide();
+    window.addEventListener("hashchange", openHashGuide);
+    return () => window.removeEventListener("hashchange", openHashGuide);
+  }, [openGuide]);
+
+  useEffect(() => {
+    if (!guideNavigation) return;
+    const article = document.getElementById(guideNavigation.slug);
+    if (!article) return;
+    const details = article.querySelector("details");
+    if (details) details.open = true;
+    article.scrollIntoView({ block: "start", behavior: "auto" });
+    article.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
+  }, [guideNavigation, articles]);
 
   return (
     <section aria-labelledby="help-articles-heading" className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
@@ -40,6 +80,17 @@ export function HelpCenterSearch() {
           </button>
         ))}
       </div>
+      <nav aria-label="Popular help tasks" className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+        <h3 className="text-sm font-semibold text-slate-800">Go straight to a step-by-step guide</h3>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {QUICK_GUIDES.map((guide) => (
+            <button key={guide.slug} type="button" onClick={() => openGuide(guide.slug)}
+              className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm font-semibold text-[#0868dc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
+              {guide.label}<ArrowRight size={15} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </nav>
       {articles.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-7" role="status">
           <h3 className="text-lg font-semibold">No matching guides</h3>
