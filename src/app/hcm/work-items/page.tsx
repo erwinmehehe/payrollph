@@ -173,7 +173,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
     {loading && <p role="status" className="mb-4 text-slate-600">Loading work items…</p>}
     {(error||loadError) && <p role="alert" className="mb-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-rose-800">{error||loadError}</p>}
     <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Queue summary" aria-busy={loading}>
-      {[[summary?.total ?? null,"Items in current view"],[summary?.overdue ?? null,"Overdue"],[summary?.unassigned ?? null,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value === null ? "—" : value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
+      {[[summary?.total ?? null,"Items loaded for this queue"],[summary?.overdue ?? null,"Overdue"],[summary?.unassigned ?? null,"Without named owner"]].map(([value,label])=><div key={label} className="rounded-xl border bg-white p-4"><p className="text-2xl font-bold">{value === null ? "—" : value}</p><p className="text-sm text-slate-600">{label}</p></div>)}
     </section>
     {!summary && <p role="status" className="mb-4 text-sm text-slate-600">Queue counts are unavailable until the selected employer’s work items load successfully.</p>}
     {summary && <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4">
@@ -185,7 +185,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
         <select id="work-items-sort" className="rounded-lg border px-3 py-2" value={sort}
           onChange={event => setSort(event.target.value as WorkQueueViewSort)}>
           <option value="due">SLA due first</option>
-          <option value="newest">Newest case ID first</option>
+          <option value="newest">Highest case ID first</option>
           <option value="title">Title A to Z</option>
         </select>
       </label>
@@ -197,7 +197,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
       <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={!search.trim()} onClick={() => setSearch("")}>Clear search</button>
       <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={!search.trim() && !unassignedOnly && sort === "due"}
         onClick={() => { setSearch(""); setSort("due"); setUnassignedOnly(false); }}>Reset view</button>
-      <p className="w-full text-sm text-slate-600" role="status">Showing {visibleItems.length} of {items.length} loaded items. Search only filters this employer&apos;s verified view.</p>
+      <p className="w-full text-sm text-slate-600" role="status">Showing {visibleItems.length} of {items.length} loaded items. Search only filters this employer&apos;s verified view. Summary counts cover all loaded items in the selected queue, before local search or owner filters.</p>
     </div>}
     {summary ? (
       <div className="rounded-xl border bg-white"><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[850px] text-left text-sm">
