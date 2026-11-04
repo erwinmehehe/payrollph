@@ -42,7 +42,7 @@ test("root POST exercises all approved architecture, plan and position creation 
     "assignment proof must check persisted employment event");
   assert.match(family, /real higher-ID foreign worker denied on valid own vacancy/,
     "foreign-worker test must not use a filled or missing own position");
-  assert.match(family, /employeeId: c\.victim\.worker\.id, effectiveFrom: todayPh/,
+  assert.match(family, /employeeId: c\.victimSeeded\.assignmentWorkerId, effectiveFrom: todayPh/,
     "forged worker must be a real victim employee, not a fabricated numeric ID");
   assert.match(family, /forgedReferences: 5, blockedDirectAssignments: 1, directAssignmentProofs/,
     "new forged reference must be included in the family branch receipt");
@@ -123,10 +123,14 @@ test("root write proofs use a real higher-ID victim for the forged selector, nev
     "a fabricated unknown ID cannot substitute for cross-employer proof");
   assert.match(family, /c\.victimSeeded\.frozenId > 6/);
   assert.match(family, /c\.victimSeeded\.frozenId > c\.seeded\.frozenId/);
+  assert.match(family, /await addWorker\(e, "ROOTASSIGNBASE"\)/);
+  assert.match(family, /const assignmentWorker = await addWorker\(e, "ROOTASSIGN"\)/);
+  assert.match(family, /assignmentWorkerId: assignmentWorker\.id/);
   assert.match(family, /forged real victim frozen-position decision/);
   assert.match(family, /realForged\.text, missingPosition\.text/,
     "foreign selectors must have the same public 404 response as unknown objects");
-  assert.match(family, /c\.victim\.worker\.id > 6 && c\.victim\.worker\.id > worker\.id/,
+  assert.match(family, /c\.victimSeeded\.assignmentWorkerId > 6 &&/);
+  assert.match(family, /c\.victimSeeded\.assignmentWorkerId > worker\.id/,
     "POST assignment denial must use the real higher-ID victim worker on an open own vacancy");
   assert.match(family, /assert\.deepEqual\(await snapshot\(c\.victim\.org\.id\), victimBefore/,
     "the victim's PostgreSQL source rows must remain unchanged");
