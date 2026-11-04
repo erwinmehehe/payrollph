@@ -11542,14 +11542,14 @@
       ]
     },
     "src/app/api/exports/route.ts": {
-      "gitBlobSha": "5a1156feb8d74d1f344e6e40e7bba8ebaee6849a",
+      "gitBlobSha": "c7cabcccb0d618070ed0b36cfbeb8cd1aabc5584",
       "route": "exports",
       "methods": [
         {
           "name": "GET",
           "line": 19,
           "status": "COVERED",
-          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: historical two-owner, real-victim disposable PG16 HTTP proof via tenant-high-risk-01; the hardened export route at blob c7cabcccb0d618070ed0b36cfbeb8cd1aabc5584 must pass fresh exact-PR-head CI/HTTP before its existing method credit can be relied upon. This source re-pin adds zero new coverage credits, no independent acceptance, and no production certification.",
           "testedBy": {
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 254,
@@ -11557,7 +11557,16 @@
             "foreignDenialLine": 279,
             "unchangedDbLine": 349,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
-            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+            "evidence": "Original source-only proof: high-risk batch-01 two-owner own/foreign and immutable victim snapshot; original run 39445598204 is NOT evidence for newly hardened source. Fresh exact-head PG16 HTTP security-smoke run on current PR required before acceptance."
+          },
+          "sourceRevalidation": {
+            "priorSourceBlobSha": "5a1156feb8d74d1f344e6e40e7bba8ebaee6849a",
+            "currentSourceBlobSha": "c7cabcccb0d618070ed0b36cfbeb8cd1aabc5584",
+            "historicalProofNotPortable": true,
+            "exactPrHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "newMethodCredits": 0,
+            "accepted": false
           }
         }
       ],
@@ -11570,34 +11579,34 @@
       },
       "guards": [
         {
-          "line": 7,
+          "line": 6,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 7,
+          "line": 6,
           "token": "getAccess"
         },
         {
-          "line": 8,
+          "line": 7,
           "token": "getSessionUser"
         },
         {
-          "line": 23,
+          "line": 20,
           "token": "getSessionUser"
         },
         {
-          "line": 33,
+          "line": 39,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 40,
+          "line": 46,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 22,
-          "token": "searchParams.get(\"organizationId\")"
+          "line": 24,
+          "token": "searchParams.getAll(\"organizationId\")"
         }
       ],
       "businessIds": [
