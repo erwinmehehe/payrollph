@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { verifyStaffingPolicyGetCredit } from "./tenant-staffing-policy-get-credit.mjs";
 
 const PREFIX = "src/app/api/workforce/";
 const IMPORT_BEFORE = 'import { getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";';
@@ -151,6 +152,14 @@ export function assertHistoricalDemandSourceCompatible(path, record,
       assert.equal(proof?.workflowFile, ".github/workflows/tenant-issued-demand-http.yml");
       assert.equal(proof?.workflowBlobSha, gitBlobSha(read(proof.workflowFile)));
       assert.equal(proof?.productionCertified, false);
+    } else if (path === PREFIX + "demand-staffing/policies/route.ts" &&
+        method.name === "GET" && method.status === "COVERED") {
+      // A distinct later proof covers both manage and approved modes. Do not
+      // rewrite the earlier historical GAP or credit the old GET-only overlay.
+      assert.equal(spec.statuses.GET, "GAP");
+      assert.equal(verifyStaffingPolicyGetCredit({
+        allApiRouteFiles: { [path]: record },
+      }), 1);
     } else {
       assert.equal(method.status, spec.statuses[method.name],
         "Old WFM overlay must retain each separate historical method credit");

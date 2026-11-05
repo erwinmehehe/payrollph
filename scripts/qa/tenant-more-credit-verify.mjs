@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { verifyCredit as verifyClockCredit } from "./tenant-clock-credit.mjs";
 import { assertHistoricalDemandSourceCompatible } from "./tenant-wfm-demand-overlay-history.mjs";
+import { verifyStaffingPolicyGetCredit } from "./tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -207,6 +208,10 @@ export function verifyMoreCredits(manifest, read = path => readFileSync(path, "u
     ["src/app/api/web-bundy/consent/route.ts", "POST"],
   ]) {
     const method = manifest.allApiRouteFiles[path]?.methods.find(m => m.name === verb);
+    if (path === "src/app/api/workforce/demand-staffing/policies/route.ts") {
+      assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
+      continue;
+    }
     if (path === "src/app/api/web-bundy/consent/route.ts" && method?.status === "COVERED") {
       verifyClockCredit("POST web-bundy/consent", method);
       continue; // Distinct consent lifecycle proof; cannot borrow this historical promotion.
