@@ -488,6 +488,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedStatuses : expectedBeforePayout));
+    // The single static public v1 catalog GET was reclassified on merged #1764.
+    // It remains public-by-design, never a tenant method coverage credit.
+    assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods
+      .find(row => row.name === "GET")?.status, "PUBLIC-BY-DESIGN");
+    expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
@@ -504,10 +509,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0),
-      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"],
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
-        (baselineHasPayout ? payoutCredits : 0),
+        (baselineHasPayout ? payoutCredits : 0) - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
@@ -516,7 +521,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       (baselineHasPayout ? 1 : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("91 GAP", (404 - frozenCovered) + " GAP");
+      .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
+      .replace("91 GAP", (403 - frozenCovered) + " GAP");
     assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
       expectedMainFrozen, "origin/main frozen ledger drift");
   }
