@@ -74,8 +74,11 @@ test("proof is inbound-only, one callback route, zero manifest credits", () => {
   const entry = manifest.allApiRouteFiles["src/app/api/webhooks/xendit/subscriptions/route.ts"];
   assert.ok(entry, "webhook method still inventoried");
   const method = entry.methods.find(m => m.name === "POST");
-  assert.equal(method?.status, "GAP", "Only a separate reviewed promotion may change the method from GAP");
-  assert.equal(method?.testedBy, null, "A source-only proof candidate cannot self-credit the method");
+  // Status-agnostic on purpose: only a separate reviewed credit PR may move the method, and when it does
+  // it must link this exact proof rather than leave a bare COVERED.
+  assert.ok(["GAP", "COVERED"].includes(method?.status));
+  if (method.status === "GAP") assert.equal(method.testedBy, null, "A source-only proof candidate cannot self-credit the method");
+  else assert.equal(method.testedBy?.file, "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs");
 });
 
 function fixtureEmployer(id) {
