@@ -4978,7 +4978,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.libraryFile, "src/lib/mwe-classification.ts");
         assert.equal(proof.routeBlobSha,"b08702d9c56ae506d98be5a917119121a71bb50f");
         assert.equal(proof.libraryBlobSha,"ee82741f6405e59dff3e9eb48cfb9820b449c99a");
-        assert.equal(proof.proofBlobSha,"7247ca54e924917b34f1aed0fa818f540105f25d");
+        assert.equal(proof.proofBlobSha,"ae1139b9f6396e7f02cee408c919d6acba1198d2");
         assert.equal(proof.contractBlobSha,"8db8b3d0399cf0183f425e151a4158d69e3db9a4");
         assert.equal(proof.workflowBlobSha,"584d159f2d2c250e182d0942188f293baebc2141");
         for (const [pinnedPath,pinnedSha] of [
@@ -4990,12 +4990,12 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.deepEqual([
           proof.ownPositiveLine,proof.foreignDenialLine,proof.forgedSelectorLine,
           proof.unchangedDbLine,proof.victimIdOrderingLine,
-        ], [92,99,107,114,78]);
+        ], [92,99,107,129,78]);
         const proofLines = readableLines(proof.file);
         assert.match(proofLines[91], /const ownPositive = await decision/);
         assert.match(proofLines[98], /const foreignDenial = await decision/);
         assert.match(proofLines[106], /const forgedSelector = await decision/);
-        assert.match(proofLines[113], /assert\.deepEqual\(await snapshot\(victim\.org\.id\)/);
+        assert.match(proofLines[128], /assert\.deepEqual\(await snapshot\(victim\.org\.id\)/);
         assert.match(proofLines[77], /victim\.records\[0\]\.id > Math\.max\(6,/);
         const suite = proofLines.join("\n");
         assert.match(suite, /for \(const attacker of attackers\)/);
