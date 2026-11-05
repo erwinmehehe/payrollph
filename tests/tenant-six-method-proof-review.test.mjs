@@ -531,25 +531,25 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2);
     }
-    // Main's merged Resend callback credit is a separate, source-pinned
-    // proof. Preserve its exact receipt without granting any new method here.
-    const baselineResend = baseline.allApiRouteFiles[resendPath]?.methods.find(row => row.name === "POST");
-    const baselineHasResend = baselineResend?.status === "COVERED";
-    if (baselineHasResend) {
-      assert.deepEqual(baselineResend, resendMethod,
-        "origin/main Resend POST must match complete source-pinned #1763 evidence");
-      assert.equal(baselineResend.testedBy?.workflowRunId, 41829420219);
-      assert.equal(baselineResend.testedBy?.workflowJobId, 126572429402);
-      assert.equal(baselineResend.testedBy?.verifiedPrHeadSha,
-        "5e1aeba102cc66486c251d8f6d50432fcb4a4cdc");
-      assert.equal(baselineResend.testedBy?.independentSecurityReview, "PENDING");
-      assert.equal(baselineResend.testedBy?.productionTested, false);
-    } else {
-      assert.equal(baselineResend?.status, "GAP");
-      assert.equal(baselineResend?.testedBy, null);
-    }
+    // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
+    // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
+    // a credit that is absent from main is simply not expected, so this block never goes stale on merge order.
+    const mainProviderCredits = [
+      ["src/app/api/webhooks/resend/route.ts", "scripts/qa/tenant-webhook-resend-http.mjs"],
+    ].filter(([path, receipt]) => {
+      const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === "POST");
+      if (row?.status !== "COVERED") return false;
+      assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
+      assert.equal(row.testedBy.rule, "proofPolicy.providerCallback");
+      assert.equal(row.testedBy.independentSecurityReview, "PENDING");
+      assert.equal(row.testedBy.workflowRunId, 41829420219);
+      assert.equal(row.testedBy.workflowJobId, 126572429402);
+      assert.equal(row.testedBy.productionTested, false);
+      return true;
+    });
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
+    for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
     if (baselineHasRecovery) {
       for (const e of EVIDENCE) {
         expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
@@ -558,13 +558,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
       "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
     expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
-    if (baselineHasResend) expectedOriginalMain[resendPath].POST = "COVERED";
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main must preserve exact source-pinned payout, #1760, and Resend evidence with unproved methods held");
+      "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute ? 2 : 0);
     assert.deepEqual({
@@ -575,21 +574,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) +
-        (baselineHasResend ? resendCredits : 0),
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) -
-        (baselineHasResend ? resendCredits : 0) - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) +
-      (baselineHasResend ? resendCredits : 0);
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
