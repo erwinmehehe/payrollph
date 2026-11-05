@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -456,7 +457,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(subscriptionsMethod.testedBy.productionTested, false);
   expectedStatuses[subscriptionsPath].POST = "COVERED";
   const subscriptionsCredits = 1;
-  // Dedicated-harness credit after the snapshot: hcm/effective-changes POST (merged proof #1779). Only the exact method and receipt identity may move from GAP.
+// #1761: one separately source-pinned staffing-policy GET, both manage and approved proof modes.
+  const staffingGetCredits = verifyStaffingPolicyGetCredit(m);
+  const staffingGetPath = "src/app/api/workforce/demand-staffing/policies/route.ts";
+  assert.equal(staffingGetCredits, 1);
+  assert.equal(expectedStatuses[staffingGetPath]?.GET, "GAP");
+  expectedStatuses[staffingGetPath].GET = "COVERED";
+// Dedicated-harness credit after the snapshot: hcm/effective-changes POST (merged proof #1779). Only the exact method and receipt identity may move from GAP.
   const effectiveChangePath = "src/app/api/hcm/effective-changes/route.ts";
   assert.equal(expectedStatuses[effectiveChangePath]?.POST, "GAP", "effective-changes POST must start GAP in the reviewed snapshot");
   const effectiveChangeMethod = m.allApiRouteFiles[effectiveChangePath].methods.find(row => row.name === "POST");
@@ -477,9 +484,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + effectiveChangeCredits,
+COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - effectiveChangeCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -491,7 +498,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **328 COVERED + 3 PUBLIC-BY-DESIGN + 75 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -591,6 +598,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
     }
+    const baselineEffective = baseline.allApiRouteFiles[effectiveChangePath]?.methods.find(row => row.name === "POST");
+    const baselineEffectiveCredits = baselineEffective?.status === "COVERED" ? 1 : 0;
+    if (baselineEffectiveCredits) {
+      assert.deepEqual(baselineEffective, effectiveChangeMethod,
+        "main's effective-change receipt must match the complete reviewed #1779 evidence");
+      expectedOriginalMain[effectiveChangePath].POST = "COVERED";
+    } else {
+      assert.equal(baselineEffective?.status, "GAP");
+      assert.equal(baselineEffective?.testedBy, null);
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -603,18 +620,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + baselineEffectiveCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - baselineEffectiveCredits - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + baselineEffectiveCredits;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
