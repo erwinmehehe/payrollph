@@ -583,9 +583,34 @@ COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEn
       assert.equal(baselineResend?.status, "GAP");
       assert.equal(baselineResend?.testedBy, null);
     }
+    // #1779 adds one separately evidenced HCM effective-change POST on main.
+    // Match the immutable method record exactly; do not infer a new credit from totals.
+    const baselineEffectiveChange = baseline.allApiRouteFiles[effectiveChangePath]
+      ?.methods.find(row => row.name === "POST");
+    const baselineHasEffectiveChange = baselineEffectiveChange?.status === "COVERED";
+    if (baselineHasEffectiveChange) {
+      assert.equal(baseline.allApiRouteFiles[effectiveChangePath].gitBlobSha,
+        m.allApiRouteFiles[effectiveChangePath].gitBlobSha, "HCM POST source blob must match");
+      assert.deepEqual(baselineEffectiveChange, effectiveChangeMethod,
+        "origin/main HCM POST must retain the exact #1779 proof receipt");
+      assert.equal(baselineEffectiveChange.testedBy?.workflowRunId, 42029419930);
+      assert.equal(baselineEffectiveChange.testedBy?.workflowJobId, 127251740192);
+      assert.equal(baselineEffectiveChange.testedBy?.verifiedPrHeadSha,
+        "3a3296210692d2b80f92fd8b4cbd3fc67e4aecd4");
+      assert.equal(baselineEffectiveChange.testedBy?.proofBlobSha,
+        "334c54382e84cac342239086e9ed1b2dfb0a072c");
+      assert.equal(baselineEffectiveChange.testedBy?.helperBlobSha,
+        "6a2cd6ddedc79266061dd19ae066f405baf2b703");
+      assert.equal(baselineEffectiveChange.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(baselineEffectiveChange.testedBy?.productionTested, false);
+    } else {
+      assert.equal(baselineEffectiveChange?.status, "GAP");
+      assert.equal(baselineEffectiveChange?.testedBy, null);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
+    if (baselineHasEffectiveChange) expectedOriginalMain[effectiveChangePath].POST = "COVERED";
     if (baselineHasRecovery) {
       for (const e of EVIDENCE) {
         expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
@@ -608,14 +633,12 @@ COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEn
       assert.equal(baselineEffective?.status, "GAP");
       assert.equal(baselineEffective?.testedBy, null);
     }
-    const baselineStaffing = baseline.allApiRouteFiles[staffingGetPath]?.methods.find(row => row.name === "GET");
-    const baselineStaffingCredits = baselineStaffing?.status === "COVERED" ? 1 : 0;
-    if (baselineStaffingCredits) {
-      assert.equal(verifyStaffingPolicyGetCredit(baseline), 1);
-      assert.deepEqual(baselineStaffing, m.allApiRouteFiles[staffingGetPath].methods.find(row => row.name === "GET"),
-        "main's staffing GET must retain the complete source-pinned dual-mode receipt");
-      expectedOriginalMain[staffingGetPath].GET = "COVERED";
-    } else {
+    // Main's staffing GET is valid only with its full source-pinned manage/approved receipt.
+    const baselineStaffing = baseline.allApiRouteFiles[staffingGetPath].methods.find(row => row.name === "GET");
+    const baselineStaffingCredits = baselineStaffing?.status === "COVERED"
+      ? verifyStaffingPolicyGetCredit(baseline) : 0;
+    if (baselineStaffingCredits) expectedOriginalMain[staffingGetPath].GET = "COVERED";
+    else {
       assert.equal(baselineStaffing?.status, "GAP");
       assert.equal(baselineStaffing?.testedBy, null);
     }

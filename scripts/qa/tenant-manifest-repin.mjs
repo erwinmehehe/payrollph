@@ -102,13 +102,16 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         }
         const companionFile = field === "victimUnchangedAt"
           ? "victimUnchangedFile" : field === "line" ? null
+          : field === "approvalIntegrityLine" ? "approvalPositiveFile"
           : field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"
-          : field === "approvalIntegrityLine" && typeof proof.approvalPositiveFile === "string"
-            ? "approvalPositiveFile"
           : ["forgedSelectorLine", "secondaryForeignDenialLine"].includes(field) &&
             proof.helperRefusalLines && Object.values(proof.helperRefusalLines).includes(value)
             ? "helperFile"
           : field.replace(/Line$/, "File");
+        if (companionFile === "approvalPositiveFile" && typeof proof.approvalPositiveFile !== "string") {
+          review.push(`${method.name} ${path} ${field}: missing dedicated approvalPositiveFile`);
+          continue;
+        }
         if (companionFile === "helperFile" && typeof proof.helperFile !== "string") {
           review.push(`${method.name} ${path} ${field}: missing dedicated helperFile`);
           continue;
