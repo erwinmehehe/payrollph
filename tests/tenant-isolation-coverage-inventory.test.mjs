@@ -1480,7 +1480,7 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
        key === "src/app/api/expenses/receipts/route.ts POST")) {
     const review = method.reviewedUncertified;
     const routePath = "src/app/api/expenses/receipts/route.ts";
-    const routeBlob = "42a0e56307ba0509c549d6c271a521f19231bb25";
+    const routeBlob = "2aac7f024cfbd99a1fe8c938c0984d740346ffbd";
     assert.equal(currentBlob, routeBlob,
       "Private Spend receipt route changed: renewed tenant security review required");
     assert.deepEqual(review, {
@@ -1492,7 +1492,7 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
       unitTestFile: "tests/spend-receipt-tenant-grant.test.ts",
       unitTestBlobSha: "8cd86095ab4404eed572668e1823825c93bab716",
       contractTestFile: "tests/tenant-spend-receipt-grant-source.test.mjs",
-      contractTestBlobSha: "67a10174328f9ddd9e828361ee0996764d458c41",
+      contractTestBlobSha: "f30da77f6ab705e508c28b924092647902c73d3c",
       coverageCredits: 0,
       realHttpPg16Proven: false,
       independentSecurityReview: "PENDING",
@@ -1517,14 +1517,20 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
     assert.match(source, /if \(!liveClaim \|\| !await lockedReceiptGrant\(tx, user, claim\)\)/);
     assert.match(source, /if \(!await lockedReceiptGrant\(tx, user, freshCore\)\)/);
     assert.match(source, /freshCore\.employeeId !== claim\.employeeId/);
-    const afterPrivateRead = source.indexOf("const readDenied = await authorize(user, core);");
+    const afterPrivateRead = source.indexOf("const readDenied = await authorize(user, freshCore);");
     const bytesReturn = source.indexOf("return new Response(new Uint8Array(bytes)");
     const stagingGuard = source.indexOf("if (!liveClaim || !await lockedReceiptGrant(tx, user, claim))");
     const intent = source.indexOf("const [intent] = await tx.insert(documents)");
     const finalGuard = source.indexOf("if (!await lockedReceiptGrant(tx, user, freshCore))");
     const finalAttachment = source.indexOf("tx.update(expenseClaimEvidence)");
-    assert.ok(afterPrivateRead > 0 && afterPrivateRead < bytesReturn,
-      "Private receipt read must recheck current grant before returning bytes");
+    const postReadClaim = source.indexOf("const freshCore = await findMemberReceiptClaim(user, id);");
+    const postReadBinding = source.indexOf("receiptReadBindingUnchanged(claim, freshClaim)");
+    const storageRead = source.indexOf("bytes = await readVerifiedSpendReceipt(");
+    const auditRead = source.indexOf("action: \"Expense receipt viewed\"");
+    assert.ok(storageRead >= 0 && postReadClaim > storageRead &&
+      postReadBinding > postReadClaim && afterPrivateRead > postReadBinding &&
+      auditRead > afterPrivateRead && bytesReturn > auditRead,
+      "Private receipt read must refresh claim, verify identity/SHA and recheck current grant before auditing or returning bytes");
     assert.ok(stagingGuard > 0 && stagingGuard < intent &&
       finalGuard > intent && finalGuard < finalAttachment,
       "Private receipt SQL writes must recheck locked worker grants on both sides of storage IO");
