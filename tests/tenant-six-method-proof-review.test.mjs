@@ -576,9 +576,34 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(baselineResend?.status, "GAP");
       assert.equal(baselineResend?.testedBy, null);
     }
+    // #1779 adds one separately evidenced HCM effective-change POST on main.
+    // Match the immutable method record exactly; do not infer a new credit from totals.
+    const baselineEffectiveChange = baseline.allApiRouteFiles[effectiveChangePath]
+      ?.methods.find(row => row.name === "POST");
+    const baselineHasEffectiveChange = baselineEffectiveChange?.status === "COVERED";
+    if (baselineHasEffectiveChange) {
+      assert.equal(baseline.allApiRouteFiles[effectiveChangePath].gitBlobSha,
+        m.allApiRouteFiles[effectiveChangePath].gitBlobSha, "HCM POST source blob must match");
+      assert.deepEqual(baselineEffectiveChange, effectiveChangeMethod,
+        "origin/main HCM POST must retain the exact #1779 proof receipt");
+      assert.equal(baselineEffectiveChange.testedBy?.workflowRunId, 42029419930);
+      assert.equal(baselineEffectiveChange.testedBy?.workflowJobId, 127251740192);
+      assert.equal(baselineEffectiveChange.testedBy?.verifiedPrHeadSha,
+        "3a3296210692d2b80f92fd8b4cbd3fc67e4aecd4");
+      assert.equal(baselineEffectiveChange.testedBy?.proofBlobSha,
+        "334c54382e84cac342239086e9ed1b2dfb0a072c");
+      assert.equal(baselineEffectiveChange.testedBy?.helperBlobSha,
+        "6a2cd6ddedc79266061dd19ae066f405baf2b703");
+      assert.equal(baselineEffectiveChange.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(baselineEffectiveChange.testedBy?.productionTested, false);
+    } else {
+      assert.equal(baselineEffectiveChange?.status, "GAP");
+      assert.equal(baselineEffectiveChange?.testedBy, null);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
+    if (baselineHasEffectiveChange) expectedOriginalMain[effectiveChangePath].POST = "COVERED";
     if (baselineHasRecovery) {
       for (const e of EVIDENCE) {
         expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
@@ -603,18 +628,21 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length +
+        (baselineHasEffectiveChange ? 1 : 0),
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length -
+        (baselineHasEffectiveChange ? 1 : 0) - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) +
+      mainProviderCredits.length + (baselineHasEffectiveChange ? 1 : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
