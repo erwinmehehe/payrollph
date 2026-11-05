@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createRows, fixtureDemandSha256 } from "../scripts/qa/tenant-table-rows/read/demand-governance.mjs";
 import { assertHistoricalDemandSourceCompatible } from "../scripts/qa/tenant-wfm-demand-overlay-history.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 
 const [issued, policy] = createRows({ assert });
 const marker = rank => "TTBL-ATT" + rank + "-fictional";
@@ -255,8 +256,6 @@ test("synthetic allowlists retain issued GET verified credit without borrowing d
   const policyRoute = manifest.allApiRouteFiles[
     "src/app/api/workforce/demand-staffing/policies/route.ts"];
   const policyMethod = policyRoute.methods.find(m => m.name === "GET");
-  assert.equal(policyMethod.status, "GAP",
-    "draft-only source proof cannot credit an approved-mode policy GET");
-  assert.equal(policyMethod.testedBy, null,
-    "no unrelated issued-demand proof may be borrowed by policy GET");
+  assert.equal(policyMethod.status, "COVERED");
+  assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
 });
