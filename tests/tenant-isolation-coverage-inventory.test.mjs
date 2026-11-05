@@ -1106,7 +1106,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     return; // Exact SHA-pinned WRK-02 partial method review; both stay GAP.
   }
 
-if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.ts POST") {
+if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/xendit/subscriptions/route.ts POST") {
     const routeFile = "src/app/api/webhooks/xendit/subscriptions/route.ts";
     const expected = {
       "kind": "xendit-subscriptions-audit-atomicity-PG16-review-only",
@@ -4430,6 +4430,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 126572429402);
         continue;
       }
+      // webhooks/xendit/subscriptions POST: provider-callback receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/webhooks/xendit/subscriptions/route.ts POST", "No unrelated method may reuse the Xendit subscriptions evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "c7fda44131306a1ce9ebb26500a308cc1a32b36f");
+        assert.equal(proof.workflowRunId, 41979854009);
+        assert.equal(proof.workflowJobId, 127087199194);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-dl01-vault-http.mjs") {
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
@@ -6143,7 +6153,7 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
   const route = readFileSync(routePath, "utf8");
   assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-xendit-payout-http.mjs"));
   assert.ok(workflow.includes("image: postgres:16"));
-  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 3, "the rule counts the xendit payout, PayMongo transfer and Resend credits");
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 4, "the rule counts the xendit payout, PayMongo transfer, Resend and Xendit subscriptions credits");
   const api = manifest.allApiRouteFiles[routePath];
   assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
   const method = api.methods[0];
@@ -6273,7 +6283,7 @@ test("PayMongo transfer webhook credit requires the exact passing run, byte-pinn
   assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-paymongo-transfer-http.mjs"));
   assert.ok(workflow.includes("image: postgres:16"));
   assert.ok(workflow.includes("paymongo-transfer-webhook-isolation:"));
-  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 3, "the rule counts exactly the three credited methods");
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 4, "the rule counts exactly the four credited methods");
   const api = manifest.allApiRouteFiles[routePath];
   assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
   const method = api.methods[0];
@@ -6321,7 +6331,7 @@ test("Resend delivery webhook credit requires the exact passing run, byte-pinned
   assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-resend-http.mjs"));
   assert.ok(workflow.includes("image: postgres:16"));
   assert.ok(workflow.includes("resend-webhook-isolation:"));
-  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 3, "the rule counts exactly the three credited methods");
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 4, "the rule counts exactly the four credited methods");
   const api = manifest.allApiRouteFiles[routePath];
   assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
   const method = api.methods[0];
@@ -6359,4 +6369,62 @@ test("Resend delivery webhook credit requires the exact passing run, byte-pinned
   // The credited source must keep the stored-message-id and in-transaction receipt rules the proof exercises.
   const mailer = readFileSync("src/lib/mailer.ts", "utf8");
   assert.ok(mailer.includes(".for(\"update\")") && mailer.includes("!row.providerMessageId") && mailer.includes("}, tx);"), "the credited recorder rules must stay in place");
+});
+
+test("Xendit subscriptions webhook credit requires the exact passing run, byte-pinned inputs, the bounded retry-refusal exception and a cited call per case", () => {
+  const routePath = "src/app/api/webhooks/xendit/subscriptions/route.ts";
+  const harnessFile = "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const harnessLines = harness.split(String.fromCharCode(10));
+  const workflow = readFileSync(".github/workflows/tenant-webhook-xendit-subscriptions-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.ok(workflow.includes("node --import tsx scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs"));
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("xendit-subscriptions-webhook-isolation:"));
+  assert.ok(workflow.includes('XENDIT_BILLING_ENABLED: "true"'), "the route must run enabled, so a 503 is never the disabled path");
+  assert.equal(manifest.proofPolicy.providerCallback.creditedMethods, 4);
+  assert.ok(manifest.proofPolicy.providerCallback.neverCounts.includes("503"), "503 stays in neverCounts; only the bounded exception carves it out");
+  assert.equal(manifest.proofPolicy.providerCallback.documentedRetryRefusal.appliesTo, "webhooks/xendit/subscriptions POST only.");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const method = api.methods[0];
+  assert.equal(method.reviewedUncertified, undefined, "the prior zero-credit record moves into the receipt");
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.rule, "proofPolicy.providerCallback");
+  assert.equal(proof.ruleException, "proofPolicy.providerCallback.documentedRetryRefusal");
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 xendit-subscriptions-webhook PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1777);
+  assert.equal(proof.mergedProofCommit, "eb230e357");
+  assert.equal(proof.supersedesReview.kind, "xendit-subscriptions-audit-atomicity-PG16-review-only");
+  assert.equal(proof.supersedesReview.coverageCredits, 0);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-webhook-xendit-subscriptions.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const cites = (number, fragment, label) => assert.ok((harnessLines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, 'result(own, 200, { received: true, handled: true, status: "paid" }, "A own paid cycle");', "own-cycle anchor");
+  cites(proof.secondaryOwnPositiveLine, '"B own paid cycle");', "second-employer own-cycle anchor");
+  cites(proof.forgedSelectorLine, '"forged selectors ignored");', "forged-selector anchor");
+  cites(proof.foreignDenialLine, "const refused = await send(payload);", "cross-bound refusal anchor");
+  cites(proof.crossBoundLine, "const refused = await send(payload);", "cross-bound anchor");
+  cites(proof.secondaryForeignDenialLine, '"victim wrong amount");', "victim amount-refusal anchor");
+  cites(proof.unchangedDbLine, "await unchangedExcept(before);", "unchanged-SQL anchor");
+  assert.ok(proof.unchangedDbLine > proof.crossBoundLine, "unchanged-SQL anchor follows the refusal loop");
+  cites(proof.replayLine, '"same event replay");', "replay anchor");
+  cites(proof.concurrentDeliveryLine, "const raced = await Promise.all([send(simultaneous), send(simultaneous)]);", "concurrent anchor");
+  cites(proof.unknownPairLine, "const unknownPair = await send(eventBody(a, {", "invented-pair anchor");
+  cites(proof.stalePlanLine, '"stale plan ignored");', "stale-plan anchor");
+  for (const evidence of ["requireDisposableXenditSubscriptionsWebhook();", "a real foreign pair must not be distinguishable from a nonexistent pair",
+    "concurrent duplicates must not double-write", "assert.equal(refused.status, 503", "CI_ONLY_XENDIT_SUBSCRIPTION_AUDIT_REJECTED",
+    "assertFictionalHighIdVictim(a, b, victim, fillers)"]) assert.ok(harness.includes(evidence), "harness lacks " + evidence);
+  assert.ok(harness.indexOf("requireDisposableXenditSubscriptionsWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+  // The credited source must keep the audit-in-transaction and stored-checkout binding the proof exercises.
+  assert.ok(route.includes("}, tx);") && route.includes("saasBillingCheckouts.providerPlanId, planId") && route.includes('{ status: 503 }'), "the credited binding and retry refusal must stay in place");
 });
