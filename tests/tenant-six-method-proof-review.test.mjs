@@ -493,26 +493,36 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         assert.equal(method.testedBy, null);
       }
     }
+    // Main now contains the three individually source-pinned #1760 recoveries.
+    // Either ALL three exact-method credits are present or none is. Never
+    // infer coverage from a loose count or permit an unreviewed partial merge.
+    const mainRecoveryCredits = EVIDENCE.map(e =>
+      baseline.allApiRouteFiles["src/app/api/" + e.route + "/route.ts"]
+        ?.methods.find(row => row.name === e.method)?.status === "COVERED");
+    assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
+      "origin/main must not contain a partial five-method proof recovery");
+    const baselineHasRecovery = mainRecoveryCredits[0];
+    if (baselineHasRecovery) {
+      const receipt = verifyFiveMethodCredits(baseline);
+      assert.equal(receipt.methodsCredited, 3);
+      assert.equal(receipt.methodsHeld, 2);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
+    if (baselineHasRecovery) {
+      for (const e of EVIDENCE) {
+        expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
+      }
+    }
     assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
       "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
     expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
-    // #1760 is now merged into origin/main. Verify all three provisional
-    // method receipts before treating them as the current source baseline.
-    assert.equal(verifyFiveMethodCredits(baseline).methodsCredited, 3);
-    for (const evidence of EVIDENCE) {
-      const path = "src/app/api/" + evidence.route + "/route.ts";
-      assert.equal(baseline.allApiRouteFiles[path].methods.find(row => row.name === evidence.method)?.testedBy?.workflowRunId,
-        evidence.run, "Main must retain the #1760 exact-source proof run");
-      expectedOriginalMain[path][evidence.method] = "COVERED";
-    }
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main can contain only its original #1730 year-end source receipts and separately pinned payout");
+      "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute ? 2 : 0);
     assert.deepEqual({
@@ -522,22 +532,25 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }, {
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
-        (baselineHasPayout ? payoutCredits : 0) + recovery.methodsCredited,
+        (baselineHasPayout ? payoutCredits : 0) +
+        (baselineHasRecovery ? EVIDENCE.length : 0),
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
-        (baselineHasPayout ? payoutCredits : 0) - recovery.methodsCredited - 1,
+        (baselineHasPayout ? payoutCredits : 0) -
+        (baselineHasRecovery ? EVIDENCE.length : 0) - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + recovery.methodsCredited;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
       .replace("91 GAP", (403 - frozenCovered) + " GAP");
-    // Main may date its frozen subtotal heading; source-ledger values stay strict.
+    // Current main dates the frozen subtotal; earlier snapshots used a plain label.
+    // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
       line.startsWith("Frozen subtotal: **") ||
       line.startsWith("Frozen subtotal (2026-11-04 proposal): **"));
