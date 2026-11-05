@@ -43,3 +43,28 @@ test("only receipt-backed webhook methods are COVERED and the rule counts them",
   }
   assert.equal(rule.creditedMethods, covered, "the rule's counter must match the credited methods");
 });
+
+test("the documented retry refusal is one narrow, evidence-bound exception and 503 still never counts elsewhere", () => {
+  const exception = rule.documentedRetryRefusal;
+  assert.ok(exception && typeof exception === "object", "the exception must be explicit");
+  assert.deepEqual(Object.keys(rule).filter(key => key.toLowerCase().includes("refusal")), ["documentedRetryRefusal"], "only one exception key may exist");
+  assert.equal(exception.appliesTo, "webhooks/xendit/subscriptions POST only.");
+  assert.equal(exception.status, 503);
+  assert.deepEqual(exception.body, { error: "Subscription is not reconciled yet." });
+  assert.ok(rule.neverCounts.includes("503"), "neverCounts must keep 503: the exception adds a bounded carve-out, it does not remove the rule");
+  assert.ok(exception.countsOnlyAs.includes("never as own evidence") && exception.countsOnlyAs.includes("disabled, missing-secret or authentication"));
+  assert.equal(exception.requires.length, 4);
+  for (const part of ["real own paid cycle", "byte-identical", "unchanged", "forged organization, subscription and legal-entity selectors"]) {
+    assert.ok(exception.requires.some(text => text.includes(part)), "exception must require: " + part);
+  }
+  assert.ok(exception.review.includes("PENDING"));
+  // The route must still answer exactly that body, and the harness must still assert every required part.
+  const route = readFileSync("src/app/api/webhooks/xendit/subscriptions/route.ts", "utf8");
+  assert.ok(route.includes('{ error: "Subscription is not reconciled yet." }, { status: 503 }'));
+  const harness = readFileSync("scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs", "utf8");
+  for (const token of ['"A own paid cycle"', '"B own paid cycle"', '"same event replay"', "concurrent duplicates must not double-write",
+    "a real foreign pair must not be distinguishable from a nonexistent pair", '"forged selectors ignored"']) {
+    assert.ok(harness.includes(token), "harness must still contain: " + token);
+  }
+  assert.ok(harness.includes("assert.equal(refused.status, 503"));
+});
