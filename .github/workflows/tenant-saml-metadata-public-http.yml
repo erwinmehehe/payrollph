@@ -81,10 +81,10 @@ jobs:
           secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
           echo "::add-mask::$secret"
           echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
-      - name: Create disposable PG16 schema and test-only baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Create disposable PG16 schema
+        run: npm run db:push
+      - name: Apply reviewed test-only baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production Next against disposable DB
         run: npm run build
       - name: Start localhost-only Next server
