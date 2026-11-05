@@ -56,7 +56,8 @@ test("managed payroll client approval is distinct from the authenticated payroll
   const firstApprovalWrite = approvalRoute.indexOf("tx.update(managedPayrollRunApprovals)", sameUserGuard);
   assert.ok(txStart >= 0 && lockedCheckerRead > txStart && unknownGuard > lockedCheckerRead
     && sameUserGuard > unknownGuard && firstApprovalWrite > sameUserGuard);
-  assert.doesNotMatch(approvalRoute, /checkerDecision\\.actor\\.trim\\(/);
+  assert.equal(approvalRoute.includes("checkerDecision.actor.trim("), false,
+    "mutable checker display names must never authorize client approval");
   assert.ok(approvalRoute.includes("the payroll checker cannot also give the managed-payroll client approval"));
   assert.ok(approvalRoute.includes("Independent checker approval evidence is missing"));
 });
