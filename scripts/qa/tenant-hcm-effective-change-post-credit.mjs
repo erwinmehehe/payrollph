@@ -11,7 +11,6 @@
  *     --head-sha <40 hex> --merge-commit <sha> --proof-pr <number> [--check]
  */
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -68,16 +67,14 @@ assert.equal(git("diff", "--name-only", headSha, "HEAD", "--", ...UNCHANGED_PATH
   "a workflow path-filter input changed since the passing run");
 
 const read = (path) => readFileSync(path, "utf8");
-const sha = (source) => {
-  const bytes = Buffer.from(source);
-  return createHash("sha1").update(Buffer.from("blob " + bytes.length + "\0")).update(bytes).digest("hex");
-};
+// Pin committed Git blobs, never working-tree line endings (which differ on Windows).
+const sha = (path) => blobAt("HEAD", path);
 const harness = read(HARNESS);
 const helper = read(HELPER);
 const manifest = JSON.parse(read(MANIFEST));
 let overview = read(OVERVIEW);
 const api = manifest.allApiRouteFiles[ROUTE];
-assert.equal(api.gitBlobSha, sha(read(ROUTE)), "route changed without re-inventory");
+assert.equal(api.gitBlobSha, sha(ROUTE), "route changed without re-inventory");
 assert.equal(api.gitBlobSha, "fb4bd6692a33a2130f0ec369fedc854334e718db", "the proof was written against this exact route");
 const post = api.methods.find((x) => x.name === "POST");
 assert.equal(post.status, "GAP");
@@ -122,13 +119,13 @@ const testedBy = {
   secondaryForeignDenialLine: refusalLines["victim cost center"],
   methodActions: ["operating_org_unit", "employment_type", "status", "supervisory_org", "cost_center", "manager", "legal_employer", "position_move",
     "foreign_organization_denial", "foreign_reference_refusals", "own_rule_refusals"],
-  proofBlobSha: sha(harness),
-  helperBlobSha: sha(helper),
-  contractBlobSha: sha(read(CONTRACT)),
-  testBlobSha: sha(read(CONTRACT_TEST)),
+  proofBlobSha: sha(HARNESS),
+  helperBlobSha: sha(HELPER),
+  contractBlobSha: sha(CONTRACT),
+  testBlobSha: sha(CONTRACT_TEST),
   workflowFile: WORKFLOW,
-  workflowBlobSha: sha(read(WORKFLOW)),
-  routeBlobSha: sha(read(ROUTE)),
+  workflowBlobSha: sha(WORKFLOW),
+  routeBlobSha: sha(ROUTE),
   scope: "Real HTTP on disposable PG16 against a production build, two independent attacker employers, six fillers and a higher-ID victim. Each attacker proves eight own pending effective changes (operating org unit, employment type, status, supervisory org, cost center, manager, own legal employer, position move), each writing exactly one change row, one business process and one audit receipt together with nothing applied, and 17 refusals: the victim organization (403) and the victim's worker, org unit, supervisory unit, cost center, manager, legal employer and position named from an own-employer request (400/404) plus the route's own-employer rules (occupied or unapproved position, retroactive move, unsupported movement, inherited-dimension override, self as manager, supervisory unit as operating unit). Every refusal leaks no victim marker and every employer's SQL state (changes, processes, workers, positions, assignments, units, cost centers, entities, audit) is compared before and after. Not proven: the multiEntity flag path (flag off, so a legal-employer move is accepted rather than routed to the transfer maker-checker) and the no-pay-profile worker.",
   evidence, runLabel, postgresMajor: 16, workflowRunId, workflowJobId, verifiedPrHeadSha: headSha,
   mergedProofCommit: mergeCommit, proofPullRequest: proofPr,
