@@ -431,6 +431,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(method.testedBy.independentlyAccepted, false);
     expectedStatuses[path][evidence.method] = "COVERED";
   }
+  // One provider-callback credit after the reviewed snapshot: webhooks/resend POST (merged proof #1763). Its pins are verified
+  // by the dedicated inventory test; here only the exact method and receipt identity may move from GAP.
+  const resendPath = "src/app/api/webhooks/resend/route.ts";
+  assert.equal(expectedStatuses[resendPath]?.POST, "GAP", "Resend POST must start GAP in the reviewed snapshot");
+  const resendMethod = m.allApiRouteFiles[resendPath].methods.find(row => row.name === "POST");
+  assert.equal(resendMethod?.status, "COVERED");
+  assert.equal(resendMethod.testedBy?.file, "scripts/qa/tenant-webhook-resend-http.mjs");
+  assert.equal(resendMethod.testedBy.proofPullRequest, 1763);
+  assert.equal(resendMethod.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(resendMethod.testedBy.productionTested, false);
+  expectedStatuses[resendPath].POST = "COVERED";
+  const resendCredits = 1;
   // #1766 contributes one disjoint, provisional PII-02 MWE decision PATCH.
   // Require its exact method-specific source record; no independent signoff.
   const mweDecisionPath = "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts";
@@ -451,11 +463,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(publicCatalog?.testedBy, null);
   expectedStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves payout PATCH and revoked year-end pair while allowing exactly three source-verified recoveries and one provisional MWE PATCH");
+    "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + 1,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + 1,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - 2,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - 2,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -467,7 +479,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **325 COVERED + 3 PUBLIC-BY-DESIGN + 78 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **326 COVERED + 3 PUBLIC-BY-DESIGN + 77 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
