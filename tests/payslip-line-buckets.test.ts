@@ -46,3 +46,16 @@ test("every payslip view uses the shared bucket classifier instead of splitting 
     assert.doesNotMatch(source, /\.filter\(\((?:item|line)\) => Number\((?:item|line)\.amount(?: \?\? 0)?\) [<>] 0\)/, file + " still splits payslip lines by sign");
   }
 });
+
+test("Phase 4 golden cases reconcile actual presentation buckets without a refund exemption", () => {
+  const source = readFileSync("scripts/golden-payroll-phase4.ts", "utf8");
+  assert.match(source, /const totals = payslipSectionTotals\(items\)/);
+  assert.match(source, /assert\.equal\(cents\(totals\.earnings, label\), gross/);
+  assert.match(source, /assert\.equal\(cents\(totals\.deductions, label\), deductions/);
+  assert.match(source, /assertPayslipReconciles\(entry, id\);/);
+  assert.doesNotMatch(source, /knownPayslipBucketFinding|assertKnownRefundBucketFinding/);
+  const catalog = JSON.parse(readFileSync("certification/golden-payroll-phase4.json", "utf8"));
+  for (const scenario of Object.values(catalog.cases)) {
+    assert.ok(!Object.prototype.hasOwnProperty.call(scenario, "knownPayslipBucketFinding"));
+  }
+});

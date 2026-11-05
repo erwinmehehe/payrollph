@@ -150,6 +150,6 @@
     "Engineering evidence only: not a substitute for independent CPA/payroll-practitioner sign-off, parallel payroll cycles or BIR acceptance.",
     "The engine honors the stored leave-conversion tax flag; this catalog does not prove that more than 12 monetized days can never be flagged exempt.",
     "Year-end adjustment amounts are taken as approved inputs; the annualization that produces them is not recomputed here.",
-    "Year-end refund: only net, withholding, taxable, contributions and gross are asserted, and the payslip is checked as printed total = net, because of the known bucket finding recorded on that case."
+    "Year-end refund: expected payroll amounts remain independent catalog literals; the shared presentation classifier must also reconcile earnings to gross, deductions to stored deductions, and gross less deductions to net. Rendered browser/PDF verification is separate evidence."
   ]
 }
