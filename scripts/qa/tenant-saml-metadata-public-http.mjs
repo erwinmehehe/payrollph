@@ -39,13 +39,16 @@ export async function verifySamlPublicHttp() {
         clientSecretEncrypted: "PRIVATE_SECRET_" + actor.marker,
         samlEntityId: "PRIVATE_IDP_ENTITY_" + actor.marker,
         samlSsoUrl: "https://idp.example.invalid/" + actor.marker,
-      }).returning({ id: s.identityProviders.id });
+      }).returning({ id: s.identityProviders.id, enabled: s.identityProviders.enabled });
       return provider;
     }
     const providers = [];
     for (const actor of actors) providers.push(await addProvider(actor, "saml"));
     const oidc = await addProvider(victim, "oidc");
     assert.ok(providers[2].id > Math.max(providers[0].id, providers[1].id));
+    assert.ok(providers.every(p => p.enabled === false),
+      "Fictional SAML providers must be disabled to expose the pending public-policy decision");
+    assert.equal(oidc.enabled, true, "OIDC negative control remains enabled");
     const forbidden = actors.flatMap(actor => [
       actor.marker, actor.owner.email, actor.org.name,
       "PRIVATE_CLIENT_" + actor.marker, "PRIVATE_SECRET_" + actor.marker,
@@ -112,6 +115,8 @@ export async function verifySamlPublicHttp() {
       test: "disposable-postgresql16-production-next-real-http",
       attackers: 2, higherIdRealVictim: true, signedInSessions: 3,
       anonymousXml200: true, forgedSelectorsIdentical: true,
+      disabledSamlProviderMetadataIsAnonymous200: true,
+      disabledProviderPublicPolicy: "PENDING_IDENTITY_SECURITY_OWNER_DECISION",
       noTenantOrProviderSecrets: true, unchangedDb: true,
       classificationCandidate: "PUBLIC-BY-DESIGN",
       currentStatus: "GAP", coverageCredits: 0,

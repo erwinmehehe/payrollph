@@ -21,6 +21,33 @@ classified PUBLIC-BY-DESIGN. Do not assume the metadata is tenant-private.
 The SAML login runtime remains disabled. This proof does not enable SSO,
 configure any provider, or authorize a payroll action.
 
+## Security decision record (unresolved, no implicit approval)
+
+The HTTP fixture deliberately seeds three SAML providers with **enabled=false**
+and verifies that an unauthenticated caller can fetch each provider's metadata
+by its sequential numeric ID. An enabled OIDC record and unknown IDs return
+no SAML metadata. The XML includes public SP URLs, not employer secrets, but
+the 200-versus-404 distinction reveals that a disabled SAML record exists.
+The proof now reports this exposure explicitly as
+`PENDING_IDENTITY_SECURITY_OWNER_DECISION`; it does not endorse it.
+
+**Privacy-first option:** Return an indistinguishable 404 for disabled SAML
+providers on the public endpoint; permit public metadata only for enabled
+providers. If identity-provider setup requires metadata before enablement,
+provide an authenticated, employer-scoped preview as a separately reviewed
+change. This changes runtime behavior and requires new exact-source proof.
+
+**Pre-activation setup option:** Keep disabled SAML metadata public to allow
+external IdP registration before activation. An identity/security owner must
+explicitly accept the existence-disclosure tradeoff and document why a public
+pre-activation URL is required. No reviewer decision is recorded in this PR.
+
+**Recommended decision rule:** Prefer the privacy-first option unless the
+onboarding requirement for anonymous pre-activation metadata is demonstrated.
+Do not change application policy within this zero-credit proof PR by assumption.
+In either case, keep SAML authentication disabled, do not promote this method
+from GAP, and do not interpret passing CI as independent acceptance.
+
 ## Required execution
 
 The dedicated CI workflow uses a fresh disposable PostgreSQL 16 app_db

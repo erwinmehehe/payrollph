@@ -103,6 +103,9 @@ test("real HTTP runner proves high-ID victim and unchanged SQL before any credit
     "assertSameMetadata(anonymous, actual)", "assertMissingMetadata",
     "assert.deepEqual(await snapshot(), before", "coverageCredits: 0",
     "independentlyAccepted: false",
+    "providers.every(p => p.enabled === false)",
+    "disabledSamlProviderMetadataIsAnonymous200: true",
+    'disabledProviderPublicPolicy: "PENDING_IDENTITY_SECURITY_OWNER_DECISION"',
   ]) assert.ok(runner.includes(token), "missing PG16 invariant " + token);
   assert.match(workflow, /image: postgres:16/);
   assert.match(workflow, /npm start -- -H 127\.0\.0\.1/);
