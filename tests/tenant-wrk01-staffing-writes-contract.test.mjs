@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { readFileSync } from "node:fs";
 import {
   STAFFING_ENDPOINT, STAFFING_WRITE_METHODS,
@@ -187,8 +188,10 @@ test("manifest credits both WRK-01 write methods only through the source-pinned 
     assert.match(method.testedBy.independentReview, /^PENDING/);
     assert.equal(method.testedBy.productionCertified, false);
   }
-  // The uncovered read stays GAP: manage-mode GET has no own/foreign proof here.
-  assert.equal(route.methods.find(x => x.name === "GET").status, "GAP");
+  // The write-family proof does not count GET; the later separate two-workflow
+  // read proof must stand on its own and may be provisionally reconciled once.
+  assert.equal(route.methods.find(x => x.name === "GET").status, "COVERED");
+  assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
 });
 
 test("actual HTTP source covers creation, all PATCH decisions, real target IDs and SQL snapshots", () => {
