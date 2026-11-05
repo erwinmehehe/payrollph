@@ -5,6 +5,7 @@ import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-veri
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
+import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -3074,6 +3075,50 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
     return;
   }
 
+  // Anonymous public payroll quote intake, not a tenant-private API:
+  // preserve a zero-credit GAP after a source-reconstructed attribution-only
+  // change. This exception cannot be reused by a different route, method,
+  // script, source hash or new privacy/security behavior.
+  if (isNewOrChanged &&
+      key === "src/app/api/payroll-outsourcing/quote/route.ts POST") {
+    const routeFile = "src/app/api/payroll-outsourcing/quote/route.ts";
+    const originalSha = "0950bcb93b5ab1848e1a58be643ef6696be71222";
+    const reviewedSha = "1b4e5363ceeef9ebe30e2dd5657d21482fe1e8a6";
+    const contractFile = "tests/marketing-outsourcing-attribution.test.ts";
+    const contractSha = "d188e159ca475d793b4b18647da3fde110906e87";
+    assert.equal(currentBlob, reviewedSha, "Source drift requires renewed public intake review");
+    assert.equal(manifest.allApiRouteFiles[routeFile]?.gitBlobSha, reviewedSha);
+    assert.equal(method.name, "POST");
+    assert.equal(method.status, "GAP", "Source-only marketing review does not earn tenant evidence");
+    assert.equal(method.testedBy, null, "No fictional own/victim method proof may be invented");
+    assert.match(method.reason, /^Still GAP:/);
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "public-outsourcing-attribution-source-only-zero-tenant-credit",
+      originalRouteBlobSha: originalSha, routeBlobSha: reviewedSha,
+      contractFile, contractBlobSha: contractSha, methodCredits: 0,
+      reviewedPublicBoundary: "ANONYMOUS_MARKETING_INTAKE_NOT_TENANT_COVERAGE",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    }, "Only the exact public intake attribution change may remain uncredited");
+    assert.equal(gitBlobSha(readFileSync(contractFile)), contractSha,
+      "Attribution/consent source contract changed without review");
+    const currentSource = readFileSync(routeFile, "utf8");
+    const reverted = currentSource
+      .replace('import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";\n', "")
+      .replace('  const attribution = { ...sanitizeMarketingAttribution(body.attribution), ...marketingConsentEvidence() };\n', "")
+      .replace('      attribution,\n', '      attribution: marketingConsentEvidence(),\n');
+    assert.equal(gitBlobSha(Buffer.from(reverted)), originalSha,
+      "Only reviewed attribution sanitization and persistence may change the handler");
+    const required = [
+      "enforceSameOriginMutation(request)", "rateLimitDistributed(",
+      "marketingHoneypotTripped(body)", "enforceIntakeProof(body, email)",
+      "hasMarketingEnquiryConsent(body)", "...sanitizeMarketingAttribution(body.attribution)",
+      "...marketingConsentEvidence()", 'sourcePath: "/payroll-outsourcing"',
+      "attribution,", "recordMarketingLead({",
+    ];
+    for (const guard of required) assert.ok(currentSource.includes(guard),
+      "Public intake lost reviewed consent, anti-abuse or sanitized attribution control: " + guard);
+    return;
+  }
   // Review-only hold for a changed managed-payroll approval POST. Do not
   // infer method coverage from source tests: two-employer PG16 success,
   // foreign/missing-ID equivalence and race rollback evidence are STILL DUE.
@@ -3159,50 +3204,7 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
     return;
   }
 
-  // Anonymous public payroll quote intake, not a tenant-private API:
-  // preserve a zero-credit GAP after a source-reconstructed attribution-only
-  // change. This exception cannot be reused by a different route, method,
-  // script, source hash or new privacy/security behavior.
-  if (isNewOrChanged &&
-      key === "src/app/api/payroll-outsourcing/quote/route.ts POST") {
-    const routeFile = "src/app/api/payroll-outsourcing/quote/route.ts";
-    const originalSha = "0950bcb93b5ab1848e1a58be643ef6696be71222";
-    const reviewedSha = "1b4e5363ceeef9ebe30e2dd5657d21482fe1e8a6";
-    const contractFile = "tests/marketing-outsourcing-attribution.test.ts";
-    const contractSha = "d188e159ca475d793b4b18647da3fde110906e87";
-    assert.equal(currentBlob, reviewedSha, "Source drift requires renewed public intake review");
-    assert.equal(manifest.allApiRouteFiles[routeFile]?.gitBlobSha, reviewedSha);
-    assert.equal(method.name, "POST");
-    assert.equal(method.status, "GAP", "Source-only marketing review does not earn tenant evidence");
-    assert.equal(method.testedBy, null, "No fictional own/victim method proof may be invented");
-    assert.match(method.reason, /^Still GAP:/);
-    assert.deepEqual(method.reviewedUncertified, {
-      kind: "public-outsourcing-attribution-source-only-zero-tenant-credit",
-      originalRouteBlobSha: originalSha, routeBlobSha: reviewedSha,
-      contractFile, contractBlobSha: contractSha, methodCredits: 0,
-      reviewedPublicBoundary: "ANONYMOUS_MARKETING_INTAKE_NOT_TENANT_COVERAGE",
-      independentSecurityReview: "PENDING", productionCertified: false,
-    }, "Only the exact public intake attribution change may remain uncredited");
-    assert.equal(gitBlobSha(readFileSync(contractFile)), contractSha,
-      "Attribution/consent source contract changed without review");
-    const currentSource = readFileSync(routeFile, "utf8");
-    const reverted = currentSource
-      .replace('import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";\n', "")
-      .replace('  const attribution = { ...sanitizeMarketingAttribution(body.attribution), ...marketingConsentEvidence() };\n', "")
-      .replace('      attribution,\n', '      attribution: marketingConsentEvidence(),\n');
-    assert.equal(gitBlobSha(Buffer.from(reverted)), originalSha,
-      "Only reviewed attribution sanitization and persistence may change the handler");
-    const required = [
-      "enforceSameOriginMutation(request)", "rateLimitDistributed(",
-      "marketingHoneypotTripped(body)", "enforceIntakeProof(body, email)",
-      "hasMarketingEnquiryConsent(body)", "...sanitizeMarketingAttribution(body.attribution)",
-      "...marketingConsentEvidence()", 'sourcePath: "/payroll-outsourcing"',
-      "attribution,", "recordMarketingLead({",
-    ];
-    for (const guard of required) assert.ok(currentSource.includes(guard),
-      "Public intake lost reviewed consent, anti-abuse or sanitized attribution control: " + guard);
-    return;
-  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -5025,6 +5027,19 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine], [112,125,129,149]);
         for (const field of ["sourceRowOwnPositiveLine","sourceRowForeignDenialLine","sourceRowForgedSelectorLine","sourceRowUnchangedDbLine"])
           assert.ok(evidenceLine(rowFile, proof[field], entry.route + " four-part " + field).length > 14);
+        continue;
+      }
+      // Only the three distinct source-pinned #1762 PG16 HTTP method receipts
+      // may gain the new provisional PII/EDG credit. This verifier checks
+      // unchanged route, runner, contract and workflow Git blobs, actual own,
+      // victim, forged-selector and unchanged-PG16 evidence line anchors.
+      const recovered = FIVE_METHOD_EVIDENCE.find(e =>
+        path === "src/app/api/" + e.route + "/route.ts" && method.name === e.method);
+      if (recovered) {
+        assert.equal(proof?.file, recovered.file,
+          "Provisional method credit cannot borrow another proof runner");
+        assert.equal(verifyFiveMethodCredits(manifest).methodsCredited, FIVE_METHOD_EVIDENCE.length,
+          "All three exact-head source/contract/workflow receipts must pass");
         continue;
       }
       if (entry.route === "payout-profiles" && method.name === "PATCH") {
