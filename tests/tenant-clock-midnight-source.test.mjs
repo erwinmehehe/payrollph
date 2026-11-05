@@ -8,7 +8,7 @@ test("deterministic midnight proof must use real local HTTP with no extra credit
    "Fail-closed guard must precede DB import");
  for (const token of [
   'today + "T00:00:00+08:00"', 'assert.notEqual(clockDay, today',
-  '"202"', 'staged.push(response.json.id)',
+  'staged.push(response.json.id)',
   "assert.equal(response.status, 202", "assert.equal(response.status, 200",
   "oneRowPerEmployee: true", "higherIdVictimUnchanged: true",
   "newMethodCredits: 0", "independentHumanAcceptance: false",
