@@ -31,3 +31,20 @@ export function activeManagedPayrollClientApprover(
     && engagement.clientApproverUserId === actorUserId
   );
 }
+
+/**
+ * A display name is mutable and is never proof that a separate human
+ * performed payroll checker approval. Historic evidence without an
+ * authenticated numeric deciderUserId must fail closed.
+ */
+export function classifyManagedPayrollCheckerIdentity(
+  evidenceDeciderUserId: unknown,
+  clientApproverUserId: number,
+): "unknown" | "same_user" | "independent" {
+  if (typeof evidenceDeciderUserId !== "number"
+    || !Number.isSafeInteger(evidenceDeciderUserId)
+    || evidenceDeciderUserId < 1
+    || !Number.isSafeInteger(clientApproverUserId)
+    || clientApproverUserId < 1) return "unknown";
+  return evidenceDeciderUserId === clientApproverUserId ? "same_user" : "independent";
+}
