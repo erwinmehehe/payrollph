@@ -7,6 +7,7 @@ import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
@@ -217,6 +218,10 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
+    if (key === "GET workforce/demand-staffing/policies") {
+      assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
+      continue;
+    }
     if (key === "GET year-end" || key === "POST year-end") {
       // The #1730 receipts belong to the previous route blob. Both methods
       // have zero current coverage credit after the atomic-binding rewrite.
