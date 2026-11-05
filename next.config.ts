@@ -66,6 +66,15 @@ const nextConfig: NextConfig = {
           { key: "Pragma", value: "no-cache" },
         ],
       },
+      // The general API header overrides route-level Cache-Control in Next.
+      // Keep sensitive MWE decision denials explicitly private on the wire.
+      // This more-specific rule must follow the general /api rule.
+      {
+        source: "/api/employees/:id/mwe-classifications/:classificationId",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
     ];
   },
 };
