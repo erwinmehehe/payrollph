@@ -59,6 +59,32 @@ test("MWE endpoint hides foreign/unknown global IDs and verifies selected employ
   assert.match(lib, /\.for\("share"\)\.limit\(1\)/);
   assert.match(lib, /employee\.legalEntityId !== input\.expectedLegalEntityId/);
   assert.match(lib, /kind: "forbidden" as const, message: "Legal employer is not available/);
+  // No class-ID existence oracle for active noncheckers or ungranted employers.
+  assert.match(source, /inArray\(userOrganizations\.role, \[\.\.\.PAYROLL_TAX_APPROVER_ROLES\]\)/);
+  assert.ok(source.indexOf("requireSensitiveActionMfa(user)") < source.indexOf("innerJoin(userOrganizations"),
+    "MFA must run before resolving any globally addressed tax classification");
+  for (const denied of [
+    "if (denied) return classificationNotFound();",
+    "if (scopeDenied) return classificationNotFound();",
+    "if (!entity.ok) return classificationNotFound();",
+    "if (employerDenied) return classificationNotFound();",
+    'if (result.kind === "not_found" || result.kind === "forbidden") return classificationNotFound();',
+  ]) assert.ok(source.includes(denied), "all private denials must hide resource existence: " + denied);
+  // Concurrency: the approval transaction locks active membership, custom
+  // overlays, legal-employer grant and employee before any tax/payroll write.
+  for (const token of [
+    'eq(userOrganizations.userId, input.decidedByUserId)',
+    'eq(userOrganizations.organizationId, input.organizationId)',
+    ')).for("update").limit(1);',
+    'PAYROLL_TAX_APPROVER_ROLES.some(role => role === membership.role)',
+    'membership.orgUnitId !== employee.orgUnitId',
+    'permissionOverlayKeysValid(permissionSet.permissions, ROLE_GATE_PERMISSIONS)',
+    'permissionOverlayGroupBindingValid(assignment)',
+    'eq(userLegalEntityGrants.userId, input.decidedByUserId)',
+    'eq(userLegalEntityGrants.legalEntityId, input.expectedLegalEntityId)',
+    'eq(legalEntities.active, true)',
+    'if (!grant || !entity) return permissionDenied();',
+  ]) assert.ok(lib.includes(token), "transactional authorization guard missing " + token);
 });
 test("proof contract rejects false own-success, empty authorization and privacy leaks", () => {
   const employer = { org: { id: 10 }, worker: { id: 13 } };
@@ -111,4 +137,15 @@ test("four-part real-HTTP fixture is nonempty, two-actor and source-pinned", () 
   assert.match(workflow, /node --import tsx scripts\/qa\/tenant-mwe-decision-http\.mjs/);
   assert.equal(proof.independentlyAccepted, false);
   assert.equal(proof.productionCertified, false);
+});
+
+test("real HTTP MWE proof compares active nonchecker, ungranted employer and unknown IDs", () => {
+  const proofSource = readFileSync("scripts/qa/tenant-mwe-decision-http.mjs", "utf8");
+  for (const token of [
+    "assert.equal(wrongEmployer.text, unknownSecond.text",
+    "assert.equal(ungrantedEmployer.text, unknownSelected.text",
+    "assert.equal(knownButForbidden.text, missingForNonChecker.text",
+    "unauthorizedRoleUnknownEquivalent: true",
+    "ungrantedEmployerUnknownEquivalent: true",
+  ]) assert.ok(proofSource.includes(token), "real HTTP privacy proof must include " + token);
 });

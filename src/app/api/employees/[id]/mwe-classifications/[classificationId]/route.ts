@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employeeMweClassifications, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -40,14 +40,29 @@ export async function PATCH(
     return Response.json({ error: "Invalid employee or classification id." }, { status: 400 });
   }
 
-  // Make foreign and unknown IDs indistinguishable before any classification
-  // or employee data is loaded. A global ID is never a tenant grant.
+  // The session must satisfy the MFA and rate gates before any global
+  // classification ID is resolved. Unknown IDs cannot bypass these gates.
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "mwe-classification-decision",
+    resourceId: classificationId,
+    limit: 12,
+    windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
+  // An active membership by itself is not permission to discover tax records.
+  // Filter the base payroll-tax role inside the resource-visibility join;
+  // post-lookup unit, custom permission and employer denials stay private 404.
   const [visible] = await db.select({ classification: employeeMweClassifications })
     .from(employeeMweClassifications)
     .innerJoin(userOrganizations, and(
       eq(userOrganizations.organizationId, employeeMweClassifications.organizationId),
       eq(userOrganizations.userId, user.id),
       eq(userOrganizations.active, true),
+      inArray(userOrganizations.role, [...PAYROLL_TAX_APPROVER_ROLES]),
     ))
     .where(and(
       eq(employeeMweClassifications.id, classificationId),
@@ -67,34 +82,23 @@ export async function PATCH(
     PAYROLL_TAX_APPROVER_ROLES,
     "Only an authorized payroll tax checker can decide MWE classifications.",
   );
-  if (denied) return denied;
+  if (denied) return classificationNotFound();
   const scopeDenied = await assertOrganizationUnitAccess(
     user.id,
     classification.organizationId,
     employee.orgUnitId,
     "This employee is outside your assigned organization unit.",
   );
-  if (scopeDenied) return scopeDenied;
+  if (scopeDenied) return classificationNotFound();
 
   // Organization membership and unit access alone do not authorize a second
   // legal employer within the same workspace. Feature-OFF stays legacy.
   const entity = await resolveMultiEntityContext({
     userId: user.id, organizationId: classification.organizationId, request,
   });
-  if (!entity.ok) return entity.response;
+  if (!entity.ok) return classificationNotFound();
   const employerDenied = assertEntityResource(entity.context, employee.legalEntityId);
-  if (employerDenied) return employerDenied;
-
-  const mfaDenied = requireSensitiveActionMfa(user);
-  if (mfaDenied) return mfaDenied;
-  const rateDenied = await enforceSensitiveActionRateLimit(request, {
-    userId: user.id,
-    action: "mwe-classification-decision",
-    resourceId: classificationId,
-    limit: 12,
-    windowMs: 15 * 60_000,
-  });
-  if (rateDenied) return rateDenied;
+  if (employerDenied) return classificationNotFound();
 
   const body = await request.json().catch(() => ({}));
   const decision = body.decision === "approve" || body.decision === "reject"
@@ -114,8 +118,9 @@ export async function PATCH(
     expectedLegalEntityId: entity.context.enabled ? entity.context.legalEntityId : undefined,
   });
 
-  if (result.kind === "not_found") return Response.json({ error: "Classification request not found." }, { status: 404 });
-  if (result.kind === "forbidden") return Response.json({ error: result.message }, { status: 403 });
+  // A concurrent grant revocation or missing request must be identical to an
+  // unknown global ID. Never serialize private tax or grant details in denial.
+  if (result.kind === "not_found" || result.kind === "forbidden") return classificationNotFound();
   if (result.kind === "conflict" || result.kind === "busy") {
     return Response.json({ error: result.message }, { status: 409 });
   }

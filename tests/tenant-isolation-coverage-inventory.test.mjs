@@ -4976,9 +4976,9 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.contractFile, "scripts/qa/tenant-mwe-decision-contract.mjs");
         assert.equal(proof.workflowFile, ".github/workflows/tenant-mwe-decision-http.yml");
         assert.equal(proof.libraryFile, "src/lib/mwe-classification.ts");
-        assert.equal(proof.routeBlobSha,"bf74e1df123f3905bf1b2e4fbe1f1f448f331a20");
-        assert.equal(proof.libraryBlobSha,"92a6d7185124cf79bbd84e75675dcecdc0255979");
-        assert.equal(proof.proofBlobSha,"022214660211b779341652c0f8b59ab509c7adf8");
+        assert.equal(proof.routeBlobSha,"b08702d9c56ae506d98be5a917119121a71bb50f");
+        assert.equal(proof.libraryBlobSha,"0df4bbd8504fdc900429bbb48f50371ac9a28746");
+        assert.equal(proof.proofBlobSha,"7247ca54e924917b34f1aed0fa818f540105f25d");
         assert.equal(proof.contractBlobSha,"8db8b3d0399cf0183f425e151a4158d69e3db9a4");
         assert.equal(proof.workflowBlobSha,"584d159f2d2c250e182d0942188f293baebc2141");
         for (const [pinnedPath,pinnedSha] of [
@@ -5004,6 +5004,10 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(suite, /assert\.equal\(foreignDenial\.text, unknown\.text/);
         assert.match(suite, /const wrongEmployer = await decision/);
         assert.match(suite, /const revoked = await decision/);
+        assert.match(suite, /const knownButForbidden = await decision/);
+        assert.match(suite, /assert\.equal\(knownButForbidden\.text, missingForNonChecker\.text/);
+        assert.match(suite, /assert\.equal\(wrongEmployer\.text, unknownSecond\.text/);
+        assert.match(suite, /assert\.equal\(ungrantedEmployer\.text, unknownSelected\.text/);
         assert.equal(proof.postgresMajor,16);
         assert.deepEqual(proof.methodActions,["approve","reject"]);
         assert.equal(proof.attackerEmployers,2);

@@ -143,12 +143,42 @@ const [secondRecord] = await db.insert(s.employeeMweClassifications).values({
 const secondBefore = await snapshot(a.org.id);
 const wrongEmployer = await decision(a, secondWorker.id, secondRecord.id, "reject",
   { entityId: a.entity.id });
-requireTenantDenial(wrongEmployer, [403], ["Fictional second employer packet"]);
+requireTenantDenial(wrongEmployer, [404], ["Fictional second employer packet"]);
+const unknownSecond = await decision(a, secondWorker.id, secondRecord.id + 200_000,
+  "reject", { entityId: a.entity.id });
+assert.equal(wrongEmployer.text, unknownSecond.text,
+  "Real ungranted employer and unknown classification must have identical private denials");
 const ungrantedEmployer = await decision(a, secondWorker.id, secondRecord.id, "reject",
   { entityId: secondEntity.id });
-requireTenantDenial(ungrantedEmployer, [403], ["Fictional second employer packet"]);
+requireTenantDenial(ungrantedEmployer, [404], ["Fictional second employer packet"]);
+const unknownSelected = await decision(a, secondWorker.id, secondRecord.id + 200_000,
+  "reject", { entityId: secondEntity.id });
+assert.equal(ungrantedEmployer.text, unknownSelected.text,
+  "A selected but ungranted employer must not reveal whether a record exists");
 assert.deepEqual(await snapshot(a.org.id), secondBefore,
   "Same-workspace ungranted employer attempt must not touch any tax or audit rows");
+
+// A real active same-workspace HR member without payroll-tax checker role
+// must not learn whether another worker's tax classification ID exists.
+const [hrViewer] = await db.insert(s.users).values({
+  email: "fictional-mwe-hr-viewer-" + marker + "@example.invalid",
+  name: "Fictional nonchecker viewer", role: "hr", totpEnabled: true,
+  passwordHash: "fictional-only",
+}).returning();
+await db.insert(s.userOrganizations).values({
+  userId: hrViewer.id, organizationId: a.org.id, role: "hr", active: true,
+});
+const hrSession = await harness.standaloneMakeSession(hrViewer.id);
+await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+  .where(eq(s.sessions.id, hrSession.id));
+const nonChecker = { cookie: hrSession.cookie };
+const knownButForbidden = await decision(nonChecker, a.worker.id, a.records[2].id,
+  "reject", { entityId: a.entity.id });
+const missingForNonChecker = await decision(nonChecker, a.worker.id,
+  a.records[2].id + 200_000, "reject", { entityId: a.entity.id });
+requireTenantDenial(knownButForbidden, [404], [a.marker, a.maker.name]);
+assert.equal(knownButForbidden.text, missingForNonChecker.text,
+  "Non-checker active workspace users must not enumerate real MWE classification IDs");
 
 // Revoke the attacker's company membership: the globally addressable
 // classification ID must become exactly as undiscoverable as a nonexistent ID.
@@ -166,7 +196,8 @@ console.log(JSON.stringify({
   fictionalPostgresMajor: 16, attackerEmployers: 2, victimEmployers: 1,
   ownedApprove200: 2, ownedReject200: 2,
   victimUnknownEquivalent: true, forgedSelectorDenied: true,
-  sameOrganizationOtherEmployerDenied: true, revokedMembershipDenied: true,
+  sameOrganizationOtherEmployerDenied: true, unauthorizedRoleUnknownEquivalent: true,
+  ungrantedEmployerUnknownEquivalent: true, revokedMembershipDenied: true,
   unchangedVictimSql: true, methodCredits: 1,
   reviewStatus: "PROVISIONAL_NOT_ACCEPTED", productionDataUsed: false,
 }));

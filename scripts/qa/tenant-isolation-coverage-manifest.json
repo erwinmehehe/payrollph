@@ -10281,14 +10281,14 @@
       ]
     },
     "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts": {
-      "gitBlobSha": "bf74e1df123f3905bf1b2e4fbe1f1f448f331a20",
+      "gitBlobSha": "b08702d9c56ae506d98be5a917119121a71bb50f",
       "route": "employees/[id]/mwe-classifications/[classificationId]",
       "methods": [
         {
           "name": "PATCH",
           "line": 24,
           "status": "COVERED",
-          "reason": "PROVISIONAL exact-source MWE PATCH isolation candidate: active-member gated global-ID read and tenant-identical unknown/foreign 404; same-workspace legal-employer denial before sensitive decision; transaction-time employee employer recheck under row lock. Separate CI-only fictional PG16/real-HTTP proof requires two independent owners' approve/reject 200, real higher-ID victim 404, forged selectors denied and unchanged victim SQL. NOT ACCEPTED without passing exact-PR-head CI and independent security review.",
+          "reason": "PROVISIONAL exact-source MWE PATCH isolation candidate: active-member gated global-ID read and tenant-identical unknown/foreign 404; same-workspace legal-employer denial before sensitive decision; transaction-time employee employer recheck under row lock. Separate CI-only fictional PG16/real-HTTP proof requires two independent owners' approve/reject 200, real higher-ID victim 404, forged selectors denied and unchanged victim SQL. NOT ACCEPTED without passing exact-PR-head CI and independent security review. Extended method proof on the new exact source must also show uniform 404 for active nonchecker and ungranted sibling employer vs unknown IDs and transactional live membership/grant rechecks. NOT ACCEPTED before new exact-head PG16 pass.",
           "testedBy": {
             "file": "scripts/qa/tenant-mwe-decision-http.mjs",
             "line": 92,
@@ -10297,10 +10297,10 @@
             "forgedSelectorLine": 107,
             "unchangedDbLine": 114,
             "victimIdOrderingLine": 78,
-            "routeBlobSha": "bf74e1df123f3905bf1b2e4fbe1f1f448f331a20",
+            "routeBlobSha": "b08702d9c56ae506d98be5a917119121a71bb50f",
             "libraryFile": "src/lib/mwe-classification.ts",
-            "libraryBlobSha": "92a6d7185124cf79bbd84e75675dcecdc0255979",
-            "proofBlobSha": "022214660211b779341652c0f8b59ab509c7adf8",
+            "libraryBlobSha": "0df4bbd8504fdc900429bbb48f50371ac9a28746",
+            "proofBlobSha": "7247ca54e924917b34f1aed0fa818f540105f25d",
             "contractFile": "scripts/qa/tenant-mwe-decision-contract.mjs",
             "contractBlobSha": "8db8b3d0399cf0183f425e151a4158d69e3db9a4",
             "workflowFile": ".github/workflows/tenant-mwe-decision-http.yml",
@@ -10355,11 +10355,11 @@
           "token": "getSessionUser"
         },
         {
-          "line": 64,
+          "line": 79,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 71,
+          "line": 86,
           "token": "assertOrganizationUnitAccess"
         }
       ],
@@ -10374,43 +10374,43 @@
           "token": "employeeId"
         },
         {
-          "line": 54,
+          "line": 69,
           "token": "employeeId"
         },
         {
-          "line": 54,
+          "line": 69,
           "token": "employeeId"
-        },
-        {
-          "line": 59,
-          "token": "employeeId"
-        },
-        {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 66,
-          "token": "organizationId"
-        },
-        {
-          "line": 73,
-          "token": "organizationId"
         },
         {
           "line": 74,
-          "token": "orgUnitId"
+          "token": "employeeId"
         },
         {
-          "line": 108,
+          "line": 75,
           "token": "organizationId"
         },
         {
-          "line": 108,
+          "line": 75,
+          "token": "organizationId"
+        },
+        {
+          "line": 81,
+          "token": "organizationId"
+        },
+        {
+          "line": 88,
+          "token": "organizationId"
+        },
+        {
+          "line": 89,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 112,
+          "token": "organizationId"
+        },
+        {
+          "line": 112,
           "token": "organizationId"
         }
       ]
