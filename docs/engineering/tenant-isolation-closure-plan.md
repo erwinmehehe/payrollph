@@ -1,3 +1,7 @@
+## 2026-11-06 PR #1784 synchronized with main — PROVISIONAL, NOT ACCEPTED
+
+**Current combined branch ledger: 498 methods = 414 COVERED + 11 PUBLIC-BY-DESIGN + 73 GAP; frozen 406 = 330 COVERED + 3 PUBLIC-BY-DESIGN + 73 GAP.** Keeps the separately evidenced staffing GET and two payroll submit-review/release methods. All remain provisional pending exact-head CI and independent security/payroll review; no real payroll release or production activation.
+
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
 ## 2026-11-05 #1761 integrated with merged #1760 — PROVISIONAL, NOT ACCEPTED
