@@ -32246,7 +32246,7 @@
             "proofFile": "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs",
             "proofBlobSha": "0e2c4f389c54ec256fc77964735c2ec8073092f4",
             "contractFile": "tests/tenant-webhook-xendit-subscriptions.test.mjs",
-            "contractBlobSha": "a16b6d99645a167ab92cf8362a482345cb72ba15",
+            "contractBlobSha": "0093d702487844fc0f5351ca225831ebbd63a6f1",
             "gateFile": "scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs",
             "gateBlobSha": "de031df58ad736fdee747762d6a5df0e59bc22db",
             "workflowFile": ".github/workflows/tenant-webhook-xendit-subscriptions-http.yml",
