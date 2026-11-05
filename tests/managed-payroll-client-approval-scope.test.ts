@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { activeManagedPayrollClientApprover } from "../src/lib/managed-payroll-client-approval";
+import { activeManagedPayrollClientApprover, classifyManagedPayrollCheckerIdentity } from "../src/lib/managed-payroll-client-approval";
 
 const org = 27;
 const actor = 18;
@@ -78,7 +78,8 @@ test("checker evidence and separation of duties are evaluated inside the locked 
   const runLock = tx.indexOf("FROM payroll_runs");
   const checkerRead = tx.indexOf("const approvalEvents = await tx.select().from(auditEvents)");
   const checkerGuard = tx.indexOf("if (!checkerDecision)");
-  const separationGuard = tx.indexOf("if (sameAuthenticatedChecker)");
+  const identityGuard = tx.indexOf('if (checkerIdentity === "unknown")');
+  const separationGuard = tx.indexOf('if (checkerIdentity === "same_user")');
   const firstApprovalWrite = Math.min(
     tx.indexOf("tx.update(managedPayrollRunApprovals)"),
     tx.indexOf("tx.insert(managedPayrollRunApprovals)"),
@@ -86,6 +87,25 @@ test("checker evidence and separation of duties are evaluated inside the locked 
   assert.ok(runLock >= 0 && checkerRead > runLock, "checker evidence must be read after the run lock");
   assert.ok(checkerGuard > checkerRead && separationGuard > checkerGuard,
     "checker approval and separation of duties must be enforced");
+  assert.ok(identityGuard > checkerGuard && identityGuard < separationGuard,
+    "missing authenticated checker identity must fail closed before separation-of-duties check");
   assert.ok(separationGuard < firstApprovalWrite, "checker gate must run before writing an approval");
+  assert.doesNotMatch(tx, /checkerDecision\.actor\.trim\(\)/,
+    "mutable checker display name must never serve as identity evidence");
   assert.doesNotMatch(beforeTx, /const approvalEvents = await db\.select\(\)\.from\(auditEvents\)/);
+});
+
+test("checker separation of duties uses immutable authenticated IDs and denies missing or malformed evidence", () => {
+  const cases: Array<[unknown, number, "unknown" | "same_user" | "independent"]> = [
+    [18, 18, "same_user"], [19, 18, "independent"],
+    [undefined, 18, "unknown"], [null, 18, "unknown"], ["18", 18, "unknown"],
+    [true, 18, "unknown"], [0, 18, "unknown"], [-1, 18, "unknown"],
+    [1.5, 18, "unknown"], [Number.NaN, 18, "unknown"],
+    [Number.POSITIVE_INFINITY, 18, "unknown"],
+    [Number.MAX_SAFE_INTEGER + 1, 18, "unknown"], [19, 0, "unknown"],
+  ];
+  for (const [evidence, approver, expected] of cases) {
+    assert.equal(classifyManagedPayrollCheckerIdentity(evidence, approver), expected,
+      `evidence=${String(evidence)} approver=${approver}`);
+  }
 });
