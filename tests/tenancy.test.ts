@@ -165,7 +165,12 @@ test("unit-scoped roles cannot read or export company-wide employee and payroll 
 
   const exportsRoute = read("src/app/api/exports/route.ts");
   assert.ok(exportsRoute.includes('kind !== "employees" && !access.companyWide'));
-  assert.ok(exportsRoute.includes("allEmployeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId)"));
+  assert.ok(exportsRoute.includes("!access.companyWide ? eq(employees.orgUnitId, access.orgUnitId!) : undefined"),
+    "unit-scoped employee export must filter by organization unit in PostgreSQL before rows are fetched");
+  assert.ok(exportsRoute.includes("eq(employees.organizationId, organizationId)"),
+    "employee export must bind every selected row to the authorized employer");
+  assert.ok(!exportsRoute.includes("allEmployeeRows.filter("),
+    "employee export must not load all company employees and filter tenant scope in memory");
 });
 
 
