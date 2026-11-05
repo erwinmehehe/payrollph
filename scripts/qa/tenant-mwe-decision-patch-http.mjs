@@ -170,8 +170,17 @@ export async function verifyMweDecisionHttp() {
     // status would leak record existence and conflict with the now-hardened handler.
     for (let i = 0; i < 2; i++) {
       const e = people[i], { checker, cookie, membership } = checkers[i];
-      await deny(e, e.cookie, e.worker.id, e.pending.id, "approve", 403,
+      // A maker cannot distinguish their own forbidden decision from an
+      // unknown classification. Keep the response and private cache policy
+      // identical rather than restoring the old existence-revealing 403.
+      const makerDenied = await deny(e, e.cookie, e.worker.id, e.pending.id, "approve", 404,
         "maker self-approval");
+      const makerUnknown = await deny(e, e.cookie, e.worker.id, e.pending.id + 1_000_000,
+        "approve", 404, "maker unknown classification denial");
+      assert.equal(makerDenied.text, makerUnknown.text,
+        "self-approval denial must not disclose classification existence");
+      assert.equal(makerDenied.headers.get("cache-control"), makerUnknown.headers.get("cache-control"),
+        "self-approval and unknown classification must have the same private cache policy");
       const foreign = await deny(e, cookie, victim.worker.id, victim.pending.id, "approve", 404,
         "foreign employer denial", { organizationId: e.org.id });
       const unknown = await deny(e, cookie, victim.worker.id, victim.pending.id + 1_000_000,
