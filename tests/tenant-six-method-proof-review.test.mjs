@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -411,24 +412,41 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
-  // #1764 changes precisely one static catalog GET from GAP to public metadata.
-  // Keep the main-derived security baseline immutable for the origin/main check below.
-  const expectedCandidateStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const expectedAfterPayout = JSON.parse(JSON.stringify(expectedStatuses));
+
+  // Three unrelated methods have now passed on their own exact-final-head
+  // fictional-PG16/real-HTTP receipts. Run the strict byte/anchor/CI-receipt
+  // verifier before allowing ONLY these three distinct new promotions.
+  const recovery = verifyFiveMethodCredits(m);
+  assert.equal(recovery.methodsCredited, 3);
+  assert.equal(recovery.methodsHeld, 2);
+  for (const evidence of EVIDENCE) {
+    const path = "src/app/api/" + evidence.route + "/route.ts";
+    assert.equal(expectedStatuses[path]?.[evidence.method], "GAP",
+      path + ": only a previously GAP method may receive new proof credit");
+    const method = m.allApiRouteFiles[path].methods.find(row => row.name === evidence.method);
+    assert.equal(method.testedBy.workflowRunId, evidence.run);
+    assert.equal(method.testedBy.routeBlobSha, evidence.routeSha);
+    assert.equal(method.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy.independentlyAccepted, false);
+    expectedStatuses[path][evidence.method] = "COVERED";
+  }
+  // Preserve #1764's one static-public catalog exception, without tenant credit.
   const publicCatalogPath = "src/app/api/v1/route.ts";
-  assert.equal(expectedCandidateStatuses[publicCatalogPath]?.GET, "GAP");
+  assert.equal(expectedStatuses[publicCatalogPath]?.GET, "GAP");
   const publicCatalog = m.allApiRouteFiles[publicCatalogPath]?.methods.find(row => row.name === "GET");
   assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
-  assert.equal(publicCatalog?.testedBy, null, "public catalog is not a tenant-scoped COVERED receipt");
-  expectedCandidateStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
-  assert.deepEqual(methodStatuses(m), expectedCandidateStatuses,
-    "Only #1764 public GET may change on top of the source-pinned tenant credits");
+  assert.equal(publicCatalog?.testedBy, null);
+  expectedStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
+  assert.deepEqual(methodStatuses(m), expectedStatuses,
+    "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - 1,
   };
   assert.deepEqual(counts, expectedCounts,
-    "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
+    "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -436,20 +454,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const preCatalogFrozenSubtotal = snapshot.frozenSubtotal
-    .replace("313 COVERED", "321 COVERED")
-    .replace("91 GAP", "83 GAP");
-  assert.match(preCatalogFrozenSubtotal,
-    /^Frozen subtotal: \*\*321 COVERED \+ 2 PUBLIC-BY-DESIGN \+ 83 GAP = 406\*\*/,
-    "The #1744 reconciliation must be present before the v1 public exception");
-  // One frozen EDG-02 GAP becomes public; no additional method may be credited.
-  const currentFrozenSubtotal = preCatalogFrozenSubtotal.replace(
-    "321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP",
-    "321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP",
-  );
-  assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-    currentFrozenSubtotal,
-    "Only the one public v1 GET may change the frozen queue subtotal");
+  assert.ok(plan.includes(
+    "Frozen subtotal (2026-11-04 proposal): **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP = 406**"),
+    "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
@@ -487,11 +494,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       }
     }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
-      baselineHasPayout ? expectedStatuses : expectedBeforePayout));
-    // #1764 was merged to main: its static catalog is PUBLIC-BY-DESIGN, not
-    // tenant-covered. Preserve this exact one-method exception only.
-    assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods
-      .find(row => row.name === "GET")?.status, "PUBLIC-BY-DESIGN");
+      baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
+    assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
+      "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
     expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";

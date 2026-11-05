@@ -1,5 +1,26 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-04 #1760 CURRENT PROVISIONAL COVERAGE PROPOSAL — NOT ACCEPTED
+
+**Current ledger: 498 methods = 408 COVERED + 11 PUBLIC-BY-DESIGN + 79 GAP.** Reconciled with main@a40ed20d907c, including merged #1762/#1763/#1764/#1765. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. Frozen 406 methods: **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
+
+## Current method-specific evidence and held transfers
+
+## 2026-11-04 source-identical final-head PG16 proof recovery after #1762 — SOLO_VERIFIED_DEV_RECOVERY / DRAFT / NOT ACCEPTED
+
+**Source-matched PG16 proof base:** `main@db7a943edd71`, #1762 exact proof-head `8b915bc17574b`; **498 API methods = 408 COVERED + 11 PUBLIC-BY-DESIGN + 79 GAP**; frozen 406 = **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP**. This is three distinct provisional credits above integrated main's 405/11/82, not a claim of global security acceptance. Both year-end source-revoked methods and both transfer write methods stay GAP, and 17 page/action GAPs remain.
+
+| Exact API method | Credit | Exact final-head fictional-PG16 real-HTTP evidence and reason |
+|---|---|---|
+| `POST /api/multi-entity/transfers` | **NO, GAP** | [#1711 source-matched passing job 41407277583/125152053135](https://github.com/erwinmehehe/payrollph/actions/runs/41407277583/job/125152053135), final head `30f5319fe210d226009ab974eb937521ce9530ee`, current route SHA `a4ac9ec92df17492c4c0918f08114660bc4c6ebe`. The older #1662 SHA differs and was **re-pinned to #1711 for review, not for credit**. **Missing:** a complete independently owned B/C positive and real victim transfer ID strictly higher than both own comparator transfers. |
+| `PATCH /api/multi-entity/transfers` | **NO, GAP** | Same exact-head #1711 source-matched green job. Reject/approve/apply decisions were exercised under one organization's checker only; seeded victim request precedes own comparator transfers. **Missing:** the complete independent B/C positive plus ordered higher-ID victim method contract. |
+| `PATCH /api/self/profile` | **YES, provisional** | [#1762 PG16 final-head proof job 41830570387/126576391067](https://github.com/erwinmehehe/payrollph/actions/runs/41830570387/job/126576391067), head `8b915bc17574b87ff707258bff827265866bbaea`, unchanged route blob `41d26b23678e8822aff4701a611c429e97f659c3`. Two actual signed-in own writes, genuine high-ID victim, forged selectors bound to own identity, unchanged victim/payroll/audit and rollback. [Source line 193](../../scripts/qa/tenant-self-profile-atomic-http.mjs#L193). |
+| `POST /api/hcm/salary-corrections/preview` | **YES, provisional** | [#1762 PG16 final-head proof job 41830569945/126576389367](https://github.com/erwinmehehe/payrollph/actions/runs/41830569945/job/126576389367), head `8b915bc17574b87ff707258bff827265866bbaea`, unchanged route blob `8abc2b8059a403b81bf24c78108445651be4690a`. Two independent revision-backed own 200s, high-ID victim and forged selector denials, exact 18 real denied HTTP calls and unchanged SQL. [Source line 204](../../scripts/qa/tenant-hcm-salary-correction-preview-http.mjs#L204). |
+| `POST /api/invitations` | **YES, provisional** | [#1762 PG16 final-head proof job 41830569741/126576388593](https://github.com/erwinmehehe/payrollph/actions/runs/41830569741/job/126576388593), head `8b915bc17574b87ff707258bff827265866bbaea`, unchanged route blob `59bdded07a33d7c4dbc394a84135ce99f9f04042`. Complete `methodFullyCovered:true` real HTTP run: two own 201s, seven invited roles, independent company-admin own success, victim/unit/forged denials, revoked owner 403, local SMTP only, unchanged victim SQL. [Source line 298](../../scripts/qa/tenant-invitations-post-boundary.mjs#L298). |
+
+The three credited exact route, runner, contract and workflow Git blob SHAs now match the updated **#1762 exact source final proof head**, validated by successful throwaway PG16 real-HTTP jobs; no stale #1738/#1739/#1746 runner pins are retained. The new ledger head still needs its own CI / source guard / `tenant-manifest-repin.mjs --base origin/main` and owner review before any later merge decision. **Only `@erwinmehehe` is owner/reviewer**; evidence label `SOLO_VERIFIED_DEV_RECOVERY` does not assert independent security acceptance. All production/Neon SQL, real users, payroll, payout, payment, provider, remote email and CSP activation remain forbidden/OFF.
+
+
 ## 2026-11-04 #1764 static API v1 public catalog — DRAFT / NOT ACCEPTED
 
 **Current proposed ledger: 498 methods = 405 COVERED + 11 PUBLIC-BY-DESIGN + 82 GAP; frozen 406 = 321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP.** The unchanged `GET /api/v1` returns public documentation, not employer data, and is reclassified PUBLIC-BY-DESIGN only. An earlier-head disposable PG16/localhost HTTP equality and unchanged-DB proof passed; the synced head requires fresh CI and independent security review. No tenant-scoped method credits, no frozen-batch or global acceptance. 17 page/action GAPs remain. No customer data, provider connectivity, money or production activation.
@@ -143,15 +164,15 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 2 | **MNY-01** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 36 | 0 | 3 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 33 | 0 | 5 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 37 | 0 | 2 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 34 | 0 | 4 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
-| 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 4 | 0 | 29 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 21 | 1 | 11 | INCOMPLETE |
 
-Frozen subtotal: **321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
