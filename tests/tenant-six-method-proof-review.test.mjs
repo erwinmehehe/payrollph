@@ -443,6 +443,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(resendMethod.testedBy.productionTested, false);
   expectedStatuses[resendPath].POST = "COVERED";
   const resendCredits = 1;
+  // Second provider-callback credit after the snapshot: webhooks/xendit/subscriptions POST (merged proof refresh #1777), counted under the
+  // bounded documentedRetryRefusal exception. Only the exact method and receipt identity may move from GAP.
+  const subscriptionsPath = "src/app/api/webhooks/xendit/subscriptions/route.ts";
+  assert.equal(expectedStatuses[subscriptionsPath]?.POST, "GAP", "Xendit subscriptions POST must start GAP in the reviewed snapshot");
+  const subscriptionsMethod = m.allApiRouteFiles[subscriptionsPath].methods.find(row => row.name === "POST");
+  assert.equal(subscriptionsMethod?.status, "COVERED");
+  assert.equal(subscriptionsMethod.testedBy?.file, "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs");
+  assert.equal(subscriptionsMethod.testedBy.proofPullRequest, 1777);
+  assert.equal(subscriptionsMethod.testedBy.ruleException, "proofPolicy.providerCallback.documentedRetryRefusal");
+  assert.equal(subscriptionsMethod.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(subscriptionsMethod.testedBy.productionTested, false);
+  expectedStatuses[subscriptionsPath].POST = "COVERED";
+  const subscriptionsCredits = 1;
   // #1766 contributes one disjoint, provisional PII-02 MWE decision PATCH.
   // Require its exact method-specific source record; no independent signoff.
   const mweDecisionPath = "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts";
@@ -465,9 +478,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + 1,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + 1,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - 2,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - 2,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -479,7 +492,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **326 COVERED + 3 PUBLIC-BY-DESIGN + 77 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -536,15 +549,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     // a credit that is absent from main is simply not expected, so this block never goes stale on merge order.
     const mainProviderCredits = [
       ["src/app/api/webhooks/resend/route.ts", "scripts/qa/tenant-webhook-resend-http.mjs"],
+      ["src/app/api/webhooks/xendit/subscriptions/route.ts", "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs"],
     ].filter(([path, receipt]) => {
       const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === "POST");
       if (row?.status !== "COVERED") return false;
       assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
       assert.equal(row.testedBy.rule, "proofPolicy.providerCallback");
       assert.equal(row.testedBy.independentSecurityReview, "PENDING");
-      assert.equal(row.testedBy.workflowRunId, 41829420219);
-      assert.equal(row.testedBy.workflowJobId, 126572429402);
-      assert.equal(row.testedBy.productionTested, false);
+      if (path === resendPath) {
+        assert.equal(row.testedBy.workflowRunId, 41829420219);
+        assert.equal(row.testedBy.workflowJobId, 126572429402);
+        assert.equal(row.testedBy.productionTested, false);
+      }
       return true;
     });
     const expectedOriginalMain = JSON.parse(JSON.stringify(
