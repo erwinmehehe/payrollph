@@ -1,8 +1,12 @@
 # Tenant isolation closure plan — 498 API methods and 21 page/action surfaces
 
+## 2026-11-05 #1761 integrated with merged #1760 — PROVISIONAL, NOT ACCEPTED
+
+**Current combined ledger: 498 methods = 414 COVERED + 11 PUBLIC-BY-DESIGN + 73 GAP; frozen 406 = 330 COVERED + 3 PUBLIC-BY-DESIGN + 73 GAP.** Preserves #1760's three source-pinned fictional-PG16 method receipts, merged #1776's Resend webhook POST proof, and adds the disjoint staffing-policy GET candidate with separate manage/approved-mode #1637 receipts. Main's separate Xendit subscriptions webhook POST credit is retained under its documented retry-refusal evidence rule. Transfer POST/PATCH and source-revoked year-end GET/POST stay GAP with zero coverage credit, as do 17 scoped pages/actions. Source-only changes do not grant independent security review, tenant-wide acceptance, production approval, provider access, money movement, payroll release, or deployment.
+
 ## 2026-11-04 #1760 CURRENT PROVISIONAL COVERAGE PROPOSAL — NOT ACCEPTED
 
-**Current ledger: 498 methods = 413 COVERED + 11 PUBLIC-BY-DESIGN + 74 GAP.** Reconciled with main@a40ed20d907c, including merged #1762/#1763/#1764/#1765. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. One further provisional credit, `POST webhooks/resend`, is backed by merged proof #1763 ([passing disposable-PG16 run 41829420219](https://github.com/erwinmehehe/payrollph/actions/runs/41829420219/job/126572429402), head `5e1aeba10`) under `proofPolicy.providerCallback`; independent review PENDING. A second, `POST webhooks/xendit/subscriptions`, is backed by merged proof refresh #1777 ([passing disposable-PG16 run 41979854009](https://github.com/erwinmehehe/payrollph/actions/runs/41979854009/job/127087199194), head `c7fda4413`) under `proofPolicy.providerCallback` and its bounded `documentedRetryRefusal` exception (the route's deliberate retry 503 counts only as foreign-denial evidence, with byte-identical bodies and unchanged snapshots); independent review PENDING. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. `POST payroll-runs/[id]/submit-review` and `POST payroll-runs/[id]/release` (MNY-01) are provisionally credited from the existing two-attacker money-lifecycle journey, receipt [run 42063867383](https://github.com/erwinmehehe/payrollph/actions/runs/42063867383) on main head `53ae6fa31` (both exact-approval-link legs); independent review PENDING. Frozen 406 methods: **329 COVERED + 3 PUBLIC-BY-DESIGN + 74 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
+**Current ledger: 498 methods = 414 COVERED + 11 PUBLIC-BY-DESIGN + 73 GAP.** Reconciled with main@a40ed20d907c, including merged #1762/#1763/#1764/#1765. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. One further provisional credit, `POST webhooks/resend`, is backed by merged proof #1763 ([passing disposable-PG16 run 41829420219](https://github.com/erwinmehehe/payrollph/actions/runs/41829420219/job/126572429402), head `5e1aeba10`) under `proofPolicy.providerCallback`; independent review PENDING. A second, `POST webhooks/xendit/subscriptions`, is backed by merged proof refresh #1777 ([passing disposable-PG16 run 41979854009](https://github.com/erwinmehehe/payrollph/actions/runs/41979854009/job/127087199194), head `c7fda4413`) under `proofPolicy.providerCallback` and its bounded `documentedRetryRefusal` exception (the route's deliberate retry 503 counts only as foreign-denial evidence, with byte-identical bodies and unchanged snapshots); independent review PENDING. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. `POST payroll-runs/[id]/submit-review` and `POST payroll-runs/[id]/release` (MNY-01) are provisionally credited from the existing two-attacker money-lifecycle journey, receipt [run 42063867383](https://github.com/erwinmehehe/payrollph/actions/runs/42063867383) on main head `53ae6fa31` (both exact-approval-link legs); independent review PENDING. Frozen 406 methods: **330 COVERED + 3 PUBLIC-BY-DESIGN + 73 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
 
 ## Current method-specific evidence and held transfers
 
@@ -28,6 +32,11 @@ The three credited exact route, runner, contract and workflow Git blob SHAs now 
 ## 2026-11-04 #1744 after #1749 main — REVIEWED SOURCE SUPERSESSION, NOT ACCEPTED
 
 **Current draft ledger: 498 methods = 405 COVERED + 10 PUBLIC-BY-DESIGN + 83 GAP; frozen 406 = 321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP.** Preserve the #1749 source-pinned payout PATCH and the two unchanged year-end/prior-evidence method receipts. The original #1730 `year-end` GET/POST receipts belong to old handler blob 7572c611 and cannot automatically qualify the revised atomic-binding route e4741d98. Exactly those two provisional method credits are now explicitly **GAP, zero credits**, with an exact-source, all-or-nothing revocation guard. Dedicated fictional PG16 audit/queue fault and race checks passed on *previous* head 9a6760b, not yet on this integration head. Require new exact-head CI, method-level proof, independent payroll/security review before changing GAP or merging. All 17 page/action GAPs remain. No production/payroll money, filing, provider, payout or feature activation.
+
+## 2026-11-04 source-current WFM staffing-policy GET recovery — DRAFT / NOT ACCEPTED
+
+**Single provisional API method: 498 methods = 406 COVERED + 11 PUBLIC-BY-DESIGN + 81 GAP; frozen 406 = 322 COVERED + 3 PUBLIC-BY-DESIGN + 81 GAP.** Historical #1637 final head `2e14551d2ea88b72fb53d62da3682f87f8ea521a` ran two source-identical, successful fictional PG16 jobs: [populated manage, foreign victim, custom permission and revocation](https://github.com/erwinmehehe/payrollph/actions/runs/41164870341/job/124430238281) and [populated approved mode with verified approval receipt](https://github.com/erwinmehehe/payrollph/actions/runs/41164870305/job/124430150239). Exact route blob `e0ea8e23ffad6ca72edd5ef8da4dbe3a332d041c` is unchanged. The historical jobs emitted zero credits; this separate method-specific candidate now proposes one sole-owner provisional credit, not independent or production acceptance. Exact new PR-head CI, owner source/receipt review and serial reconciliation with #1760 remain pending. No payroll, payout, provider, SQL, migration, flag or deployment changes.
+
 
 ## 2026-11-04 PR #1762 five-method exact-final-head PG16 source recovery — DRAFT / ZERO NEW CREDITS
 
@@ -166,13 +175,13 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 34 | 0 | 4 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 34 | 0 | 5 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 35 | 0 | 4 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 4 | 0 | 29 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **329 COVERED + 3 PUBLIC-BY-DESIGN + 74 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **330 COVERED + 3 PUBLIC-BY-DESIGN + 73 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
