@@ -22,6 +22,11 @@ on:
       - ".github/workflows/staffing-policy-get-proof-drift.yml"
   workflow_dispatch:
 
+# Supersede only older runs of the same PR; do not cancel manual proofs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
