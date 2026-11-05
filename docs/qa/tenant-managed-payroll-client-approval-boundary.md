@@ -11,13 +11,13 @@ The previous handler loaded a globally addressed payroll-run ID before establish
 - Resolve run IDs only through an active organization membership with a company-wide owner/admin role. Foreign, revoked, unit-scoped and nonexistent run IDs are indistinguishable no-store 404 responses.
 - Confirm the current user is the engagement's designated approver; keep pilot/live status, MFA, independent checker, fingerprint and required implementation gates.
 - Lock membership, engagement and run rows in a transaction. Recheck the active grant, designation, run state and evidence gates before approving. Re-approval updates are scoped to BOTH the run and engagement.
-- Re-read independent checker approval evidence and enforce separation of duties after locking the payroll run, inside the same transaction as the approval. This narrows the stale-evidence window; concurrent checker revocation still needs real HTTP and transaction adversarial proof.
+- Re-read independent checker approval evidence and enforce separation of duties after locking the payroll run, inside the same transaction as the approval. **Require an immutable, positive numeric `deciderUserId` from authenticated checker evidence. Missing, malformed or legacy name-only evidence now fails closed (409); the checker and client approver may not be the same authenticated user (403).** No mutable display-name fallback remains. Concurrent checker revocation still needs real HTTP and transaction adversarial proof.
 - Compute the payroll fingerprint using the transaction's own connection; this also avoids deadlock when PG_POOL_MAX=1. Commit the approval row and audit receipt atomically. Payroll math, financial rails, provider switches, schema, employee data, main and other pull-request evidence remain unchanged.
 
 ## Tests included
 
 - Pure grant matrix: own owner/admin, revoked member, wrong user/employer, unit-scoped admin, payroll/checker, approver rotation, foreign/missing engagement.
-- Source contract: active tenant join precedes engagement read; transactional grant recheck and ordered locks precede approval writes; audit is written in the same transaction.
+- Source contract: active tenant join precedes engagement read; transactional grant recheck and ordered locks precede approval writes; audit is written in the same transaction. Added numeric checker-ID matrix covering missing, malformed, same-user, different-user and invalid approver evidence.
 
 ## Required before acceptance
 
