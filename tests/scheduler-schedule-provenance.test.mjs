@@ -91,6 +91,9 @@ test('only fixed GitHub read URLs with GET; never POST, token in URL, or a deplo
   const r=await collectScheduledRunEvidence({token:TOKEN,fetcher,now});
   assert.equal(r.threeDistinctScheduledEventsProven,true);
   assert.equal(seen.length,4);
+  assert.equal(seen[0].url,
+    'https://api.github.com/repos/erwinmehehe/payrollph/actions/workflows/production-scheduler-tick.yml/runs?event=schedule&branch=main&per_page=3',
+    'observer must read only the newest three scheduled runs, never a 100-run unbounded payload');
   for(const call of seen){
     assert.equal(call.options.method,'GET');
     assert.equal(call.options.redirect,'error');
@@ -111,6 +114,15 @@ test('refuses empty token, non-JSON, HTTP error or oversized content before acce
     async()=>new Response('{}',{status:200,headers:{'content-type':'application/json','content-length':'2000000'}}),
   ]) await assert.rejects(()=>collectScheduledRunEvidence({now,fetcher,token:TOKEN}),e=>e instanceof ObserverError);
 });
+test('streamed oversized GitHub responses fail closed without Content-Length',async()=>{
+  const oversizedJson = '{"padding":"' + 'x'.repeat(1024*1024) + '"}';
+  const fetcher = async()=>new Response(oversizedJson,{
+    status:200,headers:{'content-type':'application/json'},
+  });
+  await expectAsyncCode(()=>collectScheduledRunEvidence({now,fetcher,token:TOKEN}),
+    'GITHUB_RESPONSE_OVERSIZED');
+});
+
 test('observer refuses local use and never writes a report for untrusted contexts',async()=>{
   await expectAsyncCode(()=>main({GITHUB_ACTIONS:'false',GITHUB_REPOSITORY:'erwinmehehe/payrollph',GITHUB_EVENT_NAME:'schedule'},
     async()=>{throw Error('network blocked');},now),'TRUSTED_OBSERVER_CONTEXT_REQUIRED');
