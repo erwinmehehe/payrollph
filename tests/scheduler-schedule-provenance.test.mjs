@@ -114,6 +114,15 @@ test('refuses empty token, non-JSON, HTTP error or oversized content before acce
     async()=>new Response('{}',{status:200,headers:{'content-type':'application/json','content-length':'2000000'}}),
   ]) await assert.rejects(()=>collectScheduledRunEvidence({now,fetcher,token:TOKEN}),e=>e instanceof ObserverError);
 });
+test('streamed oversized GitHub responses fail closed without Content-Length',async()=>{
+  const oversizedJson = '{"padding":"' + 'x'.repeat(1024*1024) + '"}';
+  const fetcher = async()=>new Response(oversizedJson,{
+    status:200,headers:{'content-type':'application/json'},
+  });
+  await expectAsyncCode(()=>collectScheduledRunEvidence({now,fetcher,token:TOKEN}),
+    'GITHUB_RESPONSE_OVERSIZED');
+});
+
 test('observer refuses local use and never writes a report for untrusted contexts',async()=>{
   await expectAsyncCode(()=>main({GITHUB_ACTIONS:'false',GITHUB_REPOSITORY:'erwinmehehe/payrollph',GITHUB_EVENT_NAME:'schedule'},
     async()=>{throw Error('network blocked');},now),'TRUSTED_OBSERVER_CONTEXT_REQUIRED');
