@@ -33,5 +33,6 @@ test("pure environment guard refuses hosted DB, providers and workers for the mi
  for (const [k,v] of [["DATABASE_URL","postgresql://external.invalid/app_db"],
   ["WORKER_ENABLED","true"],["XENDIT_SECRET_KEY","fake"],
   ["NODE_ENV","production"],["PUNCH_DEVICE_HASH_KEY",""]])
-  assert.throws(()=>guard({...valid,[k]:v}), k);
+  assert.throws(()=>guard({...valid,[k]:v}), { code: "ERR_ASSERTION" },
+    "Unsafe midnight proof environment must be rejected: " + k);
 });
