@@ -66,6 +66,14 @@ const nextConfig: NextConfig = {
           { key: "Pragma", value: "no-cache" },
         ],
       },
+      // The general API cache directive overrides per-route response headers.
+      // Preserve private, uncacheable CSV/JSON employee and payroll exports.
+      {
+        source: "/api/exports",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
     ];
   },
 };

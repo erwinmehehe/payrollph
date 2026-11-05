@@ -53,6 +53,16 @@ test("unit-scoped roster and legal employer filters are enforced by SQL", () => 
   assert.ok(p >= 0 && p < q && q < route.indexOf("const [organization] = await db.select()"));
 });
 
+test("Next API response headers cannot override export privacy and no-store", () => {
+  const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+  const globalApi = config.indexOf('source: "/api/:path*"');
+  const exportRule = config.indexOf('source: "/api/exports"');
+  assert.ok(globalApi >= 0 && exportRule > globalApi,
+    "The exact export privacy header must follow the general API rule");
+  const specificRule = config.slice(exportRule, exportRule + 240);
+  assert.match(specificRule, /"Cache-Control", value: "private, no-store, max-age=0"/);
+});
+
 test("CSV and full JSON exports stay private and uncacheable", () => {
   assert.match(route, /"Cache-Control": "no-store, private"/);
   assert.match(route, /"X-Content-Type-Options": "nosniff"/);
