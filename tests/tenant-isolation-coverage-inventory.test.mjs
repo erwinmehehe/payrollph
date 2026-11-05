@@ -3074,6 +3074,91 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
     return;
   }
 
+  // Review-only hold for a changed managed-payroll approval POST. Do not
+  // infer method coverage from source tests: two-employer PG16 success,
+  // foreign/missing-ID equivalence and race rollback evidence are STILL DUE.
+  // This narrowly pinned exception keeps the public inventory complete
+  // without silently converting an unproven payroll write into COVERED.
+  if (isNewOrChanged &&
+      key === "src/app/api/managed-payroll/runs/[id]/approve/route.ts POST") {
+    const routeFile = "src/app/api/managed-payroll/runs/[id]/approve/route.ts";
+    const oldRouteSha = "a4e228c913470d3996429442ddf04ba4b729b453";
+    const fixedRouteSha = "8002251a0760566f0b5bb3939b16d210e2e455ba";
+    assert.equal(currentBlob, fixedRouteSha,
+      "Managed-payroll approval changed again; renewed isolation review required");
+    assert.equal(manifest.allApiRouteFiles[routeFile]?.gitBlobSha, fixedRouteSha);
+    assert.equal(method.status, "GAP",
+      "No owned-success and genuine foreign-victim PG16 method proof was accepted");
+    assert.equal(method.testedBy, null, "Source contracts alone earn ZERO method credit");
+    assert.match(method.reason, /No valid own-object/);
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "managed-payroll-client-approval-active-grant-and-locked-write-zero-credit",
+      originalRouteBlobSha: oldRouteSha,
+      routeBlobSha: fixedRouteSha,
+      grantHelperFile: "src/lib/managed-payroll-client-approval.ts",
+      grantHelperBlobSha: "93a08c8d927c17b064bd6f2818c396f049b6ed8b",
+      fingerprintHelperFile: "src/lib/managed-payroll.ts",
+      fingerprintHelperBlobSha: "830124977fdbbb15428f18b3ab5c5c3bb40fbc87",
+      contractFile: "tests/managed-payroll-client-approval-scope.test.ts",
+      contractBlobSha: "b3d0a81bd5531e7420f10f53e988bda74836eaa1",
+      reviewFile: "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
+      reviewBlobSha: "f87462c0fa18557fec7fa59917375a5cbee61123",
+      methodCredits: 0,
+      exactSourcePg16Http: "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "Only this source-pinned uncredited boundary review is permitted");
+    for (const [file, sha] of [
+      [review.grantHelperFile, review.grantHelperBlobSha],
+      [review.fingerprintHelperFile, review.fingerprintHelperBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.reviewFile, review.reviewBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Managed payroll contract, helpers or review changed: " + file);
+    const code = readFileSync(routeFile, "utf8");
+    const originalLookup = code.indexOf(".from(payrollRuns)");
+    const scopedJoin = code.indexOf(".innerJoin(userOrganizations", originalLookup);
+    const engagementRead = code.indexOf(".from(managedPayrollEngagements)", originalLookup);
+    const scopedResult = code.indexOf("if (!scopedRun) return runNotFound()");
+    assert.ok(originalLookup > 0 && scopedJoin > originalLookup &&
+      engagementRead > scopedJoin && scopedResult > originalLookup,
+      "Active employer membership must be joined before reading engagement or disclosing a run");
+    for (const anchor of [
+      'eq(userOrganizations.active, true)',
+      'isNull(userOrganizations.orgUnitId)',
+      'inArray(userOrganizations.role, ["owner", "admin"])',
+      'eq(userOrganizations.userId, user.id)',
+      'eq(userOrganizations.organizationId, payrollRuns.organizationId)',
+      'eq(payrollRuns.id, runId)',
+      'const privateHeaders = { "Cache-Control": "private, no-store" } as const;',
+      'const runNotFound = () => Response.json({ error: "Payroll run not found." }, { status: 404, headers: privateHeaders });',
+      'requireSensitiveActionMfa(user)',
+      'return db.transaction(async (tx) =>',
+      'FROM user_organizations',
+      'FOR SHARE',
+      'FROM managed_payroll_engagements',
+      'FROM payroll_runs',
+      'FOR UPDATE',
+      'activeManagedPayrollClientApprover(user.id, run.organizationId, freshMembership, freshEngagement)',
+      'eq(managedPayrollRunApprovals.engagementId, engagement.id)',
+      'managedPayrollRunFingerprint(run.id, tx)',
+      '}, tx)',
+    ]) assert.ok(code.includes(anchor),
+      "Managed-payroll approval lost tenant, transaction or private-response guard: " + anchor);
+    const transaction = code.indexOf("return db.transaction(async (tx) =>");
+    const lockedGrant = code.indexOf("activeManagedPayrollClientApprover(user.id, run.organizationId, freshMembership, freshEngagement)", transaction);
+    const write = code.indexOf("tx.update(managedPayrollRunApprovals)", transaction);
+    assert.ok(transaction >= 0 && lockedGrant > transaction && write > lockedGrant,
+      "Transaction must re-authorize the approver before changing an approval");
+    const doc = readFileSync(review.reviewFile, "utf8");
+    assert.ok(doc.includes("DO NOT MERGE/DEPLOY/ENABLE PAYOUTS") &&
+      doc.includes("two independently authenticated employers") &&
+      doc.includes("atomic rollback"),
+      "Zero-credit proof hold and outstanding real-HTTP requirements must remain visible");
+    return;
+  }
+
   // Anonymous public payroll quote intake, not a tenant-private API:
   // preserve a zero-credit GAP after a source-reconstructed attribution-only
   // change. This exception cannot be reused by a different route, method,

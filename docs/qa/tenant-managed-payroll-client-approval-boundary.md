@@ -23,6 +23,6 @@ The previous handler loaded a globally addressed payroll-run ID before establish
 - [ ] `npm run typecheck`, lint, unit tests, and applicable Security HTTP Smoke / regression jobs pass on the exact PR head.
 - [ ] Synthetic PostgreSQL 16 **production-mode real HTTP**, at the exact proposed route SHA: two independently authenticated employers with genuine own successful approval POSTs, a higher-ID real foreign victim and missing-ID indistinguishable 404/no-store, revoked and unit-scoped grants denied, switched approver denied, unchanged victim run/approval/audit/payroll SQL.
 - [ ] Repeat positive own **re-approval** after changed fingerprint plus negative revoked owner during the attempted transaction; assert atomic rollback of approval and audit on failure.
-- [ ] Independent repository/security/payroll reviewer accepts the work. No change to `scripts/qa/tenant-isolation-coverage-manifest.json` or claimed COVERED methods without complete method-specific accepted proof.
+- [ ] Independent repository/security/payroll reviewer accepts the work. Re-inventory a changed handler with an exact-source, zero-credit `GAP` hold if needed. Do **not** promote this method to `COVERED` or claim independent acceptance without complete method-specific PG16 HTTP proof and security review.
 
 **Status: DRAFT, NOT ACCEPTED. DO NOT MERGE/DEPLOY/ENABLE PAYOUTS.** This is source and regression hardening only, not global tenant-isolation certification.
