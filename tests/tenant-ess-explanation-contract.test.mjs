@@ -42,6 +42,14 @@ test("refuse real providers, remote DB/server, workers and implicit multi-entity
   ]) assert.throws(() => requireIsolatedEssExplainProof({ ...safe, [key]: value }),
     /ESS_EXPLAIN_REFUSED/, key);
 });
+test("global Next API Cache-Control cannot override private pay-explanation responses", () => {
+  const source=readFileSync("next.config.ts","utf8");
+  const general=source.indexOf('source: "/api/:path*"');
+  const specific=source.indexOf('source: "/api/self/payslips/:id/explain"');
+  assert.ok(general>=0 && specific>general);
+  assert.match(source.slice(specific,specific+210), /"Cache-Control", value: "private, no-store, max-age=0"/);
+});
+
 test("real HTTP proof exercises two employees, higher-ID victim, both entities and revoked membership", () => {
   const source = readFileSync("scripts/qa/tenant-ess-explanation-http.mjs", "utf8");
   for (const token of [
