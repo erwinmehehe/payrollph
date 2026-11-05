@@ -18,3 +18,24 @@ Target: `GET /api/self/payslips/[id]/explain`. A globally addressed entry ID was
 Focused parser and source-contract test: `npx tsx --test tests/self-pay-explanation-tenant-boundary.test.ts`. A passing source check is **not** tenant-boundary proof. Before any inventory promotion, run a disposable PostgreSQL 16 production Next localhost HTTP test using independent actual employee sessions, positive own-current/prior explanations, unrelated colleague prior run, higher-ID foreign and missing entry equality, revoked membership, two legal employers, multi-entity ON/OFF, and unchanged victim payroll/identity/audit SQL. Require passing exact-head CI plus independent security review.
 
 **No provisional COVERED credit:** this method remains `GAP`. This PR does not touch the shared tenant-isolation coverage manifest or test gates and authorizes no production deploy, migration, provider, money movement or real-customer data.
+
+## Current disposable HTTP acceptance work
+
+A fail-closed workflow in `.github/workflows/tenant-ess-explanation-http.yml`
+runs against fictional PostgreSQL 16 and production-mode Next.js on
+127.0.0.1. Two separate jobs cover `MULTI_ENTITY_ENABLED=false` and `true`,
+with bank, payout, provider, and payroll worker activation disabled.
+
+The test requires two authenticated employee sessions, a real higher-ID
+foreign victim, a colleague-only previous payroll run, and actual own
+current/prior payslips. It checks foreign/missing 404 equivalence,
+same-employer colleague denial, revoked membership, legal employer ON/OFF
+behavior, and unchanged fictional payroll, employee and audit rows.
+
+**Source-revalidation gate:** `main` carried a historical `COVERED`
+classification from the prior handler blob. This branch retains that
+historical classification while `sourceRevalidation.accepted=false`
+and `historicalProofNotPortable=true`, and it claims zero new credits.
+Do not call the changed handler's coverage accepted until its new exact-source
+PG16 HTTP proof passes and an independent payroll/privacy reviewer accepts it.
+No production or tenant-wide certification is implied.

@@ -58,6 +58,7 @@ test("real HTTP proof exercises two employees, higher-ID victim, both entities a
     source.indexOf('import("../../src/db/index.ts")'),
     "The guard must execute before any database import");
   const wf = readFileSync(".github/workflows/tenant-ess-explanation-http.yml", "utf8");
+  assert.ok(wf.includes('      - "src/app/api/self/payslips/**"'), "Every payslip route change must trigger the PG16 proof");
   assert.match(wf, /image: postgres:16/);
   assert.match(wf, /node --import tsx scripts\/qa\/tenant-ess-explanation-http\.mjs/);
   assert.match(wf, /multiEntity: \["false", "true"\]/);

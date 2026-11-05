@@ -180,7 +180,7 @@ export async function verifyEssExplainHttp() {
       ownCurrent200: 2, colleagueRunExcluded: true,
       crossEntityFlag: process.env.MULTI_ENTITY_ENABLED,
       foreignMissingEquivalent404: true, revokedMembershipDenied: true,
-      victimPayrollAuditUnchanged: true, actualPayrollWrites: 0,
+      victimPayrollAuditUnchanged: true, handlerPayrollWrites: 0,
       externalProviders: 0, newMethodCredits: 0, productionCertified: false,
       independentSecurityAcceptance: false,
     }));

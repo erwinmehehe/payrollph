@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "src/app/api/self/payslips/[id]/explain/**"
+      - "src/app/api/self/payslips/**"
       - "src/lib/self-pay-explanation-entry-id.ts"
       - "scripts/qa/tenant-ess-explanation-*.mjs"
       - "tests/tenant-ess-explanation-contract.test.mjs"
