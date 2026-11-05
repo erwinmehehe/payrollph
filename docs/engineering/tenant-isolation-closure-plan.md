@@ -2,7 +2,7 @@
 
 ## 2026-11-04 #1760 CURRENT PROVISIONAL COVERAGE PROPOSAL — NOT ACCEPTED
 
-**Current ledger: 498 methods = 411 COVERED + 11 PUBLIC-BY-DESIGN + 76 GAP.** Reconciled with main@a40ed20d907c, including merged #1762/#1763/#1764/#1765. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. One further provisional credit, `POST webhooks/resend`, is backed by merged proof #1763 ([passing disposable-PG16 run 41829420219](https://github.com/erwinmehehe/payrollph/actions/runs/41829420219/job/126572429402), head `5e1aeba10`) under `proofPolicy.providerCallback`; independent review PENDING. A second, `POST webhooks/xendit/subscriptions`, is backed by merged proof refresh #1777 ([passing disposable-PG16 run 41979854009](https://github.com/erwinmehehe/payrollph/actions/runs/41979854009/job/127087199194), head `c7fda4413`) under `proofPolicy.providerCallback` and its bounded `documentedRetryRefusal` exception (the route's deliberate retry 503 counts only as foreign-denial evidence, with byte-identical bodies and unchanged snapshots); independent review PENDING. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. Frozen 406 methods: **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
+**Current ledger: 498 methods = 413 COVERED + 11 PUBLIC-BY-DESIGN + 74 GAP.** Reconciled with main@a40ed20d907c, including merged #1762/#1763/#1764/#1765. Exactly three *provisional* method credits are separately backed by #1762's passing exact-source fictional-PG16 HTTP jobs. One further provisional credit, `POST webhooks/resend`, is backed by merged proof #1763 ([passing disposable-PG16 run 41829420219](https://github.com/erwinmehehe/payrollph/actions/runs/41829420219/job/126572429402), head `5e1aeba10`) under `proofPolicy.providerCallback`; independent review PENDING. A second, `POST webhooks/xendit/subscriptions`, is backed by merged proof refresh #1777 ([passing disposable-PG16 run 41979854009](https://github.com/erwinmehehe/payrollph/actions/runs/41979854009/job/127087199194), head `c7fda4413`) under `proofPolicy.providerCallback` and its bounded `documentedRetryRefusal` exception (the route's deliberate retry 503 counts only as foreign-denial evidence, with byte-identical bodies and unchanged snapshots); independent review PENDING. Two year-end GET/POST source revocations and transfer POST/PATCH remain **GAP / testedBy:null**. `POST payroll-runs/[id]/submit-review` and `POST payroll-runs/[id]/release` (MNY-01) are provisionally credited from the existing two-attacker money-lifecycle journey, receipt [run 42063867383](https://github.com/erwinmehehe/payrollph/actions/runs/42063867383) on main head `53ae6fa31` (both exact-approval-link legs); independent review PENDING. Frozen 406 methods: **329 COVERED + 3 PUBLIC-BY-DESIGN + 74 GAP**; 17 page/action GAPs. This is NOT tenant-wide or independent acceptance, and authorizes no production, payroll, money, payout, provider or deployment action.
 
 ## Current method-specific evidence and held transfers
 
@@ -161,7 +161,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 25 | 0 | 8 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 27 | 0 | 6 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
@@ -172,7 +172,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 4 | 0 | 29 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **329 COVERED + 3 PUBLIC-BY-DESIGN + 74 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

@@ -95,6 +95,57 @@ function evidenceLine(path, number, subject) {
     subject + ": proof requires an existing file:line reference");
   return lines[number - 1];
 }
+/**
+ * Payroll submit-review and release credits borrow the existing two-attacker money-lifecycle journey, never the
+ * negative-only seven-path batch. Each must carry the exact receipt of BOTH matrix legs, and the route, harness and
+ * workflow must be byte-identical to what that receipt executed.
+ */
+const PAYROLL_REVIEW_RELEASE_RECEIPT = Object.freeze({
+  workflowRunId: 42063867383,
+  workflowJobIds: { exactLinksFalse: 127372516860, exactLinksTrue: 127372517320 },
+  verifiedHeadSha: "53ae6fa31a41c104a4f509f6a3446f3aa05a28c6",
+  runLabel: "GitHub Actions 42063867383/127372516860+127372517320 PG16 money-lifecycle PASS",
+  routeBlobs: {
+    "src/app/api/payroll-runs/[id]/submit-review/route.ts": "98abed695eee9462a233f3da78b794e60f40c581",
+    "src/app/api/payroll-runs/[id]/release/route.ts": "87fb97879aa19473a67ff9815c9db2e4b9f5d0b9",
+  },
+  confirmations: {
+    "src/app/api/payroll-runs/[id]/submit-review/route.ts": '"own review task and independent checker"',
+    "src/app/api/payroll-runs/[id]/release/route.ts": '"SQL confirms own release"',
+  },
+});
+function verifyPayrollReviewReleaseCredit(method, routePath, proof, harness) {
+  const receipt = PAYROLL_REVIEW_RELEASE_RECEIPT;
+  assert.equal(method.name, "POST", routePath + ": only POST is credited");
+  assert.ok(receipt.routeBlobs[routePath], routePath + ": not one of the two credited lifecycle routes");
+  assert.equal(gitBlobSha(readFileSync(routePath)), receipt.routeBlobs[routePath],
+    "Payroll lifecycle route changed since the money-lifecycle receipt: re-run both matrix legs and re-credit");
+  assert.equal(proof.routeBlobSha, receipt.routeBlobs[routePath]);
+  assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha,
+    "Money-lifecycle harness changed since its receipt: re-run both matrix legs and re-credit");
+  assert.equal(proof.workflowFile, ".github/workflows/tenant-money-lifecycle.yml");
+  assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha,
+    "Money-lifecycle workflow changed since its receipt: re-run both matrix legs and re-credit");
+  assert.equal(proof.workflowRunId, receipt.workflowRunId);
+  assert.deepEqual(proof.workflowJobIds, receipt.workflowJobIds);
+  assert.equal(proof.verifiedHeadSha, receipt.verifiedHeadSha);
+  assert.equal(proof.runLabel, receipt.runLabel);
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + receipt.workflowRunId + "/job/" + receipt.workflowJobIds.exactLinksFalse);
+  assert.equal(proof.secondEvidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + receipt.workflowRunId + "/job/" + receipt.workflowJobIds.exactLinksTrue);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.independentSecurityReview, "PENDING");
+  assert.equal(proof.productionTested, false);
+  assert.equal(method.reviewedUncertified, undefined, routePath + ": a credited method cannot also carry the zero-credit exception");
+  const lines = harness.split("\n");
+  assert.ok(lines[proof.ownConfirmationLine - 1]?.includes(receipt.confirmations[routePath]),
+    routePath + ": the own-success SQL/response confirmation moved");
+  assert.ok(proof.ownConfirmationLine > proof.ownPositiveLine && proof.ownConfirmationLine - proof.ownPositiveLine <= 2);
+  assert.ok(lines[proof.twoAttackerLoopLine - 1]?.includes("for (const attacker of [a, b]) {") &&
+    lines[proof.twoAttackerLoopLine - 1].includes("await lifecycle(v, attacker); }"),
+    routePath + ": both attacker employers must run the full lifecycle");
+  assert.ok(lines[proof.victimIdOrderingLine - 1]?.includes('"real victim IDs exceed attacker IDs and 6"'));
+  assert.ok(lines[proof.victimUnchangedAfterBothLine - 1]?.includes('"victim unchanged across both complete attacker journeys"'));
+}
 /** Exact-source sole-owner verification for the two distinct issued-demand POST methods.
  * The old GET overlay proof does NOT authorize either POST. */
 function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
@@ -430,7 +481,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   };
   const payrollPath = key.slice(0, key.lastIndexOf(" "));
   const payrollReviewed = payrollPathReview[payrollPath];
-  if (isNewOrChanged && payrollReviewed && payrollReviewed.methods.includes(method.name)) {
+  // submit-review leaves this zero-credit exception only by the money-lifecycle credit, which the COVERED branch verifies exactly.
+  const moneyLifecycleCredit = method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs" &&
+    payrollPath === "src/app/api/payroll-runs/[id]/submit-review/route.ts";
+  if (isNewOrChanged && payrollReviewed && payrollReviewed.methods.includes(method.name) && !moneyLifecycleCredit) {
     assert.equal(currentBlob, payrollReviewed.current,
       "Financial route source changed: re-review zero-credit method and live external-money guards");
     assert.equal(method.status, "GAP", "Refused or disabled money actions are never proof of valid own writes");
@@ -3824,6 +3878,8 @@ test("all credited proof links point to the claimed route and every recertified 
           "PATCH holidays": [196, 194], "DELETE holidays": [199, 195],
           "GET payroll-earnings": [134, 136], "POST payroll-earnings": [179, 137],
           "PATCH payroll-earnings": [140, 139], "POST payroll-runs/[id]/process": [263, 259],
+          // Credited by scripts/qa/tenant-payroll-review-release-credit.mjs from an exact-head receipt of both matrix legs.
+          "POST payroll-runs/[id]/submit-review": [277, 259], "POST payroll-runs/[id]/release": [292, 259],
         };
         const spec = specs[method.name + " " + entry.route];
         assert.ok(spec, path + ": unrelated methods cannot borrow money-path proof");
@@ -3837,9 +3893,12 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.match(foreign, /await deny\(v, a\.maker/);
         assert.match(foreign, /403,/);
         assert.match(foreign, /v\.(?:org|earning|holiday|run)\./);
-        if (entry.route === "payroll-runs/[id]/process") {
-          assert.match(own, /\/process/);
+        const loopedRun = /^payroll-runs\/\[id\]\/(process|submit-review|release)$/.exec(entry.route);
+        if (loopedRun) {
+          assert.ok(own.includes("/" + loopedRun[1] + "`"), path + ": own success must call this exact route");
           assert.match(integration, /for \(const suffix of \["process", "submit-review", "release"\]\)/);
+          assert.ok(foreign.includes("/api/payroll-runs/${v.run.id}/${suffix}`"), path + ": the victim denial loop must target the real victim run");
+          if (loopedRun[1] !== "process") verifyPayrollReviewReleaseCredit(method, path, proof, integration);
         } else {
           assert.ok(own.includes("/api/" + entry.route) && foreign.includes("/api/" + entry.route));
         }

@@ -47,6 +47,15 @@ test("separate proof-file citations resolve their own exact source lines", () =>
     "the current citation must use its declared source file");
   assert.ok(source.includes('typeof cited?.[companionFile] === "string"'),
     "the base citation must use its own declared source file");
+  assert.ok(source.includes('typeof proof[companionFile] === "string" && cited?.file === proof.file'),
+    "a base citation that omitted its companion file is compared in the declared companion, only for the same primary proof");
+
+  // The effective-change POST cites two refusal anchors in its helper, not in its harness.
+  const effectiveChange = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"))
+    .allApiRouteFiles["src/app/api/hcm/effective-changes/route.ts"].methods.find(method => method.name === "POST").testedBy;
+  for (const field of ["forgedSelectorFile", "secondaryForeignDenialFile"]) {
+    assert.equal(effectiveChange[field], effectiveChange.helperFile, field + " must name the helper that holds the cited refusal");
+  }
 
   // Three source-pinned compliance POST receipts live in dedicated
   // sourceRowFile modules; their four-part anchors are not shared-runner lines.
