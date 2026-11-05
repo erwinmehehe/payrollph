@@ -12,7 +12,10 @@ const ROOT = 'https://api.github.com/repos/erwinmehehe/payrollph';
 const PATH = '.github/workflows/production-scheduler-tick.yml';
 const NAME = 'Production Scheduler Tick (External, Default OFF)';
 const STEP = 'Dispatch one protected production scheduler tick';
-const LIST = ROOT + '/actions/workflows/production-scheduler-tick.yml/runs?event=schedule&branch=main&per_page=100';
+// The newest three schedule events are the only evidence candidates. Do not fetch a
+// 100-run payload: full GitHub Actions run records exceed the 1 MiB safety bound.
+// Never page backward to substitute older runs when a recent receipt is invalid.
+const LIST = ROOT + '/actions/workflows/production-scheduler-tick.yml/runs?event=schedule&branch=main&per_page=3';
 const MAX_BYTES = 1024 * 1024;
 const MAX_AGE = 24 * 60 * 60 * 1000;
 const OUTPUT = 'qa-artifacts/scheduler-scheduled-run-observation.json';
