@@ -12,6 +12,7 @@ import { thirteenthMonthFromCentavos } from "../src/lib/thirteenth-month-centavo
 import { resolvePayProfile, resolvePayTimeline, fixedMonthlyBasicForTimeline } from "../src/lib/pay-basis";
 import { holidayMultiplier, computeSss, computePhilHealth, computePagIbig, computeSemiMonthlyWithholdingTax } from "../src/lib/payroll-rules";
 import { allocateMandatoryDeductions } from "../src/lib/payroll-mandatory-shortfall";
+import { payslipSectionTotals } from "../src/lib/payslip-line-buckets";
 import type { employees, timePunches } from "../src/db/schema";
 
 /**
@@ -58,6 +59,10 @@ function assertReconciles(result: Calc) {
   assert.equal(grossLines, cents(result.gross), "Signed earnings buckets must equal gross");
   assert.equal(signedDeductionLines + cents(result.deductions), 0, "Signed withheld/refunded lines must equal deductions");
   assert.equal(grossLines + signedDeductionLines, cents(result.net), "Payslip lines must equal net");
+  // The shared classifier every payslip view uses must agree with the stored buckets.
+  const printed = payslipSectionTotals(result.lineItems);
+  assert.equal(Math.round(printed.earnings * 100), cents(result.gross), "Printed earnings section must equal stored gross");
+  assert.equal(Math.round(printed.deductions * 100), cents(result.deductions), "Printed deductions section must equal stored deductions");
   assert.ok(result.net >= 0, "Ordinary payroll is not a negative payout");
   assert.match(result.payslipText, new RegExp("Gross: PHP " + result.gross.toFixed(2).replace(".", "\\.")));
   assert.match(result.payslipText, new RegExp("Net pay: PHP " + result.net.toFixed(2).replace(".", "\\.")));
@@ -445,6 +450,10 @@ test("journal refund control is an OPEN integration gap: preserve original fail-
   assert.equal(cents(result.gross), 1100000);
   assert.equal(cents(result.deductions), -57500);
   assert.equal(cents(result.net), 1157500, "Net = 11000 - 925 statutory + 1500 refund");
+  // The payslip shows the refund as a PHP 1,500 credit in deductions: 925 withheld - 1,500 = -575 stored deductions.
+  const printed = payslipSectionTotals(result.lineItems);
+  assert.equal(Math.round(printed.earnings * 100), 1100000, "the refund is not printed as compensation");
+  assert.equal(Math.round(printed.deductions * 100), -57500, "printed deductions equal stored deductions");
   const accountingDebit = 1100000 + 57500; // worked independently in the matrix
   assert.equal(accountingDebit, 1157500);
   assert.throws(() => buildReleasedPayrollJournal([{
