@@ -8,6 +8,7 @@ import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verif
 import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
+import { verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -214,8 +215,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH performance/follow-through-governance",
     "PATCH careers/admin",
     "GET year-end", "POST year-end", "GET workforce/demand-staffing/policies",
-    "PATCH self/profile",
-    "POST invitations", "PATCH compliance/filing-validations/[id]",
+    "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
     if (key === "GET workforce/demand-staffing/policies") {
@@ -248,6 +248,25 @@ test("already credited and partial-action methods are not double-counted", () =>
     assert.equal(methods.get(key)?.status, "GAP", key);
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);
+  }
+  // These three methods have newer, distinct exact-final-head PG16 receipts.
+  // Do not mistake their provisional coverage for a historical promotion or
+  // accept a status flip without the fail-closed SHA/line/CI verifier.
+  const recovered = verifyFiveMethodCredits(manifest);
+  assert.equal(recovered.methodsCredited, 3);
+  assert.equal(recovered.methodsHeld, 2);
+  for (const [key, proofPr, proofRun] of [
+    ["PATCH self/profile", 1762, 41830570387],
+    ["POST hcm/salary-corrections/preview", 1762, 41830569945],
+    ["POST invitations", 1762, 41830569741],
+  ]) {
+    const method = methods.get(key);
+    assert.equal(method?.status, "COVERED", key + ": exact-source provisional receipt");
+    assert.equal(method?.testedBy?.proofPullRequest, proofPr, key + ": distinct proof owner");
+    assert.equal(method?.testedBy?.workflowRunId, proofRun, key + ": executed PG16 proof");
+    assert.equal(method?.testedBy?.independentlyAccepted, false, key + ": not global acceptance");
+    assert.notEqual(method?.testedBy?.verifiedMainCommit, base,
+      key + ": cannot borrow a historical promotion");
   }
   // Allocations POST/PATCH have their own executed receipt (dedicated guard in the inventory test); never a promotion credit.
   for (const key of ["POST workforce-planning/allocations", "PATCH workforce-planning/allocations"]) {
@@ -288,12 +307,9 @@ test("already credited and partial-action methods are not double-counted", () =>
       "fe3ad8901bfa714d59639d9f59a13cf133eeab36", key);
   }
   const profile = methods.get("PATCH self/profile");
-  assert.equal(profile?.status, "GAP", "merged #1524 route changed after #1518's proof");
-  assert.equal(profile?.testedBy, null);
-  assert.equal(profile?.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(profile?.reviewedUncertified?.reviewPolicy, "SOLO_VERIFIED_DEV_RECOVERY");
-  assert.equal(profile?.reviewedUncertified?.soleOwnerReviewer, "erwinmehehe");
-  assert.equal(profile?.reviewedUncertified?.reviewStatus, "PENDING_EXACT_FINAL_HEAD");
+  assert.equal(profile?.status, "COVERED", "#1739's current-source receipt supersedes the #1518 hold");
+  assert.equal(profile?.reviewedUncertified, undefined, "Do not retain obsolete zero-credit hold");
+  assert.equal(profile?.testedBy?.routeBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3");
   assert.ok(!reservations.entries.some(entry =>
     entry.pr === 1455 || entry.methods.some(key => [
       "GET self/availability", "POST self/availability"].includes(key))),
@@ -357,7 +373,11 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   }
   assert.equal(seen.size, 406, "The historic 406-method queue cannot shrink or grow");
   assert.equal(total.COVERED + total["PUBLIC-BY-DESIGN"] + total.GAP, seen.size);
-  assert.ok(current.includes(`Frozen subtotal: **${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406**`),
+  // The proposal may date-stamp its single live subtotal, but the entire
+  // 406-method count is still derived from the original source-linked rows.
+  const subtotalLines = current.split("\n").filter(line => line.startsWith("Frozen subtotal"));
+  assert.equal(subtotalLines.length, 1, "Exactly one live frozen-batch subtotal must be documented");
+  assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406**`),
     "The frozen queue subtotal must reflect the actual source-linked statuses");
   assert.equal(total.GAP, manifest.metrics.gap, "Every live method GAP must remain in the frozen closure queue");
 });
