@@ -546,6 +546,25 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(row.testedBy.independentSecurityReview, "PENDING");
       return true;
     });
+    // #1776 introduced exactly one additional callback credit on main.
+    // Recognize it ONLY if its entire pinned source/receipt record matches
+    // the expected Resend method, not because the aggregate count changed.
+    const baselineResend = baseline.allApiRouteFiles[resendPath]
+      .methods.find(row => row.name === "POST");
+    const baselineHasResend = baselineResend?.status === "COVERED";
+    if (baselineHasResend) {
+      assert.deepEqual(baselineResend, resendMethod,
+        "origin/main Resend POST must match the complete #1763 source-pinned receipt");
+      assert.equal(baselineResend.testedBy?.workflowRunId, 41829420219);
+      assert.equal(baselineResend.testedBy?.workflowJobId, 126572429402);
+      assert.equal(baselineResend.testedBy?.verifiedPrHeadSha,
+        "5e1aeba102cc66486c251d8f6d50432fcb4a4cdc");
+      assert.equal(baselineResend.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(baselineResend.testedBy?.productionTested, false);
+    } else {
+      assert.equal(baselineResend?.status, "GAP");
+      assert.equal(baselineResend?.testedBy, null);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
