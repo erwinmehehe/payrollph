@@ -95,3 +95,19 @@ test("separate proof-file citations resolve their own exact source lines", () =>
       "the companion citation must point to an actual unchanged-victim assertion: " + route);
   }
 });
+
+test("HCM refusal citations use the declared helper rather than the smaller HTTP harness", () => {
+  const source = readFileSync("scripts/qa/tenant-manifest-repin.mjs", "utf8");
+  assert.ok(source.includes('Object.values(proof.helperRefusalLines).includes(value)'));
+  assert.ok(source.includes('missing dedicated helperFile'));
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const proof = manifest.allApiRouteFiles["src/app/api/hcm/effective-changes/route.ts"]
+    .methods.find(method => method.name === "POST").testedBy;
+  const helper = readFileSync(proof.helperFile, "utf8").split("\n");
+  const harness = readFileSync(proof.file, "utf8").split("\n");
+  for (const field of ["forgedSelectorLine", "secondaryForeignDenialLine"]) {
+    assert.ok(Object.values(proof.helperRefusalLines).includes(proof[field]));
+    assert.ok(proof[field] > harness.length);
+    assert.match(helper[proof[field] - 1], /victim/);
+  }
+});
