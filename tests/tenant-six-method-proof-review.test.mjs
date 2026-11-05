@@ -519,6 +519,25 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2);
     }
+    // #1776 introduced exactly one additional callback credit on main.
+    // Recognize it ONLY if its entire pinned source/receipt record matches
+    // the expected Resend method, not because the aggregate count changed.
+    const baselineResend = baseline.allApiRouteFiles[resendPath]
+      .methods.find(row => row.name === "POST");
+    const baselineHasResend = baselineResend?.status === "COVERED";
+    if (baselineHasResend) {
+      assert.deepEqual(baselineResend, resendMethod,
+        "origin/main Resend POST must match the complete #1763 source-pinned receipt");
+      assert.equal(baselineResend.testedBy?.workflowRunId, 41829420219);
+      assert.equal(baselineResend.testedBy?.workflowJobId, 126572429402);
+      assert.equal(baselineResend.testedBy?.verifiedPrHeadSha,
+        "5e1aeba102cc66486c251d8f6d50432fcb4a4cdc");
+      assert.equal(baselineResend.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(baselineResend.testedBy?.productionTested, false);
+    } else {
+      assert.equal(baselineResend?.status, "GAP");
+      assert.equal(baselineResend?.testedBy, null);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     if (baselineHasRecovery) {
@@ -529,12 +548,15 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
       "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
     expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
+    if (baselineHasResend) {
+      expectedOriginalMain[resendPath].POST = "COVERED";
+    }
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
+      "origin/main may include only source-pinned payout, #1760 recovery and #1776 Resend credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute ? 2 : 0);
     assert.deepEqual({
@@ -545,18 +567,21 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0),
+        (baselineHasRecovery ? EVIDENCE.length : 0) +
+        (baselineHasResend ? resendCredits : 0),
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) -
+        (baselineHasResend ? resendCredits : 0) - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0);
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) +
+      (baselineHasResend ? resendCredits : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
