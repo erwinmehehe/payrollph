@@ -4956,7 +4956,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.libraryBlobSha,"92a6d7185124cf79bbd84e75675dcecdc0255979");
         assert.equal(proof.proofBlobSha,"022214660211b779341652c0f8b59ab509c7adf8");
         assert.equal(proof.contractBlobSha,"8db8b3d0399cf0183f425e151a4158d69e3db9a4");
-        assert.equal(proof.workflowBlobSha,"b9454563348474fe9c5ec6cd86c60812b64bba9b");
+        assert.equal(proof.workflowBlobSha,"584d159f2d2c250e182d0942188f293baebc2141");
         for (const [pinnedPath,pinnedSha] of [
           [path,proof.routeBlobSha], [proof.libraryFile,proof.libraryBlobSha],
           [proof.file,proof.proofBlobSha],[proof.contractFile,proof.contractBlobSha],
