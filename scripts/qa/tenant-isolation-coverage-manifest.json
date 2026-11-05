@@ -32255,7 +32255,7 @@
             "proofFile": "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs",
             "proofBlobSha": "0e2c4f389c54ec256fc77964735c2ec8073092f4",
             "contractFile": "tests/tenant-webhook-xendit-subscriptions.test.mjs",
-            "contractBlobSha": "a16b6d99645a167ab92cf8362a482345cb72ba15",
+            "contractBlobSha": "0093d702487844fc0f5351ca225831ebbd63a6f1",
             "gateFile": "scripts/qa/tenant-webhook-xendit-subscriptions-contract.mjs",
             "gateBlobSha": "de031df58ad736fdee747762d6a5df0e59bc22db",
             "workflowFile": ".github/workflows/tenant-webhook-xendit-subscriptions-http.yml",
@@ -42908,6 +42908,22 @@
       "forgedSelector": "Body or header fields such as organizationId, employeeId or runId that disagree with the authenticated binding must be ignored or refused with the same unchanged-SQL evidence.",
       "replayAndRace": "A duplicate delivery and two concurrent deliveries of the same event produce exactly one write.",
       "neverCounts": "401, 400, 413, 503, wrong or missing secret or signature, oversize bodies, bad JSON and invented identifiers never count toward tenant credit.",
+      "documentedRetryRefusal": {
+        "appliesTo": "webhooks/xendit/subscriptions POST only.",
+        "status": 503,
+        "body": {
+          "error": "Subscription is not reconciled yet."
+        },
+        "why": "The route deliberately answers an unmatched reference/plan pair with a retryable 503 so Xendit redelivers a webhook that arrives before the checkout stores its plan id. 503 stays in neverCounts for every other purpose.",
+        "countsOnlyAs": "foreign-denial evidence for cross-bound or unmatched reference/plan pairs, never as own evidence and never for the disabled, missing-secret or authentication paths.",
+        "requires": [
+          "the same run proves a real own paid cycle (200 handled) for two employers and replay plus concurrent-duplicate dedupe, so the route is demonstrably enabled and not answering 503 because it is off",
+          "every cross-bound pair that names a real other-employer reference or plan returns a body byte-identical to a wholly invented pair (no existence oracle)",
+          "a full before/after snapshot of every employer is unchanged across all of those refusals",
+          "forged organization, subscription and legal-entity selectors in a valid event are ignored with only the bound employer changing"
+        ],
+        "review": "Independent security review of this exception is PENDING; it grants no production certification."
+      },
       "environment": "Real PostgreSQL 16 and the real route handler, synthetic secrets that exist only in the CI job, fictional data, no provider HTTP, and XENDIT_PAYOUTS_ENABLED and PAYMONGO_DISBURSEMENTS_ENABLED unset.",
       "review": "Credit is by exact-run receipt like every other method. Independent security review stays PENDING; this rule does not grant production certification.",
       "creditedMethods": 3
