@@ -75,10 +75,10 @@ jobs:
             echo "::add-mask::$key"
             echo "$name=$key" >> "$GITHUB_ENV"
           done
-      - name: Create schema and strictly reviewed CI-only baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Create disposable PG16 schema
+        run: npm run db:push
+      - name: Apply strictly reviewed CI-only baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Production Next.js build against isolated CI database only
         run: npm run build
       - name: Real signed-in two-attacker and higher-ID victim HTTP/SQL proof
