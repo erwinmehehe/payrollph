@@ -80,7 +80,7 @@ The local runner intentionally does not pretend to be GitHub Actions to bypass
 the existing baseline guard. Only existing source-export/baseline fixture SQL is
 applied to the fresh local database. There are no migrations or production SQL.
 
-Fresh exact-head CI and independent review remain required. The existing
+The corrected clock proof passed its full fictional HTTP/PostgreSQL 16 step in [GitHub Actions run 41949804752](https://github.com/erwinmehehe/payrollph/actions/runs/41949804752) at the recorded source commit. That workflow then failed on stale proof source pins, not on an API assertion. The five provisional source pins now reflect the executed proof hash. This historical partial run is not full CI acceptance, and the separately documented local mutation negative-control was not rerun in this CI job. Fresh exact-head CI after the source-pin reconciliation and independent review remain required. The existing
 CI-owned app_db-only payout-export integration is NOT_RUN locally and is not
 weakened. All source pins and counts are generated before review; no new entry
 may borrow historical proof or be promoted merely because another job is green.

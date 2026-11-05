@@ -50,6 +50,7 @@ jobs:
             echo "::add-mask::$key"
             echo "$name=$key" >> "$GITHUB_ENV"
           done
+      - run: node --import tsx --test tests/tenant-clock-contract.test.mjs
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
       - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
@@ -71,7 +72,6 @@ jobs:
           exit 1
       - name: Clock, break, consent, evidence, independent review, two attackers
         run: env -u NODE_ENV node --import tsx scripts/qa/tenant-clock-http.mjs
-      - run: node --import tsx --test tests/tenant-clock-contract.test.mjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
