@@ -562,6 +562,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const xenditSubscriptionsWebhookCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs").length;
   assert.equal(xenditSubscriptionsWebhookCredits, 1, "exactly the Xendit subscriptions webhook POST is credited by its receipt");
+  // hcm/effective-changes POST: dedicated nine-employer harness, guarded by its own inventory test.
+  const effectiveChangePostCredits = [...methodsByKey.values()].filter(method =>
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-hcm-effective-change-post-http.mjs").length;
+  assert.equal(effectiveChangePostCredits, 1, "exactly the effective-changes POST is credited by its dedicated receipt");
   const worksitesPostCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-worksites-actions-http.mjs").length;
   assert.equal(worksitesPostCredits, 1, "exactly the worksites POST is credited by the ten-action receipt");
@@ -700,10 +704,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       return true;
     }).length;
   assert.equal(yearEndSoloCredits, 2);
-  // PII-02 MWE PATCH has one separate provisional PG16 proof. Never borrow
-  // the source receipts for the three unrelated #1760 methods.
+  // One distinct provisional PII-02 MWE decision PATCH, in addition to the HCM POST on main.
   const mwePatch = methodsByKey.get("PATCH employees/[id]/mwe-classifications/[classificationId]");
-  assert.equal(mwePatch?.status, "COVERED", "MWE decision requires a distinct method-specific proof");
+  assert.equal(mwePatch?.status, "COVERED", "MWE decision requires a distinct source-pinned proof");
   assert.equal(mwePatch.testedBy?.file, "scripts/qa/tenant-mwe-decision-http.mjs");
   assert.equal(mwePatch.testedBy?.routeBlobSha,
     manifest.allApiRouteFiles["src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts"].gitBlobSha);
@@ -716,14 +719,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - effectiveChangePostCredits - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   const publicV1 = methodsByKey.get("GET v1");
   assert.equal(publicV1?.status, "PUBLIC-BY-DESIGN", "Only static v1 catalog consumes historical GAP");
   assert.equal(publicV1?.testedBy, null, "Public catalog cannot claim tenant-scoped evidence");
   assert.equal(manifest.metrics.gap + 1 + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + effectiveChangePostCredits + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

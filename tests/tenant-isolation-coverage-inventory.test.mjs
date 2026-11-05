@@ -4368,6 +4368,16 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       // Worksites POST: only this method may claim the ten-action proof file. Anchors, blob pins and the action list
       // are checked by the dedicated worksites test at the end of this file.
+      // hcm/effective-changes POST: dedicated harness receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-hcm-effective-change-post-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/hcm/effective-changes/route.ts POST", "No unrelated method may reuse the effective-change evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "3a3296210692d2b80f92fd8b4cbd3fc67e4aecd4");
+        assert.equal(proof.workflowRunId, 42029419930);
+        assert.equal(proof.workflowJobId, 127251740192);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-worksites-actions-http.mjs") {
         assert.equal(path, "src/app/api/workforce/worksites/route.ts", "No unrelated route may reuse the worksites all-action evidence");
         assert.equal(method.name, "POST");
@@ -6479,4 +6489,59 @@ test("Xendit subscriptions webhook credit requires the exact passing run, byte-p
   assert.ok(harness.indexOf("requireDisposableXenditSubscriptionsWebhook();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
   // The credited source must keep the audit-in-transaction and stored-checkout binding the proof exercises.
   assert.ok(route.includes("}, tx);") && route.includes("saasBillingCheckouts.providerPlanId, planId") && route.includes('{ status: 503 }'), "the credited binding and retry refusal must stay in place");
+});
+
+test("effective-change POST credit requires the exact passing run, byte-pinned inputs, all eight own dimensions and every refusal cited", () => {
+  const routePath = "src/app/api/hcm/effective-changes/route.ts";
+  const harnessFile = "scripts/qa/tenant-hcm-effective-change-post-http.mjs";
+  const helperFile = "scripts/qa/tenant-table-rows/helpers/hcm-effective-change-actions.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const helper = readFileSync(helperFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-hcm-effective-change-post-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-effective-change-post-http\.mjs/);
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("hcm-effective-change-post-isolation:"));
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]]);
+  const method = api.methods.find(entry => entry.name === "POST");
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.helperFile, helperFile);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 hcm-effective-change-post PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1779);
+  assert.equal(proof.mergedProofCommit, "98424a6fef54bf9f1192e4f7349c73b6ea66a654");
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.helperBlobSha, gitBlobSha(Buffer.from(helper)), "the helper changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-hcm-effective-change-post-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-hcm-effective-change-post.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.routeBlobSha, "fb4bd6692a33a2130f0ec369fedc854334e718db", "the proof was written against this exact route");
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const harnessLines = harness.split(String.fromCharCode(10)), helperLines = helper.split(String.fromCharCode(10));
+  const cites = (lines, number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  cites(harnessLines, proof.ownPositiveLine, "const proof = await actions.effectiveChangeActions(", "own-actions anchor");
+  cites(harnessLines, proof.foreignDenialLine, "assert.deepEqual(after[j], before[j]", "all-employer unchanged anchor");
+  cites(harnessLines, proof.unchangedDbLine, "assert.deepEqual(after[j], before[j]", "all-employer unchanged anchor");
+  cites(harnessLines, proof.victimIdOrderingLine, "victim.org.id > 6", "high-ID victim anchor");
+  const own = ["operating organization unit", "employment type", "employee status", "supervisory organization", "cost center", "manager", "legal employer", "position move"];
+  assert.deepEqual(Object.keys(proof.helperOwnLines), own, "all eight own dimensions must stay cited");
+  for (const name of own) cites(helperLines, proof.helperOwnLines[name], 'await created("' + name + '"', "own anchor " + name);
+  const refusals = ["victim organization", "victim operating organization unit", "victim supervisory organization", "victim cost center", "victim manager", "victim legal employer",
+    "victim position", "victim employee under own organization id", "supervisory unit is not an operating unit", "an employee cannot be their own manager", "occupied position",
+    "position that is not approved", "retroactive position move", "unsupported movement type", "position move may not override inherited dimensions"];
+  assert.deepEqual(Object.keys(proof.helperRefusalLines), refusals, "every refusal must stay cited");
+  for (const name of refusals) cites(helperLines, proof.helperRefusalLines[name], '"' + name + '");', "refusal anchor " + name);
+  cites(helperLines, proof.forgedSelectorLine, '"victim employee under own organization id");', "forged-selector anchor");
+  cites(helperLines, proof.secondaryForeignDenialLine, '"victim cost center");', "victim cost-center anchor");
+  assert.ok(harness.indexOf("requireDisposableHcmEffectiveChangePost();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+  for (const token of ["allEmployerSnapshotsCompared", "eight own pending changes per attacker", "eight own business processes per attacker"]) assert.ok(harness.includes(token), "harness lacks " + token);
+  // The credited route must keep the employer-scoped lookups the proof exercises.
+  for (const scoped of ["eq(employees.organizationId, organizationId)", "eq(orgUnits.organizationId, organizationId)", "eq(costCenters.organizationId, organizationId)",
+    "eq(legalEntities.organizationId, organizationId)", "eq(positions.organizationId, organizationId)"]) assert.ok(route.includes(scoped), "route lost employer scope: " + scoped);
 });

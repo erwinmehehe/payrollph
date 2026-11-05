@@ -456,8 +456,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(subscriptionsMethod.testedBy.productionTested, false);
   expectedStatuses[subscriptionsPath].POST = "COVERED";
   const subscriptionsCredits = 1;
-  // #1766 contributes one disjoint, provisional PII-02 MWE decision PATCH.
-  // Require its exact method-specific source record; no independent signoff.
+  // Dedicated-harness credit after the snapshot: hcm/effective-changes POST (merged proof #1779). Only the exact method and receipt identity may move from GAP.
+  const effectiveChangePath = "src/app/api/hcm/effective-changes/route.ts";
+  assert.equal(expectedStatuses[effectiveChangePath]?.POST, "GAP", "effective-changes POST must start GAP in the reviewed snapshot");
+  const effectiveChangeMethod = m.allApiRouteFiles[effectiveChangePath].methods.find(row => row.name === "POST");
+  assert.equal(effectiveChangeMethod?.status, "COVERED");
+  assert.equal(effectiveChangeMethod.testedBy?.file, "scripts/qa/tenant-hcm-effective-change-post-http.mjs");
+  assert.equal(effectiveChangeMethod.testedBy.proofPullRequest, 1779);
+  assert.equal(effectiveChangeMethod.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(effectiveChangeMethod.testedBy.productionTested, false);
+  expectedStatuses[effectiveChangePath].POST = "COVERED";
+  const effectiveChangeCredits = 1;
+  // Separate provisional PII-02 MWE PATCH, in addition to HCM POST.
   const mweDecisionPath = "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts";
   assert.equal(expectedStatuses[mweDecisionPath]?.PATCH, "GAP");
   const mweDecision = m.allApiRouteFiles[mweDecisionPath].methods.find(row => row.name === "PATCH");
@@ -468,6 +478,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(mweDecision?.testedBy?.independentlyAccepted, false);
   assert.equal(mweDecision?.testedBy?.productionCertified, false);
   expectedStatuses[mweDecisionPath].PATCH = "COVERED";
+  const mweDecisionCredits = 1;
   // Preserve #1764's one static-public catalog exception, without tenant credit.
   const publicCatalogPath = "src/app/api/v1/route.ts";
   assert.equal(expectedStatuses[publicCatalogPath]?.GET, "GAP");
@@ -478,9 +489,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + 1,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + effectiveChangeCredits + mweDecisionCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - 2,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - effectiveChangeCredits - mweDecisionCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -492,7 +503,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **328 COVERED + 3 PUBLIC-BY-DESIGN + 75 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -556,13 +567,27 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
       assert.equal(row.testedBy.rule, "proofPolicy.providerCallback");
       assert.equal(row.testedBy.independentSecurityReview, "PENDING");
-      if (path === resendPath) {
-        assert.equal(row.testedBy.workflowRunId, 41829420219);
-        assert.equal(row.testedBy.workflowJobId, 126572429402);
-        assert.equal(row.testedBy.productionTested, false);
-      }
       return true;
     });
+    // #1776 introduced exactly one additional callback credit on main.
+    // Recognize it ONLY if its entire pinned source/receipt record matches
+    // the expected Resend method, not because the aggregate count changed.
+    const baselineResend = baseline.allApiRouteFiles[resendPath]
+      .methods.find(row => row.name === "POST");
+    const baselineHasResend = baselineResend?.status === "COVERED";
+    if (baselineHasResend) {
+      assert.deepEqual(baselineResend, resendMethod,
+        "origin/main Resend POST must match the complete #1763 source-pinned receipt");
+      assert.equal(baselineResend.testedBy?.workflowRunId, 41829420219);
+      assert.equal(baselineResend.testedBy?.workflowJobId, 126572429402);
+      assert.equal(baselineResend.testedBy?.verifiedPrHeadSha,
+        "5e1aeba102cc66486c251d8f6d50432fcb4a4cdc");
+      assert.equal(baselineResend.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(baselineResend.testedBy?.productionTested, false);
+    } else {
+      assert.equal(baselineResend?.status, "GAP");
+      assert.equal(baselineResend?.testedBy, null);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";

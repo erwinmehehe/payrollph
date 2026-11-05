@@ -80,9 +80,32 @@ The local runner intentionally does not pretend to be GitHub Actions to bypass
 the existing baseline guard. Only existing source-export/baseline fixture SQL is
 applied to the fresh local database. There are no migrations or production SQL.
 
-Fresh exact-head CI and independent review remain required. The existing
+The corrected clock proof passed its full fictional HTTP/PostgreSQL 16 step in [GitHub Actions run 41949804752](https://github.com/erwinmehehe/payrollph/actions/runs/41949804752) at the recorded source commit. That workflow then failed on stale proof source pins, not on an API assertion. The five provisional source pins now reflect the executed proof hash. This historical partial run is not full CI acceptance, and the separately documented local mutation negative-control was not rerun in this CI job. Fresh exact-head CI after the source-pin reconciliation and independent review remain required. The existing
 CI-owned app_db-only payout-export integration is NOT_RUN locally and is not
 weakened. All source pins and counts are generated before review; no new entry
 may borrow historical proof or be promoted merely because another job is green.
 No merge, deployment, provider call, live flag change, payroll release or money
 movement is authorized. Keep this PR draft until reviewed.
+
+
+## Independent evidence gap and deterministic midnight proof
+
+The original five-method PG16 proof uses device timestamps near the time the
+runner happens to execute; a green job may therefore exercise a single Manila
+calendar day. That receipt is retained as historical evidence but is **not**
+a deterministic real-HTTP overnight crossing. The existing pure
+`tests/web-bundy-overnight-anchor.test.ts` covers a fixed crossing separately.
+
+A new **zero-credit**, separate real-HTTP workflow
+`.github/workflows/tenant-clock-midnight-real-http.yml` seeds disposable
+PostgreSQL 16 employers, selects the most recent Manila midnight, and requires
+staged timestamps at **23:58, 23:59, 00:00, 00:01** with two independent owners.
+It checks real approved Web Bundy evidence produces a single row per employee,
+retains the previous day's workDate and exact device timestamps, leaves payroll
+and the genuine foreign employer unchanged, and never touches provider or
+production services. Timestamps remain within the application's own 31-day
+review window. Skew is reviewed, not bypassed.
+
+**Until this new workflow passes on the final head, the overnight real-HTTP
+claim remains unverified.** The original five receipt hashes remain intact,
+no method receives a new credit, and human security acceptance remains pending.
