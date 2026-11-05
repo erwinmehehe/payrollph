@@ -12,7 +12,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { MANAGED_PAYROLL_GATES, managedPayrollRunFingerprint } from "@/lib/managed-payroll";
-import { activeManagedPayrollClientApprover } from "@/lib/managed-payroll-client-approval";
+import { activeManagedPayrollClientApprover, classifyManagedPayrollCheckerIdentity } from "@/lib/managed-payroll-client-approval";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -139,11 +139,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }, { status: 409 });
     }
     const checkerMetadata = checkerDecision.metadata as Record<string, unknown>;
-    const checkerUserId = Number(checkerMetadata.deciderUserId);
-    const sameAuthenticatedChecker = Number.isInteger(checkerUserId)
-      ? checkerUserId === user.id
-      : checkerDecision.actor.trim().toLowerCase() === user.name.trim().toLowerCase();
-    if (sameAuthenticatedChecker) {
+    const checkerIdentity = classifyManagedPayrollCheckerIdentity(checkerMetadata.deciderUserId, user.id);
+    if (checkerIdentity === "unknown") {
+      return Response.json({
+        error: "Authenticated checker identity is missing. Resubmit payroll for independent checker review before client approval.",
+      }, { status: 409, headers: privateHeaders });
+    }
+    if (checkerIdentity === "same_user") {
       return Response.json({
         error: "Separation of duties: the payroll checker cannot also give the managed-payroll client approval for the same run.",
       }, { status: 403 });
