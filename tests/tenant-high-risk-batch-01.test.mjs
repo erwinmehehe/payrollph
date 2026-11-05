@@ -1,4 +1,5 @@
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { verifyCredits as verifyClockCredits } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyCredits as verifyOnboardingCredits } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
@@ -617,13 +618,13 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   }
   const wfmProvisionalCredits = wfmProvisional.length;
   const policyGet = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"].methods.find(x => x.name === "GET");
-  assert.equal(policyGet.status, "GAP", "approved-only proof cannot certify manage-mode GET");
-  assert.equal(policyGet.testedBy, null);
+  assert.equal(policyGet.status, "COVERED", "separate own/foreign/manage and approved PG16 GET receipt");
+  const staffingGetCredit = verifyStaffingPolicyGetCredit(manifest);
   const staffingPolicyCredits = staffingPolicyMethods.filter(method =>
     method.status === "COVERED" &&
     method.testedBy?.file === "scripts/qa/tenant-wrk01-staffing-writes-http.mjs").length;
   assert.equal(staffingPolicyCredits, 2, "only staffing-policy POST and PATCH can earn the WRK-01 proof");
-  assert.equal(staffingPolicyMethods.find(method => method.name === "GET")?.status, "GAP");
+  assert.equal(staffingPolicyMethods.find(method => method.name === "GET")?.status, "COVERED");
   // These six newer mainline Workforce credits already contribute to tableMethods.length.
   // Verify them explicitly, but do not double subtract from the historical 124/359 ledger.
   const newMainWorkforce = [
@@ -719,14 +720,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - effectiveChangePostCredits - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   const publicV1 = methodsByKey.get("GET v1");
   assert.equal(publicV1?.status, "PUBLIC-BY-DESIGN", "Only static v1 catalog consumes historical GAP");
   assert.equal(publicV1?.testedBy, null, "Public catalog cannot claim tenant-scoped evidence");
   assert.equal(manifest.metrics.gap + 1 + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + effectiveChangePostCredits + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

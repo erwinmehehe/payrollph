@@ -117,7 +117,14 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         const companionFile = hcmHelperLine ? "helperFile" : field === "victimUnchangedAt"
           ? "victimUnchangedFile" : field === "line" ? null
           : field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"
+          : ["forgedSelectorLine", "secondaryForeignDenialLine"].includes(field) &&
+            proof.helperRefusalLines && Object.values(proof.helperRefusalLines).includes(value)
+            ? "helperFile"
           : field.replace(/Line$/, "File");
+        if (companionFile === "helperFile" && typeof proof.helperFile !== "string") {
+          review.push(`${method.name} ${path} ${field}: missing dedicated helperFile`);
+          continue;
+        }
         const file = companionFile && typeof proof[companionFile] === "string"
           ? proof[companionFile] : proof.file;
         const oldFile = companionFile && typeof cited?.[companionFile] === "string"
