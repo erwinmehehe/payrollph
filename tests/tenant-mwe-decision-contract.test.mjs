@@ -80,6 +80,7 @@ test("MWE endpoint hides foreign/unknown global IDs and verifies selected employ
     'membership.orgUnitId !== employee.orgUnitId',
     'permissionOverlayKeysValid(permissionSet.permissions, ROLE_GATE_PERMISSIONS)',
     'permissionOverlayGroupBindingValid(assignment)',
+    'group.version !== assignment.dynamicGroupVersion',
     'eq(userLegalEntityGrants.userId, input.decidedByUserId)',
     'eq(userLegalEntityGrants.legalEntityId, input.expectedLegalEntityId)',
     'eq(legalEntities.active, true)',

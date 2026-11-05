@@ -18,7 +18,6 @@ import {
 import { PAYROLL_TAX_APPROVER_ROLES } from "@/lib/access";
 import { ROLE_GATE_PERMISSIONS } from "@/lib/permissions";
 import { permissionOverlayGroupBindingValid, permissionOverlayKeysValid } from "@/lib/permission-overlay-absence";
-import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 
 export type MweClassificationRecord = {
   id: number;
@@ -311,18 +310,17 @@ export async function decideMweClassificationRequest(input: {
           !permissionSet.permissions.includes("payroll.check") ||
           !permissionOverlayGroupBindingValid(assignment)) return permissionDenied();
       if (assignment.dynamicGroupId !== null) {
-        const [group] = await tx.select({ id: dynamicWorkerGroups.id })
-          .from(dynamicWorkerGroups).where(and(
-            eq(dynamicWorkerGroups.id, assignment.dynamicGroupId),
-            eq(dynamicWorkerGroups.organizationId, input.organizationId),
-          )).for("share").limit(1);
-        if (!group) return permissionDenied();
-        const eligibility = await authorizedDynamicGroupMember({
-          userId: input.decidedByUserId, organizationId: input.organizationId,
-          groupId: assignment.dynamicGroupId,
-          expectedVersion: assignment.dynamicGroupVersion,
-        });
-        if (!eligibility.eligible) return permissionDenied();
+        // The normal role preflight already verifies worker eligibility. Lock
+        // and recheck the backing group definition/version here without using
+        // a second pooled DB connection while this transaction owns locks.
+        const [group] = await tx.select({
+          id: dynamicWorkerGroups.id, active: dynamicWorkerGroups.active,
+          version: dynamicWorkerGroups.version,
+        }).from(dynamicWorkerGroups).where(and(
+          eq(dynamicWorkerGroups.id, assignment.dynamicGroupId),
+          eq(dynamicWorkerGroups.organizationId, input.organizationId),
+        )).for("share").limit(1);
+        if (!group?.active || group.version !== assignment.dynamicGroupVersion) return permissionDenied();
       }
     }
 
