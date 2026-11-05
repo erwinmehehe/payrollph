@@ -1,0 +1,128 @@
+name: ESS pay explanation real HTTP (fictional PG16, zero new credit)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/self/payslips/[id]/explain/**"
+      - "src/lib/self-pay-explanation-entry-id.ts"
+      - "scripts/qa/tenant-ess-explanation-*.mjs"
+      - "tests/tenant-ess-explanation-contract.test.mjs"
+      - ".github/workflows/tenant-ess-explanation-http.yml"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/tenant-table-env.mjs"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ess-explain-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+jobs:
+  explain-pay-tenant-http:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        multiEntity: ["false", "true"]
+    env:
+      TENANT_ESS_EXPLAIN_PROOF: isolated-ci-only
+      MULTI_ENTITY_ENABLED: ${{ matrix.multiEntity }}
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      SMTP_URL: ""
+      STRIPE_SECRET_KEY: ""
+      OPENAI_API_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Export isolated fixture and deny production providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo "TENANT_ESS_EXPLAIN_PROOF=isolated-ci-only"
+            echo "MULTI_ENTITY_ENABLED=${{ matrix.multiEntity }}"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+            echo "OPENAI_API_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Source pin, deny controls and proof syntax before opening SQL
+        run: |
+          node --check scripts/qa/tenant-ess-explanation-contract.mjs
+          node --check scripts/qa/tenant-ess-explanation-http.mjs
+          node --test tests/tenant-ess-explanation-contract.test.mjs
+      - name: Generate disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed synthetic baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next against localhost PG16
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/ess-explain-ci-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 40 /tmp/ess-explain-ci-next.log || true
+          exit 1
+      - name: Two employee sessions, colleague previous-run exclusion, entity ON/OFF, and victim invariants
+        run: node --import tsx scripts/qa/tenant-ess-explanation-http.mjs
+      - name: Print bounded error lines only
+        if: failure()
+        run: |
+          if test -f /tmp/ess-explain-ci-next.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/ess-explain-ci-next.log | tail -n 20 | cut -c 1-160 || true
+          fi
