@@ -3128,7 +3128,7 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
       key === "src/app/api/managed-payroll/runs/[id]/approve/route.ts POST") {
     const routeFile = "src/app/api/managed-payroll/runs/[id]/approve/route.ts";
     const oldRouteSha = "a4e228c913470d3996429442ddf04ba4b729b453";
-    const fixedRouteSha = "8002251a0760566f0b5bb3939b16d210e2e455ba";
+    const fixedRouteSha = "0a373857e62d9073246e895b537ee201bcb6f055";
     assert.equal(currentBlob, fixedRouteSha,
       "Managed-payroll approval changed again; renewed isolation review required");
     assert.equal(manifest.allApiRouteFiles[routeFile]?.gitBlobSha, fixedRouteSha);
@@ -3146,9 +3146,9 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
       fingerprintHelperFile: "src/lib/managed-payroll.ts",
       fingerprintHelperBlobSha: "830124977fdbbb15428f18b3ab5c5c3bb40fbc87",
       contractFile: "tests/managed-payroll-client-approval-scope.test.ts",
-      contractBlobSha: "b3d0a81bd5531e7420f10f53e988bda74836eaa1",
+      contractBlobSha: "81717b7a0046fb0278fd6e87d34dcaf36d3ca7c3",
       reviewFile: "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
-      reviewBlobSha: "f87462c0fa18557fec7fa59917375a5cbee61123",
+      reviewBlobSha: "97f188aecc3f14f70db1b475ff42bb31933c8407",
       methodCredits: 0,
       exactSourcePg16Http: "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
       independentSecurityReview: "PENDING",
