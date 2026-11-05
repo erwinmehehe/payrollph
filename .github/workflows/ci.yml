@@ -285,6 +285,15 @@ jobs:
           name: payrollph-golden-pay-rules-phase3
           path: qa-artifacts/golden-pay-rules-phase3-reconciliation.json
           retention-days: 14
+      - name: Run tax-classification golden reconciliation (Phase 4)
+        run: npm run payroll:golden:phase4
+      - name: Upload Phase 4 tax-classification reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase4
+          path: qa-artifacts/golden-payroll-phase4-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
