@@ -633,6 +633,15 @@ COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEn
       assert.equal(baselineEffective?.status, "GAP");
       assert.equal(baselineEffective?.testedBy, null);
     }
+    // Main's staffing GET is valid only with its full source-pinned manage/approved receipt.
+    const baselineStaffing = baseline.allApiRouteFiles[staffingGetPath].methods.find(row => row.name === "GET");
+    const baselineStaffingCredits = baselineStaffing?.status === "COVERED"
+      ? verifyStaffingPolicyGetCredit(baseline) : 0;
+    if (baselineStaffingCredits) expectedOriginalMain[staffingGetPath].GET = "COVERED";
+    else {
+      assert.equal(baselineStaffing?.status, "GAP");
+      assert.equal(baselineStaffing?.testedBy, null);
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -645,18 +654,18 @@ COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEn
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + baselineEffectiveCredits,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + baselineEffectiveCredits + baselineStaffingCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - baselineEffectiveCredits - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - baselineEffectiveCredits - baselineStaffingCredits - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + baselineEffectiveCredits;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + baselineEffectiveCredits + baselineStaffingCredits;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
