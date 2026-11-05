@@ -1491,6 +1491,10 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
       helperBlobSha: "059881e91b629860a1aaa722a133f53e057edda7",
       unitTestFile: "tests/spend-receipt-tenant-grant.test.ts",
       unitTestBlobSha: "8cd86095ab4404eed572668e1823825c93bab716",
+      readBoundaryFile: "src/lib/spend-receipt-read-boundary.ts",
+      readBoundaryBlobSha: "b968f1c5d90755e8efc9b7d58d747157a7091c40",
+      readBoundaryTestFile: "tests/tenant-expense-receipt-lookup-boundary.test.ts",
+      readBoundaryTestBlobSha: "8406383620f49ec8f3db1bf46ddf6edadef84fb0",
       contractTestFile: "tests/tenant-spend-receipt-grant-source.test.mjs",
       contractTestBlobSha: "f30da77f6ab705e508c28b924092647902c73d3c",
       coverageCredits: 0,
@@ -1501,6 +1505,8 @@ if (isNewOrChanged && key === "src/app/api/webhooks/xendit/subscriptions/route.t
     for (const [file, blob] of [
       [review.helperFile, review.helperBlobSha],
       [review.unitTestFile, review.unitTestBlobSha],
+      [review.readBoundaryFile, review.readBoundaryBlobSha],
+      [review.readBoundaryTestFile, review.readBoundaryTestBlobSha],
       [review.contractTestFile, review.contractTestBlobSha],
     ]) {
       assert.equal(gitBlobSha(readFileSync(file)), blob,
