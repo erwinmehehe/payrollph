@@ -178,8 +178,11 @@ export async function verifyMweDecisionHttp() {
         "approve", 404, "unknown classification denial", { organizationId: e.org.id });
       assert.equal(foreign.text, unknown.text,
         "foreign and unknown classification IDs must not reveal existence");
-      assert.match(foreign.headers.get("cache-control") ?? "", /private.*no-store/,
-        "foreign classification denial must be private/no-store");
+      const deniedCache = foreign.headers.get("cache-control") ?? "<missing>";
+      assert.match(deniedCache, /private.*no-store/,
+        "foreign classification denial must be private/no-store; observed Cache-Control=" + JSON.stringify(deniedCache)
+        + ", content-type=" + JSON.stringify(foreign.headers.get("content-type"))
+        + ", response=" + JSON.stringify(foreign.text.slice(0, 160)));
       assert.equal(foreign.headers.get("cache-control"), unknown.headers.get("cache-control"),
         "foreign and missing classification cache policy must agree");
       await deny(e, cookie, e.worker.id, victim.pending.id, "approve", 404,
