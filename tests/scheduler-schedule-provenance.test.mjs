@@ -91,6 +91,9 @@ test('only fixed GitHub read URLs with GET; never POST, token in URL, or a deplo
   const r=await collectScheduledRunEvidence({token:TOKEN,fetcher,now});
   assert.equal(r.threeDistinctScheduledEventsProven,true);
   assert.equal(seen.length,4);
+  assert.equal(seen[0].url,
+    'https://api.github.com/repos/erwinmehehe/payrollph/actions/workflows/production-scheduler-tick.yml/runs?event=schedule&branch=main&per_page=3',
+    'observer must read only the newest three scheduled runs, never a 100-run unbounded payload');
   for(const call of seen){
     assert.equal(call.options.method,'GET');
     assert.equal(call.options.redirect,'error');
