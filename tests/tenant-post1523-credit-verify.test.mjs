@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { POST_1523_CREDIT_SPECS, verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 
 const load = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const receipt = (manifest, spec) => manifest.allApiRouteFiles[spec.path].methods
@@ -71,10 +72,12 @@ test("WRK-01's separate two-method proof can share the review SHA without borrow
   const manifest = load();
   const staffing = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"];
   assert.deepEqual(staffing.methods.map(m => [m.name, m.status]), [
-    ["GET", "GAP"], ["POST", "COVERED"], ["PATCH", "COVERED"],
+    ["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"],
   ]);
   assert.equal(verifyPost1523Credits(manifest), 3,
     "#1591 continues to own exactly three proofs despite the separate staffing pair");
+  assert.equal(verifyStaffingPolicyGetCredit(manifest), 1,
+    "Later GET method must have its own distinct two-mode PG16 receipt");
   for (const name of ["POST", "PATCH"]) {
     const evidence = staffing.methods.find(m => m.name === name).testedBy;
     assert.equal(evidence.file, "scripts/qa/tenant-wrk01-staffing-writes-http.mjs");
@@ -111,8 +114,9 @@ test("co-located credits reject fake owners, partial promotion, modified pins an
     methods.find(m => m.name === "POST").testedBy.productionCertified = true;
   }, "production certification may not be inferred");
   verifyReject(methods => {
-    methods.find(m => m.name === "GET").status = "COVERED";
-  }, "staffing GET may not receive a sibling credit");
+    methods.find(m => m.name === "GET").testedBy.file =
+      "scripts/qa/tenant-wrk01-staffing-writes-http.mjs";
+  }, "staffing GET may not borrow a sibling write-only proof");
   verifyReject(methods => {
     methods.find(m => m.name === "POST").testedBy.verifiedMainCommit = "0".repeat(40);
   }, "original reviewed-main SHA cannot be rewritten");

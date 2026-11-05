@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 import { assertHistoricalDemandSourceCompatible } from "./tenant-wfm-demand-overlay-history.mjs";
+import { verifyStaffingPolicyGetCredit } from "./tenant-staffing-policy-get-credit.mjs";
 
 export const POST_1523_CREDIT_SPECS = Object.freeze([
   {
@@ -153,8 +154,9 @@ export function verifyPost1523Credits(manifest, read = file => readFileSync(file
   const expected = POST_1523_CREDIT_SPECS.map(spec => spec.key);
   const staffing = manifest.allApiRouteFiles[STAFFING_ROUTE];
   assert.equal(staffing?.route, "workforce/demand-staffing/policies");
-  assert.equal(staffing.methods.find(method => method.name === "GET")?.status, "GAP",
-    "Unproven staffing-policy GET must remain a GAP");
+  // Historical #1591 POST/PATCH credit never includes GET. A later, distinct
+  // dual-mode real-HTTP PG16 receipt may prove GET without borrowing that pair.
+  assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
   const staffingWrites = staffing.methods.filter(method =>
     ["POST", "PATCH"].includes(method.name) && method.status === "COVERED");
   assert.ok(staffingWrites.length === 0 || staffingWrites.length === 2,

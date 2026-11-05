@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import {
   DEMAND_RECOVERY_METHODS, requireDisposableDemandRecovery,
   assertDemandDenial, assertBoundDemandRead, assertImmutableDemandSources,
@@ -90,8 +91,8 @@ test("only the issued-demand GET gains proof credit; approved-policy GET still l
       const provenHistoricalSha = assertHistoricalDemandSourceCompatible(routePath, found);
       assert.equal(target?.testedBy?.routeBlobSha, provenHistoricalSha);
     } else {
-      assert.equal(target?.status, "GAP", "approved-mode nonempty positive is absent");
-      assert.equal(target?.testedBy, null);
+      assert.equal(target?.status, "COVERED", "later separate real PG16 proof covers both modes");
+      assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
     }
   }
 });
