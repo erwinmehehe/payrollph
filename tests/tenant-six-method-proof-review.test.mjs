@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -411,24 +412,41 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutCredits = verifyPayoutProfileCredit(m);
   assert.equal(expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH, "GAP");
   expectedStatuses["src/app/api/payout-profiles/route.ts"].PATCH = "COVERED";
-  // #1764 changes precisely one static catalog GET from GAP to public metadata.
-  // Keep the main-derived security baseline immutable for the origin/main check below.
-  const expectedCandidateStatuses = JSON.parse(JSON.stringify(expectedStatuses));
+  const expectedAfterPayout = JSON.parse(JSON.stringify(expectedStatuses));
+
+  // Three unrelated methods have now passed on their own exact-final-head
+  // fictional-PG16/real-HTTP receipts. Run the strict byte/anchor/CI-receipt
+  // verifier before allowing ONLY these three distinct new promotions.
+  const recovery = verifyFiveMethodCredits(m);
+  assert.equal(recovery.methodsCredited, 3);
+  assert.equal(recovery.methodsHeld, 2);
+  for (const evidence of EVIDENCE) {
+    const path = "src/app/api/" + evidence.route + "/route.ts";
+    assert.equal(expectedStatuses[path]?.[evidence.method], "GAP",
+      path + ": only a previously GAP method may receive new proof credit");
+    const method = m.allApiRouteFiles[path].methods.find(row => row.name === evidence.method);
+    assert.equal(method.testedBy.workflowRunId, evidence.run);
+    assert.equal(method.testedBy.routeBlobSha, evidence.routeSha);
+    assert.equal(method.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.testedBy.independentlyAccepted, false);
+    expectedStatuses[path][evidence.method] = "COVERED";
+  }
+  // Preserve #1764's one static-public catalog exception, without tenant credit.
   const publicCatalogPath = "src/app/api/v1/route.ts";
-  assert.equal(expectedCandidateStatuses[publicCatalogPath]?.GET, "GAP");
+  assert.equal(expectedStatuses[publicCatalogPath]?.GET, "GAP");
   const publicCatalog = m.allApiRouteFiles[publicCatalogPath]?.methods.find(row => row.name === "GET");
   assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
-  assert.equal(publicCatalog?.testedBy, null, "public catalog is not a tenant-scoped COVERED receipt");
-  expectedCandidateStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
-  assert.deepEqual(methodStatuses(m), expectedCandidateStatuses,
-    "Only #1764 public GET may change on top of the source-pinned tenant credits");
+  assert.equal(publicCatalog?.testedBy, null);
+  expectedStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
+  assert.deepEqual(methodStatuses(m), expectedStatuses,
+    "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - 1,
   };
   assert.deepEqual(counts, expectedCounts,
-    "The previously credited year-end pair is explicitly source-invalidated; payout remains proven");
+    "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
@@ -436,20 +454,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const preCatalogFrozenSubtotal = snapshot.frozenSubtotal
-    .replace("313 COVERED", "321 COVERED")
-    .replace("91 GAP", "83 GAP");
-  assert.match(preCatalogFrozenSubtotal,
-    /^Frozen subtotal: \*\*321 COVERED \+ 2 PUBLIC-BY-DESIGN \+ 83 GAP = 406\*\*/,
-    "The #1744 reconciliation must be present before the v1 public exception");
-  // One frozen EDG-02 GAP becomes public; no additional method may be credited.
-  const currentFrozenSubtotal = preCatalogFrozenSubtotal.replace(
-    "321 COVERED + 2 PUBLIC-BY-DESIGN + 83 GAP",
-    "321 COVERED + 3 PUBLIC-BY-DESIGN + 82 GAP",
-  );
-  assert.equal(plan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
-    currentFrozenSubtotal,
-    "Only the one public v1 GET may change the frozen queue subtotal");
+  assert.ok(plan.includes(
+    "Frozen subtotal (2026-11-04 proposal): **324 COVERED + 3 PUBLIC-BY-DESIGN + 79 GAP = 406**"),
+    "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
@@ -486,19 +493,36 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         assert.equal(method.testedBy, null);
       }
     }
+    // Main now contains the three individually source-pinned #1760 recoveries.
+    // Either ALL three exact-method credits are present or none is. Never
+    // infer coverage from a loose count or permit an unreviewed partial merge.
+    const mainRecoveryCredits = EVIDENCE.map(e =>
+      baseline.allApiRouteFiles["src/app/api/" + e.route + "/route.ts"]
+        ?.methods.find(row => row.name === e.method)?.status === "COVERED");
+    assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
+      "origin/main must not contain a partial five-method proof recovery");
+    const baselineHasRecovery = mainRecoveryCredits[0];
+    if (baselineHasRecovery) {
+      const receipt = verifyFiveMethodCredits(baseline);
+      assert.equal(receipt.methodsCredited, 3);
+      assert.equal(receipt.methodsHeld, 2);
+    }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
-      baselineHasPayout ? expectedStatuses : expectedBeforePayout));
-    // The single static public v1 catalog GET was reclassified on merged #1764.
-    // It remains public-by-design, never a tenant method coverage credit.
-    assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods
-      .find(row => row.name === "GET")?.status, "PUBLIC-BY-DESIGN");
+      baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
+    if (baselineHasRecovery) {
+      for (const e of EVIDENCE) {
+        expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
+      }
+    }
+    assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
+      "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
     expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main can contain only its original #1730 year-end source receipts and separately pinned payout");
+      "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute ? 2 : 0);
     assert.deepEqual({
@@ -508,22 +532,30 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }, {
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
-        (baselineHasPayout ? payoutCredits : 0),
+        (baselineHasPayout ? payoutCredits : 0) +
+        (baselineHasRecovery ? EVIDENCE.length : 0),
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
-        (baselineHasPayout ? payoutCredits : 0) - 1,
+        (baselineHasPayout ? payoutCredits : 0) -
+        (baselineHasRecovery ? EVIDENCE.length : 0) - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0);
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0);
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
       .replace("91 GAP", (403 - frozenCovered) + " GAP");
-    assert.equal(baselinePlan.split("\n").find(line => line.startsWith("Frozen subtotal:")),
+    // Current main dates the frozen subtotal; earlier snapshots used a plain label.
+    // Normalize ONLY that heading, never the verified counts or credited methods.
+    const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
+      line.startsWith("Frozen subtotal: **") ||
+      line.startsWith("Frozen subtotal (2026-11-04 proposal): **"));
+    assert.equal(mainFrozenSubtotal?.replace(
+      /^Frozen subtotal \(2026-11-04 proposal\):/, "Frozen subtotal:"),
       expectedMainFrozen, "origin/main frozen ledger drift");
   }
 });
