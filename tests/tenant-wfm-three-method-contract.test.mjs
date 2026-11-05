@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import {
   WFM_THREE_METHODS, ROSTER_PREVIEW_ENDPOINT,
   requireDisposableWfmThreeMethods,
@@ -52,7 +53,7 @@ function positive() {
   });
 }
 
-test("preview POST and eligible-worker greedy GET have separate source-pinned PG16 credits, manage-mode GET stays GAP", () => {
+test("preview POST and eligible-worker greedy GET preserve their proofs; policy GET has separate two-mode proof", () => {
   assert.equal(ROSTER_PREVIEW_ENDPOINT, "/api/workforce/roster-rules/preview");
   assert.deepEqual(WFM_THREE_METHODS, [
     "GET workforce/demand-staffing/policies",
@@ -69,9 +70,9 @@ test("preview POST and eligible-worker greedy GET have separate source-pinned PG
     const record = entry.methods.filter(m => m.name === verb);
     assert.equal(record.length, 1, "exact single method in canonical inventory");
     if (route === "workforce/demand-staffing/policies") {
-      assert.equal(record[0].status, "GAP",
-        "unproved manage-mode GET remains GAP and cannot borrow another receipt");
-      assert.equal(record[0].testedBy, null);
+      assert.equal(record[0].status, "COVERED",
+        "later, distinct manager/approved PG16 source-matched GET receipt required");
+      assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
     } else if (route === "workforce/greedy-roster") {
       assert.equal(record[0].status, "COVERED",
         "actual nonempty own employee and higher-ID real victim PG16 proof required");
