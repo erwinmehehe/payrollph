@@ -2,15 +2,16 @@
   "schema": "clock-local-pg16-v1",
   "ci": "NOT_RUN",
   "productionTested": false,
-  "runLabel": "Executed native disposable PG16.14 localhost3015: 36 own / 36 victim / 30 forged / 40 negative / 18 discrimination; outputs/proof-final.log",
+  "runLabel": "Executed disposable PG16.15 GitHub Actions proof run 41949804752 (head 26b376fc3ec1c565aa0ceca3ca763e1150db681e): 36 own / 36 victim / 30 forged / 40 negative / 18 discrimination; source-pin and final-head CI verification pending",
   "mutation": {
     "rejected": true,
-    "message": "Missing expected exception: proof accepts another employer's data"
+    "message": "Missing expected exception: proof accepts another employer's data",
+    "provenance": "Historical native disposable PG16.14 mutation negative-control. Not independently rerun in the cited GitHub Actions run; the isolated verifier unit negative-control passed there."
   },
   "sources": [
     {
       "file": "scripts/qa/tenant-clock-http.mjs",
-      "sha256": "bcf49a96e554eb875024196de33b1261035c0d18e33cebaef67103f56bccc49b"
+      "sha256": "b11ae99bc142ecb0a9cab031231ff8cddfecdc1fea6e2efca55f6da13e1a54a6"
     },
     {
       "file": "scripts/qa/tenant-clock-contract.mjs",
@@ -309,5 +310,19 @@
     "productionTested": false,
     "postgresMajor": 16,
     "victimUnchanged": true
+  },
+  "ciProof": {
+    "runId": 41949804752,
+    "jobId": 126990798164,
+    "headSha": "26b376fc3ec1c565aa0ceca3ca763e1150db681e",
+    "proofStep": "Clock, break, consent, evidence, independent review, two attackers",
+    "proofStepConclusion": "success",
+    "postgresMajor": 16,
+    "proofSha256": "b11ae99bc142ecb0a9cab031231ff8cddfecdc1fea6e2efca55f6da13e1a54a6",
+    "reportMatchesPriorSanitizedRun": true,
+    "workflowConclusion": "failure",
+    "remainingFailure": "Historical SHA256 proof and manifest pins not yet reconciled in this observed run",
+    "reference": "https://github.com/erwinmehehe/payrollph/actions/runs/41949804752",
+    "note": "ci: NOT_RUN is the original local-receipt acceptance field; the recorded CI HTTP proof step passed, but full final-head source-pinned CI has not yet passed. Do not promote coverage based on this partial workflow."
   }
 }
