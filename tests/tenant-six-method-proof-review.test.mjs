@@ -444,6 +444,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(resendMethod.testedBy.productionTested, false);
   expectedStatuses[resendPath].POST = "COVERED";
   const resendCredits = 1;
+  // Second provider-callback credit after the snapshot: webhooks/xendit/subscriptions POST (merged proof refresh #1777), counted under the
+  // bounded documentedRetryRefusal exception. Only the exact method and receipt identity may move from GAP.
+  const subscriptionsPath = "src/app/api/webhooks/xendit/subscriptions/route.ts";
+  assert.equal(expectedStatuses[subscriptionsPath]?.POST, "GAP", "Xendit subscriptions POST must start GAP in the reviewed snapshot");
+  const subscriptionsMethod = m.allApiRouteFiles[subscriptionsPath].methods.find(row => row.name === "POST");
+  assert.equal(subscriptionsMethod?.status, "COVERED");
+  assert.equal(subscriptionsMethod.testedBy?.file, "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs");
+  assert.equal(subscriptionsMethod.testedBy.proofPullRequest, 1777);
+  assert.equal(subscriptionsMethod.testedBy.ruleException, "proofPolicy.providerCallback.documentedRetryRefusal");
+  assert.equal(subscriptionsMethod.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(subscriptionsMethod.testedBy.productionTested, false);
+  expectedStatuses[subscriptionsPath].POST = "COVERED";
+  const subscriptionsCredits = 1;
   // #1761: one separately source-pinned staffing-policy GET, both manage and approved proof modes.
   const staffingGetCredits = verifyStaffingPolicyGetCredit(m);
   const staffingGetPath = "src/app/api/workforce/demand-staffing/policies/route.ts";
@@ -460,9 +473,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + staffingGetCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - staffingGetCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -474,7 +487,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **326 COVERED + 3 PUBLIC-BY-DESIGN + 77 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -526,6 +539,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2);
     }
+    // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
+    // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
+    // a credit that is absent from main is simply not expected, so this block never goes stale on merge order.
+    const mainProviderCredits = [
+      ["src/app/api/webhooks/resend/route.ts", "scripts/qa/tenant-webhook-resend-http.mjs"],
+      ["src/app/api/webhooks/xendit/subscriptions/route.ts", "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs"],
+    ].filter(([path, receipt]) => {
+      const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === "POST");
+      if (row?.status !== "COVERED") return false;
+      assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
+      assert.equal(row.testedBy.rule, "proofPolicy.providerCallback");
+      assert.equal(row.testedBy.independentSecurityReview, "PENDING");
+      return true;
+    });
     // Main's merged Resend callback credit is a separate, source-pinned
     // proof. Preserve its exact receipt without granting any new method here.
     const baselineResend = baseline.allApiRouteFiles[resendPath]?.methods.find(row => row.name === "POST");
@@ -545,6 +572,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
+    for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
     if (baselineHasRecovery) {
       for (const e of EVIDENCE) {
         expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
@@ -553,13 +581,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(baseline.allApiRouteFiles[publicCatalogPath].methods.find(row => row.name === "GET")?.status,
       "PUBLIC-BY-DESIGN", "Current main must retain #1764 public catalog evidence");
     expectedOriginalMain[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
-    if (baselineHasResend) expectedOriginalMain[resendPath].POST = "COVERED";
     if (baselineHasOldRoute) {
       expectedOriginalMain["src/app/api/year-end/route.ts"].GET = "COVERED";
       expectedOriginalMain["src/app/api/year-end/route.ts"].POST = "COVERED";
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main must preserve exact source-pinned payout, #1760, and Resend evidence with unproved methods held");
+      "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute ? 2 : 0);
     assert.deepEqual({
@@ -570,21 +597,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) +
-        (baselineHasResend ? resendCredits : 0),
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) -
-        (baselineHasResend ? resendCredits : 0) - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) +
-      (baselineHasResend ? resendCredits : 0);
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")

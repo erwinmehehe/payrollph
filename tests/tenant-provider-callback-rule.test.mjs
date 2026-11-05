@@ -28,6 +28,7 @@ test("only receipt-backed webhook methods are COVERED and the rule counts them",
     "webhooks/xendit-payout": "scripts/qa/tenant-webhook-xendit-payout-http.mjs",
     "webhooks/paymongo/transfers": "scripts/qa/tenant-webhook-paymongo-transfer-http.mjs",
     "webhooks/resend": "scripts/qa/tenant-webhook-resend-http.mjs",
+    "webhooks/xendit/subscriptions": "scripts/qa/tenant-webhook-xendit-subscriptions-http.mjs",
   };
   let covered = 0;
   for (const route of credited) {
