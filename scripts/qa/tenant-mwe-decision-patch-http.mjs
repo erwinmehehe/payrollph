@@ -179,10 +179,13 @@ export async function verifyMweDecisionHttp() {
       assert.equal(foreign.text, unknown.text,
         "foreign and unknown classification IDs must not reveal existence");
       const deniedCache = foreign.headers.get("cache-control") ?? "<missing>";
-      assert.match(deniedCache, /private.*no-store/,
-        "foreign classification denial must be private/no-store; observed Cache-Control=" + JSON.stringify(deniedCache)
-        + ", content-type=" + JSON.stringify(foreign.headers.get("content-type"))
-        + ", response=" + JSON.stringify(foreign.text.slice(0, 160)));
+      for (const directive of ["private", "no-store"]) {
+        assert.ok(deniedCache.split(",").some(value => value.trim().toLowerCase() === directive),
+          "foreign classification denial must be private/no-store; missing " + directive
+          + "; observed Cache-Control=" + JSON.stringify(deniedCache)
+          + ", content-type=" + JSON.stringify(foreign.headers.get("content-type"))
+          + ", response=" + JSON.stringify(foreign.text.slice(0, 160)));
+      }
       assert.equal(foreign.headers.get("cache-control"), unknown.headers.get("cache-control"),
         "foreign and missing classification cache policy must agree");
       await deny(e, cookie, e.worker.id, victim.pending.id, "approve", 404,
