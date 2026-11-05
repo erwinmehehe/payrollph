@@ -69,31 +69,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
-  const approvalEvents = await db.select().from(auditEvents)
-    .where(eq(auditEvents.organizationId, run.organizationId));
-  const checkerDecision = approvalEvents
-    .filter((event) => {
-      if (!["Approval approved", "Approval approved by delegate"].includes(event.action)) return false;
-      if (!event.metadata || typeof event.metadata !== "object") return false;
-      return Number((event.metadata as Record<string, unknown>).payrollRunId) === run.id;
-    })
-    .sort((left, right) => right.id - left.id)[0] ?? null;
-  if (!checkerDecision) {
-    return Response.json({
-      error: "Independent checker approval evidence is missing. Re-submit this payroll for authenticated checker review before client approval.",
-    }, { status: 409 });
-  }
-  const checkerMetadata = checkerDecision.metadata as Record<string, unknown>;
-  const checkerUserId = Number(checkerMetadata.deciderUserId);
-  const sameAuthenticatedChecker = Number.isInteger(checkerUserId)
-    ? checkerUserId === user.id
-    : checkerDecision.actor.trim().toLowerCase() === user.name.trim().toLowerCase();
-  if (sameAuthenticatedChecker) {
-    return Response.json({
-      error: "Separation of duties: the payroll checker cannot also give the managed-payroll client approval for the same run.",
-    }, { status: 403 });
-  }
-
   const gates = await db.select().from(managedPayrollGates)
     .where(eq(managedPayrollGates.engagementId, engagement.id));
   const requiredGateKeys = new Set(MANAGED_PAYROLL_GATES.map((gate) => gate.key));
@@ -145,6 +120,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: "Managed payroll authorization or run state changed. Refresh." }, {
         status: 409, headers: privateHeaders,
       });
+    }
+
+    // Validate checker evidence and separation of duties after locking the payroll run,
+    // in the same transaction as the client approval and audit write.
+    const approvalEvents = await tx.select().from(auditEvents)
+      .where(eq(auditEvents.organizationId, run.organizationId));
+    const checkerDecision = approvalEvents
+      .filter((event) => {
+        if (!["Approval approved", "Approval approved by delegate"].includes(event.action)) return false;
+        if (!event.metadata || typeof event.metadata !== "object") return false;
+        return Number((event.metadata as Record<string, unknown>).payrollRunId) === run.id;
+      })
+      .sort((left, right) => right.id - left.id)[0] ?? null;
+    if (!checkerDecision) {
+      return Response.json({
+        error: "Independent checker approval evidence is missing. Re-submit this payroll for authenticated checker review before client approval.",
+      }, { status: 409 });
+    }
+    const checkerMetadata = checkerDecision.metadata as Record<string, unknown>;
+    const checkerUserId = Number(checkerMetadata.deciderUserId);
+    const sameAuthenticatedChecker = Number.isInteger(checkerUserId)
+      ? checkerUserId === user.id
+      : checkerDecision.actor.trim().toLowerCase() === user.name.trim().toLowerCase();
+    if (sameAuthenticatedChecker) {
+      return Response.json({
+        error: "Separation of duties: the payroll checker cannot also give the managed-payroll client approval for the same run.",
+      }, { status: 403 });
     }
 
     // Prevent a gate being un-verified between preflight and the approval write.

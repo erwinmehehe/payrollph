@@ -69,3 +69,23 @@ test("revoked grant and switched engagement are rechecked under database locks b
   assert.match(fingerprintHelper, /reader: Pick<typeof db, "select"> = db/);
   assert.match(fingerprintHelper, /await reader\.select\(/);
 });
+
+test("checker evidence and separation of duties are evaluated inside the locked approval transaction", () => {
+  const route = readFileSync("src/app/api/managed-payroll/runs/[id]/approve/route.ts", "utf8");
+  const txIndex = route.indexOf("return db.transaction(async (tx) =>");
+  const beforeTx = route.slice(0, txIndex);
+  const tx = route.slice(txIndex);
+  const runLock = tx.indexOf("FROM payroll_runs");
+  const checkerRead = tx.indexOf("const approvalEvents = await tx.select().from(auditEvents)");
+  const checkerGuard = tx.indexOf("if (!checkerDecision)");
+  const separationGuard = tx.indexOf("if (sameAuthenticatedChecker)");
+  const firstApprovalWrite = Math.min(
+    tx.indexOf("tx.update(managedPayrollRunApprovals)"),
+    tx.indexOf("tx.insert(managedPayrollRunApprovals)"),
+  );
+  assert.ok(runLock >= 0 && checkerRead > runLock, "checker evidence must be read after the run lock");
+  assert.ok(checkerGuard > checkerRead && separationGuard > checkerGuard,
+    "checker approval and separation of duties must be enforced");
+  assert.ok(separationGuard < firstApprovalWrite, "checker gate must run before writing an approval");
+  assert.doesNotMatch(beforeTx, /const approvalEvents = await db\.select\(\)\.from\(auditEvents\)/);
+});
