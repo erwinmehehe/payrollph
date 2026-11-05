@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -456,7 +457,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(subscriptionsMethod.testedBy.productionTested, false);
   expectedStatuses[subscriptionsPath].POST = "COVERED";
   const subscriptionsCredits = 1;
-  // Dedicated-harness credit after the snapshot: hcm/effective-changes POST (merged proof #1779). Only the exact method and receipt identity may move from GAP.
+// #1761: one separately source-pinned staffing-policy GET, both manage and approved proof modes.
+  const staffingGetCredits = verifyStaffingPolicyGetCredit(m);
+  const staffingGetPath = "src/app/api/workforce/demand-staffing/policies/route.ts";
+  assert.equal(staffingGetCredits, 1);
+  assert.equal(expectedStatuses[staffingGetPath]?.GET, "GAP");
+  expectedStatuses[staffingGetPath].GET = "COVERED";
+// Dedicated-harness credit after the snapshot: hcm/effective-changes POST (merged proof #1779). Only the exact method and receipt identity may move from GAP.
   const effectiveChangePath = "src/app/api/hcm/effective-changes/route.ts";
   assert.equal(expectedStatuses[effectiveChangePath]?.POST, "GAP", "effective-changes POST must start GAP in the reviewed snapshot");
   const effectiveChangeMethod = m.allApiRouteFiles[effectiveChangePath].methods.find(row => row.name === "POST");
@@ -477,9 +484,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + effectiveChangeCredits,
+COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - effectiveChangeCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -491,7 +498,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **327 COVERED + 3 PUBLIC-BY-DESIGN + 76 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **328 COVERED + 3 PUBLIC-BY-DESIGN + 75 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 

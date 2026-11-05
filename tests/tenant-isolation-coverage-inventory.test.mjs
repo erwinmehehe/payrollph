@@ -10,6 +10,7 @@ import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-cred
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
+import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -2104,7 +2105,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
 
   // WFM demand read-overlay batch: ONLY these two exact-source GET repairs.
   // These changes preserve the historical POST/PATCH handlers byte-for-byte,
-  // preserve all existing method credits, and do NOT promote the open GET GAP.
+  // preserve historical credits and verify the separately source-proven GET recovery.
   if (isNewOrChanged && (
     key.startsWith("src/app/api/workforce/demand-observations/issued/route.ts ") ||
     key.startsWith("src/app/api/workforce/demand-staffing/policies/route.ts ")
@@ -2129,11 +2130,13 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(baseline.api[routePath], before, "Original WFM demand baseline must remain stable");
     const expectedStatuses = issued
       ? { GET: "COVERED", POST: "COVERED" }
-      : { GET: "GAP", POST: "COVERED", PATCH: "COVERED" };
+      : { GET: "COVERED", POST: "COVERED", PATCH: "COVERED" };
     assert.equal(method.status, expectedStatuses[method.name],
       "WFM permission fix cannot silently promote, downgrade or omit another method");
     if (issued && method.name === "POST") {
       verifyIssuedDemandSoloRecovery(method, routePath, currentBlob);
+    } else if (!issued && method.name === "GET") {
+      assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
     } else if (method.status === "GAP") {
       assert.equal(method.testedBy, null,
         "Unreviewed method cannot borrow a feature-OFF or static proof credit");
@@ -2153,7 +2156,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       routeBlobSha: after,
       onlyReadHandlerChanged: true,
       changedMethod: "GET",
-      statusBefore: issued && method.name === "POST" ? "GAP" : method.status,
+      statusBefore: (issued && method.name === "POST") || (!issued && method.name === "GET") ? "GAP" : method.status,
       runnerFile: "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
       runnerBlobSha: "595539e672a3dc121f709b44ce045f432d7d9d92",
       contractFile: "tests/tenant-wfm-demand-read-overlay.test.mjs",
@@ -2286,7 +2289,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.ok(session >= 0 && gate > session && access > gate &&
       flag > access && source > flag,
       "WFM private demand GET must check active tenant/session/deny overlay before pilot and SQL");
-    return; // Narrow, source-reconstructed, zero-credit method-GAP exception only.
+    return; // Source-reconstructed route; GET reconciled separately, historical zero-credit record retained.
   }
 
   // #641 salary-correction case route. Three historical company-level methods
@@ -4993,6 +4996,14 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.file, PAYOUT_PATCH_EVIDENCE.file);
         assert.equal(verifyPayoutProfileCredit(manifest), 1,
           "Exact route, proof, workflow, source anchors, receipt and release holds required");
+        continue;
+      }
+      // One separately source-pinned WFM GET credit. Keep the generic
+      // evidence-file allowlist closed and do not borrow the write receipts.
+      if (path === "src/app/api/workforce/demand-staffing/policies/route.ts" &&
+          method.name === "GET") {
+        assert.equal(proof.file, "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs");
+        assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
