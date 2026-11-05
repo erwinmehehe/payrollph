@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { verifyStaffingPolicyGetCredit, STAFFING_GET_ROUTE } from
+import { verifyStaffingPolicyGetCredit, STAFFING_GET_ROUTE, STAFFING_GET_HELPER_BLOBS } from
   "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 const load = () => JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -30,4 +30,17 @@ test("no invented review, stale source, empty modes, duplicated or borrowed rece
     x => { x.allApiRouteFiles[STAFFING_GET_ROUTE].gitBlobSha = "wrong"; },
   ];
   for(const f of bad){const x=clone(m);f(x);assert.throws(()=>verifyStaffingPolicyGetCredit(x));}
+});
+
+test("transitive authorization, policy-integrity and SQL drift revokes historic GET credit", () => {
+  const manifest = load();
+  assert.equal(Object.keys(STAFFING_GET_HELPER_BLOBS).length, 11);
+  assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
+  for (const [path, pinned] of Object.entries(STAFFING_GET_HELPER_BLOBS)) {
+    assert.match(pinned, /^[0-9a-f]{40}$/);
+    assert.throws(() => verifyStaffingPolicyGetCredit(manifest,
+      name => name === path ? Buffer.from("changed security dependency") : readFileSync(name)),
+      /transitive security helper changed; revoke credit pending new exact-head PG16 proof/,
+      "helper drift must fail closed: " + path);
+  }
 });

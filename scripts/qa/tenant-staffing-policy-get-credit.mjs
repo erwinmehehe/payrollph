@@ -56,8 +56,28 @@ export const STAFFING_GET_EVIDENCE = Object.freeze({
   "rosterWrites": 0
 });
 
-function gitBlob(path) {
-  const bytes = readFileSync(path);
+/**
+ * Historical #1637 PG16 evidence depends on these unchanged authorization,
+ * policy-integrity, and SQL helpers, not just the route handler. They were
+ * verified byte-identical between the proof head and this PR before pinning.
+ * Any drift must fail closed until the revised source is independently reproven.
+ */
+export const STAFFING_GET_HELPER_BLOBS = Object.freeze({
+  "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+  "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
+  "src/lib/workforce-operational-demand-scope.ts": "ba75509804307a0bc4e68b829efc855a3e4cbae7",
+  "src/lib/workforce-demand-staffing-policy-server.ts": "0d8cca8b0403d07d24c1377c5bbec71e2c96eb7a",
+  "src/lib/workforce-demand-staffing-policy.ts": "03f7e150d18092566cd2197568370f65e1cc6d0b",
+  "src/lib/workforce-issued-demand-validation.ts": "2e56bc0fc2d64da310c5b936d08ae6f6adfa456a",
+  "src/lib/workforce-schedule-receipt.ts": "1a1719a9681eaadb0caa0ff933192f846645d3c6",
+  "src/lib/workforce-issued-demand-evidence.ts": "a5e0014b8b631ea21d87d8fab18b31ffc83197f9",
+  "src/lib/payroll-period-ui.ts": "69809c7ab56618b5b2299439654007e41e40b0d1",
+  "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+  "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02"
+});
+
+function gitBlob(path, read = readFileSync) {
+  const bytes = read(path);
   return createHash("sha1").update(Buffer.from("blob " + bytes.length + "\0"))
     .update(bytes).digest("hex");
 }
@@ -67,7 +87,7 @@ function line(path, n) {
     path + ":" + n + " must be real evidence");
   return rows[n - 1];
 }
-export function verifyStaffingPolicyGetCredit(manifest) {
+export function verifyStaffingPolicyGetCredit(manifest, read = readFileSync) {
   const entry = manifest.allApiRouteFiles[STAFFING_GET_ROUTE];
   const method = entry?.methods.find(m => m.name === "GET");
   assert.equal(entry?.gitBlobSha, STAFFING_GET_EVIDENCE.routeBlobSha,
@@ -88,7 +108,13 @@ export function verifyStaffingPolicyGetCredit(manifest) {
     [STAFFING_GET_EVIDENCE.workflowFile, STAFFING_GET_EVIDENCE.workflowBlobSha],
     [STAFFING_GET_EVIDENCE.approvalPositiveFile, STAFFING_GET_EVIDENCE.approvedProofBlobSha],
     [STAFFING_GET_EVIDENCE.approvedWorkflowFile, STAFFING_GET_EVIDENCE.approvedWorkflowBlobSha],
-  ]) assert.equal(gitBlob(path), expected, path + ": stale source proof; revoke credit");
+  ]) assert.equal(gitBlob(path, read), expected, path + ": stale source proof; revoke credit");
+  // Protect transitive source equivalence for the historical two-mode proof.
+  // CI and the path-triggered guard both enforce this fail-closed check.
+  for (const [path, expected] of Object.entries(STAFFING_GET_HELPER_BLOBS)) {
+    assert.equal(gitBlob(path, read), expected,
+      path + ": transitive security helper changed; revoke credit pending new exact-head PG16 proof");
+  }
   assert.match(line(STAFFING_GET_EVIDENCE.file, 105),
     /const own = await request\(endpoint\(row, actor\.org\.id/);
   assert.match(line(STAFFING_GET_EVIDENCE.file, 117),
