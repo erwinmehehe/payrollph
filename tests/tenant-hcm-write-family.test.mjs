@@ -104,7 +104,10 @@ test("executed selected HCM methods are receipt-bound while partial methods stay
     const proof = record.methods.find(m => m.name === method);
     // These rows are credited separately by their own all-action table proofs (rowFile pinned below).
     const allActionRow = ["POST hcm/capabilities", "POST hcm/business-processes/definitions", "POST hcm/employment-term-decisions"].includes(key);
-    assert.equal(proof.status, RECOVERY_METHODS.includes(key) || allActionRow ? "COVERED" : "GAP");
+    // POST hcm/effective-changes is credited only by its own dedicated nine-employer harness (a separate restricted credit), never the partial table row.
+    const dedicatedHarness = key === "POST hcm/effective-changes";
+    assert.equal(proof.status, RECOVERY_METHODS.includes(key) || allActionRow || dedicatedHarness ? "COVERED" : "GAP");
+    if (dedicatedHarness) assert.equal(proof.testedBy.file, "scripts/qa/tenant-hcm-effective-change-post-http.mjs");
     if (allActionRow) assert.equal(proof.testedBy.rowFile, "scripts/qa/tenant-table-rows/write/hcm.mjs");
     if (RECOVERY_METHODS.includes(key)) assert.ok(proof.testedBy.evidence.includes(receipt.runLabel));
   }
