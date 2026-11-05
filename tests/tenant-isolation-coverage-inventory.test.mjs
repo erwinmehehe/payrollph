@@ -5,6 +5,7 @@ import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-veri
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
+import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -4940,6 +4941,19 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.deepEqual([proof.ownPositiveLine, proof.foreignDenialLine, proof.forgedSelectorLine, proof.unchangedDbLine], [112,125,129,149]);
         for (const field of ["sourceRowOwnPositiveLine","sourceRowForeignDenialLine","sourceRowForgedSelectorLine","sourceRowUnchangedDbLine"])
           assert.ok(evidenceLine(rowFile, proof[field], entry.route + " four-part " + field).length > 14);
+        continue;
+      }
+      // Only the three distinct source-pinned #1762 PG16 HTTP method receipts
+      // may gain the new provisional PII/EDG credit. This verifier checks
+      // unchanged route, runner, contract and workflow Git blobs, actual own,
+      // victim, forged-selector and unchanged-PG16 evidence line anchors.
+      const recovered = FIVE_METHOD_EVIDENCE.find(e =>
+        path === "src/app/api/" + e.route + "/route.ts" && method.name === e.method);
+      if (recovered) {
+        assert.equal(proof?.file, recovered.file,
+          "Provisional method credit cannot borrow another proof runner");
+        assert.equal(verifyFiveMethodCredits(manifest).methodsCredited, FIVE_METHOD_EVIDENCE.length,
+          "All three exact-head source/contract/workflow receipts must pass");
         continue;
       }
       if (entry.route === "employees/[id]/mwe-classifications/[classificationId]" &&
