@@ -150,3 +150,18 @@ test("real HTTP MWE proof compares active nonchecker, ungranted employer and unk
     "ungrantedEmployerUnknownEquivalent: true",
   ]) assert.ok(proofSource.includes(token), "real HTTP privacy proof must include " + token);
 });
+
+
+test("real PG16 proof requires private 404 equivalence for forged legal-employer selectors", () => {
+  const proofSource = readFileSync("scripts/qa/tenant-mwe-decision-http.mjs", "utf8");
+  for (const token of [
+    "requireTenantDenial(forgedSelector, [404], forbidden)",
+    "requireTenantDenial(forgedQuery, [404], forbidden)",
+    "requireTenantDenial(forgedSelectorUnknown, [404], forbidden)",
+    "requireTenantDenial(forgedQueryUnknown, [404], forbidden)",
+    "assert.equal(forgedSelector.text, forgedSelectorUnknown.text",
+    "assert.equal(forgedQuery.text, forgedQueryUnknown.text",
+    "assert.match(forgedSelector.cacheControl",
+    "assert.match(forgedQuery.cacheControl",
+  ]) assert.ok(proofSource.includes(token), "forged-source ID privacy invariant: " + token);
+});

@@ -46,7 +46,7 @@ async function decision(actor, employeeId, classificationId, action, { query = "
   const text = await response.text();
   let json = null;
   try { json = JSON.parse(text); } catch {}
-  return { status: response.status, text, json };
+  return { status: response.status, text, json, cacheControl: response.headers.get("cache-control") };
 }
 async function seed(label) {
   const company = await harness.seedEmployer(label, marker, harness.standaloneMakeSession);
@@ -106,10 +106,25 @@ for (const attacker of attackers) {
 
   const forgedSelector = await decision(attacker, attacker.worker.id, attacker.records[2].id,
     "reject", { entityId: victim.entity.id });
-  requireTenantDenial(forgedSelector, [403], forbidden);
+  // An invalid legal-employer selector must reveal no more than an unknown
+  // classification. The route deliberately returns private 404, not 403.
+  requireTenantDenial(forgedSelector, [404], forbidden);
+  assert.match(forgedSelector.cacheControl ?? "", /private.*no-store/);
+  const forgedSelectorUnknown = await decision(attacker, attacker.worker.id,
+    attacker.records[2].id + 200_000, "reject", { entityId: victim.entity.id });
+  requireTenantDenial(forgedSelectorUnknown, [404], forbidden);
+  assert.equal(forgedSelector.text, forgedSelectorUnknown.text,
+    "Forged legal-employer header must not reveal record existence");
   const forgedQuery = await decision(attacker, attacker.worker.id, attacker.records[2].id,
     "reject", { query: "?legalEntityId=" + victim.entity.id, entityId: attacker.entity.id });
-  requireTenantDenial(forgedQuery, [403], forbidden);
+  requireTenantDenial(forgedQuery, [404], forbidden);
+  assert.match(forgedQuery.cacheControl ?? "", /private.*no-store/);
+  const forgedQueryUnknown = await decision(attacker, attacker.worker.id,
+    attacker.records[2].id + 200_000, "reject",
+    { query: "?legalEntityId=" + victim.entity.id, entityId: attacker.entity.id });
+  requireTenantDenial(forgedQueryUnknown, [404], forbidden);
+  assert.equal(forgedQuery.text, forgedQueryUnknown.text,
+    "Forged legal-employer query must not reveal record existence");
 
   assert.deepEqual(await snapshot(victim.org.id), victimBefore,
     "Real victim classifications, employees, audits, payroll, grants and approvals stay unchanged");
