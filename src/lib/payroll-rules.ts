@@ -350,6 +350,16 @@ export function deriveClockHours(punch: ClockPunch, shift: ShiftSchedule) {
     }
   } else if (punch.breakStart || punch.breakEnd) {
     flags.push("Incomplete break punch pair, reviewer sign-off required");
+  } else if (
+    scheduledBreakMinutes > 0
+    && grossWorked <= Math.floor(Math.max(0, Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60_000) - scheduledBreakMinutes) / 2)
+  ) {
+    // No-work-no-pay must not become no-pay-for-work: a punched span of at most half the scheduled working day (a half day)
+    // is not presumed to contain the unpunched meal break. Pay the punched time and ask a reviewer to confirm.
+    actualBreakMinutes = 0;
+    flags.push(
+      `No break punched on a ${grossWorked}-minute span (at most half the scheduled day); no ${scheduledBreakMinutes}-minute meal break was presumed. Confirm no meal break was taken.`,
+    );
   } else if ((rawNightRegularMinutes + rawNightOvertimeMinutes) > 0 && scheduledBreakMinutes > 0) {
     flags.push(
       "Night differential overlaps an unlocated meal break; record break start/end before release",

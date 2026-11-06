@@ -331,3 +331,21 @@ test("current payroll dates resolve certified statutory rule packs", () => {
   assert.equal(computePagIbig(40_000, "2026-10-08").employee, 200);
   assert.equal(computeSemiMonthlyWithholdingTax(25_000, false, "2026-10-08"), 2_604.1);
 });
+
+test("a half-day punch with no break punch is not presumed to contain the meal break", () => {
+  const shift = { start: "09:00", end: "18:00", breakMinutes: 60 };
+  const half = deriveClockHours({ timeIn: "2026-09-14T09:00:00", timeOut: "2026-09-14T13:00:00" }, shift);
+  assert.equal(half.workedMinutes, 240, "the 4 punched hours are paid");
+  assert.equal(half.undertimeMinutes, 300);
+  assert.ok(half.flags.some((flag) => /no 60-minute meal break was presumed/.test(flag)), "a reviewer is asked to confirm");
+  // One minute longer than half the scheduled working day: the scheduled break is presumed, as before.
+  const longer = deriveClockHours({ timeIn: "2026-09-14T09:00:00", timeOut: "2026-09-14T13:01:00" }, shift);
+  assert.equal(longer.workedMinutes, 181);
+  assert.ok(!longer.flags.some((flag) => /meal break was presumed/.test(flag)));
+  // A full day without break punches still deducts the scheduled break, and punched breaks are unchanged.
+  assert.equal(deriveClockHours({ timeIn: "2026-09-14T09:00:00", timeOut: "2026-09-14T18:00:00" }, shift).workedMinutes, 480);
+  assert.equal(deriveClockHours({ timeIn: "2026-09-14T09:00:00", timeOut: "2026-09-14T13:00:00",
+    breakStart: "2026-09-14T11:00:00", breakEnd: "2026-09-14T11:30:00" }, shift).workedMinutes, 210);
+  // A schedule without a break never deducts one.
+  assert.equal(deriveClockHours({ timeIn: "2026-09-14T09:00:00", timeOut: "2026-09-14T13:00:00" }, { ...shift, breakMinutes: 0 }).workedMinutes, 240);
+});
