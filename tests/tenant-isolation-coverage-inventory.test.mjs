@@ -3188,6 +3188,95 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       "Public intake lost reviewed consent, anti-abuse or sanitized attribution control: " + guard);
     return;
   }
+  // Review-only hold for a changed managed-payroll approval POST. Do not
+  // infer method coverage from source tests: two-employer PG16 success,
+  // foreign/missing-ID equivalence and race rollback evidence are STILL DUE.
+  // This narrowly pinned exception keeps the public inventory complete
+  // without silently converting an unproven payroll write into COVERED.
+  if (isNewOrChanged &&
+      key === "src/app/api/managed-payroll/runs/[id]/approve/route.ts POST") {
+    const routeFile = "src/app/api/managed-payroll/runs/[id]/approve/route.ts";
+    const oldRouteSha = "a4e228c913470d3996429442ddf04ba4b729b453";
+    const fixedRouteSha = "762ea23b45b7edd4070b4e546795ae13d7d2228f";
+    assert.equal(currentBlob, fixedRouteSha,
+      "Managed-payroll approval changed again; renewed isolation review required");
+    assert.equal(manifest.allApiRouteFiles[routeFile]?.gitBlobSha, fixedRouteSha);
+    assert.equal(method.status, "GAP",
+      "No owned-success and genuine foreign-victim PG16 method proof was accepted");
+    assert.equal(method.testedBy, null, "Source contracts alone earn ZERO method credit");
+    assert.match(method.reason, /No valid own-object/);
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "managed-payroll-client-approval-active-grant-and-locked-write-zero-credit",
+      originalRouteBlobSha: oldRouteSha,
+      routeBlobSha: fixedRouteSha,
+      grantHelperFile: "src/lib/managed-payroll-client-approval.ts",
+      grantHelperBlobSha: "c38fe96066762701eb9771be433f15063b516986",
+      fingerprintHelperFile: "src/lib/managed-payroll.ts",
+      fingerprintHelperBlobSha: "830124977fdbbb15428f18b3ab5c5c3bb40fbc87",
+      contractFile: "tests/managed-payroll-client-approval-scope.test.ts",
+      contractBlobSha: "e847f93a55946e5429d7b3baf9455613f0655bb6",
+      reviewFile: "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
+      reviewBlobSha: "987aec4d1dc055072506221c7408bc84c2a04b3d",
+      previousReviewBlobSha: "c150635e0aa37a9619e44e3799b35156fc053a7c",
+      methodCredits: 0,
+      exactSourcePg16Http: "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "Only this source-pinned uncredited boundary review is permitted");
+    for (const [file, sha] of [
+      [review.grantHelperFile, review.grantHelperBlobSha],
+      [review.fingerprintHelperFile, review.fingerprintHelperBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.reviewFile, review.reviewBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Managed payroll contract, helpers or review changed: " + file);
+    const code = readFileSync(routeFile, "utf8");
+    const originalLookup = code.indexOf(".from(payrollRuns)");
+    const scopedJoin = code.indexOf(".innerJoin(userOrganizations", originalLookup);
+    const engagementRead = code.indexOf(".from(managedPayrollEngagements)", originalLookup);
+    const scopedResult = code.indexOf("if (!scopedRun) return runNotFound()");
+    assert.ok(originalLookup > 0 && scopedJoin > originalLookup &&
+      engagementRead > scopedJoin && scopedResult > originalLookup,
+      "Active employer membership must be joined before reading engagement or disclosing a run");
+    for (const anchor of [
+      'eq(userOrganizations.active, true)',
+      'isNull(userOrganizations.orgUnitId)',
+      'inArray(userOrganizations.role, ["owner", "admin"])',
+      'eq(userOrganizations.userId, user.id)',
+      'eq(userOrganizations.organizationId, payrollRuns.organizationId)',
+      'eq(payrollRuns.id, runId)',
+      'const privateHeaders = { "Cache-Control": "private, no-store" } as const;',
+      'const runNotFound = () => Response.json({ error: "Payroll run not found." }, { status: 404, headers: privateHeaders });',
+      'requireSensitiveActionMfa(user)',
+      'return db.transaction(async (tx) =>',
+      'FROM user_organizations',
+      'FOR SHARE',
+      'FROM managed_payroll_engagements',
+      'FROM payroll_runs',
+      'FOR UPDATE',
+      'activeManagedPayrollClientApprover(user.id, run.organizationId, freshMembership, freshEngagement)',
+      'eq(managedPayrollRunApprovals.engagementId, engagement.id)',
+      'managedPayrollRunFingerprint(run.id, tx)',
+      '}, tx)',
+    ]) assert.ok(code.includes(anchor),
+      "Managed-payroll approval lost tenant, transaction or private-response guard: " + anchor);
+    const transaction = code.indexOf("return db.transaction(async (tx) =>");
+    const lockedGrant = code.indexOf("activeManagedPayrollClientApprover(user.id, run.organizationId, freshMembership, freshEngagement)", transaction);
+    const write = code.indexOf("tx.update(managedPayrollRunApprovals)", transaction);
+    assert.ok(transaction >= 0 && lockedGrant > transaction && write > lockedGrant,
+      "Transaction must re-authorize the approver before changing an approval");
+    const doc = readFileSync(review.reviewFile, "utf8");
+    assert.ok(doc.includes("NO PAYOUT ACTIVATION OR COVERAGE PROMOTION") &&
+      doc.includes("two independently authenticated employers") &&
+      doc.includes("atomic rollback") &&
+      doc.includes("Concurrent checker-evidence revocation remains") &&
+      doc.includes("42154187261"),
+      "Zero-credit proof hold, disposable HTTP receipt and unproven checker race must remain visible");
+    return;
+  }
+
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -5907,6 +5996,17 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
+        const workflowAddition = entry.pendingWorkflowChange;
+        assert.deepEqual(workflowAddition, {
+          kind: "managed-payroll-approval-disposable-http-step-review-only",
+          previousWorkflowBlobSha: "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+          workflowBlobSha: "cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736",
+          addedProofFile: "scripts/qa/tenant-managed-client-approval-http.mjs",
+          addedProofBlobSha: "31de1c8394922da151d1f2fbc2798834e93e7ff1",
+          fixtureFile: "scripts/qa/managed-client-worker-fixture.ts",
+          fixtureBlobSha: "99f021a0a5cc4075b1c778cbe610a6283ea15356",
+          coverageCredits: 0, independentSecurityReview: "PENDING", productionCertified: false,
+        }, "Managed approval HTTP addition must be separately source-pinned and unaccepted");
         // Historical PG16 receipt is still pinned to the old client-only page.
         // The later local-search and responsive-card change is separate,
         // exact-source and uncredited until fresh independent acceptance.
@@ -5954,7 +6054,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
-            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha : sha;
+            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha :
+            file === reviewed.workflowFile ? workflowAddition.workflowBlobSha : sha;
           assert.equal(gitBlobSha(readFileSync(file)), expected,
             "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
         }
@@ -5996,6 +6097,35 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(runner, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
         const workflow = readFileSync(reviewed.workflowFile, "utf8");
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
+        // The legacy HR Work Queue evidence stays tied to the original workflow.
+        // Verify the new version differs ONLY by the bounded, disposable managed
+        // approval HTTP step. This never upgrades HR or managed payroll coverage.
+        const managedApprovalStep = [
+          "      - name: Managed client approval and reapproval HTTP (fictional PG16, zero credit)",
+          "        env:",
+          "          CI: \"true\"",
+          "          TENANT_SECOND_PASS_MODE: isolated-ci-only",
+          "          NODE_ENV: \"production\"",
+          "          DEMO_MODE: \"false\"",
+          "          WORKER_ENABLED: \"false\"",
+          "          CENTRAL_SCHEDULER_ENABLED: \"false\"",
+          "          PAYMONGO_DISBURSEMENTS_ENABLED: \"false\"",
+          "          XENDIT_PAYOUTS_ENABLED: \"false\"",
+          "          XENDIT_BILLING_ENABLED: \"false\"",
+          "        run: npx tsx scripts/qa/tenant-managed-client-approval-http.mjs",
+          "",
+          "",
+        ].join("\n");
+        assert.equal(workflow.split(managedApprovalStep).length, 2,
+          "Expected exactly one guarded managed-approval HTTP step");
+        assert.equal(gitBlobSha(Buffer.from(workflow.replace(managedApprovalStep, ""))),
+          reviewed.workflowBlobSha, "Historical Work Queue workflow must be otherwise byte-identical");
+        assert.equal(workflowAddition.previousWorkflowBlobSha, reviewed.workflowBlobSha);
+        assert.equal(gitBlobSha(readFileSync(workflowAddition.addedProofFile)),
+          workflowAddition.addedProofBlobSha, "Managed-approval proof code changed without review");
+        assert.equal(gitBlobSha(readFileSync(workflowAddition.fixtureFile)),
+          workflowAddition.fixtureBlobSha, "Managed-approval worker fixture changed without review");
+        assert.match(workflow, /npx tsx scripts\/qa\/tenant-managed-client-approval-http\.mjs/);
         assert.equal(reviewed.credits, 0);
         continue; // Source-pinned, real-HTTP uncredited candidate, not blanket COVERED.
       }

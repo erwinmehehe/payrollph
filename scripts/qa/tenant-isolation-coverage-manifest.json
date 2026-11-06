@@ -19256,7 +19256,7 @@
       ]
     },
     "src/app/api/managed-payroll/runs/[id]/approve/route.ts": {
-      "gitBlobSha": "a4e228c913470d3996429442ddf04ba4b729b453",
+      "gitBlobSha": "762ea23b45b7edd4070b4e546795ae13d7d2228f",
       "route": "managed-payroll/runs/[id]/approve",
       "methods": [
         {
@@ -19264,7 +19264,25 @@
           "line": 17,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "managed-payroll-client-approval-active-grant-and-locked-write-zero-credit",
+            "originalRouteBlobSha": "a4e228c913470d3996429442ddf04ba4b729b453",
+            "routeBlobSha": "762ea23b45b7edd4070b4e546795ae13d7d2228f",
+            "grantHelperFile": "src/lib/managed-payroll-client-approval.ts",
+            "grantHelperBlobSha": "c38fe96066762701eb9771be433f15063b516986",
+            "fingerprintHelperFile": "src/lib/managed-payroll.ts",
+            "fingerprintHelperBlobSha": "830124977fdbbb15428f18b3ab5c5c3bb40fbc87",
+            "contractFile": "tests/managed-payroll-client-approval-scope.test.ts",
+            "contractBlobSha": "e847f93a55946e5429d7b3baf9455613f0655bb6",
+            "reviewFile": "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
+            "reviewBlobSha": "987aec4d1dc055072506221c7408bc84c2a04b3d",
+            "methodCredits": 0,
+            "exactSourcePg16Http": "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false,
+            "previousReviewBlobSha": "c150635e0aa37a9619e44e3799b35156fc053a7c"
+          }
         }
       ],
       "employerSources": {
@@ -42227,6 +42245,18 @@
         "browserScriptBlobSha": "793ef20c5f75e55b8162054087a8ab0388fafda3",
         "coverageCredits": 0,
         "independentlyAccepted": false,
+        "productionCertified": false
+      },
+      "pendingWorkflowChange": {
+        "kind": "managed-payroll-approval-disposable-http-step-review-only",
+        "previousWorkflowBlobSha": "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+        "workflowBlobSha": "cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736",
+        "addedProofFile": "scripts/qa/tenant-managed-client-approval-http.mjs",
+        "addedProofBlobSha": "31de1c8394922da151d1f2fbc2798834e93e7ff1",
+        "fixtureFile": "scripts/qa/managed-client-worker-fixture.ts",
+        "fixtureBlobSha": "99f021a0a5cc4075b1c778cbe610a6283ea15356",
+        "coverageCredits": 0,
+        "independentSecurityReview": "PENDING",
         "productionCertified": false
       }
     },

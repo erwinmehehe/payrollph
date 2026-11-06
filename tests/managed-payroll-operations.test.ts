@@ -46,7 +46,18 @@ test("managed payroll client approval is distinct from the authenticated payroll
   const approvalRoute = readFileSync("src/app/api/managed-payroll/runs/[id]/approve/route.ts", "utf8");
   const checkerRoute = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
   assert.ok(checkerRoute.includes("deciderUserId: sessionUser.id"));
-  assert.ok(approvalRoute.includes("sameAuthenticatedChecker"));
+  // Checker identity must be the authenticated immutable user ID, never a
+  // mutable display-name comparison. Missing numeric evidence fails closed.
+  assert.ok(approvalRoute.includes("classifyManagedPayrollCheckerIdentity(checkerMetadata.deciderUserId, user.id)"));
+  const txStart = approvalRoute.indexOf("return db.transaction(async (tx) =>");
+  const lockedCheckerRead = approvalRoute.indexOf("const approvalEvents = await tx.select().from(auditEvents)", txStart);
+  const unknownGuard = approvalRoute.indexOf('if (checkerIdentity === "unknown")', lockedCheckerRead);
+  const sameUserGuard = approvalRoute.indexOf('if (checkerIdentity === "same_user")', unknownGuard);
+  const firstApprovalWrite = approvalRoute.indexOf("tx.update(managedPayrollRunApprovals)", sameUserGuard);
+  assert.ok(txStart >= 0 && lockedCheckerRead > txStart && unknownGuard > lockedCheckerRead
+    && sameUserGuard > unknownGuard && firstApprovalWrite > sameUserGuard);
+  assert.equal(approvalRoute.includes("checkerDecision.actor.trim("), false,
+    "mutable checker display names must never authorize client approval");
   assert.ok(approvalRoute.includes("the payroll checker cannot also give the managed-payroll client approval"));
   assert.ok(approvalRoute.includes("Independent checker approval evidence is missing"));
 });
