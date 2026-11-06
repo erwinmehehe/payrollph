@@ -156,7 +156,7 @@ test("expense API enforces maker-checker, MFA, employer scope, exact approval an
     assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 403);
     signed(2);
     assert.equal((await api.GET(request("GET", undefined, "?organizationId=" + orgs[0].id))).status, 403);
-    assert.equal((await receipts.GET(request("GET", undefined, "?claimId=" + claim.id))).status, 403);
+    assert.equal((await receipts.GET(request("GET", undefined, "?claimId=" + claim.id))).status, 404, "foreign receipt IDs must be indistinguishable from missing receipts");
     signed(3);
     assert.equal((await api.PATCH(request("PATCH", { id: claim.id, status: "approved" }))).status, 403);
     signed(1);

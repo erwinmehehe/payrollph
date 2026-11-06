@@ -100,7 +100,21 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
           review.push(`${method.name} ${path} ${field}: missing dedicated sourceRowFile`);
           continue;
         }
-        const companionFile = field === "victimUnchangedAt"
+        // #1779 records two foreign-refusal anchors inside its separately
+        // source-pinned HCM action helper, not the 93-line HTTP runner.
+        // Limit this exception to that exact method and fail closed on helper drift.
+        const hcmHelperLine = path === "src/app/api/hcm/effective-changes/route.ts" &&
+          method.name === "POST" && kind === "testedBy" &&
+          (field === "forgedSelectorLine" || field === "secondaryForeignDenialLine");
+        if (hcmHelperLine && (
+            proof.helperFile !== "scripts/qa/tenant-table-rows/helpers/hcm-effective-change-actions.mjs" ||
+            proof.helperBlobSha !== "6a2cd6ddedc79266061dd19ae066f405baf2b703" ||
+            cited?.helperFile !== proof.helperFile ||
+            cited?.helperBlobSha !== proof.helperBlobSha)) {
+          review.push(`${method.name} ${path} ${field}: helper proof is not source-pinned`);
+          continue;
+        }
+        const companionFile = hcmHelperLine ? "helperFile" : field === "victimUnchangedAt"
           ? "victimUnchangedFile" : field === "line" ? null
           : field === "approvalIntegrityLine" ? "approvalPositiveFile"
           : field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"

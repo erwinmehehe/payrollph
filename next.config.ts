@@ -83,6 +83,13 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0" },
         ],
       },
+      // Receipt bytes and claim-existence denials must be private on the wire.
+      {
+        source: "/api/expenses/receipts",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
     ];
   },
 };

@@ -650,6 +650,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       }
       assert.deepEqual(normalizedEffective, effectiveChangeMethod,
         "main's effective-change receipt must match the complete reviewed #1779 evidence");
+      // Carry forward exact-source HCM evidence checks alongside the now-current main payroll credits.
+      assert.equal(baseline.allApiRouteFiles[effectiveChangePath].gitBlobSha,
+        m.allApiRouteFiles[effectiveChangePath].gitBlobSha, "HCM POST source blob must match");
+      assert.equal(baselineEffective.testedBy?.workflowRunId, 42029419930);
+      assert.equal(baselineEffective.testedBy?.workflowJobId, 127251740192);
+      assert.equal(baselineEffective.testedBy?.verifiedPrHeadSha, "3a3296210692d2b80f92fd8b4cbd3fc67e4aecd4");
+      assert.equal(baselineEffective.testedBy?.proofBlobSha, "334c54382e84cac342239086e9ed1b2dfb0a072c");
+      assert.equal(baselineEffective.testedBy?.helperBlobSha, "6a2cd6ddedc79266061dd19ae066f405baf2b703");
       expectedOriginalMain[effectiveChangePath].POST = "COVERED";
     } else {
       assert.equal(baselineEffective?.status, "GAP");
