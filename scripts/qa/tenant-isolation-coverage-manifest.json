@@ -27959,12 +27959,12 @@
       ]
     },
     "src/app/api/self/payslips/[id]/route.ts": {
-      "gitBlobSha": "e6b909e4342a452d30900e0d28ff4b6bdacc6051",
+      "gitBlobSha": "630d38132c599a43ee7a0497f5d05b1d5ba89841",
       "route": "self/payslips/[id]",
       "methods": [
         {
           "name": "GET",
-          "line": 12,
+          "line": 13,
           "status": "COVERED",
           "reason": "Merged #1283 checks current active employer membership before PDF bytes. Two independent employees with real own Released PDF 200 are denied actual victim ID 404 and their own former-employer PDF exact 403 after revoked grant, while same session is still authenticated 200. Additional audit ESS proofs include same-employer coworker denial.",
           "testedBy": {
@@ -27973,7 +27973,7 @@
             "ownPositiveLine": 916,
             "foreignDenialLine": 921,
             "scope": "Three disposable PostgreSQL employers / two independent employee-role sessions; merged #1283 canonical former-employer membership transfer/regression, plus own/victim and same-employer coworker PDF evidence retained in this audit",
-            "currentMembershipGuardLine": 32,
+            "currentMembershipGuardLine": 33,
             "staleSessionOwnPositiveLine": 1048,
             "staleMembershipForeignDenialLine": 1056,
             "staleMembershipUnchangedDbLine": 1062,
@@ -27994,42 +27994,42 @@
           "token": "getSessionUser"
         },
         {
-          "line": 12,
+          "line": 13,
           "token": "getSessionUser"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 14,
+          "line": 15,
           "token": "employeeId"
         },
         {
-          "line": 24,
+          "line": 25,
           "token": "employeeId"
         },
         {
-          "line": 28,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 37,
+          "line": 38,
           "token": "payrollRunId"
         },
         {
-          "line": 40,
-          "token": "employeeId"
-        },
-        {
-          "line": 40,
+          "line": 41,
           "token": "employeeId"
         },
         {
           "line": 41,
+          "token": "employeeId"
+        },
+        {
+          "line": 42,
           "token": "organizationId"
         },
         {
-          "line": 41,
+          "line": 42,
           "token": "organizationId"
         }
       ]
