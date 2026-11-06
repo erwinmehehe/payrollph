@@ -9,7 +9,7 @@ const WORKFLOW = ".github/workflows/tenant-spend-write-actions-http.yml";
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const EXPECTED = Object.freeze({
   [ROUTE]: "7a5d067830b7f7a754a00ee1cad294081c3f8e19",
-  [HARNESS]: "ec4c7a5f760d56a2f84c394877c360c6d06fe5bd",
+  [HARNESS]: "8f9053d2c751e7e3e072a6b3f85ea07797b4a8c9",
 });
 
 const source = path => readFileSync(path, "utf8");
@@ -70,6 +70,7 @@ test("disposable real-HTTP proof exercises every own method action and real fore
     "assert.equal(report.submittedByUserId, own.submitter.id",
     "assert.notEqual(report.submittedByUserId, actor.owner.id",
     "the genuine maker's denied approval must not change report, claim, evidence or audit",
+    "Report submitter cannot decide their own report.",
     "v.approveClaim.id > own.approveClaim.id",
     "v.rejectReport.id > own.rejectReport.id",
     "assert.deepEqual(await state(v.actor.org.id), victimBefore",
