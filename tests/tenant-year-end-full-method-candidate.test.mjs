@@ -25,7 +25,7 @@ const gitBlob = path => {
 };
 
 test("source-pinned current year-end GET+POST proof stays zero-credit pending review", () => {
-  for (const [path, sha] of Object.entries(PINN)) {
+  for (const [path, sha] of Object.entries(PINNED)) {
     assert.equal(gitBlob(path), sha, path + ": changed dependency requires a fresh exact-head PG16 proof");
   }
   const manifest = JSON.parse(source(MANIFEST));
