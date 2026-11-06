@@ -1,5 +1,6 @@
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
+import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -232,6 +233,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
+    assert.equal(verifyRootCredits(manifest),2);
+    return true;
+  }
   assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(method.status),
     key + ": invalid coverage status");
   if (method.status === "PUBLIC-BY-DESIGN") {
@@ -1449,11 +1454,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       regressionFile: "tests/account-email-tenant-boundary.test.ts",
       regressionBlobSha: "cd4557251c8df461a6aeee28cc9ea16d206844bc",
       proofFile: "scripts/qa/tenant-account-email-verify-http.mjs",
-      proofBlobSha: "7787f8c68f9b4f92779a51be6e871ec1150bacf2",
+      proofBlobSha: "9af830320cbcaca60ad12a8e301abe9b5d96afc4",
       contractFile: "tests/tenant-account-email-verify-contract.test.mjs",
       contractBlobSha: "737784e29bbbf6ff896050df3c6bfd14c74898e4",
       workflowFile: ".github/workflows/tenant-account-email-verify-http.yml",
-      workflowBlobSha: "e210052a1beadd1c1476db6cfff0cd7bedbd6351",
+      workflowBlobSha: "f02faaa4bd82f6e22589731adf74330cc7c048a7",
       disposableGuardFile: "scripts/qa/tenant-identity-account-proof.mjs",
       disposableGuardBlobSha: "d6119b38a8cc55b56e18971b42ab2de38baa6a15",
       previousSyntheticHead: "08d058d7d691f2ed4bc1148433b3ff0cb58b6843",
@@ -2605,7 +2610,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       "fixtureFile": "scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs",
       "fixtureBlobSha": "5bcfbc175ef56fa5d9d0422d5d4b5aaae0048c1d",
       "contractFile": "tests/tenant-wrk02-batch3-root-contract.test.mjs",
-      "contractBlobSha": "c76679bf8b9f4e0345afdee09ccf5397784e4fdc",
+      "contractBlobSha": "cc0ac61c96f0f170e01193a57f47c73f92c22939",
       "workflowFile": ".github/workflows/tenant-wrk02-batch3-root.yml",
       "workflowBlobSha": "b7debacbe672eb48712cd8b4898cae8418b599ac",
       "previousDedicatedPg16Run": "41203115190",
@@ -2660,7 +2665,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       "certifiedMethod: false",
     ]) assert.ok(fixture.includes(token), "WRK-02 synthetic proof lost: " + token);
     assert.match(contract, /simultaneous vacancy freezes cannot double-write/);
-    assert.match(contract, /coverage remains uncredited/);
+    assert.match(contract, /promotion remains source-pinned/);
     for (const token of [
       "real higher-ID foreign worker denied on valid own vacancy",
       "positionId: foreignWorkerVacancy.id",
@@ -2714,9 +2719,9 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       previousRouteBlobSha: "91d465334abe1391d5d96e587b39c365dd529c6c",
       routeBlobSha: "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
       proofFile: "scripts/qa/tenant-hcm-sla-escalate-http.mjs",
-      proofBlobSha: "07e0020c74c849b54a10e839b6f4d4e65e3009d9",
+      proofBlobSha: "b4d4f3390cb41663b3ebba97e61fe36e2a1beed1",
       contractFile: "tests/tenant-hcm-sla-escalate-contract.test.mjs",
-      contractBlobSha: "0be82c3a26e766058011480acc1f23807ae1a4e1",
+      contractBlobSha: "54b165b516e224dfca32ba63e6733c3fc7ccb8e5",
       unitTestFile: "tests/hcm-work-item-sla.test.ts",
       unitTestBlobSha: "b5699786808d477bb33f2b8cc0a7e908fdd3678b",
       workflowFile: ".github/workflows/tenant-hcm-sla-escalate-http.yml",
@@ -3845,6 +3850,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (path === "src/app/api/workforce-planning/route.ts" && ["POST","PATCH"].includes(method.name)) {
+        assert.equal(verifyRootCredits(manifest),2);
+        continue; // Exact receipt and row/own/foreign/unchanged anchors are validated together.
+      }
       if (proof?.file === "scripts/qa/tenant-clock-http.mjs") {
         verifyClockCredit(method.name + " " + entry.route, method);
         const workflow = readFileSync(".github/workflows/tenant-clock-lifecycle.yml", "utf8");
@@ -6568,6 +6577,10 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
   ];
   for (const [route, name] of held) {
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]?.methods.find(m => m.name === name);
+    if (route === "workforce-planning" && ["POST","PATCH"].includes(name)) {
+      assert.equal(verifyRootCredits(manifest),2);
+      continue;
+    }
     assert.equal(method?.status, "GAP", name + " " + route + " remains held or lacks whole-method proof");
     assert.equal(method?.testedBy, null);
   }

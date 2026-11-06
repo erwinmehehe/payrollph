@@ -2,19 +2,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
+import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 
 const route = readFileSync("src/app/api/workforce-planning/route.ts", "utf8");
 const family = readFileSync("scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs", "utf8");
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const methods = manifest.allApiRouteFiles["src/app/api/workforce-planning/route.ts"].methods;
 
-test("Batch 3 stays two uncredited root GAP methods, discovered by the shared write runner", () => {
+test("Batch 3 credits require the source-matched dedicated two-attacker receipt", () => {
   const rows = tenantFamilyCatalog("write").filter(row => row.file.endsWith("/workforce-planning-root.mjs"));
   assert.deepEqual(rows.map(row => row.key), ["POST workforce-planning","PATCH workforce-planning"]);
   assert.deepEqual(rows.map(row => row.profile), ["default","default"]);
   assert.deepEqual(rows.map(row => row.flags), [[],[]]);
   assert.deepEqual(methods.map(row => [row.name,row.status,row.testedBy]),
-    [["GET","COVERED",methods[0].testedBy],["POST","GAP",null],["PATCH","GAP",null]]);
+    [["GET","COVERED",methods[0].testedBy],["POST","COVERED",methods[1].testedBy],["PATCH","COVERED",methods[2].testedBy]]);
+  assert.equal(verifyRootCredits(manifest),2);
   assert.match(family, /certifiedMethod: false/);
 });
 
@@ -92,14 +94,15 @@ test("out-of-range PostgreSQL int4 position IDs return neutral missing 404 befor
     "The live HTTP fixture must send an out-of-range missing ID and expect 404");
 });
 
-test("simultaneous vacancy freezes cannot double-write; coverage remains uncredited", () => {
+test("simultaneous vacancy freezes cannot double-write; promotion remains source-pinned", () => {
   assert.match(family, /Promise\.all\(\[1, 2\]\.map/);
   assert.match(family, /raceAudit.length, 1/);
   assert.match(family, /racedSamePositionFreezes: 2/);
   assert.deepEqual(methods.filter(row => row.name === "POST" || row.name === "PATCH")
     .map(row => [row.name, row.status, row.testedBy]),
-    [["POST", "GAP", null], ["PATCH", "GAP", null]],
-    "a passing synthetic fixture must not silently promote either method");
+    [["POST", "COVERED",methods[1].testedBy], ["PATCH", "COVERED",methods[2].testedBy]],
+    "only the separately pinned promotion can credit either method");
+  assert.equal(verifyRootCredits(manifest),2);
 });
 
 test("no payroll, provider or production authorization is carried in the Batch 3 fixture", () => {

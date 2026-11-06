@@ -102,6 +102,12 @@ try {
   check(account.status === 200, "Tenant browser session must be real and active");
   expect(await request({ cookie: subjects[0].cookie }), 401,
     "Authenticated tenant cookie alone cannot trigger global SLA sweep");
+  const secondAccount=await fetch(APP+"/api/account",{
+    headers:{cookie:subjects[1].cookie},cache:"no-store",
+  });
+  check(secondAccount.status===200,"Second independent tenant session must be real and active");
+  expect(await request({cookie:subjects[1].cookie}),401,
+    "Second authenticated tenant cookie cannot trigger a cross-employer worker");
   expect(await request({ authorization: "Bearer " + randomBytes(32).toString("hex") }), 401,
     "Forged scheduler bearer token cannot trigger global sweep");
   expect(await request({ authorization: "Bearer " + process.env.HCM_SLA_CRON_SECRET + "x" }), 401,
@@ -164,6 +170,7 @@ try {
   console.log(JSON.stringify({
     kind: "hcm-sla-global-worker-tenant-boundary-PG16",
     authenticatedTenantCookieDenied: true, forgedTokenDenied: true,
+    independentAuthenticatedTenantCookiesDenied:2,
     syntheticEmployers: 3, ownDueCasesProcessed: 3, foreignEmailsObserved: 0,
     repeatedRunEscalations: 0, payrollMutations: 0,
     methodCredits: 0, independentSecurityAcceptance: false,

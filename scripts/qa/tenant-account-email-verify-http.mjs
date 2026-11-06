@@ -9,6 +9,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { requireDisposableIdentityAccount } from "./tenant-identity-account-proof.mjs";
+import { assertOwnedEmailVerification } from "./email-verify-owned-proof.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 
@@ -131,6 +132,39 @@ export async function verifyAccountEmailTenantHttp() {
       assert.deepEqual(await snapshot(), before, name + " denied token changed account, worker or audit state");
     }
 
+    // Both token holders must also succeed for their own employer. The earlier
+    // victim-only positive did not establish this two-attacker contract.
+    const victimSnapshot=async()=>{
+      const all=await snapshot();
+      return {
+        account:all.accountRows.filter(row=>row.id===victim.account.id),
+        worker:all.workerRows.filter(row=>row.organizationId===v.org.id),
+        grants:all.grants.filter(row=>row.userId===victim.account.id),
+        tokens:all.tokens.filter(row=>row.userId===victim.account.id),
+        audits:all.audits.filter(row=>row.organizationId===v.org.id),
+        sessions:all.sessionRows.filter(row=>row.userId===victim.account.id),
+      };
+    };
+    const victimBeforeOwn=await victimSnapshot();
+    for(const [attacker,name] of [[attackerA,"atta"],[attackerB,"attb"]]){
+      await db.update(users).set({employeeId:attacker.employer.worker.id}).where(eq(users.id,attacker.account.id));
+      const ownedSession=await standaloneMakeSession(attacker.account.id);
+      const ownedToken=await tokenFor(attacker.account.id,"own-"+name);
+      const ownResponse=await verify(ownedToken,200,name+" valid own-employer link");
+      assert.equal(ownResponse.json?.ok,true);
+      const [account]=await db.select({id:users.id,email:users.email}).from(users).where(eq(users.id,attacker.account.id));
+      const [worker]=await db.select({id:employees.id,organizationId:employees.organizationId,email:employees.email}).from(employees).where(eq(employees.id,attacker.employer.worker.id));
+      const [token]=await db.select().from(emailChangeTokens).where(eq(emailChangeTokens.id,ownedToken.id));
+      const [session]=await db.select().from(sessions).where(eq(sessions.id,ownedSession.id));
+      const expected={userId:attacker.account.id,workerId:attacker.employer.worker.id,organizationId:attacker.employer.org.id,email:ownedToken.newEmail,tokenId:ownedToken.id,sessionId:ownedSession.id};
+      assertOwnedEmailVerification({account,worker,token,session},expected);
+      assert.throws(()=>assertOwnedEmailVerification({account,worker:{...worker,organizationId:v.org.id},token,session},expected),/accepts another employer's data/);
+      assert.deepEqual(await victimSnapshot(),victimBeforeOwn,"own verification must not mutate victim account, worker, tokens, grants, sessions or audit");
+      const afterVerified=await snapshot();
+      await verify(ownedToken,400,name+" spent own token replay");
+      assert.deepEqual(await snapshot(),afterVerified,"own consumed-token replay writes nothing");
+    }
+
     const ownToken = await tokenFor(victim.account.id, "victim-own");
     const accepted = await verify(ownToken, 200, "victim valid same-employer employee link");
     assert.equal(accepted.json?.ok, true);
@@ -178,6 +212,7 @@ export async function verifyAccountEmailTenantHttp() {
     console.log(JSON.stringify({
       kind: "tenant-account-email-verify", method: "POST /api/account/email/verify",
       fictionalEmployers: 3, independentTokenHoldersWithForeignPointers: 2,
+      independentOwnedVerifications:2, ownedDiscriminationChecks:2,
       realHigherIdVictim: true, ownHttpSuccess: true, foreignWritesDenied: true,
       revokedMembershipDenied: true, workerGrantMismatchDenied: true,
       legacySameEmployerSuccess: true, spentTokenDenied: true,

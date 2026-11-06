@@ -1,5 +1,6 @@
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
+import { verifyRootCredits, ROOT_METHODS } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { verifyCredits as verifyClockCredits } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyCredits as verifyOnboardingCredits } from "../scripts/qa/tenant-onboarding-credit.mjs";
@@ -419,6 +420,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   let reviewedComplianceCount = 0;
   for (const [key, m] of tableMethods) {
     assert.equal(m.status, "COVERED", key + ": table proof only ever credits COVERED");
+    if (ROOT_METHODS.includes(key)) {
+      assert.equal(verifyRootCredits(manifest),2);
+      continue;
+    }
     const standalone = reviewedComplianceRows.get(key);
     if (standalone) {
       const proof = m.testedBy;
