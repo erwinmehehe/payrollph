@@ -19,10 +19,10 @@ test("export acceptance refuses non-CI, remote targets, provider credentials and
 test("CSV proof rejects a successful HTML login page, foreign rows and public cache", () => {
   const own = { status: 200, type: "text/csv; charset=utf-8", text: "Employee no.,Name\nOWN,Owned", cache: "private, no-store", nosniff: "nosniff" };
   proveEmployeeExport(own, "OWN", "VICTIM");
-  assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no.,Name\\nOWN,Owned\\nVICTIM,Victim" }, "OWN", "VICTIM"), /accepts another employer's data/);
+  assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no.,Name\nOWN,Owned\nVICTIM,Victim" }, "OWN", "VICTIM"), /accepts another employer's data/);
   // The secondary entity uses the primary marker as a prefix in an otherwise
   // valid employee number and display name. That is not a primary-entity row.
-  const secondary = { ...own, text: "Employee no.,Name\\nOWN-OTHER,OWN-OTHER" };
+  const secondary = { ...own, text: "Employee no.,Name\nOWN-OTHER,OWN-OTHER" };
   proveEmployeeExport(secondary, "OWN-OTHER", "OWN");
   assert.throws(() => proveEmployeeExport(secondary, "OWN-OTHER", "OWN-OTHER"), /accepts another employer's data/);
   // An employee number hidden in a name does not count as an own-positive row.
