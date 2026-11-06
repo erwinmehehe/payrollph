@@ -52,7 +52,12 @@ export async function GET(request: Request) {
   const rows = await db
     .select({ adjustment: yearEndAdjustments, employee: employees })
     .from(yearEndAdjustments)
-    .innerJoin(employees, eq(yearEndAdjustments.employeeId, employees.id))
+    // An adjustment's organizationId and employeeId are separate foreign keys.
+    // Never resolve a different employer's employee through an inconsistent import.
+    .innerJoin(employees, and(
+      eq(yearEndAdjustments.employeeId, employees.id),
+      eq(employees.organizationId, organizationId),
+    ))
     .where(and(
       eq(yearEndAdjustments.organizationId, organizationId),
       eq(yearEndAdjustments.taxYear, taxYear),

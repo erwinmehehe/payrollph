@@ -20,7 +20,7 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   assert.equal(live.coveredAfter + live.publicByDesign + live.gap, 498,
     "All 498 API methods must still have exactly one status");
   const yearEnd = manifest.allApiRouteFiles["src/app/api/year-end/route.ts"];
-  assert.equal(yearEnd.gitBlobSha, "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+  assert.equal(yearEnd.gitBlobSha, "f040f5bbbc3df275d32d23f1728b1b0345f77814",
     "Atomic year-end changed source must not borrow the old PG16 receipts");
   for (const method of yearEnd.methods) {
     assert.ok(["GET", "POST"].includes(method.name));

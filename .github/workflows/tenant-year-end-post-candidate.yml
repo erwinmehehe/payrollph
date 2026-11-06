@@ -7,6 +7,9 @@ on:
     paths:
       - ".github/workflows/tenant-year-end-post-candidate.yml"
       - "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs"
+      - "scripts/qa/tenant-batches/year-end-json-http.mjs"
+      - "tests/tenant-year-end-full-method-candidate.test.mjs"
+      - "docs/qa/tenant-year-end-full-method-recovery.md"
       - "scripts/qa/tenant-write-table-http.mjs"
       - "scripts/qa/tenant-table-http.mjs"
       - "scripts/qa/tenant-table-invariants.mjs"
@@ -97,6 +100,7 @@ jobs:
         run: |
           node --check scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs
           node --test tests/tenant-table-families.test.mjs
+          node --test tests/tenant-year-end-full-method-candidate.test.mjs
       - name: One-time synthetic encryption and signing material only
         shell: bash
         run: |

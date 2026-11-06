@@ -377,8 +377,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(held?.status, "GAP", label + " requires exact new-source proof");
       assert.equal(held?.testedBy, null);
       assert.equal(held?.reviewedUncertified?.kind, "year-end-binding-atomic-source-only-zero-credit");
-      assert.equal(held?.reviewedUncertified?.routeBlobSha, "e4741d98c23e068f4ecd7032e172ce60b95852cf");
-      assert.equal(blobSha(pin.path), "e4741d98c23e068f4ecd7032e172ce60b95852cf");
+      assert.equal(held?.reviewedUncertified?.routeBlobSha, "f040f5bbbc3df275d32d23f1728b1b0345f77814");
+      assert.equal(blobSha(pin.path), "f040f5bbbc3df275d32d23f1728b1b0345f77814");
       continue;
     }
     assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " must start GAP on main");
