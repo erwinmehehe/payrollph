@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
-import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
+import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -678,12 +678,23 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }
     // Merged main also has a separately receipt-verified staffing-policy GET.
     const baselineStaffingGet = baseline.allApiRouteFiles[staffingGetPath]?.methods.find(row => row.name === "GET");
-    const baselineStaffingCredits = baselineStaffingGet?.status === "COVERED" ? verifyStaffingPolicyGetCredit(baseline) : 0;
+    // main predates #1793's supplement. Compare it with the immutable
+    // historical #1637 receipt ONLY. The current helper's upgraded integrity
+    // guard is independently validated on m above and MUST NOT treat the old
+    // proof as evidence for the new helper.
+    const baselineStaffingCredits = baselineStaffingGet?.status === "COVERED" ? (() => {
+      const { integrityReproof: supplemental, ...legacyProof } = STAFFING_GET_EVIDENCE;
+      assert.ok(supplemental && supplemental.coverageCredits === 0 &&
+        supplemental.reviewStatus === "PENDING", "new helper proof cannot grant retroactive credit");
+      assert.deepEqual(baselineStaffingGet.testedBy, legacyProof,
+        "base main must retain the exact original staffing GET evidence, with no invented reproof");
+      assert.equal(baseline.allApiRouteFiles[staffingGetPath].gitBlobSha,
+        legacyProof.routeBlobSha, "main staffing GET route must remain byte-pinned");
+      assert.equal(baselineStaffingGet.testedBy.independentlyAccepted, false);
+      assert.equal(baselineStaffingGet.testedBy.productionCertified, false);
+      return 1;
+    })() : 0;
     if (baselineStaffingCredits) expectedOriginalMain[staffingGetPath].GET = "COVERED";
-    else {
-      assert.equal(baselineStaffingGet?.status, "GAP");
-      assert.equal(baselineStaffingGet?.testedBy, null);
-    }
     const baselineMwe = baseline.allApiRouteFiles[mweDecisionPath]?.methods.find(row => row.name === "PATCH");
     const baselineMweCredits = baselineMwe?.status === "COVERED" ? 1 : 0;
     if (baselineMweCredits) {

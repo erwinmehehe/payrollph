@@ -96,6 +96,41 @@ test("isolated Postgres: exact-company versioned policy, maker-checker, replacem
       metricKind:"transactions",intervalMinutes:30,mode:"approved",
     })).length,0,"no cross-employer policy read");
 
+    // An "approved" status with a corrupted content hash must not authorize
+    // advisory staffing scenarios; show it only to management as source_review.
+    const approvedScope={
+      organizationId:one.id,worksiteId:a.id,jobProfileId:null,
+      metricKind:"transactions" as const,intervalMinutes:30 as const,
+    };
+    await db.update(workforceDemandStaffingPolicies)
+      .set({contentSha256:"f".repeat(64)})
+      .where(eq(workforceDemandStaffingPolicies.id,first.id));
+    assert.equal((await readStaffingPolicies({...approvedScope,mode:"approved"})).length,0,
+      "tampered approved-policy content must fail closed");
+    const tamperedContentManage=await readStaffingPolicies({...approvedScope,mode:"manage"});
+    assert.equal(tamperedContentManage.find(p=>p.id===first.id)?.approvalIntegrity,"source_review");
+    await db.update(workforceDemandStaffingPolicies)
+      .set({contentSha256:approved.contentSha256})
+      .where(eq(workforceDemandStaffingPolicies.id,first.id));
+    assert.equal((await readStaffingPolicies({...approvedScope,mode:"approved"})).length,1);
+
+    const [approvalEvent]=await db.select().from(workforceDemandStaffingPolicyEvents)
+      .where(and(eq(workforceDemandStaffingPolicyEvents.organizationId,one.id),
+        eq(workforceDemandStaffingPolicyEvents.policyId,first.id),
+        eq(workforceDemandStaffingPolicyEvents.action,"approved"))).limit(1);
+    assert.ok(approvalEvent);
+    await db.update(workforceDemandStaffingPolicyEvents)
+      .set({receiptSha256:"f".repeat(64)})
+      .where(eq(workforceDemandStaffingPolicyEvents.id,approvalEvent.id));
+    assert.equal((await readStaffingPolicies({...approvedScope,mode:"approved"})).length,0,
+      "tampered approval event receipt must fail closed");
+    const tamperedReceiptManage=await readStaffingPolicies({...approvedScope,mode:"manage"});
+    assert.equal(tamperedReceiptManage.find(p=>p.id===first.id)?.approvalIntegrity,"source_review");
+    await db.update(workforceDemandStaffingPolicyEvents)
+      .set({receiptSha256:approvalEvent.receiptSha256})
+      .where(eq(workforceDemandStaffingPolicyEvents.id,approvalEvent.id));
+    assert.equal((await readStaffingPolicies({...approvedScope,mode:"approved"})).length,1);
+
     const v2=await createStaffingPolicyDraft({
       spec:parseStaffingPolicyDraft({...source,
         effectiveFrom:"2099-01-07",effectiveUntil:"2099-01-14",
