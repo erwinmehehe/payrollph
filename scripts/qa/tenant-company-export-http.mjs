@@ -12,7 +12,8 @@ async function request(f, query, headers = {}) {
     headers: { Cookie: f.cookie, ...headers }, redirect: "manual", signal: AbortSignal.timeout(15000),
   });
   return { status: r.status, text: await r.text(), type: r.headers.get("content-type") ?? "",
-    cache: r.headers.get("cache-control") ?? "", nosniff: r.headers.get("x-content-type-options") };
+    cache: r.headers.get("cache-control") ?? "", nosniff: r.headers.get("x-content-type-options"),
+    disposition: r.headers.get("content-disposition") ?? "" };
 }
 async function snapshot(orgId) {
   const tables = [s.organizations, s.employees, s.payrollRuns, s.auditEvents, s.userOrganizations, s.userLegalEntityGrants];
@@ -46,7 +47,9 @@ async function verify() {
   assert.equal((await db.select().from(s.organizations).limit(1)).length, 0, "anonymous GET must not seed tenant 1");
   const nonce = randomUUID().slice(0, 8);
   const a = await prepare("ATTA", nonce), b = await prepare("ATTB", nonce);
-  for (let i = 0; i < 5; i++) await db.insert(s.organizations).values({ name: "Fictional padding " + i });
+  for (let i = 0; i < 5; i++) await db.insert(s.organizations).values({
+    name: "Fictional padding " + i, legalName: "Fictional padding " + i + " Inc.",
+  });
   const v = await prepare("VICTIM", nonce);
   assert.ok(v.org.id > b.org.id && v.org.id > 6);
   const query = f => "organizationId=" + f.org.id;
@@ -57,15 +60,24 @@ async function verify() {
     const base = query(f);
     const own = await request(f, base + "&kind=employees");
     proveEmployeeExport(own, f.worker.employeeNo, v.worker.employeeNo);
+    assert.match(own.disposition, /attachment;/i, "employee CSV must be an actual download");
     assert.throws(() => proveEmployeeExport(own, f.worker.employeeNo, f.worker.employeeNo), /accepts another employer's data/);
     assert.equal(own.text.includes(f.otherWorker.employeeNo), !multi, "legal employer ON/OFF selection");
     const payroll = await request(f, base + "&kind=payroll");
     assert.equal(payroll.status, 200); assert.ok(payroll.text.includes(f.marker + "-PRIMARY"));
+    assert.match(payroll.type, /^text\/csv/);
+    assert.match(payroll.cache, /private/); assert.match(payroll.cache, /no-store/);
+    assert.equal(payroll.nosniff, "nosniff"); assert.match(payroll.disposition, /attachment;/i);
     assert.equal(payroll.text.includes(f.marker + "-SECONDARY"), !multi);
     for (const kind of ["audit", "all"]) {
       const r = await request(f, base + "&kind=" + kind);
       assert.equal(r.status, multi ? 403 : 200, r.text);
       assert.ok(!r.text.includes(v.marker));
+      if (!multi) {
+        assert.match(r.cache, /private/); assert.match(r.cache, /no-store/);
+        assert.equal(r.nosniff, "nosniff"); assert.match(r.disposition, /attachment;/i);
+        assert.match(r.type, kind === "all" ? /json/i : /csv/i);
+      }
     }
     const ownBeforeDenials = await snapshot(f.org.id);
     for (const selector of ["", "organizationId=0", "organizationId=01", "organizationId=1e2",
@@ -113,6 +125,19 @@ async function verify() {
       assert.equal((await request(f, base + "&kind=employees&legalEntityId=" + f.entity.id,
         { "x-legal-entity-id": String(f.otherEntity.id) })).status, 403);
       assert.deepEqual(await snapshot(f.org.id), before);
+      // Verify a freshly granted legal employer becomes selectable without
+      // leaking the first employer's employees or payroll.
+      await db.insert(s.userLegalEntityGrants).values({
+        organizationId: f.org.id, userId: f.owner.id, legalEntityId: f.otherEntity.id,
+      });
+      const granted = await request(f, base + "&kind=employees&legalEntityId=" + f.otherEntity.id);
+      proveEmployeeExport(granted, f.otherWorker.employeeNo, f.worker.employeeNo);
+      assert.match(granted.disposition, /attachment;/i);
+      const grantedPayroll = await request(f, base + "&kind=payroll&legalEntityId=" + f.otherEntity.id);
+      assert.equal(grantedPayroll.status, 200); assert.ok(grantedPayroll.text.includes(f.marker + "-SECONDARY"));
+      assert.ok(!grantedPayroll.text.includes(f.marker + "-PRIMARY"));
+      assert.match(grantedPayroll.cache, /private/); assert.match(grantedPayroll.cache, /no-store/);
+      assert.equal(grantedPayroll.nosniff, "nosniff");
     } else {
       const ignored = await request(f, base + "&kind=employees&legalEntityId=" + v.entity.id,
         { "x-legal-entity-id": String(v.entity.id) });

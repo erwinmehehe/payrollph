@@ -35,3 +35,12 @@ test("guard precedes database imports and actual HTTP runs independently in both
   assert.ok(workflow.includes("postgres:16"));
   assert.doesNotMatch(workflow, /secrets\.|NODE_TLS_REJECT_UNAUTHORIZED/);
 });
+
+test("synthetic padding is valid and each successful export kind proves private downloads", () => {
+  const runner = readFileSync(new URL("../scripts/qa/tenant-company-export-http.mjs", import.meta.url), "utf8");
+  assert.match(runner, /legalName: "Fictional padding " \+ i \+ " Inc\."/);
+  assert.match(runner, /assert\.match\(payroll\.disposition, \/attachment;/);
+  assert.match(runner, /assert\.match\(r\.disposition, \/attachment;/);
+  assert.match(runner, /proveEmployeeExport\(granted, f\.otherWorker\.employeeNo, f\.worker\.employeeNo\)/);
+  assert.match(runner, /grantedPayroll\.text\.includes\(f\.marker \+ "-SECONDARY"\)/);
+});
