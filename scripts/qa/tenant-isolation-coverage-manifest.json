@@ -27858,14 +27858,14 @@
       ]
     },
     "src/app/api/self/payslips/[id]/explain/route.ts": {
-      "gitBlobSha": "a8e142ca7ac1a81a080d7fb5ac70ef79007dfcfc",
+      "gitBlobSha": "ebb5256925b599a34394c76a61b061fd34bea647",
       "route": "self/payslips/[id]/explain",
       "methods": [
         {
           "name": "GET",
           "line": 10,
           "status": "COVERED",
-          "reason": "Disposable-PG16 authenticated synthetic employee own payroll explanation GET 200, real victim-only released entry GET 404 for two independent employer sessions and unchanged victim payroll",
+          "reason": "Provisional historical two-employer real-HTTP employee pay-explanation GET proof applied to the previous route source. This branch replaces previous-run lookup with an employee-bound joined lookup at source ebb5256925b599a34394c76a61b061fd34bea647. Historical evidence is not exact-source acceptance for the changed handler; fresh disposable PG16 production-mode HTTP verification and review remain PENDING. Zero new method credits and no production/tenant-wide certification.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1314,
@@ -27873,6 +27873,15 @@
             "foreignDenialLine": 1345,
             "scope": "Real synthetic released-pay rows, signed-in company employees, two employers, exact own employer/employee/entry echo, existing victim entry denied, victim database unchanged",
             "unchangedDbLine": 1351
+          },
+          "sourceRevalidation": {
+            "priorSourceBlobSha": "a8e142ca7ac1a81a080d7fb5ac70ef79007dfcfc",
+            "currentSourceBlobSha": "ebb5256925b599a34394c76a61b061fd34bea647",
+            "historicalProofNotPortable": true,
+            "exactPrHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "newMethodCredits": 0,
+            "accepted": false
           }
         }
       ],

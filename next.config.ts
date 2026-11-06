@@ -66,6 +66,14 @@ const nextConfig: NextConfig = {
           { key: "Pragma", value: "no-cache" },
         ],
       },
+      // Protect private employee-pay explanations on the actual HTTP wire.
+      // Next's global API header would otherwise override the route header.
+      {
+        source: "/api/self/payslips/:id/explain",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
       // Receipt bytes and claim-existence denials must be private on the wire.
       {
         source: "/api/expenses/receipts",
