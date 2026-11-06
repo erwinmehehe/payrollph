@@ -37,6 +37,20 @@ async function request(path, { cookie, body, crossSite = false } = {}) {
   try { json = JSON.parse(text); } catch { /* explicit JSON assertion below */ }
   return { status: response.status, headers: response.headers, text, json };
 }
+// Exercise the actual consumer route, not only the credential management API.
+// This is a read-only employees scope with no webhook dispatch or provider calls.
+async function apiEmployeeList(token, query, useApiKeyHeader = false) {
+  const headers = useApiKeyHeader
+    ? { "x-api-key": token }
+    : { authorization: "Bearer " + token };
+  const response = await fetch(new URL("/api/v1/employees" + query, base), {
+    headers, redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(15_000),
+  });
+  const text = await response.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* checked by requireHttpStatus */ }
+  return { status: response.status, headers: response.headers, text, json };
+}
 function noVictimLeak(response, victim, key) {
   const result = response.text + JSON.stringify([...response.headers.entries()]);
   for (const marker of [victim.marker, victim.owner.email, key.name, key.prefix, key.keyHash]) {
@@ -128,6 +142,22 @@ async function verify() {
     assert.ok(!listed.text.includes(ownKey.keyHash), "GET must not expose stored key hash");
     noVictimLeak(listed, victim, victimKey);
 
+    // A freshly created employees:read key is usable as an API credential, but
+    // cannot change its employer by supplying the higher-ID victim selector.
+    const credentialRead = requireHttpStatus(await apiEmployeeList(
+      created.json.key, "?organizationId=" + victim.org.id,
+    ), 200, "new key reads only own employees despite forged employer selector");
+    assert.equal(credentialRead.json.total, 1, "only the genuine key-owner employee is visible");
+    assert.equal(credentialRead.json.data.length, 1);
+    assert.equal(credentialRead.json.data[0].id, actor.worker.id);
+    assert.equal(credentialRead.json.data[0].lastName, actor.worker.lastName);
+    noVictimLeak(credentialRead, victim, victimKey);
+    assert.ok(!credentialRead.text.includes(created.json.key), "the API may not echo the bearer secret");
+    assert.ok(!credentialRead.text.includes(ownKey.keyHash), "the API may not reveal the stored hash");
+    const afterCredentialRead = await selectKey(ownKey.id);
+    assert.ok(afterCredentialRead.lastUsedAt instanceof Date,
+      "the actual API consumer must record use of the fresh credential");
+
     // Untrusted userId/target selectors must not redirect creation to the victim.
     const forged = requireHttpStatus(await request("/api/developer", {
       cookie: actor.cookie,
@@ -208,6 +238,30 @@ async function verify() {
     assert.equal(receipts.length, 1, "exactly one owner audit receipt for revocation");
     assert.ok(!JSON.stringify(receipts).includes(created.json.key), "plaintext key in audit log");
 
+    // Revocation must be effective at a separate API consumer. A token that
+    // once returned a real owned record now denies like a never-minted token,
+    // including when a caller supplies a real foreign employer ID.
+    const beforeRevokedUse = await snapshotOrganization(actor.org.id);
+    const deniedAfterRevoke = requireHttpStatus(await apiEmployeeList(
+      created.json.key, "?organizationId=" + victim.org.id,
+    ), 401, "revoked key refused at employee API");
+    const unknownKey = requireHttpStatus(await apiEmployeeList(
+      "sk_live_nonexistent_" + nonce, "?organizationId=" + victim.org.id,
+    ), 401, "unissued key refused at employee API");
+    assert.deepEqual(deniedAfterRevoke.json, unknownKey.json,
+      "previously valid revoked key cannot leak existence through API errors");
+    const deniedAlternativeHeader = requireHttpStatus(await apiEmployeeList(
+      created.json.key, "?organizationId=" + victim.org.id, true,
+    ), 401, "revoked key refused via x-api-key header");
+    assert.deepEqual(deniedAlternativeHeader.json, unknownKey.json,
+      "both supported token transports must honor key revocation");
+    noVictimLeak(deniedAfterRevoke, victim, victimKey);
+    noVictimLeak(deniedAlternativeHeader, victim, victimKey);
+    assert.deepEqual(await snapshotOrganization(actor.org.id), beforeRevokedUse,
+      "revoked and invalid key requests must not update last-used, keys, staff or audits");
+    assert.deepEqual(await snapshotOrganization(victim.org.id), victimBefore,
+      "revoked key replay with foreign employer selector cannot change or reveal victim data");
+
     // Revocation of the signed-in user's active employer membership, without
     // deleting their session, denies both reads and writes on the same cookie.
     const [currentSession] = await db.select().from(s.sessions).where(and(
@@ -247,6 +301,9 @@ async function verify() {
     result: "PASS", independentAttackers: 2, ownedCreateAndRevoke: 2,
     realHigherIdVictim: true, foreignExistingAndMissingParity: true,
     bodySelectorForgeryConfinedToOwnEmployer: true, originGate: true,
+    actualEmployeeApiOwnDataBeforeRevocation: true,
+    foreignEmployerQueryIgnoredForKey: true,
+    revokedKeyDeniedAtConsumerViaBothHeaders: true,
     unitScopeAndRevokedMembershipDenied: true, victimSqlAndAuditUnchanged: true,
     webhookDeliveryAttempted: false, production: false,
     POST_method_status: "GAP", newCoverageCredits: 0, independentlyApproved: false,
