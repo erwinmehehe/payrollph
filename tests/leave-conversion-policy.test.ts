@@ -72,3 +72,29 @@ test("approved leave cash conversion enforces fiscal review and privileged MFA",
   assert.ok(route.includes("Number.isSafeInteger(Math.round(cashAmount * 100))"));
   assert.ok(route.includes("eq(employees.organizationId, organizationId)"));
 });
+
+test("the 12-day leave monetization exemption is annual and splits a request that crosses it", async () => {
+  const { splitLeaveConversionExemption, LEAVE_CONVERSION_ANNUAL_EXEMPT_DAYS } = await import("../src/lib/leave-conversion-policy");
+  assert.equal(LEAVE_CONVERSION_ANNUAL_EXEMPT_DAYS, 12);
+  // First conversion of the year, within the limit: wholly exempt.
+  assert.deepEqual(splitLeaveConversionExemption({ daysConverted: 10, dailyRate: 1363.64, exemptDaysAlreadyUsed: 0 }),
+    [{ daysConverted: 10, cashAmount: 13636.4, taxExempt: true }]);
+  // A second 10-day conversion after 10 exempt days: 2 exempt + 8 taxable (previously all 10 were marked exempt).
+  assert.deepEqual(splitLeaveConversionExemption({ daysConverted: 10, dailyRate: 1363.64, exemptDaysAlreadyUsed: 10 }), [
+    { daysConverted: 2, cashAmount: 2727.28, taxExempt: true },
+    { daysConverted: 8, cashAmount: 10909.12, taxExempt: false },
+  ]);
+  // One 13-day conversion: 12 exempt + 1 taxable (previously wholly taxable).
+  assert.deepEqual(splitLeaveConversionExemption({ daysConverted: 13, dailyRate: 1000, exemptDaysAlreadyUsed: 0 }), [
+    { daysConverted: 12, cashAmount: 12000, taxExempt: true },
+    { daysConverted: 1, cashAmount: 1000, taxExempt: false },
+  ]);
+  // Exemption already used up: wholly taxable.
+  assert.deepEqual(splitLeaveConversionExemption({ daysConverted: 3, dailyRate: 1000, exemptDaysAlreadyUsed: 12 }),
+    [{ daysConverted: 3, cashAmount: 3000, taxExempt: false }]);
+  // Tenths of a day and odd centavos: parts add up exactly to the whole.
+  const parts = splitLeaveConversionExemption({ daysConverted: 2.5, dailyRate: 1363.67, exemptDaysAlreadyUsed: 10.7 });
+  assert.deepEqual(parts.map((part) => [part.daysConverted, part.taxExempt]), [[1.3, true], [1.2, false]]);
+  assert.equal(Math.round(parts.reduce((sum, part) => sum + part.cashAmount, 0) * 100), Math.round(2.5 * 136367));
+  assert.throws(() => splitLeaveConversionExemption({ daysConverted: 0, dailyRate: 1000, exemptDaysAlreadyUsed: 0 }));
+});

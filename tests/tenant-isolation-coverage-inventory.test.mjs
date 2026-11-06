@@ -4945,7 +4945,7 @@ test("all credited proof links point to the claimed route and every recertified 
         continue;
       }
       const promotedWrites = new Map([
-        ["leave/conversion", ["scripts/qa/tenant-leave-conversion-post-http.mjs", 41264782087]],
+        ["leave/conversion", ["scripts/qa/tenant-leave-conversion-post-http.mjs", 42153538138]],
         ["payroll/overpayment-preflight", ["scripts/qa/tenant-overpayment-preflight-post-http.mjs", 41264867045]],
         ["outbox", ["scripts/qa/tenant-edg02-outbox-http.mjs", 41306939767]],
         ["treasury-controls", ["scripts/qa/tenant-mny02-treasury-http.mjs", 41319237095]],
@@ -5046,6 +5046,58 @@ test("all credited proof links point to the claimed route and every recertified 
           "Provisional method credit cannot borrow another proof runner");
         assert.equal(verifyFiveMethodCredits(manifest).methodsCredited, FIVE_METHOD_EVIDENCE.length,
           "All three exact-head source/contract/workflow receipts must pass");
+        continue;
+      }
+      if (entry.route === "employees/[id]/mwe-classifications/[classificationId]" &&
+          method.name === "PATCH") {
+        // Exactly one provisional PII-02 proof. Do not accept other files or
+        // reuse sibling GET/POST receipts; source changes require renewed CI.
+        assert.equal(path,
+          "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts");
+        assert.equal(proof.file, "scripts/qa/tenant-mwe-decision-http.mjs");
+        assert.equal(proof.contractFile, "scripts/qa/tenant-mwe-decision-contract.mjs");
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-mwe-decision-http.yml");
+        assert.equal(proof.libraryFile, "src/lib/mwe-classification.ts");
+        assert.equal(proof.routeBlobSha,"b08702d9c56ae506d98be5a917119121a71bb50f");
+        assert.equal(proof.libraryBlobSha,"ee82741f6405e59dff3e9eb48cfb9820b449c99a");
+        assert.equal(proof.proofBlobSha,"ae1139b9f6396e7f02cee408c919d6acba1198d2");
+        assert.equal(proof.contractBlobSha,"8db8b3d0399cf0183f425e151a4158d69e3db9a4");
+        assert.equal(proof.workflowBlobSha,"584d159f2d2c250e182d0942188f293baebc2141");
+        for (const [pinnedPath,pinnedSha] of [
+          [path,proof.routeBlobSha], [proof.libraryFile,proof.libraryBlobSha],
+          [proof.file,proof.proofBlobSha],[proof.contractFile,proof.contractBlobSha],
+          [proof.workflowFile,proof.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(pinnedPath)),pinnedSha,
+          "MWE method source/proof drift requires renewed exact-head PostgreSQL HTTP review");
+        assert.deepEqual([
+          proof.ownPositiveLine,proof.foreignDenialLine,proof.forgedSelectorLine,
+          proof.unchangedDbLine,proof.victimIdOrderingLine,
+        ], [92,99,107,129,78]);
+        const proofLines = readableLines(proof.file);
+        assert.match(proofLines[91], /const ownPositive = await decision/);
+        assert.match(proofLines[98], /const foreignDenial = await decision/);
+        assert.match(proofLines[106], /const forgedSelector = await decision/);
+        assert.match(proofLines[128], /assert\.deepEqual\(await snapshot\(victim\.org\.id\)/);
+        assert.match(proofLines[77], /victim\.records\[0\]\.id > Math\.max\(6,/);
+        const suite = proofLines.join("\n");
+        assert.match(suite, /for \(const attacker of attackers\)/);
+        assert.match(suite, /requireDecisionPositive\(ownPositive/);
+        assert.match(suite, /requireDecisionPositive\(ownReject/);
+        assert.match(suite, /assert\.equal\(foreignDenial\.text, unknown\.text/);
+        assert.match(suite, /const wrongEmployer = await decision/);
+        assert.match(suite, /const revoked = await decision/);
+        assert.match(suite, /const knownButForbidden = await decision/);
+        assert.match(suite, /assert\.equal\(knownButForbidden\.text, missingForNonChecker\.text/);
+        assert.match(suite, /assert\.equal\(wrongEmployer\.text, unknownSecond\.text/);
+        assert.match(suite, /assert\.equal\(ungrantedEmployer\.text, unknownSelected\.text/);
+        assert.equal(proof.postgresMajor,16);
+        assert.deepEqual(proof.methodActions,["approve","reject"]);
+        assert.equal(proof.attackerEmployers,2);
+        assert.equal(proof.realVictim,true);
+        assert.equal(proof.coverageCredits,1);
+        assert.equal(proof.independentlyAccepted,false);
+        assert.equal(proof.productionCertified,false);
+        assert.equal(proof.providerCalls,0);
         continue;
       }
       if (entry.route === "payout-profiles" && method.name === "PATCH") {
@@ -6271,8 +6323,8 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
 test("2026-11-02 exact-head promotion sweep pins six four-part method receipts and preserves holds", () => {
   const specs = [
     ["leave/conversion", "scripts/qa/tenant-leave-conversion-post-http.mjs", "bc90fac8e0023c4e8f8d879c31447bd4f666787f",
-      "ea56239a4221ec85232719d7ad81159e1477c7ce", ".github/workflows/tenant-leave-conversion-post-http.yml", "9c4c7a18465193604de3489fba109620603b03c5",
-      1675, "b16f4adfdf6c6dc14813360045bb8f0efaf10892", 41264782087, 111, 128, 130, 141,
+      "baa29dc6098085b67fa80bb9e3657964f0045b2c", ".github/workflows/tenant-leave-conversion-post-http.yml", "9c4c7a18465193604de3489fba109620603b03c5",
+      1789, "b9ae9ca73fea870eac0ebbab42e2a7f3446613cb", 42153538138, 111, 128, 130, 141,
       "const result = expect(await request(e, ownBody(e)), 201,", "const org = expect(await request(attacker, ownBody(victim)), 403,",
       "const forged = expect(await request(attacker, {", "assert.deepEqual(await snapshot(e), before.get(e.org.id),"],
     ["payroll/overpayment-preflight", "scripts/qa/tenant-overpayment-preflight-post-http.mjs", "24a475e0c695a97789d01b22da22ebd3d361f3f6",
