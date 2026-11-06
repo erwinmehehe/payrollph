@@ -18,7 +18,7 @@ test("export acceptance refuses non-CI, remote targets, provider credentials and
 });
 test("CSV proof validates the full schema and rejects foreign rows, HTML and public cache", () => {
   // Use the exact production header, independently of the proof helper.
-  const header = "Employee no.,Name,Title,Status,Type,Basic rate";
+  const header = '"Employee no.","Name","Title","Status","Type","Basic rate"';
   const csv = (...rows) => [header, ...rows].join("\n");
   const own = {
     status: 200, type: "text/csv; charset=utf-8",
