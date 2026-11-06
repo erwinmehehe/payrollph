@@ -1,0 +1,73 @@
+name: Authenticator setup isolation (fictional PG16)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/tenant-totp-setup-http.yml'
+      - 'scripts/qa/tenant-totp-setup-http.mjs'
+      - 'tests/tenant-totp-setup-proof.test.mjs'
+      - 'src/app/api/auth/totp/setup/**'
+      - 'src/lib/totp.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-secret.ts'
+      - 'src/db/**'
+      - 'package*.json'
+permissions:
+  contents: read
+concurrency:
+  group: totp-setup-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  totp-setup:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TENANT_TOTP_SETUP_MODE: fictional-ci-only
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Disposable localhost profile; no providers or workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - run: node --test tests/tenant-totp-setup-proof.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Real two-attacker enrollment and victim SQL proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 > /tmp/totp-setup.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then tail -n 40 /tmp/totp-setup.log; exit 1; fi
+          node --import tsx scripts/qa/tenant-totp-setup-http.mjs
