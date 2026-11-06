@@ -42215,7 +42215,7 @@
         "previousWorkflowBlobSha": "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
         "workflowBlobSha": "cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736",
         "addedProofFile": "scripts/qa/tenant-managed-client-approval-http.mjs",
-        "addedProofBlobSha": "795b634f1564b9037bdac957da52d095e952819d",
+        "addedProofBlobSha": "31de1c8394922da151d1f2fbc2798834e93e7ff1",
         "fixtureFile": "scripts/qa/managed-client-worker-fixture.ts",
         "fixtureBlobSha": "99f021a0a5cc4075b1c778cbe610a6283ea15356",
         "coverageCredits": 0,
