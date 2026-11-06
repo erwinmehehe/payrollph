@@ -20,11 +20,21 @@ function assertReceiptBoundary(source) {
   assert.ok(get >= 0 && post > get);
   const getBody = source.slice(get, post);
   const postBody = source.slice(post);
-  assert.match(getBody, /const readDenied = await authorize\(user, core\);/,
-    "recheck access after object storage read, before private bytes are returned");
-  assert.ok(getBody.indexOf("const readDenied = await authorize") <
-    getBody.indexOf("return new Response(new Uint8Array(bytes)"),
-    "download may not escape before the second employee grant check");
+  assert.match(getBody, /const freshCore = await findMemberReceiptClaim\(user, id\);/,
+    "re-read the actively authorized claim after object storage I/O");
+  assert.match(getBody, /receiptReadBindingUnchanged\(claim, freshClaim\)/,
+    "the exact worker, employer, object and SHA must still match");
+  assert.match(getBody, /const readDenied = await authorize\(user, freshCore\);/,
+    "recheck current employer and employee access after object storage read");
+  const readAt = getBody.indexOf("await readVerifiedSpendReceipt(");
+  const freshAt = getBody.indexOf("const freshCore = await findMemberReceiptClaim(user, id);");
+  const bindingAt = getBody.indexOf("receiptReadBindingUnchanged(claim, freshClaim)");
+  const grantAt = getBody.indexOf("const readDenied = await authorize(user, freshCore);");
+  const auditAt = getBody.indexOf("await recordAuditEvent(");
+  const bytesAt = getBody.indexOf("return new Response(new Uint8Array(bytes)");
+  assert.ok(readAt >= 0 && freshAt > readAt && bindingAt > freshAt &&
+    grantAt > bindingAt && auditAt > grantAt && bytesAt > auditAt,
+    "receipt must be re-bound and re-authorized after remote I/O before audit or byte return");
   assert.ok(source.indexOf("return await activeReceiptGrant(user, claim) ? null : notFound();") <
     get, "employee paths must be bound before any GET/POST workflow");
 
@@ -52,7 +62,9 @@ test("receipt GET/POST use same-employer worker grants and transaction rechecks"
 test("source negative controls reject removed download, staging or commit boundaries", () => {
   const original = read();
   for (const needle of [
-    "const readDenied = await authorize(user, core);",
+    "const readDenied = await authorize(user, freshCore);",
+    "if (!receiptReadBindingUnchanged(claim, freshClaim)) return notFound();",
+    "const freshCore = await findMemberReceiptClaim(user, id);",
     "if (!liveClaim || !await lockedReceiptGrant(tx, user, claim))",
     "if (!await lockedReceiptGrant(tx, user, freshCore))",
     "freshCore.employeeId !== claim.employeeId",
