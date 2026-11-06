@@ -69,7 +69,7 @@ export function simulatedXenditFetch(target, options = {}, record = () => {}) {
 
 // Keep importable offline without overriding global network behavior.
 if (process.env.TENANT_SUBSCRIPTION_PROOF === "fiction-only" &&
-    process.argv.some(arg => /next|start/.test(arg))) {
+    process.env.TENANT_SUBSCRIPTION_PROVIDER_PRELOAD === "enabled") {
   requireFictionalProviderEnv();
   const original = globalThis.fetch;
   globalThis.fetch = async function fictionalTransport(input, init = {}) {
