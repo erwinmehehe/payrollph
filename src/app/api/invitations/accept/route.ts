@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { invitations, userOrganizations, users } from "@/db/schema";
+import { invitations, orgUnits, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { requestMeta } from "@/lib/rate-limit";
@@ -57,6 +57,21 @@ export async function POST(request: Request) {
   let userId: number;
   try {
     const accepted = await db.transaction(async (tx) => {
+      // The invitation is the only authority for the new membership. A legacy,
+      // imported or corrupted invitation may name a unit from another employer
+      // (org_unit_id has no foreign key). Never persist that cross-tenant grant.
+      // Check inside the claim transaction so invalid units cannot be accepted.
+      if (invitation.orgUnitId !== null) {
+        const [scopedUnit] = await tx.select({ id: orgUnits.id }).from(orgUnits)
+          .where(and(
+            eq(orgUnits.id, invitation.orgUnitId),
+            eq(orgUnits.organizationId, invitation.organizationId),
+            eq(orgUnits.active, true),
+          ))
+          .limit(1);
+        if (!scopedUnit) return null;
+      }
+
       // Claim the single-use invitation inside the same transaction as account
       // creation. Concurrent submissions can no longer create two identities or
       // partially accept an invitation.
