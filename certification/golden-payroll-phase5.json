@@ -1,0 +1,81 @@
+{
+  "version": "phase5-attendance-2026-11-06",
+  "toleranceCentavos": 0,
+  "description": "Engine-backed golden cases for attendance-driven pay: daily-rated basic pay from punches, and monthly tardiness/undertime deductions including the grace boundary. Every expected value is hand-derived below, never copied from engine output.",
+  "sources": {
+    "payBasis": "src/lib/pay-basis.ts basicPayForCutoff / attendanceDeductionsForCutoff: daily basic = regular hours / standard hours per day x daily rate; monthly basic = monthly rate / 2 per cutoff; tardiness and undertime are deducted at the hourly rate (monthly rate / standard days / standard hours) for monthly-salaried workers only.",
+    "clock": "src/lib/payroll-rules.ts deriveClockHours: worked minutes = punch span minus the actual break (break punches) or the scheduled 60-minute break when none is punched; tardiness = minutes after shift start PLUS a 5-minute grace; undertime = minutes before shift end.",
+    "laborCode": "Labor Code Art. 85 (meal period) and the no-work-no-pay principle for daily-paid workers; DOLE does not prescribe a grace period, so the grace policy is the engine's documented company default."
+  },
+  "assumptions": [
+    "Grace is subtracted from lateness (arriving 09:45 for a 09:00 shift counts as 40 minutes, not 45). This is the engine's company-policy default, not a statutory rule. Please confirm this is the intended policy.",
+    "Daily-paid workers are paid for regular minutes worked and are never docked a separate tardiness/undertime deduction (no double penalty).",
+    "Shift 09:00-18:00 with a 60-minute meal break; standard 8 hours per day; 22 standard days per month for the monthly worker.",
+    "Statutory contributions and withholding are covered by Phases 1-4 and are not asserted here."
+  ],
+  "cases": {
+    "dailyFullAttendance": {
+      "description": "PHP 800/day worker, 10 complete days (Sep 1-4, 7-11, 14) 09:00-18:00 with a punched 12:00-13:00 break. Worked 480 min/day x 10 = 4,800 min = 80 h. Basic = 80 / 8 x 800 = 8,000.00.",
+      "expected": {
+        "basicPay": 8000,
+        "regularMinutes": 4800,
+        "tardinessMinutes": 0,
+        "undertimeMinutes": 0,
+        "tardinessDeduction": 0,
+        "undertimeDeduction": 0,
+        "grossPay": 8000
+      }
+    },
+    "dailyLateArrivalNoDock": {
+      "description": "Same worker, 9 complete days plus Sep 14 in at 09:45 (break punched 12:00-13:00), out 18:00. Sep 14 worked = 495 - 60 = 435 min. Regular = 9 x 480 + 435 = 4,755 min = 79.25 h. Basic = 79.25 / 8 x 800 = 7,925.00. Lateness recorded = 09:45 - (09:00 + 5 grace) = 40 min, but a daily worker is paid only for time worked, so no LATE deduction.",
+      "expected": {
+        "basicPay": 7925,
+        "regularMinutes": 4755,
+        "tardinessMinutes": 40,
+        "undertimeMinutes": 0,
+        "tardinessDeduction": 0,
+        "undertimeDeduction": 0,
+        "grossPay": 7925
+      }
+    },
+    "dailyHalfDayNoBreak": {
+      "description": "Same worker, 9 complete days plus a Sep 14 half day 09:00-13:00 with no break punch. A punched span of at most half the scheduled working day (240 min of a 480-min day) is not presumed to contain the unpunched meal break, so the worker is owed all 240 min. Regular = 9 x 480 + 240 = 4,560 min = 76 h. Basic = 76 / 8 x 800 = 7,600.00. Undertime recorded = 18:00 - 13:00 = 300 min, not separately docked for a daily worker.",
+      "expected": {
+        "basicPay": 7600,
+        "regularMinutes": 4560,
+        "tardinessMinutes": 0,
+        "undertimeMinutes": 300,
+        "tardinessDeduction": 0,
+        "undertimeDeduction": 0,
+        "grossPay": 7600
+      }
+    },
+    "monthlyTardinessUndertime": {
+      "description": "PHP 30,000/month worker (22 days, 8 h), 10 days. Sep 9 in at 09:45 (break punched) and Sep 10 out at 17:30. Hourly = 30,000 / 22 / 8 = 170.454545... Tardiness = 40 min -> 40/60 x 170.454545 = 113.636363 -> 113.64. Undertime = 30 min -> 85.227272 -> 85.23. Monthly basic is the full 15,000.00 cutoff salary; attendance is deducted separately, so stored gross stays 15,000.00.",
+      "expected": {
+        "basicPay": 15000,
+        "tardinessMinutes": 40,
+        "undertimeMinutes": 30,
+        "tardinessDeduction": 113.64,
+        "undertimeDeduction": 85.23,
+        "grossPay": 15000
+      }
+    },
+    "monthlyGraceBoundary": {
+      "description": "Same monthly worker, 10 complete days except Sep 9 in at 09:05 and Sep 10 in at 09:06 (breaks punched). 09:05 is within grace (0 min); 09:06 is 1 min late -> 1/60 x 170.454545 = 2.840909 -> 2.84.",
+      "expected": {
+        "basicPay": 15000,
+        "tardinessMinutes": 1,
+        "undertimeMinutes": 0,
+        "tardinessDeduction": 2.84,
+        "undertimeDeduction": 0,
+        "grossPay": 15000
+      }
+    }
+  },
+  "limitations": [
+    "Statutory contributions and withholding for daily-paid workers are not asserted here.",
+    "Regular 13th-month pay is not computed by regular payroll runs (only final pay and year-end); it is not covered by this phase.",
+    "Leave monetization exemption: src/app/api/leave/conversion/route.ts sets taxExempt = daysConverted <= 12 per request, while the 12-day exemption is an annual limit. Two 10-day conversions in one year are both marked exempt (20 days). A single 13-day conversion is marked wholly taxable instead of 12 exempt + 1 taxable. Recorded as a finding for tax-practitioner confirmation; not exercised here because the engine only follows the stored flag."
+  ]
+}
