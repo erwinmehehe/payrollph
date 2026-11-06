@@ -22523,14 +22523,14 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/process/route.ts": {
-      "gitBlobSha": "fc32b381574c2d1f720cd461b850ca722e2674f7",
+      "gitBlobSha": "45c4a91a43138919cd01b2899d309b669a3a3861",
       "route": "payroll-runs/[id]/process",
       "methods": [
         {
           "name": "POST",
           "line": 18,
           "status": "COVERED",
-          "reason": "Default-off pre-run gate: disposable real-HTTP flag-ON own Draft is blocked with 422 before writes while authenticated victim receives 403. Existing flag-OFF money lifecycle independently proves successful calculation; no official-source verification or activation acceptance is implied.",
+          "reason": "Default-off pre-run gate retains exact existing disposable HTTP own-422 and foreign-403 evidence, with no successful money-path certification. Current #1792 route only reads fresh.ruleVersion for the post-calculation audit instead of a stale literal; that audit path and overnight wage rule remain subject to exact-head CI and independent financial/security review. No new coverage credits or production acceptance.",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1471,
@@ -39153,7 +39153,9 @@
             "credits": 0,
             "actualPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "currentQueueBlobSha": "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
+            "queueSourceChange": "Work-date anchor only; no inherited year-end source credit or financial acceptance"
           }
         },
         {
@@ -39173,7 +39175,9 @@
             "credits": 0,
             "actualPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "currentQueueBlobSha": "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
+            "queueSourceChange": "Work-date anchor only; no inherited year-end source credit or financial acceptance"
           }
         }
       ],
