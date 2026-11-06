@@ -10,3 +10,22 @@ export function parseCompanyExportKind(value: string | null): CompanyExportKind 
   if (value === null) return "all";
   return COMPANY_EXPORT_KINDS.find(kind => kind === value) ?? null;
 }
+
+/**
+ * Require one explicit, canonical positive tenant identifier for exports.
+ * Duplicate query selectors are rejected by the API before this parser.
+ */
+export function parseCompanyExportOrganizationId(value: string | null): number | null {
+  if (value === null || !/^[1-9][0-9]*$/.test(value)) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
+/** A single-kind export must not load unrelated sensitive tables. */
+export function companyExportSources(kind: CompanyExportKind) {
+  return {
+    employees: kind === "employees" || kind === "all",
+    payrollRuns: kind === "payroll" || kind === "all",
+    auditEvents: kind === "audit" || kind === "all",
+  };
+}

@@ -244,7 +244,14 @@ export type ClockPunch = {
   breakStart?: string | null;
   breakEnd?: string | null;
 };
-export type ShiftSchedule = { start: string; end: string; breakMinutes?: number; graceMinutes?: number };
+export type ShiftSchedule = {
+  start: string;
+  end: string;
+  breakMinutes?: number;
+  graceMinutes?: number;
+  /** Canonical work date for an overnight shift, not necessarily the clock-in date. */
+  workDate?: string;
+};
 
 function asLocalDate(value: string) {
   const [datePart, timePart] = value.split("T");
@@ -307,9 +314,12 @@ export function deriveClockHours(punch: ClockPunch, shift: ShiftSchedule) {
   if (actualOut <= actualIn) {
     return { ...EMPTY_CLOCK_RESULT, flags: ["Invalid punch sequence, reviewer sign-off required"] };
   }
-  const shiftStart = shiftBoundary(actualIn, shift.start);
+  // A late punch after midnight still belongs to the prior day's overnight shift.
+  // Without the scheduled work date, the shift is incorrectly advanced by 24 hours.
+  const shiftAnchor = shift.workDate ? asLocalDate(`${shift.workDate}T00:00`) : actualIn;
+  const shiftStart = shiftBoundary(shiftAnchor, shift.start);
   const spansOvernight = shift.end <= shift.start;
-  const shiftEnd = shiftBoundary(actualIn, shift.end, spansOvernight);
+  const shiftEnd = shiftBoundary(shiftAnchor, shift.end, spansOvernight);
   const grace = shift.graceMinutes ?? 5;
   const scheduledBreakMinutes = Math.max(0, shift.breakMinutes ?? 60);
   const grossWorked = Math.round((actualOut.getTime() - actualIn.getTime()) / 60_000);

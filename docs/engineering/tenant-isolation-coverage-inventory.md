@@ -8,6 +8,8 @@
 
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
 
+> **Auth logout provisional evidence:** 417 COVERED / 11 PUBLIC-BY-DESIGN / 70 GAP. auth/logout POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303) from head `b32c2286e`, merged as `b18244790`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production authorization.
+
 > **Account password provisional evidence:** 416 COVERED / 11 PUBLIC-BY-DESIGN / 71 GAP. account/password POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531) from head `374fe6d50`, merged as `1d475f4e7`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production authorization.
 
 > **Payroll review/release provisional evidence:** 413 COVERED / 11 PUBLIC-BY-DESIGN / 74 GAP. payroll-runs/[id]/submit-review POST and payroll-runs/[id]/release POST: money-lifecycle PG16 receipts ([exact-links off](https://github.com/erwinmehehe/payrollph/actions/runs/42063867383/job/127372516860), [on](https://github.com/erwinmehehe/payrollph/actions/runs/42063867383/job/127372517320)) from main head `53ae6fa31`; routes, harness, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No payout or production authorization.
@@ -91,9 +93,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 71 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 70 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 71 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 70 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -202,9 +204,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 416 |
+| coveredAfter | 417 |
 | publicByDesign | 11 |
-| gap | 71 |
+| gap | 70 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -340,7 +342,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`auth/demo-switch` POST](../../src/app/api/auth/demo-switch/route.ts#L187) | BODY_CANDIDATE | enforceSameOriginMutation L188, publicDemoAllowed L196, productionDemoEmployerBoundary L228 | none found | Dedicated Neon fixture database/ID attested before provisioning; not production role acceptance | **PUBLIC-BY-DESIGN** |
 | [`auth/forgot-password` POST](../../src/app/api/auth/forgot-password/route.ts#L13) | NONE_FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
 | [`auth/login` POST](../../src/app/api/auth/login/route.ts#L18) | body | enforceSameOriginMutation L12, enforceSameOriginMutation L19 | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
-| [`auth/logout` POST](../../src/app/api/auth/logout/route.ts#L5) | NONE FOUND | enforceSameOriginMutation L1, enforceSameOriginMutation L6 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`auth/logout` POST](../../src/app/api/auth/logout/route.ts#L5) | NONE FOUND | enforceSameOriginMutation L1, enforceSameOriginMutation L6 | none found | [auth/logout dedicated proof](../../scripts/qa/tenant-auth-logout-http.mjs#L102) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303)) | **COVERED** |
 | [`auth/me` GET](../../src/app/api/auth/me/route.ts#L6) | session | getSessionUser L1, getSessionUser L8 | none found | [reviewed fictional PG16 HTTP #1475](../../scripts/qa/tenant-identity-account-http.mjs#L117) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/40503386113)) | **COVERED** |
 | [`auth/reset-password` POST](../../src/app/api/auth/reset-password/route.ts#L12) | body | enforceSameOriginMutation L10, enforceSameOriginMutation L13 | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
 | [`auth/saml/acs/[providerId]` POST](../../src/app/api/auth/saml/acs/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
