@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeMweClassifications, employees } from "@/db/schema";
+import { employeeMweClassifications, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
   assertOrganizationRole,
@@ -14,6 +14,12 @@ import {
 } from "@/lib/security-request";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { decideMweClassificationRequest } from "@/lib/mwe-classification";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
+
+const classificationNotFound = () => Response.json(
+  { error: "MWE classification request not found." },
+  { status: 404, headers: { "Cache-Control": "private, no-store" } },
+);
 
 export async function PATCH(
   request: Request,
@@ -29,36 +35,13 @@ export async function PATCH(
   const values = await params;
   const employeeId = Number(values.id);
   const classificationId = Number(values.classificationId);
-  if (!Number.isInteger(employeeId) || !Number.isInteger(classificationId)) {
+  if (!Number.isSafeInteger(employeeId) || employeeId <= 0 ||
+      !Number.isSafeInteger(classificationId) || classificationId <= 0) {
     return Response.json({ error: "Invalid employee or classification id." }, { status: 400 });
   }
 
-  const [classification] = await db.select().from(employeeMweClassifications).where(and(
-    eq(employeeMweClassifications.id, classificationId),
-    eq(employeeMweClassifications.employeeId, employeeId),
-  )).limit(1);
-  if (!classification) return Response.json({ error: "MWE classification request not found." }, { status: 404 });
-  const [employee] = await db.select().from(employees).where(and(
-    eq(employees.id, employeeId),
-    eq(employees.organizationId, classification.organizationId),
-  )).limit(1);
-  if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
-
-  const denied = await assertOrganizationRole(
-    user.id,
-    classification.organizationId,
-    PAYROLL_TAX_APPROVER_ROLES,
-    "Only an authorized payroll tax checker can decide MWE classifications.",
-  );
-  if (denied) return denied;
-  const scopeDenied = await assertOrganizationUnitAccess(
-    user.id,
-    classification.organizationId,
-    employee.orgUnitId,
-    "This employee is outside your assigned organization unit.",
-  );
-  if (scopeDenied) return scopeDenied;
-
+  // The session must satisfy the MFA and rate gates before any global
+  // classification ID is resolved. Unknown IDs cannot bypass these gates.
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
@@ -69,6 +52,53 @@ export async function PATCH(
     windowMs: 15 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  // An active membership by itself is not permission to discover tax records.
+  // Filter the base payroll-tax role inside the resource-visibility join;
+  // post-lookup unit, custom permission and employer denials stay private 404.
+  const [visible] = await db.select({ classification: employeeMweClassifications })
+    .from(employeeMweClassifications)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.organizationId, employeeMweClassifications.organizationId),
+      eq(userOrganizations.userId, user.id),
+      eq(userOrganizations.active, true),
+      inArray(userOrganizations.role, [...PAYROLL_TAX_APPROVER_ROLES]),
+    ))
+    .where(and(
+      eq(employeeMweClassifications.id, classificationId),
+      eq(employeeMweClassifications.employeeId, employeeId),
+    )).limit(1);
+  const classification = visible?.classification;
+  if (!classification) return classificationNotFound();
+  const [employee] = await db.select().from(employees).where(and(
+    eq(employees.id, employeeId),
+    eq(employees.organizationId, classification.organizationId),
+  )).limit(1);
+  if (!employee) return classificationNotFound();
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    classification.organizationId,
+    PAYROLL_TAX_APPROVER_ROLES,
+    "Only an authorized payroll tax checker can decide MWE classifications.",
+  );
+  if (denied) return classificationNotFound();
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    classification.organizationId,
+    employee.orgUnitId,
+    "This employee is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return classificationNotFound();
+
+  // Organization membership and unit access alone do not authorize a second
+  // legal employer within the same workspace. Feature-OFF stays legacy.
+  const entity = await resolveMultiEntityContext({
+    userId: user.id, organizationId: classification.organizationId, request,
+  });
+  if (!entity.ok) return classificationNotFound();
+  const employerDenied = assertEntityResource(entity.context, employee.legalEntityId);
+  if (employerDenied) return classificationNotFound();
 
   const body = await request.json().catch(() => ({}));
   const decision = body.decision === "approve" || body.decision === "reject"
@@ -85,10 +115,12 @@ export async function PATCH(
     decidedByName: user.name,
     decision,
     decisionNote: String(body.decisionNote ?? "").trim() || null,
+    expectedLegalEntityId: entity.context.enabled ? entity.context.legalEntityId : undefined,
   });
 
-  if (result.kind === "not_found") return Response.json({ error: "Classification request not found." }, { status: 404 });
-  if (result.kind === "forbidden") return Response.json({ error: result.message }, { status: 403 });
+  // A concurrent grant revocation or missing request must be identical to an
+  // unknown global ID. Never serialize private tax or grant details in denial.
+  if (result.kind === "not_found" || result.kind === "forbidden") return classificationNotFound();
   if (result.kind === "conflict" || result.kind === "busy") {
     return Response.json({ error: result.message }, { status: 409 });
   }

@@ -7,6 +7,7 @@ import {
   employeeMweClassifications,
   employees,
   organizations,
+  userOrganizations,
   users,
 } from "../src/db/schema";
 import {
@@ -93,6 +94,20 @@ test("MWE classification uses maker-checker approval and persists effective wage
       decision: "approve",
     });
     assert.equal(self.kind, "forbidden");
+
+    // A global checker role is not an employer grant. Prove the new
+    // transaction-level authorization fails closed without active membership.
+    const unassignedChecker = await decideMweClassificationRequest({
+      organizationId: org.id,
+      classificationId: request.id,
+      decidedByUserId: checker.id,
+      decidedByName: checker.name,
+      decision: "approve",
+    });
+    assert.equal(unassignedChecker.kind, "forbidden");
+    await db.insert(userOrganizations).values({
+      userId: checker.id, organizationId: org.id, role: "checker", active: true,
+    });
 
     const approved = await decideMweClassificationRequest({
       organizationId: org.id,

@@ -91,8 +91,13 @@ test("leave conversion application holds employee, policy and balance rows throu
   const transaction = source.slice(txStart, txEnd);
   assert.ok(transaction.includes('const [lockedEmployee] = await tx.select().from(employees)'));
   assert.ok(transaction.includes('Number(lockedEmployee.basicRate)'));
-  assert.ok((transaction.match(/\.for\("share"\)/g) ?? []).length >= 2);
-  assert.ok(transaction.includes('.for("update")'));
+  // Employee FOR UPDATE (also serializes annual tax-exempt days across leave types), policies FOR SHARE, balance FOR UPDATE.
+  assert.ok((transaction.match(/\.for\("share"\)/g) ?? []).length >= 1);
+  assert.ok((transaction.match(/\.for\("update"\)/g) ?? []).length >= 2);
+  assert.ok(transaction.includes("splitLeaveConversionExemption({ daysConverted, dailyRate, exemptDaysAlreadyUsed })"),
+    "the 12-day exemption must be annual, not per request");
+  assert.ok(transaction.includes("row.status !== \"rejected\" && row.taxExempt"), "only this year's live exempt conversions count");
+  assert.ok(!transaction.includes("daysConverted <= 12"), "no per-request exemption");
   assert.ok(transaction.includes("tx.insert(leaveConversions)"));
   assert.ok(transaction.includes("tx.insert(auditEvents)"));
 });

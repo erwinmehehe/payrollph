@@ -75,3 +75,31 @@ export function leaveConversionTaxReviewAcknowledged(
     .filter(Number.isSafeInteger)
     .includes(organizationId);
 }
+
+/** Monetized unused vacation leave of private employees is tax-exempt up to 12 days per YEAR (RR 11-2018), not per request. */
+export const LEAVE_CONVERSION_ANNUAL_EXEMPT_DAYS = 12;
+
+export type LeaveConversionTaxPart = { daysConverted: number; cashAmount: number; taxExempt: boolean };
+
+/**
+ * Split one conversion into the part still inside this year's 12-day exemption and the taxable remainder. Days are tenths and
+ * amounts are centavos throughout; the parts always add up exactly to the requested days and to days x daily rate.
+ */
+export function splitLeaveConversionExemption(input: { daysConverted: number; dailyRate: number; exemptDaysAlreadyUsed: number }): LeaveConversionTaxPart[] {
+  const tenths = (value: number) => Math.round(value * 10);
+  const requested = tenths(input.daysConverted);
+  const used = Math.max(0, tenths(input.exemptDaysAlreadyUsed));
+  const rateCents = Math.round(input.dailyRate * 100);
+  if (!Number.isSafeInteger(requested) || requested <= 0 || !Number.isSafeInteger(rateCents) || rateCents <= 0) {
+    throw new Error("LEAVE_CONVERSION_SPLIT_INVALID");
+  }
+  const exemptTenths = Math.max(0, Math.min(requested, LEAVE_CONVERSION_ANNUAL_EXEMPT_DAYS * 10 - used));
+  const totalCents = Math.round((requested * rateCents) / 10);
+  const exemptCents = Math.round((exemptTenths * rateCents) / 10);
+  const parts: LeaveConversionTaxPart[] = [];
+  if (exemptTenths > 0) parts.push({ daysConverted: exemptTenths / 10, cashAmount: exemptCents / 100, taxExempt: true });
+  if (requested > exemptTenths) {
+    parts.push({ daysConverted: (requested - exemptTenths) / 10, cashAmount: (totalCents - exemptCents) / 100, taxExempt: false });
+  }
+  return parts;
+}
