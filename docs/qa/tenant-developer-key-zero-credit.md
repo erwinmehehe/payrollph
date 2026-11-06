@@ -36,8 +36,17 @@ For **two independently authenticated employer owners**:
 - Cross-origin attempts, unit-scoped administrators and revoked active memberships
   deny. Membership revocation is checked using the **same still-authenticated session**.
   Denied probes add no credentials, webhook endpoints or audit receipts.
+- A freshly minted, owned `employees:read` key is accepted by the actual
+  `GET /api/v1/employees` HTTP consumer and returns **only its owning employer's**
+  seeded employee even when the caller supplies the real higher-ID victim
+  `organizationId` query parameter. The API records the key's last-use time,
+  without echoing plaintext or the stored SHA-256 credential hash.
 - A legitimate owner can revoke **their own** newly created key and gets one matching
-  audit receipt, while the victim's key, sessions, staff, memberships, webhook metadata,
+  audit receipt. The same formerly valid key is then denied by
+  `GET /api/v1/employees` via both `Authorization: Bearer` and `x-api-key` headers.
+  Its HTTP 401 JSON equals the error for a never-issued key; the invalid requests
+  leave actor and victim SQL (including last-use and audit) unchanged.
+- The victim's key, sessions, staff, memberships, webhook metadata,
   key hashes and audit rows remain unchanged in PostgreSQL.
 
 The runner **does not print any one-time API token** or include sensitive HTTP bodies in
@@ -48,6 +57,10 @@ immutability sentinel, never sends a webhook.
 
 Source-only executable tests:
 `node --test tests/tenant-developer-key-contract.test.mjs`
+including exact Git-blob source pins for the key management route,
+real employee API consumer, credential authentication, audit transaction
+and disposable proof harness. A later route or helper edit invalidates
+these pins and requires new exact-head review.
 
 Real PostgreSQL/Next workflow:
 `Tenant Developer API-key POST (fictional PG16 HTTP, zero credit)`.
