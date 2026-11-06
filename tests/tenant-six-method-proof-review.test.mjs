@@ -595,6 +595,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     // all three sit in the frozen 406-method queue.
     const mainDedicatedCredits = [
       ["src/app/api/hcm/effective-changes/route.ts", "scripts/qa/tenant-hcm-effective-change-post-http.mjs"],
+      // #1794 was merged independently; accept this main-only credit only with its matching receipt.
+      ["src/app/api/account/password/route.ts", "scripts/qa/tenant-account-password-http.mjs"],
       ["src/app/api/payroll-runs/[id]/submit-review/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
       ["src/app/api/payroll-runs/[id]/release/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
     ].filter(([path, receipt]) => {
