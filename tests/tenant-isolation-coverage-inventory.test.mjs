@@ -1525,7 +1525,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.match(proof, /assert\.deepEqual\(await snapshot\(\), before,/);
     assert.match(proof, /await verify\(revokedToken, 409,/);
     assert.match(proof, /await verify\(mismatchedToken, 409,/);
-    assert.match(proof, /await verify\(ownToken, 400,/);
+    assert.match(proof, /for\(const \[attacker,name\] of \[\[attackerA,"atta"\],\[attackerB,"attb"\]\]\)/,
+      "Both independently authenticated token holders must exercise their own replay");
+    assert.match(proof, /await verify\(ownedToken,400,name\+" spent own token replay"\)/);
+    assert.match(proof, /assert\.deepEqual\(await snapshot\(\),afterVerified,"own consumed-token replay writes nothing"\)/);
     assert.match(proof, /credits: 0, independentReviewPending: true/);
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /node --test tests\/tenant-account-email-verify-contract\.test\.mjs/);

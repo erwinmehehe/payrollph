@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
 import {MIGRATION_PROOF_KINDS,migrationProofBody,assertMigrationCommit} from "../scripts/qa/migration-method-proof.mjs";
-import {parseMigrationCsv} from "../src/lib/migration-import.ts";
+import {tsImport} from "tsx/esm/api";
+
+// Regression shards intentionally run .mjs tests with plain Node. Load the
+// application parser through its TS/alias resolver in that entry point too.
+const {parseMigrationCsv}=await tsImport("../src/lib/migration-import.ts",import.meta.url);
 
 const e={org:{id:11},worker:{id:12,employeeNo:"FICTIONAL-11"},marker:"FICT-11"};
 test("all four fictional write bodies pass the real migration parser",()=>{
