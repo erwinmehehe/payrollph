@@ -122,6 +122,10 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
             proof.helperRefusalLines && Object.values(proof.helperRefusalLines).includes(value)
             ? "helperFile"
           : field.replace(/Line$/, "File");
+        if (companionFile === "approvalPositiveFile" && typeof proof.approvalPositiveFile !== "string") {
+          review.push(`${method.name} ${path} ${field}: missing dedicated approvalPositiveFile`);
+          continue;
+        }
         if (companionFile === "helperFile" && typeof proof.helperFile !== "string") {
           review.push(`${method.name} ${path} ${field}: missing dedicated helperFile`);
           continue;
