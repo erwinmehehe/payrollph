@@ -6,6 +6,7 @@ on:
       - qa/1000-employee-disposable-benchmark-20261106
     paths:
       - "scripts/qa/isolated-1000-payroll-load.ts"
+      - "scripts/qa/isolated-critical-payroll-checks.ts"
       - ".github/workflows/isolated-1000-payroll-load.yml"
 
 permissions:
@@ -106,6 +107,8 @@ jobs:
           exit 1
       - name: Execute mixed-pay one-cutoff 1,000-worker test
         run: npx tsx scripts/qa/isolated-1000-payroll-load.ts
+      - name: Execute synthetic concurrency, failure recovery, payroll edge, and access-control tests
+        run: npx tsx scripts/qa/isolated-critical-payroll-checks.ts
       - name: Show truncated localhost error log on failure
         if: failure()
         run: tail -n 100 /tmp/qa1000-app.log || true
@@ -114,6 +117,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: isolated-1000-payroll-performance
-          path: qa-artifacts/isolated-1000-payroll-report.json
+          path: |
+            qa-artifacts/isolated-1000-payroll-report.json
+            qa-artifacts/isolated-1000-critical-checks-report.json
           if-no-files-found: warn
           retention-days: 14
