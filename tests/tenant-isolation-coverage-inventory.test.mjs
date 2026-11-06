@@ -3217,7 +3217,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       contractFile: "tests/managed-payroll-client-approval-scope.test.ts",
       contractBlobSha: "e847f93a55946e5429d7b3baf9455613f0655bb6",
       reviewFile: "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
-      reviewBlobSha: "531612b58cccbaa42d7c81427fc8296cf1e39400",
+      reviewBlobSha: "987aec4d1dc055072506221c7408bc84c2a04b3d",
       previousReviewBlobSha: "c150635e0aa37a9619e44e3799b35156fc053a7c",
       methodCredits: 0,
       exactSourcePg16Http: "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
@@ -3267,10 +3267,12 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.ok(transaction >= 0 && lockedGrant > transaction && write > lockedGrant,
       "Transaction must re-authorize the approver before changing an approval");
     const doc = readFileSync(review.reviewFile, "utf8");
-    assert.ok(doc.includes("DO NOT MERGE/DEPLOY/ENABLE PAYOUTS") &&
+    assert.ok(doc.includes("NO PAYOUT ACTIVATION OR COVERAGE PROMOTION") &&
       doc.includes("two independently authenticated employers") &&
-      doc.includes("atomic rollback") && doc.includes("**NOT_RUN:**"),
-      "Zero-credit proof hold and outstanding real-HTTP requirements must remain visible");
+      doc.includes("atomic rollback") &&
+      doc.includes("Concurrent checker-evidence revocation remains") &&
+      doc.includes("42154187261"),
+      "Zero-credit proof hold, disposable HTTP receipt and unproven checker race must remain visible");
     return;
   }
 
