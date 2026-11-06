@@ -65,6 +65,23 @@ try {
     employers.push(e);
   }
   const [a,b,victim] = employers;
+  // Simulate an inconsistent historical import: the adjustment belongs to the
+  // attacker organization, but its employee FK points to a real victim worker.
+  // The database permits these separate FKs. A tenant-safe join must never
+  // disclose the victim employee's identity or count this record in own exports.
+  for (const attacker of [a,b]) {
+    const [crossEmployer] = await db.insert(s.yearEndAdjustments).values({
+      organizationId: attacker.org.id,
+      employeeId: victim.worker.id,
+      taxYear: 2026,
+      grossCompensation: "9000000.00", taxableIncome: "9000000.00",
+      taxDue: "0.00", taxWithheld: "0.00", adjustment: "-9999.00",
+      outcome: "refund", status: "computed",
+    }).returning();
+    assert.equal(crossEmployer.organizationId, attacker.org.id);
+    assert.equal(crossEmployer.employeeId, victim.worker.id,
+      "the cross-employer employee ID must refer to an actual victim");
+  }
   for(const attacker of [a,b]) {
     assert.ok(victim.org.id > attacker.org.id &&
       victim.worker.id > attacker.worker.id &&
