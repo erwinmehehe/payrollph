@@ -80,8 +80,10 @@ async function assertOk(path: string, options: RequestInit = {}) {
     redirect: "manual",
     signal: AbortSignal.timeout(120_000),
   });
-  assert.ok(response.ok, path + " returned " + response.status + ": " +
-    (await response.text()).slice(0, 350));
+  if (!response.ok) {
+    const body = await response.text();
+    assert.fail(path + " returned " + response.status + ": " + body.slice(0, 350));
+  }
   return response;
 }
 async function login() {
