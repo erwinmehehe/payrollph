@@ -75,7 +75,7 @@
             "regressionFile": "tests/account-email-tenant-boundary.test.ts",
             "regressionBlobSha": "cd4557251c8df461a6aeee28cc9ea16d206844bc",
             "proofFile": "scripts/qa/tenant-account-email-verify-http.mjs",
-            "proofBlobSha": "9af830320cbcaca60ad12a8e301abe9b5d96afc4",
+            "proofBlobSha": "c1844e47f0ce8e27fa5181f2b8ad9e446a6b3e33",
             "contractFile": "tests/tenant-account-email-verify-contract.test.mjs",
             "contractBlobSha": "737784e29bbbf6ff896050df3c6bfd14c74898e4",
             "workflowFile": ".github/workflows/tenant-account-email-verify-http.yml",
