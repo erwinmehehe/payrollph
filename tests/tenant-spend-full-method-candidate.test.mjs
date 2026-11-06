@@ -9,7 +9,7 @@ const WORKFLOW = ".github/workflows/tenant-spend-write-actions-http.yml";
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const EXPECTED = Object.freeze({
   [ROUTE]: "7a5d067830b7f7a754a00ee1cad294081c3f8e19",
-  [HARNESS]: "be2b21ad4193401e588032bcd90cb1ac658641f2",
+  [HARNESS]: "25d7f4710ab96e9f8f224e56930b18d7e9b74bed",
 });
 
 const source = path => readFileSync(path, "utf8");
