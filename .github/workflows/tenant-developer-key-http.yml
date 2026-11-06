@@ -1,0 +1,124 @@
+name: Tenant Developer API-key POST (fictional PG16 HTTP, zero credit)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/tenant-developer-key-http.yml'
+      - 'scripts/qa/tenant-developer-key-*.mjs'
+      - 'tests/tenant-developer-key-contract.test.mjs'
+      - 'src/app/api/developer/route.ts'
+      - 'src/lib/developer-security-mutations.ts'
+      - 'src/lib/developer-api-scopes.ts'
+      - 'src/lib/developer-rate-limit.ts'
+      - 'src/lib/api-auth.ts'
+      - 'src/lib/api-keys.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/rate-limit.ts'
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'package*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  developer-key-http:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_DEVELOPER_KEY_PROOF: fictional-pg16-http-only
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Exact synthetic CI profile, providers and worker OFF
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          echo 'XENDIT_BILLING_ENABLED=false' >> "$GITHUB_ENV"
+          echo 'MULTI_ENTITY_ENABLED=false' >> "$GITHUB_ENV"
+      - name: Safety contract and executable-source syntax
+        run: |
+          node --check scripts/qa/tenant-developer-key-contract.mjs
+          node --check scripts/qa/tenant-developer-key-http.mjs
+          node --test tests/tenant-developer-key-contract.test.mjs
+      - name: Generate short-lived fictional cryptographic material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          whsec="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$whsec"
+          echo "RESEND_WEBHOOK_SECRET=$whsec" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply the reviewed disposable audit/baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode app with no live providers or tenant data
+        run: npm run build
+      - name: Run two-authority developer credential isolation over real HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 > /tmp/developer-key-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 90); do
+            if curl -fsS "$SECURITY_SMOKE_URL/login" > /dev/null; then ready=true; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/developer-key-next.log | tail -n 20 | cut -c 1-160 || true
+            exit 1
+          fi
+          node --import tsx scripts/qa/tenant-developer-key-http.mjs
+      - name: Bounded diagnostics without HTTP bodies or one-time tokens
+        if: failure()
+        shell: bash
+        run: |
+          if test -f /tmp/developer-key-next.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/developer-key-next.log | tail -n 20 | cut -c 1-160 || true
+          fi
