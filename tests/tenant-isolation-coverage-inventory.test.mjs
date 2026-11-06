@@ -4551,6 +4551,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 127778007531);
         continue;
       }
+      // auth/logout POST: dedicated two-attacker harness receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-auth-logout-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/auth/logout/route.ts POST", "No unrelated method may reuse the auth logout evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "b32c2286ea6ef91cbe2f2f227f01278de613588d");
+        assert.equal(proof.workflowRunId, 42203481558);
+        assert.equal(proof.workflowJobId, 127844239303);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-worksites-actions-http.mjs") {
         assert.equal(path, "src/app/api/workforce/worksites/route.ts", "No unrelated route may reuse the worksites all-action evidence");
         assert.equal(method.name, "POST");
@@ -6809,4 +6819,48 @@ test("account password POST credit requires the exact passing run, byte-pinned i
   for (const bound of ["const user = await getSessionUser();", "eq(users.id, user.id)", "verifyPassword(currentPassword, account.passwordHash)",
     "await revokeAllSessions(account.id)", "enforceSameOriginMutation(request)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
   assert.ok(!/body\.(?:userId|id|email)/.test(route), "the route must never read an identity from the request body");
+});
+
+test("auth logout POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
+  const routePath = "src/app/api/auth/logout/route.ts";
+  const harnessFile = "scripts/qa/tenant-auth-logout-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-auth-logout-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-auth-logout-http\.mjs/);
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("fictional-auth-logout-http:"));
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const proof = api.methods[0].testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 auth-logout PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1795);
+  assert.equal(proof.mergedProofCommit, "b1824479000a69b9657b250344b7edc57ae288a2");
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-auth-logout-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-auth-logout-contract.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.routeBlobSha, "290f703135c3051d5feb8a3dd594ce9b29da3796", "the proof was written against this exact route");
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "exactly the presented session is revoked", "presented-session-only anchor");
+  cites(proof.foreignDenialLine, 'assertRowsUnchanged(victimBefore, await snapshot(victim), "victim after "', "victim byte-identical after each attacker anchor");
+  cites(proof.forgedSelectorLine, "userId: victim.owner.id, sessionId: victimSession.id, token: token(device.v.one), organizationId: victim.org.id,", "forged-session-id anchor");
+  cites(proof.unchangedDbLine, 'assertRowsUnchanged(victimBefore, await snapshot(victim), "victim after both complete attacker journeys");', "victim byte-identical anchor");
+  cites(proof.victimIdOrderingLine, "victim.owner.id > Math.max(a.owner.id, b.owner.id, 6)", "high-ID victim anchor");
+  cites(proof.crossSiteLine, "a cross-site logout must revoke nothing", "cross-site refusal anchor");
+  assert.ok(harness.indexOf("requireDisposableAuthLogout();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+  for (const token of ["the caller's other device still works", "A's session evidence cannot satisfy B's", "for (let i = 0; i < 7; i++)", "coverageCredits: 0"]) {
+    assert.ok(harness.includes(token), "harness lacks " + token);
+  }
+  // The credited route must keep the same-origin check and revoke only the token in the caller's own cookie.
+  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokeSession(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
+  assert.ok(!/await request\.(?:json|formData)\(/.test(route), "the route must never read an identity from the request body");
 });
