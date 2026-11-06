@@ -219,6 +219,8 @@ try {
       id: report.id, status: "approved", note: "should never pass",
     });
     good(maker, 403, "maker-checker separation");
+    assert.equal(maker.json?.error, "Report submitter cannot decide their own report.",
+      "the self-approval control must be the actual maker-checker rule, not an unrelated MFA/role denial");
     assert.deepEqual(await state(actor.org.id), beforeMakerAttempt,
       "the genuine maker's denied approval must not change report, claim, evidence or audit");
     const beforeDecision = await state(actor.org.id);
