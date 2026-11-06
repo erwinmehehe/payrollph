@@ -645,10 +645,17 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(baselineEffective?.status, "GAP");
       assert.equal(baselineEffective?.testedBy, null);
     }
-    // The synchronized main includes one separately receipt-verified staffing-policy GET.
-    const baselineStaffingGet = baseline.allApiRouteFiles[staffingGetPath]?.methods.find(row => row.name === "GET");
-    const baselineStaffingCredits = baselineStaffingGet?.status === "COVERED" ? verifyStaffingPolicyGetCredit(baseline) : 0;
-    if (baselineStaffingCredits) expectedOriginalMain[staffingGetPath].GET = "COVERED";
+    const baselineStaffing = baseline.allApiRouteFiles[staffingGetPath]?.methods.find(row => row.name === "GET");
+    const baselineStaffingCredits = baselineStaffing?.status === "COVERED" ? 1 : 0;
+    if (baselineStaffingCredits) {
+      assert.equal(verifyStaffingPolicyGetCredit(baseline), 1);
+      assert.deepEqual(baselineStaffing, m.allApiRouteFiles[staffingGetPath].methods.find(row => row.name === "GET"),
+        "main's staffing GET must retain the complete source-pinned dual-mode receipt");
+      expectedOriginalMain[staffingGetPath].GET = "COVERED";
+    } else {
+      assert.equal(baselineStaffing?.status, "GAP");
+      assert.equal(baselineStaffing?.testedBy, null);
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
