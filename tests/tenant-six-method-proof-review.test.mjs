@@ -684,6 +684,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     // guard is independently validated on m above and MUST NOT treat the old
     // proof as evidence for the new helper.
     const baselineStaffingCredits = baselineStaffingGet?.status === "COVERED" ? (() => {
+      if (baselineStaffingGet.testedBy?.integrityReproof) {
+        return verifyStaffingPolicyGetCredit(baseline);
+      }
       const { integrityReproof: supplemental, ...legacyProof } = STAFFING_GET_EVIDENCE;
       assert.ok(supplemental && supplemental.coverageCredits === 0 &&
         supplemental.reviewStatus === "PENDING", "new helper proof cannot grant retroactive credit");
