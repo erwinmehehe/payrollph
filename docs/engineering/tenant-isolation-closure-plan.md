@@ -1,3 +1,7 @@
+## 2026-11-06 PR #1766 reconciled with merged #1784 — PROVISIONAL, NOT ACCEPTED
+
+**Current combined branch ledger: 498 methods = 415 COVERED + 11 PUBLIC-BY-DESIGN + 72 GAP; frozen 406 = 331 COVERED + 3 PUBLIC-BY-DESIGN + 72 GAP.** Retains separate provisional staffing-policy GET, payroll submit-review/release POST, and MWE decision PATCH evidence. Exact integrated-head CI and independent security/payroll-tax review are pending. No production deployment, payroll release, payout, or tenant-wide acceptance.
+
 ## 2026-11-06 PR #1784 synchronized with main — PROVISIONAL, NOT ACCEPTED
 
 **Current combined branch ledger: 498 methods = 414 COVERED + 11 PUBLIC-BY-DESIGN + 73 GAP; frozen 406 = 330 COVERED + 3 PUBLIC-BY-DESIGN + 73 GAP.** Keeps the separately evidenced staffing GET and two payroll submit-review/release methods. All remain provisional pending exact-head CI and independent security/payroll review; no real payroll release or production activation.
@@ -178,14 +182,14 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 34 | 0 | 4 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 35 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 35 | 0 | 4 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 36 | 0 | 3 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 4 | 0 | 29 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **330 COVERED + 3 PUBLIC-BY-DESIGN + 73 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **331 COVERED + 3 PUBLIC-BY-DESIGN + 72 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
