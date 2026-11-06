@@ -16,7 +16,7 @@ const PINNED = {
   [WRITE]: "c9db7e9f1b0f7035836b4f599e82c51384a0f127",
   "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
   "src/lib/year-end.ts": "7194658c42b9ef33c84acd84ab356c28c6303883",
-  "src/lib/payroll-engine.ts": "961cfb5535063a9683b04dbd5260c2a9730ffd66",
+  "src/lib/payroll-engine.ts": "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
 };
 const source = path => readFileSync(path, "utf8");
 const gitBlob = path => {

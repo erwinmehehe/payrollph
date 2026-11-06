@@ -31,3 +31,11 @@ Source, payroll queue, annualization and proof helpers are hash-pinned in the ac
 4. Until then retain GAP, testedBy:null, zero credits, production NO-GO, no payroll money or filing activity, and no changes to real employer data.
 
 This PR does not deploy, enable a provider, send a payout, submit a statutory filing, activate a feature flag, or authorize financial processing.
+# Integration with overnight work-date anchoring
+
+Main now includes #1792's payroll-engine work-date anchor at blob
+`dc5719a2c34094b5449bf4ecacb198ab0d74a313`. The candidate contract pins that
+combined source, not the earlier queue blob. **Fresh combined-head HTTP
+execution is pending:** the earlier green run is not acceptance of this engine
+version. GET and POST stay GAP, with zero new credits and no live authorization.
+
