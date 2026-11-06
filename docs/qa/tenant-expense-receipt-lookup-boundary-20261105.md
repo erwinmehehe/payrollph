@@ -24,7 +24,7 @@ These are testable grant-matrix and fail-closed source contracts, **not** real m
 
 ## Release hold
 
-### Dedicated HTTP acceptance prepared; execution pending
+### Dedicated HTTP acceptance executed; synced-head CI pending
 
 `tenant-receipt-boundary-http.yml` now prepares an isolated production-mode Next
 server, disposable PG16 and a localhost HTTPS byte-store/scanner contract fixture.
@@ -40,14 +40,23 @@ an audit-write fault. Victim claims/evidence/documents/employees/payroll/audit
 snapshots are compared after each attacker's journey. Response discrimination
 must reject another employer's receipt bytes.
 
-**NOT_RUN:** these HTTP assertions must pass on the final PR head. Local source
-and contract checks do not count as HTTP execution or coverage credit. Both
-methods remain GAP with zero new credits. Runtime guards and production flags
-are unchanged.
+Executed successfully on source `574625055bf117a7b66ca92925536d3ed140a19d`:
+[receipt-http run 42159950514](https://github.com/erwinmehehe/payrollph/actions/runs/42159950514/job/127702987829).
+The receipt reports PASS, two own GETs, two own POSTs, two readback revocations,
+two corrupt readback denials, four replacement/reassignment races and two upload
+audit faults. It explicitly records zero new coverage credits, no real S3 or
+antivirus acceptance, and no production certification. Syncing with main creates
+a new head; applicable CI must pass again before source merge. Both methods
+remain GAP. Deployed flags and existing application guards are unchanged.
 
 - [ ] Passing exact-head typecheck, unit/regression CI, lint, CodeQL and Security HTTP Smoke.
-- [ ] Disposable PostgreSQL 16 production Next localhost real-HTTP proof for GET and POST separately: two independent employer sessions with own successful receipt GET and POST, a higher-ID real foreign claim versus unknown ID with identical 404/no-store, branch-scoped staff and wrong-employee denial, revoked membership, and unchanged victim claim/evidence/documents/audit/payroll rows.
+- [x] Disposable PostgreSQL 16 production Next localhost real-HTTP proof for GET and POST separately: two independent employer sessions with own successful receipt GET and POST, a higher-ID real foreign claim versus unknown ID with identical 404/no-store, branch-scoped staff and wrong-employee denial, revoked membership, and unchanged victim claim/evidence/documents/audit/payroll rows (run above; rerun after sync).
 - [ ] Independent review of claim reassignment, concurrent replacement, remote object readback, upload recovery and audit atomicity under controlled PG16 faults.
 - [ ] Independent privacy/security/payroll signoff. Do not give either method a COVERED credit until method-specific evidence and ledger review are accepted.
 
-**DRAFT / NOT ACCEPTED / DO NOT MERGE OR DEPLOY.** No changes to payroll money, providers, schema, migrations, global tenant coverage ledger, deployment, production flags, or real private receipts.
+**DRAFT / SYNCED-HEAD CI PENDING.** Source merge follows the maintainer review and
+current-head checks in `docs/engineering/change-risk-policy.md`; it does not
+require an invented external review. The independent review/signoff items above
+remain unperformed and are not claimed as production or ledger acceptance.
+No changes to payroll money, providers, schema, migrations, deployment,
+production flags, or real private receipts are authorized by this evidence.
