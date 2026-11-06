@@ -11,10 +11,13 @@ import {
 } from "../src/db/schema";
 import { loadManagerDecisionPage } from "../src/lib/hcm-manager-decision-server";
 import { deriveManagerDecisionScope } from "../src/lib/hcm-manager-decision-contract";
+import { assertManagerDecisionPreviewPrivacy } from "./helpers/manager-decision-preview-privacy";
 
 /** Synthetic employer-specific source integrity. No production users/data. */
 test("Manager Decision Inbox only displays assigned same-unit, same-tenant source tasks", async () => {
-  const id = randomUUID().slice(0, 11);
+  // Deliberately overlap the private salary's digits in an allowed employee
+  // number: privacy assertions must inspect fields and identity, not substrings.
+  const id = "94000-" + randomUUID().slice(0, 11);
   const [alpha, beta] = await db.insert(organizations).values([
     { name: "Decision Alpha " + id, legalName: "Decision Alpha " + id, plan: "Core" },
     { name: "Decision Beta " + id, legalName: "Decision Beta " + id, plan: "Core" },
@@ -186,15 +189,14 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
     assert.equal(hcmPage.items[0].dueState, "overdue");
     assert.equal(hcmPage.items[0].stepType, "review");
 
-    const serialized = JSON.stringify([leavePage, overtimePage, hcmPage]);
-    for (const secret of [
+    assertManagerDecisionPreviewPrivacy([leavePage, overtimePage, hcmPage], {
+      id: member.id, employeeNo: member.employeeNo, name: "Visible Worker",
+    }, [
       "Private beta", "Private Other Team", "Restricted leave reason",
       "Restricted beta reason", "Restricted overtime reason",
       "Private review description", "Private leave detail", "Overtime explanation",
-      "Synthetic test only", "94000",
-    ]) {
-      assert.ok(!serialized.includes(secret), "Sensitive source value exposed: " + secret);
-    }
+      "Synthetic test only",
+    ]);
 
     const betaScope = deriveManagerDecisionScope({
       role: "manager", orgUnitId: betaUnit.id, companyWide: false,

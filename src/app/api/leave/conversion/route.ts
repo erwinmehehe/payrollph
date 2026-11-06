@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { auditEvents, employees, leaveBalances, leaveConversions, leavePolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
-import { approvedLeaveConversionCap, leaveConversionAllowance, leaveConversionTaxReviewAcknowledged, validateLeaveConversionDays } from "@/lib/leave-conversion-policy";
+import { approvedLeaveConversionCap, leaveConversionAllowance, leaveConversionTaxReviewAcknowledged, splitLeaveConversionExemption, validateLeaveConversionDays } from "@/lib/leave-conversion-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -112,9 +112,10 @@ export async function POST(request: Request) {
   const result = await db.transaction(async (tx) => {
     // Snapshot the employee's payable rate under the same transaction as the
     // conversion reservation. An outside read can go stale during salary edits.
+    // FOR UPDATE also serializes this employee's annual tax-exempt days across leave types.
     const [lockedEmployee] = await tx.select().from(employees)
       .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
-      .for("share");
+      .for("update");
     if (!lockedEmployee) {
       return { error: "Employee changed during leave conversion. Refresh and retry.", code: "LEAVE_CONVERSION_EMPLOYEE_CHANGED" } as const;
     }
@@ -173,18 +174,24 @@ export async function POST(request: Request) {
     if (!Number.isFinite(cashAmount) || cashAmount <= 0 || !Number.isSafeInteger(Math.round(cashAmount * 100))) {
       return { error: "Leave cash amount exceeds safe payroll centavo limits.", code: "LEAVE_CONVERSION_AMOUNT_INVALID" } as const;
     }
-    // Existing tax-exemption policy is deliberately unchanged by this
-    // reservation fix; tax classification requires separate fiscal review.
-    const taxExempt = daysConverted <= 12;
+    // The 12-day exemption is annual: count this employee's exempt days already converted this year (any leave type),
+    // then split this request into the exempt remainder and a taxable part.
+    const exemptDaysAlreadyUsed = previous.filter((row) =>
+      row.status !== "rejected" && row.taxExempt &&
+      Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric" }).format(row.createdAt)) === year,
+    ).reduce((sum, row) => sum + Number(row.daysConverted), 0);
+    const parts = splitLeaveConversionExemption({ daysConverted, dailyRate, exemptDaysAlreadyUsed });
+    const taxExempt = parts.every((part) => part.taxExempt);
 
-    const [created] = await tx.insert(leaveConversions).values({
+    const rows = await tx.insert(leaveConversions).values(parts.map((part) => ({
       organizationId, employeeId, leaveType: policy.leaveType,
-      daysConverted: daysConverted.toFixed(1),
+      daysConverted: part.daysConverted.toFixed(1),
       dailyRate: dailyRate.toFixed(2),
-      cashAmount: cashAmount.toFixed(2),
-      taxExempt,
+      cashAmount: part.cashAmount.toFixed(2),
+      taxExempt: part.taxExempt,
       status: "approved",
-    }).returning();
+    }))).returning();
+    const created = rows.length === 1 ? rows[0] : { ...rows[0], parts: rows };
 
     await tx.insert(auditEvents).values({
       organizationId, actor: user.name, action: "Leave credits approved for cash conversion",
@@ -193,7 +200,10 @@ export async function POST(request: Request) {
         conversionId: created.id, leaveBalanceId: balance.id,
         year, daysConverted, availableBefore: available, reservedBefore: reserved,
         convertibleBefore: convertible, authorizedCap, leavePolicyId: policy.id,
-        dailyRate, cashAmount, taxExempt,
+        dailyRate, cashAmount, taxExempt, exemptDaysAlreadyUsed,
+        conversionIds: rows.map((row) => row.id),
+        exemptDays: parts.filter((part) => part.taxExempt).reduce((sum, part) => sum + part.daysConverted, 0),
+        taxableDays: parts.filter((part) => !part.taxExempt).reduce((sum, part) => sum + part.daysConverted, 0),
       },
     });
     return { created } as const;
