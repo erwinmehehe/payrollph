@@ -157,8 +157,11 @@ test("employee Explain My Pay compares against the previous released cutoff", ()
   const route = read("src/app/api/self/payslips/[id]/explain/route.ts");
   assert.ok(route.includes("lt(payrollRuns.payDate, run.payDate)"));
   assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
-  assert.ok(route.includes("orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))"));
-  assert.ok(route.includes("buildPayExplanation(entry, previousEntry ?? null)"));
+  // The previous payslip must be for this same employee, joined to its own released run.
+  assert.ok(route.includes("eq(payrollEntries.employeeId, session.employeeId)"));
+  assert.ok(route.includes(".innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))"));
+  assert.ok(route.includes("orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id), desc(payrollEntries.id))"));
+  assert.ok(route.includes("buildPayExplanation(entry, previous?.previousEntry ?? null)"));
 });
 
 test("employee pay screen exposes Explain My Pay on latest and historical released payslips", () => {
