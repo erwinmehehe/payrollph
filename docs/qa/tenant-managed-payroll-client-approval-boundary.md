@@ -21,7 +21,7 @@ The previous handler loaded a globally addressed payroll-run ID before establish
 
 ## Required before acceptance
 
-### Prepared dedicated HTTP proof (execution pending)
+### Executed dedicated HTTP proof (synced-head CI pending)
 
 `scripts/qa/tenant-managed-client-approval-http.mjs` now runs as a separate
 Security HTTP acceptance step, reusing its disposable PG16 and production Next
@@ -32,10 +32,13 @@ persisted approval and audit identity, forged selectors, foreign/missing parity,
 revoked, wrong-role and unit-scoped grants, designation rotation, response discrimination,
 an observed membership-lock revocation race, and audit-failure rollback.
 
-**NOT_RUN:** the HTTP assertions above are prepared, not an executed receipt.
-Exact-head Security HTTP acceptance must execute them before any box below is
-checked. Unit/source checks cannot substitute for that run. Concurrent
-checker-evidence revocation remains a separate unproven scenario.
+The proof passed on `ab2ae08befca7272320830c6f01bac98b301887c` in
+[Security HTTP acceptance run 42154187261](https://github.com/erwinmehehe/payrollph/actions/runs/42154187261/job/127694539195).
+Its receipt records two own approvals, two own reapprovals, higher-ID victim run
+51, an observed membership revocation race and audit-failure rollback, with
+zero credits and no production certification. Main sync creates a new head, so
+applicable CI must execute again. Concurrent checker-evidence revocation remains
+a separate unproven scenario; it is not certified by this receipt.
 No coverage credits, runtime guards, payout flags or deployed data changed.
 
 - [ ] `npm run typecheck`, lint, unit tests, and applicable Security HTTP Smoke / regression jobs pass on the exact PR head.
@@ -43,4 +46,8 @@ No coverage credits, runtime guards, payout flags or deployed data changed.
 - [ ] Repeat positive own **re-approval** after changed fingerprint plus negative revoked owner during the attempted transaction; assert atomic rollback of approval and audit on failure.
 - [ ] Independent repository/security/payroll reviewer accepts the work. Re-inventory a changed handler with an exact-source, zero-credit `GAP` hold if needed. Do **not** promote this method to `COVERED` or claim independent acceptance without complete method-specific PG16 HTTP proof and security review.
 
-**Status: DRAFT, NOT ACCEPTED. DO NOT MERGE/DEPLOY/ENABLE PAYOUTS.** This is source and regression hardening only, not global tenant-isolation certification.
+**Status: SYNCED-HEAD CI PENDING; NO PAYOUT ACTIVATION OR COVERAGE PROMOTION.**
+Source merge follows maintainer review and current-head checks under
+`docs/engineering/change-risk-policy.md`. The independent reviewer item remains
+unperformed and must not be claimed. This is source and regression hardening
+only, not global tenant-isolation certification or authorization to enable payouts.
