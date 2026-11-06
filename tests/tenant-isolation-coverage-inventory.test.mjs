@@ -3151,7 +3151,8 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       contractFile: "tests/managed-payroll-client-approval-scope.test.ts",
       contractBlobSha: "e847f93a55946e5429d7b3baf9455613f0655bb6",
       reviewFile: "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
-      reviewBlobSha: "c150635e0aa37a9619e44e3799b35156fc053a7c",
+      reviewBlobSha: "531612b58cccbaa42d7c81427fc8296cf1e39400",
+      previousReviewBlobSha: "c150635e0aa37a9619e44e3799b35156fc053a7c",
       methodCredits: 0,
       exactSourcePg16Http: "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
       independentSecurityReview: "PENDING",
@@ -3202,7 +3203,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const doc = readFileSync(review.reviewFile, "utf8");
     assert.ok(doc.includes("DO NOT MERGE/DEPLOY/ENABLE PAYOUTS") &&
       doc.includes("two independently authenticated employers") &&
-      doc.includes("atomic rollback"),
+      doc.includes("atomic rollback") && doc.includes("**NOT_RUN:**"),
       "Zero-credit proof hold and outstanding real-HTTP requirements must remain visible");
     return;
   }
@@ -5860,6 +5861,15 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 158, foreignDenialLine: 170, unchangedDbLine: 182,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited HR Work Queue PG16 proof candidate is allowed");
+        const workflowAddition = entry.pendingWorkflowChange;
+        assert.deepEqual(workflowAddition, {
+          kind: "managed-payroll-approval-disposable-http-step-review-only",
+          previousWorkflowBlobSha: "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+          workflowBlobSha: "cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736",
+          addedProofFile: "scripts/qa/tenant-managed-client-approval-http.mjs",
+          addedProofBlobSha: "f8758b3b694991505482afe127effbcca994ed80",
+          coverageCredits: 0, independentSecurityReview: "PENDING", productionCertified: false,
+        }, "Managed approval HTTP addition must be separately source-pinned and unaccepted");
         // Historical PG16 receipt is still pinned to the old client-only page.
         // The later local-search and responsive-card change is separate,
         // exact-source and uncredited until fresh independent acceptance.
@@ -5907,7 +5917,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
-            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha : sha;
+            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha :
+            file === reviewed.workflowFile ? workflowAddition.workflowBlobSha : sha;
           assert.equal(gitBlobSha(readFileSync(file)), expected,
             "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
         }
@@ -5949,6 +5960,33 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(runner, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
         const workflow = readFileSync(reviewed.workflowFile, "utf8");
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
+        // The legacy HR Work Queue evidence stays tied to the original workflow.
+        // Verify the new version differs ONLY by the bounded, disposable managed
+        // approval HTTP step. This never upgrades HR or managed payroll coverage.
+        const managedApprovalStep = [
+          "      - name: Managed client approval and reapproval HTTP (fictional PG16, zero credit)",
+          "        env:",
+          "          CI: \"true\"",
+          "          TENANT_SECOND_PASS_MODE: isolated-ci-only",
+          "          NODE_ENV: \"production\"",
+          "          DEMO_MODE: \"false\"",
+          "          WORKER_ENABLED: \"false\"",
+          "          CENTRAL_SCHEDULER_ENABLED: \"false\"",
+          "          PAYMONGO_DISBURSEMENTS_ENABLED: \"false\"",
+          "          XENDIT_PAYOUTS_ENABLED: \"false\"",
+          "          XENDIT_BILLING_ENABLED: \"false\"",
+          "        run: npx tsx scripts/qa/tenant-managed-client-approval-http.mjs",
+          "",
+          "",
+        ].join("\n");
+        assert.equal(workflow.split(managedApprovalStep).length, 2,
+          "Expected exactly one guarded managed-approval HTTP step");
+        assert.equal(gitBlobSha(Buffer.from(workflow.replace(managedApprovalStep, ""))),
+          reviewed.workflowBlobSha, "Historical Work Queue workflow must be otherwise byte-identical");
+        assert.equal(workflowAddition.previousWorkflowBlobSha, reviewed.workflowBlobSha);
+        assert.equal(gitBlobSha(readFileSync(workflowAddition.addedProofFile)),
+          workflowAddition.addedProofBlobSha, "Managed-approval proof code changed without review");
+        assert.match(workflow, /npx tsx scripts\/qa\/tenant-managed-client-approval-http\.mjs/);
         assert.equal(reviewed.credits, 0);
         continue; // Source-pinned, real-HTTP uncredited candidate, not blanket COVERED.
       }

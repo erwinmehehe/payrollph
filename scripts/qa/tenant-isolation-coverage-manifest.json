@@ -19197,11 +19197,12 @@
             "contractFile": "tests/managed-payroll-client-approval-scope.test.ts",
             "contractBlobSha": "e847f93a55946e5429d7b3baf9455613f0655bb6",
             "reviewFile": "docs/qa/tenant-managed-payroll-client-approval-boundary.md",
-            "reviewBlobSha": "c150635e0aa37a9619e44e3799b35156fc053a7c",
+            "reviewBlobSha": "531612b58cccbaa42d7c81427fc8296cf1e39400",
             "methodCredits": 0,
             "exactSourcePg16Http": "PENDING_TWO_EMPLOYER_OWN_FOREIGN_AND_TRANSACTION_RACE",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "previousReviewBlobSha": "c150635e0aa37a9619e44e3799b35156fc053a7c"
           }
         }
       ],
@@ -42124,6 +42125,16 @@
         "browserScriptBlobSha": "793ef20c5f75e55b8162054087a8ab0388fafda3",
         "coverageCredits": 0,
         "independentlyAccepted": false,
+        "productionCertified": false
+      },
+      "pendingWorkflowChange": {
+        "kind": "managed-payroll-approval-disposable-http-step-review-only",
+        "previousWorkflowBlobSha": "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
+        "workflowBlobSha": "cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736",
+        "addedProofFile": "scripts/qa/tenant-managed-client-approval-http.mjs",
+        "addedProofBlobSha": "f8758b3b694991505482afe127effbcca994ed80",
+        "coverageCredits": 0,
+        "independentSecurityReview": "PENDING",
         "productionCertified": false
       }
     },
