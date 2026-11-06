@@ -42,7 +42,7 @@ test("#737 required status always materializes and rejects failed, cancelled or 
   // Independent financial certifications still run in parallel validation.
   assert.ok(validation.includes("needs: change-scope"));
   for (const command of ["npm run payroll:golden", "npm run payroll:golden:phase2a",
-    "npm run payroll:golden:phase2b", "npm run payroll:golden:pay-rules", "npm run payroll:golden:phase4", "npm run payroll:golden:phase5"]) {
+    "npm run payroll:golden:phase2b", "npm run payroll:golden:pay-rules", "npm run payroll:golden:phase4", "npm run payroll:golden:phase5", "npm run payroll:golden:phase6"]) {
     assert.ok(validation.includes(command), "independent certification missing: " + command);
   }
 });

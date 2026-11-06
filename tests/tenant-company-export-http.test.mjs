@@ -19,7 +19,9 @@ test("export acceptance refuses non-CI, remote targets, provider credentials and
 test("CSV proof rejects a successful HTML login page, foreign rows and public cache", () => {
   const own = { status: 200, type: "text/csv; charset=utf-8", text: "Employee no.\nOWN", cache: "private, no-store", nosniff: "nosniff" };
   proveEmployeeExport(own, "OWN", "VICTIM");
-  assert.throws(() => proveEmployeeExport({ ...own, text: "OWN\nVICTIM" }, "OWN", "VICTIM"), /accepts another employer's data/);
+  assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no.\nOWN\nVICTIM" }, "OWN", "VICTIM"), /accepts another employer's data/);
+  proveEmployeeExport({ ...own, text: 'Employee no.,Name\nOWN-OTHER,"OWN display name"' }, "OWN-OTHER", "OWN");
+  assert.throws(() => proveEmployeeExport({ ...own, text: 'Employee no.,Name\n"VICTIM",foreign\nOWN,mine' }, "OWN", "VICTIM"), /accepts another employer's data/);
   assert.throws(() => proveEmployeeExport({ ...own, type: "text/html" }, "OWN", "VICTIM"));
   assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no." }, "OWN", "VICTIM"));
   assert.throws(() => proveEmployeeExport({ ...own, cache: "public" }, "OWN", "VICTIM"));

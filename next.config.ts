@@ -98,6 +98,13 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0" },
         ],
       },
+      // Private approval and missing-run responses must stay private on the wire.
+      {
+        source: "/api/managed-payroll/runs/:id/approve",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
     ];
   },
 };
