@@ -277,7 +277,16 @@ async function execute() {
   try {
     await assert.rejects(
       () => processNextPayrollJob("qa-edge-fails", edgeRun.id),
-      /QA1000_INJECTED_CHUNK_FAILURE/,
+      (error: unknown) => {
+        // Drizzle wraps the PostgreSQL exception in Error.cause.
+        // Validate the root cause rather than matching only the outer message.
+        let current: unknown = error;
+        for (let depth = 0; depth < 6 && current instanceof Error; depth++) {
+          if (current.message.includes("QA1000_INJECTED_CHUNK_FAILURE")) return true;
+          current = (current as Error & { cause?: unknown }).cause;
+        }
+        return false;
+      },
     );
   } finally {
     await pool.query("DROP TRIGGER IF EXISTS " + trigger + " ON payroll_entries");
