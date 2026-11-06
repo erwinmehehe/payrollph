@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
@@ -77,6 +78,14 @@ test("runner has real two-tenant positives, own-victim SQL invariants and zero c
     "unitScopeAndRevokedMembershipDenied: true",
     "same session survives employer grant revocation",
     "victimSqlAndAuditUnchanged: true", "webhookDeliveryAttempted: false",
+    "actualEmployeeApiOwnDataBeforeRevocation: true",
+    "foreignEmployerQueryIgnoredForKey: true",
+    "revokedKeyDeniedAtConsumerViaBothHeaders: true",
+    "new key reads only own employees despite forged employer selector",
+    "revoked key refused at employee API",
+    "revoked key refused via x-api-key header",
+    "previously valid revoked key cannot leak existence through API errors",
+    "revoked and invalid key requests must not update last-used, keys, staff or audits",
     'POST_method_status: "GAP"', "newCoverageCredits: 0",
   ]) assert.ok(runner.includes(phrase), "missing evidence: " + phrase);
   assert.doesNotMatch(runner, /action\([^\n]*"test-webhook"/, "never dispatch a webhook in this proof");
@@ -101,4 +110,42 @@ test("coverage stays GAP and source/coverage ledger are untouched", () => {
   assert.ok(entry, "source-pinned developer route required");
   const target = entry.methods.find(method => method.name === "POST");
   assert.equal(target?.status, "GAP", "this is one action subset, not full method coverage");
+});
+
+
+function gitBlob(filePath) {
+  const contents = readFileSync(new URL("../" + filePath, import.meta.url));
+  return createHash("sha1").update("blob " + contents.length + "\0").update(contents).digest("hex");
+}
+
+test("actual developer authentication, employee consumer and key-audit source hashes are pinned", () => {
+  const refs = {
+    "src/app/api/developer/route.ts": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+    "src/lib/api-auth.ts": "eac6c92c5e875c3267b7d7d6c0053bfeee93900a",
+    "src/app/api/v1/employees/route.ts": "4202bbf80a6aa0f951b34ec0b228fb8655daf839",
+    "src/lib/developer-security-mutations.ts": "d9e096588b9da32c066d5450865e87cc039e1e38",
+    "scripts/qa/tenant-developer-key-http.mjs": "3d6ef8914161310783801037167635eddac05807",
+  };
+  for (const [path, sha] of Object.entries(refs)) {
+    assert.equal(gitBlob(path), sha,
+      path + ": changed source invalidates the saved tenant boundary proof, re-run final-head PG16 HTTP");
+  }
+  const auth = readFileSync(new URL("../src/lib/api-auth.ts", import.meta.url), "utf8");
+  const employees = readFileSync(new URL("../src/app/api/v1/employees/route.ts", import.meta.url), "utf8");
+  assert.match(auth, /eq\(apiKeys\.keyHash, sha256\(token\)\)/);
+  assert.match(auth, /isNull\(apiKeys\.revokedAt\)/);
+  assert.match(employees, /authenticateApiKey\(request\)/);
+  assert.match(employees, /requireScope\(auth\.scopes, "employees:read"\)/);
+  assert.match(employees, /eq\(employees\.organizationId, auth\.organizationId\)/);
+  assert.doesNotMatch(employees, /eq\(employees\.organizationId, (?:searchParams|organizationId|request)\b/,
+    "credential owner employer must not be replaced by a caller-provided organizationId");
+  const script = readFileSync(new URL("../scripts/qa/tenant-developer-key-http.mjs", import.meta.url), "utf8");
+  assert.ok(script.indexOf("requireDeveloperKeyProofEnvironment();") >= 0);
+  assert.ok(script.indexOf("requireDeveloperKeyProofEnvironment();") < script.indexOf('import("../../src/db/index.ts")'),
+    "the disposable-only proof refusal precedes database import");
+  assert.match(script, /for \(const actor of \[a, b\]\)/);
+  assert.match(script, /apiEmployeeList\([\s\S]*?created\.json\.key, "\?organizationId=" \+ victim\.org\.id/);
+  assert.match(script, /const deniedAfterRevoke = requireHttpStatus\(await apiEmployeeList\(/);
+  assert.match(script, /assert\.deepEqual\(deniedAfterRevoke\.json, unknownKey\.json/);
+  assert.match(script, /assert\.deepEqual\(await snapshotOrganization\(victim\.org\.id\), victimBefore/);
 });
