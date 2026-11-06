@@ -45,6 +45,7 @@ import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
+import { deductionDisplayAmount, splitPayslipLines } from "@/lib/payslip-line-buckets";
 import { essText, parseEssLanguage, type EssLanguage } from "@/lib/ess-language";
 import { getEssLanguageServerSnapshot, getEssLanguageSnapshot, persistEssLanguage, subscribeEssLanguage } from "@/lib/ess-language-preference-store";
 
@@ -512,11 +513,8 @@ export function SelfServicePortal({ hrCasesEnabled = false, spendEnabled = false
 
   const latestPayslip = data?.payslips[0] ?? null;
   const latestBreakdown = useMemo(() => {
-    const rows = latestPayslip?.lineItems ?? [];
-    return {
-      earnings: rows.filter((item) => Number(item.amount ?? 0) > 0),
-      deductions: rows.filter((item) => Number(item.amount ?? 0) < 0),
-    };
+    // Economic buckets, not signs: a year-end refund is a deduction credit, unpaid leave reduces earnings.
+    return splitPayslipLines(latestPayslip?.lineItems ?? []);
   }, [latestPayslip]);
 
   const languageControl = (
@@ -1255,7 +1253,7 @@ function PayLines({
       {rows.length === 0 ? <p>{empty}</p> : rows.map((item, index) => (
         <div key={(item.code ?? item.label ?? "line") + "-" + index}>
           <span>{item.label ?? item.code ?? "Pay item"}</span>
-          <strong>{peso(deductions ? Math.abs(Number(item.amount ?? 0)) : Number(item.amount ?? 0))}</strong>
+          <strong>{peso(deductions ? deductionDisplayAmount(item) : Number(item.amount ?? 0))}</strong>
         </div>
       ))}
     </div>

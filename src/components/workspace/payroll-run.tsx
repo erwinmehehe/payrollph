@@ -38,6 +38,7 @@ import { StatutoryRemittanceMonthClose } from "./statutory-remittance-month-clos
 import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { PayrollPhaseTwoOverview } from "./payroll-phase-two-overview";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
+import { deductionDisplayAmount, payslipSectionTotals, splitPayslipLines } from "@/lib/payslip-line-buckets";
 import {
   Battery,
   EmptyState,
@@ -1370,8 +1371,8 @@ function PayslipDetail({
   onExplain: () => void;
 }) {
   const lines: PayrollLineItem[] = readLineItems(entry);
-  const earnings = lines.filter((line) => Number(line.amount) > 0);
-  const deductions = lines.filter((line) => Number(line.amount) < 0);
+  // Economic buckets, not signs: a year-end refund is a deduction credit, unpaid leave reduces earnings.
+  const { earnings, deductions } = splitPayslipLines(lines);
   const trace = readTrace(entry);
   const inputs = trace.inputs;
   const flags = trace.flags;
@@ -1379,8 +1380,7 @@ function PayslipDetail({
   // The stored line items should account for the stored totals. When they do
   // not, an older entry written before a line item existed, for instance, say
   // so rather than presenting a breakdown that silently fails to add up.
-  const earningsSum = earnings.reduce((sum, line) => sum + Number(line.amount), 0);
-  const deductionsSum = deductions.reduce((sum, line) => sum + Math.abs(Number(line.amount)), 0);
+  const { earnings: earningsSum, deductions: deductionsSum } = payslipSectionTotals(lines);
   const unexplainedEarnings = Number(entry.grossPay) - earningsSum;
   const unexplainedDeductions = Number(entry.deductions) - deductionsSum;
   const reconciles = Math.abs(unexplainedEarnings) < 0.01 && Math.abs(unexplainedDeductions) < 0.01;
@@ -1421,7 +1421,7 @@ function PayslipDetail({
                   {line.label}
                   {line.notes?.length ? <em>{line.notes.join(" · ")}</em> : null}
                 </span>
-                <b className="minus">{moneyExact(Math.abs(Number(line.amount)))}</b>
+                <b className="minus">{moneyExact(deductionDisplayAmount(line))}</b>
               </div>
             ))}
             <div className="payslip-total">
