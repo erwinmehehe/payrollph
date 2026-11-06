@@ -26,9 +26,9 @@ The catalog takes an explicit position on three points:
 2. **MWE taxable compensation.** For a minimum wage earner, taxable compensation is gross less the statutory minimum wage and less employee contributions, matching BIR Form 2316's separate non-taxable items. Please confirm this for an MWE who also has other taxable pay.
 3. **Leave monetization flag.** The engine follows the stored tax-exempt flag. This catalog does not prove that more than 12 monetized days can never be flagged exempt.
 
-## Known finding: year-end refund payslip buckets
+## Payslip reconciliation
 
-The refund prints as a +₱1,200 line, but the engine nets it inside the stored deductions (₱528.70) while the stored gross stays at ₱15,000. Net is correct, but an employee who adds up the printed earnings and deductions gets totals that differ from the ones shown. For this case the suite asserts only that the printed total equals net. It fails deliberately once the buckets reconcile, so the fix and the catalog are updated together.
+Every case checks that the printed lines add up to the stored centavos, using the shared classifier in `src/lib/payslip-line-buckets.ts` (economic bucket, not sign). The year-end refund case is the regression test for the bug where the +₱1,200 refund printed as an earning: it now prints as a deduction credit, earnings equal the stored ₱15,000.00 gross and deductions equal the stored ₱528.70.
 
 ## Mutation evidence
 

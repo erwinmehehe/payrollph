@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { requireDisposablePiiApprovalEnv } from "./tenant-pii01-approval-contract.mjs";
+import { managedClientWorkerFixture } from "./managed-client-worker-fixture.ts";
 
 // Reuse the restrictive CI-only localhost/no-provider guard before DB imports.
 requireDisposablePiiApprovalEnv();
@@ -45,7 +46,7 @@ async function seed(label) {
   }))).returning();
   const [membership] = await db.insert(s.userOrganizations).values({ userId: user.id, organizationId: org.id, active: true, role: "owner" }).returning();
   const [unit] = await db.insert(s.orgUnits).values({ organizationId: org.id, type: "department", name: "Fictional department", code: nonce.slice(0, 20) }).returning();
-  const [employee] = await db.insert(s.employees).values({ organizationId: org.id, employeeNo: nonce.slice(0, 20), firstName: "Fictional", lastName: label, title: "Test", avatarInitials: "FT", basicRate: "1000" }).returning();
+  const [employee] = await db.insert(s.employees).values(managedClientWorkerFixture(org.id, nonce.slice(0, 20), label)).returning();
   const [run] = await db.insert(s.payrollRuns).values({ organizationId: org.id, periodLabel: "Fictional " + nonce, periodStart: "2026-01-01", periodEnd: "2026-01-15", payDate: "2026-01-20", status: "Ready for release", grossPay: "1000", netPay: "900", employeeCount: 1 }).returning();
   const [entry] = await db.insert(s.payrollEntries).values({ payrollRunId: run.id, employeeId: employee.id, grossPay: "1000", deductions: "100", netPay: "900" }).returning();
   const [eng] = await db.insert(s.managedPayrollEngagements).values({ organizationId: org.id, clientApproverUserId: user.id, status: "pilot", createdBy: "Fictional CI" }).returning();

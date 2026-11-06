@@ -5867,7 +5867,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           previousWorkflowBlobSha: "96b337c06eecf2a0ea0a72d750b8fb7a35298c85",
           workflowBlobSha: "cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736",
           addedProofFile: "scripts/qa/tenant-managed-client-approval-http.mjs",
-          addedProofBlobSha: "f8758b3b694991505482afe127effbcca994ed80",
+          addedProofBlobSha: "795b634f1564b9037bdac957da52d095e952819d",
+          fixtureFile: "scripts/qa/managed-client-worker-fixture.ts",
+          fixtureBlobSha: "99f021a0a5cc4075b1c778cbe610a6283ea15356",
           coverageCredits: 0, independentSecurityReview: "PENDING", productionCertified: false,
         }, "Managed approval HTTP addition must be separately source-pinned and unaccepted");
         // Historical PG16 receipt is still pinned to the old client-only page.
@@ -5986,6 +5988,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(workflowAddition.previousWorkflowBlobSha, reviewed.workflowBlobSha);
         assert.equal(gitBlobSha(readFileSync(workflowAddition.addedProofFile)),
           workflowAddition.addedProofBlobSha, "Managed-approval proof code changed without review");
+        assert.equal(gitBlobSha(readFileSync(workflowAddition.fixtureFile)),
+          workflowAddition.fixtureBlobSha, "Managed-approval worker fixture changed without review");
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-managed-client-approval-http\.mjs/);
         assert.equal(reviewed.credits, 0);
         continue; // Source-pinned, real-HTTP uncredited candidate, not blanket COVERED.
