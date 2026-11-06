@@ -38,16 +38,20 @@ export function tallyTenantManifest(manifest) {
  */
 function reviewedYearEndSourceSupersession(beforeManifest, liveManifest) {
   const file = "src/app/api/year-end/route.ts";
-  const oldSha = "7572c6111cf40d398b3cc8c1f940efd0a9b8d362", newSha = "e4741d98c23e068f4ecd7032e172ce60b95852cf";
+  const oldSha = "7572c6111cf40d398b3cc8c1f940efd0a9b8d362";
+  const atomicOnlySha = "e4741d98c23e068f4ecd7032e172ce60b95852cf";
+  const employerJoinedSha = "f040f5bbbc3df275d32d23f1728b1b0345f77814";
   const before = beforeManifest.allApiRouteFiles?.[file];
   const after = liveManifest.allApiRouteFiles?.[file];
   const none = new Set();
-  if (before?.gitBlobSha !== oldSha || after?.gitBlobSha !== newSha ||
+  const newSha = after?.gitBlobSha;
+  if (before?.gitBlobSha !== oldSha ||
+      (newSha !== atomicOnlySha && newSha !== employerJoinedSha) ||
       before.methods?.length !== 2 || after.methods?.length !== 2) return none;
   const expected = {
     "kind": "year-end-binding-atomic-source-only-zero-credit",
     "priorRouteBlobSha": "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-    "routeBlobSha": "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+    "routeBlobSha": newSha,
     "contractFile": "tests/year-end-binding-transaction-contract.test.mjs",
     "contractBlobSha": "9562442c4d9e7d820027630cead6d753c0fc3767",
     "annualizationBlobSha": "7194658c42b9ef33c84acd84ab356c28c6303883",
@@ -57,7 +61,11 @@ function reviewedYearEndSourceSupersession(beforeManifest, liveManifest) {
     "independentSecurityReview": "PENDING",
     "productionCertified": false
 };
-  const reason = "Previously credited by #1730 against the old route Git blob; revised #1744 GET/POST source has no independently accepted exact-source method proof. GAP and zero current credits pending owner/security review.";
+  // These are the ONLY recognized revisions: #1744 atomic binding and
+  // #1797's employer-matched GET join. Both retain zero accepted HTTP credits.
+  const reason = newSha === employerJoinedSha
+    ? "Still GAP: #1744 updated the financial binding source; this draft adds an employer-matched employee join and exact-source fictional PG16 proof candidates for the full GET and POST methods. No method credit or independent payroll/security review yet."
+    : "Previously credited by #1730 against the old route Git blob; revised #1744 GET/POST source has no independently accepted exact-source method proof. GAP and zero current credits pending owner/security review.";
   const oldActions = {
     GET: ["json", "preflight", "2316", "2316-print", "alphalist"],
     POST: ["annualization", "bind-run"],
