@@ -58,6 +58,18 @@ test("four method keys, no provider-free POST substitution or overlapping issued
     assert.match(route, /operationalDemandSiteAuthorized/);
   }
 });
+test("private POS source metadata stays private on the actual Next HTTP wire", () => {
+  const config = readFileSync("next.config.ts", "utf8");
+  const globalApi = config.indexOf('source: "/api/:path*"');
+  assert.ok(globalApi >= 0);
+  for (const provider of ["loyverse", "square-sandbox"]) {
+    const scoped = config.indexOf('source: "/api/workforce/demand-observations/' + provider + '"');
+    assert.ok(scoped > globalApi, "specific POS response header must follow global API rule");
+    assert.match(config.slice(scoped, scoped + 200),
+      /Cache-Control", value: "private, no-store, max-age=0"/);
+  }
+});
+
 test("hard-disposable guard accepts only synthetic allowlist and refuses every changed selector", () => {
   assert.deepEqual(requireDisposablePosDemand(safe), [11, 12, 14]);
   for (const [key, value] of Object.entries(safe)) {
