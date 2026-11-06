@@ -680,6 +680,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineStaffingGet = baseline.allApiRouteFiles[staffingGetPath]?.methods.find(row => row.name === "GET");
     const baselineStaffingCredits = baselineStaffingGet?.status === "COVERED" ? verifyStaffingPolicyGetCredit(baseline) : 0;
     if (baselineStaffingCredits) expectedOriginalMain[staffingGetPath].GET = "COVERED";
+    else {
+      assert.equal(baselineStaffingGet?.status, "GAP");
+      assert.equal(baselineStaffingGet?.testedBy, null);
+    }
     const baselineMwe = baseline.allApiRouteFiles[mweDecisionPath]?.methods.find(row => row.name === "PATCH");
     const baselineMweCredits = baselineMwe?.status === "COVERED" ? 1 : 0;
     if (baselineMweCredits) {
