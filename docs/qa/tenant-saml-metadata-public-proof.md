@@ -1,6 +1,6 @@
 # SAML metadata public-surface gap: exact-source proof candidate
 
-**DRAFT / NOT ACCEPTED / ZERO COVERAGE CREDITS**
+**PROOF-ONLY SOURCE CHANGE / POLICY DECISION PENDING / ZERO COVERAGE CREDITS**
 
 Target: GET /api/auth/saml/metadata/[providerId] only. The application
 handler remains unchanged at Git blob
@@ -68,10 +68,40 @@ It must verify all of these properties:
 - Environment guard refuses remote database/server, real secrets and
   provider/payout/worker activation. No real provider interaction.
 
-## Acceptance gates
+## Executed evidence
 
-1. Exact-PR-head source-only contract, standalone PG16 HTTP, and all
-   applicable broader CI/security checks pass.
+The production Next/disposable PG16 proof passed on
+`fc901d453ea525df309d3d93ebf56a86e5469499` in
+[run 42181922549](https://github.com/erwinmehehe/payrollph/actions/runs/42181922549/job/127773260581).
+Its receipt records two attackers, three authenticated sessions, a populated
+higher-ID victim, anonymous XML 200, identical forged-selector responses,
+unchanged SQL and no private provider/tenant markers. It explicitly reports
+disabled-provider existence disclosure, pending owner decision, GAP, zero
+credits, no independent acceptance and no production certification.
+
+This is evidence of existing behavior, including its unresolved exposure. It
+is not an endorsement of public access for disabled providers. Main sync and
+documentation edits create a new head; applicable checks must pass again.
+
+## Source merge gate
+
+This PR adds a guarded regression proof and decision record, with no runtime,
+ledger classification, provider configuration, SSO activation or default-flag
+change. Under `docs/engineering/change-risk-policy.md`, a maintainer may merge
+that proof-only source change after reviewing the incremental diff and passing
+all applicable exact-head CI/security/PG16 HTTP checks. No independent human
+review is claimed or fabricated. Rollback is a source revert; no migration or
+live provider operation is involved.
+
+Merging this proof does **not** resolve the decision record above, accept the
+existence disclosure, remove a feature gate, or promote the method. Keeping a
+regression test for the current behavior must not be interpreted as a permanent
+product requirement: the privacy-first follow-up would deliberately change the
+handler pin and expectations after its policy is chosen.
+
+## Classification and activation gates (still unresolved)
+
+1. Exact-source standalone PG16 HTTP and applicable CI remain necessary evidence.
 2. Identity/security owner reviews public disclosure of disabled SAML
    provider existence and the XML contract.
 3. A **separate reviewed ledger update** may then consider switching this
