@@ -619,6 +619,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     // all three sit in the frozen 406-method queue.
     const mainDedicatedCredits = [
       ["src/app/api/hcm/effective-changes/route.ts", "scripts/qa/tenant-hcm-effective-change-post-http.mjs"],
+      // #1794 was merged independently; accept this main-only credit only with its matching receipt.
       ["src/app/api/account/password/route.ts", "scripts/qa/tenant-account-password-http.mjs"],
       ["src/app/api/auth/logout/route.ts", "scripts/qa/tenant-auth-logout-http.mjs"],
       ["src/app/api/payroll-runs/[id]/submit-review/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
@@ -696,6 +697,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     // guard is independently validated on m above and MUST NOT treat the old
     // proof as evidence for the new helper.
     const baselineStaffingCredits = baselineStaffingGet?.status === "COVERED" ? (() => {
+      if (baselineStaffingGet.testedBy?.integrityReproof) {
+        return verifyStaffingPolicyGetCredit(baseline);
+      }
       const { integrityReproof: supplemental, ...legacyProof } = STAFFING_GET_EVIDENCE;
       assert.ok(supplemental && supplemental.coverageCredits === 0 &&
         supplemental.reviewStatus === "PENDING", "new helper proof cannot grant retroactive credit");

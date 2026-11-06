@@ -286,6 +286,23 @@ test("night differential splits at the overtime boundary", () => {
   assert.equal(evening.nightDifferentialMinutes, 180);
 });
 
+test("late after-midnight punch remains on the preceding overnight work date", () => {
+  const overnight = { start: "22:00", end: "06:00", breakMinutes: 60, graceMinutes: 5, workDate: "2026-03-10" };
+  const late = deriveClockHours(
+    { timeIn: "2026-03-11T00:05", timeOut: "2026-03-11T06:00" }, overnight,
+  );
+  assert.equal(late.tardinessMinutes, 120, "two hours late after the five-minute grace");
+  assert.equal(late.undertimeMinutes, 0, "the employee left at the actual scheduled shift end");
+  assert.equal(late.overtimeMinutes, 0, "the shift end must not slip by another calendar day");
+
+  const onTime = deriveClockHours(
+    { timeIn: "2026-03-10T22:00", timeOut: "2026-03-11T06:00" }, overnight,
+  );
+  assert.equal(onTime.tardinessMinutes, 0);
+  assert.equal(onTime.undertimeMinutes, 0);
+  assert.equal(onTime.overtimeMinutes, 0);
+});
+
 test("isRestDayOfWeek is a pure, timezone-independent day-of-week check", () => {
   assert.equal(REST_DAY_NAMES.length, 7);
   assert.equal(isRestDayOfWeek("2026-01-04", "Sunday"), true);

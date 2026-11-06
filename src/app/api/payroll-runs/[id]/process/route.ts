@@ -181,7 +181,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     resource: run.periodLabel,
     metadata: {
       runId,
-      ruleVersion: "PH-2026.01",
+      ruleVersion: fresh?.ruleVersion ?? run.ruleVersion,
       chunks: processResult.length,
       approvalsSuperseded: recalculation.superseded,
       attendanceCutoffPolicy: attendanceCutoffGate.policy,
