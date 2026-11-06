@@ -3281,6 +3281,67 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   }
 
 
+  // One source-scoped invitation-acceptance hardening, deliberately zero credit.
+  // A previously issued/legacy invitation may carry a foreign or inactive unit.
+  // The added pre-claim check refuses it atomically without granting coverage
+  // merely because an isolated fixture passes.
+  if (isNewOrChanged &&
+      (key === "src/app/api/invitations/accept/route.ts GET" ||
+       key === "src/app/api/invitations/accept/route.ts POST")) {
+    const routeFile = "src/app/api/invitations/accept/route.ts";
+    const previous = "d4b43c5e474a9e57e7b2d70317e372a43969a4c8";
+    const repaired = "1ce20257f7f3efa9ca380712d4dd485397a06814";
+    assert.equal(currentBlob, repaired, "Invite acceptance source drift requires renewed tenant review");
+    assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, repaired);
+    assert.equal(method.status, "GAP", "No exact-head acceptance evidence is credited");
+    assert.equal(method.testedBy, null, "Source review is not a complete method receipt");
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "invitation-accept-active-unit-source-boundary-zero-credit",
+      method: method.name,
+      originalRouteBlobSha: previous, routeBlobSha: repaired,
+      proofFile: "scripts/qa/tenant-invitations-accept-http.mjs",
+      proofBlobSha: "08df4e136510665fa4d332e4aa736d4a57d806e9",
+      contractFile: "tests/tenant-invitations-accept-contract.test.mjs",
+      contractBlobSha: "14c880c73049cec6e8edd791e6795ca2187f286f",
+      workflowFile: ".github/workflows/tenant-invitations-accept-http.yml",
+      workflowBlobSha: "2349218797c58ab17d9abebe938461f0cabc817a",
+      methodCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    }, "This specific changed identity route must remain source-pinned and uncredited");
+    const review = method.reviewedUncertified;
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Invite acceptance proof/contract/workflow changed and must be reviewed: " + file);
+
+    const source = readFileSync(routeFile, "utf8");
+    const withUnitImport = 'import { invitations, orgUnits, userOrganizations, users } from "@/db/schema";';
+    const originalImport = 'import { invitations, userOrganizations, users } from "@/db/schema";';
+    const begin = source.indexOf("      // The invitation is the only authority for the new membership.");
+    const end = source.indexOf("      // Claim the single-use invitation inside the same transaction as account", begin);
+    const transaction = source.indexOf("db.transaction(async (tx) => {");
+    const claim = source.indexOf("tx.update(invitations)", transaction);
+    assert.ok(source.includes(withUnitImport) && transaction >= 0 &&
+      begin > transaction && end > begin && claim > end,
+      "Validating the stored org unit must precede the single-use claim in the same transaction");
+    const unitCheck = source.slice(begin, end);
+    for (const guard of [
+      "if (invitation.orgUnitId !== null)",
+      "tx.select({ id: orgUnits.id }).from(orgUnits)",
+      "eq(orgUnits.id, invitation.orgUnitId)",
+      "eq(orgUnits.organizationId, invitation.organizationId)",
+      "eq(orgUnits.active, true)",
+      "if (!scopedUnit) return null",
+    ]) assert.ok(unitCheck.includes(guard), "Missing scope and active-unit check: " + guard);
+    const originalSource = (source.slice(0, begin) + source.slice(end))
+      .replace(withUnitImport, originalImport);
+    assert.equal(gitBlobSha(Buffer.from(originalSource)), previous,
+      "Only the recorded transaction-scoped tenant unit fix may change the route");
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
