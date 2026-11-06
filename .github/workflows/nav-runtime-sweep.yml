@@ -178,7 +178,8 @@ jobs:
         run: npm run build
       - name: Install isolated Playwright Chromium
         run: |
-          npm install --no-save --ignore-scripts --package-lock=false playwright@1.55.0
+          # Keep the locked dependency graph from npm ci; disabling the lock can resolve unavailable transitive tarballs.
+          npm install --no-save --ignore-scripts playwright@1.55.0
           timeout 240s npx playwright install --only-shell chromium
       - name: Start local-only application
         shell: bash

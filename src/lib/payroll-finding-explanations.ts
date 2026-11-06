@@ -183,6 +183,16 @@ export const PAYROLL_FINDING_EXPLANATION_TEMPLATES: Readonly<Record<string, Expl
     "why": "The existing finding reports missing account or bank-code information for positive net pay.",
     "next": "Complete and verify the payout details before release."
   },
+  "DUPLICATE_PAYEE_ACCOUNT": {
+    "what": "Two employees in this run are paid to the same bank account.",
+    "why": "The bank and account number match another paid employee in the same payroll. This can be a family account, but it is also a common ghost-employee and diversion pattern.",
+    "next": "Confirm both are different real people who agreed to a shared account, or correct the payout details, before release."
+  },
+  "NEW_PAYOUT_DESTINATION_LARGE_PAY": {
+    "what": "A recently changed payout account is receiving large or sharply higher pay.",
+    "why": "An approved payout-destination change was applied within 30 days before pay day and net pay is at or above PHP 50,000, or jumped by at least PHP 5,000 and 20% from the previous payroll.",
+    "next": "Confirm the account change with the employee through an independent channel (not the requester) before release."
+  },
   "NEW_EMPLOYEE": {
     "what": "An employee started within this cutoff.",
     "why": "The source employee start date falls inside the payroll period.",
