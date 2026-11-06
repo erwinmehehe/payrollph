@@ -24,6 +24,27 @@ These are testable grant-matrix and fail-closed source contracts, **not** real m
 
 ## Release hold
 
+### Dedicated HTTP acceptance prepared; execution pending
+
+`tenant-receipt-boundary-http.yml` now prepares an isolated production-mode Next
+server, disposable PG16 and a localhost HTTPS byte-store/scanner contract fixture.
+TLS verification stays enabled with a freshly generated disposable CA. No real
+storage account, malware provider, payroll employer or deployed flag is involved.
+The fixture is explicitly not S3 protocol or real antivirus acceptance.
+
+The runner exercises two own uploads/downloads, a separately working higher-ID
+victim receipt, forged employer selectors, foreign/missing denial parity, revoked
+and out-of-unit grants, wrong-worker access, verified-byte corruption, observed
+remote-read revocation/replacement/reassignment races, failed upload staging and
+an audit-write fault. Victim claims/evidence/documents/employees/payroll/audit
+snapshots are compared after each attacker's journey. Response discrimination
+must reject another employer's receipt bytes.
+
+**NOT_RUN:** these HTTP assertions must pass on the final PR head. Local source
+and contract checks do not count as HTTP execution or coverage credit. Both
+methods remain GAP with zero new credits. Runtime guards and production flags
+are unchanged.
+
 - [ ] Passing exact-head typecheck, unit/regression CI, lint, CodeQL and Security HTTP Smoke.
 - [ ] Disposable PostgreSQL 16 production Next localhost real-HTTP proof for GET and POST separately: two independent employer sessions with own successful receipt GET and POST, a higher-ID real foreign claim versus unknown ID with identical 404/no-store, branch-scoped staff and wrong-employee denial, revoked membership, and unchanged victim claim/evidence/documents/audit/payroll rows.
 - [ ] Independent review of claim reassignment, concurrent replacement, remote object readback, upload recovery and audit atomicity under controlled PG16 faults.
