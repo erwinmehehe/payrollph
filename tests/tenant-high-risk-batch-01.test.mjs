@@ -709,20 +709,29 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       return true;
     }).length;
   assert.equal(yearEndSoloCredits, 2);
+  // One distinct provisional PII-02 MWE decision PATCH, in addition to the HCM POST on main.
+  const mwePatch = methodsByKey.get("PATCH employees/[id]/mwe-classifications/[classificationId]");
+  assert.equal(mwePatch?.status, "COVERED", "MWE decision requires a distinct source-pinned proof");
+  assert.equal(mwePatch.testedBy?.file, "scripts/qa/tenant-mwe-decision-http.mjs");
+  assert.equal(mwePatch.testedBy?.routeBlobSha,
+    manifest.allApiRouteFiles["src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts"].gitBlobSha);
+  assert.equal(mwePatch.testedBy?.independentlyAccepted, false);
+  assert.equal(mwePatch.testedBy?.productionCertified, false);
+  const mwePatchCredits = 1;
   for (const held of ["GET year-end", "POST year-end"]) {
     assert.equal(methodsByKey.get(held)?.status, "GAP", held + ": source superseded; no inherited #1730 proof");
     assert.equal(methodsByKey.get(held)?.testedBy, null);
   }
   assert.equal(manifest.metrics.coveredAfter - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   const publicV1 = methodsByKey.get("GET v1");
   assert.equal(publicV1?.status, "PUBLIC-BY-DESIGN", "Only static v1 catalog consumes historical GAP");
   assert.equal(publicV1?.testedBy, null, "Public catalog cannot claim tenant-scoped evidence");
   assert.equal(manifest.metrics.gap + 1 + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

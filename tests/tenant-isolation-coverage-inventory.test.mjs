@@ -5048,6 +5048,58 @@ test("all credited proof links point to the claimed route and every recertified 
           "All three exact-head source/contract/workflow receipts must pass");
         continue;
       }
+      if (entry.route === "employees/[id]/mwe-classifications/[classificationId]" &&
+          method.name === "PATCH") {
+        // Exactly one provisional PII-02 proof. Do not accept other files or
+        // reuse sibling GET/POST receipts; source changes require renewed CI.
+        assert.equal(path,
+          "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts");
+        assert.equal(proof.file, "scripts/qa/tenant-mwe-decision-http.mjs");
+        assert.equal(proof.contractFile, "scripts/qa/tenant-mwe-decision-contract.mjs");
+        assert.equal(proof.workflowFile, ".github/workflows/tenant-mwe-decision-http.yml");
+        assert.equal(proof.libraryFile, "src/lib/mwe-classification.ts");
+        assert.equal(proof.routeBlobSha,"b08702d9c56ae506d98be5a917119121a71bb50f");
+        assert.equal(proof.libraryBlobSha,"ee82741f6405e59dff3e9eb48cfb9820b449c99a");
+        assert.equal(proof.proofBlobSha,"ae1139b9f6396e7f02cee408c919d6acba1198d2");
+        assert.equal(proof.contractBlobSha,"8db8b3d0399cf0183f425e151a4158d69e3db9a4");
+        assert.equal(proof.workflowBlobSha,"584d159f2d2c250e182d0942188f293baebc2141");
+        for (const [pinnedPath,pinnedSha] of [
+          [path,proof.routeBlobSha], [proof.libraryFile,proof.libraryBlobSha],
+          [proof.file,proof.proofBlobSha],[proof.contractFile,proof.contractBlobSha],
+          [proof.workflowFile,proof.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(pinnedPath)),pinnedSha,
+          "MWE method source/proof drift requires renewed exact-head PostgreSQL HTTP review");
+        assert.deepEqual([
+          proof.ownPositiveLine,proof.foreignDenialLine,proof.forgedSelectorLine,
+          proof.unchangedDbLine,proof.victimIdOrderingLine,
+        ], [92,99,107,129,78]);
+        const proofLines = readableLines(proof.file);
+        assert.match(proofLines[91], /const ownPositive = await decision/);
+        assert.match(proofLines[98], /const foreignDenial = await decision/);
+        assert.match(proofLines[106], /const forgedSelector = await decision/);
+        assert.match(proofLines[128], /assert\.deepEqual\(await snapshot\(victim\.org\.id\)/);
+        assert.match(proofLines[77], /victim\.records\[0\]\.id > Math\.max\(6,/);
+        const suite = proofLines.join("\n");
+        assert.match(suite, /for \(const attacker of attackers\)/);
+        assert.match(suite, /requireDecisionPositive\(ownPositive/);
+        assert.match(suite, /requireDecisionPositive\(ownReject/);
+        assert.match(suite, /assert\.equal\(foreignDenial\.text, unknown\.text/);
+        assert.match(suite, /const wrongEmployer = await decision/);
+        assert.match(suite, /const revoked = await decision/);
+        assert.match(suite, /const knownButForbidden = await decision/);
+        assert.match(suite, /assert\.equal\(knownButForbidden\.text, missingForNonChecker\.text/);
+        assert.match(suite, /assert\.equal\(wrongEmployer\.text, unknownSecond\.text/);
+        assert.match(suite, /assert\.equal\(ungrantedEmployer\.text, unknownSelected\.text/);
+        assert.equal(proof.postgresMajor,16);
+        assert.deepEqual(proof.methodActions,["approve","reject"]);
+        assert.equal(proof.attackerEmployers,2);
+        assert.equal(proof.realVictim,true);
+        assert.equal(proof.coverageCredits,1);
+        assert.equal(proof.independentlyAccepted,false);
+        assert.equal(proof.productionCertified,false);
+        assert.equal(proof.providerCalls,0);
+        continue;
+      }
       if (entry.route === "payout-profiles" && method.name === "PATCH") {
         // This is a single source-pinned provisional development receipt,
         // never a new generic proof-source exemption or a security approval.

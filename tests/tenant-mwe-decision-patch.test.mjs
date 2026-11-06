@@ -42,23 +42,32 @@ test("the proof never runs against a real database, server or provider", () => {
   }
 });
 
-test("MWE decision source is unchanged, and only its separate PATCH proof is proposed", () => {
+test("older no-credit MWE proof is historical when the route is superseded", () => {
   assert.equal(MWE_DECISION_METHOD,
     "src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts PATCH");
-  assert.equal(blobSha(route), MWE_DECISION_SOURCE_SHA,
-    "changed route requires new exact-source proof before any credit");
+  const currentRouteSha = blobSha(route);
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const path = MWE_DECISION_METHOD.replace(/ PATCH$/, "");
+  const entry = manifest.allApiRouteFiles[path];
+  const method = entry?.methods.find(m => m.name === "PATCH");
+  assert.ok(method, "the MWE PATCH must remain individually classified");
   assert.match(route.toString("utf8"), /export async function PATCH/);
   assert.match(route.toString("utf8"), /PAYROLL_TAX_APPROVER_ROLES/);
   assert.match(route.toString("utf8"), /assertOrganizationUnitAccess/);
   assert.match(route.toString("utf8"), /requireSensitiveActionMfa/);
-  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const entry = manifest.allApiRouteFiles[MWE_DECISION_METHOD.replace(/ PATCH$/, "")];
-  const method = entry?.methods.find(m => m.name === "PATCH");
-  assert.ok(method && ["GAP", "COVERED"].includes(method.status));
-  if (method.status === "GAP") assert.equal(method.testedBy, null);
-  else {
-    assert.equal(method.testedBy?.file, "scripts/qa/tenant-mwe-decision-patch-http.mjs",
-      "method credit belongs in a separately reviewed ledger change");
+  if (currentRouteSha === MWE_DECISION_SOURCE_SHA) {
+    assert.equal(method.status, "GAP", "historical uncredited source remains a GAP");
+    assert.equal(method.testedBy, null);
+  } else {
+    // #1767's old route hash is not evidence for #1766's changed handler.
+    // The only permissible provisional credit is the independent exact-source #1766 receipt.
+    assert.equal(method.status, "COVERED");
+    assert.equal(entry.gitBlobSha, currentRouteSha);
+    assert.equal(method.testedBy?.routeBlobSha, currentRouteSha);
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-mwe-decision-http.mjs");
+    assert.equal(method.testedBy?.independentlyAccepted, false);
+    assert.equal(method.testedBy?.productionCertified, false);
+    assert.notEqual(method.testedBy?.file, "scripts/qa/tenant-mwe-decision-patch-http.mjs");
   }
 });
 

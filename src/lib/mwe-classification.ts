@@ -5,9 +5,19 @@ import {
   auditEvents,
   employeeMweClassifications,
   employees,
+  legalEntities,
+  dynamicWorkerGroups,
+  permissionSets,
   payrollEntries,
   payrollRuns,
+  userLegalEntityGrants,
+  userOrganizations,
+  userPermissionAssignments,
+  users,
 } from "@/db/schema";
+import { PAYROLL_TAX_APPROVER_ROLES } from "@/lib/access";
+import { ROLE_GATE_PERMISSIONS } from "@/lib/permissions";
+import { permissionOverlayGroupBindingValid, permissionOverlayKeysValid } from "@/lib/permission-overlay-absence";
 
 export type MweClassificationRecord = {
   id: number;
@@ -231,6 +241,8 @@ export async function decideMweClassificationRequest(input: {
   decidedByName: string;
   decision: "approve" | "reject";
   decisionNote?: string | null;
+  /** Selected employer required only when multi-entity is enabled. */
+  expectedLegalEntityId?: number | null;
 }) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`
@@ -250,11 +262,87 @@ export async function decideMweClassificationRequest(input: {
       return { kind: "forbidden" as const, message: "Maker-checker control: the requester cannot decide their own MWE classification." };
     }
 
+    // Hold the current employer attribution stable until the approval/rejection
+    // and its audit commit. A reassignment cannot bypass the request preflight.
     const [employee] = await tx.select().from(employees).where(and(
       eq(employees.id, request.employeeId),
       eq(employees.organizationId, input.organizationId),
-    )).limit(1);
+    )).for("share").limit(1);
     if (!employee) return { kind: "conflict" as const, message: "The employee record no longer exists." };
+    if (input.expectedLegalEntityId !== undefined &&
+        employee.legalEntityId !== input.expectedLegalEntityId) {
+      return { kind: "forbidden" as const, message: "Legal employer is not available to this account." };
+    }
+
+    // Revalidate and lock live authority in the SAME transaction as the tax
+    // classification and audit changes. A revoked user, role, unit, custom
+    // permission or legal-employer grant may not win a preflight/write race.
+    // The membership FOR UPDATE also serializes new FK-linked permission
+    // assignments; existing assignments/sets and grants are share-locked.
+    const [liveUser] = await tx.select({ active: users.active }).from(users)
+      .where(eq(users.id, input.decidedByUserId)).for("share").limit(1);
+    const [membership] = await tx.select({
+      id: userOrganizations.id, role: userOrganizations.role,
+      orgUnitId: userOrganizations.orgUnitId, active: userOrganizations.active,
+    }).from(userOrganizations).where(and(
+      eq(userOrganizations.userId, input.decidedByUserId),
+      eq(userOrganizations.organizationId, input.organizationId),
+    )).for("update").limit(1);
+    const permissionDenied = () => ({ kind: "forbidden" as const,
+      message: "MWE classification decision is unavailable to this account." });
+    if (!liveUser?.active || !membership?.active ||
+        !PAYROLL_TAX_APPROVER_ROLES.some(role => role === membership.role) ||
+        (membership.orgUnitId !== null && membership.orgUnitId !== employee.orgUnitId)) {
+      return permissionDenied();
+    }
+
+    const [assignment] = await tx.select().from(userPermissionAssignments).where(and(
+      eq(userPermissionAssignments.organizationId, input.organizationId),
+      eq(userPermissionAssignments.userOrganizationId, membership.id),
+    )).for("share").limit(1);
+    if (assignment) {
+      const [permissionSet] = await tx.select().from(permissionSets).where(and(
+        eq(permissionSets.id, assignment.permissionSetId),
+        eq(permissionSets.organizationId, input.organizationId),
+      )).for("share").limit(1);
+      if (!permissionSet?.active ||
+          !permissionOverlayKeysValid(permissionSet.permissions, ROLE_GATE_PERMISSIONS) ||
+          !permissionSet.permissions.includes("payroll.check") ||
+          !permissionOverlayGroupBindingValid(assignment)) return permissionDenied();
+      if (assignment.dynamicGroupId !== null) {
+        // The normal role preflight already verifies worker eligibility. Lock
+        // and recheck the backing group definition/version here without using
+        // a second pooled DB connection while this transaction owns locks.
+        const [group] = await tx.select({
+          id: dynamicWorkerGroups.id, active: dynamicWorkerGroups.active,
+          version: dynamicWorkerGroups.version,
+        }).from(dynamicWorkerGroups).where(and(
+          eq(dynamicWorkerGroups.id, assignment.dynamicGroupId),
+          eq(dynamicWorkerGroups.organizationId, input.organizationId),
+        )).for("share").limit(1);
+        if (!group?.active || group.version !== assignment.dynamicGroupVersion) return permissionDenied();
+      }
+    }
+
+    if (input.expectedLegalEntityId !== undefined) {
+      if (!Number.isSafeInteger(input.expectedLegalEntityId) ||
+          !input.expectedLegalEntityId || input.expectedLegalEntityId <= 0) {
+        return permissionDenied();
+      }
+      // Use one deterministic lock order on the transaction connection.
+      const [grant] = await tx.select({ id: userLegalEntityGrants.id }).from(userLegalEntityGrants)
+        .where(and(
+          eq(userLegalEntityGrants.organizationId, input.organizationId),
+          eq(userLegalEntityGrants.userId, input.decidedByUserId),
+          eq(userLegalEntityGrants.legalEntityId, input.expectedLegalEntityId),
+        )).for("share").limit(1);
+      const [entity] = await tx.select({ id: legalEntities.id }).from(legalEntities).where(and(
+        eq(legalEntities.id, input.expectedLegalEntityId),
+        eq(legalEntities.organizationId, input.organizationId),
+        eq(legalEntities.active, true),
+      )).for("share").limit(1);
+      if (!grant || !entity) return permissionDenied();
+    }
 
     const decidedAt = new Date();
     if (input.decision === "reject") {
