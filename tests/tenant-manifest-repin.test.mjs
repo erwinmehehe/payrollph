@@ -114,7 +114,7 @@ test("HCM refusal citations use the declared helper rather than the smaller HTTP
 
 test("staffing approved integrity citation is checked in the actual approved-mode proof", () => {
   const source = readFileSync("scripts/qa/tenant-manifest-repin.mjs", "utf8");
-  assert.ok(source.includes('field === "approvalIntegrityLine" ? "approvalPositiveFile"'));
+  assert.ok(source.includes('field === "approvalIntegrityLine" && typeof proof.approvalPositiveFile === "string"'));
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const proof = manifest.allApiRouteFiles["src/app/api/workforce/demand-staffing/policies/route.ts"]
     .methods.find(method => method.name === "GET").testedBy;
