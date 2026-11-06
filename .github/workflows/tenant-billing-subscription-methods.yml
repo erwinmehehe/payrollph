@@ -86,8 +86,10 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - name: Install exact lockfile
-        run: npm ci
+      - name: Install exact lockfile including pinned test-only database tooling
+        # NODE_ENV=production is required by the HTTP server; npm would otherwise
+        # omit drizzle-kit, causing the strict disposable db:push to fail closed.
+        run: npm ci --include=dev
       - name: Refuse unsafe fixture and test source-pinned method contracts
         run: |
           node --check scripts/qa/tenant-billing-subscription-provider-preload.mjs
