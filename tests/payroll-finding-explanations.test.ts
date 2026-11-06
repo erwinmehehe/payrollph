@@ -145,7 +145,7 @@ test("all and only current pre-run plus assurance codes have deterministic templ
     ...[...assurance.matchAll(/code:\s*"([A-Z0-9_]+)"/g)].map(match => match[1]),
     ...[...server.matchAll(/code:\s*"([A-Z0-9_]+)"/g)].map(match => match[1]),
   ]);
-  assert.equal(sourceCodes.size, 41);
+  assert.equal(sourceCodes.size, 43);
   assert.deepEqual(new Set(Object.keys(PAYROLL_FINDING_EXPLANATION_TEMPLATES)), sourceCodes);
   for (const code of sourceCodes) {
     const block = PAYROLL_FINDING_EXPLANATION_TEMPLATES[code];
