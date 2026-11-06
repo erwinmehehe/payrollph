@@ -166,13 +166,37 @@ export async function verifyMweDecisionHttp() {
     }
 
     // Both attackers must fail to modify a real foreign employer's populated row.
-    // Foreign employer denial is distinct from 404 on a swapped classification path.
+    // Foreign and unknown IDs must yield the SAME private/no-store 404. A different
+    // status would leak record existence and conflict with the now-hardened handler.
     for (let i = 0; i < 2; i++) {
       const e = people[i], { checker, cookie, membership } = checkers[i];
-      await deny(e, e.cookie, e.worker.id, e.pending.id, "approve", 403,
+      // A maker cannot distinguish their own forbidden decision from an
+      // unknown classification. Keep the response and private cache policy
+      // identical rather than restoring the old existence-revealing 403.
+      const makerDenied = await deny(e, e.cookie, e.worker.id, e.pending.id, "approve", 404,
         "maker self-approval");
-      await deny(e, cookie, victim.worker.id, victim.pending.id, "approve", 403,
+      const makerUnknown = await deny(e, e.cookie, e.worker.id, e.pending.id + 1_000_000,
+        "approve", 404, "maker unknown classification denial");
+      assert.equal(makerDenied.text, makerUnknown.text,
+        "self-approval denial must not disclose classification existence");
+      assert.equal(makerDenied.headers.get("cache-control"), makerUnknown.headers.get("cache-control"),
+        "self-approval and unknown classification must have the same private cache policy");
+      const foreign = await deny(e, cookie, victim.worker.id, victim.pending.id, "approve", 404,
         "foreign employer denial", { organizationId: e.org.id });
+      const unknown = await deny(e, cookie, victim.worker.id, victim.pending.id + 1_000_000,
+        "approve", 404, "unknown classification denial", { organizationId: e.org.id });
+      assert.equal(foreign.text, unknown.text,
+        "foreign and unknown classification IDs must not reveal existence");
+      const deniedCache = foreign.headers.get("cache-control") ?? "<missing>";
+      for (const directive of ["private", "no-store"]) {
+        assert.ok(deniedCache.split(",").some(value => value.trim().toLowerCase() === directive),
+          "foreign classification denial must be private/no-store; missing " + directive
+          + "; observed Cache-Control=" + JSON.stringify(deniedCache)
+          + ", content-type=" + JSON.stringify(foreign.headers.get("content-type"))
+          + ", response=" + JSON.stringify(foreign.text.slice(0, 160)));
+      }
+      assert.equal(foreign.headers.get("cache-control"), unknown.headers.get("cache-control"),
+        "foreign and missing classification cache policy must agree");
       await deny(e, cookie, e.worker.id, victim.pending.id, "approve", 404,
         "swapped classification path");
       await deny(e, cookie, victim.worker.id, e.pending.id, "approve", 404,
@@ -182,8 +206,12 @@ export async function verifyMweDecisionHttp() {
       await deny(e, cookie, "not-a-number", e.pending.id, "approve", 400,
         "invalid employee ID");
       await db.update(userOrganizations).set({ active: false }).where(eq(userOrganizations.id, membership.id));
-      await deny(e, cookie, e.worker.id, e.pending.id, "approve", 403,
+      const revoked = await deny(e, cookie, e.worker.id, e.pending.id, "approve", 404,
         "revoked checker grant");
+      assert.equal(revoked.text, unknown.text,
+        "revoked membership must be indistinguishable from missing classification");
+      assert.equal(revoked.headers.get("cache-control"), unknown.headers.get("cache-control"),
+        "revoked membership must keep private/no-store denial");
       await db.update(userOrganizations).set({ active: true }).where(eq(userOrganizations.id, membership.id));
       assert.notEqual(checker.id, e.owner.id);
     }
