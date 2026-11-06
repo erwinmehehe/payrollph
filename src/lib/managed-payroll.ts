@@ -46,8 +46,11 @@ function canonicalizeManagedPayrollValue(value: unknown): unknown {
   return value;
 }
 
-export async function managedPayrollRunFingerprint(payrollRunId: number) {
-  const rows = await db.select({
+export async function managedPayrollRunFingerprint(
+  payrollRunId: number,
+  reader: Pick<typeof db, "select"> = db,
+) {
+  const rows = await reader.select({
     employeeId: payrollEntries.employeeId,
     grossPay: payrollEntries.grossPay,
     deductions: payrollEntries.deductions,
