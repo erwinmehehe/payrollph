@@ -1,3 +1,4 @@
+import { deductionDisplayAmount, payslipLineBucket } from "./payslip-line-buckets";
 export type ExplainPayEntryInput = {
   grossPay: string | number;
   deductions: string | number;
@@ -136,7 +137,13 @@ function reasonFor(line: StoredLine, values: Map<string, string>, narrative: str
   }
   if (code === "HOLIDAY") return note || narrative.find((item) => /holiday/i.test(item)) || "Holiday or rest-day premium from attendance.";
   if (code === "CALAMITY") return note || narrative.find((item) => /calamity|hazard/i.test(item)) || "Configured calamity or hazard premium.";
-  return note || (line.amount >= 0 ? "Stored earning included in gross pay." : "Stored deduction included in this payroll entry.");
+  if (code === "YE-TAX" || code.startsWith("YE-TAX-")) {
+    return note || (line.amount > 0
+      ? "Approved year-end tax refund. It is not compensation: it reduces this payslip's deductions."
+      : "Approved year-end tax collection withheld from this payslip.");
+  }
+  const bucket = payslipLineBucket(line);
+  return note || (bucket === "deduction" ? "Stored deduction included in this payroll entry." : "Stored earning included in gross pay.");
 }
 
 export function buildPayExplanation(current: ExplainPayEntryInput, previous: ExplainPayEntryInput | null = null): ExplainPayModel {
@@ -151,9 +158,13 @@ export function buildPayExplanation(current: ExplainPayEntryInput, previous: Exp
     const basis = currentLine ?? previousLine!;
     const signedCurrent = currentLine?.amount ?? 0;
     const signedPrevious = previousLine?.amount ?? 0;
-    const direction: "earning" | "deduction" = signedCurrent < 0 || (signedCurrent === 0 && signedPrevious < 0) ? "deduction" : "earning";
-    const currentAmount = cents(Math.abs(signedCurrent));
-    const previousAmount = previous ? cents(Math.abs(signedPrevious)) : null;
+    // Same economic buckets as the payslip views (src/lib/payslip-line-buckets.ts), never the bare sign: a positive year-end
+    // refund is a deduction CREDIT (shown negative) and unpaid leave / negative retro stay in earnings (shown negative).
+    const bucketLine = signedCurrent !== 0 ? { code: basis.code, amount: signedCurrent } : { code: basis.code, amount: signedPrevious };
+    const direction: "earning" | "deduction" = payslipLineBucket(bucketLine) ?? "earning";
+    const shown = (signed: number) => cents(direction === "deduction" ? deductionDisplayAmount({ amount: signed }) : signed);
+    const currentAmount = shown(signedCurrent);
+    const previousAmount = previous ? shown(signedPrevious) : null;
     const delta = previousAmount == null ? null : cents(currentAmount - previousAmount);
     return {
       code: basis.code,

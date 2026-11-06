@@ -16,7 +16,7 @@ const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest
 const cases = [
   ["POST", "bir/annual-employer/candidate", 1676, "abe1600a2df31f513cda152bed828fd5567fd72e",
     "b0344f6af31b58456772cd46a07af46291c11ad0", 136, 153, 157, 170, 68, "object ID > 6"],
-  ["POST", "leave/conversion", 1675, "b16f4adfdf6c6dc14813360045bb8f0efaf10892",
+  ["POST", "leave/conversion", 1789, "b9ae9ca73fea870eac0ebbab42e2a7f3446613cb",
     "bc90fac8e0023c4e8f8d879c31447bd4f666787f", 111, 128, 130, 141, 96, "victim"],
   ["POST", "payroll/overpayment-preflight", 1674, "ec0e8b081c52bb8b22b7911c886c2005e45312f2",
     "24a475e0c695a97789d01b22da22ebd3d361f3f6", 84, 95, 99, 114, 58, "victim"],

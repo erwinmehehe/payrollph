@@ -4945,7 +4945,7 @@ test("all credited proof links point to the claimed route and every recertified 
         continue;
       }
       const promotedWrites = new Map([
-        ["leave/conversion", ["scripts/qa/tenant-leave-conversion-post-http.mjs", 41264782087]],
+        ["leave/conversion", ["scripts/qa/tenant-leave-conversion-post-http.mjs", 42153538138]],
         ["payroll/overpayment-preflight", ["scripts/qa/tenant-overpayment-preflight-post-http.mjs", 41264867045]],
         ["outbox", ["scripts/qa/tenant-edg02-outbox-http.mjs", 41306939767]],
         ["treasury-controls", ["scripts/qa/tenant-mny02-treasury-http.mjs", 41319237095]],
@@ -6271,8 +6271,8 @@ test("xendit payout webhook credit requires the exact passing run, byte-pinned i
 test("2026-11-02 exact-head promotion sweep pins six four-part method receipts and preserves holds", () => {
   const specs = [
     ["leave/conversion", "scripts/qa/tenant-leave-conversion-post-http.mjs", "bc90fac8e0023c4e8f8d879c31447bd4f666787f",
-      "ea56239a4221ec85232719d7ad81159e1477c7ce", ".github/workflows/tenant-leave-conversion-post-http.yml", "9c4c7a18465193604de3489fba109620603b03c5",
-      1675, "b16f4adfdf6c6dc14813360045bb8f0efaf10892", 41264782087, 111, 128, 130, 141,
+      "baa29dc6098085b67fa80bb9e3657964f0045b2c", ".github/workflows/tenant-leave-conversion-post-http.yml", "9c4c7a18465193604de3489fba109620603b03c5",
+      1789, "b9ae9ca73fea870eac0ebbab42e2a7f3446613cb", 42153538138, 111, 128, 130, 141,
       "const result = expect(await request(e, ownBody(e)), 201,", "const org = expect(await request(attacker, ownBody(victim)), 403,",
       "const forged = expect(await request(attacker, {", "assert.deepEqual(await snapshot(e), before.get(e.org.id),"],
     ["payroll/overpayment-preflight", "scripts/qa/tenant-overpayment-preflight-post-http.mjs", "24a475e0c695a97789d01b22da22ebd3d361f3f6",
