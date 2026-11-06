@@ -98,6 +98,17 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0" },
         ],
       },
+      // Operational POS demand reads and import responses include private tenant
+      // source metadata. Next's global API cache directive overrides the route
+      // response; keep the wire-level policy private and uncacheable.
+      {
+        source: "/api/workforce/demand-observations/loyverse",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
+      {
+        source: "/api/workforce/demand-observations/square-sandbox",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
       // Private approval and missing-run responses must stay private on the wire.
       {
         source: "/api/managed-payroll/runs/:id/approve",
