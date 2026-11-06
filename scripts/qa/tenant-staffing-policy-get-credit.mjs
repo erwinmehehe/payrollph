@@ -8,6 +8,38 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 export const STAFFING_GET_ROUTE = "src/app/api/workforce/demand-staffing/policies/route.ts";
+/** Fresh source-current PG16 HTTP proof is supplementary to the immutable #1637 history.
+ * Do not treat the old proof as valid for the changed integrity helper alone.
+ * This overlay grants zero new credits and still awaits domain/security review.
+ */
+export const STAFFING_GET_INTEGRITY_REPROOF = Object.freeze({
+  "kind": "staffing-approved-integrity-disposable-pg16-http-supplement",
+  "prNumber": 1793,
+  "verifiedPrHeadSha": "c563b772117b6c53686d0c0da6602bc29f75788f",
+  "workflowRunId": 42187409312,
+  "workflowJobId": 127790928217,
+  "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42187409312/job/127790928217",
+  "helperFile": "src/lib/workforce-demand-staffing-policy-server.ts",
+  "helperBlobSha": "995ede7fb6c2757053b10ff9b55ac24838bb017a",
+  "proofFile": "scripts/qa/tenant-staffing-policy-approved-integrity-http.mjs",
+  "proofBlobSha": "7e37df8cb2e7b97da115432aeb97325a770b2c7c",
+  "contractFile": "tests/tenant-staffing-policy-approved-integrity-http.test.mjs",
+  "contractBlobSha": "663d1b922baf7251fbacb3d7a083f3a89729a514",
+  "workflowFile": ".github/workflows/tenant-staffing-policy-approved-integrity-http.yml",
+  "workflowBlobSha": "170a54f3ca906036b23552f37cca8263ee8d7bac",
+  "positiveOwnEmployers": 2,
+  "higherIdVictim": true,
+  "tamperedContentDenied": true,
+  "tamperedReceiptDenied": true,
+  "missingReceiptDenied": true,
+  "foreignSqlUnchanged": true,
+  "coverageCredits": 0,
+  "reviewStatus": "PENDING",
+  "independentlyAccepted": false,
+  "productionCertified": false,
+  "payrollOrProviderOperations": 0
+});
+
 export const STAFFING_GET_EVIDENCE = Object.freeze({
   "file": "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs",
   "line": 105,
@@ -53,7 +85,8 @@ export const STAFFING_GET_EVIDENCE = Object.freeze({
   "productionTested": false,
   "providerCalls": 0,
   "payrollWrites": 0,
-  "rosterWrites": 0
+  "rosterWrites": 0,
+  "integrityReproof": STAFFING_GET_INTEGRITY_REPROOF
 });
 
 /**
@@ -66,7 +99,7 @@ export const STAFFING_GET_HELPER_BLOBS = Object.freeze({
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
   "src/lib/workforce-operational-demand-scope.ts": "ba75509804307a0bc4e68b829efc855a3e4cbae7",
-  "src/lib/workforce-demand-staffing-policy-server.ts": "0d8cca8b0403d07d24c1377c5bbec71e2c96eb7a",
+  "src/lib/workforce-demand-staffing-policy-server.ts": "995ede7fb6c2757053b10ff9b55ac24838bb017a",
   "src/lib/workforce-demand-staffing-policy.ts": "03f7e150d18092566cd2197568370f65e1cc6d0b",
   "src/lib/workforce-issued-demand-validation.ts": "2e56bc0fc2d64da310c5b936d08ae6f6adfa456a",
   "src/lib/workforce-schedule-receipt.ts": "1a1719a9681eaadb0caa0ff933192f846645d3c6",
@@ -96,6 +129,37 @@ export function verifyStaffingPolicyGetCredit(manifest, read = readFileSync) {
   assert.match(method?.reason ?? "", /^Provisional /);
   assert.deepEqual(method?.testedBy, STAFFING_GET_EVIDENCE,
     "Never borrow another method or claim invented coverage receipts");
+
+  // Old #1637 GET proof remains immutable, but the modified authorization and
+  // integrity helper is accepted only with this separate actual PG16 HTTP run.
+  const supplemental = method?.testedBy?.integrityReproof;
+  assert.deepEqual(supplemental, STAFFING_GET_INTEGRITY_REPROOF,
+    "Updated helper requires separately pinned, passing two-employer negative HTTP evidence");
+  assert.equal(supplemental.coverageCredits, 0, "No new method credit from supplemental test");
+  assert.equal(supplemental.reviewStatus, "PENDING", "Do not invent independent security approval");
+  assert.equal(supplemental.independentlyAccepted, false);
+  assert.equal(supplemental.productionCertified, false);
+  assert.equal(supplemental.helperBlobSha,
+    STAFFING_GET_HELPER_BLOBS["src/lib/workforce-demand-staffing-policy-server.ts"]);
+  for (const [path, expected] of [
+    [supplemental.proofFile, supplemental.proofBlobSha],
+    [supplemental.contractFile, supplemental.contractBlobSha],
+    [supplemental.workflowFile, supplemental.workflowBlobSha],
+  ]) assert.equal(gitBlob(path, read), expected,
+    path + ": new security-integrity proof drifted; re-run PG16 before retaining provisional credit");
+  const newProof = readFileSync(supplemental.proofFile, "utf8");
+  for (const dimension of [
+    "for (const e of [a, b, victim]) await approve(e)",
+    "victim.policy.id > a.policy.id && victim.policy.id > b.policy.id",
+    'await verified(e, false, "source_review"',
+    'set({ contentSha256: "f".repeat(64) })',
+    'set({ receiptSha256: "f".repeat(64) })',
+    'await db.delete(s.workforceDemandStaffingPolicyEvents)',
+    'await unchangedForeign(e, foreignBefore',
+    "coverageCredits: 0, productionCertified: false",
+  ]) assert.ok(newProof.includes(dimension),
+    "Missing supplemental fail-closed HTTP dimension: " + dimension);
+
   assert.equal(method.testedBy.ownerIsOnlyReviewer, true);
   assert.equal(method.testedBy.independentlyAccepted, false);
   assert.equal(method.testedBy.productionCertified, false);
@@ -109,7 +173,8 @@ export function verifyStaffingPolicyGetCredit(manifest, read = readFileSync) {
     [STAFFING_GET_EVIDENCE.approvalPositiveFile, STAFFING_GET_EVIDENCE.approvedProofBlobSha],
     [STAFFING_GET_EVIDENCE.approvedWorkflowFile, STAFFING_GET_EVIDENCE.approvedWorkflowBlobSha],
   ]) assert.equal(gitBlob(path, read), expected, path + ": stale source proof; revoke credit");
-  // Protect transitive source equivalence for the historical two-mode proof.
+  // The helper's exact current blob is checked below by the existing fail-closed
+  // transitive-source guard, preserving its established mutation-test error.
   // CI and the path-triggered guard both enforce this fail-closed check.
   for (const [path, expected] of Object.entries(STAFFING_GET_HELPER_BLOBS)) {
     assert.equal(gitBlob(path, read), expected,

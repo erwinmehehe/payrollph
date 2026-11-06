@@ -1,0 +1,70 @@
+{
+  "version": "phase6-statutory-boundaries-2026-11-06",
+  "toleranceCentavos": 0,
+  "description": "Engine-backed golden cases at the statutory edges that Phases 1-5 step over: the SSS EC threshold and MSC cap, the PhilHealth premium floor, and the withholding-table bracket edges. Every expected value is hand-derived below from the published rules, never copied from engine output.",
+  "sources": {
+    "sss": "SSS Circular 2024-006 (effective 2025-01-01): employee 5% and employer 10% of the monthly salary credit (MSC); MSC floor 5,000, cap 35,000, step 500, so compensation from X250 to X749.99 maps to MSC X500/X000 (14,750 -> 15,000; 34,750 -> 35,000); EC is 10 per month when MSC < 15,000 and 30 from MSC 15,000.",
+    "philHealth": "PhilHealth 2024 schedule: 5% premium on a base of at least 10,000 and at most 100,000, shared equally between employee and employer.",
+    "pagIbig": "Pag-IBIG Fund (effective 2024-02): 2% employee and 2% employer of the fund salary, capped at a fund salary of 10,000.",
+    "bir": "BIR Revised Withholding Tax Tables effective 2023 onward, semi-monthly: taxable <= 10,417 exempt; 10,417-16,667 at 15% over 10,417; 16,667-33,333 at 937.50 + 20% over 16,667; 33,333-83,333 at 4,270.70 + 25% over 33,333. Taxable compensation = cutoff gross - employee SSS, PhilHealth and Pag-IBIG."
+  },
+  "assumptions": [
+    "Monthly-salaried employees, September 1-15 2026 cutoff, no attendance deductions, allowances, loans or leave. Statutory deduction timing is 'split', so each cutoff carries 50% of the monthly contribution (EC and employer shares likewise).",
+    "MSC is derived from the monthly salary as the full monthly compensation. The employee is 'Active' in NCR.",
+    "Salaries 9,000 and 14,740-14,760 are below the NCR minimum-wage equivalent. They are valid fictional part-time rates used to reach the SSS and PhilHealth edges, and the engine only flags them for review.",
+    "Withholding is rounded to the centavo. Salaries were chosen so no hand value sits on a half-centavo."
+  ],
+  "cases": {
+    "sssBelowEcThreshold": {
+      "description": "Monthly 14,740: MSC 14,500 (14,250-14,749.99). EE 5% = 725 -> 362.50 per cutoff; ER 10% = 1,450 -> 725.00; EC 10/month -> 5.00. PhilHealth 14,740 x 2.5% = 368.50 -> 184.25. Pag-IBIG fund salary capped at 10,000: 2% = 200 -> 100. Gross 7,370. Taxable = 7,370 - 362.50 - 184.25 - 100 = 6,723.25 (<= 10,417: no tax). Net 6,723.25.",
+      "salary": 14740,
+      "expected": { "grossPay": 7370, "sss": 362.5, "philHealth": 184.25, "pagIbig": 100, "taxableCompensation": 6723.25, "withholdingTax": 0, "deductions": 646.75, "netPay": 6723.25, "sssEmployer": 725, "ecEmployer": 5, "philHealthEmployer": 184.25, "pagIbigEmployer": 100 }
+    },
+    "sssAtEcThreshold": {
+      "description": "Monthly 14,760, 20 pesos over 14,740 but across the 14,750 edge: MSC 15,000 (14,750-15,249.99). EE 750 -> 375.00; ER 1,500 -> 750.00; EC 30/month -> 15.00 (EC steps from 10 to 30 at MSC 15,000). PhilHealth 14,760 x 2.5% = 369 -> 184.50. Pag-IBIG 100. Gross 7,380. Taxable = 7,380 - 375 - 184.50 - 100 = 6,720.50. Net 6,720.50, which is LOWER than the 14,740 worker's 6,723.25 despite higher pay.",
+      "salary": 14760,
+      "expected": { "grossPay": 7380, "sss": 375, "philHealth": 184.5, "pagIbig": 100, "taxableCompensation": 6720.5, "withholdingTax": 0, "deductions": 659.5, "netPay": 6720.5, "sssEmployer": 750, "ecEmployer": 15, "philHealthEmployer": 184.5, "pagIbigEmployer": 100 }
+    },
+    "sssBelowCap": {
+      "description": "Monthly 34,740: MSC 34,500 (34,250-34,749.99). EE 1,725 -> 862.50; ER 3,450 -> 1,725.00; EC 30 -> 15.00. PhilHealth 868.50 -> 434.25. Pag-IBIG 100. Gross 17,370. Statutory 862.50 + 434.25 + 100 = 1,396.75. Taxable 15,973.25. Tax = (15,973.25 - 10,417) x 15% = 833.4375 -> 833.44. Deductions 2,230.19. Net 15,139.81.",
+      "salary": 34740,
+      "expected": { "grossPay": 17370, "sss": 862.5, "philHealth": 434.25, "pagIbig": 100, "taxableCompensation": 15973.25, "withholdingTax": 833.44, "deductions": 2230.19, "netPay": 15139.81, "sssEmployer": 1725, "ecEmployer": 15, "philHealthEmployer": 434.25, "pagIbigEmployer": 100 }
+    },
+    "sssAtCap": {
+      "description": "Monthly 34,780: MSC 35,000 (34,750 and above, the cap). EE 1,750 -> 875.00; ER 3,500 -> 1,750.00; EC 15.00. PhilHealth 869.50 -> 434.75. Pag-IBIG 100. Gross 17,390. Statutory 875 + 434.75 + 100 = 1,409.75. Taxable 15,980.25. Tax = (15,980.25 - 10,417) x 15% = 834.4875 -> 834.49. Deductions 2,244.24. Net 15,145.76.",
+      "salary": 34780,
+      "expected": { "grossPay": 17390, "sss": 875, "philHealth": 434.75, "pagIbig": 100, "taxableCompensation": 15980.25, "withholdingTax": 834.49, "deductions": 2244.24, "netPay": 15145.76, "sssEmployer": 1750, "ecEmployer": 15, "philHealthEmployer": 434.75, "pagIbigEmployer": 100 }
+    },
+    "philHealthBelowFloor": {
+      "description": "Monthly 9,000: PhilHealth uses the 10,000 floor, not the salary: 5% x 10,000 = 500, employee half 250 -> 125.00 per cutoff (5% of 9,000 would be 112.50). SSS: MSC 9,000 (8,750-9,249.99), EE 450 -> 225.00, ER 900 -> 450.00, EC 10 -> 5.00. Pag-IBIG fund salary 9,000: 2% = 180 -> 90.00 each. Gross 4,500. Statutory 225 + 125 + 90 = 440. Taxable 4,060, no tax. Net 4,060.",
+      "salary": 9000,
+      "expected": { "grossPay": 4500, "sss": 225, "philHealth": 125, "pagIbig": 90, "taxableCompensation": 4060, "withholdingTax": 0, "deductions": 440, "netPay": 4060, "sssEmployer": 450, "ecEmployer": 5, "philHealthEmployer": 125, "pagIbigEmployer": 90 }
+    },
+    "taxInFifteenPercentBracket": {
+      "description": "Monthly 36,000: gross 18,000. SSS 875, PhilHealth 450, Pag-IBIG 100 -> taxable 16,575 (just under the 16,667 edge). Tax = (16,575 - 10,417) x 15% = 923.70. Deductions 1,425 + 923.70 = 2,348.70. Net 15,651.30.",
+      "salary": 36000,
+      "expected": { "grossPay": 18000, "sss": 875, "philHealth": 450, "pagIbig": 100, "taxableCompensation": 16575, "withholdingTax": 923.7, "deductions": 2348.7, "netPay": 15651.3, "sssEmployer": 1750, "ecEmployer": 15, "philHealthEmployer": 450, "pagIbigEmployer": 100 }
+    },
+    "taxJustPastTwentyPercentEdge": {
+      "description": "Monthly 36,200: gross 18,100. SSS 875, PhilHealth 452.50, Pag-IBIG 100 -> taxable 16,672.50 (5.50 past the 16,667 edge). Tax = 937.50 + (16,672.50 - 16,667) x 20% = 937.50 + 1.10 = 938.60. Deductions 1,427.50 + 938.60 = 2,366.10. Net 15,733.90.",
+      "salary": 36200,
+      "expected": { "grossPay": 18100, "sss": 875, "philHealth": 452.5, "pagIbig": 100, "taxableCompensation": 16672.5, "withholdingTax": 938.6, "deductions": 2366.1, "netPay": 15733.9, "sssEmployer": 1750, "ecEmployer": 15, "philHealthEmployer": 452.5, "pagIbigEmployer": 100 }
+    },
+    "taxTopOfTwentyPercentBracket": {
+      "description": "Monthly 70,000: gross 35,000. SSS 875, PhilHealth 875, Pag-IBIG 100 -> taxable 33,150 (just under the 33,333 edge). Tax = 937.50 + (33,150 - 16,667) x 20% = 937.50 + 3,296.60 = 4,234.10. Deductions 1,850 + 4,234.10 = 6,084.10. Net 28,915.90.",
+      "salary": 70000,
+      "expected": { "grossPay": 35000, "sss": 875, "philHealth": 875, "pagIbig": 100, "taxableCompensation": 33150, "withholdingTax": 4234.1, "deductions": 6084.1, "netPay": 28915.9, "sssEmployer": 1750, "ecEmployer": 15, "philHealthEmployer": 875, "pagIbigEmployer": 100 }
+    },
+    "taxJustPastTwentyFivePercentEdge": {
+      "description": "Monthly 70,400: gross 35,200. SSS 875, PhilHealth 880, Pag-IBIG 100 -> taxable 33,345 (12 past the 33,333 edge). Tax = 4,270.70 + (33,345 - 33,333) x 25% = 4,270.70 + 3.00 = 4,273.70. Deductions 1,855 + 4,273.70 = 6,128.70. Net 29,071.30. Higher pay than the 70,000 worker by 200, and only 156.60 more net.",
+      "salary": 70400,
+      "expected": { "grossPay": 35200, "sss": 875, "philHealth": 880, "pagIbig": 100, "taxableCompensation": 33345, "withholdingTax": 4273.7, "deductions": 6128.7, "netPay": 29071.3, "sssEmployer": 1750, "ecEmployer": 15, "philHealthEmployer": 880, "pagIbigEmployer": 100 }
+    }
+  },
+  "limitations": [
+    "Regular 13th-month pay is not computed by regular payroll runs (only final pay and year-end), so it is not covered by this phase.",
+    "The PhilHealth 100,000 ceiling and Pag-IBIG 10,000 cap are already exercised by Phase 2A (salaries of 100,000 and above and 10,000 and above).",
+    "Daily-paid and hourly workers' statutory contributions are not asserted.",
+    "Second-cutoff statutory true-up (month-to-date reconciliation) is covered by Phase 2B."
+  ]
+}
