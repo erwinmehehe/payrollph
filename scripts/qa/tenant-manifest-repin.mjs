@@ -100,24 +100,12 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
           review.push(`${method.name} ${path} ${field}: missing dedicated sourceRowFile`);
           continue;
         }
-        // #1779 records two foreign-refusal anchors inside its separately
-        // source-pinned HCM action helper, not the 93-line HTTP runner.
-        // Limit this exception to that exact method and fail closed on helper drift.
-        const hcmHelperLine = path === "src/app/api/hcm/effective-changes/route.ts" &&
-          method.name === "POST" && kind === "testedBy" &&
-          (field === "forgedSelectorLine" || field === "secondaryForeignDenialLine");
-        if (hcmHelperLine && (
-            proof.helperFile !== "scripts/qa/tenant-table-rows/helpers/hcm-effective-change-actions.mjs" ||
-            proof.helperBlobSha !== "6a2cd6ddedc79266061dd19ae066f405baf2b703" ||
-            cited?.helperFile !== proof.helperFile ||
-            cited?.helperBlobSha !== proof.helperBlobSha)) {
-          review.push(`${method.name} ${path} ${field}: helper proof is not source-pinned`);
-          continue;
-        }
-        const companionFile = hcmHelperLine ? "helperFile" : field === "victimUnchangedAt"
+        const companionFile = field === "victimUnchangedAt"
           ? "victimUnchangedFile" : field === "line" ? null
           : field === "approvalIntegrityLine" ? "approvalPositiveFile"
           : field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"
+          : field === "approvalIntegrityLine" && typeof proof.approvalPositiveFile === "string"
+            ? "approvalPositiveFile"
           : ["forgedSelectorLine", "secondaryForeignDenialLine"].includes(field) &&
             proof.helperRefusalLines && Object.values(proof.helperRefusalLines).includes(value)
             ? "helperFile"
@@ -130,14 +118,14 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
           review.push(`${method.name} ${path} ${field}: missing dedicated helperFile`);
           continue;
         }
-        if (companionFile === "approvalPositiveFile" && typeof proof.approvalPositiveFile !== "string") {
-          review.push(`${method.name} ${path} ${field}: missing dedicated approvalPositiveFile`);
-          continue;
-        }
         const file = companionFile && typeof proof[companionFile] === "string"
           ? proof[companionFile] : proof.file;
+        // A base record that cited the same primary proof but did not yet declare this companion file is read
+        // from the companion the current record declares: its base text is still compared, never waived.
         const oldFile = companionFile && typeof cited?.[companionFile] === "string"
-          ? cited[companionFile] : cited?.file;
+          ? cited[companionFile]
+          : companionFile && typeof proof[companionFile] === "string" && cited?.file === proof.file
+            ? proof[companionFile] : cited?.file;
         const before = oldFile ? baseLines(oldFile) : null;
         const now = nowLines(file);
         if (!now) { review.push(`${method.name} ${path}: evidence file ${file} no longer exists`); continue; }

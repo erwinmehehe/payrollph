@@ -227,8 +227,12 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
   const moneyMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
     .filter(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
-  assert.equal(moneyMethods.length, 7,
-    "The seven non-process money methods retain their exact own-success/foreign-denial proofs");
+  assert.equal(moneyMethods.length, 9,
+    "The seven non-process money methods plus payroll submit-review and release retain their exact own-success/foreign-denial proofs");
+  assert.deepEqual(Object.values(manifest.allApiRouteFiles)
+    .filter(r => r.methods.some(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs") && r.route.startsWith("payroll-runs/"))
+    .map(r => r.route).sort(), ["payroll-runs/[id]/release", "payroll-runs/[id]/submit-review"],
+    "Only submit-review and release borrow the money-lifecycle payroll journey");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
 

@@ -198,7 +198,18 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     methods: Array<{ status: string; testedBy?: { file: string } }>;
   }>).flatMap(route => route.methods).filter(method =>
     method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
-  assert.equal(moneyMethods.length, 7, "The changed process POST has a new flag-ON blocked-source proof, leaving seven legacy money-input method credits");
+  const reviewReleaseCredits = ["submit-review", "release"].map(action => {
+    const method = manifest.allApiRouteFiles[`src/app/api/payroll-runs/[id]/${action}/route.ts`]
+      .methods.find((item: { name: string }) => item.name === "POST");
+    if (method.status !== "COVERED") return 0;
+    assert.equal(method.testedBy.file, "scripts/qa/tenant-money-lifecycle-http.mjs");
+    assert.equal(method.testedBy.workflowRunId, 42063867383);
+    assert.equal(method.testedBy.productionTested, false);
+    assert.equal(method.testedBy.independentSecurityReview, "PENDING");
+    return 1;
+  }).reduce<number>((sum, credit) => sum + credit, 0);
+  assert.equal(moneyMethods.length, 7 + reviewReleaseCredits,
+    "Seven legacy money inputs plus only the two separately receipted payroll lifecycle credits");
   assert.ok(moneyMethods.every(method => method.status === "COVERED"));
   const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
   const underpaymentLines = readFileSync(underpaymentFile, "utf8").split("\n");
