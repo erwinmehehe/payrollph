@@ -76,15 +76,11 @@ test("source negative controls reject removed download, staging or commit bounda
   }
 });
 
-test("receipt methods stay GAP without independent real PG16 HTTP acceptance", () => {
+test("receipt provisional credits require exact merged PG16 HTTP evidence", async () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = manifest.allApiRouteFiles[path];
   assert.deepEqual(record.methods.map(item => item.name).sort(), ["GET", "POST"]);
-  for (const method of record.methods) {
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
-    assert.equal(method.reviewedUncertified?.coverageCredits, 0);
-    assert.equal(method.reviewedUncertified?.realHttpPg16Proven, false);
-    assert.equal(method.reviewedUncertified?.independentSecurityReview, "PENDING");
-  }
+  const {verifyReceiptCredits}=await import("../scripts/qa/tenant-receipt-credit.mjs");
+  assert.equal(verifyReceiptCredits(manifest),2);
+  for (const method of record.methods) assert.equal(method.testedBy.independentSecurityReview,"PENDING");
 });

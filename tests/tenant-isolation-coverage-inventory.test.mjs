@@ -1,4 +1,5 @@
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
+import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -238,6 +239,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       key + ": public endpoint needs a concrete reviewed reason");
   }
   if (method.status === "COVERED") {
+    if (key.startsWith("src/app/api/expenses/receipts/route.ts ")) verifyReceiptCredits(manifest);
     const proof = method.testedBy;
     assert.ok(proof && typeof proof === "object", key + ": COVERED requires a valid proof reference");
     evidenceLine(proof.file, proof.line, key);
@@ -5240,6 +5242,10 @@ test("all credited proof links point to the claimed route and every recertified 
           method.name === "GET") {
         assert.equal(proof.file, "scripts/qa/tenant-wfm-demand-read-overlay-http.mjs");
         assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
+        continue;
+      }
+      if (path === "src/app/api/expenses/receipts/route.ts" && ["GET", "POST"].includes(method.name)) {
+        assert.equal(verifyReceiptCredits(manifest), 2);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",

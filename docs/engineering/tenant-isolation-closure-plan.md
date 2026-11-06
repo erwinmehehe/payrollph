@@ -1,6 +1,6 @@
 ## 2026-11-06 PR #1766 reconciled with merged #1784 — PROVISIONAL, NOT ACCEPTED
 
-**Current combined branch ledger: 498 methods = 417 COVERED + 11 PUBLIC-BY-DESIGN + 70 GAP; frozen 406 = 333 COVERED + 3 PUBLIC-BY-DESIGN + 70 GAP.** `POST auth/logout` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1795 (merge commit `b18244790`, passing head `b32c2286e`, [run 42203481558](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303)); independent review PENDING. `POST account/password` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1794 (merge commit `1d475f4e7`, passing head `374fe6d50`, [run 42183409095](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531)); independent review PENDING. Retains separate provisional staffing-policy GET, payroll submit-review/release POST, and MWE decision PATCH evidence. Exact integrated-head CI and independent security/payroll-tax review are pending. No production deployment, payroll release, payout, or tenant-wide acceptance.
+**Current combined branch ledger: 498 methods = 419 COVERED + 11 PUBLIC-BY-DESIGN + 68 GAP; frozen 406 = 335 COVERED + 3 PUBLIC-BY-DESIGN + 68 GAP.** `POST auth/logout` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1795 (merge commit `b18244790`, passing head `b32c2286e`, [run 42203481558](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303)); independent review PENDING. `POST account/password` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1794 (merge commit `1d475f4e7`, passing head `374fe6d50`, [run 42183409095](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531)); independent review PENDING. Retains separate provisional staffing-policy GET, payroll submit-review/release POST, and MWE decision PATCH evidence. Exact integrated-head CI and independent security/payroll-tax review are pending. No production deployment, payroll release, payout, or tenant-wide acceptance.
 
 ## 2026-11-06 PR #1784 synchronized with main — PROVISIONAL, NOT ACCEPTED
 
@@ -179,7 +179,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 27 | 0 | 6 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 35 | 0 | 3 | INCOMPLETE |
@@ -189,7 +189,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 6 | 0 | 27 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **333 COVERED + 3 PUBLIC-BY-DESIGN + 70 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **335 COVERED + 3 PUBLIC-BY-DESIGN + 68 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
