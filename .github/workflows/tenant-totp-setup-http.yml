@@ -56,6 +56,10 @@ jobs:
       - run: node --test tests/tenant-totp-setup-proof.test.mjs
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
+      # The existing victimSnapshot fixture reads the SQL-only 0104 HCM event table.
+      # Provision it only in the empty, allowlisted disposable PG16 database.
+      - name: Prepare SQL-only fictional HCM snapshot fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - run: npm run build
       - name: Real two-attacker enrollment and victim SQL proof
         shell: bash
