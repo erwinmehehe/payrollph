@@ -39,7 +39,7 @@
       }
     },
     "dailyHalfDayNoBreak": {
-      "description": "Same worker, 9 complete days plus a Sep 14 half day 09:00-13:00 with no break punch. A 4-hour half day has no meal period (Art. 85 applies to the working day, not a 4-hour stint), so the worker is owed 240 min. Regular = 9 x 480 + 240 = 4,560 min = 76 h. Basic = 76 / 8 x 800 = 7,600.00. Undertime recorded = 18:00 - 13:00 = 300 min, not separately docked for a daily worker.",
+      "description": "Same worker, 9 complete days plus a Sep 14 half day 09:00-13:00 with no break punch. A punched span of at most half the scheduled working day (240 min of a 480-min day) is not presumed to contain the unpunched meal break, so the worker is owed all 240 min. Regular = 9 x 480 + 240 = 4,560 min = 76 h. Basic = 76 / 8 x 800 = 7,600.00. Undertime recorded = 18:00 - 13:00 = 300 min, not separately docked for a daily worker.",
       "expected": {
         "basicPay": 7600,
         "regularMinutes": 4560,
@@ -48,14 +48,6 @@
         "tardinessDeduction": 0,
         "undertimeDeduction": 0,
         "grossPay": 7600
-      },
-      "knownFinding": {
-        "summary": "When no break is punched, the engine deducts the full scheduled 60-minute meal break even for a 4-hour 09:00-13:00 half day, so the daily worker is paid 3 hours (PHP 7,500.00 cutoff) instead of 4 (PHP 7,600.00). Whether lunch was taken cannot be known from the punch; this needs a policy decision (require break punches, or do not presume a meal break on short spans) before the expected value is changed.",
-        "currentEngine": {
-          "basicPay": 7500,
-          "regularMinutes": 4500,
-          "grossPay": 7500
-        }
       }
     },
     "monthlyTardinessUndertime": {

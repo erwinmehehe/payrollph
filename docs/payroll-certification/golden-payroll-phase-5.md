@@ -10,17 +10,15 @@ Every worker uses a 09:00–18:00 shift with a 60-minute meal break, 8 standard 
 | --- | --- |
 | `dailyFullAttendance` | A ₱800/day worker with 10 full days is paid 80 h / 8 × ₱800 = ₱8,000.00 |
 | `dailyLateArrivalNoDock` | Arriving 09:45 is paid for the 435 minutes actually worked (₱7,925.00). The lateness is recorded (40 min) but a daily worker is not docked a second time |
-| `dailyHalfDayNoBreak` | **Known finding** (below). Pinned to current engine values and fails once they change |
+| `dailyHalfDayNoBreak` | A 09:00–13:00 half day with no break punch is paid all 240 punched minutes (₱7,600.00); no meal break is presumed on a span of at most half the scheduled day (fixed in #1788) |
 | `monthlyTardinessUndertime` | A ₱30,000/month worker keeps the full ₱15,000.00 cutoff basic. 40 late minutes cost ₱113.64 and 30 undertime minutes cost ₱85.23 at the ₱170.4545 hourly rate. Stored gross stays ₱15,000.00 |
 | `monthlyGraceBoundary` | 09:05 is within the 5-minute grace (no deduction). 09:06 costs exactly 1 minute (₱2.84) |
 
 Every case also proves that the printed payslip lines add up to the stored gross, deductions and net, using the shared payslip classifier.
 
-## Known finding: half day with no break punch
+## Resolved finding: half day with no break punch
 
-A daily worker punches 09:00–13:00 with no break pair. The engine deducts the full scheduled 60-minute meal break (`deriveClockHours` falls back to the scheduled break), so it pays 3 hours (cutoff basic **₱7,500.00**) instead of the 4 punched hours (**₱7,600.00**). That is ₱100.00 less per half day for an ₱800/day worker.
-
-Whether lunch was actually taken cannot be known from the punch alone, so this needs a policy decision before the expected value changes. The options are to require break punches on short spans, or to stop presuming a meal break when the punched span is shorter than the scheduled day. The suite pins the current values and **fails deliberately once they change**, so the fix and the catalog are updated together.
+Phase 5 first showed that a daily worker who punched 09:00–13:00 with no break pair was paid 3 hours (₱7,500.00) because the engine always deducted the scheduled 60-minute break. #1788 fixed this: a punched span of at most half the scheduled working day is not presumed to contain a meal break, the worker is paid the punched time, and a reviewer flag asks to confirm no meal break was taken. The case now asserts the lawful ₱7,600.00.
 
 ## Positions that need owner or practitioner review
 
