@@ -21,6 +21,23 @@ The previous handler loaded a globally addressed payroll-run ID before establish
 
 ## Required before acceptance
 
+### Prepared dedicated HTTP proof (execution pending)
+
+`scripts/qa/tenant-managed-client-approval-http.mjs` now runs as a separate
+Security HTTP acceptance step, reusing its disposable PG16 and production Next
+server. It refuses execution outside the existing strict CI/localhost/no-provider
+guard. It prepares two authenticated client owners, separate checker identities,
+and a populated higher-ID victim. Assertions cover own approval/replay/reapproval,
+persisted approval and audit identity, forged selectors, foreign/missing parity,
+revoked, wrong-role and unit-scoped grants, designation rotation, response discrimination,
+an observed membership-lock revocation race, and audit-failure rollback.
+
+**NOT_RUN:** the HTTP assertions above are prepared, not an executed receipt.
+Exact-head Security HTTP acceptance must execute them before any box below is
+checked. Unit/source checks cannot substitute for that run. Concurrent
+checker-evidence revocation remains a separate unproven scenario.
+No coverage credits, runtime guards, payout flags or deployed data changed.
+
 - [ ] `npm run typecheck`, lint, unit tests, and applicable Security HTTP Smoke / regression jobs pass on the exact PR head.
 - [ ] Synthetic PostgreSQL 16 **production-mode real HTTP**, at the exact proposed route SHA: two independently authenticated employers with genuine own successful approval POSTs, a higher-ID real foreign victim and missing-ID indistinguishable 404/no-store, revoked and unit-scoped grants denied, switched approver denied, unchanged victim run/approval/audit/payroll SQL.
 - [ ] Repeat positive own **re-approval** after changed fingerprint plus negative revoked owner during the attempted transaction; assert atomic rollback of approval and audit on failure.
