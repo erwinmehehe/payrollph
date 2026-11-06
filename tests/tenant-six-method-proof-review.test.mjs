@@ -498,6 +498,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(accountPassword.testedBy.productionTested, false);
   expectedStatuses[accountPasswordPath].POST = "COVERED";
   const accountPasswordCredits = 1;
+  // Credit after the snapshot: POST payout-reconciliation, from the existing real-HTTP PayMongo isolation harness's exact main-head receipt
+  // (loopback-synthetic provider only). The inventory test verifies the receipt, blob identity and cited lines exactly.
+  const payoutReconciliationPath = "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts";
+  assert.equal(expectedStatuses[payoutReconciliationPath]?.POST, "GAP", "payout-reconciliation POST must start GAP in the reviewed snapshot");
+  const payoutReconciliation = m.allApiRouteFiles[payoutReconciliationPath].methods.find(row => row.name === "POST");
+  assert.equal(payoutReconciliation?.status, "COVERED");
+  assert.equal(payoutReconciliation.testedBy?.file, "scripts/qa/paymongo-export-isolation-local.mjs");
+  assert.equal(payoutReconciliation.testedBy.providerMode, "loopback-synthetic-paymongo");
+  assert.equal(payoutReconciliation.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(payoutReconciliation.testedBy.productionTested, false);
+  expectedStatuses[payoutReconciliationPath].POST = "COVERED";
+  const payoutReconciliationCredits = 1;
   // Credit after the snapshot: POST auth/logout, from its dedicated two-attacker harness (merged proof #1795). The inventory
   // test verifies the receipt, blob identity and cited lines exactly.
   const authLogoutPath = "src/app/api/auth/logout/route.ts";
@@ -534,9 +546,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + payoutReconciliationCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - payoutReconciliationCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -548,7 +560,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **333 COVERED + 3 PUBLIC-BY-DESIGN + 70 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **334 COVERED + 3 PUBLIC-BY-DESIGN + 69 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -622,6 +634,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       // #1794 was merged independently; accept this main-only credit only with its matching receipt.
       ["src/app/api/account/password/route.ts", "scripts/qa/tenant-account-password-http.mjs"],
       ["src/app/api/auth/logout/route.ts", "scripts/qa/tenant-auth-logout-http.mjs"],
+      ["src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "scripts/qa/paymongo-export-isolation-local.mjs"],
       ["src/app/api/payroll-runs/[id]/submit-review/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
       ["src/app/api/payroll-runs/[id]/release/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
     ].filter(([path, receipt]) => {

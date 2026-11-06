@@ -3414,8 +3414,13 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
   }
   const payout = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts"]
     .methods.find((item) => item.name === "POST");
-  assert.equal(payout?.status, "GAP");
-  assert.equal(payout?.testedBy, null);
+  // The earlier provider-disabled 501 hold is superseded, not weakened: that 501 evidence is not used. The method may be COVERED only by
+  // the loopback-synthetic PG16 receipt pinned by the dedicated test at the end of this file; it never certifies a real payout.
+  assert.equal(payout?.status, "COVERED");
+  assert.equal(payout.testedBy?.file, "scripts/qa/paymongo-export-isolation-local.mjs");
+  assert.equal(payout.testedBy.providerMode, "loopback-synthetic-paymongo");
+  assert.equal(payout.testedBy.moneyMovedByLinaw, false);
+  assert.equal(payout.reviewedUncertified, undefined);
   // PII-01 must contribute only two distinct, source-pinned identifier review methods.
   // Its method evidence is independently checked in tenant-pii01-identifiers-source.test.mjs
   // and executed over real isolated PostgreSQL/HTTP; it cannot borrow BIR proof credit.
@@ -4563,6 +4568,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.verifiedPrHeadSha, "b32c2286ea6ef91cbe2f2f227f01278de613588d");
         assert.equal(proof.workflowRunId, 42203481558);
         assert.equal(proof.workflowJobId, 127844239303);
+        continue;
+      }
+      // payout-reconciliation POST: loopback-synthetic PayMongo receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/paymongo-export-isolation-local.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST", "No unrelated method may reuse the PayMongo isolation evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.moneyMovedByLinaw, false);
+        assert.equal(proof.providerMode, "loopback-synthetic-paymongo");
+        assert.equal(proof.verifiedMainHeadSha, "9c9f0ad789ad83d4c7df526155550f61b0db9c20");
+        assert.equal(proof.workflowRunId, 42229558806);
+        assert.equal(proof.workflowJobId, 127931638957);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-worksites-actions-http.mjs") {
@@ -6867,4 +6884,61 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
   // The credited route must keep the same-origin check and revoke only the token in the caller's own cookie.
   for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokeSession(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
   assert.ok(!/await request\.(?:json|formData)\(/.test(route), "the route must never read an identity from the request body");
+});
+
+test("payout reconciliation POST credit requires the exact passing run, byte-pinned inputs, a loopback-only synthetic provider and every cited proof line", () => {
+  const routePath = "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts";
+  const harnessFile = "scripts/qa/paymongo-export-isolation-local.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/paymongo-export-isolation.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  // The provider is a loopback-only synthetic: the workflow, the harness and the target contract must all say so.
+  for (const token of ["PAYMONGO_HTTP_PROOF: loopback-only", "PAYMONGO_SECRET_KEY: sk_test_synthetic_no_network", "MONEY_PROOF_TRANSPORT: http",
+    "image: postgres:16", "npx tsx scripts/qa/paymongo-export-isolation-local.mjs", "paymongo-http-proof-preload.mjs"]) assert.ok(workflow.includes(token), "workflow lacks " + token);
+  assert.ok(harness.includes("providerServer.listen(3012, '127.0.0.1', resolve)"), "the synthetic provider must listen on loopback only");
+  assert.ok(harness.indexOf("assertPaymongoHttpProofTarget(process.env)") < harness.indexOf('await import("../../src/db/index.ts")'), "fail-closed target guard must precede database imports");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["GET", "COVERED"], ["POST", "COVERED"]]);
+  const post = api.methods[1];
+  assert.equal(post.reviewedUncertified, undefined, "the superseded provider-disabled hold must be gone");
+  const proof = post.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.providerMode, "loopback-synthetic-paymongo");
+  assert.equal(proof.moneyMovedByLinaw, false);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 paymongo-export-isolation PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.verifiedMainHeadSha, "9c9f0ad789ad83d4c7df526155550f61b0db9c20");
+  assert.deepEqual(proof.methodActions, ["reconcile", "retry-failed"]);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.routeBlobSha, "8a08081eb1ede1f24809d496804c9874ab1b46a7", "the proof was written against this exact route");
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "'own successful provider reconciliation'", "own reconcile anchor");
+  cites(proof.ownRetryLine, "'fresh-preflight confirmed-failed transfer retry succeeds'", "own retry anchor");
+  cites(proof.foreignDenialLine, "'foreign reconciliation ' + action", "foreign denial for both actions anchor");
+  cites(proof.unchangedDbLine, "'victim unchanged after complete investigation'", "victim unchanged anchor");
+  cites(proof.victimIdOrderingLine, "high-ID actual victim run", "high-ID victim anchor");
+  cites(proof.secondAttackerLine, "await investigate(v, a); await investigate(v, b);", "second independent attacker anchor");
+  cites(proof.retryActorsLine, "for (const label of ['PM-RETRY-B', 'PM-RETRY-C'])", "retry actors anchor");
+  cites(proof.loopbackProviderLine, "providerServer.listen(3012, '127.0.0.1', resolve)", "loopback provider anchor");
+  const foreignLines = lines.slice(proof.foreignDenialLine - 3, proof.foreignDenialLine + 1).join(String.fromCharCode(10));
+  assert.ok(foreignLines.includes("for (const action of ['reconcile', 'retry-failed'])") && foreignLines.includes("403"), "both actions must be refused 403 on the victim run");
+  for (const token of ["'missing MFA blocks provider lookup'", "'revoked membership retained session'", "'same-employer other-unit retry'",
+    "'changed destination blocks reconciliation before retry'", "'overlapping retry requests cannot both submit'", "'repeating retry cannot resend'",
+    "for (let i = 0; i < 7; i++) await seed('PM-PAD' + i, nonce);"]) assert.ok(harness.includes(token), "harness lacks " + token);
+  // The credited route must keep the authorization order the proof exercises, and never take an identity from the request body.
+  const postSource = route.slice(route.indexOf("export async function POST("));
+  const order = ["enforceSameOriginMutation(request)", "await authorizeTreasuryOperation({", "await assertOrganizationUnitAccess(", "await requireRunEmployer({",
+    "requireSensitiveActionMfa(user)", "enforceSensitiveActionRateLimit(request", "if (!process.env.PAYMONGO_SECRET_KEY)"].map(token => {
+    assert.ok(postSource.includes(token), "route lost a bound the proof exercises: " + token);
+    return postSource.indexOf(token);
+  });
+  assert.deepEqual([...order].sort((x, y) => x - y), order, "authorization must precede any provider handling");
+  assert.ok(!/body\.(?:organizationId|runId|userId)/.test(postSource), "the route must never read an identity from the request body");
 });
