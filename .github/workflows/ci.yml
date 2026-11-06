@@ -294,6 +294,15 @@ jobs:
           name: payrollph-golden-payroll-phase4
           path: qa-artifacts/golden-payroll-phase4-reconciliation.json
           retention-days: 14
+      - name: Run attendance-pay golden reconciliation (Phase 5)
+        run: npm run payroll:golden:phase5
+      - name: Upload Phase 5 attendance-pay reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase5
+          path: qa-artifacts/golden-payroll-phase5-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
