@@ -39133,19 +39133,19 @@
       ]
     },
     "src/app/api/year-end/route.ts": {
-      "gitBlobSha": "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+      "gitBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
       "route": "year-end",
       "methods": [
         {
           "name": "GET",
           "line": 23,
           "status": "GAP",
-          "reason": "Previously credited by #1730 against the old route Git blob; revised #1744 GET/POST source has no independently accepted exact-source method proof. GAP and zero current credits pending owner/security review.",
+          "reason": "Still GAP: #1744 updated the financial binding source; this draft adds an employer-matched employee join and exact-source fictional PG16 proof candidates for the full GET and POST methods. No method credit or independent payroll/security review yet.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "year-end-binding-atomic-source-only-zero-credit",
             "priorRouteBlobSha": "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-            "routeBlobSha": "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+            "routeBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
             "contractFile": "tests/year-end-binding-transaction-contract.test.mjs",
             "contractBlobSha": "9562442c4d9e7d820027630cead6d753c0fc3767",
             "annualizationBlobSha": "7194658c42b9ef33c84acd84ab356c28c6303883",
@@ -39158,14 +39158,14 @@
         },
         {
           "name": "POST",
-          "line": 378,
+          "line": 383,
           "status": "GAP",
-          "reason": "Previously credited by #1730 against the old route Git blob; revised #1744 GET/POST source has no independently accepted exact-source method proof. GAP and zero current credits pending owner/security review.",
+          "reason": "Still GAP: #1744 updated the financial binding source; this draft adds an employer-matched employee join and exact-source fictional PG16 proof candidates for the full GET and POST methods. No method credit or independent payroll/security review yet.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "year-end-binding-atomic-source-only-zero-credit",
             "priorRouteBlobSha": "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-            "routeBlobSha": "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+            "routeBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
             "contractFile": "tests/year-end-binding-transaction-contract.test.mjs",
             "contractBlobSha": "9562442c4d9e7d820027630cead6d753c0fc3767",
             "annualizationBlobSha": "7194658c42b9ef33c84acd84ab356c28c6303883",
@@ -39214,19 +39214,19 @@
           "token": "getAccess"
         },
         {
-          "line": 379,
+          "line": 384,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 382,
+          "line": 387,
           "token": "getSessionUser"
         },
         {
-          "line": 405,
+          "line": 410,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 412,
+          "line": 417,
           "token": "getAccess"
         }
       ],
@@ -39240,7 +39240,7 @@
           "token": "searchParams.get(\"employeeId\")"
         },
         {
-          "line": 390,
+          "line": 395,
           "token": "body.organizationId"
         }
       ],
@@ -39270,39 +39270,39 @@
           "token": "employeeId"
         },
         {
-          "line": 55,
+          "line": 58,
           "token": "employeeId"
         },
         {
-          "line": 57,
+          "line": 62,
           "token": "organizationId"
         },
         {
-          "line": 57,
+          "line": 62,
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 68,
           "token": "organizationId"
         },
         {
-          "line": 72,
+          "line": 77,
           "token": "organizationId"
         },
         {
-          "line": 72,
+          "line": 77,
           "token": "organizationId"
         },
         {
-          "line": 81,
+          "line": 86,
           "token": "organizationId"
         },
         {
-          "line": 81,
+          "line": 86,
           "token": "organizationId"
         },
         {
-          "line": 98,
+          "line": 103,
           "token": "organizationId"
         }
       ]
