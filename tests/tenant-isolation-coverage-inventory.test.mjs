@@ -2777,6 +2777,8 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       contractBlobSha: "9562442c4d9e7d820027630cead6d753c0fc3767",
       annualizationBlobSha: "7194658c42b9ef33c84acd84ab356c28c6303883",
       queueBlobSha: "961cfb5535063a9683b04dbd5260c2a9730ffd66",
+      currentQueueBlobSha: "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
+      queueSourceChange: "Work-date anchor only; no inherited year-end source credit or financial acceptance",
       credits: 0, actualPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
@@ -2787,7 +2789,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     for (const [file, hash] of [
       [expected.contractFile, expected.contractBlobSha],
       ["src/lib/year-end.ts", expected.annualizationBlobSha],
-      ["src/lib/payroll-engine.ts", expected.queueBlobSha],
+      ["src/lib/payroll-engine.ts", expected.currentQueueBlobSha],
     ]) assert.equal(gitBlobSha(readFileSync(file)), hash);
     const source = readFileSync("src/app/api/year-end/route.ts", "utf8");
     assert.equal(gitBlobSha(Buffer.from(source.split("export async function POST")[0])),
