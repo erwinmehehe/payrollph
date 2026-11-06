@@ -145,7 +145,6 @@ export function verifyStaffingPolicyGetCredit(manifest, read = readFileSync) {
     [supplemental.proofFile, supplemental.proofBlobSha],
     [supplemental.contractFile, supplemental.contractBlobSha],
     [supplemental.workflowFile, supplemental.workflowBlobSha],
-    [supplemental.helperFile, supplemental.helperBlobSha],
   ]) assert.equal(gitBlob(path, read), expected,
     path + ": new security-integrity proof drifted; re-run PG16 before retaining provisional credit");
   const newProof = readFileSync(supplemental.proofFile, "utf8");
@@ -174,7 +173,8 @@ export function verifyStaffingPolicyGetCredit(manifest, read = readFileSync) {
     [STAFFING_GET_EVIDENCE.approvalPositiveFile, STAFFING_GET_EVIDENCE.approvedProofBlobSha],
     [STAFFING_GET_EVIDENCE.approvedWorkflowFile, STAFFING_GET_EVIDENCE.approvedWorkflowBlobSha],
   ]) assert.equal(gitBlob(path, read), expected, path + ": stale source proof; revoke credit");
-  // Protect transitive source equivalence for the historical two-mode proof.
+  // The helper's exact current blob is checked below by the existing fail-closed
+  // transitive-source guard, preserving its established mutation-test error.
   // CI and the path-triggered guard both enforce this fail-closed check.
   for (const [path, expected] of Object.entries(STAFFING_GET_HELPER_BLOBS)) {
     assert.equal(gitBlob(path, read), expected,
