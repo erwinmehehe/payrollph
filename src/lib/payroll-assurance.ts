@@ -27,7 +27,24 @@ export type AssuranceEmployeeContext = {
   bankAccount?: string | null;
   bankCode?: string | null;
   minimumWageIssue?: boolean;
+  /** One-way, per-request fingerprint of bank code + account, never the account. Equal values mean the same payout destination. */
+  payoutFingerprint?: string | null;
+  /** YYYY-MM-DD an approved payout-destination change was applied, when known. */
+  payoutChangedOn?: string | null;
 };
+
+/** A payout destination changed this recently before pay day counts as new. */
+export const NEW_PAYOUT_DESTINATION_DAYS = 30;
+/** With a new destination, net pay at or above this (PHP), or a jump of PHP 5,000 and 20%, needs a second look. */
+export const NEW_PAYOUT_LARGE_NET = 50_000;
+const NEW_PAYOUT_JUMP_AMOUNT = 5_000;
+const NEW_PAYOUT_JUMP_PERCENT = 20;
+
+function daysBetween(fromDate: string, toDate: string) {
+  const from = Date.parse(fromDate.slice(0, 10) + "T00:00:00Z");
+  const to = Date.parse(toDate.slice(0, 10) + "T00:00:00Z");
+  return Number.isFinite(from) && Number.isFinite(to) ? Math.round((to - from) / 86_400_000) : null;
+}
 
 export type AssuranceContext = {
   periodStart?: string | null;
@@ -465,6 +482,25 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    if (employee?.payoutChangedOn && context.payDate && net > 0) {
+      const age = daysBetween(employee.payoutChangedOn, String(context.payDate));
+      const netJump = previous ? net - numberOf(previous.netPay) : null;
+      const jumpPercent = previous && numberOf(previous.netPay) > 0 ? percentChange(net, numberOf(previous.netPay)) : null;
+      const largeJump = netJump != null && netJump >= NEW_PAYOUT_JUMP_AMOUNT && jumpPercent != null && jumpPercent >= NEW_PAYOUT_JUMP_PERCENT;
+      if (age != null && age >= 0 && age <= NEW_PAYOUT_DESTINATION_DAYS && (net >= NEW_PAYOUT_LARGE_NET || largeJump)) {
+        findings.push({
+          code: "NEW_PAYOUT_DESTINATION_LARGE_PAY",
+          severity: "high",
+          title: "New payout destination with large or sharply higher pay",
+          detail: `This employee's payout account changed ${age} day(s) before pay day and net pay is ₱${net.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${largeJump ? `, up ₱${(netJump as number).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${Math.round(jumpPercent as number)}%) from the previous payroll` : ""}. Confirm the account change with the employee through an independent channel before release.`,
+          employeeId: entry.employeeId,
+          current: net,
+          previous: previous ? numberOf(previous.netPay) : undefined,
+          delta: netJump ?? undefined,
+        });
+      }
+    }
+
     if (
       employee?.startDate &&
       context.periodStart &&
@@ -573,6 +609,30 @@ export function evaluatePayrollAssurance(
         previous: previousNet,
         delta: netDelta,
         percent: netPercent == null ? null : cents(netPercent),
+      });
+    }
+  }
+
+  // Two paid employees sharing one payout destination is a ghost-employee and diversion pattern. Legitimate cases exist
+  // (a spouse or a family account), so this is an acknowledgeable high finding, never blocking. Accounts are compared
+  // through a per-request fingerprint and are never printed.
+  const paidByDestination = new Map<string, AssuranceEntry[]>();
+  for (const entry of currentEntries) {
+    const key = employeeById.get(entry.employeeId)?.payoutFingerprint;
+    if (key && numberOf(entry.netPay) > 0) paidByDestination.set(key, [...(paidByDestination.get(key) ?? []), entry]);
+  }
+  for (const group of paidByDestination.values()) {
+    const employeeIds = [...new Set(group.map((entry) => entry.employeeId))];
+    if (employeeIds.length < 2) continue;
+    for (const employeeId of employeeIds) {
+      const others = employeeIds.filter((id) => id !== employeeId)
+        .map((id) => employeeById.get(id)?.employeeNo || `#${id}`);
+      findings.push({
+        code: "DUPLICATE_PAYEE_ACCOUNT",
+        severity: "high",
+        title: "Another employee is paid to the same account",
+        detail: `This employee's bank and account number match ${others.join(", ")} in this run. Confirm they are different real people before release.`,
+        employeeId,
       });
     }
   }

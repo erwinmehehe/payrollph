@@ -1,6 +1,8 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeMweClassifications, employees, payrollEntries, payrollRuns } from "@/db/schema";
+import { createHmac, randomBytes } from "node:crypto";
+import { employeeMweClassifications, employeePayoutChangeRequests, employees, payrollEntries, payrollRuns } from "@/db/schema";
+import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { evaluatePayrollAssurance } from "@/lib/payroll-assurance";
 import { isBelowMinimum } from "@/lib/wage-orders";
 import { resolveMweClassification, type MweClassificationRecord } from "@/lib/mwe-classification";
@@ -47,6 +49,35 @@ export async function buildPayrollAssurance(runId: number) {
           inArray(employees.id, employeeIds),
         ))
     : [];
+  // Most recent APPLIED payout-destination change per employee, scoped to this employer.
+  const payoutChanges = employeeIds.length
+    ? await db.select({
+        employeeId: employeePayoutChangeRequests.employeeId,
+        appliedAt: employeePayoutChangeRequests.appliedAt,
+      }).from(employeePayoutChangeRequests).where(and(
+        eq(employeePayoutChangeRequests.organizationId, run.organizationId),
+        inArray(employeePayoutChangeRequests.employeeId, employeeIds),
+        isNotNull(employeePayoutChangeRequests.appliedAt),
+      ))
+    : [];
+  const payoutChangedOn = new Map<number, string>();
+  for (const change of payoutChanges) {
+    if (!change.appliedAt) continue;
+    const day = change.appliedAt.toISOString().slice(0, 10);
+    if (!payoutChangedOn.has(change.employeeId) || day > payoutChangedOn.get(change.employeeId)!) payoutChangedOn.set(change.employeeId, day);
+  }
+  // A throwaway key makes the fingerprint comparable only inside this request: it can show that two employees share a
+  // destination, and nothing else, and it is never stored, logged or returned.
+  const fingerprintKey = randomBytes(32);
+  const payoutFingerprint = (employee: { bankAccount: string | null; bankCode: string | null }) => {
+    try {
+      const account = decryptBankAccount(employee.bankAccount)?.replace(/\s|-/g, "");
+      const code = employee.bankCode?.trim().toUpperCase();
+      return account && code ? createHmac("sha256", fingerprintKey).update(code + "|" + account).digest("hex") : null;
+    } catch {
+      return null; // an undecryptable account is reported by the bank-detail checks, not guessed here
+    }
+  };
   const mweRows = employeeIds.length
     ? await db.select().from(employeeMweClassifications).where(and(
         eq(employeeMweClassifications.organizationId, run.organizationId),
@@ -126,6 +157,8 @@ export async function buildPayrollAssurance(runId: number) {
       bankAccount: employee.bankAccount,
       bankCode: employee.bankCode,
       minimumWageIssue,
+      payoutFingerprint: payoutFingerprint(employee),
+      payoutChangedOn: payoutChangedOn.get(employee.id) ?? null,
     };
   });
 
