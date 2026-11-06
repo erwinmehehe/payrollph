@@ -9,6 +9,17 @@ const workflow = (file) => load(readFileSync(".github/workflows/" + file, "utf8"
 const onPr = (w) => Array.isArray(w.on) ? w.on.includes("pull_request") : Object.hasOwn(w.on ?? {}, "pull_request");
 const cancelOnlyPr = "${{ github.event_name == 'pull_request' }}";
 
+test("uncredited SAML/TOTP proofs run on source changes without re-building on draft readiness", () => {
+  for (const file of ["tenant-saml-metadata-public-http.yml", "tenant-totp-setup-http.yml"]) {
+    assert.deepEqual(workflow(file).on.pull_request.types, ["opened", "synchronize", "reopened"]);
+  }
+  // Review/WIP decisions depend on readiness; these must still be recalculated.
+  for (const file of ["pr-integration-queue-gate.yml", "independent-payroll-review-gate.yml"]) {
+    const triggers = workflow(file).on;
+    assert.ok((triggers.pull_request_target ?? triggers.pull_request).types.includes("ready_for_review"));
+  }
+});
+
 test("new PR cancellation groups supersede heads without colliding with main or manual attempts", () => {
   for (const file of policy.supersedePrRuns) {
     const w = workflow(file);
@@ -20,8 +31,8 @@ test("new PR cancellation groups supersede heads without colliding with main or 
     assert.doesNotMatch(w.concurrency.group, /head\.sha/);
   }
   const ci = workflow("ci.yml");
-  assert.equal(ci.concurrency.group, "${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}");
-  assert.equal(ci.concurrency["cancel-in-progress"], cancelOnlyPr);
+  assert.equal(ci.concurrency.group, "${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}");
+  assert.equal(ci.concurrency["cancel-in-progress"], true);
 });
 
 test("every PR workflow has concurrency or a documented protected exception", () => {
