@@ -2772,7 +2772,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const expected = {
       kind: "year-end-binding-atomic-source-only-zero-credit",
       priorRouteBlobSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-      routeBlobSha: "e4741d98c23e068f4ecd7032e172ce60b95852cf",
+      routeBlobSha: "f040f5bbbc3df275d32d23f1728b1b0345f77814",
       contractFile: "tests/year-end-binding-transaction-contract.test.mjs",
       contractBlobSha: "9562442c4d9e7d820027630cead6d753c0fc3767",
       annualizationBlobSha: "7194658c42b9ef33c84acd84ab356c28c6303883",
@@ -2790,8 +2790,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       ["src/lib/payroll-engine.ts", expected.queueBlobSha],
     ]) assert.equal(gitBlobSha(readFileSync(file)), hash);
     const source = readFileSync("src/app/api/year-end/route.ts", "utf8");
+    assert.match(source, /\.innerJoin\(employees, and\([\s\S]*?eq\(employees\.organizationId, organizationId\)/,
+      "Year-end tax read must not join employee rows from a different employer");
     assert.equal(gitBlobSha(Buffer.from(source.split("export async function POST")[0])),
-      "393d137811d1bf40561004314646f80ff644f80f", "GET and shared pre-POST source must remain unchanged");
+      "9f1b67735c5178d0e2172568243e25ff01b964cc", "The reviewed GET join and shared pre-POST source must remain unchanged");
     for (const token of ["onBoundToPayrollRun: async (tx, boundSummary) => {",
       "await enqueuePayrollRun(boundRun.id, undefined, tx);", "}, tx);"])
       assert.ok(source.includes(token));
