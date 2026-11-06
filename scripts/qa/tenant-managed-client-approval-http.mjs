@@ -109,6 +109,57 @@ async function verify() {
     assert.deepEqual(await snapshot(f), rotated);
     await db.update(s.managedPayrollEngagements).set({ clientApproverUserId: f.user.id }).where(eq(s.managedPayrollEngagements.id, f.eng.id));
   }
+  // Historical name-only checker evidence is not an authenticated identity.
+  // A later incomplete decision must fail closed even if an earlier valid
+  // checker approval exists for the same payroll run.
+  await db.insert(s.auditEvents).values({
+    organizationId: a.org.id, actor: a.user.name, action: "Approval approved",
+    resource: a.run.periodLabel, metadata: { payrollRunId: a.run.id },
+  });
+  const legacyBefore = await snapshot(a);
+  const legacyDenied = await post(a, a.run.id);
+  assert.equal(legacyDenied.status, 409, legacyDenied.text);
+  assert.deepEqual(await snapshot(a), legacyBefore, "legacy checker identity changed approval or audit state");
+  await db.insert(s.auditEvents).values({
+    organizationId: a.org.id, actor: a.checker.name, action: "Approval approved",
+    resource: a.run.periodLabel, metadata: { payrollRunId: a.run.id, deciderUserId: a.checker.id },
+  });
+
+  // While an approval waits for the payroll-run row lock, supersede checker
+  // evidence with a decision whose immutable user ID is the client approver.
+  // The subsequent transaction-local evidence read must refuse same-user
+  // approval instead of trusting a stale pre-lock checker decision.
+  const checkerBlocker = await pool.connect();
+  try {
+    await checkerBlocker.query("BEGIN");
+    await checkerBlocker.query("SELECT id FROM payroll_runs WHERE id=$1 FOR UPDATE", [b.run.id]);
+    const pendingChecker = post(b, b.run.id);
+    let sawCheckerLock = false;
+    for (let i = 0; i < 100; i++) {
+      const result = await pool.query("SELECT 1 FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND wait_event_type='Lock' AND query ILIKE '%payroll_runs%' AND query ILIKE '%FOR UPDATE%'");
+      if (result.rowCount) { sawCheckerLock = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    await db.insert(s.auditEvents).values({
+      organizationId: b.org.id, actor: b.user.name, action: "Approval approved",
+      resource: b.run.periodLabel, metadata: { payrollRunId: b.run.id, deciderUserId: b.user.id },
+    });
+    const supersededBefore = await snapshot(b);
+    // Release the row lock before awaiting the bounded HTTP request.
+    await checkerBlocker.query("COMMIT");
+    const supersededDenied = await pendingChecker;
+    assert.equal(sawCheckerLock, true, "checker evidence race did not actually exercise the payroll row lock");
+    assert.equal(supersededDenied.status, 403, supersededDenied.text);
+    assert.deepEqual(await snapshot(b), supersededBefore, "superseded checker decision changed approval or audit state");
+  } finally { await checkerBlocker.query("ROLLBACK"); checkerBlocker.release(); }
+  await db.insert(s.auditEvents).values({
+    organizationId: b.org.id, actor: b.checker.name, action: "Approval approved",
+    resource: b.run.periodLabel, metadata: { payrollRunId: b.run.id, deciderUserId: b.checker.id },
+  });
+  const restored = await post(b, b.run.id);
+  assert.equal(restored.status, 200, restored.text);
+  assert.equal(restored.body?.alreadyApproved, true);
+
   // Hold a membership change uncommitted: the HTTP request sees the old grant
   // at preflight, then must wait at the transaction lock and refuse on recheck.
   const blocker = await pool.connect();
@@ -147,6 +198,6 @@ async function verify() {
   assert.throws(() => owned(receipts[0], b), /accepts another employer's data/);
   assert.throws(() => owned(receipts[1], a), /accepts another employer's data/);
   assert.deepEqual(await snapshot(victim), victimBefore);
-  console.log(JSON.stringify({ kind: "MANAGED_CLIENT_APPROVAL_HTTP", result: "PASS", attackers: 2, ownApprovals: 2, ownReapprovals: 2, highVictimRunId: victim.run.id, revocationRace: true, auditFailureRollback: true, newCoverageCredits: 0, productionCertified: false }));
+  console.log(JSON.stringify({ kind: "MANAGED_CLIENT_APPROVAL_HTTP", result: "PASS", attackers: 2, ownApprovals: 2, ownReapprovals: 2, highVictimRunId: victim.run.id, revocationRace: true, checkerSupersessionRace: true, legacyCheckerIdentityDenied: true, auditFailureRollback: true, newCoverageCredits: 0, productionCertified: false }));
 }
 try { await verify(); } finally { await pool.end(); }
