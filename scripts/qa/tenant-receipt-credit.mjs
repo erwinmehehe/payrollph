@@ -26,7 +26,7 @@ export function receiptProofs(reader=read) {
     unchangedDbLine:lines.lastIndexOf('    assert.deepEqual(await snapshot(v), victimBefore);')+1,
     victimIdOrderingLine:anchor('assert.ok(v.claim.id > b.claim.id && v.claim.id > 6)'),
     twoAttackerLine:anchor('for (const f of [a, b])'),proofPullRequest:receipt.proofPr,
-    verifiedPrHeadSha:receipt.head,mergedProofCommit:receipt.merge,workflowRunId:receipt.run,workflowJobId:receipt.job,
+    verifiedPrHeadSha:receipt.head,executedMergeSha:"acd01d9d5bc66dd483d0ae217a23f016290c9937",mergedProofCommit:receipt.merge,workflowRunId:receipt.run,workflowJobId:receipt.job,
     evidence:'https://github.com/erwinmehehe/payrollph/actions/runs/'+receipt.run+'/job/'+receipt.job,
     sourceReceipt:RECEIPT,sourceReceiptSha256:sha(bytes),independentSecurityReview:"PENDING",productionTested:false,
     limitations:"Fictional HTTPS memory byte-store/scanner contract; not real S3 protocol, antivirus or provider acceptance."};
@@ -53,6 +53,7 @@ export function credit(args){
   const git=(...a)=>execFileSync('git',a,{encoding:'utf8'}).trim();
   execFileSync('git',['merge-base','--is-ancestor',receipt.merge,'HEAD']);
   assert.equal(git('rev-parse',receipt.merge+'^2'),receipt.head);
+  assert.equal(git('rev-parse','acd01d9d5bc66dd483d0ae217a23f016290c9937^{tree}'),git('rev-parse',receipt.head+'^{tree}'),"executed merge must match reviewed proof head");
   assert.ok(git('log','-1','--format=%s',receipt.merge).startsWith('Merge pull request #1772 '));
   assert.equal(git('diff','--name-only',receipt.head,'HEAD','--','src/db','src/app/api/expenses/receipts'),"");
   const proofs=receiptProofs(), manifest=JSON.parse(read(MANIFEST)), row=manifest.allApiRouteFiles[ROUTE];
