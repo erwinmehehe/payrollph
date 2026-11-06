@@ -113,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           test ! -e /tmp/payrollph-tenant-subscription-provider.ndjson
-          nohup env NODE_OPTIONS="--import=$(pwd)/scripts/qa/tenant-billing-subscription-provider-preload.mjs" npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-billing-subscription-next.log 2>&1 &
+          nohup env TENANT_SUBSCRIPTION_PROVIDER_PRELOAD=enabled NODE_OPTIONS="--import=$(pwd)/scripts/qa/tenant-billing-subscription-provider-preload.mjs" npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-billing-subscription-next.log 2>&1 &
           server=$!
           for attempt in $(seq 1 60); do
             if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
