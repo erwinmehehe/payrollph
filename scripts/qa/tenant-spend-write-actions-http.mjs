@@ -197,9 +197,14 @@ try {
       organizationId: actor.org.id, action: "report", employeeId: actor.worker.id,
       claimIds: [own.approveClaim.id], title: actor.marker + " actual report",
     };
-    const report = good(await request(actor.cookie, "POST", reportBody), 201, "own report");
+    // Create the report as the separate active employer member who also
+    // submitted its underlying claim. The other owner must review it.
+    const report = good(await request(own.makerCookie, "POST", reportBody), 201, "own report");
     assert.equal(report.organizationId, actor.org.id);
     assert.equal(report.employeeId, actor.worker.id);
+    assert.equal(report.submittedByUserId, own.submitter.id,
+      "the genuine report maker must differ from the independently approving owner");
+    assert.notEqual(report.submittedByUserId, actor.owner.id);
     await denied(own, "POST", {
       ...reportBody, organizationId: v.actor.org.id, employeeId: v.actor.worker.id,
       claimIds: [v.approveClaim.id],
@@ -209,10 +214,13 @@ try {
 
     // A report maker is an actual active employer owner, but cannot approve
     // the report they submitted. Checking before approval proves separation.
+    const beforeMakerAttempt = await state(actor.org.id);
     const maker = await request(own.makerCookie, "PATCH", {
       id: report.id, status: "approved", note: "should never pass",
     });
     good(maker, 403, "maker-checker separation");
+    assert.deepEqual(await state(actor.org.id), beforeMakerAttempt,
+      "the genuine maker's denied approval must not change report, claim, evidence or audit");
     const beforeDecision = await state(actor.org.id);
     const approve = good(await request(actor.cookie, "PATCH", {
       id: report.id, status: "approved", note: actor.marker + " independent review",
