@@ -17258,7 +17258,7 @@
       ]
     },
     "src/app/api/invitations/accept/route.ts": {
-      "gitBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
+      "gitBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
       "route": "invitations/accept",
       "methods": [
         {
@@ -17266,14 +17266,46 @@
           "line": 15,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "invitation-accept-active-unit-source-boundary-zero-credit",
+            "method": "GET",
+            "originalRouteBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
+            "routeBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+            "proofFile": "scripts/qa/tenant-invitations-accept-http.mjs",
+            "proofBlobSha": "08df4e136510665fa4d332e4aa736d4a57d806e9",
+            "contractFile": "tests/tenant-invitations-accept-contract.test.mjs",
+            "contractBlobSha": "14c880c73049cec6e8edd791e6795ca2187f286f",
+            "workflowFile": ".github/workflows/tenant-invitations-accept-http.yml",
+            "workflowBlobSha": "2349218797c58ab17d9abebe938461f0cabc817a",
+            "methodCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         },
         {
           "name": "POST",
           "line": 23,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "invitation-accept-active-unit-source-boundary-zero-credit",
+            "method": "POST",
+            "originalRouteBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
+            "routeBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+            "proofFile": "scripts/qa/tenant-invitations-accept-http.mjs",
+            "proofBlobSha": "08df4e136510665fa4d332e4aa736d4a57d806e9",
+            "contractFile": "tests/tenant-invitations-accept-contract.test.mjs",
+            "contractBlobSha": "14c880c73049cec6e8edd791e6795ca2187f286f",
+            "workflowFile": ".github/workflows/tenant-invitations-accept-http.yml",
+            "workflowBlobSha": "2349218797c58ab17d9abebe938461f0cabc817a",
+            "methodCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -17296,43 +17328,59 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 86,
-          "token": "organizationId"
-        },
-        {
-          "line": 86,
-          "token": "organizationId"
-        },
-        {
-          "line": 88,
+          "line": 67,
           "token": "orgUnitId"
         },
         {
-          "line": 88,
+          "line": 67,
           "token": "orgUnitId"
         },
         {
-          "line": 105,
+          "line": 68,
           "token": "organizationId"
         },
         {
-          "line": 105,
+          "line": 68,
           "token": "organizationId"
         },
         {
-          "line": 109,
+          "line": 101,
+          "token": "organizationId"
+        },
+        {
+          "line": 101,
+          "token": "organizationId"
+        },
+        {
+          "line": 103,
           "token": "orgUnitId"
         },
         {
-          "line": 109,
+          "line": 103,
           "token": "orgUnitId"
         },
         {
-          "line": 116,
+          "line": 120,
           "token": "organizationId"
         },
         {
-          "line": 116,
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 124,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 124,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 131,
+          "token": "organizationId"
+        },
+        {
+          "line": 131,
           "token": "organizationId"
         }
       ]
