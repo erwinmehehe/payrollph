@@ -20,7 +20,10 @@ export function proveEmployeeExport(response, own, excluded) {
   // (and uses that marker in its display name). A substring probe falsely
   // declares an otherwise correctly isolated secondary-entity export a leak.
   const [header, ...rows] = response.text.replaceAll("\r\n", "\n").trimEnd().split("\n");
-  assert.equal(header.split(",")[0], "Employee no.", "employee CSV header missing");
+  // A one-column or truncated header can make a malformed export appear valid.
+  // Check all six production CSV columns before interpreting any employee rows.
+  assert.equal(header, "Employee no.,Name,Title,Status,Type,Basic rate",
+    "employee CSV header missing or altered");
   const employeeNumbers = rows.filter(Boolean).map(row => {
     const firstCell = /^(?:"((?:[^"]|"")*)"|([^,]*))(?:,|$)/.exec(row);
     assert.ok(firstCell, "malformed employee CSV row");

@@ -16,22 +16,48 @@ test("export acceptance refuses non-CI, remote targets, provider credentials and
     { MULTI_ENTITY_ENABLED: "yes" }, { TENANT_COMPANY_EXPORT_MODE: "" }])
     assert.throws(() => requireExportProof({ ...env, ...patch }));
 });
-test("CSV proof rejects a successful HTML login page, foreign rows and public cache", () => {
-  const own = { status: 200, type: "text/csv; charset=utf-8", text: "Employee no.,Name\nOWN,Owned", cache: "private, no-store", nosniff: "nosniff" };
+test("CSV proof validates the full schema and rejects foreign rows, HTML and public cache", () => {
+  // Use the exact production header, independently of the proof helper.
+  const header = "Employee no.,Name,Title,Status,Type,Basic rate";
+  const csv = (...rows) => [header, ...rows].join("\n");
+  const own = {
+    status: 200, type: "text/csv; charset=utf-8",
+    text: csv("OWN,Owned,Developer,Active,Regular,20000"),
+    cache: "private, no-store", nosniff: "nosniff",
+  };
   proveEmployeeExport(own, "OWN", "VICTIM");
-  assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no.\nOWN\nVICTIM" }, "OWN", "VICTIM"), /employee CSV header missing/);
-  proveEmployeeExport({ ...own, text: 'Employee no.,Name\nOWN-OTHER,"OWN display name"' }, "OWN-OTHER", "OWN");
-  assert.throws(() => proveEmployeeExport({ ...own, text: 'Employee no.,Name\n"VICTIM",foreign\nOWN,mine' }, "OWN", "VICTIM"), /accepts another employer's data/);
-  assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no.,Name\nOWN,Owned\nVICTIM,Victim" }, "OWN", "VICTIM"), /accepts another employer's data/);
-  // The secondary entity uses the primary marker as a prefix in an otherwise
-  // valid employee number and display name. That is not a primary-entity row.
-  const secondary = { ...own, text: "Employee no.,Name\nOWN-OTHER,OWN-OTHER" };
+  assert.throws(() => proveEmployeeExport({
+    ...own, text: "Employee no.\nOWN\nVICTIM",
+  }, "OWN", "VICTIM"), /employee CSV header missing/);
+  assert.throws(() => proveEmployeeExport({
+    ...own, text: "Employee no.,Name\nOWN,Owned",
+  }, "OWN", "VICTIM"), /employee CSV header missing/);
+  assert.throws(() => proveEmployeeExport({
+    ...own, text: "Employee no.,Title,Name,Status,Type,Basic rate\nOWN,Owned",
+  }, "OWN", "VICTIM"), /employee CSV header missing/);
+  proveEmployeeExport({
+    ...own, text: csv('OWN-OTHER,"OWN display name",Developer,Active,Regular,20000'),
+  }, "OWN-OTHER", "OWN");
+  assert.throws(() => proveEmployeeExport({
+    ...own, text: csv('"VICTIM",foreign,Developer,Active,Regular,20000',
+      "OWN,mine,Developer,Active,Regular,20000"),
+  }, "OWN", "VICTIM"), /accepts another employer's data/);
+  assert.throws(() => proveEmployeeExport({
+    ...own, text: csv("OWN,Owned,Developer,Active,Regular,20000",
+      "VICTIM,Victim,Developer,Active,Regular,20000"),
+  }, "OWN", "VICTIM"), /accepts another employer's data/);
+  // A secondary legal employer's identifier may legitimately contain the
+  // primary marker as a prefix; only the full first CSV field is an ID.
+  const secondary = {
+    ...own, text: csv("OWN-OTHER,OWN-OTHER,Developer,Active,Regular,20000"),
+  };
   proveEmployeeExport(secondary, "OWN-OTHER", "OWN");
-  assert.throws(() => proveEmployeeExport(secondary, "OWN-OTHER", "OWN-OTHER"), /accepts another employer's data/);
-  // An employee number hidden in a name does not count as an own-positive row.
-  assert.throws(() => proveEmployeeExport(secondary, "OWN", "VICTIM"), /missing genuine own employee/);
+  assert.throws(() => proveEmployeeExport(
+    secondary, "OWN-OTHER", "OWN-OTHER"), /accepts another employer's data/);
+  assert.throws(() => proveEmployeeExport(
+    secondary, "OWN", "VICTIM"), /missing genuine own employee/);
   assert.throws(() => proveEmployeeExport({ ...own, type: "text/html" }, "OWN", "VICTIM"));
-  assert.throws(() => proveEmployeeExport({ ...own, text: "Employee no." }, "OWN", "VICTIM"));
+  assert.throws(() => proveEmployeeExport({ ...own, text: header }, "OWN", "VICTIM"));
   assert.throws(() => proveEmployeeExport({ ...own, cache: "public" }, "OWN", "VICTIM"));
 });
 test("guard precedes database imports and actual HTTP runs independently in both entity profiles", () => {
