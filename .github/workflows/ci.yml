@@ -7,9 +7,10 @@ on:
 
 concurrency:
   # One stable group per PR cancels superseded heads instead of retaining them.
-  # Main pushes remain keyed by SHA and cannot cancel another main commit.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Core CI prioritizes the latest main tip; superseded commits are not certified.
+  # Keep PR and main namespaces separate. Required jobs still fail closed.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

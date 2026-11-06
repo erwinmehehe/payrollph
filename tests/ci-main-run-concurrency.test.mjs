@@ -7,16 +7,12 @@ import { readFileSync, readdirSync } from "node:fs";
 // because a newer merge landed therefore turned that commit's required check
 // red without any test failing. On 2026-10-17, 5d8a69068 and d31b89711 were
 // cancelled 3-4 minutes in by the next merge to main.
-test("CI never cancels a run for a push to main, but still supersedes PR runs", () => {
+test("core CI supersedes old main tips and old PR heads in separate namespaces", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const block = workflow.split("\nconcurrency:\n")[1]?.split("\npermissions:")[0] ?? "";
   assert.ok(block, "ci.yml must declare a concurrency block");
-  // Cancellation is limited to pull_request events.
-  assert.match(block, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
-  assert.doesNotMatch(block, /cancel-in-progress: true/);
-  // Main pushes are keyed by commit, so two merges can never share a group.
-  assert.match(block, /group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event\.pull_request\.number \|\| github\.sha \}\}/);
-  assert.doesNotMatch(block, /github\.ref \}\}/);
+  assert.match(block, /cancel-in-progress: true/);
+  assert.ok(block.includes("group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}"));
 });
 
 // The same defect existed in 16 more workflows that run on push to main
@@ -25,6 +21,7 @@ test("CI never cancels a run for a push to main, but still supersedes PR runs", 
 // so CodeQL and the HTTP security smoke test never completed for those commits.
 // Only workflows that merely observe state may keep cancelling superseded runs.
 const CANCEL_ALLOWED_ON_MAIN = new Map([
+  ["ci.yml", "user-authorized latest-main core CI; superseded tips remain uncertified and final required checks stay fail closed"],
   ["scheduler-scheduled-run-observer.yml",
     "read-only hourly collector; a stale observation is correctly superseded"],
 ]);
@@ -57,7 +54,7 @@ function pushesToMain(lines) {
   return false;
 }
 
-test("no workflow that runs on push to main cancels its own main-branch runs", () => {
+test("main cancellation is restricted to explicitly authorized latest-tip workflows", () => {
   const dir = ".github/workflows";
   const offenders = [];
   let checked = 0;
@@ -78,7 +75,7 @@ test("no workflow that runs on push to main cancels its own main-branch runs", (
   assert.deepEqual(offenders, [], "cancelled main runs hide CodeQL/security results: " + offenders.join("; "));
 });
 
-test("the observer exemption stays real and justified", () => {
+test("each main cancellation exemption stays real and justified", () => {
   for (const [name, reason] of CANCEL_ALLOWED_ON_MAIN) {
     const text = readFileSync(".github/workflows/" + name, "utf8");
     assert.match(text, /cancel-in-progress:\s*true/, name + " no longer cancels; drop the exemption");

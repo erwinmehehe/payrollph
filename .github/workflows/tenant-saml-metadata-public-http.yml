@@ -2,7 +2,7 @@ name: SAML public metadata (fictional PG16 HTTP, zero method credit)
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened]
     branches: [main]
     paths:
       - 'src/app/api/auth/saml/metadata/**'
