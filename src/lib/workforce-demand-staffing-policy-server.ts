@@ -309,5 +309,10 @@ export async function readStaffingPolicies(input: {
       approvalReceiptSha256:approval?.receiptSha256??null,
       approvalIntegrity:integrity,
     };
-  });
+  }).filter(policy =>
+    // An "approved" status alone is not trustworthy: never expose tampered or
+    // unreceipted policies to advisory consumers. Management reads still show
+    // rejected evidence explicitly, so operators can investigate safely.
+    input.mode === "manage" || policy.approvalIntegrity === "matches_hash"
+  );
 }
