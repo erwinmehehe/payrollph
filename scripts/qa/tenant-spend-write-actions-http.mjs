@@ -53,7 +53,8 @@ const tables = [
 async function state(orgId) {
   const result = {};
   for (const [name, table] of tables) {
-    const rows = await db.select().from(table).where(eq(table.organizationId, orgId)).orderBy(asc(table.id));
+    const stableId = name === "evidence" ? s.expenseClaimEvidence.claimId : table.id;
+    const rows = await db.select().from(table).where(eq(table.organizationId, orgId)).orderBy(asc(stableId));
     result[name] = name === "audit" ? auditBusinessSnapshot(rows) : rows;
   }
   return result;
