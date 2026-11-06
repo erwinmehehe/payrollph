@@ -1,0 +1,91 @@
+name: Company export boundary (fictional PG16 HTTP)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/tenant-company-export-http.yml'
+      - 'scripts/qa/tenant-company-export-*.mjs'
+      - 'scripts/qa/tenant-pii01-approval-contract.mjs'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'tests/tenant-company-export-http.test.mjs'
+      - 'src/app/api/exports/**'
+      - 'src/lib/company-export-kind.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/multi-entity*.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'next.config.ts'
+      - 'package*.json'
+permissions:
+  contents: read
+concurrency:
+  group: company-export-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  export-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        multi-entity: ["false", "true"]
+    env:
+      TENANT_COMPANY_EXPORT_MODE: fictional-ci-only
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Disposable profile with workers, providers and scanner disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          echo 'MULTI_ENTITY_ENABLED=${{ matrix.multi-entity }}' >> "$GITHUB_ENV"
+          echo 'MALWARE_SCAN_URL=' >> "$GITHUB_ENV"
+          echo 'MALWARE_SCAN_TOKEN=' >> "$GITHUB_ENV"
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - run: node --test tests/tenant-company-export-http.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Real two-attacker own/foreign/revoked/unit/entity export proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 > /tmp/company-export-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then ready=true; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then tail -n 40 /tmp/company-export-next.log; exit 1; fi
+          node --import tsx scripts/qa/tenant-company-export-http.mjs
+      - name: Bounded synthetic failure diagnostics
+        if: failure()
+        run: tail -n 50 /tmp/company-export-next.log || true

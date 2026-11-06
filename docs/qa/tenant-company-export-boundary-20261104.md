@@ -22,3 +22,34 @@ The previous CI run **Security HTTP Smoke** failed at the source-drift guard bef
 - Independent security/coverage review to determine whether further evidence is needed for duplicate selectors, revoked membership and multi-entity ON/OFF cases.
 
 **No new coverage method credits or new production authorizations.** Existing provisional credit is pending current-head revalidation. No production database, payment provider connection, money movement, or deployment.
+
+## Dedicated acceptance expansion
+
+`tenant-company-export-http.yml` now runs an isolated PG16/production Next
+server twice, with legal-employer enforcement OFF and ON. It uses the strict
+CI-only localhost guard, freshly created fictional employers and disposable
+keys. Workers, providers and scanner are disabled. Existing shared proof lines,
+runtime guards and deployed switches are unchanged.
+
+The dedicated runner requires two own employee/payroll exports, a separately
+working higher-ID victim, foreign/missing denial parity for every export kind,
+duplicate/conflicting/malformed employer selectors, revoked membership,
+unit-scoped roster filtering and denial of company-wide exports. With entity
+enforcement ON it checks granted-entity filtering, denied ungranted/foreign IDs,
+and conflicting header/query selectors; OFF it verifies the legacy full roster
+and payroll behavior and MFA refusal for audit/full JSON. Denials must not write
+export audits or seed data. Victim SQL remains unchanged after each attacker.
+The CSV discriminator must reject another employer's rows.
+
+**NOT_RUN for the new dedicated workflow:** source/contract tests are not HTTP
+execution. The earlier current-head Security HTTP acceptance passed at
+`12b7fcfb366ec33bdf7c765f1f6332a8c0b692b9` in
+[run 42179543487](https://github.com/erwinmehehe/payrollph/actions/runs/42179543487/job/127771955873),
+but it does not substitute for these additional cases. The new head must pass
+both profiles and all applicable CI before source merge. Coverage promotion,
+independent review and real-employer acceptance are not claimed.
+
+Source merge follows the maintainer review/current-head checks in
+`docs/engineering/change-risk-policy.md`; the independent review item above is
+not an invented requirement for a second GitHub reviewer. Rollback is a source
+revert, with no database migration or feature activation.
