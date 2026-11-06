@@ -103,6 +103,8 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
         const companionFile = field === "victimUnchangedAt"
           ? "victimUnchangedFile" : field === "line" ? null
           : field.startsWith("sourceRow") && field.endsWith("Line") ? "sourceRowFile"
+          : field === "approvalIntegrityLine" && typeof proof.approvalPositiveFile === "string"
+            ? "approvalPositiveFile"
           : ["forgedSelectorLine", "secondaryForeignDenialLine"].includes(field) &&
             proof.helperRefusalLines && Object.values(proof.helperRefusalLines).includes(value)
             ? "helperFile"
