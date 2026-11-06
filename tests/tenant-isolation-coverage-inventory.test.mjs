@@ -4452,6 +4452,16 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 127251740192);
         continue;
       }
+      // account/password POST: dedicated two-attacker harness receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-account-password-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/account/password/route.ts POST", "No unrelated method may reuse the account password evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.verifiedPrHeadSha, "374fe6d506ad36715db5f54181c22c6dc1e83982");
+        assert.equal(proof.workflowRunId, 42183409095);
+        assert.equal(proof.workflowJobId, 127778007531);
+        continue;
+      }
       if (proof?.file === "scripts/qa/tenant-worksites-actions-http.mjs") {
         assert.equal(path, "src/app/api/workforce/worksites/route.ts", "No unrelated route may reuse the worksites all-action evidence");
         assert.equal(method.name, "POST");
@@ -6626,4 +6636,47 @@ test("effective-change POST credit requires the exact passing run, byte-pinned i
   // The credited route must keep the employer-scoped lookups the proof exercises.
   for (const scoped of ["eq(employees.organizationId, organizationId)", "eq(orgUnits.organizationId, organizationId)", "eq(costCenters.organizationId, organizationId)",
     "eq(legalEntities.organizationId, organizationId)", "eq(positions.organizationId, organizationId)"]) assert.ok(route.includes(scoped), "route lost employer scope: " + scoped);
+});
+
+test("account password POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
+  const routePath = "src/app/api/account/password/route.ts";
+  const harnessFile = "scripts/qa/tenant-account-password-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-account-password-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-account-password-http\.mjs/);
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("fictional-account-password-http:"));
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["POST", "COVERED"]]);
+  const proof = api.methods[0].testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 account-password PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofPullRequest, 1794);
+  assert.equal(proof.mergedProofCommit, "1d475f4e74734625e703a4305bdaad266432ff37");
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-account-password-contract.mjs")));
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-account-password-contract.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.routeBlobSha, "73a7d44673f567bd53c03df02a58d40e0059fb13", "the proof was written against this exact route");
+  assert.equal(proof.line, proof.ownPositiveLine);
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  cites(proof.ownPositiveLine, "assertOwnPasswordChange(response, { otherSessionsRevoked: 1 });", "own-change anchor");
+  cites(proof.foreignDenialLine, "const stolen = assertPasswordRefusal(await request(attacker.cookie, {", "victim-password-as-current anchor");
+  cites(proof.forgedSelectorLine, "...forged(victim), currentPassword: oldPassword[key]", "forged-principal anchor");
+  cites(proof.unchangedDbLine, 'assertRowsUnchanged(victimBefore, await snapshot(victim), "victim after both complete attacker journeys");', "victim byte-identical anchor");
+  cites(proof.victimIdOrderingLine, "victim.owner.id > Math.max(a.owner.id, b.owner.id, 6)", "high-ID victim anchor");
+  assert.ok(harness.indexOf("requireDisposableAccountPassword();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed guard must precede database imports");
+  for (const token of ["the caller's other device is revoked", "the replacement session works", "exactly one own audit row", "the audit row holds no password material",
+    "A's change must not satisfy B's own-object proof", "for (let i = 0; i < 7; i++)"]) assert.ok(harness.includes(token), "harness lacks " + token);
+  // The credited route must keep the session-bound account lookup, the current-password check and the session revocation the proof exercises.
+  for (const bound of ["const user = await getSessionUser();", "eq(users.id, user.id)", "verifyPassword(currentPassword, account.passwordHash)",
+    "await revokeAllSessions(account.id)", "enforceSameOriginMutation(request)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
+  assert.ok(!/body\.(?:userId|id|email)/.test(route), "the route must never read an identity from the request body");
 });
