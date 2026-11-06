@@ -14,6 +14,14 @@ export async function proveMigrationMethod(){
   assert.equal((await db.select().from(s.organizations).limit(1)).length,0,"Fresh empty CI database required");
   const nonce=randomUUID().slice(0,8),{seedEmployer,standaloneMakeSession,standaloneRequest,addWorker}=shared;
   const a=await seedEmployer("ATTA",nonce,standaloneMakeSession),b=await seedEmployer("ATTB",nonce,standaloneMakeSession);
+  // Imports are a Scale-plan feature. Grant ONLY the two fictional owners an
+  // offline, provider-less test entitlement; never weaken the real feature gate.
+  for(const employer of [a,b]){
+    await db.insert(s.subscriptions).values({
+      organizationId:employer.org.id,plan:"Scale",status:"active",
+      seatLimit:100,amountCents:0,currency:"PHP",
+    });
+  }
   for(let i=0;i<6;i++)await addWorker(a,"MIGPAD"+i);
   const victim=await seedEmployer("VICTIM",nonce,standaloneMakeSession);
   assert.ok(victim.worker.id>6&&victim.worker.id>Math.max(a.worker.id,b.worker.id),"Real higher-ID victim must exist");
