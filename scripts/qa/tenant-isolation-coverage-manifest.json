@@ -17955,7 +17955,7 @@
       ]
     },
     "src/app/api/leave/conversion/route.ts": {
-      "gitBlobSha": "ea56239a4221ec85232719d7ad81159e1477c7ce",
+      "gitBlobSha": "baa29dc6098085b67fa80bb9e3657964f0045b2c",
       "route": "leave/conversion",
       "methods": [
         {
@@ -17987,13 +17987,13 @@
             "foreignDenialLine": 128,
             "forgedSelectorLine": 130,
             "unchangedDbLine": 141,
-            "scope": "Two independent owner-authenticated employers each persist 201 leave conversion plus audit; genuine higher-ID victim organization 403, victim worker as forged own selector 404, over-cap 422; balances, conversions, employees and audit immutable on denied requests.",
+            "scope": "Two independent owner-authenticated employers each persist 201 leave conversion plus audit; genuine higher-ID victim organization 403, victim worker as forged own selector 404, over-cap 422; balances, conversions, employees and audit immutable on denied requests. Re-run at PR #1789 head b9ae9ca73 after the annual 12-day exemption split: the same harness (blob unchanged) passed on the new route blob; the prior receipt (run 41264782087) is retained only in history.",
             "postgresMajor": 16,
-            "proofPullRequest": 1675,
-            "proofHeadSha": "b16f4adfdf6c6dc14813360045bb8f0efaf10892",
-            "workflowRunId": 41264782087,
-            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/41264782087",
-            "routeBlobSha": "ea56239a4221ec85232719d7ad81159e1477c7ce",
+            "proofPullRequest": 1789,
+            "proofHeadSha": "b9ae9ca73fea870eac0ebbab42e2a7f3446613cb",
+            "workflowRunId": 42153538138,
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42153538138",
+            "routeBlobSha": "baa29dc6098085b67fa80bb9e3657964f0045b2c",
             "proofBlobSha": "bc90fac8e0023c4e8f8d879c31447bd4f666787f",
             "workflowFile": ".github/workflows/tenant-leave-conversion-post-http.yml",
             "workflowBlobSha": "9c4c7a18465193604de3489fba109620603b03c5",
@@ -18003,7 +18003,9 @@
             "ownerReviewer": "@erwinmehehe",
             "ownerIsOnlyReviewer": true,
             "independentlyAccepted": false,
-            "productionCertified": false
+            "productionCertified": false,
+            "workflowJobId": 127682204847,
+            "workflowJobUrl": "https://github.com/erwinmehehe/payrollph/actions/runs/42153538138/job/127682204847"
           }
         }
       ],
