@@ -2476,6 +2476,7 @@ export function calculateEmployeePay(input: {
         end: shiftForPunch.end,
         breakMinutes: shiftForPunch.breakMinutes,
         graceMinutes: 5,
+        workDate,
       },
     );
     const punchProfile = profileForDate(timeline, workDate);
