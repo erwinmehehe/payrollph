@@ -22,7 +22,9 @@ export function proveEmployeeExport(response, own, excluded) {
   const [header, ...rows] = response.text.replaceAll("\r\n", "\n").trimEnd().split("\n");
   // A one-column or truncated header can make a malformed export appear valid.
   // Check all six production CSV columns before interpreting any employee rows.
-  assert.equal(header, "Employee no.,Name,Title,Status,Type,Basic rate",
+  // The production CSV serializer quotes every cell, including the header.
+  // Keep all six names and their CSV escaping exact, without weakening the tenant-row check.
+  assert.equal(header, '"Employee no.","Name","Title","Status","Type","Basic rate"',
     "employee CSV header missing or altered");
   const employeeNumbers = rows.filter(Boolean).map(row => {
     const firstCell = /^(?:"((?:[^"]|"")*)"|([^,]*))(?:,|$)/.exec(row);
