@@ -22,13 +22,14 @@ import {
   yearEndAdjustments,
 } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { payslipSectionTotals } from "../src/lib/payslip-line-buckets";
 
 type Catalog = {
   version: string;
   toleranceCentavos: number;
   sources: Record<string, string>;
   assumptions: string[];
-  cases: Record<string, { description: string; expected: Record<string, number>; knownPayslipBucketFinding?: boolean }>;
+  cases: Record<string, { description: string; expected: Record<string, number>}>;
   limitations: string[];
 };
 type PayrollLine = { code?: string; label?: string; amount?: string | number };
@@ -59,26 +60,18 @@ function traceText(entry: Entry, key: string) {
   return typeof raw === "string" ? raw.slice(key.length + 1) : null;
 }
 
-/** What the employee sees must add up to the stored centavos. */
-function assertPayslipReconciles(entry: Entry, label: string) {
-  const printed = lines(entry).map((line) => cents(Number(line.amount), label));
-  assert.ok(printed.length > 0, `${label}: a calculated payslip must contain line items`);
-  const gross = cents(Number(entry.grossPay), label), deductions = cents(Number(entry.deductions), label), net = cents(Number(entry.netPay), label);
-  assert.equal(printed.filter((x) => x > 0).reduce((a, b) => a + b, 0), gross, `${label}: printed earnings differ from stored gross`);
-  assert.equal(printed.filter((x) => x < 0).reduce((a, b) => a - b, 0), deductions, `${label}: printed deductions differ from stored deductions`);
-  assert.equal(gross - deductions, net, `${label}: gross - deductions differs from stored net`);
-}
-
 /**
- * Known finding (year-end refund): the refund prints as a positive line but is netted inside stored deductions.
- * Prove the printed total still equals net, and fail loudly once the buckets reconcile so the catalog is updated.
+ * What the employee sees must add up to the stored centavos. Lines are bucketed by the shared payslip classifier
+ * (economic bucket, not sign), so a year-end refund prints as a deduction credit and reconciles to stored deductions.
  */
-function assertKnownRefundBucketFinding(entry: Entry, label: string) {
-  const printed = lines(entry).map((line) => cents(Number(line.amount), label));
-  assert.equal(printed.reduce((a, b) => a + b, 0), cents(Number(entry.netPay), label), `${label}: printed lines must still total net pay`);
-  const printedGross = printed.filter((x) => x > 0).reduce((a, b) => a + b, 0);
-  assert.notEqual(printedGross, cents(Number(entry.grossPay), label),
-    `${label}: payslip buckets now reconcile; remove knownPayslipBucketFinding and assert full reconciliation`);
+function assertPayslipReconciles(entry: Entry, label: string) {
+  const items = lines(entry);
+  assert.ok(items.length > 0, `${label}: a calculated payslip must contain line items`);
+  const totals = payslipSectionTotals(items);
+  const gross = cents(Number(entry.grossPay), label), deductions = cents(Number(entry.deductions), label), net = cents(Number(entry.netPay), label);
+  assert.equal(cents(totals.earnings, label), gross, `${label}: printed earnings differ from stored gross`);
+  assert.equal(cents(totals.deductions, label), deductions, `${label}: printed deductions differ from stored deductions`);
+  assert.equal(gross - deductions, net, `${label}: gross - deductions differs from stored net`);
 }
 
 function actualOf(entry: Entry) {
@@ -242,16 +235,13 @@ async function main() {
   assert.equal(catalog.toleranceCentavos, 0, "Phase 4 compares exact centavos");
   assert.deepEqual(Object.keys(catalog.cases).sort(), Object.keys(runners).sort(), "every catalog case has a runner and every runner a catalog case");
   const results: Array<{ id: string; status: "passed" | "failed"; expected: Record<string, number>; actual?: Record<string, number>; failures: string[] }> = [];
-  for (const [id, { expected, knownPayslipBucketFinding }] of Object.entries(catalog.cases)) {
+  for (const [id, { expected }] of Object.entries(catalog.cases)) {
     const failures: string[] = [];
     let actual: Record<string, number> | undefined;
     try {
       const { entry, checks } = await runners[id]();
       actual = actualOf(entry);
-      if (knownPayslipBucketFinding) {
-        assert.equal(id, "yearEndRefund", "only the documented year-end refund finding may skip bucket reconciliation");
-        assertKnownRefundBucketFinding(entry, id);
-      } else assertPayslipReconciles(entry, id);
+      assertPayslipReconciles(entry, id);
       checks?.(entry);
       for (const [key, value] of Object.entries(expected)) {
         assert.ok(key in actual, `${id}: unknown expected key ${key}`);

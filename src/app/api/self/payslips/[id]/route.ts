@@ -4,6 +4,7 @@ import { employees, organizations, payrollEntries, payrollRuns } from "@/db/sche
 import { assertMembership } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { renderPayslipPdf } from "@/lib/payslip-pdf";
+import { deductionDisplayAmount, splitPayslipLines } from "@/lib/payslip-line-buckets";
 
 export const dynamic = "force-dynamic";
 
@@ -58,10 +59,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const peso = (value: number) => `PHP ${value.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const items = (Array.isArray(entry.lineItems) ? entry.lineItems : []) as LineItem[];
-  const earnings = items.filter((item) => Number(item.amount ?? 0) > 0)
+  // Sections follow the economic bucket (a year-end refund is a deduction credit), so they add up to stored gross and deductions.
+  const sections = splitPayslipLines(items);
+  const earnings = sections.earnings
     .map((item) => ({ label: item.label ?? item.code ?? "Earning", amount: peso(Number(item.amount ?? 0)), note: (item.notes ?? []).join(" · ") || undefined }));
-  const deductions = items.filter((item) => Number(item.amount ?? 0) < 0)
-    .map((item) => ({ label: item.label ?? item.code ?? "Deduction", amount: peso(Math.abs(Number(item.amount ?? 0))), note: (item.notes ?? []).join(" · ") || undefined }));
+  const deductions = sections.deductions
+    .map((item) => ({ label: item.label ?? item.code ?? "Deduction", amount: peso(deductionDisplayAmount(item)), note: (item.notes ?? []).join(" · ") || undefined }));
 
   const buffer = renderPayslipPdf({
     employerName: organization?.legalName ?? organization?.name ?? "Employer",
