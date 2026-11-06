@@ -66,6 +66,14 @@ const nextConfig: NextConfig = {
           { key: "Pragma", value: "no-cache" },
         ],
       },
+      // Protect private employee-pay explanations on the actual HTTP wire.
+      // Next's global API header would otherwise override the route header.
+      {
+        source: "/api/self/payslips/:id/explain",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
       // The general API header overrides route-level Cache-Control in Next.
       // Keep sensitive MWE decision denials explicitly private on the wire.
       // This more-specific rule must follow the general /api rule.
