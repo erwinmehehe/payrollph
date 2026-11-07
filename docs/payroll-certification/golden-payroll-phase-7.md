@@ -2,7 +2,7 @@
 
 Regular payroll runs do not compute 13th-month pay (the Phase 6 note says so). Final pay and year-end are the only paths that do, and until now neither had hand-derived golden values. Phase 7 runs **10 final-pay cases plus leave-monetization and due-date checks (19 checks in total)** through the real `computeFinalPay`, `calculateLeaveMonetizationPay` and `finalPayDueDate`. Every expected value is an immutable literal in `certification/golden-payroll-phase7.json`, derived by hand from PD 851, the TRAIN ₱90,000 exemption and the 2023 annual rates, and never with PayrollPH functions. Comparison is exact to the centavo.
 
-Run: `npm run payroll:golden:phase7` (no database needed — these are pure functions).
+Run: `npx tsx scripts/golden-payroll-phase7.ts` (no npm script: `package.json` is byte-pinned by the tenant credit scripts) (no database needed — these are pure functions).
 
 | Case | What it proves |
 | --- | --- |
