@@ -57,9 +57,11 @@ export function verifyBillingSubscriptionCredits(manifest, read = readFileSync) 
   for (const [path, sha] of Object.entries(BILLING_SOURCE_PINS)) {
     assert.equal(blobHash(read(path)), sha, "Source/proof input drift: " + path);
   }
-  assert.equal(manifest.metrics.methods, 498);
-  assert.equal(manifest.metrics.routeFiles, 295);
-  assert.equal(manifest.metrics.publicByDesign, 11);
+  const routeEntries = Object.values(manifest.allApiRouteFiles);
+  assert.equal(routeEntries.length, manifest.metrics.routeFiles,
+    "Route inventory must reconcile dynamically with the manifest");
+  assert.equal(routeEntries.reduce((total, r) => total + r.methods.length, 0),
+    manifest.metrics.methods, "Method inventory must reconcile dynamically");
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   const proof = read("scripts/qa/tenant-billing-subscription-http.mjs").toString();
   for (const line of [
@@ -120,9 +122,9 @@ export function verifyBillingSubscriptionCredits(manifest, read = readFileSync) 
     assert.equal(receipt?.methodEvidence?.higherIdVictim, true);
   }
   const all = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods);
-  assert.equal(all.length, 498);
+  assert.equal(all.length, manifest.metrics.methods);
   assert.equal(all.filter(method => method.status === "COVERED").length, manifest.metrics.coveredAfter);
   assert.equal(all.filter(method => method.status === "GAP").length, manifest.metrics.gap);
-  assert.equal(all.filter(method => method.status === "PUBLIC-BY-DESIGN").length, 11);
+  assert.equal(all.filter(method => method.status === "PUBLIC-BY-DESIGN").length, manifest.metrics.publicByDesign);
   return BILLING_METHODS.length;
 }

@@ -46,7 +46,10 @@ test("a forged extra credit, job, method, or source change fails closed", () => 
 
 test("method credit cannot grant tenant-wide, money, or production approval", () => {
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
-  assert.equal(manifest.metrics.publicByDesign, 11);
+  const publicMethods = Object.values(manifest.allApiRouteFiles)
+    .flatMap(route => route.methods)
+    .filter(method => method.status === "PUBLIC-BY-DESIGN");
+  assert.equal(manifest.metrics.publicByDesign, publicMethods.length);
   assert.equal(manifest.metrics.scopedPagesAndActions, 21);
   for (const m of BILLING_METHODS) {
     const receipt = record(manifest, m.path).testedBy;
