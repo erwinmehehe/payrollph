@@ -1,4 +1,5 @@
 import { snapshotScopeColumn } from "../scripts/qa/tenant-careers-admin-http.mjs";
+import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -162,7 +163,7 @@ test("unpublishing must be the exact inverse of a real published row", () => {
   assert.throws(() => assertUnchangedCareersTenant(prior, next, "denied"));
 });
 
-test("the exact legacy route still guards org, requisition, MFA, CAS and an atomic audit", () => {
+test("legacy source-only harness remains zero-credit while separate executed PG16 proof backs PATCH", () => {
   const route = readFileSync("src/app/api/careers/admin/route.ts", "utf8");
   const runner = readFileSync("scripts/qa/tenant-careers-admin-http.mjs", "utf8");
   assert.match(route, /assertOrganizationRole/);
@@ -184,8 +185,13 @@ test("the exact legacy route still guards org, requisition, MFA, CAS and an atom
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(inventory.allApiRouteFiles)
     .find(x => x.route === "careers/admin");
-  assert.equal(record?.methods?.find(x => x.name === "PATCH")?.status, "GAP",
-    "incomplete proof is not method-level coverage credit");
+  // This legacy source-only harness grants zero credits; the separate
+  // two-attacker PG16 proof must independently support the provisional PATCH.
+  assert.equal(verifyCareersPatchCredit(inventory), 1);
+  const method = record?.methods?.find(x => x.name === "PATCH");
+  assert.equal(method?.status, "COVERED");
+  assert.equal(method?.testedBy?.productionTested, false);
+  assert.equal(method?.testedBy?.independentSecurityReview, "PENDING");
 });
 test("foreign responses cannot carry any victim marker", () => {
   assert.doesNotThrow(() =>

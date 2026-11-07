@@ -5,6 +5,7 @@ import {
   METHOD, PATH, requireDisposableCareersEnv,
   assertDenied, assertUnchanged, assertPublicationTransition,
 } from "../scripts/qa/tenant-edg01-careers-publication-contract.mjs";
+import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 
 const safe = () => ({
   CI: "true", GITHUB_ACTIONS: "true", NODE_ENV: "production",
@@ -113,14 +114,16 @@ test("route preserves organization+requisition CAS, MFA and company-wide scope",
   ]) assert.ok(s.includes(token), "missing source guard: " + token);
 });
 
-test("review-only proof targets exactly one GAP method and does not mutate the ledger", () => {
+test("the proven PATCH method is the sole provisional EDG-01 careers credit", () => {
   assert.equal(METHOD, "PATCH /api/careers/admin");
   assert.equal(PATH, "/api/careers/admin");
-  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const method = manifest.allApiRouteFiles["src/app/api/careers/admin/route.ts"]
-    .methods.find(m => m.name === "PATCH");
-  assert.ok(method, "target method must actually exist");
-  assert.equal(method.status, "GAP", "this source proof must not auto-promote tenant coverage");
+  const manifest=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+  assert.equal(verifyCareersPatchCredit(manifest),1);
+  const row=manifest.allApiRouteFiles["src/app/api/careers/admin/route.ts"].methods;
+  assert.equal(row.length,1);
+  assert.equal(row[0].status,"COVERED");
+  assert.equal(row[0].testedBy.productionTested,false);
+  assert.equal(row[0].testedBy.independentSecurityReview,"PENDING");
 });
 
 test("isolated workflow provisions PG16, applies optional careers SQL locally and checks live HTTP", () => {
