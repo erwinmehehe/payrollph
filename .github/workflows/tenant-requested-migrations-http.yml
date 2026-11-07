@@ -7,6 +7,9 @@ on:
       - '.github/workflows/tenant-requested-migrations-http.yml'
       - 'scripts/qa/tenant-requested-migrations-http.mjs'
       - 'scripts/qa/migration-method-proof.mjs'
+      - 'scripts/qa/fictional-migration-xlsx.mjs'
+      - 'scripts/qa/disposable-insert-veto.mjs'
+      - 'tests/tenant-migration-hcm-missing-proof.test.mjs'
       - 'tests/tenant-requested-migrations-contract.test.mjs'
       - 'src/app/api/migrations/**'
       - 'src/lib/migration-*.ts'
@@ -23,6 +26,9 @@ jobs:
   migration-post:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
     services:
       postgres:
         image: postgres:16
@@ -46,7 +52,7 @@ jobs:
       - name: Configure disposable localhost fixture
         run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
       - name: Validate real CSV parser and proof discrimination contracts
-        run: node --import tsx --test tests/tenant-requested-migrations-contract.test.mjs
+        run: node --import tsx --test tests/tenant-requested-migrations-contract.test.mjs tests/tenant-migration-hcm-missing-proof.test.mjs
       - name: Generate disposable encryption keys
         shell: bash
         run: |
