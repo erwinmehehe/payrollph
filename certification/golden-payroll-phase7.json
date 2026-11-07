@@ -1,0 +1,94 @@
+{
+  "version": "phase7-final-pay-2026-11-07",
+  "toleranceCentavos": 0,
+  "description": "Golden cases for separation (final) pay: pro-rated 13th month, unused-leave monetization, the PHP 90,000 exemption pool, year-end tax true-up on the final payout, and the order in which a short payout is applied to tax, statutory and loan deductions. Regular payroll runs do not compute 13th month, so this is the path that does. Every expected value is hand-derived below from the published rules, never copied from engine output.",
+  "sources": {
+    "thirteenth": "PD 851 and its Revised Guidelines: 13th month pay is 1/12 of the basic salary earned within the calendar year; a separated employee is paid the pro-rated amount, less any 13th month already paid.",
+    "exemption": "TRAIN (RA 10963) Sec. 32(B)(7)(e): 13th month pay and other benefits are exempt up to 90,000 combined; the excess is taxable compensation. Leave monetization and separation pay are not part of that pool in the engine and are taxable unless the case states a taxable amount of zero.",
+    "bir": "Annual graduated rates effective 2023 onward: up to 250,000 exempt; 250,000-400,000 at 15% of the excess over 250,000; 400,000-800,000 at 22,500 + 20% over 400,000; 800,000-2,000,000 at 102,500 + 25% over 800,000; 2,000,000-8,000,000 at 402,500 + 30% over 2,000,000. Taxable = gross compensation - exempt benefit pool - employee statutory contributions.",
+    "finalPay": "DOLE Labor Advisory 06-20: final pay is released within 30 days from separation unless a company policy or agreement provides otherwise."
+  },
+  "assumptions": [
+    "The default (flag off) peso arithmetic is certified; the exact-centavo 13th month flag is a separate release control and none of the amounts below sit on a half-centavo.",
+    "All employees are non-MWE unless the case says so, with no de minimis and no other benefits.",
+    "Tax collected or refunded is the annualized tax due minus tax already withheld year to date. A collection is taken first from the final payout, then statutory deductions, then loans.",
+    "Gross compensation year to date is basic pay only (without the 13th month, which the final-pay computation adds itself)."
+  ],
+  "cases": {
+    "resignationNoTax": {
+      "description": "Basic earned 120,000 released + 10,000 unpaid = 130,000. 13th month 130,000 / 12 = 10,833.33 (10,833.333...). Leave 5 days x 1,000 = 5,000. Gross final pay 10,000 + 10,833.33 + 5,000 = 25,833.33. Annual gross 120,000 + 10,000 + 10,833.33 + 5,000 = 145,833.33; exempt pool 10,833.33; statutory 5,400; taxable 129,600 (<= 250,000): no tax. Net 25,833.33.",
+      "input": { "releasedBasicYtd": 120000, "unpaidBasicSalary": 10000, "grossCompensationYtd": 120000, "statutoryContributionsYtd": 5400, "taxWithheldYtd": 0, "leaveDays": 5, "leaveDailyRate": 1000 },
+      "expected": { "basicSalaryEarnedYtd": 130000, "thirteenthEntitlement": 10833.33, "thirteenthDue": 10833.33, "grossFinalPay": 25833.33, "taxDue": 0, "taxAdjustment": 0, "appliedTaxCollection": 0, "unpaidTaxWithholding": 0, "netFinalPay": 25833.33 },
+      "outcome": "balanced"
+    },
+    "yearEndSeparationCollectsTax": {
+      "description": "Resigns on December 31 with 11 months released (550,000) + 50,000 unpaid = 600,000 basic; 13th month 50,000. Annual gross 550,000 + 50,000 + 50,000 = 650,000; exempt pool 50,000; statutory 11,000; taxable 589,000. Tax = 22,500 + 20% x (589,000 - 400,000) = 22,500 + 37,800 = 60,300. Withheld 20,000, so 40,300 is collected. Gross final pay 100,000; net 100,000 - 40,300 = 59,700.",
+      "input": { "releasedBasicYtd": 550000, "unpaidBasicSalary": 50000, "grossCompensationYtd": 550000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 20000 },
+      "expected": { "basicSalaryEarnedYtd": 600000, "thirteenthEntitlement": 50000, "thirteenthDue": 50000, "grossFinalPay": 100000, "taxDue": 60300, "taxAdjustment": -40300, "appliedTaxCollection": 40300, "unpaidTaxWithholding": 0, "netFinalPay": 59700 },
+      "outcome": "collect"
+    },
+    "yearEndSeparationRefundsTax": {
+      "description": "Same earnings as the collection case but 80,000 was withheld during the year against 60,300 due: 19,700 is refunded and added to the payout. Available 100,000 + 19,700 = 119,700; no collection, no deductions: net 119,700.",
+      "input": { "releasedBasicYtd": 550000, "unpaidBasicSalary": 50000, "grossCompensationYtd": 550000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 80000 },
+      "expected": { "basicSalaryEarnedYtd": 600000, "thirteenthEntitlement": 50000, "thirteenthDue": 50000, "grossFinalPay": 100000, "taxDue": 60300, "taxAdjustment": 19700, "appliedTaxCollection": 0, "unpaidTaxWithholding": 0, "netFinalPay": 119700 },
+      "outcome": "refund"
+    },
+    "thirteenthAlreadyPartlyPaid": {
+      "description": "Same 600,000 basic (13th month entitlement 50,000) but 25,000 was already paid as a mid-year advance: only 25,000 is due now. Annual gross 550,000 + 50,000 + 25,000 paid + 25,000 due = 650,000 - the same taxable 589,000 and tax 60,300; withheld 20,000 so 40,300 is collected. Gross final pay 50,000 + 25,000 = 75,000; net 75,000 - 40,300 = 34,700.",
+      "input": { "releasedBasicYtd": 550000, "unpaidBasicSalary": 50000, "thirteenthPaidYtd": 25000, "grossCompensationYtd": 550000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 20000 },
+      "expected": { "basicSalaryEarnedYtd": 600000, "thirteenthEntitlement": 50000, "thirteenthDue": 25000, "grossFinalPay": 75000, "taxDue": 60300, "taxAdjustment": -40300, "appliedTaxCollection": 40300, "unpaidTaxWithholding": 0, "netFinalPay": 34700 },
+      "outcome": "collect"
+    },
+    "thirteenthOverNinetyThousandPool": {
+      "description": "Basic 2,200,000 released + 200,000 unpaid = 2,400,000; 13th month 200,000, of which only 90,000 is exempt. Annual gross 2,200,000 + 200,000 + 200,000 = 2,600,000; statutory 12,000; taxable 2,600,000 - 90,000 - 12,000 = 2,498,000. Tax = 402,500 + 30% x 498,000 = 402,500 + 149,400 = 551,900. Withheld 500,000: 51,900 collected. Gross final pay 400,000; net 348,100.",
+      "input": { "releasedBasicYtd": 2200000, "unpaidBasicSalary": 200000, "grossCompensationYtd": 2200000, "statutoryContributionsYtd": 12000, "taxWithheldYtd": 500000 },
+      "expected": { "basicSalaryEarnedYtd": 2400000, "thirteenthEntitlement": 200000, "thirteenthDue": 200000, "grossFinalPay": 400000, "taxDue": 551900, "taxAdjustment": -51900, "appliedTaxCollection": 51900, "unpaidTaxWithholding": 0, "netFinalPay": 348100 },
+      "outcome": "collect"
+    },
+    "taxCollectionExceedsPayout": {
+      "description": "13th month already fully paid (50,000) and only 2,000 of salary is unpaid: gross final pay 2,000. Annual gross 598,000 + 2,000 + 50,000 = 650,000; taxable 589,000; tax 60,300; nothing withheld, so 60,300 is owed. Only 2,000 can be applied; 58,300 is reported as unpaid tax and the net is 0. The shortfall must be surfaced, never silently dropped.",
+      "input": { "releasedBasicYtd": 598000, "unpaidBasicSalary": 2000, "thirteenthPaidYtd": 50000, "grossCompensationYtd": 598000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 0 },
+      "expected": { "basicSalaryEarnedYtd": 600000, "thirteenthEntitlement": 50000, "thirteenthDue": 0, "grossFinalPay": 2000, "taxDue": 60300, "taxAdjustment": -60300, "appliedTaxCollection": 2000, "unpaidTaxWithholding": 58300, "netFinalPay": 0 },
+      "outcome": "collect"
+    },
+    "loanCappedByRemainingPay": {
+      "description": "The yearEndSeparationCollectsTax payout (after the 40,300 collection, 59,700 remains) with a 70,000 loan balance requested: only 59,700 can be deducted, 10,300 is deferred, and net is 0.",
+      "input": { "releasedBasicYtd": 550000, "unpaidBasicSalary": 50000, "grossCompensationYtd": 550000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 20000, "loanDeductions": 70000 },
+      "expected": { "grossFinalPay": 100000, "taxDue": 60300, "appliedTaxCollection": 40300, "loanDeductions": 59700, "deferredLoanBalance": 10300, "netFinalPay": 0 },
+      "outcome": "collect"
+    },
+    "separationPayExemptWhenTaxableAmountIsZero": {
+      "description": "The collection case plus 200,000 separation pay that is exempt (involuntary cause, taxable amount 0). Tax is unchanged at 60,300, so collection stays 40,300. Gross final pay 100,000 + 200,000 = 300,000; net 300,000 - 40,300 = 259,700.",
+      "input": { "releasedBasicYtd": 550000, "unpaidBasicSalary": 50000, "grossCompensationYtd": 550000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 20000, "separationPay": 200000, "taxableSeparationPay": 0 },
+      "expected": { "grossFinalPay": 300000, "taxDue": 60300, "taxAdjustment": -40300, "appliedTaxCollection": 40300, "netFinalPay": 259700 },
+      "outcome": "collect"
+    },
+    "separationPayTaxableWhenNoExemptionStated": {
+      "description": "Same 200,000 separation pay but no taxable amount stated, so the whole amount is treated as taxable compensation. Annual gross 650,000 + 200,000 = 850,000; taxable 850,000 - 50,000 - 11,000 = 789,000. Tax = 22,500 + 20% x 389,000 = 22,500 + 77,800 = 100,300. Withheld 20,000: 80,300 collected. Gross final pay 300,000; net 219,700.",
+      "input": { "releasedBasicYtd": 550000, "unpaidBasicSalary": 50000, "grossCompensationYtd": 550000, "statutoryContributionsYtd": 11000, "taxWithheldYtd": 20000, "separationPay": 200000 },
+      "expected": { "grossFinalPay": 300000, "taxDue": 100300, "taxAdjustment": -80300, "appliedTaxCollection": 80300, "netFinalPay": 219700 },
+      "outcome": "collect"
+    },
+    "minimumWageEarnerRefundsWithholding": {
+      "description": "MWE: basic 250,000 released + 50,000 unpaid = 300,000; 13th month 25,000 (inside the 90,000 pool, so exempt). Leave 10,000 is taxable supplementary compensation: taxable income = 10,000 - 0 statutory = 10,000, below 250,000: tax 0. 500 was wrongly withheld during the year and is refunded. Gross final pay = unpaid salary 50,000 + 13th month 25,000 + leave 10,000 = 85,000; net 85,000 + 500 refund = 85,500.",
+      "input": { "releasedBasicYtd": 250000, "unpaidBasicSalary": 50000, "grossCompensationYtd": 250000, "statutoryContributionsYtd": 0, "taxWithheldYtd": 500, "mwe": true, "leaveDays": 10, "leaveDailyRate": 1000 },
+      "expected": { "basicSalaryEarnedYtd": 300000, "thirteenthEntitlement": 25000, "thirteenthDue": 25000, "grossFinalPay": 85000, "taxDue": 0, "taxAdjustment": 500, "appliedTaxCollection": 0, "unpaidTaxWithholding": 0, "netFinalPay": 85500 },
+      "outcome": "refund"
+    }
+  },
+  "leaveMonetization": [
+    { "description": "7.5 days x 1,234.56 = 9,259.20 exactly", "days": 7.5, "dailyRate": 1234.56, "expected": 9259.2 },
+    { "description": "0 days pays nothing", "days": 0, "dailyRate": 900, "expected": 0 }
+  ],
+  "dueDates": [
+    { "description": "30 calendar days after a November 30 last day", "lastDay": "2026-11-30", "expected": "2026-12-30" },
+    { "description": "crosses the year end", "lastDay": "2026-12-15", "expected": "2027-01-14" },
+    { "description": "leap day is counted in a leap year", "lastDay": "2028-02-01", "expected": "2028-03-02" }
+  ],
+  "limitations": [
+    "Pure function certification of computeFinalPay: it does not exercise the Separation API route, approval workflow or payslip rendering.",
+    "Sub-centavo 13th month rounding belongs to the exact-centavo release flag and is not certified here.",
+    "The SSS, PhilHealth and Pag-IBIG year-to-date amounts are supplied as inputs; their derivation is certified in Phases 1 to 6.",
+    "Whether leave monetization and separation pay are taxable in a given case is a practitioner decision this suite takes as input."
+  ]
+}

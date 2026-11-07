@@ -24,6 +24,7 @@
     "payroll:golden:phase4": "tsx scripts/golden-payroll-phase4.ts",
     "payroll:golden:phase5": "tsx scripts/golden-payroll-phase5.ts",
     "payroll:golden:phase6": "tsx scripts/golden-payroll-phase6.ts",
+    "payroll:golden:phase7": "tsx scripts/golden-payroll-phase7.ts",
     "payroll:evidence:check": "tsx scripts/check-external-payroll-evidence.ts",
     "payroll:parallel:check": "tsx scripts/check-private-parallel-payroll.ts",
     "payroll:ga:evidence": "tsx scripts/check-production-certification.ts",
