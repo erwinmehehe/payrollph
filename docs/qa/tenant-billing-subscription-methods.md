@@ -2,7 +2,7 @@
 
 **Historical proof PR #1804: FICTIONAL DATA ONLY / ZERO METHOD CREDITS AT EXECUTION / NOT PRODUCTION-CERTIFIED.**
 
-> **2026-11-07 separate review proposal:** Branch qa/tenant-billing-subscription-credit-20261107 proposes exactly **two provisional credits**, for POST start and POST cancel, from [successful PG16 real-HTTP job 42254118161/128016607991](https://github.com/erwinmehehe/payrollph/actions/runs/42254118161/job/128016607991). The proposal updates the 498-method ledger from **426 COVERED / 11 PUBLIC / 61 GAP** to **428 COVERED / 11 PUBLIC / 59 GAP**, while year-end GET and POST stay GAP. New branch-head CI and independent billing/security/privacy review are **PENDING**. The source-pinned application, Xendit and database modules have not drifted; since that proof run, next.config.ts added only POS-only Cache-Control overrides. No real Xendit traffic or production financial authorization.
+> **2026-11-07 separate review proposal:** Branch qa/tenant-billing-subscription-credit-20261107 proposes exactly **two provisional credits**, for POST start and POST cancel, from [successful PG16 real-HTTP job 42254118161/128016607991](https://github.com/erwinmehehe/payrollph/actions/runs/42254118161/job/128016607991). The proposal updates the 498-method ledger from **430 COVERED / 11 PUBLIC / 57 GAP** to **432 COVERED / 11 PUBLIC / 55 GAP**, while year-end GET and POST stay GAP. New branch-head CI and independent billing/security/privacy review are **PENDING**. The source-pinned application, Xendit and database modules have not drifted; since that proof run, next.config.ts added only POS-only Cache-Control overrides. No real Xendit traffic or production financial authorization.
 
 ## Exact method scope
 
