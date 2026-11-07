@@ -2,6 +2,7 @@ import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-cr
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
+import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -234,6 +235,11 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (key === "src/app/api/careers/admin/route.ts PATCH" && method.status === "COVERED") {
+    assert.equal(currentBlob, "fc7920e19fc75389c5f5e7fe3cb4f90046028f00");
+    assert.equal(verifyCareersPatchCredit(manifest), 1);
+    return true;
+  }
   if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
     assert.equal(verifyRootCredits(manifest),2);
     return true;
@@ -2024,7 +2030,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   // WRK-02 source-only hardening. These changed route blobs add stricter
   // final SQL predicates, but have NO new own/victim PG16 HTTP proof.
   const wrk02Boundaries = {
-    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "2476d179a0472c915829aaec27db5da84078a50f", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
+    "src/app/api/workforce-planning/scenarios/route.ts": { previous: "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7", current: "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0", prefix: "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/position-executions/route.ts": { previous: "0c7ddf8ba2db323aea03c152612eced44c31aea2", current: "142797be0cfa4f64849b20958869c12147ccf792", prefix: "e18416e827678a1e62a1e891201df027ba20c48e", methods: ["GET","POST","PATCH"] },
     "src/app/api/workforce-planning/transfer/route.ts": { previous: "4aa8c0c402f62a45bc5dd46dd6558b21d1bad153", current: "fc17024c47d013b28213abe89c7784254e3b2bc1", prefix: null, methods: ["POST"] },
   };
@@ -5422,6 +5428,10 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/expenses/receipts/route.ts" && ["GET", "POST"].includes(method.name)) {
         assert.equal(verifyReceiptCredits(manifest), 2);
+        continue;
+      }
+      if (path === "src/app/api/careers/admin/route.ts" && method.name === "PATCH") {
+        assert.equal(verifyCareersPatchCredit(manifest), 1);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
