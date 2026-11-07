@@ -26,6 +26,9 @@ jobs:
   migration-post:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
     services:
       postgres:
         image: postgres:16
