@@ -19594,17 +19594,6 @@
             "xlsxForeignDenials": 8,
             "xlsxDiscriminationChecks": 8,
             "auditVetoRollbacks": 8
-          },
-          "reviewedUncertified": {
-            "kind": "migrations-POST-historical-import-atomic-source-only",
-            "priorRouteBlobSha": "5484aba4bdc08351e05f5741f1e8c785919b53fb",
-            "routeBlobSha": "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
-            "contractFile": "tests/tenant-migrations-post-atomic-history.test.mjs",
-            "contractBlobSha": "5ce4fd9d5ff5d1cfac511efc790e3b0a1fa8957d",
-            "credits": 0,
-            "actualPg16Http": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
           }
         }
       ],
