@@ -1,3 +1,5 @@
+> **Integrated #1805 ledger:** 422 COVERED / 11 PUBLIC-BY-DESIGN / 65 GAP. Retains main's distinct payout-reconciliation receipt and four proposed receipt/root-planning credits. Independent acceptance PENDING.
+
 > **Receipt provisional credits:** 419 COVERED / 68 GAP; https://github.com/erwinmehehe/payrollph/actions/runs/42167466444/job/127727146937; synthetic storage, independent review PENDING.
 
 > **2026-11-06 PR #1766 + #1784 combined (PROVISIONAL / NOT ACCEPTED):** **498 API methods = 415 COVERED / 11 PUBLIC-BY-DESIGN / 72 GAP**; frozen 406 = **331 COVERED / 3 PUBLIC / 72 GAP**. The MWE decision PATCH and payroll review/release POST receipts are distinct and provisional. Security/payroll-tax review and exact-head CI remain pending; no production or payout approval.
@@ -9,6 +11,8 @@
 > **2026-11-04 #1760 three-source PG16 provisional recovery (DRAFT / NOT ACCEPTED):** **498 API methods = 408 COVERED / 11 PUBLIC-BY-DESIGN / 79 GAP**; frozen 406-method queue = **324 COVERED / 3 PUBLIC / 79 GAP**; 17 page/action GAPs. POST salary-corrections/preview, POST invitations and PATCH self/profile receive separate #1762 source-matched exact-head fictional PG16 real-HTTP proof receipts, subject to owner/security acceptance. #1762 transfer POST/PATCH remain **GAP / testedBy:null**, as do the source-changed year-end GET/POST. No global isolation certification, production rollout, payroll, provider, payout, CSP or money authorization.
 
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
+
+> **Payout reconciliation provisional evidence:** 418 COVERED / 11 PUBLIC-BY-DESIGN / 69 GAP. payout-reconciliation POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957) from main head `9c9f0ad78`, against a loopback-synthetic PayMongo only (no real provider contacted); route, harness, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production authorization.
 
 > **Auth logout provisional evidence:** 417 COVERED / 11 PUBLIC-BY-DESIGN / 70 GAP. auth/logout POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303) from head `b32c2286e`, merged as `b18244790`; route, harness, contract, test, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production authorization.
 
@@ -95,9 +99,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 66 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 65 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 66 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 65 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -206,9 +210,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 421 |
+| coveredAfter | 422 |
 | publicByDesign | 11 |
-| gap | 66 |
+| gap | 65 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -618,7 +622,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`payroll-runs/[id]/exports` GET](../../src/app/api/payroll-runs/[id]/exports/route.ts#L51) | session, query, body | getSessionUser L14, enforceSameOriginMutation L18, assertOrganizationRole L24, assertOrganizationUnitAccess L25 | searchParams.get("payslipId") L69 | NO VALID METHOD PROOF | **GAP** |
 | [`payroll-runs/[id]/exports` POST](../../src/app/api/payroll-runs/[id]/exports/route.ts#L316) | session, query, body | getSessionUser L14, enforceSameOriginMutation L18, assertOrganizationRole L24, assertOrganizationUnitAccess L25 | searchParams.get("payslipId") L69 | NO VALID METHOD PROOF | **GAP** |
 | [`payroll-runs/[id]/payout-reconciliation` GET](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L140) | session, query, body | getSessionUser L5, assertOrganizationUnitAccess L7, enforceSameOriginMutation L21, getSessionUser L147 | input.organizationId L111, input.runId L116 | NO VALID METHOD PROOF | **GAP** |
-| [`payroll-runs/[id]/payout-reconciliation` POST](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L211) | session, query, body | getSessionUser L5, assertOrganizationUnitAccess L7, enforceSameOriginMutation L21, getSessionUser L147 | input.organizationId L111, input.runId L116 | NO VALID METHOD PROOF | **GAP** |
+| [`payroll-runs/[id]/payout-reconciliation` POST](../../src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts#L211) | session, query, body | getSessionUser L5, assertOrganizationUnitAccess L7, enforceSameOriginMutation L21, getSessionUser L147 | input.organizationId L111, input.runId L116 | [payout-reconciliation loopback-synthetic proof](../../scripts/qa/paymongo-export-isolation-local.mjs#L207) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957)) | **COVERED** |
 | [`payroll-runs/[id]/pilot-signoff` POST](../../src/app/api/payroll-runs/[id]/pilot-signoff/route.ts#L75) | session, body | getSessionUser L6, assertOrganizationRole L9, assertOrganizationUnitAccess L10, enforceSameOriginMutation L13 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`payroll-runs/[id]/pre-run-readiness` GET](../../src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts#L12) | session | getSessionUser L4, assertOrganizationRole L5, assertOrganizationUnitAccess L5, requireRunEmployer L6 | runId L14 | [two real own 200 + real victim 403](../../scripts/qa/tenant-second-pass-http.mjs#L1381) | **COVERED (pre-calculation, provisional HTTP evidence)** |
 | [`payroll-runs/[id]/process` POST](../../src/app/api/payroll-runs/[id]/process/route.ts#L18) | session | enforceSameOriginMutation L1, getSessionUser L5, assertOrganizationRole L8, assertOrganizationUnitAccess L8, requireRunEmployer L12 | runId L22 | [own 422; real foreign 403; unchanged owned DB](../../scripts/qa/tenant-second-pass-http.mjs#L1414) | **COVERED (authorization + intentional preflight block only; NO successful calculation)** |

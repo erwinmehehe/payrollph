@@ -31,3 +31,9 @@ Source, payroll queue, annualization and proof helpers are hash-pinned in the ac
 4. Until then retain GAP, testedBy:null, zero credits, production NO-GO, no payroll money or filing activity, and no changes to real employer data.
 
 This PR does not deploy, enable a provider, send a payout, submit a statutory filing, activate a feature flag, or authorize financial processing.
+
+## November 6 four-method revalidation request
+
+This documentation update deliberately triggers the dedicated year-end full-method candidate workflow on the exact head of the separate four-method billing/year-end proof PR. Existing `GET /api/year-end` and `POST /api/year-end` remain **GAP**, `testedBy:null`, and **zero credits**, regardless of CI execution, until exact-head real HTTP evidence and independent review are accepted. The billing start/cancel fictional-provider proof is documented in `docs/qa/tenant-billing-subscription-methods.md` and does not change year-end code, SQL, flags, provider settings or acceptance status. Reuse neither old #1730 receipts after #1744 source changes nor any previous-head green check to certify this head.
+
+**Source pin review (November 6):** The earlier year-end contract pinned `src/lib/payroll-engine.ts` at `961cfb55`. At the current main-derived branch the blob is `dc5719a2`; direct old-vs-new blob comparison identifies one added `workDate` property passed to attendance `calculateClockHours(...)`, with no other changed bytes. The current contract now pins `dc5719a2` and still **requires fresh exact-head PG16 HTTP**, including source exports, annualization and December binding. This narrow diff review is not a substitute for independent payroll/security acceptance; no method status or credit changes.

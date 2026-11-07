@@ -1,0 +1,131 @@
+name: Tenant subscription start and cancel (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-billing-subscription-methods.yml"
+      - "scripts/qa/tenant-billing-subscription-provider-preload.mjs"
+      - "scripts/qa/tenant-billing-subscription-http.mjs"
+      - "tests/tenant-billing-subscription-methods.test.mjs"
+      - "docs/qa/tenant-billing-subscription-methods.md"
+      - "src/app/api/billing/subscription/**"
+      - "src/lib/xendit-subscriptions.ts"
+      - "src/lib/saas-launch-config.ts"
+      - "src/lib/saas-billing-schema.ts"
+      - "src/lib/security-request.ts"
+      - "src/lib/saas-pricing.ts"
+      - "src/lib/pricing-catalog.ts"
+      - "src/db/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-subscription-four-methods-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-billing-mutations:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      TENANT_SUBSCRIPTION_PROOF: fiction-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      APP_BASE_URL: https://payroll.example.test
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "true"
+      XENDIT_SECRET_KEY: ci-fictional-xendit-key-no-provider-access
+      XENDIT_CALLBACK_TOKEN: ci-fictional-callback-no-provider-access
+      XENDIT_BUSINESS_ID: ci-fictional-business
+      XENDIT_PAYOUTS_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      PAYMONGO_WEBHOOK_SECRET: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      SMTP_URL: ""
+      STRIPE_SECRET_KEY: ""
+      OPENAI_API_KEY: ""
+      NEXT_CSP_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert the exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exact lockfile including pinned test-only database tooling
+        # NODE_ENV=production is required by the HTTP server; npm would otherwise
+        # omit drizzle-kit, causing the strict disposable db:push to fail closed.
+        run: npm ci --include=dev
+      - name: Refuse unsafe fixture and test source-pinned method contracts
+        run: |
+          node --check scripts/qa/tenant-billing-subscription-provider-preload.mjs
+          node --check scripts/qa/tenant-billing-subscription-http.mjs
+          node --test tests/tenant-billing-subscription-methods.test.mjs
+      - name: One-time synthetic signing and encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create empty disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed synthetic-only baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile production-mode Next without external providers
+        run: npm run build
+      - name: Start localhost Next with egress-blocking fictional Xendit transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e /tmp/payrollph-tenant-subscription-provider.ndjson
+          nohup env TENANT_SUBSCRIPTION_PROVIDER_PRELOAD=enabled NODE_OPTIONS="--import=$(pwd)/scripts/qa/tenant-billing-subscription-provider-preload.mjs" npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-billing-subscription-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/tenant-billing-subscription-next.log
+          exit 1
+      - name: Prove both billing methods with owned success, victim denials and SQL invariants
+        run: node --import tsx scripts/qa/tenant-billing-subscription-http.mjs
+      - name: Server diagnostics on failure
+        if: failure()
+        run: tail -n 120 /tmp/tenant-billing-subscription-next.log || true
