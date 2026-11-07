@@ -498,7 +498,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // submit-review leaves this zero-credit exception only by the money-lifecycle credit, which the COVERED branch verifies exactly.
   const moneyLifecycleCredit = method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs" &&
     payrollPath === "src/app/api/payroll-runs/[id]/submit-review/route.ts";
-  if (isNewOrChanged && payrollReviewed && payrollReviewed.methods.includes(method.name) && !moneyLifecycleCredit) {
+  // pilot-signoff POST and xendit-payout GET leave the zero-credit hold only by the dedicated payroll-run-actions credit, which the
+  // generic evidence branch and the dedicated test at the end of this file verify exactly. Their siblings (xendit-payout POST) stay held.
+  const payrollRunActionsCredit = method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-payroll-run-actions-http.mjs" &&
+    ((payrollPath === "src/app/api/payroll-runs/[id]/pilot-signoff/route.ts" && method.name === "POST") ||
+     (payrollPath === "src/app/api/payroll-runs/[id]/xendit-payout/route.ts" && method.name === "GET"));
+  if (isNewOrChanged && payrollReviewed && payrollReviewed.methods.includes(method.name) && !moneyLifecycleCredit && !payrollRunActionsCredit) {
     assert.equal(currentBlob, payrollReviewed.current,
       "Financial route source changed: re-review zero-credit method and live external-money guards");
     assert.equal(method.status, "GAP", "Refused or disabled money actions are never proof of valid own writes");
@@ -986,9 +991,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     // Pin both generations independently; don't transfer the older receipt.
     const currentCandidatePins = {
       "scripts/qa/tenant-table-rows/write/compliance-filing.mjs":
-        "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
+        "c7c7bf0a1b6b8b4eb4eade869ec8184beefe4fba",
       "tests/tenant-compliance-filing-contract.test.mjs":
-        "fe286bc91140a8dbc11dc1eebf7594fa18f97ed1",
+        "d4e635d1a0f433ec0399c96097313b93667ce554",
     };
     assert.equal(reviewed.proofBlobSha,
       "6bb8bf721e73b47b2b79e26b27ec36f1c22aae34",
@@ -1022,6 +1027,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       'acceptedAudit.action, "SSS R-3 filing accepted"',
       "acceptedOwnDecisionPG16: true",
       "acceptedVictimDbAndAuditUnchanged: true",
+      "acceptedAuditInsertRollbackProven: true",
+      "const [vetoRun] = await db.insert(payrollRuns).values({",
+      'const vetoWorksheet = await generateGovernmentDraft(vetoRun.id, "sss-r3")',
+      "assert.notEqual(vetoHash, sourceHash",
+      "fileSha256: vetoHash",
+      'accepted filing outcome must roll back on a failed audit insert',
+      "assert.deepEqual(removedRun.map(row => row.id), [vetoRun.id])",
     ]) assert.ok(candidate.includes(token),
       "Filing accepted-path candidate missing required fictional PG16 control: " + token);
     assert.equal(reviewed.reconciliationReview?.fullMethodCoverageCredits, 0);
@@ -1048,6 +1060,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.match(route, guard, "Filing PATCH must retain tenant gate + atomic audit");
     assert.match(store, /await \(transaction \?\? db\)\s*\.update\(governmentFilingValidations\)/);
     assert.match(proof, /atomicAuditInsertRollbackProven: true/);
+    assert.match(proof, /acceptedAuditInsertRollbackProven: true/);
     assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2);
     return;
   }
@@ -4651,6 +4664,21 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 127844239303);
         continue;
       }
+      // pilot-signoff POST and xendit-payout GET: dedicated payroll-run-actions receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-payroll-run-actions-http.mjs") {
+        assert.ok(["src/app/api/payroll-runs/[id]/pilot-signoff/route.ts POST", "src/app/api/payroll-runs/[id]/xendit-payout/route.ts GET"]
+          .includes(path + " " + method.name), "No unrelated method may reuse the payroll-run-actions evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.moneyMovedByLinaw, false);
+        assert.equal(proof.providerCalled, false);
+        assert.equal(proof.proofPullRequest, 1803);
+        assert.equal(proof.mergedProofCommit, "79da483eebf674ab44d3838adc36daa2df3201c8");
+        assert.equal(proof.verifiedPrHeadSha, "02cfd9445d7fe67a8a63b156c037005d531f832a");
+        assert.equal(proof.workflowRunId, 42253150229);
+        assert.equal(proof.workflowJobId, 128013254082);
+        continue;
+      }
       // payout-reconciliation POST: loopback-synthetic PayMongo receipt; pins are checked by the dedicated test at the end of this file.
       if (proof?.file === "scripts/qa/paymongo-export-isolation-local.mjs") {
         assert.equal(path + " " + method.name, "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts POST", "No unrelated method may reuse the PayMongo isolation evidence");
@@ -7036,4 +7064,76 @@ test("payout reconciliation POST credit requires the exact passing run, byte-pin
   });
   assert.deepEqual([...order].sort((x, y) => x - y), order, "authorization must precede any provider handling");
   assert.ok(!/body\.(?:organizationId|runId|userId)/.test(postSource), "the route must never read an identity from the request body");
+});
+
+test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
+  const harnessFile = "scripts/qa/tenant-payroll-run-actions-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-payroll-run-actions-http.yml", "utf8");
+  for (const token of ["TENANT_APPROVAL_TASK_MODE: fictional-pg16-http", "image: postgres:16", "fictional-payroll-run-actions-http:",
+    "node --import tsx scripts/qa/tenant-payroll-run-actions-http.mjs"]) assert.ok(workflow.includes(token), "workflow lacks " + token);
+  assert.ok(harness.indexOf("requireDisposablePayrollRunActions();") < harness.indexOf('import("../../src/db/index.ts")'), "fail-closed target guard must precede database imports");
+  const targets = [
+    ["src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "POST", "18390e65b137a0e73d5c5c78e3368dbd18a26af4"],
+    ["src/app/api/payroll-runs/[id]/xendit-payout/route.ts", "GET", "c100c146ce1373c1526bae90dd77667d6ed6aaad"],
+  ];
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  for (const [routePath, methodName, routeBlob] of targets) {
+    const route = readFileSync(routePath, "utf8");
+    const api = manifest.allApiRouteFiles[routePath];
+    const method = api.methods.find(entry => entry.name === methodName);
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.reviewedUncertified, undefined, "the zero-credit negative-only hold must be gone for the credited method");
+    const proof = method.testedBy;
+    assert.equal(proof.file, harnessFile);
+    assert.equal(proof.postgresMajor, 16);
+    assert.equal(proof.moneyMovedByLinaw, false);
+    assert.equal(proof.providerCalled, false);
+    assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 payroll-run-actions PASS");
+    assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+    assert.equal(proof.proofPullRequest, 1803);
+    assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+    assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-payroll-run-actions-contract.mjs")));
+    assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-payroll-run-actions-contract.test.mjs")));
+    assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+    assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+    assert.equal(api.gitBlobSha, proof.routeBlobSha);
+    assert.equal(proof.routeBlobSha, routeBlob, "the proof was written against this exact route");
+    cites(proof.pilotOwnLine, "const signedOff = assertPilotSignedOff(await standaloneRequest(pilotPath", "own pilot sign-off anchor");
+    cites(proof.pilotReplayLine, "a replayed sign-off is the same single record", "pilot replay anchor");
+    cites(proof.pilotRefusedWritesNothingLine, "refused attempts write no sign-off", "pilot refused-writes-nothing anchor");
+    cites(proof.ledgerOwnLine, "own xendit ledger read:", "own ledger anchor");
+    cites(proof.ledgerOnlyOwnLine, "the ledger names only the own employer", "ledger own-only anchor");
+    cites(proof.foreignDenialLine, '"victim after " + key', "foreign denial anchor");
+    cites(proof.unchangedDbLine, "complete journey", "victim unchanged anchor");
+    cites(proof.victimIdOrderingLine, "victim.owner.id > Math.max(a.owner.id, b.owner.id, 6)", "high-ID victim anchor");
+    cites(proof.anonymousLine, "const anonymous = await standaloneRequest(pilotPath", "anonymous anchor");
+    assert.equal(proof.line, methodName === "POST" ? proof.pilotOwnLine : proof.ledgerOwnLine);
+  }
+  for (const token of ["for (let i = 0; i < 7; i++)", '["xendit-payout GET", victim.runs.ledger.run.id, "GET"]', "coverageCredits: 0", "payoutEvidenceMode"])
+    assert.ok(harness.includes(token), "harness lacks " + token);
+  // exports and xendit-payout POST must remain GAP: the harness proves them only as refusals (no provider, rail OFF).
+  const exportsMethods = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/exports/route.ts"].methods;
+  for (const entry of exportsMethods.filter(item => item.name === "POST")) assert.equal(entry.status, "GAP", "exports POST must not borrow this credit");
+  const xenditPost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/xendit-payout/route.ts"].methods.find(entry => entry.name === "POST");
+  assert.equal(xenditPost.status, "GAP", "xendit-payout POST must not borrow this credit");
+  // The credited routes must keep the authorization gates the proof exercises, and never take an identity from the request body.
+  const pilotSource = readFileSync(targets[0][0], "utf8");
+  const pilotPost = pilotSource.slice(pilotSource.indexOf("export async function POST("));
+  const order = ["enforceSameOriginMutation(request)", "getSessionUser(", "assertOrganizationRole(", "assertOrganizationUnitAccess(", "requireRunEmployer("].map(token => {
+    assert.ok(pilotPost.includes(token), "pilot-signoff lost a bound the proof exercises: " + token);
+    return pilotPost.indexOf(token);
+  });
+  assert.ok(order[0] < order[2] && order[2] < order[3], "same-origin, role and unit scope must precede the write");
+  const xenditSource = readFileSync(targets[1][0], "utf8");
+  const xenditGet = xenditSource.slice(xenditSource.indexOf("export async function GET("), xenditSource.indexOf("export async function POST("));
+  assert.ok(xenditGet.includes('context(request, params, false, "status")'), "xendit-payout GET must go through the shared gated context");
+  const xenditContext = xenditSource.slice(xenditSource.indexOf("async function context("), xenditSource.indexOf("export async function GET("));
+  const gateOrder = ["getSessionUser(", "authorizeTreasuryOperation({", "assertOrganizationUnitAccess(", "requireRunEmployer("].map(token => {
+    assert.ok(xenditContext.includes(token), "xendit-payout context lost a bound the proof exercises: " + token);
+    return xenditContext.indexOf(token);
+  });
+  assert.deepEqual([...gateOrder].sort((x, y) => x - y), gateOrder, "session, treasury, unit scope and legal employer must precede the read");
 });
