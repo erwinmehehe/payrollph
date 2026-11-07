@@ -19,7 +19,7 @@ function tenantGuard(region) {
 test("scenarios POST checks employer ownership before forecast or scenario persistence", () => {
   const guardAt = post.indexOf("if (orgUnitId != null) {");
   const forecastAt = post.indexOf("const result = await loadScopedWorkforceForecast(");
-  const insertAt = post.indexOf("await db.insert(workforcePlanningScenarios)");
+  const insertAt = post.indexOf("await tx.insert(workforcePlanningScenarios)");
   assert.ok(guardAt >= 0 && guardAt < forecastAt && forecastAt < insertAt);
   tenantGuard(post.slice(guardAt, forecastAt));
   assert.throws(() => tenantGuard(post.slice(guardAt, forecastAt).replace(
