@@ -1,3 +1,7 @@
+> Current ledger: 498 methods = 433 COVERED + 11 PUBLIC-BY-DESIGN + 54 GAP. SOLO_VERIFIED_DEV_RECOVERY; NOT ACCEPTED.
+
+> **Current credit proposal — SOLO_VERIFIED_DEV_RECOVERY:** 433 COVERED / 11 PUBLIC-BY-DESIGN / 54 GAP. Three methods from #1829 OFF-profile PG16 receipt; no production acceptance.
+
 > **Combined current proposal (#1818 careers, #1817 audit atomicity, #1822 POS):** 430 COVERED / 11 PUBLIC-BY-DESIGN / 57 GAP; frozen 346 COVERED / 3 PUBLIC / 57 GAP. All source-linked credits provisional; security and production acceptance NOT GRANTED.
 
 ## 2026-11-07 careers publication PATCH four-part method credit — PROVISIONAL / NOT ACCEPTED
@@ -186,7 +190,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 30 | 0 | 3 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 0 | 5 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
@@ -196,7 +200,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **346 COVERED + 3 PUBLIC-BY-DESIGN + 57 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **349 COVERED + 3 PUBLIC-BY-DESIGN + 54 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -255,18 +259,18 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
-| 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
-| 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 28 | 0 | 10 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
-| 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
-| 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 26 | 0 | 0 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 30 | 0 | 3 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 0 | 5 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 39 | 0 | 0 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 38 | 0 | 1 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
 **Live inventory (proposed sweep):** 295 API route files, **498 HTTP methods = 340 COVERED + 10 PUBLIC-BY-DESIGN + 148 GAP**, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). The frozen 406-method queue above is a historical subset; **do not equate its per-batch GAP subtotal with the live global GAP total**. No batch in this snapshot is fully resolved. Tenant-isolation acceptance stays **NOT ACCEPTED**.
 

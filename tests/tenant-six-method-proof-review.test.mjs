@@ -1,3 +1,4 @@
+import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 /**
  * Non-credentialled, source-only guard on six merged proof candidates.
  * Keeps historical coverage + live metrics unchanged until the exact four-part
@@ -549,6 +550,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       expectedStatuses[path][name] = "COVERED";
     }
   }
+  const spendManagedCredits=verifySpendManaged(m);
+  for(const key of spendManagedTargets){ const [verb,route]=key.split(" "); expectedStatuses["src/app/api/"+route+"/route.ts"][verb]="COVERED"; }
   const posDemandCredits = 4;
   // Credit after the snapshot: POST auth/logout, from its dedicated two-attacker harness (merged proof #1795). The inventory
   // test verifies the receipt, blob identity and cited lines exactly.
@@ -604,9 +607,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + posDemandCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + posDemandCredits + spendManagedCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - posDemandCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - posDemandCredits - spendManagedCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -618,7 +621,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **346 COVERED + 3 PUBLIC-BY-DESIGN + 57 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **349 COVERED + 3 PUBLIC-BY-DESIGN + 54 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -815,6 +818,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineCareersCredits = baseline.allApiRouteFiles["src/app/api/careers/admin/route.ts"].methods.some(row => row.name === "PATCH" && row.status === "COVERED")
       ? verifyCareersPatchCredit(baseline) : 0;
     if (baselineCareersCredits) expectedOriginalMain["src/app/api/careers/admin/route.ts"].PATCH = "COVERED";
+    const baselineSpendManagedCredits=baseline.allApiRouteFiles['src/app/api/spend/route.ts'].methods.some(row=>row.name==='POST'&&row.status==='COVERED')?verifySpendManaged(baseline):0;
+    if(baselineSpendManagedCredits)for(const key of spendManagedTargets){const [verb,route]=key.split(' ');expectedOriginalMain['src/app/api/'+route+'/route.ts'][verb]='COVERED';}
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -827,18 +832,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
