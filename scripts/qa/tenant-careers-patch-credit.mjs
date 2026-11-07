@@ -19,7 +19,7 @@ export const CAREERS_PROOF_PINS = Object.freeze({
   "scripts/qa/apply-isolated-baseline.mjs": "75b9e7f1b39a6ca5b2253086e519ae7d71229255",
   "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
   "scripts/qa/tenant-table-invariants.mjs": "52f9acded7750a722cb663b9eeb6ea0a709ecd9b",
-  "src/db/index.ts": "7a5718d0a99ce5b3a7e94655aee7babd23c6e6",
+  "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
   "docs/engineering/migration-proposals/careers-published.sql": "bd08b99cec0ed5a54342a760f2222fbe14b98ff8",
   "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2"
 });
