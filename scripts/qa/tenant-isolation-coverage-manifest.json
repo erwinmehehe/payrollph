@@ -34080,7 +34080,7 @@
       ]
     },
     "src/app/api/workforce-planning/scenarios/route.ts": {
-      "gitBlobSha": "2476d179a0472c915829aaec27db5da84078a50f",
+      "gitBlobSha": "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0",
       "route": "workforce-planning/scenarios",
       "methods": [
         {
@@ -34104,12 +34104,12 @@
           "name": "POST",
           "line": 195,
           "status": "GAP",
-          "reason": "GAP: issue #1644 source-only tenant-owned org-unit validation and safe error mapping added; complete signed-in two-employer PG16 HTTP proof and independent security acceptance are still pending. No new method credit.",
+          "reason": "GAP: issue #1644 source-only tenant-owned org-unit validation and safe error mapping added; complete signed-in two-employer PG16 HTTP proof and independent security acceptance are still pending. No new method credit. Audit atomicity: scenario insertion and employer-specific audit receipt now share one transaction; the owned/victim audit-veto HTTP negative control must pass exact-head disposable PG16 CI before any credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "wrk02-planning-write-boundaries-source-only-zero-credit",
             "originalRouteBlobSha": "ac05e54cc1aa6b2eb36283086fc3ca1a1717b2e7",
-            "routeBlobSha": "2476d179a0472c915829aaec27db5da84078a50f",
+            "routeBlobSha": "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0",
             "contractFile": "tests/tenant-wrk02-planning-write-boundaries.test.mjs",
             "contractBlobSha": "74ce1283675c0dd8284a785ec5e95435d8abbc61",
             "originalGetPrefixSha": "90ab7ddfb9cbceb32101b687cc9ecdc64581c8e9",
@@ -34121,7 +34121,7 @@
         },
         {
           "name": "PATCH",
-          "line": 390,
+          "line": 396,
           "status": "COVERED",
           "reason": "Provisional: write-table disposable PostgreSQL 16 real-HTTP proof (local Windows disposable PostgreSQL 16 with production-mode localhost server, full default write table, 2026-10-31): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -34187,15 +34187,15 @@
           "token": "assertOrganizationRole"
         },
         {
-          "line": 391,
+          "line": 397,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 394,
+          "line": 400,
           "token": "getSessionUser"
         },
         {
-          "line": 417,
+          "line": 423,
           "token": "assertOrganizationRole"
         }
       ],
