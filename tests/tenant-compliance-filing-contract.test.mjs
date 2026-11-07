@@ -272,6 +272,8 @@ test("filing outcome and audit share one PostgreSQL commit, including audit-veto
   assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2,
     "the CI-only PL/pgSQL function requires matching dollar quote delimiters");
   assert.match(proof, /CREATE TRIGGER ci_filing_audit_veto_trigger/);
+  assert.match(proof, /NEW\.action IN \('SSS R-3 filing rejected', 'SSS R-3 filing accepted'\)/,
+    "both accepted and rejected outcomes must fail the same real PostgreSQL audit trigger");
   assert.match(proof, /RAISE EXCEPTION 'CI_ONLY_FILING_AUDIT_VETO'/);
   assert.match(proof, /atomic filing decision must roll back on a failed audit insert/);
   assert.match(proof, /proveFilingStateUntouched\(beforeVeto, await state\(ctx\.orgId\)\)/);
@@ -314,6 +316,11 @@ test("accepted outcome branch uses a second real own PG16 filing, exact audit an
     'acceptedForeignAndForgedDenied: true',
     'acceptedVictimDbAndAuditUnchanged: true',
     'acceptedBranchNoRealAgencySubmission: true',
+    'acceptedAuditInsertRollbackProven: true',
+    'const acceptedAuditVeto = expectStatus(await request(',
+    'accepted filing outcome must roll back on a failed audit insert',
+    'fileName: sourceFile.filename',
+    'fileSha256: sourceHash',
     'const acceptedHttp = expectStatus(await request(',
     'status, "accepted"',
     'persistedAccepted.status, "accepted"',
@@ -325,6 +332,7 @@ test("accepted outcome branch uses a second real own PG16 filing, exact audit an
     'ctx.victimSeeded.id',
     'method: "PATCH", cookie, body: deniedCase.body',
     'proveFilingStateUntouched(afterAccepted, await state(ctx.orgId))',
+    'proveFilingStateUntouched(beforeVeto, await state(ctx.orgId))',
   ]) assert.ok(proof.includes(anchor), "Missing accepted-case PG16 HTTP/SQL proof: " + anchor);
   assert.ok(proof.includes('note: "Fictional branch-coverage acceptance only; never submitted to SSS"'),
     "An accepted branch is not an actual government submission");
