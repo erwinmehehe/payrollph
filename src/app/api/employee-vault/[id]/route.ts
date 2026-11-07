@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -6,6 +5,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { removeEmployeeVaultDocument } from "@/lib/employee-vault-document-removal";
 import { authorizeEmployeeVault, employeeVaultCanRemove } from "@/lib/employee-vault-profile";
+import { documentVisibleToActiveMember } from "@/lib/private-document-tenant-lookup";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,8 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const [row] = await db.select({
     id: documents.id, employeeId: documents.employeeId,
     organizationId: documents.organizationId, uploadedByUserId: documents.uploadedByUserId,
-  }).from(documents).where(eq(documents.id, documentId)).limit(1);
+  }).from(documents)
+    .where(documentVisibleToActiveMember(user.id, documentId)).limit(1);
   if (!row || row.employeeId === null) {
     return Response.json({ error: "Document not found." }, { status: 404, headers });
   }
