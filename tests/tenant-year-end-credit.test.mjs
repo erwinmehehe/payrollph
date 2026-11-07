@@ -55,8 +55,15 @@ test("year-end evidence is internal only; billing is not claimed here", () => {
   for (const name of ["start", "cancel"]) {
     const method = m.allApiRouteFiles[
       "src/app/api/billing/subscription/" + name + "/route.ts"].methods.find(x => x.name === "POST");
-    assert.equal(method.status, "GAP", "#1826 owns billing; this PR does not promote it");
-    assert.equal(method.testedBy, null);
+    assert.ok(["GAP", "COVERED"].includes(method.status),
+      "Only the separate #1826 billing reconciliation can alter this method");
+    if (method.status === "GAP") {
+      assert.equal(method.testedBy, null);
+    } else {
+      assert.equal(method.testedBy?.proofPullRequest, 1804);
+      assert.equal(method.testedBy?.workflowRunId, 42254118161);
+      assert.equal(method.testedBy?.file, "scripts/qa/tenant-billing-subscription-http.mjs");
+    }
   }
   const source = readFileSync(
     "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs", "utf8");
