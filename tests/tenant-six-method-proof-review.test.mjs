@@ -12,6 +12,7 @@ import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-c
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
+import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
@@ -566,6 +567,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const emailCredits = verifyEmailCredit(m, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json","utf8")));
   assert.equal(expectedStatuses["src/app/api/account/email/verify/route.ts"].POST,"GAP");
   expectedStatuses["src/app/api/account/email/verify/route.ts"].POST="COVERED";
+  const careersPath = "src/app/api/careers/admin/route.ts";
+  assert.equal(expectedStatuses[careersPath]?.PATCH, "GAP", "Careers PATCH originally uncredited");
+  const careersPatchCredits = verifyCareersPatchCredit(m);
+  assert.equal(careersPatchCredits, 1);
+  expectedStatuses[careersPath].PATCH = "COVERED";
   for (const verb of ["POST","PATCH"]) {
     assert.equal(expectedStatuses["src/app/api/workforce-planning/route.ts"][verb],"GAP");
     expectedStatuses["src/app/api/workforce-planning/route.ts"][verb]="COVERED";
@@ -598,9 +604,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + posDemandCredits + emailCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + posDemandCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - posDemandCredits - emailCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - posDemandCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -612,7 +618,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **345 COVERED + 3 PUBLIC-BY-DESIGN + 58 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **346 COVERED + 3 PUBLIC-BY-DESIGN + 57 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 

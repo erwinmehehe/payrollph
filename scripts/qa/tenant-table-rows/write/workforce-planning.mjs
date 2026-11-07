@@ -1,9 +1,8 @@
 /**
- * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
- * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
- * employer's org unit as its scope (see the PR description), so its proof cannot pass until the route validates ownership. The shared write runner adds
- * two attackers, the victim denial, a discrimination check and an unchanged victim. Nothing here touches payroll, schedules,
- * providers or money, and no approval is decided.
+ * Workforce planning writes against fictional employers only: transfers (including promotion and lateral moves),
+ * published-baseline forecast revisions, and workforce scenario creation/submission. The shared disposable-PG16
+ * HTTP runner exercises two authenticated attacker employers, foreign and nonexistent org-unit denial, sanitized
+ * SQL failures, and scenario/audit atomic rollback. No payroll, provider, or financial action is performed.
  */
 import { createHash } from "node:crypto";
 
@@ -282,8 +281,63 @@ export function createRows(deps) {
             await pool.query("DROP FUNCTION IF EXISTS public.qa_wfp_scenario_post_fault_1655_fn()");
           }
         }
-        return { actions: ["create", "own org unit scope", "second version"], forgedReferences: 2,
-          SQLFaultInjection: "SYNTHETIC_PG16_HTTP", methodCoverageCredit: false };
+        // Prove transaction atomicity at the *audit INSERT*, not the earlier
+        // scenario INSERT. The old route could return an error yet retain a
+        // scenario with no audit receipt. This assertion fails on that behavior.
+        const auditVetoName = c.marker + " QA_WFP_AUDIT_VETO";
+        const beforeAuditControl = await scenarioState(c.orgId);
+        await post(scenarioBody(c.orgId, c.seeded.id, auditVetoName), 201, "pre-veto scenario and audit positive");
+        const afterAuditControl = await scenarioState(c.orgId);
+        const savedScenario = added(beforeAuditControl.scenarios, afterAuditControl.scenarios, c, "audit-veto control");
+        assert.equal(savedScenario.name, auditVetoName);
+        assert.equal(afterAuditControl.audit.length, beforeAuditControl.audit.length + 1,
+          "positive control must record the scenario audit before a veto is installed");
+        const savedAudit = oneAudit(beforeAuditControl, afterAuditControl, c, "Workforce staffing scenario saved");
+        assert.equal(savedAudit.resource, `${savedScenario.name} v${savedScenario.version}`,
+          "the successful audit receipt must identify the saved scenario version");
+        assert.equal(savedAudit.metadata?.scenarioId, savedScenario.id,
+          "the successful audit receipt must link to the saved scenario ID");
+        assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
+
+        requireTenantTableDisposable();
+        assert.ok(Number.isSafeInteger(c.orgId) && c.orgId > 0, "Only an owned fictional employer may be vetoed");
+        const existingAuditVeto = await pool.query("SELECT to_regprocedure('public.qa_wfp_scenario_audit_veto_fn()') AS existing");
+        assert.equal(existingAuditVeto.rows[0].existing, null, "never overwrite a preexisting audit-veto function");
+        let auditVetoFunctionCreated = false, auditVetoTriggerCreated = false;
+        try {
+          await pool.query([
+            "CREATE FUNCTION public.qa_wfp_scenario_audit_veto_fn() RETURNS trigger AS $qa_wfp_audit$",
+            "BEGIN",
+            "  IF NEW.organization_id = " + c.orgId + " AND NEW.action = 'Workforce staffing scenario saved' THEN",
+            "    RAISE EXCEPTION 'WFP_PRIVATE_AUDIT_VETO_SQL_SENTINEL' USING ERRCODE = 'P0001';",
+            "  END IF;",
+            "  RETURN NEW;",
+            "END;",
+            "$qa_wfp_audit$ LANGUAGE plpgsql",
+          ].join("\n"));
+          auditVetoFunctionCreated = true;
+          await pool.query("CREATE TRIGGER qa_wfp_scenario_audit_veto BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION public.qa_wfp_scenario_audit_veto_fn()");
+          auditVetoTriggerCreated = true;
+          const beforeAuditVeto = await scenarioState(c.orgId);
+          const rejected = await post(scenarioBody(c.orgId, c.seeded.id, auditVetoName, { demandGrowthPercent: 13 }),
+            422, "forced audit INSERT failure");
+          assert.deepEqual(rejected.json, { error: "Scenario could not be calculated." },
+            "audit failures must produce a generic HTTP refusal");
+          assert.ok(!/WFP_PRIVATE_AUDIT_VETO_SQL_SENTINEL|P0001/i.test(rejected.text),
+            "do not expose PostgreSQL details to the caller");
+          assert.deepEqual(await scenarioState(c.orgId), beforeAuditVeto,
+            "audit INSERT failure must roll back the OWN scenario, approvals, plans and audit");
+          assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore,
+            "audit INSERT failure cannot mutate the victim employer or audit");
+        } finally {
+          try {
+            if (auditVetoTriggerCreated) await pool.query("DROP TRIGGER qa_wfp_scenario_audit_veto ON audit_events");
+          } finally {
+            if (auditVetoFunctionCreated) await pool.query("DROP FUNCTION public.qa_wfp_scenario_audit_veto_fn()");
+          }
+        }
+        return { actions: ["create", "own org unit scope", "second version", "audit INSERT rollback"], forgedReferences: 2,
+          SQLFaultInjection: "SYNTHETIC_PG16_HTTP", auditInsertRollbackProven: true, methodCoverageCredit: false };
       } },
   ];
 }
