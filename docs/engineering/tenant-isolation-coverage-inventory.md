@@ -1,3 +1,5 @@
+> **2026-11-07 migrations POST provisional credit:** 423 COVERED / 11 PUBLIC-BY-DESIGN / 64 GAP. [Eight real owned migrations + foreign/forged PG16 HTTP checks](https://github.com/erwinmehehe/payrollph/actions/runs/42316450787/job/128230104851). Source-matched to merged #1805. XLSX-specific transport, forced audit rollback, independent review and production acceptance remain outstanding.
+
 > **Integrated #1805 ledger:** 422 COVERED / 11 PUBLIC-BY-DESIGN / 65 GAP. Retains main's distinct payout-reconciliation receipt and four proposed receipt/root-planning credits. Independent acceptance PENDING.
 
 > **Receipt provisional credits:** 419 COVERED / 68 GAP; https://github.com/erwinmehehe/payrollph/actions/runs/42167466444/job/127727146937; synthetic storage, independent review PENDING.
@@ -99,7 +101,7 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 65 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 64 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **NOT ACCEPTED**: 65 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
@@ -210,9 +212,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 422 |
+| coveredAfter | 423 |
 | publicByDesign | 11 |
-| gap | 65 |
+| gap | 64 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -581,7 +583,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`managed-payroll/runs/[id]/approve` POST](../../src/app/api/managed-payroll/runs/[id]/approve/route.ts#L17) | session, body | getSessionUser L12, enforceSameOriginMutation L15, enforceSameOriginMutation L18, getSessionUser L20 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`marketing/leads` GET](../../src/app/api/marketing/leads/route.ts#L16) | session, query | getSessionUser L1, getSessionUser L17 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`migrations` GET](../../src/app/api/migrations/route.ts#L61) | session, query, body | enforceSameOriginMutation L4, assertOrganizationRole L16, getAccess L16, getSessionUser L18 | searchParams.get("organizationId") L67, body.organizationId L163 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L50) | **COVERED** |
-| [`migrations` POST](../../src/app/api/migrations/route.ts#L107) | session, query, body | enforceSameOriginMutation L4, assertOrganizationRole L16, getAccess L16, getSessionUser L18 | searchParams.get("organizationId") L67, body.organizationId L163 | NO VALID METHOD PROOF | **GAP** |
+| [`migrations` POST](../../src/app/api/migrations/route.ts#L107) | session, query, body | enforceSameOriginMutation L4, assertOrganizationRole L16, getAccess L16, getSessionUser L18 | searchParams.get("organizationId") L67, body.organizationId L163 | [Provisional PG16 HTTP receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42316450787/job/128230104851) | **COVERED** |
 | [`multi-entity/context` GET](../../src/app/api/multi-entity/context/route.ts#L13) | session, query, body | getSessionUser L4, enforceSameOriginMutation L7, getSessionUser L15, enforceSameOriginMutation L27 | searchParams.get("organizationId") L17, body.organizationId L32, body.legalEntityId L35 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/multi-entity.mjs#L11) | **COVERED** |
 | [`multi-entity/context` PATCH](../../src/app/api/multi-entity/context/route.ts#L25) | session, query, body | getSessionUser L4, enforceSameOriginMutation L7, getSessionUser L15, enforceSameOriginMutation L27 | searchParams.get("organizationId") L17, body.organizationId L32, body.legalEntityId L35 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [family row](../../scripts/qa/tenant-table-rows/write/multi-entity-context-switch.mjs#L20) | **COVERED** |
 

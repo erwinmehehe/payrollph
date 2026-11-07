@@ -1,4 +1,5 @@
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
+import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
@@ -233,6 +234,11 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (key === "src/app/api/migrations/route.ts POST" && method.status === "COVERED") {
+    assert.equal(currentBlob, "6f2aabfe906a2c38594ea8b20d17b27a90dafb95");
+    assert.equal(verifyMigrationPostCredit(manifest),1);
+    return true;
+  }
   if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
     assert.equal(verifyRootCredits(manifest),2);
     return true;
