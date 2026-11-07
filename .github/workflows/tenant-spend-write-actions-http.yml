@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
       WORKER_ENABLED: 'false'
       CENTRAL_SCHEDULER_ENABLED: 'false'
       MULTI_ENTITY_ENABLED: 'false'
@@ -122,8 +125,12 @@ jobs:
           done
           tail -n 50 /tmp/tenant-spend-write-actions.log || true
           exit 1
+      - name: Prepare SQL-only fictional HCM snapshot fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - name: Two independent owned and foreign POST/PATCH positive/negative action matrices
         run: node --import tsx scripts/qa/tenant-spend-write-actions-http.mjs
+      - name: Managed approval with the same OFF-profile server
+        run: node --import tsx scripts/qa/tenant-managed-client-approval-http.mjs
       - name: Print bounded synthetic-only logs on failure
         if: failure()
         run: |
