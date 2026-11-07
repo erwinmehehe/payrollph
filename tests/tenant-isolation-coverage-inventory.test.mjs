@@ -973,9 +973,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     // Pin both generations independently; don't transfer the older receipt.
     const currentCandidatePins = {
       "scripts/qa/tenant-table-rows/write/compliance-filing.mjs":
-        "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
+        "c7c7bf0a1b6b8b4eb4eade869ec8184beefe4fba",
       "tests/tenant-compliance-filing-contract.test.mjs":
-        "fe286bc91140a8dbc11dc1eebf7594fa18f97ed1",
+        "d4e635d1a0f433ec0399c96097313b93667ce554",
     };
     assert.equal(reviewed.proofBlobSha,
       "6bb8bf721e73b47b2b79e26b27ec36f1c22aae34",
@@ -1009,6 +1009,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       'acceptedAudit.action, "SSS R-3 filing accepted"',
       "acceptedOwnDecisionPG16: true",
       "acceptedVictimDbAndAuditUnchanged: true",
+      "acceptedAuditInsertRollbackProven: true",
+      "const [vetoRun] = await db.insert(payrollRuns).values({",
+      'const vetoWorksheet = await generateGovernmentDraft(vetoRun.id, "sss-r3")',
+      "assert.notEqual(vetoHash, sourceHash",
+      "fileSha256: vetoHash",
+      'accepted filing outcome must roll back on a failed audit insert',
+      "assert.deepEqual(removedRun.map(row => row.id), [vetoRun.id])",
     ]) assert.ok(candidate.includes(token),
       "Filing accepted-path candidate missing required fictional PG16 control: " + token);
     assert.equal(reviewed.reconciliationReview?.fullMethodCoverageCredits, 0);
@@ -1035,6 +1042,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ]) assert.match(route, guard, "Filing PATCH must retain tenant gate + atomic audit");
     assert.match(store, /await \(transaction \?\? db\)\s*\.update\(governmentFilingValidations\)/);
     assert.match(proof, /atomicAuditInsertRollbackProven: true/);
+    assert.match(proof, /acceptedAuditInsertRollbackProven: true/);
     assert.equal((proof.match(/\$ci_filing_audit\$/g) ?? []).length, 2);
     return;
   }
