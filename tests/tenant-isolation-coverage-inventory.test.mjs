@@ -247,6 +247,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ].includes(key)) {
     assert.equal(currentBlob, manifest.allApiRouteFiles[key.slice(0, key.lastIndexOf(" "))].gitBlobSha);
     assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
+    return true;
+  }
   if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
     assert.equal(verifyRootCredits(manifest),2);
     return true;
