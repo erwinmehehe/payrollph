@@ -1,3 +1,7 @@
+## 2026-11-07 Year-End GET/POST source-current ledger reconciliation — PROVISIONAL / NOT ACCEPTED
+
+**This PR #1827 proposes only two new method credits:** `GET /api/year-end` and `POST /api/year-end`, each tied to merged #1804's [successful fictional PostgreSQL 16 real-HTTP run 42254117862/job 128016606342](https://github.com/erwinmehehe/payrollph/actions/runs/42254117862/job/128016606342) against the current route SHA `f040f5bbbc3df275d32d23f1728b1b0345f77814`. Five GET formats, two POST modes, owned actions, higher-ID victim denials, forged selectors, unchanged cross-employer SQL/audits and atomic payroll binding are backed by source pins. Old #1730 route proof is not reused. **Proposed branch ledger: 498 methods = 428 COVERED + 11 PUBLIC-BY-DESIGN + 59 GAP; frozen 406 = 344 COVERED + 3 PUBLIC-BY-DESIGN + 59 GAP.** The separately opened draft #1826 owns two *different* billing start/cancel POST method credits; those are **not** credited in this branch and are not double-counted. STA-01's 27 methods are provisionally classified but the batch is not independently accepted; 10 other batches remain incomplete and DL-02 is also provisional. **Independent payroll/tax/security/privacy review and exact-final-head CI are required.** No real subscriptions, filings, payroll release, transfers, production deployment or tenant-wide isolation acceptance is authorized. All 17 page/action gaps remain.
+
 ## 2026-11-07 careers publication PATCH four-part method credit — PROVISIONAL / NOT ACCEPTED
 
 **Proposed ledger: 498 methods = 426 COVERED + 11 PUBLIC-BY-DESIGN + 61 GAP; frozen 406 = 342 COVERED + 3 PUBLIC-BY-DESIGN + 61 GAP.** The source-linked frozen queue assigns this PATCH to PII-02, even though its dedicated proof workflow is named EDG-01. One and only one proposed method, `PATCH /api/careers/admin`, is backed by [passing production-mode localhost PG16 HTTP run 41798531116/job 126468332784](https://github.com/erwinmehehe/payrollph/actions/runs/41798531116/job/126468332784) at reviewed #1751 head `9d78cf39f82bc5f739e2927e19818b301ecaac56`. Two independently authenticated owners, third higher-ID victim with persisted requisition ID > 6, 3 own publishes / 2 own unpublishes, 20 denied requests, genuine audited DB transitions, victim/payroll immutability, and injected PostgreSQL audit failure rollback. Exact route, runner, workflow and security-critical inputs remain unchanged from that passing run; current-head package/build settings changed and **fresh final-head CI remains mandatory**. Independent security/HR/privacy review PENDING. The recruitment feature, production migration, providers and payroll remain OFF/UNAUTHORIZED. 17 pages/actions and 61 API GAPs remain NOT ACCEPTED; this is not a tenant-wide security certificate.
@@ -184,7 +188,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 30 | 0 | 3 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 27 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 35 | 0 | 4 | INCOMPLETE |
@@ -193,7 +197,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **342 COVERED + 3 PUBLIC-BY-DESIGN + 61 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **344 COVERED + 3 PUBLIC-BY-DESIGN + 59 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. Ten batches remain INCOMPLETE; STA-01 and DL-02 are PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
