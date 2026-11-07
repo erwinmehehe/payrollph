@@ -19,6 +19,7 @@ import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { assertReleasedPayoutTotals, frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
 import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
 import { assertMonthlyFilingMatchesRemittance } from "@/lib/filing-remittance-snapshot";
+import { assertPayrollExportTenantOwnership } from "@/lib/payroll-export-tenant-ownership";
 import { bankPartFilename, createStoredZip, splitRowsByBankLimits } from "@/lib/bank-file-bundle";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
@@ -214,6 +215,7 @@ export async function generateBankFile(
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
+  assertPayrollExportTenantOwnership(run.organizationId, entries);
 
   if (!dryRun && run.status === "Released") {
     // Do not rely solely on the HTTP handler: no caller may export a second
@@ -527,6 +529,7 @@ export async function generateJournalCsv(runId: number) {
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
+  assertPayrollExportTenantOwnership(run.organizationId, entries);
 
   const [allocationRows, centerRows, mappingRows, entityRows] = await Promise.all([
     db.select().from(employeeLaborAllocations)
@@ -904,6 +907,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
+  assertPayrollExportTenantOwnership(run.organizationId, entries);
 
   const traceNumber = (trace: unknown, prefix: string) => {
     if (!trace || typeof trace !== "object") return null;
@@ -968,6 +972,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
           asc(employees.id),
         )
     : [];
+  assertPayrollExportTenantOwnership(run.organizationId, monthlyEntryRows);
 
   // Monthly statutory remittances are population reports, not "last cutoff"
   // reports. Use every released payroll in the pay month plus the current final
@@ -1240,6 +1245,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(inArray(payrollEntries.payrollRunId, annualRunIds))
     .orderBy(asc(employees.id));
+  assertPayrollExportTenantOwnership(run.organizationId, annualEntries);
 
   const employerTin = (legalEntity.birTin ?? "").replace(/\D/g, "");
   const employerBranchCode = (legalEntity.birBranchCode ?? "").replace(/\D/g, "").padStart(4, "0");
