@@ -317,42 +317,47 @@ export async function POST(request: Request) {
     };
     const hash = snapshotHash(snapshot);
 
-    const [created] = await db.insert(workforcePlanningScenarios).values({
-      organizationId,
-      planId,
-      name,
-      version,
-      scopeOrgUnitId: result.scope.orgUnitId,
-      worksiteId,
-      startDate,
-      endDate,
-      demandGrowthPercent: String(demandGrowthPercent),
-      vacancyFillPercent: String(vacancyFillPercent),
-      employerLoadPercent: String(employerLoadPercent),
-      annualAttritionPercent: String(annualAttritionPercent),
-      attritionBackfillPercent: String(attritionBackfillPercent),
-      status: "draft",
-      snapshot,
-      snapshotHash: hash,
-      createdByUserId: user.id,
-    }).returning();
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Workforce staffing scenario saved",
-      resource: `${created.name} v${created.version}`,
-      metadata: {
-        scenarioId: created.id,
+    // Save the scenario and its employer-specific audit event atomically.
+    // An audit INSERT failure must roll back the scenario row as well.
+    const created = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(workforcePlanningScenarios).values({
+        organizationId,
         planId,
-        scopeOrgUnitId: created.scopeOrgUnitId,
-        worksiteId: created.worksiteId,
-        annualAttritionPercent,
-        attritionBackfillPercent,
-        expectedAttritionExits: result.forecast.summary.expectedAttritionExits,
-        plannedAttritionBackfills: result.forecast.summary.plannedAttritionBackfills,
+        name,
+        version,
+        scopeOrgUnitId: result.scope.orgUnitId,
+        worksiteId,
+        startDate,
+        endDate,
+        demandGrowthPercent: String(demandGrowthPercent),
+        vacancyFillPercent: String(vacancyFillPercent),
+        employerLoadPercent: String(employerLoadPercent),
+        annualAttritionPercent: String(annualAttritionPercent),
+        attritionBackfillPercent: String(attritionBackfillPercent),
+        status: "draft",
+        snapshot,
         snapshotHash: hash,
-      },
+        createdByUserId: user.id,
+      }).returning();
+  
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Workforce staffing scenario saved",
+        resource: `${created.name} v${created.version}`,
+        metadata: {
+          scenarioId: created.id,
+          planId,
+          scopeOrgUnitId: created.scopeOrgUnitId,
+          worksiteId: created.worksiteId,
+          annualAttritionPercent,
+          attritionBackfillPercent,
+          expectedAttritionExits: result.forecast.summary.expectedAttritionExits,
+          plannedAttritionBackfills: result.forecast.summary.plannedAttritionBackfills,
+          snapshotHash: hash,
+        },
+      }, tx);
+      return created;
     });
 
     return Response.json({
