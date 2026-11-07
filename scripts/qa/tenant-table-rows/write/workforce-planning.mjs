@@ -1,9 +1,8 @@
 /**
- * Workforce planning writes on fictional employers only: position transfer (transfer, promotion, lateral), forecast revision
- * from a published baseline, and scenario submission for approval. POST scenarios is deliberately not here: it accepts another
- * employer's org unit as its scope (see the PR description), so its proof cannot pass until the route validates ownership. The shared write runner adds
- * two attackers, the victim denial, a discrimination check and an unchanged victim. Nothing here touches payroll, schedules,
- * providers or money, and no approval is decided.
+ * Workforce planning writes against fictional employers only: transfers (including promotion and lateral moves),
+ * published-baseline forecast revisions, and workforce scenario creation/submission. The shared disposable-PG16
+ * HTTP runner exercises two authenticated attacker employers, foreign and nonexistent org-unit denial, sanitized
+ * SQL failures, and scenario/audit atomic rollback. No payroll, provider, or financial action is performed.
  */
 import { createHash } from "node:crypto";
 
@@ -289,9 +288,15 @@ export function createRows(deps) {
         const beforeAuditControl = await scenarioState(c.orgId);
         await post(scenarioBody(c.orgId, c.seeded.id, auditVetoName), 201, "pre-veto scenario and audit positive");
         const afterAuditControl = await scenarioState(c.orgId);
-        assert.equal(added(beforeAuditControl.scenarios, afterAuditControl.scenarios, c, "audit-veto control").name, auditVetoName);
+        const savedScenario = added(beforeAuditControl.scenarios, afterAuditControl.scenarios, c, "audit-veto control");
+        assert.equal(savedScenario.name, auditVetoName);
         assert.equal(afterAuditControl.audit.length, beforeAuditControl.audit.length + 1,
           "positive control must record the scenario audit before a veto is installed");
+        const savedAudit = oneAudit(beforeAuditControl, afterAuditControl, c, "Workforce staffing scenario saved");
+        assert.equal(savedAudit.resource, `${savedScenario.name} v${savedScenario.version}`,
+          "the successful audit receipt must identify the saved scenario version");
+        assert.equal(savedAudit.metadata?.scenarioId, savedScenario.id,
+          "the successful audit receipt must link to the saved scenario ID");
         assert.deepEqual(await scenarioState(c.victim.org.id), victimBefore);
 
         requireTenantTableDisposable();
