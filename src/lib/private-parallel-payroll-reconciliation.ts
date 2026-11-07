@@ -153,7 +153,9 @@ function canonicalRows(bytes: Buffer, columns: readonly string[]): string[][] {
     return fields;
   });
 }
-function payrollRows(bytes: Buffer, legalEntityCode: string, period: string): ParsedFile {
+function payrollRows(
+  bytes: Buffer, legalEntityCode: string, period: string, grossToNetFailures: { count: number },
+): ParsedFile {
   const rows = new Map<string, MoneyRow>();
   for (const [index, fields] of canonicalRows(bytes, PAYROLL_COLUMNS).entries()) {
     const [key, employer, sourcePeriod, ...values] = fields;
@@ -174,7 +176,9 @@ function payrollRows(bytes: Buffer, legalEntityCode: string, period: string): Pa
     const expectedNet = amounts.gross_pay
       - DEDUCTION_COLUMNS.reduce((total, column) => total + amounts[column], 0);
     if (Math.abs(expectedNet - amounts.net_pay) > TOLERANCE_CENTS) {
-      throw new Error("Gross-to-net cash identity failed in payroll record " + (index + 2) + ".");
+      // Retain the hard block, but keep inspecting other independent discrepancies.
+      // Report a bounded count, never employee identifiers or amounts.
+      grossToNetFailures.count++;
     }
     if (amounts.taxable_pay > amounts.gross_pay + Math.max(0, -amounts.withholding_tax)) {
       throw new Error("Taxable compensation exceeds gross; normalize and independently review record " + (index + 2) + ".");
@@ -331,9 +335,14 @@ export function evaluateParallelPayrollReconciliation(
       try {
         const bytes = safeFile(rawCycle[key], safeRoot, seenFiles);
         verifiedFileHashCount++;
+        const grossToNetFailures = { count: 0 };
         loaded[key] = key.endsWith("Payroll")
-          ? payrollRows(bytes, legalEntityCode, period)
+          ? payrollRows(bytes, legalEntityCode, period, grossToNetFailures)
           : journalRows(bytes, legalEntityCode, period);
+        if (grossToNetFailures.count > 0) {
+          issues.push(period + " " + key + ": Gross-to-net cash identity failed in "
+            + grossToNetFailures.count + " payroll record(s).");
+        }
       } catch (error) {
         issues.push(period + " " + key + ": " + (error instanceof Error ? error.message : "Invalid private evidence."));
       }
