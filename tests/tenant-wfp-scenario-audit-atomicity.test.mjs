@@ -58,6 +58,8 @@ test("disposable PG16 proof faults audit INSERT after an owned success and verif
   for (const required of [
     "pre-veto scenario and audit positive",
     "beforeAuditControl.audit.length + 1",
+    'oneAudit(beforeAuditControl, afterAuditControl, c, "Workforce staffing scenario saved")',
+    "savedAudit.metadata?.scenarioId",
     "requireTenantTableDisposable();",
     "to_regprocedure('public.qa_wfp_scenario_audit_veto_fn()')",
     "BEFORE INSERT ON audit_events",
