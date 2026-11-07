@@ -1,6 +1,7 @@
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
+import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -3985,6 +3986,10 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
+        assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
+        continue;
+      }
       if (path === "src/app/api/workforce-planning/route.ts" && ["POST","PATCH"].includes(method.name)) {
         assert.equal(verifyRootCredits(manifest),2);
         continue; // Exact receipt and row/own/foreign/unchanged anchors are validated together.
