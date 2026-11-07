@@ -120,9 +120,11 @@ export function verifyYearEndCredits(manifest, read = readFileSync) {
       assert.equal(billing.testedBy?.file, "scripts/qa/tenant-billing-subscription-http.mjs");
     }
   }
-  assert.equal(manifest.metrics.methods, 498);
+  const actualMethodCount = Object.values(manifest.allApiRouteFiles)
+    .reduce((sum, route) => sum + route.methods.length, 0);
+  assert.equal(manifest.metrics.methods, actualMethodCount);
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign +
-    manifest.metrics.gap, 498);
+    manifest.metrics.gap, manifest.metrics.methods);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.equal(manifest.metrics.scopedPagesAndActions, 21);
   return YEAR_END_RECEIPTS.length;

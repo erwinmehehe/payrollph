@@ -22,7 +22,7 @@ test("merged #1804 PG16 source proof gives only year-end GET and POST credits", 
     assert.equal(method.testedBy.ownerIsOnlyReviewer, true);
     assert.equal(method.testedBy.independentlyAccepted, false);
   }
-  assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.gap, 498);
+  assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.gap, m.metrics.methods);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and 17 page\/action GAPs/);
 });
 
