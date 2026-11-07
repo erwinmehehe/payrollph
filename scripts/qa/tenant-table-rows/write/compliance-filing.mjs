@@ -286,21 +286,39 @@ export function createRows({
             await state(ctx.victim.org.id));
         }
 
-        // Synthetic audit-insert veto: if the status transition is not in the
-        // same PostgreSQL transaction as its audit, this real HTTP request
-        // would commit "rejected" even though the audit INSERT fails.
+        // Synthetic audit-insert veto: test BOTH outcome branches. If either
+        // status transition is not in the same PostgreSQL transaction as its
+        // audit, the real HTTP request would commit despite a failed INSERT.
         // The extra generated source is a disposable local fixture ONLY.
+        // government_filing_file_unique forbids two records for the same
+        // employer, form and file SHA. Use a second fictional Released run
+        // with a different month, then clean up BOTH the run and filing.
+        const [vetoRun] = await db.insert(payrollRuns).values({
+          organizationId: ctx.orgId,
+          legalEntityId: ctx.entityId,
+          scopeOrgUnitId: ctx.unit.id,
+          periodLabel: ctx.marker + " CI-only audit-veto source",
+          periodStart: "2024-07-01", periodEnd: "2024-07-31",
+          payDate: "2024-07-31", status: "Released",
+          employeeCount: 0, grossPay: "0.00", netPay: "0.00",
+        }).returning();
+        assert.ok(vetoRun.id > ctx.seeded.runId,
+          "audit veto must use its own real later source run");
+        const vetoWorksheet = await generateGovernmentDraft(vetoRun.id, "sss-r3");
+        const vetoHash = createHash("sha256").update(vetoWorksheet.body, "utf8").digest("hex");
+        assert.notEqual(vetoHash, sourceHash,
+          "audit-veto source must not conflict with existing accepted filing unique SHA");
         const [vetoFiling] = await db.insert(governmentFilingValidations).values({
           organizationId: ctx.orgId,
           legalEntityId: ctx.entityId,
-          payrollRunId: ctx.seeded.runId,
+          payrollRunId: vetoRun.id,
           agency: "SSS", form: "R-3",
           periodLabel: ctx.marker + " atomic-veto-fixture",
           applicableMonth: FILING_PERIOD.applicableMonth,
-          fileName: ctx.marker + "-atomic-veto-fixture.csv",
-          fileSha256: createHash("sha256").update(
-            "ci-only-audit-veto:" + ctx.marker + ":" + ctx.seeded.runId,
-          ).digest("hex"),
+          // Acceptance must pass regeneration/integrity checks and actually
+          // reach the audit INSERT trigger, rather than 409 on a bad SHA.
+          fileName: vetoWorksheet.filename,
+          fileSha256: vetoHash,
           generatorVersion: "sss-r3-worksheet-v2",
           generatedBy: ctx.marker + " fictional atomicity fixture",
           status: "generated",
@@ -317,7 +335,7 @@ export function createRows({
             CREATE FUNCTION ci_filing_audit_veto() RETURNS trigger
             LANGUAGE plpgsql AS $ci_filing_audit$
             BEGIN
-              IF NEW.action = 'SSS R-3 filing rejected'
+              IF NEW.action IN ('SSS R-3 filing rejected', 'SSS R-3 filing accepted')
                  AND NEW.resource LIKE '%atomic-veto-fixture%' THEN
                 RAISE EXCEPTION 'CI_ONLY_FILING_AUDIT_VETO';
               END IF;
@@ -340,6 +358,18 @@ export function createRows({
           proveFilingStateUntouched(beforeVeto, await state(ctx.orgId));
           proveFilingStateUntouched(victimBeforeVeto,
             await state(ctx.victim.org.id));
+          // A valid accepted submission has a matching regenerable worksheet
+          // and a nonempty fictional reference. Thus the audit INSERT veto,
+          // not a source-integrity 409, must prevent acceptance atomically.
+          const acceptedAuditVeto = expectStatus(await request(
+            "/api/compliance/filing-validations/" + vetoFiling.id, {
+              method: "PATCH", cookie,
+              body: { ...acceptedBody, agencyReference: "CI-ONLY-SSS-VETO-" + vetoFiling.id },
+            }), 409, "accepted filing outcome must roll back on a failed audit insert");
+          proveFilingDenied(acceptedAuditVeto, 409, markerPair);
+          proveFilingStateUntouched(beforeVeto, await state(ctx.orgId));
+          proveFilingStateUntouched(victimBeforeVeto,
+            await state(ctx.victim.org.id));
         } finally {
           if (vetoTriggerCreated) {
             await db.execute(sql.raw(
@@ -356,6 +386,11 @@ export function createRows({
             eq(governmentFilingValidations.organizationId, ctx.orgId),
           )).returning({ id: governmentFilingValidations.id });
           assert.deepEqual(removed.map(row => row.id), [vetoFiling.id]);
+          const removedRun = await db.delete(payrollRuns).where(and(
+            eq(payrollRuns.id, vetoRun.id),
+            eq(payrollRuns.organizationId, ctx.orgId),
+          )).returning({ id: payrollRuns.id });
+          assert.deepEqual(removedRun.map(row => row.id), [vetoRun.id]);
         }
         return {
           acceptedOwnDecisionPG16: true,
@@ -366,6 +401,7 @@ export function createRows({
           fabricatedAcceptanceBlocked: true,
           impossibleDateBlocked: true,
           atomicAuditInsertRollbackProven: true,
+          acceptedAuditInsertRollbackProven: true,
           immutableReleasedRun: true,
           realAgencySubmissionOrMoneyMovement: false,
         };

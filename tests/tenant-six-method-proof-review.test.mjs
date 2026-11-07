@@ -144,7 +144,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
       // Historical #1501 was rejection-only. A new synthetic ACCEPTED-branch
       // HTTP/PG16 candidate is in the current family row; no successful job
       // or accepted coverage credit is implied until its exact-head run.
-      assert.equal(blobSha(review.proofFile), "d199e61b461827e8c4bdc2771dabf0a9102dcc5e",
+      assert.equal(blobSha(review.proofFile), "c7c7bf0a1b6b8b4eb4eade869ec8184beefe4fba",
         "new fictional accepted-path family proof changed; rerun exact-head CI");
       assert.notEqual(blobSha(review.proofFile),
         method.reviewedUncertified.proofBlobSha,
@@ -160,6 +160,11 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
         'acceptedOwnDecisionPG16: true',
         'acceptedForeignAndForgedDenied: true',
         'acceptedVictimDbAndAuditUnchanged: true',
+        'acceptedAuditInsertRollbackProven: true',
+        'const [vetoRun] = await db.insert(payrollRuns).values({',
+        'const vetoWorksheet = await generateGovernmentDraft(vetoRun.id, "sss-r3")',
+        'fileSha256: vetoHash',
+        'accepted filing outcome must roll back on a failed audit insert',
         'proveFilingStateUntouched(victimBeforeAccepted,',
         'method: "PATCH", cookie, body: deniedCase.body',
       ]) assert.ok(current.includes(token),
