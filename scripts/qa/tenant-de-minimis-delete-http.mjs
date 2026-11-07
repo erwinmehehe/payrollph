@@ -131,12 +131,15 @@ export async function proveDeMinimisDelete() {
         name: attacker.marker + " read-only worker",
         email: "grant-worker-" + randomUUID() + "@example.invalid",
         passwordHash: "fictional-session-only", role: "employee",
+        employeeId: attacker.worker.id,
       }).returning();
       await db.insert(s.userOrganizations).values({
         userId: employeeOnly.id, organizationId: attacker.org.id,
-        role: "employee", active: true,
+        workerEmployeeId: attacker.worker.id, role: "employee", active: true,
       });
       const employeeSession = await http.standaloneMakeSession(employeeOnly.id);
+      await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+        .where(eq(s.sessions.id, employeeSession.id));
       const beforeRole = await snapshot();
       const unprivileged = await send(employeeSession.cookie, attacker.primary.id);
       assert.equal(unprivileged.status, 403,
