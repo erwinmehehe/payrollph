@@ -1,6 +1,8 @@
 # Tenant subscription start/cancel + year-end four-method proof
 
-**DRAFT / FICTIONAL DATA ONLY / NOT MERGE-CLEARED / ZERO METHOD CREDITS.**
+**Historical proof PR #1804: FICTIONAL DATA ONLY / ZERO METHOD CREDITS AT EXECUTION / NOT PRODUCTION-CERTIFIED.**
+
+> **2026-11-07 separate review proposal:** Branch qa/tenant-billing-subscription-credit-20261107 proposes exactly **two provisional credits**, for POST start and POST cancel, from [successful PG16 real-HTTP job 42254118161/128016607991](https://github.com/erwinmehehe/payrollph/actions/runs/42254118161/job/128016607991). The proposal updates the 498-method ledger from **425 COVERED / 11 PUBLIC / 62 GAP** to **427 COVERED / 11 PUBLIC / 60 GAP**, while year-end GET and POST stay GAP. New branch-head CI and independent billing/security/privacy review are **PENDING**. The source-pinned application, Xendit and database modules have not drifted; since that proof run, next.config.ts added only POS-only Cache-Control overrides. No real Xendit traffic or production financial authorization.
 
 ## Exact method scope
 
@@ -26,6 +28,6 @@ GET /api/billing/subscription is **not** among these four. It requires its own r
 2. Rerun the existing tenant-year-end-post-candidate workflow against that same head, plus JSON and atomic-rollback corroboration as needed. The year-end proof must include all GET formats and both POST action paths.
 3. Verify current source hashes for every affected dependency. Any relevant source edit invalidates prior proof.
 4. Obtain independent billing, payroll, security and privacy review of provider authority, cancellation behavior, tenant joins, annualization transaction atomicity, audit receipts and applicable CI/security results.
-5. Only in a separate reviewed ledger reconciliation should accepted individual methods be promoted. Before that, year-end remains GAP/testedBy:null, **zero method credits**, and tenant/financial production NO-GO.
+5. Only in a separate reviewed ledger reconciliation should accepted individual methods be promoted. In historical proof PR #1804 all four methods remained GAP/testedBy:null with zero credits. The separate billing-only review proposal now requests two provisional billing POST credits; year-end remains GAP/testedBy:null, and tenant/financial production remains NO-GO.
 
 This PR changes no runtime route, schema, migration, default release flag, method coverage ledger or real provider credential. It performs no deployment, charge, cancellation, filing, transfer or customer-data access.

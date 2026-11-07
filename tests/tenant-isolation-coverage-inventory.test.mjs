@@ -2,6 +2,7 @@ import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-cr
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
+import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -234,6 +235,14 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (method.status === "COVERED" && [
+      "src/app/api/billing/subscription/start/route.ts POST",
+      "src/app/api/billing/subscription/cancel/route.ts POST",
+    ].includes(key)) {
+    assert.equal(currentBlob, manifest.allApiRouteFiles[key.slice(0, key.lastIndexOf(" "))].gitBlobSha);
+    assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
+    return true;
+  }
   if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
     assert.equal(verifyRootCredits(manifest),2);
     return true;
@@ -3933,6 +3942,11 @@ test("all credited proof links point to the claimed route and every recertified 
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
       const proof = method.testedBy;
+      if (["src/app/api/billing/subscription/start/route.ts",
+           "src/app/api/billing/subscription/cancel/route.ts"].includes(path) && method.name === "POST") {
+        assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
+        continue;
+      }
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
         continue;
