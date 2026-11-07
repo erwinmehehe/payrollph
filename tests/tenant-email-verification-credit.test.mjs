@@ -21,5 +21,5 @@ test('email proof import paths are strictly confined to the checked-out reposito
     assert.throws(()=>resolveProofRepoPath(unsafe));
   }
   assert.match(resolveProofRepoPath('src/app/api/account/email/verify/route.ts'),
-    /src[\\\\/]app[\\\\/]api[\\\\/]account[\\\\/]email[\\\\/]verify[\\\\/]route\\.ts$/);
+    /src[\\/]app[\\/]api[\\/]account[\\/]email[\\/]verify[\\/]route\.ts$/);
 });
