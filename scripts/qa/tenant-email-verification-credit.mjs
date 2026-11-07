@@ -20,7 +20,7 @@ const repositoryRoot=path.resolve(process.cwd());
 const rootFiles=new Set(['package.json','package-lock.json','next.config.ts','tsconfig.json']);
 export function resolveProofRepoPath(relativeFile) {
   assert.equal(typeof relativeFile,'string','proof file path must be a string');
-  assert.ok(!relativeFile.includes('\\\\') && !relativeFile.includes('\\0'),
+  assert.ok(!relativeFile.includes(String.fromCharCode(92)) && !relativeFile.includes(String.fromCharCode(0)),
     'proof file path must be POSIX and NUL-free');
   assert.ok(!path.posix.isAbsolute(relativeFile) && !path.win32.isAbsolute(relativeFile),
     'absolute proof paths are forbidden');
