@@ -8,6 +8,8 @@ on:
       - 'src/app/api/account/email/verify/route.ts'
       - 'src/lib/account.ts'
       - 'scripts/qa/tenant-account-email-verify-http.mjs'
+      - 'scripts/qa/email-verify-owned-proof.mjs'
+      - 'tests/tenant-email-verify-owned-proof.test.mjs'
       - 'tests/tenant-account-email-verify-contract.test.mjs'
       - '.github/workflows/tenant-account-email-verify-http.yml'
 
@@ -48,7 +50,7 @@ jobs:
       - name: Export provider-off localhost-only proof environment
         run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
       - name: Reject unsafe DB, providers and proof targets before schema creation
-        run: node --test tests/tenant-account-email-verify-contract.test.mjs
+        run: node --test tests/tenant-account-email-verify-contract.test.mjs tests/tenant-email-verify-owned-proof.test.mjs
       - name: Generate disposable encryption keys
         shell: bash
         run: |

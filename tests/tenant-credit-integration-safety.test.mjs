@@ -106,9 +106,13 @@ test("merge guard refuses accidental loss of the #1807 payout credit", () => {
 
 test("merge guard refuses unproved promotion of an independent #1805 method", () => {
   const altered = structuredClone(manifest);
-  getMethod(altered, PROPOSED_METHODS[0].path, "GET").status = "COVERED";
+  const method=getMethod(altered, PROPOSED_METHODS[0].path, "GET");
   // Even after recalculating totals, a missing proof cannot be accepted.
-  altered.metrics.coveredAfter += 1;
-  altered.metrics.gap -= 1;
+  if(method.status==="GAP"){
+    altered.metrics.coveredAfter += 1;
+    altered.metrics.gap -= 1;
+  }
+  method.status="COVERED";
+  method.testedBy=null;
   assert.throws(() => validate(altered), /requires source-pinned proof/);
 });
