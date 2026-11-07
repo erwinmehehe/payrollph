@@ -3,7 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import ts from 'typescript';
+import {createRequire} from 'node:module';
 import path from 'node:path';
 
 export const EMAIL_RECEIPT = Object.freeze({head:'480e6d621c91564f9645563b3417a10fb2ebd5a0',merge:'9ac4795efe8c013cd7a66ba73005dc481bde6626',run:42316473226,job:128230185900});
@@ -49,6 +49,9 @@ export function promoteEmail(args){
   assert.equal(tree('HEAD'),tree(EMAIL_RECEIPT.head),'runtime input tree drift requires rerun');
   assert.equal(tree(EMAIL_RECEIPT.merge),tree(EMAIL_RECEIPT.head),'merge changed executed inputs');
   const sourceTree=new Map(tree(EMAIL_RECEIPT.head).split('\n').map(line=>{const [meta,file]=line.split('\t');return [file,meta.split(' ')[2]];}));
+  // The installed compiler is needed only for generation. Source-only CI runs
+  // verifyEmailCredit without npm install and must remain dependency-free.
+  const ts=createRequire(import.meta.url)('typescript');
   const pending=[route,harness,workflow,'package.json','package-lock.json','tsconfig.json','next.config.ts',
     'scripts/qa/apply-isolated-baseline.mjs','scripts/qa/tenant-table-env.mjs',
     'tests/tenant-account-email-verify-contract.test.mjs','tests/tenant-email-verify-owned-proof.test.mjs'];
