@@ -2,9 +2,11 @@
 
 **Scope:** `DELETE /api/de-minimis` only. This is a runtime authorization
 hardening change and new disposable real-HTTP PostgreSQL 16 proof candidate.
-The method remains **GAP / zero coverage credit** in the canonical tenant
-manifest until its exact-head CI and independent review pass. GET and POST remain
-GAP; their evidence is not claimed here.
+No new method coverage credit is awarded. The canonical tenant manifest
+already marks GET, POST and DELETE as **provisionally COVERED** from an earlier
+MNY-02 real-HTTP suite; these existing statuses are unchanged. This separate
+DELETE boundary proof remains an **uncredited review candidate**, requiring
+exact-head CI and independent security review before acceptance.
 
 ## Isolation defect and fix
 

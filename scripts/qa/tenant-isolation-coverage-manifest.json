@@ -8447,12 +8447,12 @@
       ]
     },
     "src/app/api/de-minimis/route.ts": {
-      "gitBlobSha": "afcb1039472fabb166c239c6153b2508e1ea5f57",
+      "gitBlobSha": "e1a3b7cf09ecf1e86f52bc7a642aae2524092a88",
       "route": "de-minimis",
       "methods": [
         {
           "name": "GET",
-          "line": 20,
+          "line": 35,
           "status": "COVERED",
           "reason": "Provisional MNY-02 follow-up: actual real-HTTP disposable PG16 own positive and two authenticated foreign-employer denials on persisted higher-ID victim financial objects, with forged employee/employer controls and immutable victim expense, benefit, audit and payroll snapshots. Expense cases exercise legacy Spend flag-OFF only; independent reviewed Spend feature-ON acceptance is separate. No live provider, bank transfer or tax filing. Requires exact-head CI and independent security review.",
           "testedBy": {
@@ -8469,7 +8469,7 @@
         },
         {
           "name": "POST",
-          "line": 65,
+          "line": 80,
           "status": "COVERED",
           "reason": "Provisional MNY-02 follow-up: actual real-HTTP disposable PG16 own positive and two authenticated foreign-employer denials on persisted higher-ID victim financial objects, with forged employee/employer controls and immutable victim expense, benefit, audit and payroll snapshots. Expense cases exercise legacy Spend flag-OFF only; independent reviewed Spend feature-ON acceptance is separate. No live provider, bank transfer or tax filing. Requires exact-head CI and independent security review.",
           "testedBy": {
@@ -8487,7 +8487,7 @@
         },
         {
           "name": "DELETE",
-          "line": 170,
+          "line": 185,
           "status": "COVERED",
           "reason": "Provisional MNY-02 follow-up: actual real-HTTP disposable PG16 own positive and two authenticated foreign-employer denials on persisted higher-ID victim financial objects, with forged employee/employer controls and immutable victim expense, benefit, audit and payroll snapshots. Expense cases exercise legacy Spend flag-OFF only; independent reviewed Spend feature-ON acceptance is separate. No live provider, bank transfer or tax filing. Requires exact-head CI and independent security review.",
           "testedBy": {
@@ -8501,6 +8501,21 @@
             "victimIdOrderingLine": 133,
             "scope": "Two independent attacker owners and a real high-ID victim, seeded owned expenses/de minimis benefits via 201 HTTP POST, own populated 200, foreign 403 and forged victim-employee 404, independent checker expense rejection 200 and owner benefit end 200; immutable victim PG16 finance/audit/payroll rows. Reviewed Spend feature-ON not certified.",
             "evidence": "Requires exact-head disposable PostgreSQL16 production-mode Security HTTP Smoke and independent review; source-only assertions are not sufficient."
+          },
+          "reviewedUncertified": {
+            "kind": "de-minimis-delete-active-membership-id-boundary-PG16-review-only",
+            "originalRouteBlobSha": "afcb1039472fabb166c239c6153b2508e1ea5f57",
+            "routeBlobSha": "e1a3b7cf09ecf1e86f52bc7a642aae2524092a88",
+            "proofFile": "scripts/qa/tenant-de-minimis-delete-http.mjs",
+            "proofBlobSha": "6fdca8169c355e49a32a986dad8a2b123d853f53",
+            "contractFile": "tests/tenant-de-minimis-delete-boundary.test.mjs",
+            "contractBlobSha": "224ed59a03530680f33ca06788ef4fecf75c75aa",
+            "workflowFile": ".github/workflows/tenant-de-minimis-delete-http.yml",
+            "workflowBlobSha": "87a8e138d72b77ceedd8b1501a1d91bd923d5615",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         }
       ],
@@ -8533,136 +8548,136 @@
           "token": "getSessionUser"
         },
         {
-          "line": 21,
+          "line": 36,
           "token": "getSessionUser"
         },
         {
-          "line": 24,
+          "line": 39,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 31,
+          "line": 46,
           "token": "getAccess"
         },
         {
-          "line": 66,
+          "line": 81,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 69,
+          "line": 84,
           "token": "getSessionUser"
         },
         {
-          "line": 80,
+          "line": 95,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 87,
+          "line": 102,
           "token": "getAccess"
         },
         {
-          "line": 104,
+          "line": 119,
           "token": "assertScope"
         },
         {
-          "line": 171,
+          "line": 186,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 174,
+          "line": 189,
           "token": "getSessionUser"
         },
         {
-          "line": 179,
+          "line": 197,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 186,
+          "line": 204,
           "token": "getAccess"
         },
         {
-          "line": 191,
+          "line": 209,
           "token": "assertScope"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 23,
+          "line": 38,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 72,
+          "line": 87,
           "token": "body.organizationId"
         },
         {
-          "line": 73,
+          "line": 88,
           "token": "body.employeeId"
         },
         {
-          "line": 176,
+          "line": 191,
           "token": "searchParams.get(\"id\")"
         }
       ],
       "businessIds": [
         {
-          "line": 23,
+          "line": 27,
           "token": "organizationId"
         },
         {
-          "line": 23,
-          "token": "organizationId"
-        },
-        {
-          "line": 26,
-          "token": "organizationId"
-        },
-        {
-          "line": 31,
-          "token": "organizationId"
-        },
-        {
-          "line": 35,
-          "token": "organizationId"
-        },
-        {
-          "line": 35,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
+          "line": 27,
           "token": "organizationId"
         },
         {
           "line": 38,
-          "token": "orgUnitId"
+          "token": "organizationId"
         },
         {
           "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "organizationId"
+        },
+        {
+          "line": 50,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
+          "token": "organizationId"
+        },
+        {
+          "line": 53,
           "token": "orgUnitId"
         },
         {
-          "line": 40,
+          "line": 53,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 55,
           "token": "employeeId"
         },
         {
-          "line": 56,
-          "token": "employeeId"
-        },
-        {
-          "line": 57,
-          "token": "employeeId"
-        },
-        {
-          "line": 57,
+          "line": 71,
           "token": "employeeId"
         },
         {
           "line": 72,
-          "token": "organizationId"
+          "token": "employeeId"
         }
       ]
     },
