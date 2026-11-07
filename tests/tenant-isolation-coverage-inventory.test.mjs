@@ -5344,6 +5344,12 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(verifyReceiptCredits(manifest), 2);
         continue;
       }
+      if (path === "src/app/api/migrations/route.ts" && method.name === "POST") {
+        // Exact four-kind real HTTP PostgreSQL receipt. The generic proof source
+        // allowlist remains closed; no unrelated method may borrow this credit.
+        assert.equal(verifyMigrationPostCredit(manifest), 1);
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",
