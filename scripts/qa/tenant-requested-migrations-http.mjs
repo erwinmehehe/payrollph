@@ -4,6 +4,8 @@ import {spawn} from "node:child_process";
 import {setTimeout as delay} from "node:timers/promises";
 import {requireDisposableIdentityAccount} from "./tenant-identity-account-proof.mjs";
 import {MIGRATION_PROOF_KINDS,migrationProofBody,assertMigrationCommit} from "./migration-method-proof.mjs";
+import {fictionalMigrationXlsx} from "./fictional-migration-xlsx.mjs";
+import {withDisposableInsertVeto} from "./disposable-insert-veto.mjs";
 
 export async function proveMigrationMethod(){
   requireDisposableIdentityAccount();
@@ -14,9 +16,12 @@ export async function proveMigrationMethod(){
   assert.equal((await db.select().from(s.organizations).limit(1)).length,0,"Fresh empty CI database required");
   const nonce=randomUUID().slice(0,8),{seedEmployer,standaloneMakeSession,standaloneRequest,addWorker}=shared;
   const a=await seedEmployer("ATTA",nonce,standaloneMakeSession),b=await seedEmployer("ATTB",nonce,standaloneMakeSession);
+  // Employee-master migration is one-time per employer. XLSX positives use
+  // their own untouched employers rather than bypassing the JSON import lock.
+  const xlsxEmployers=[await seedEmployer('ATTA',nonce+'xl',standaloneMakeSession),await seedEmployer('ATTB',nonce+'xl',standaloneMakeSession)];
   // Imports are a Scale-plan feature. Grant ONLY the two fictional owners an
   // offline, provider-less test entitlement; never weaken the real feature gate.
-  for(const employer of [a,b]){
+  for(const employer of [a,b,...xlsxEmployers]){
     await db.insert(s.subscriptions).values({
       organizationId:employer.org.id,plan:"Scale",status:"active",
       seatLimit:100,amountCents:0,currency:"PHP",
@@ -24,6 +29,7 @@ export async function proveMigrationMethod(){
   }
   for(let i=0;i<6;i++)await addWorker(a,"MIGPAD"+i);
   const victim=await seedEmployer("VICTIM",nonce,standaloneMakeSession);
+  assert.ok(xlsxEmployers.every(employer=>victim.worker.id>employer.worker.id&&victim.org.id>employer.org.id));
   assert.ok(victim.worker.id>6&&victim.worker.id>Math.max(a.worker.id,b.worker.id),"Real higher-ID victim must exist");
   const plain=x=>JSON.parse(JSON.stringify(x));
   const snapshot=async orgId=>{
@@ -41,6 +47,7 @@ export async function proveMigrationMethod(){
     }assert.ok(ready,"Isolated Next unavailable: "+logs);
     const send=(e,body)=>standaloneRequest("/api/migrations",{method:"POST",cookie:e.cookie,body});
     const victimBefore=await snapshot(victim.org.id),positives=new Map();let ownCommits=0,foreignDenials=0,forgedDenials=0,previews=0,multipartPreviews=0;
+    let auditVetoRollbacks=0,xlsxCommits=0,xlsxForeignDenials=0;const xlsxPositives=[];
     for(const e of [a,b]){
       const records=new Map();positives.set(e.org.id,records);
       for(const kind of MIGRATION_PROOF_KINDS){
@@ -52,6 +59,11 @@ export async function proveMigrationMethod(){
         const before=await snapshot(e.org.id);
         const secondPreview=await send(e,{...body,dryRun:true});assert.equal(secondPreview.status,200);
         assert.deepEqual(await snapshot(e.org.id),before,"preview cannot import data or audit");
+        await withDisposableInsertVeto(pool,'audit_events',e.org.id,async()=>{
+          const refused=await send(e,body);assert.equal(refused.status,500,'real audit insert failure must refuse import');
+          assert.deepEqual(await snapshot(e.org.id),before,'audit veto must roll back batch, sources, worker, profile and audit');
+          assert.deepEqual(await snapshot(victim.org.id),victimBefore,'audit veto cannot mutate victim');auditVetoRollbacks++;
+        });
         const own=await send(e,body);assert.equal(own.status,200,"real own commit: "+own.text);assert.equal(own.json?.dryRun,false);
         const after=await snapshot(e.org.id);assertMigrationCommit(before,after,e,kind);
         records.set(kind,{before,after});ownCommits++;
@@ -74,12 +86,36 @@ export async function proveMigrationMethod(){
       assert.deepEqual(await snapshot(e.org.id),beforeMultipart,"multipart preview cannot commit");
       const replay=await send(e,migrationProofBody(e,"employees"));assert.equal(replay.status,409,"repeat employee master must remain governed");
       assert.deepEqual(await snapshot(e.org.id),beforeMultipart);assert.deepEqual(await snapshot(victim.org.id),victimBefore);
+      const xlsxEmployer=xlsxEmployers[e===a?0:1];
+      for(const kind of MIGRATION_PROOF_KINDS){
+        const payload=migrationProofBody(xlsxEmployer,kind);
+        const upload=async organizationId=>{
+          const form=new FormData();
+          for(const key of ['source','kind','evidenceReference'])form.set(key,String(payload[key]));
+          form.set('organizationId',String(organizationId));form.set('dryRun','false');
+          form.set('file',new Blob([fictionalMigrationXlsx(payload.csv)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'fictional.xlsx');
+          return fetch('http://127.0.0.1:3000/api/migrations',{method:'POST',headers:{cookie:xlsxEmployer.cookie,origin:'http://127.0.0.1:3000','sec-fetch-site':'same-origin'},body:form,redirect:'manual'});
+        };
+        const beforeXlsx=await snapshot(xlsxEmployer.org.id),response=await upload(xlsxEmployer.org.id);
+        assert.equal(response.status,200,'owned XLSX commit: '+await response.text());
+        const afterXlsx=await snapshot(xlsxEmployer.org.id);assertMigrationCommit(beforeXlsx,afterXlsx,xlsxEmployer,kind);xlsxCommits++;
+        xlsxPositives.push({before:beforeXlsx,after:afterXlsx,employer:xlsxEmployer,kind});
+        assert.equal((await upload(victim.org.id)).status,403,'foreign XLSX write denied');xlsxForeignDenials++;
+        assert.deepEqual(await snapshot(xlsxEmployer.org.id),afterXlsx,'foreign XLSX cannot change own import');
+        assert.deepEqual(await snapshot(victim.org.id),victimBefore,'XLSX cannot change victim SQL/audit');
+      }
     }
     for(const e of [a,b])for(const kind of MIGRATION_PROOF_KINDS){
       const other=e===a?b:a,{before,after}=positives.get(other.org.id).get(kind);
       assert.throws(()=>assertMigrationCommit(before,after,e,kind),/accepts another employer's data/);
     }
     assert.deepEqual({ownCommits,foreignDenials,forgedDenials,previews,multipartPreviews},{ownCommits:8,foreignDenials:8,forgedDenials:6,previews:8,multipartPreviews:2});
+    for(const item of xlsxPositives){
+      const other=xlsxEmployers.find(employer=>employer.org.id!==item.employer.org.id);
+      assert.throws(()=>assertMigrationCommit(item.before,item.after,other,item.kind),/accepts another employer's data/);
+    }
+    assert.deepEqual({auditVetoRollbacks,xlsxCommits,xlsxForeignDenials},{auditVetoRollbacks:8,xlsxCommits:8,xlsxForeignDenials:8});
+    console.log(JSON.stringify({kind:'MIGRATION_MISSING_BRANCHES_PG16_HTTP',auditVetoRollbacks,xlsxCommits,xlsxForeignDenials,xlsxDiscriminationChecks:xlsxPositives.length,credits:0}));
     console.log(JSON.stringify({kind:"REQUESTED_MIGRATIONS_PG16_HTTP",ownCommits,foreignDenials,forgedDenials,previews,multipartPreviews,discriminationChecks:8,victimSqlAndAuditUnchanged:true,credits:0,providerCalls:0,productionCertified:false}));
   }finally{
     if(server&&server.exitCode===null){server.kill("SIGTERM");await Promise.race([new Promise(resolve=>server.once("exit",resolve)),delay(4000)]);if(server.exitCode===null)server.kill("SIGKILL");}

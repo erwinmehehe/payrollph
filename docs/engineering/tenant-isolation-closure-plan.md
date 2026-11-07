@@ -1,6 +1,6 @@
 ## 2026-11-07 careers publication PATCH four-part method credit — PROVISIONAL / NOT ACCEPTED
 
-**Proposed ledger: 498 methods = 425 COVERED + 11 PUBLIC-BY-DESIGN + 62 GAP; frozen 406 = 341 COVERED + 3 PUBLIC-BY-DESIGN + 62 GAP.** One and only one proposed method, `PATCH /api/careers/admin`, is backed by [passing production-mode localhost PG16 HTTP run 41798531116/job 126468332784](https://github.com/erwinmehehe/payrollph/actions/runs/41798531116/job/126468332784) at reviewed #1751 head `9d78cf39f82bc5f739e2927e19818b301ecaac56`. Two independently authenticated owners, third higher-ID victim with persisted requisition ID > 6, 3 own publishes / 2 own unpublishes, 20 denied requests, genuine audited DB transitions, victim/payroll immutability, and injected PostgreSQL audit failure rollback. Exact route, runner, workflow and security-critical inputs remain unchanged from that passing run; current-head package/build settings changed and **fresh final-head CI remains mandatory**. Independent security/HR/privacy review PENDING. The recruitment feature, production migration, providers and payroll remain OFF/UNAUTHORIZED. 17 pages/actions and 62 API GAPs remain NOT ACCEPTED; this is not a tenant-wide security certificate.
+**Proposed ledger: 498 methods = 425 COVERED + 11 PUBLIC-BY-DESIGN + 62 GAP; frozen 406 = 341 COVERED + 3 PUBLIC-BY-DESIGN + 62 GAP.** The source-linked frozen queue assigns this PATCH to PII-02, even though its dedicated proof workflow is named EDG-01. One and only one proposed method, `PATCH /api/careers/admin`, is backed by [passing production-mode localhost PG16 HTTP run 41798531116/job 126468332784](https://github.com/erwinmehehe/payrollph/actions/runs/41798531116/job/126468332784) at reviewed #1751 head `9d78cf39f82bc5f739e2927e19818b301ecaac56`. Two independently authenticated owners, third higher-ID victim with persisted requisition ID > 6, 3 own publishes / 2 own unpublishes, 20 denied requests, genuine audited DB transitions, victim/payroll immutability, and injected PostgreSQL audit failure rollback. Exact route, runner, workflow and security-critical inputs remain unchanged from that passing run; current-head package/build settings changed and **fresh final-head CI remains mandatory**. Independent security/HR/privacy review PENDING. The recruitment feature, production migration, providers and payroll remain OFF/UNAUTHORIZED. 17 pages/actions and 62 API GAPs remain NOT ACCEPTED; this is not a tenant-wide security certificate.
 
 ## 2026-11-06 PR #1766 reconciled with merged #1784 — PROVISIONAL, NOT ACCEPTED
 
@@ -186,11 +186,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 35 | 0 | 3 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 35 | 0 | 4 | INCOMPLETE |
 | 5 | **WRK-02** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
-| 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 6 | 0 | 27 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
 Frozen subtotal (2026-11-04 proposal): **341 COVERED + 3 PUBLIC-BY-DESIGN + 62 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.

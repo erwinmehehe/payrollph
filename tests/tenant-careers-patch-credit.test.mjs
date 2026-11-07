@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyCareersPatchCredit, CAREERS_CREDIT_RECEIPT } from "../scripts/qa/tenant-careers-patch-credit.mjs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 const manifest=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 const target=m=>m.allApiRouteFiles["src/app/api/careers/admin/route.ts"].methods.find(x=>x.name==="PATCH");
 test("source-matched real-HTTP PG16 careers PATCH earns exactly one provisional method credit",()=>{
@@ -9,7 +10,7 @@ test("source-matched real-HTTP PG16 careers PATCH earns exactly one provisional 
   assert.deepEqual(target(manifest).testedBy.postActions,["publish","unpublish"]);
   assert.equal(CAREERS_CREDIT_RECEIPT.workflowRunId,41798531116);
   assert.equal(CAREERS_CREDIT_RECEIPT.workflowJobId,126468332784);
-  assert.equal(manifest.metrics.coveredAfter,425);assert.equal(manifest.metrics.gap,62);
+  assertLiveTenantCounts(assert, manifest);
 });
 test("no forged, partial or production-accepted careers evidence can be promoted",()=>{
   for(const mutate of [
