@@ -9,6 +9,8 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import pg from "pg";
+import {assertOwnedSlaResult} from './hcm-sla-owned-proof.mjs';
+import {withDisposableInsertVeto} from './disposable-insert-veto.mjs';
 
 const APP = "http://127.0.0.1:3000";
 function requireDisposable() {
@@ -123,6 +125,18 @@ try {
       "Unauthorized requests cannot queue any employer email");
   }
 
+  // The worker intentionally writes all due employers. A late outbox failure
+  // must roll back even the earlier employers' case/event updates.
+  const fixtureConnection={connect:async()=>({query:client.query.bind(client),release(){}})};
+  await withDisposableInsertVeto(fixtureConnection,'outbox',subjects[1].orgId,async()=>{
+    expect(await request({authorization:'Bearer '+process.env.HCM_SLA_CRON_SECRET}),500,'outbox veto refuses entire sweep');
+    for(const subject of subjects){
+      assert.deepEqual(await snapshot('automation_operational_cases',subject.orgId),casesBefore.get(subject.orgId),'outbox veto rolls back all employer cases');
+      assert.deepEqual(await snapshot('hcm_work_item_events',subject.orgId),[]);
+      assert.deepEqual(await snapshot('outbox',subject.orgId),[]);
+    }
+  });
+  const positives=[];
   const valid = expect(await request({
     authorization: "Bearer " + process.env.HCM_SLA_CRON_SECRET,
   }), 200, "A valid scheduler bearer can process due fictional cases");
@@ -139,6 +153,7 @@ try {
       events[0].organization_id === org.orgId && events[0].event_type === "sla_escalated",
       "Event organization and persisted case must match");
     const emails = await snapshot("outbox", org.orgId);
+    assertOwnedSlaResult({cases,events,emails},org);positives.push({cases,events,emails,org});
     check(emails.length === 1 && emails[0].organization_id === org.orgId &&
       emails[0].recipient === org.email && emails[0].purpose === "hcm_sla_escalation",
       "The employer's notice must go only to its own company-wide HR recipient");
@@ -154,6 +169,10 @@ try {
   }
 
   const victimCases = await snapshot("automation_operational_cases", subjects[2].orgId);
+  for(const item of positives){
+    const other=subjects.find(subject=>subject.orgId!==item.org.orgId);
+    assert.throws(()=>assertOwnedSlaResult(item,other),/accepts another employer's data/);
+  }
   check(victimCases.some(row => row.id === future.id &&
     row.escalated_at === null && row.escalation_level === 0),
     "Not-yet-due victim case must remain untouched");
@@ -172,6 +191,7 @@ try {
     authenticatedTenantCookieDenied: true, forgedTokenDenied: true,
     independentAuthenticatedTenantCookiesDenied:2,
     syntheticEmployers: 3, ownDueCasesProcessed: 3, foreignEmailsObserved: 0,
+    employerDiscriminationChecks:positives.length,globalOutboxVetoRollback:true,
     repeatedRunEscalations: 0, payrollMutations: 0,
     methodCredits: 0, independentSecurityAcceptance: false,
     assertions,

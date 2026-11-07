@@ -675,11 +675,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       ["src/app/api/auth/logout/route.ts", "scripts/qa/tenant-auth-logout-http.mjs"],
       ["src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "scripts/qa/paymongo-export-isolation-local.mjs"],
       ["src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs"],
-      ["src/app/api/payroll-runs/[id]/xendit-payout/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs"],
+      ["src/app/api/payroll-runs/[id]/xendit-payout/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs", "GET"],
       ["src/app/api/payroll-runs/[id]/submit-review/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
       ["src/app/api/payroll-runs/[id]/release/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
-    ].filter(([path, receipt]) => {
-      const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === "POST");
+    ].filter(([path, receipt, verb = "POST"]) => {
+      const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === verb);
       if (row?.status !== "COVERED") return false;
       assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
       assert.equal(row.testedBy.independentSecurityReview, "PENDING");
@@ -708,7 +708,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
-    for (const [path] of mainDedicatedCredits) expectedOriginalMain[path].POST = "COVERED";
+    for (const [path, , verb = "POST"] of mainDedicatedCredits) expectedOriginalMain[path][verb] = "COVERED";
     if (baselineHasRecovery) {
       for (const e of EVIDENCE) {
         expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
