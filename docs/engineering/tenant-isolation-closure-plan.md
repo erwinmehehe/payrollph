@@ -1,6 +1,6 @@
 ## 2026-11-06 PR #1766 reconciled with merged #1784 — PROVISIONAL, NOT ACCEPTED
 
-**Current combined branch ledger: 498 methods = 418 COVERED + 11 PUBLIC-BY-DESIGN + 69 GAP; frozen 406 = 334 COVERED + 3 PUBLIC-BY-DESIGN + 69 GAP.** `POST payroll-runs/[id]/payout-reconciliation` (MNY-01) is provisionally credited from the existing real-HTTP PG16 PayMongo isolation harness against a **loopback-only synthetic PayMongo** (no real provider contacted, no real payout), main-head [run 42229558806](https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957) on `9c9f0ad78`; the earlier provider-disabled 501 hold is superseded, not weakened. Independent review PENDING. `POST auth/logout` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1795 (merge commit `b18244790`, passing head `b32c2286e`, [run 42203481558](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303)); independent review PENDING. `POST account/password` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1794 (merge commit `1d475f4e7`, passing head `374fe6d50`, [run 42183409095](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531)); independent review PENDING. Retains separate provisional staffing-policy GET, payroll submit-review/release POST, and MWE decision PATCH evidence. Exact integrated-head CI and independent security/payroll-tax review are pending. No production deployment, payroll release, payout, or tenant-wide acceptance.
+**Current combined branch ledger: 498 methods = 420 COVERED + 11 PUBLIC-BY-DESIGN + 67 GAP; frozen 406 = 336 COVERED + 3 PUBLIC-BY-DESIGN + 67 GAP.** `POST payroll-runs/[id]/pilot-signoff` and `GET payroll-runs/[id]/xendit-payout` (MNY-01) are provisionally credited from the dedicated two-attacker payroll-run-actions harness (no payout provider configured or called), merged proof #1803 (merge commit `79da483ee`, passing head `02cfd9445`, [run 42253150229](https://github.com/erwinmehehe/payrollph/actions/runs/42253150229/job/128013254082)); `exports` POST and `xendit-payout` POST stay GAP; independent review PENDING. `POST payroll-runs/[id]/payout-reconciliation` (MNY-01) is provisionally credited from the existing real-HTTP PG16 PayMongo isolation harness against a **loopback-only synthetic PayMongo** (no real provider contacted, no real payout), main-head [run 42229558806](https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957) on `9c9f0ad78`; the earlier provider-disabled 501 hold is superseded, not weakened. Independent review PENDING. `POST auth/logout` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1795 (merge commit `b18244790`, passing head `b32c2286e`, [run 42203481558](https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303)); independent review PENDING. `POST account/password` (EDG-01) is provisionally credited from its dedicated two-attacker harness, merged proof #1794 (merge commit `1d475f4e7`, passing head `374fe6d50`, [run 42183409095](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531)); independent review PENDING. Retains separate provisional staffing-policy GET, payroll submit-review/release POST, and MWE decision PATCH evidence. Exact integrated-head CI and independent security/payroll-tax review are pending. No production deployment, payroll release, payout, or tenant-wide acceptance.
 
 ## 2026-11-06 PR #1784 synchronized with main — PROVISIONAL, NOT ACCEPTED
 
@@ -178,7 +178,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 28 | 0 | 5 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 30 | 0 | 3 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 23 | 0 | 10 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
@@ -189,7 +189,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 6 | 0 | 27 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **334 COVERED + 3 PUBLIC-BY-DESIGN + 69 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
+Frozen subtotal (2026-11-04 proposal): **336 COVERED + 3 PUBLIC-BY-DESIGN + 67 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. All 12 batches remain INCOMPLETE.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

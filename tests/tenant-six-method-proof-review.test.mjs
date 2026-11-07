@@ -510,6 +510,22 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(payoutReconciliation.testedBy.productionTested, false);
   expectedStatuses[payoutReconciliationPath].POST = "COVERED";
   const payoutReconciliationCredits = 1;
+  // Credit after the snapshot: POST pilot-signoff and GET xendit-payout, from the dedicated payroll-run-actions harness (merged proof #1803).
+  // The inventory test verifies the receipt, blob identity and cited lines exactly.
+  const pilotSignoffPath = "src/app/api/payroll-runs/[id]/pilot-signoff/route.ts";
+  const xenditPayoutPath = "src/app/api/payroll-runs/[id]/xendit-payout/route.ts";
+  assert.equal(expectedStatuses[pilotSignoffPath]?.POST, "GAP", "pilot-signoff POST must start GAP in the reviewed snapshot");
+  assert.equal(expectedStatuses[xenditPayoutPath]?.GET, "GAP", "xendit-payout GET must start GAP in the reviewed snapshot");
+  for (const [path, name] of [[pilotSignoffPath, "POST"], [xenditPayoutPath, "GET"]]) {
+    const credited = m.allApiRouteFiles[path].methods.find(row => row.name === name);
+    assert.equal(credited?.status, "COVERED");
+    assert.equal(credited.testedBy?.file, "scripts/qa/tenant-payroll-run-actions-http.mjs");
+    assert.equal(credited.testedBy.independentSecurityReview, "PENDING");
+    assert.equal(credited.testedBy.productionTested, false);
+    expectedStatuses[path][name] = "COVERED";
+  }
+  assert.equal(m.allApiRouteFiles[xenditPayoutPath].methods.find(row => row.name === "POST").status, "GAP", "xendit-payout POST stays GAP");
+  const payrollRunActionsCredits = 2;
   // Credit after the snapshot: POST auth/logout, from its dedicated two-attacker harness (merged proof #1795). The inventory
   // test verifies the receipt, blob identity and cited lines exactly.
   const authLogoutPath = "src/app/api/auth/logout/route.ts";
@@ -546,9 +562,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + payoutReconciliationCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + payoutReconciliationCredits + payrollRunActionsCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - payoutReconciliationCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - payoutReconciliationCredits - payrollRunActionsCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -560,7 +576,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **334 COVERED + 3 PUBLIC-BY-DESIGN + 69 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **336 COVERED + 3 PUBLIC-BY-DESIGN + 67 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -635,6 +651,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       ["src/app/api/account/password/route.ts", "scripts/qa/tenant-account-password-http.mjs"],
       ["src/app/api/auth/logout/route.ts", "scripts/qa/tenant-auth-logout-http.mjs"],
       ["src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "scripts/qa/paymongo-export-isolation-local.mjs"],
+      ["src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs"],
+      ["src/app/api/payroll-runs/[id]/xendit-payout/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs"],
       ["src/app/api/payroll-runs/[id]/submit-review/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
       ["src/app/api/payroll-runs/[id]/release/route.ts", "scripts/qa/tenant-money-lifecycle-http.mjs"],
     ].filter(([path, receipt]) => {
