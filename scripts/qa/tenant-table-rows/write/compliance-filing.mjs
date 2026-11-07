@@ -286,9 +286,9 @@ export function createRows({
             await state(ctx.victim.org.id));
         }
 
-        // Synthetic audit-insert veto: if the status transition is not in the
-        // same PostgreSQL transaction as its audit, this real HTTP request
-        // would commit "rejected" even though the audit INSERT fails.
+        // Synthetic audit-insert veto: test BOTH outcome branches. If either
+        // status transition is not in the same PostgreSQL transaction as its
+        // audit, the real HTTP request would commit despite a failed INSERT.
         // The extra generated source is a disposable local fixture ONLY.
         const [vetoFiling] = await db.insert(governmentFilingValidations).values({
           organizationId: ctx.orgId,
@@ -297,10 +297,10 @@ export function createRows({
           agency: "SSS", form: "R-3",
           periodLabel: ctx.marker + " atomic-veto-fixture",
           applicableMonth: FILING_PERIOD.applicableMonth,
-          fileName: ctx.marker + "-atomic-veto-fixture.csv",
-          fileSha256: createHash("sha256").update(
-            "ci-only-audit-veto:" + ctx.marker + ":" + ctx.seeded.runId,
-          ).digest("hex"),
+          // Acceptance must pass regeneration/integrity checks and actually
+          // reach the audit INSERT trigger, rather than 409 on a bad SHA.
+          fileName: sourceFile.filename,
+          fileSha256: sourceHash,
           generatorVersion: "sss-r3-worksheet-v2",
           generatedBy: ctx.marker + " fictional atomicity fixture",
           status: "generated",
@@ -317,7 +317,7 @@ export function createRows({
             CREATE FUNCTION ci_filing_audit_veto() RETURNS trigger
             LANGUAGE plpgsql AS $ci_filing_audit$
             BEGIN
-              IF NEW.action = 'SSS R-3 filing rejected'
+              IF NEW.action IN ('SSS R-3 filing rejected', 'SSS R-3 filing accepted')
                  AND NEW.resource LIKE '%atomic-veto-fixture%' THEN
                 RAISE EXCEPTION 'CI_ONLY_FILING_AUDIT_VETO';
               END IF;
@@ -337,6 +337,18 @@ export function createRows({
               method: "PATCH", cookie, body: filingRejectionBody(ctx),
             }), 409, "atomic filing decision must roll back on a failed audit insert");
           proveFilingDenied(response, 409, markerPair);
+          proveFilingStateUntouched(beforeVeto, await state(ctx.orgId));
+          proveFilingStateUntouched(victimBeforeVeto,
+            await state(ctx.victim.org.id));
+          // A valid accepted submission has a matching regenerable worksheet
+          // and a nonempty fictional reference. Thus the audit INSERT veto,
+          // not a source-integrity 409, must prevent acceptance atomically.
+          const acceptedAuditVeto = expectStatus(await request(
+            "/api/compliance/filing-validations/" + vetoFiling.id, {
+              method: "PATCH", cookie,
+              body: { ...acceptedBody, agencyReference: "CI-ONLY-SSS-VETO-" + vetoFiling.id },
+            }), 409, "accepted filing outcome must roll back on a failed audit insert");
+          proveFilingDenied(acceptedAuditVeto, 409, markerPair);
           proveFilingStateUntouched(beforeVeto, await state(ctx.orgId));
           proveFilingStateUntouched(victimBeforeVeto,
             await state(ctx.victim.org.id));
@@ -366,6 +378,7 @@ export function createRows({
           fabricatedAcceptanceBlocked: true,
           impossibleDateBlocked: true,
           atomicAuditInsertRollbackProven: true,
+          acceptedAuditInsertRollbackProven: true,
           immutableReleasedRun: true,
           realAgencySubmissionOrMoneyMovement: false,
         };
