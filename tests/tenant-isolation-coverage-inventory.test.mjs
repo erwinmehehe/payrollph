@@ -2,6 +2,7 @@ import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-cr
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
+import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -234,6 +235,11 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (key === "src/app/api/careers/admin/route.ts PATCH" && method.status === "COVERED") {
+    assert.equal(currentBlob, "fc7920e19fc75389c5f5e7fe3cb4f90046028f00");
+    assert.equal(verifyCareersPatchCredit(manifest), 1);
+    return true;
+  }
   if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
     assert.equal(verifyRootCredits(manifest),2);
     return true;
@@ -5369,6 +5375,10 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/expenses/receipts/route.ts" && ["GET", "POST"].includes(method.name)) {
         assert.equal(verifyReceiptCredits(manifest), 2);
+        continue;
+      }
+      if (path === "src/app/api/careers/admin/route.ts" && method.name === "PATCH") {
+        assert.equal(verifyCareersPatchCredit(manifest), 1);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",

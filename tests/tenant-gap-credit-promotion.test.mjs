@@ -9,6 +9,7 @@ import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../sc
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
@@ -218,6 +219,12 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
+    if (key === "PATCH careers/admin") {
+      // Independent executed PG16 method credit, not a credit from this older sweep.
+      assert.equal(verifyCareersPatchCredit(manifest), 1);
+      assert.equal(methods.get(key)?.status, "COVERED");
+      continue;
+    }
     if (key === "GET workforce/demand-staffing/policies") {
       assert.equal(verifyStaffingPolicyGetCredit(manifest), 1);
       continue;
