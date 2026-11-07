@@ -9,11 +9,14 @@ test("no forged, partial, or null receipt may earn method credit",()=>{
   for(const modify of [
     m=>{post(m).testedBy.workflowRunId=1;},m=>{post(m).testedBy.ownPositiveLine=60;},
     m=>{post(m).testedBy.methodActions=["employees"];},m=>{post(m).testedBy=null;},
-    m=>{post(m).testedBy.productionTested=true;},m=>{post(m).status="GAP";}
+    m=>{post(m).testedBy.productionTested=true;},m=>{post(m).status="GAP";},
+    m=>{post(m).testedBy.auditVetoRollbacks=0;},m=>{post(m).testedBy.xlsxCommits=0;},
+    m=>{post(m).testedBy.xlsxForeignDenials=0;},m=>{post(m).testedBy.xlsxDiscriminationChecks=0;}
   ]) {const m=structuredClone(original);modify(m);assert.throws(()=>verifyMigrationPostCredit(m));}
 });
 test("runtime, runner or auth source drift requires renewed proof",()=>{
- for(const changed of ["src/app/api/migrations/route.ts","src/lib/access.ts","scripts/qa/tenant-requested-migrations-http.mjs","src/db/schema.ts"]) {
+ for(const changed of ["src/app/api/migrations/route.ts","src/lib/access.ts","scripts/qa/tenant-requested-migrations-http.mjs","src/db/schema.ts",
+   "scripts/qa/disposable-insert-veto.mjs","scripts/qa/fictional-migration-xlsx.mjs","src/lib/xlsx-import.ts"]) {
  const reader=p=>p===changed?Buffer.from("drift"):readFileSync(p);
  assert.throws(()=>verifyMigrationPostCredit(original,reader),/drift/);
  }
