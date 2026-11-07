@@ -14,7 +14,31 @@ const manifestPath='scripts/qa/tenant-isolation-coverage-manifest.json';
 const receiptPath='scripts/qa/tenant-email-verification-credit-receipt.json';
 const RECEIPT_DIGEST='cd95cc8dc4ddee4f5ac5e5271e752b70be51913f30905be9145aa6587ee75cb3';
 const git=(...args)=>execFileSync('git',args,{encoding:'utf8'}).trim();
-const read=path=>readFileSync(path,'utf8');
+// Source references come from a reviewed fixture, but still never permit that
+// fixture or an import specifier to read outside this checked-out repository.
+const repositoryRoot=path.resolve(process.cwd());
+const rootFiles=new Set(['package.json','package-lock.json','next.config.ts','tsconfig.json']);
+export function resolveProofRepoPath(relativeFile) {
+  assert.equal(typeof relativeFile,'string','proof file path must be a string');
+  assert.ok(!relativeFile.includes('\\\\') && !relativeFile.includes('\\0'),
+    'proof file path must be POSIX and NUL-free');
+  assert.ok(!path.posix.isAbsolute(relativeFile) && !path.win32.isAbsolute(relativeFile),
+    'absolute proof paths are forbidden');
+  const segments=relativeFile.split('/');
+  assert.ok(segments.every(segment=>segment.length>0 && segment!=='.' && segment!=='..'),
+    'untrusted path components in proof input');
+  assert.ok(
+    rootFiles.has(relativeFile) ||
+    /^(?:src|scripts|tests)\//.test(relativeFile) ||
+    relativeFile.startsWith('.github/workflows/'),
+    'proof input must be from an explicit source/QA root'
+  );
+  const absolute=path.resolve(repositoryRoot,relativeFile);
+  assert.ok(absolute.startsWith(repositoryRoot+path.sep),
+    'proof file escaped the repository root');
+  return absolute;
+}
+const read=relativeFile=>readFileSync(resolveProofRepoPath(relativeFile),'utf8');
 const blob=(rev,path)=>git('rev-parse',rev+':'+path);
 const evidence=`https://github.com/erwinmehehe/payrollph/actions/runs/${EMAIL_RECEIPT.run}/job/${EMAIL_RECEIPT.job}`;
 
