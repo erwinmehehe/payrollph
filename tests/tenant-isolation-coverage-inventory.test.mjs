@@ -6,6 +6,7 @@ import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
+import { verifyDocumentCallerReproof } from "../scripts/qa/tenant-document-caller-reproof-verify.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -3872,7 +3873,7 @@ test("new sensitive download, legal-employer, leave mutation, and ESS proofs are
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const cases = [
     { route: "documents/[id]", method: "GET", own: "ownDocumentDownload",
-      prefix: "/api/documents/", success: 200, deny: 403 },
+      prefix: "/api/documents/", success: 200, deny: 404 },
     { route: "legal-entities", method: "GET", own: "ownLegalEntities",
       prefix: "/api/legal-entities", success: 200, deny: 403 },
     { route: "leave/balances", method: "POST", own: "ownLeavePolicy",
@@ -4082,17 +4083,19 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.routeBlobSha, "99e3fa0e48f6a8dde88b9505f49524898cdf957a");
         assert.equal(proof.proofBlobSha, "45cc7499ec33cc44d6ec7b826c075262411ed657");
         assert.equal(proof.runnerBlobSha, "3765c1923e137f68b75fd545348868672f3f2f5d");
+        const callerReceipt = verifyDocumentCallerReproof(proof.callerReproof);
         const suite = readFileSync(proof.file, "utf8");
         const suiteLines = suite.split("\n");
-        const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+        const runnerFile = "scripts/qa/tenant-document-caller-reproof-http.mjs";
+        const runner = readFileSync(runnerFile, "utf8");
         assert.equal(gitBlobSha(Buffer.from(suite)), proof.proofBlobSha,
           "Changes to HMO HTTP scenarios require a new executed proof");
         assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha,
           "Changes to the HMO route require renewed authorization review");
-        assert.equal(gitBlobSha(Buffer.from(runner)), proof.runnerBlobSha,
-          "Changes to the HTTP runner require a fresh receipt");
+        assert.equal(gitBlobSha(Buffer.from(runner)), callerReceipt.pins[runnerFile],
+          "The replacement caller must match its freshly executed receipt");
         assert.match(runner,
-          /await \(await import\("\.\/tenant-hmo-http\.mjs"\)\)\.verifyHmoIsolation\(f, \{ request, expectStatus, makeSession \}\)/);
+          /await hmo\.verifyHmoIsolation\(f,\{request,expectStatus,makeSession\}\)/);
         for (const [action, [line, status, requestPattern]] of Object.entries(actionPins)) {
           assert.match(evidenceLine(proof.file, line, "HMO POST " + action), requestPattern);
           assert.match(suiteLines.slice(line - 1, line + 6).join("\n"),
@@ -4869,7 +4872,7 @@ test("all credited proof links point to the claimed route and every recertified 
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
           : method.name === "DELETE" && path === "src/app/api/employee-vault/[id]/route.ts"
-            ? { own: 148, foreign: 144, forged: 160, ownStatus: 204, forgedStatus: 204 }
+            ? { own: 154, foreign: 145, forged: 166, ownStatus: 204, forgedStatus: 204 }
             : null;
         assert.ok(spec, path + ": no unrelated API may borrow provisional vault evidence");
         const suite = readFileSync(proof.file, "utf8").split("\n");
@@ -4878,18 +4881,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.ownPositiveLine, spec.own);
         assert.equal(proof.foreignDenialLine, spec.foreign);
         assert.equal(proof.forgedSelectorLine, spec.forged);
-        assert.equal(proof.unchangedDbLine, 173);
+        assert.equal(proof.unchangedDbLine, 179);
         assert.equal(proof.victimExistsLine, 110);
         assert.equal(proof.victimIdOrderingLine, 104);
         assert.match(span(spec.own), /expectStatus\(await request\(/);
         assert.ok(span(spec.own).includes("), " + spec.ownStatus + ","));
         assert.match(span(spec.foreign), /expectStatus\(await request\(/);
-        assert.match(span(spec.foreign), /\), 403,/);
+        assert.match(span(spec.foreign), method.name === "DELETE" ? /\), 404,/ : /\), 403,/);
         assert.match(span(spec.forged), /expectStatus\(await request\(/);
         assert.ok(span(spec.forged).includes("), " + spec.forgedStatus + ","));
         assert.match(suite[109], /persistedVictimDoc\?\.organizationId, victimOrg\.id/);
         assert.match(span(104), /victimDoc\.id > created\[2\]\[1\]\.id/);
-        assert.match(suite[172], /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/);
+        assert.match(suite[178], /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/);
         assert.match(source.join("\n"), /verifyDl01Vault\(f, \{ request, expectStatus \}\)/);
         assert.match(source.join("\n"), /TENANT_DL01_VAULT_PROOF === "isolated-ci-only"/);
         assert.match(suite.join("\n"), /TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
@@ -6308,7 +6311,6 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.helperFile, reviewed.helperBlobSha],
           [reviewed.unitTestFile, reviewed.unitTestBlobSha],
           [reviewed.proofFile, reviewed.proofBlobSha],
-          [reviewed.harnessFile, reviewed.harnessBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
@@ -6351,8 +6353,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(route, /const auth = await authorize\(organizationId\)/);
         assert.match(route, /WHERE c\.organization_id = \$1/);
         assert.match(route, /if \(!access\?\.companyWide\)/);
-        const runner = readFileSync(reviewed.harnessFile, "utf8");
-        assert.match(runner, /verifyHcmWorkQueueIsolation\(f, \{ request, expectStatus \}\)/);
+        // Preserve the old unaccepted page record, but bind the current caller
+        // to the newly executed two-attacker receipt. The page remains GAP.
+        const callerReceipt = verifyDocumentCallerReproof(entry.callerReproof);
+        const callerFile = "scripts/qa/tenant-document-caller-reproof-http.mjs";
+        const runner = readFileSync(callerFile, "utf8");
+        assert.equal(gitBlobSha(Buffer.from(runner)), callerReceipt.pins[callerFile]);
+        assert.match(runner, /verifyHcmWorkQueueIsolation\(f,\{request,expectStatus\}\)/);
         const workflow = readFileSync(reviewed.workflowFile, "utf8");
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
         // The legacy HR Work Queue evidence stays tied to the original workflow.

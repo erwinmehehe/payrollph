@@ -47,7 +47,7 @@ test("DL-01 vault own/foreign/forged/high-ID/unchanged-victim checks remain real
     '&documentId=" + victimDoc.id',
     'method: "DELETE", cookie',
     '204, "DL-01 vault DELETE must soft-remove',
-    '403, "DL-01 vault DELETE must deny',
+    '404, "DL-01 vault DELETE must hide',
     'vault-removed:',
     'Employee document removed from active vault',
     'assert.deepEqual(await victimSnapshot(victimOrg.id), before',
@@ -58,12 +58,12 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   const expected = [
     { path: "src/app/api/employee-vault/route.ts", method: "GET",
       pins: { line: 128, ownPositiveLine: 128, foreignDenialLine: 132,
-        forgedSelectorLine: 138, unchangedDbLine: 173,
+        forgedSelectorLine: 138, unchangedDbLine: 179,
         victimExistsLine: 110, victimIdOrderingLine: 104 },
       ownStatus: 200, forgedStatus: 200 },
     { path: "src/app/api/employee-vault/[id]/route.ts", method: "DELETE",
-      pins: { line: 148, ownPositiveLine: 148, foreignDenialLine: 144,
-        forgedSelectorLine: 160, unchangedDbLine: 173,
+      pins: { line: 154, ownPositiveLine: 154, foreignDenialLine: 145,
+        forgedSelectorLine: 166, unchangedDbLine: 179,
         victimExistsLine: 110, victimIdOrderingLine: 104 },
       ownStatus: 204, forgedStatus: 204 },
   ];
@@ -81,7 +81,7 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     assert.match(span(pins.ownPositiveLine), /expectStatus\(await request\(/);
     assert.ok(span(pins.ownPositiveLine).includes("), " + ownStatus + ","));
     assert.match(span(pins.foreignDenialLine), /expectStatus\(await request\(/);
-    assert.match(span(pins.foreignDenialLine), /\), 403,/);
+    assert.match(span(pins.foreignDenialLine), method === "DELETE" ? /\), 404,/ : /\), 403,/);
     assert.match(span(pins.forgedSelectorLine), /expectStatus\(await request\(/);
     assert.ok(span(pins.forgedSelectorLine).includes("), " + forgedStatus + ","));
     assert.match(lines[pins.victimExistsLine - 1], /persistedVictimDoc\?\.organizationId, victimOrg\.id/);
