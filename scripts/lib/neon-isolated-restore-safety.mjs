@@ -23,6 +23,24 @@ function keysExactly(input, allowed) {
   }
 }
 
+function isSafeRestoreBranchName(value) {
+  return typeof value === "string" &&
+    /^payrollph-restore-rehearsal-[a-z0-9-]{6,55}$/.test(value) &&
+    !/(?:^|-)main(?:-|$)|(?:^|-)production(?:-|$)/.test(value);
+}
+
+/** An operator must not postflight-verify a modified or partial restore request. */
+function isCanonicalRestoreRequest(request, plan) {
+  if (!request || typeof request !== "object" || Array.isArray(request)) return false;
+  const keys = Object.keys(request).sort();
+  return keys.length === 4 &&
+    ["finalize", "name", "project_id", "snapshot_id"].every((key, i) => keys[i] === key) &&
+    request.finalize === false &&
+    request.project_id === plan.projectId &&
+    request.snapshot_id === plan.sourceSnapshotId &&
+    request.name === plan.restoreBranchName;
+}
+
 /**
  * All properties come from separate, read-only Neon get_default_branch,
  * get_postgres_endpoint and list_snapshots calls. Branch NAMES are never
@@ -60,9 +78,7 @@ export function planIsolatedNeonRestore(input) {
       observedEndpoint.host !== original.endpointHost) {
     refuse("PRODUCTION_ENDPOINT_MISMATCH");
   }
-  if (typeof restoreBranchName !== "string" ||
-      !/^payrollph-restore-rehearsal-[a-z0-9-]{6,55}$/.test(restoreBranchName) ||
-      /(?:^|-)main(?:-|$)|(?:^|-)production(?:-|$)/.test(restoreBranchName)) {
+  if (!isSafeRestoreBranchName(restoreBranchName)) {
     refuse("RESERVED_DESTINATION_NAME");
   }
   const request = Object.freeze({
@@ -73,6 +89,8 @@ export function planIsolatedNeonRestore(input) {
   });
   return Object.freeze({
     request,
+    projectId,
+    restoreBranchName,
     original: Object.freeze({
       branchId: original.branchId,
       endpointId: original.endpointId,
@@ -94,14 +112,24 @@ export function verifyIsolatedNeonRestore(plan, observedRestored,
   for (const obj of [plan, observedRestored, observedDefault, observedEndpoint]) {
     requireObject(obj);
   }
-  if (plan.request?.finalize !== false ||
-      Object.hasOwn(plan.request ?? {}, "target_branch_id")) {
+  requireObject(plan.original);
+  // Strictly bind postflight to the *original* preflight project, snapshot and
+  // destination. Unknown request properties or missing finalize:false fail closed.
+  if (!isCanonicalRestoreRequest(plan.request, plan) ||
+      typeof plan.projectId !== "string" ||
+      !/^[a-z][a-z0-9-]{3,59}$/.test(plan.projectId) ||
+      !id(plan.sourceSnapshotId, "snap-") ||
+      !isSafeRestoreBranchName(plan.restoreBranchName) ||
+      !id(plan.original.branchId, "br-") ||
+      !id(plan.original.endpointId, "ep-") ||
+      typeof plan.original.endpointHost !== "string" ||
+      !/^[a-z0-9.-]+\.neon\.tech$/.test(plan.original.endpointHost)) {
     refuse("UNSAFE_REQUEST");
   }
   if (!id(observedRestored.id, "br-") ||
       observedRestored.id === plan.original.branchId ||
       observedRestored.name !== plan.request.name ||
-      observedRestored.default === true || observedRestored.primary === true ||
+      observedRestored.default !== false || observedRestored.primary !== false ||
       observedRestored.restored_from !== plan.sourceSnapshotId) {
     refuse("RESTORED_BRANCH_NOT_ISOLATED");
   }
