@@ -1,4 +1,4 @@
-> **Current PR #1826 billing-only proposal — NOT ACCEPTED:** 498 methods = 436 COVERED / 11 PUBLIC-BY-DESIGN / 51 GAP; frozen 352 COVERED / 3 PUBLIC / 51 GAP. All credits provisional; security and production acceptance NOT GRANTED.
+> **Current PR #1826 billing-only proposal — NOT ACCEPTED:** 498 methods = 436 COVERED + 11 PUBLIC-BY-DESIGN + 51 GAP; frozen 352 COVERED / 3 PUBLIC / 51 GAP. All credits provisional; security and production acceptance NOT GRANTED.
 
 > **Main baseline before this draft — SOLO_VERIFIED_DEV_RECOVERY:** 434 COVERED / 11 PUBLIC-BY-DESIGN / 53 GAP. Three methods from #1829 OFF-profile PG16 receipt; no production acceptance.
 
