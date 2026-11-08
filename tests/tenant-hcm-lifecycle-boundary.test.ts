@@ -2,11 +2,19 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { eq, inArray } from "drizzle-orm";
-import { db } from "../src/db";
-import { employees, hcmLifecycleNotificationTasks, organizations, users } from "../src/db/schema";
-import { readScopedLifecycleNotificationTasks } from "../src/lib/hcm-lifecycle-notification-tenant";
+import { requireDisposableLifecycleBoundary } from "../scripts/qa/tenant-hcm-lifecycle-boundary-contract.mjs";
 
-test("fictional HCM notification reader does not join foreign-employer worker identities", async () => {
+test("fictional HCM notification reader does not join foreign-employer worker identities", {
+  skip: process.env.TENANT_HCM_LIFECYCLE_BOUNDARY_MODE !== "fictional-pg16-http",
+}, async () => {
+  // Refuse all non-disposable environments BEFORE importing database modules.
+  requireDisposableLifecycleBoundary();
+  const [{ db }, schema, reader] = await Promise.all([
+    import("../src/db"), import("../src/db/schema"),
+    import("../src/lib/hcm-lifecycle-notification-tenant"),
+  ]);
+  const { employees, hcmLifecycleNotificationTasks, organizations, users } = schema;
+  const { readScopedLifecycleNotificationTasks } = reader;
   const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
   const createdOrgs: number[] = [];
   let createdUser: number | null = null;
