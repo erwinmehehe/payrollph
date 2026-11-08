@@ -32,7 +32,7 @@ test("queued, failed, different-head or incomplete receipt evidence cannot selec
 
 test("changed family/route source and promotion of partial action evidence require renewed review", () => {
   for (const file of Object.keys(receipt.sources)) {
-    assert.throws(() => reviewedFamilySelection(receipt, path => readFileSync(path, "utf8") + (path === file ? "\n// edited" : "")), /changed proof\/route/);
+    assert.throws(() => reviewedFamilySelection(receipt, path => readFileSync(path, "utf8") + (path === file ? "\n// edited" : "")), /(?:changed proof\/route|Enterprise current POST route changed)/);
   }
   const changed = structuredClone(receipt); changed.accepted.push(changed.held.shift());
   assert.throws(() => reviewedFamilySelection(changed), /only three/);
