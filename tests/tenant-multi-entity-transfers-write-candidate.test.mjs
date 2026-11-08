@@ -52,9 +52,16 @@ test("PG16 real-HTTPS transfer write fixture is the only proposed family and nev
   assert.match(workflow, /MULTI_ENTITY_QA_MODE: synthetic-postgres-only/);
   assert.match(workflow, /image: postgres:16/);
   const methods = manifest.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"].methods;
+  // This Playwright candidate still never promotes itself. POST and PATCH are credited only by the later dedicated
+  // two-attacker proof (#1853), whose own guard verifies that receipt; no credit may cite this candidate's files.
   assert.deepEqual(methods.map(m => [m.name, m.status]),
-    [["GET", "COVERED"], ["POST", "GAP"], ["PATCH", "GAP"]],
-    "First new run must pass and receive independent review before earning any credits");
+    [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]]);
+  for (const method of methods.filter(m => m.name !== "GET")) {
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-transfers-http.mjs", method.name + " credit comes from the dedicated proof");
+    assert.notEqual(method.testedBy?.file, "scripts/qa/tenant-multi-entity-transfers-write-http.mjs", method.name + " must not cite the old candidate");
+    assert.equal(method.testedBy?.proofPullRequest, 1853);
+    assert.equal(method.reviewedUncertified, undefined);
+  }
 });
 
 test("second employer checker completes local login, not an unsatisfied TOTP challenge", () => {
