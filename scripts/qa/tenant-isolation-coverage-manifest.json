@@ -14575,12 +14575,12 @@
       ]
     },
     "src/app/api/hcm/lifecycle-notifications/route.ts": {
-      "gitBlobSha": "313428af8364c07b38010b5871a5b7f1d5246511",
+      "gitBlobSha": "2ad17eb7fe188c72b9c11e0a094d01870adcc921",
       "route": "hcm/lifecycle-notifications",
       "methods": [
         {
           "name": "GET",
-          "line": 71,
+          "line": 73,
           "status": "COVERED",
           "reason": "Synthetic PG16 own employer GET 200 with genuine seeded source rows and other employer victim-only GET 403; no cross-employer records",
           "testedBy": {
@@ -14595,7 +14595,7 @@
         },
         {
           "name": "PATCH",
-          "line": 121,
+          "line": 109,
           "status": "COVERED",
           "reason": "Synthetic PG16 own employer task decision success 200 and other employer victim task request 403; victim DB unchanged",
           "testedBy": {
@@ -14619,103 +14619,87 @@
       },
       "guards": [
         {
-          "line": 11,
+          "line": 30,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 12,
+          "line": 38,
           "token": "getAccess"
         },
         {
-          "line": 18,
+          "line": 74,
           "token": "getSessionUser"
         },
         {
-          "line": 21,
+          "line": 110,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 28,
-          "token": "assertOrganizationRole"
-        },
-        {
-          "line": 36,
-          "token": "getAccess"
-        },
-        {
-          "line": 72,
-          "token": "getSessionUser"
-        },
-        {
-          "line": 121,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 124,
+          "line": 113,
           "token": "getSessionUser"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 76,
+          "line": 78,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 128,
+          "line": 117,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 27,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 30,
+          "line": 32,
           "token": "organizationId"
         },
         {
-          "line": 36,
-          "token": "organizationId"
-        },
-        {
-          "line": 49,
-          "token": "organizationId"
-        },
-        {
-          "line": 49,
+          "line": 38,
           "token": "organizationId"
         },
         {
           "line": 51,
-          "token": "employeeId"
+          "token": "organizationId"
         },
         {
           "line": 51,
-          "token": "employeeId"
-        },
-        {
-          "line": 58,
           "token": "organizationId"
         },
         {
-          "line": 58,
-          "token": "organizationId"
+          "line": 52,
+          "token": "taskId"
         },
         {
-          "line": 64,
+          "line": 53,
           "token": "employeeId"
         },
         {
-          "line": 64,
+          "line": 53,
           "token": "employeeId"
         },
         {
-          "line": 76,
+          "line": 60,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
+          "token": "employeeId"
+        },
+        {
+          "line": 66,
+          "token": "employeeId"
+        },
+        {
+          "line": 78,
           "token": "organizationId"
         },
         {
@@ -14723,7 +14707,135 @@
           "token": "organizationId"
         },
         {
-          "line": 79,
+          "line": 80,
+          "token": "organizationId"
+        },
+        {
+          "line": 80,
+          "token": "organizationId"
+        },
+        {
+          "line": 81,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        },
+        {
+          "line": 89,
+          "token": "organizationId"
+        },
+        {
+          "line": 94,
+          "token": "organizationId"
+        },
+        {
+          "line": 98,
+          "token": "organizationId"
+        },
+        {
+          "line": 117,
+          "token": "organizationId"
+        },
+        {
+          "line": 117,
+          "token": "organizationId"
+        },
+        {
+          "line": 118,
+          "token": "taskId"
+        },
+        {
+          "line": 118,
+          "token": "taskId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 121,
+          "token": "taskId"
+        },
+        {
+          "line": 121,
+          "token": "taskId"
+        },
+        {
+          "line": 123,
+          "token": "organizationId"
+        },
+        {
+          "line": 123,
+          "token": "taskId"
+        },
+        {
+          "line": 126,
+          "token": "organizationId"
+        },
+        {
+          "line": 132,
+          "token": "taskId"
+        },
+        {
+          "line": 147,
+          "token": "employeeId"
+        },
+        {
+          "line": 148,
+          "token": "organizationId"
+        },
+        {
+          "line": 148,
+          "token": "organizationId"
+        },
+        {
+          "line": 151,
+          "token": "taskId"
+        },
+        {
+          "line": 152,
+          "token": "organizationId"
+        },
+        {
+          "line": 152,
+          "token": "organizationId"
+        },
+        {
+          "line": 190,
+          "token": "organizationId"
+        },
+        {
+          "line": 190,
+          "token": "organizationId"
+        },
+        {
+          "line": 208,
+          "token": "organizationId"
+        },
+        {
+          "line": 208,
+          "token": "organizationId"
+        },
+        {
+          "line": 238,
+          "token": "organizationId"
+        },
+        {
+          "line": 238,
+          "token": "organizationId"
+        },
+        {
+          "line": 261,
+          "token": "organizationId"
+        },
+        {
+          "line": 261,
           "token": "organizationId"
         }
       ]
