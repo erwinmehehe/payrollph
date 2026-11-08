@@ -619,7 +619,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                       <label>Vacation-leave tax review evidence reference
                         <input required minLength={8} maxLength={200} value={form.leaveTaxEvidenceReference}
                           onChange={(e) => setForm({ ...form, leaveTaxEvidenceReference: e.target.value })} />
-                        <small>Reference the verified annual leave-conversion history, employer category and supporting tax review. Prior exempt conversions are read from the worker's ledger.</small>
+                        <small>Reference the verified annual leave-conversion history, employer category and supporting tax review. Prior exempt conversions are read from the worker&apos;s ledger.</small>
                       </label>
                     </>
                   )}
