@@ -1,3 +1,4 @@
+import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -24,7 +25,7 @@ const gitBlob = path => {
   return createHash("sha1").update("blob " + bytes.length + "\0").update(bytes).digest("hex");
 };
 
-test("source-pinned current year-end GET+POST proof stays zero-credit pending review", () => {
+test("source-pinned current year-end GET+POST proof receives only provisional #1804 credits", () => {
   for (const [path, sha] of Object.entries(PINNED)) {
     assert.equal(gitBlob(path), sha, path + ": changed dependency requires a fresh exact-head PG16 proof");
   }
@@ -32,14 +33,18 @@ test("source-pinned current year-end GET+POST proof stays zero-credit pending re
   const entry = manifest.allApiRouteFiles[ROUTE];
   assert.equal(entry.gitBlobSha, PINNED[ROUTE]);
   assert.deepEqual(entry.methods.map(({ name, status }) => [name, status]),
-    [["GET", "GAP"], ["POST", "GAP"]],
-    "a source-only PR cannot claim unreviewed API recovery");
+    [["GET", "COVERED"], ["POST", "COVERED"]],
+    "Only source-matched #1804 real-HTTP evidence allows provisional method credit");
+  assert.equal(verifyYearEndCredits(manifest), 2);
   for (const method of entry.methods) {
-    assert.equal(method.testedBy, null);
-    assert.equal(method.reviewedUncertified.routeBlobSha, PINNED[ROUTE]);
-    assert.equal(method.reviewedUncertified.actualPg16Http, "PENDING");
-    assert.equal(method.reviewedUncertified.independentSecurityReview, "PENDING");
-    assert.equal(method.reviewedUncertified.credits, 0);
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "d79db85b2a2ca0276810634dccaf904fd4469099");
+    assert.equal(method.testedBy?.proofPullRequest, 1804);
+    assert.equal(method.testedBy?.workflowRunId, 42254117862);
+    assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+    assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
+    assert.equal(method.testedBy?.independentlyAccepted, false);
+    assert.equal(method.testedBy?.productionCertified, false);
+    assert.equal(method.reviewedUncertified, undefined, "Obsolete superseded zero-credit hold removed");
   }
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign +
