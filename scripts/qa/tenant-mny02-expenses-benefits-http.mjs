@@ -225,7 +225,7 @@ export async function verifyMny02ExpensesBenefitsIsolation(f, { request, expectS
       "/api/de-minimis?id=" + victimGrant.id + "&organizationId=" + org.id, {
         method: "DELETE", cookie,
       }),
-    403, "Real victim-only de minimis grant DELETE denied");
+    404, "Real victim-only de minimis grant DELETE hidden as not found");
     noVictimLeak(foreignBenefitDelete, sentinel);
     const ownBenefitDelete = expectStatus(await request(
       "/api/de-minimis?id=" + ownBenefits[0].id + "&organizationId=" + victim.id, {
