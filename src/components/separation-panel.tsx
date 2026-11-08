@@ -140,6 +140,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     unusedLeaveType: "Vacation leave",
     leaveTaxReviewed: false,
     leaveTaxBasis: "taxable",
+    leaveTaxDate: "",
     leaveTaxEvidenceReference: "",
     separationPay: "0",
     taxableSeparationPay: "",
@@ -603,11 +604,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                     <small>Verified private vacation leave: up to 12 days/year from January 6, 2026 (10 days before). Any excess uses the combined ₱90,000 13th-month / other-benefits pool. Other leave types need specialist classification; do not use the vacation-leave exemption for sick or SIL credits.</small>
                   </label>
                   {form.leaveTaxBasis === "private_vacation_de_minimis" && (
-                    <label>Vacation-leave tax review evidence reference
-                      <input required minLength={8} maxLength={200} value={form.leaveTaxEvidenceReference}
-                        onChange={(e) => setForm({ ...form, leaveTaxEvidenceReference: e.target.value })} />
-                      <small>Reference the verified annual leave-conversion history, employer category and supporting tax review. Prior exempt conversions are read from the worker's ledger.</small>
-                    </label>
+                    <>
+                      <label>Expected leave payment / tax-recognition date
+                        <input required type="date" min={form.lastDay} value={form.leaveTaxDate}
+                          onChange={(e) => setForm({ ...form, leaveTaxDate: e.target.value })} />
+                        <small>Use the reviewed actual expected payment date, not automatically the last working day. Cross-tax-year payouts are held for separate annualization.</small>
+                      </label>
+                      <label>Vacation-leave tax review evidence reference
+                        <input required minLength={8} maxLength={200} value={form.leaveTaxEvidenceReference}
+                          onChange={(e) => setForm({ ...form, leaveTaxEvidenceReference: e.target.value })} />
+                        <small>Reference the verified annual leave-conversion history, employer category and supporting tax review. Prior exempt conversions are read from the worker's ledger.</small>
+                      </label>
+                    </>
                   )}
                 </>
               )}
