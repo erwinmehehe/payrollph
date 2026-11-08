@@ -60,6 +60,9 @@ jobs:
         with:
           languages: javascript-typescript
           queries: security-extended
+          # GitHub-hosted runners already ship a supported CLI. Avoid repeated 504s
+          # fetching the just-released bundle; this still runs the full analysis.
+          tools: toolcache
 
       - name: Perform CodeQL analysis
         if: ${{ needs.change-scope.outputs.docs_only != 'true' }}

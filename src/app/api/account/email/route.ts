@@ -41,6 +41,16 @@ export async function POST(request: Request) {
   const problems = emailChangeIssues({ email, currentEmail: account.email, password });
   if (problems.length > 0) return Response.json({ error: "Email change not requested.", problems }, { status: 422 });
 
+  // Require re-authentication before checking global email uniqueness.
+  // Otherwise a signed-in user can probe another employer's login address
+  // with an invalid password and learn whether that account exists.
+  if (!verifyPassword(password, account.passwordHash)) {
+    return Response.json({
+      error: "Email change not requested.",
+      problems: ["Your current password is not correct."],
+    }, { status: 422 });
+  }
+
   const [taken] = await db.select({ id: users.id }).from(users)
     .where(and(eq(users.email, email), ne(users.id, account.id)))
     .limit(1);
@@ -49,13 +59,6 @@ export async function POST(request: Request) {
       error: "Email change not requested.",
       problems: ["That email is already used by another account."],
     }, { status: 409 });
-  }
-
-  if (!verifyPassword(password, account.passwordHash)) {
-    return Response.json({
-      error: "Email change not requested.",
-      problems: ["Your current password is not correct."],
-    }, { status: 422 });
   }
 
   if (process.env.NODE_ENV === "production" && !deliveryCapable()) {
