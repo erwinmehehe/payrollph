@@ -1,0 +1,30 @@
+{
+  "kind": "SOURCE_CURRENT_DOCUMENT_CALLER_REPROOF",
+  "historicalReceiptSha256": "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e",
+  "historicalRouteBlobSha": "313428af8364c07b38010b5871a5b7f1d5246511",
+  "currentRouteBlobSha": "2ad17eb7fe188c72b9c11e0a094d01870adcc921",
+  "newReaderBlobSha": "d9987747f955f2f2df534296da3b0b2631cf4ae8",
+  "runnerBlobSha": "b16ba054ce6d2fd4cb5d1278604a120f9dfb7ea5",
+  "queueSuiteBlobSha": "5d3710f91b0e5d6b06010102566141beba86ca1d",
+  "workflowBlobSha": "167e4466f4f003328308bf430a249960b9a35442",
+  "sourceHead": "81fc9fe54d8485780f46fb0bb2529d6ca592fc11",
+  "run": 42493142487,
+  "job": 128769634350,
+  "jobConclusion": "success",
+  "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42493142487/job/128769634350",
+  "result": {
+    "kind": "DOCUMENT_CALLER_REPROOF",
+    "label": "SOLO_VERIFIED_DEV_RECOVERY",
+    "result": "PASS",
+    "employers": 3,
+    "attackers": 2,
+    "credits": 0,
+    "productionCertified": false,
+    "providerCalls": 0
+  },
+  "scope": "Historical HMO and HCM queue caller assertions re-executed on exact new HCM route; not the separate atomic-audit-veto proof",
+  "credits": 0,
+  "productionCertified": false,
+  "independentSecurityReview": "PENDING",
+  "auditVetoReview": "PENDING"
+}
