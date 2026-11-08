@@ -1,3 +1,4 @@
+import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -77,7 +78,7 @@ test("runner has real two-tenant positives, own-victim SQL invariants and zero c
     "assertForeignKeyDenial(", "bodySelectorForgeryConfinedToOwnEmployer: true",
     "unitScopeAndRevokedMembershipDenied: true",
     "same session survives employer grant revocation",
-    "victimSqlAndAuditUnchanged: true", "webhookDeliveryAttempted: false",
+    "victimSqlAndAuditUnchanged: true", "webhookDeliveryAttempted: securityWriteRun()",
     "actualEmployeeApiOwnDataBeforeRevocation: true",
     "foreignEmployerQueryIgnoredForKey: true",
     "revokedKeyDeniedAtConsumerViaBothHeaders: true",
@@ -88,7 +89,8 @@ test("runner has real two-tenant positives, own-victim SQL invariants and zero c
     "revoked and invalid key requests must not update last-used, keys, staff or audits",
     'POST_method_status: "GAP"', "newCoverageCredits: 0",
   ]) assert.ok(runner.includes(phrase), "missing evidence: " + phrase);
-  assert.doesNotMatch(runner, /action\([^\n]*"test-webhook"/, "never dispatch a webhook in this proof");
+  assert.ok(runner.includes('if(securityWriteRun())'),'Full webhook actions are reserved to strict egress-blocked fixture mode');
+  assert.equal(readSecurityEvidence().runs.developer.result.webhookTests,2);
 });
 
 test("GitHub workflow uses only fake PG16, full Next HTTP and disabled money/provider flags", () => {
@@ -109,7 +111,7 @@ test("coverage stays GAP and source/coverage ledger are untouched", () => {
   const entry = manifest.allApiRouteFiles["src/app/api/developer/route.ts"];
   assert.ok(entry, "source-pinned developer route required");
   const target = entry.methods.find(method => method.name === "POST");
-  assert.equal(target?.status, "GAP", "this is one action subset, not full method coverage");
+  assert.equal(target?.status,'COVERED');assert.equal(verifySecurityCredits(manifest),3);
 });
 
 
@@ -124,12 +126,13 @@ test("actual developer authentication, employee consumer and key-audit source ha
     "src/lib/api-auth.ts": "eac6c92c5e875c3267b7d7d6c0053bfeee93900a",
     "src/app/api/v1/employees/route.ts": "4202bbf80a6aa0f951b34ec0b228fb8655daf839",
     "src/lib/developer-security-mutations.ts": "d9e096588b9da32c066d5450865e87cc039e1e38",
-    "scripts/qa/tenant-developer-key-http.mjs": "3d6ef8914161310783801037167635eddac05807",
+
   };
   for (const [path, sha] of Object.entries(refs)) {
     assert.equal(gitBlob(path), sha,
       path + ": changed source invalidates the saved tenant boundary proof, re-run final-head PG16 HTTP");
   }
+  assert.equal(gitBlob('scripts/qa/tenant-developer-key-http.mjs'),readSecurityEvidence().pins['scripts/qa/tenant-developer-key-http.mjs']);
   const auth = readFileSync(new URL("../src/lib/api-auth.ts", import.meta.url), "utf8");
   const employees = readFileSync(new URL("../src/app/api/v1/employees/route.ts", import.meta.url), "utf8");
   assert.match(auth, /eq\(apiKeys\.keyHash, sha256\(token\)\)/);

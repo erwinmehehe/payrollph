@@ -1,3 +1,4 @@
+import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -86,8 +87,8 @@ test("source is precisely pinned and cannot silently earn manifest credit", () =
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const methods = manifest.allApiRouteFiles["src/app/api/documents/route.ts"].methods;
   const post = methods.find(method => method.name === "POST");
-  assert.equal(post.status, "GAP");
-  assert.equal(post.testedBy, null);
+  assert.equal(post.status,'COVERED');assert.equal(verifySecurityCredits(manifest),3);
+  assert.equal(readSecurityEvidence().runs['documents-vault'].result.protectedFinalVetoes,2);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED/);
   const preload = readFileSync("scripts/qa/tenant-document-upload-scan-preload.cjs", "utf8");
   assert.ok(preload.includes("DOCUMENT_FIXTURE_EGRESS_REFUSED"));
