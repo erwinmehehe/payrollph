@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+# Supersede obsolete PR-head proofs; retain distinct workflow and run identities.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   fictional-marketing-operator-read:
     if: github.event.pull_request.head.repo.full_name == github.repository
