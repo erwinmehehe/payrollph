@@ -20,6 +20,8 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      REHEARSAL_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     services:
       postgres:
         image: postgres:16

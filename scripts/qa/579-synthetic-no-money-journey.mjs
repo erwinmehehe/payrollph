@@ -36,7 +36,8 @@ const summary = {
   classification: "fictional-579-application-rehearsal-not-real-579",
   employers: [],
   stage: "preflight",
-  sourceCommit: process.env.GITHUB_SHA ?? null,
+  sourceCommit: process.env.REHEARSAL_PR_HEAD_SHA ?? null,
+  testedMergeCommit: process.env.GITHUB_SHA ?? null,
   payoutEnabled: false,
   providerCalls: 0,
   finalBankFilesGenerated: 0,
@@ -114,19 +115,20 @@ async function setupEmployer(label) {
   assert.notEqual(maker.id, checker.id);
   assert.notEqual(checker.id, employer.owner.id);
 
+  const rateForIndex = i => 2600000 + i * 15500 + (label === "ATTB" ? 50000 : 0);
   const people = await db.insert(s.employees).values(Array.from({ length: 25 }, (_, i) => ({
     organizationId: employer.org.id, legalEntityId: employer.entity.id, orgUnitId: employer.unit.id,
     employeeNo: "F579-" + label + "-" + String(i + 1).padStart(2, "0") + "-" + nonce,
     firstName: "Fictional", lastName: "Worker" + String(i + 1).padStart(2, "0"),
     title: "No-money QA", avatarInitials: "FQ",
-    basicRate: moneyString(2600000 + i * 15500),
+    basicRate: moneyString(rateForIndex(i)),
     startDate: i === 24 ? "2026-05-08" : "2026-01-05",
     restDay: "Sunday", bankCode: "FICT-ONLY",
     bankAccount: encryptBankAccount("FICTIONAL-NO-BANK-DESTINATION-" + label + "-" + nonce + "-" + i),
   }))).returning();
   await db.insert(s.employeePayProfiles).values(people.map((worker, i) => ({
     organizationId: employer.org.id, employeeId: worker.id,
-    payBasis: "monthly", rateAmount: moneyString(2600000 + i * 15500),
+    payBasis: "monthly", rateAmount: moneyString(rateForIndex(i)),
     standardWorkDaysPerMonth: "22", standardHoursPerDay: "8",
   })));
   const punches = people.map((worker, i) =>
@@ -230,7 +232,10 @@ async function runEmployer(label) {
   const created = await create();
   const runId = created.run?.id ?? created.id;
   assert.ok(Number.isInteger(runId));
-  assert.equal((await create()).run?.id ?? runId, runId);
+  const replay = await create();
+  assert.equal(replay.idempotentReplay, true, "Repeated request must declare an idempotent replay");
+  assert.ok(Number.isInteger(replay.run?.id), "Idempotent replay must return a real run ID");
+  assert.equal(replay.run.id, runId);
   const [run] = await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, runId));
   const entries = await db.select().from(s.payrollEntries).where(eq(s.payrollEntries.payrollRunId, runId));
   assert.equal(entries.length, 25);
@@ -256,10 +261,13 @@ async function runEmployer(label) {
   summary.stage = label + ":exports";
   const register = await call(employer, "/api/payroll-runs?runId=" + runId + "&include=entries");
   assert.equal(register.json?.entries?.length, 25);
-  assert.deepEqual(
-    register.json.entries.map(x => x.netPay).sort(),
-    entries.map(x => x.netPay).sort(),
-  );
+  assert.equal(register.json.organizationId, employer.org.id);
+  assert.equal(register.json.legalEntityId, employer.entity.id);
+  assert.equal(register.json.runId, runId);
+  const registerDetail = rows => rows.map(x => [x.employeeId, x.grossPay, x.deductions, x.netPay])
+    .sort((left, right) => left[0] - right[0]);
+  assert.deepEqual(registerDetail(register.json.entries), registerDetail(entries),
+    "Every employee register row must match its own calculated payroll entry");
   const slips = await call(employer, "/api/payroll-runs/" + runId + "/exports?kind=payslip");
   assert.equal(slips.json?.payslips?.length, 25);
   assert.ok(slips.json.payslips.every(x => String(x.content).includes("Gross: PHP ")));
@@ -318,9 +326,27 @@ async function runEmployer(label) {
     },
   });
   // Never persist raw preview bytes, filenames, salaries per worker, fictional bank strings or HMAC secret.
+  return { employer, runId };
 }
 try {
-  for (const label of ["ATTA", "ATTB"]) await runEmployer(label);
+  const runs = [];
+  for (const label of ["ATTA", "ATTB"]) runs.push(await runEmployer(label));
+  assert.notEqual(runs[0].employer.org.id, runs[1].employer.org.id);
+  assert.notEqual(summary.employers[0].grossPay, summary.employers[1].grossPay,
+    "Employers must have distinguishable test payroll totals");
+  assert.notEqual(summary.employers[0].netPay, summary.employers[1].netPay);
+  summary.stage = "cross-employer-access-denials";
+  for (const [owner, foreign] of [[runs[0], runs[1]], [runs[1], runs[0]]]) {
+    for (const path of [
+      "/api/payroll-runs?runId=" + foreign.runId + "&include=entries",
+      "/api/payroll-runs/" + foreign.runId + "/exports?kind=journal",
+    ]) {
+      const denied = await standaloneRequest(path, { cookie: owner.employer.cookie });
+      assert.ok([403, 404].includes(denied.status),
+        "Foreign employer must not read another employer's payroll or journal");
+    }
+  }
+  summary.checks.push("cross-employer-register-and-journal-denied");
   summary.result = "PASS_SYNTHETIC_APP_PATH_ONLY";
   summary.stage = "complete";
 } catch (error) {

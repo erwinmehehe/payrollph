@@ -181,6 +181,67 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     note: "Do not share passwords, one-time codes, bank details, or employee records in support messages.",
     related: { label: "Contact Linaw", href: "/contact" },
   },
+
+  {
+    slug: "manager-team-view",
+    title: "Confirm your team and employer context",
+    audience: "Managers",
+    category: "Getting started",
+    summary: "Check which workers and decisions your manager role is permitted to see.",
+    steps: [
+      "Sign in with your assigned manager account and select the correct employer.",
+      "Open My Team or the manager view available to your role.",
+      "Confirm the employee and team context before following a linked action.",
+      "Treat unavailable or incomplete data as unknown, not proof that no workers or tasks exist.",
+    ],
+    note: "Manager visibility does not give permission to edit salary or release payroll.",
+    related: { label: "Connected HCM workflows", href: "/hcm" },
+  },
+  {
+    slug: "manager-handoff",
+    title: "Review team requests and handoffs",
+    audience: "Managers",
+    category: "Getting started",
+    summary: "Follow a request to its source before deciding or asking HR to follow up.",
+    steps: [
+      "Open the assigned request from the authoritative manager or approval workflow.",
+      "Confirm the selected employer, worker context and available source evidence.",
+      "Use the decision control only if your current role is authorized for that request.",
+      "Check the resulting status and direct unresolved questions to the HR owner.",
+    ],
+    note: "A leave or schedule decision is not a payroll release or bank transfer.",
+    related: { label: "HRIS overview", href: "/hris" },
+  },
+  {
+    slug: "payroll-exceptions",
+    title: "Review payroll input exceptions",
+    audience: "Payroll teams",
+    category: "Getting started",
+    summary: "Understand the source of open attendance and pay-input exceptions before handoff.",
+    steps: [
+      "Confirm the employer, pay period and your authorized payroll role.",
+      "Review visible attendance, leave and pay-input exceptions for the selected cutoff.",
+      "Refer unresolved source changes to the assigned HR or timekeeping approver.",
+      "Recheck authoritative input and exception status before handing the period to the checker.",
+    ],
+    note: "An informational preview does not resolve exceptions or authorize recalculation, release or payout.",
+    related: { label: "Payroll implementation guide", href: "/implementation" },
+  },
+  {
+    slug: "payroll-checker-evidence",
+    title: "Prepare an independent payroll review handoff",
+    audience: "Payroll teams",
+    category: "Getting started",
+    summary: "Keep calculation evidence, checker decisions and dry-run outputs distinct.",
+    steps: [
+      "Identify the designated payroll officer, independent checker and owner for the selected employer.",
+      "Prepare the available payroll register, payslip and journal evidence in the authorized private workflow.",
+      "Have the independent checker inspect and decide through the existing review process.",
+      "Keep bank files and government output in preview or dry-run only until separately approved.",
+    ],
+    note: "A passed synthetic check or signed-in user is not proof of real-employer reconciliation, external acceptance, or authority to move funds.",
+    related: { label: "Payroll implementation guide", href: "/implementation" },
+  },
 ];
 
 export function searchHelpArticles(query: string, audience: HelpAudience | "All" = "All") {
