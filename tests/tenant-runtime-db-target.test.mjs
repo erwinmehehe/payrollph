@@ -51,6 +51,18 @@ function makeResponse(status, json, headers) {
 test("readiness token denials are opaque, equal and cannot disclose tenant markers", () => {
   const denied = makeResponse(404, { error: "Not found." });
   assert.doesNotThrow(() => assertPrivateDenial(denied, ["VICTIM-SECRET"]));
+  assert.doesNotThrow(() => assertPrivateDenial(makeResponse(
+    404, { error: "Not found." }, {
+      "cache-control": "no-store, max-age=0", vary: "x-readiness-token",
+    }), ["VICTIM-SECRET"]));
+  assert.throws(() => assertPrivateDenial(makeResponse(
+    404, { error: "Not found." }, {
+      "cache-control": "no-store, max-age=60", vary: "x-readiness-token",
+    })));
+  assert.throws(() => assertPrivateDenial(makeResponse(
+    404, { error: "Not found." }, {
+      "cache-control": "no-store, public", vary: "x-readiness-token",
+    })));
   assert.throws(() => assertPrivateDenial(makeResponse(200, { error: "Not found." })));
   assert.throws(() => assertPrivateDenial(makeResponse(404, { database: "app_db" })));
   assert.throws(() => assertPrivateDenial(makeResponse(404, { error: "VICTIM-SECRET" }),
