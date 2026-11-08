@@ -39,7 +39,8 @@ const summary = {
   sourceCommit: process.env.REHEARSAL_PR_HEAD_SHA ?? null,
   testedMergeCommit: process.env.GITHUB_SHA ?? null,
   payoutEnabled: false,
-  providerCalls: 0,
+  providerCallCount: null, // Not measured: only provider flags and credentials are gated.
+  providerEgressInstrumented: false,
   finalBankFilesGenerated: 0,
   uploadedBankFiles: 0,
   checks: [],

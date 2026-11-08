@@ -6,6 +6,25 @@ on:
     paths:
       - "scripts/qa/579-synthetic-no-money-journey.mjs"
       - ".github/workflows/579-no-money-rehearsal.yml"
+      - "src/app/api/payroll-runs/**"
+      - "src/app/api/approvals/**"
+      - "src/app/api/workforce/timesheets/**"
+      - "src/app/api/workforce/attendance-locks/**"
+      - "src/lib/payroll*.ts"
+      - "src/lib/payroll/**"
+      - "src/lib/attendance*.ts"
+      - "src/lib/statutory*.ts"
+      - "src/lib/holiday*.ts"
+      - "src/lib/overtime*.ts"
+      - "src/lib/exporters.ts"
+      - "src/lib/bank-account-crypto.ts"
+      - "src/lib/audit.ts"
+      - "src/lib/access.ts"
+      - "src/db/**"
+      - "scripts/qa/first-payroll-full*.mjs"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "package.json"
+      - "package-lock.json"
 
 permissions:
   contents: read
