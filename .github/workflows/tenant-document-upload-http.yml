@@ -84,10 +84,10 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
           done
-      - name: Prepare empty disposable PostgreSQL 16 with reviewed baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Push schema into empty disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply reviewed baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode app against fictional-only database
         run: npm run build
       - name: Start isolated Next.js with egress-refusing fictional scanner
