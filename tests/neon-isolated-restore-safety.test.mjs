@@ -39,6 +39,8 @@ test("always generate non-promoting, new-branch request without target_branch_id
     finalize:false,
   });
   assert.equal(Object.hasOwn(plan.request,"target_branch_id"),false);
+  assert.equal(plan.projectId, "sample-safe-project-123456");
+  assert.equal(plan.restoreBranchName, "payrollph-restore-rehearsal-20261012-isolated");
   assert.equal(Object.isFrozen(plan.request),true);
   assert.equal(plan.releaseApproved,false);
   const proof=verifyIsolatedNeonRestore(plan,response(),
@@ -108,4 +110,48 @@ test("postflight rejects auto-promotion, renamed default, and rerouted productio
   assert.throws(()=>verifyIsolatedNeonRestore(
     {...plan,request:{...plan.request,finalize:true}},response(),
     m.observedDefault,m.observedEndpoint),/NEON_RESTORE_UNSAFE_REQUEST/);
+});
+
+
+test("postflight rejects incomplete or ambiguous branch-role metadata", () => {
+  const m = metadata(), plan = planIsolatedNeonRestore(m);
+  for (const missing of ["default", "primary"]) {
+    const restored = response();
+    delete restored[missing];
+    assert.throws(
+      () => verifyIsolatedNeonRestore(plan, restored, m.observedDefault, m.observedEndpoint),
+      /NEON_RESTORE_RESTORED_BRANCH_NOT_ISOLATED/,
+      "missing " + missing + " cannot be mistaken for false",
+    );
+  }
+  for (const value of [null, undefined, "false", 0]) {
+    assert.throws(
+      () => verifyIsolatedNeonRestore(plan, { ...response(), default: value },
+        m.observedDefault, m.observedEndpoint),
+      /NEON_RESTORE_RESTORED_BRANCH_NOT_ISOLATED/,
+    );
+  }
+});
+
+test("postflight rejects request modifications even when restored branch metadata matches", () => {
+  const m = metadata(), plan = planIsolatedNeonRestore(m);
+  const alternateName = "payrollph-restore-rehearsal-20261012-other";
+  const changed = [
+    { ...plan.request, project_id: "different-safe-project-123" },
+    { ...plan.request, snapshot_id: "snap-other-synthetic-backup" },
+    { ...plan.request, name: alternateName },
+    { ...plan.request, target_branch_id: m.original.branchId },
+    { ...plan.request, ignored_override: "false" },
+    { ...plan.request, finalize: "false" },
+    (() => { const copy = { ...plan.request }; delete copy.finalize; return copy; })(),
+  ];
+  for (const request of changed) {
+    const reportedRestore = { ...response(), name: request.name };
+    assert.throws(
+      () => verifyIsolatedNeonRestore({ ...plan, request }, reportedRestore,
+        m.observedDefault, m.observedEndpoint),
+      /NEON_RESTORE_UNSAFE_REQUEST/,
+      "only the complete exact preflight request may be verified",
+    );
+  }
 });
