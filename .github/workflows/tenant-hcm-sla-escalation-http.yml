@@ -76,6 +76,9 @@ jobs:
           echo "RESEND_WEBHOOK_SECRET=$webhook_secret" >> "$GITHUB_ENV"
       - run: npm run db:push
       - run: node scripts/qa/apply-isolated-baseline.mjs
+      # db:push omits migration-only HCM events; use the already reviewed,
+      # SHA-pinned 0104 fixture with disposable PG16 and empty-tenant guards.
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
       - run: npm run build
       - name: Start production-mode Next.js on loopback only
         shell: bash
