@@ -11126,7 +11126,7 @@
       ]
     },
     "src/app/api/enterprise/route.ts": {
-      "gitBlobSha": "5f6137a3bcbada44f4d7df275cb83aadd98add54",
+      "gitBlobSha": "4867e820934e87452ac1e593cbdd7f0d7e2a4ab5",
       "route": "enterprise",
       "methods": [
         {
@@ -11152,8 +11152,21 @@
           "name": "POST",
           "line": 201,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: enterprise POST now commits each privileged mutation with its audit receipt. Dedicated fictional PG16 real-HTTP candidate exercises all twelve action names, two attackers, own writes, real victim/forged denials and injected audit-veto rollback. No new method credit or independent/production acceptance is claimed in this source-fix PR.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "enterprise-post-atomic-audit-PG16-candidate",
+            "previousRouteBlobSha": "5f6137a3bcbada44f4d7df275cb83aadd98add54",
+            "routeBlobSha": "4867e820934e87452ac1e593cbdd7f0d7e2a4ab5",
+            "unchangedGetSha256": "14041996a56ebf3fd95fba2b03a9e4557ba811fb656781041e71c65967f6e760",
+            "proofFile": "scripts/qa/tenant-enterprise-admin-http.mjs",
+            "proofBlobSha": "9218fc7a7d8dc96ccc6bb863985eae341d9d189d",
+            "workflowFile": ".github/workflows/tenant-enterprise-admin-http.yml",
+            "workflowBlobSha": "cee5fe1ccada143c6b413ec3d5a561c39316f0e5",
+            "coverageCredits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -11219,15 +11232,15 @@
           "token": "body.organizationId"
         },
         {
-          "line": 669,
+          "line": 724,
           "token": "body.employeeId"
         },
         {
-          "line": 669,
+          "line": 724,
           "token": "body.employeeId"
         },
         {
-          "line": 669,
+          "line": 724,
           "token": "body.employeeId"
         }
       ],

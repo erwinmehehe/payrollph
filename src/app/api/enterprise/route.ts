@@ -273,35 +273,37 @@ export async function POST(request: Request) {
       }
     }
 
-    const [row] = await db.insert(organizationSecurityPolicies).values({
-      organizationId,
-      sessionIdleMinutes,
-      sessionMaxHours,
-      maxActiveSessions,
-      requireMfa,
-      ssoMode,
-      updatedByUserId: user.id,
-    }).onConflictDoUpdate({
-      target: organizationSecurityPolicies.organizationId,
-      set: {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.insert(organizationSecurityPolicies).values({
+        organizationId,
         sessionIdleMinutes,
         sessionMaxHours,
         maxActiveSessions,
         requireMfa,
         ssoMode,
         updatedByUserId: user.id,
-        updatedAt: new Date(),
-      },
-    }).returning();
+      }).onConflictDoUpdate({
+        target: organizationSecurityPolicies.organizationId,
+        set: {
+          sessionIdleMinutes,
+          sessionMaxHours,
+          maxActiveSessions,
+          requireMfa,
+          ssoMode,
+          updatedByUserId: user.id,
+          updatedAt: new Date(),
+        },
+      }).returning();
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Enterprise security policy updated",
-      resource: "Organization security policy",
-      metadata: { sessionIdleMinutes, sessionMaxHours, maxActiveSessions, requireMfa, ssoMode },
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Enterprise security policy updated",
+        resource: "Organization security policy",
+        metadata: { sessionIdleMinutes, sessionMaxHours, maxActiveSessions, requireMfa, ssoMode },
+      }, tx);
+      return Response.json(row);
     });
-    return Response.json(row);
   }
 
   if (action === "create-oidc-provider") {
@@ -326,46 +328,48 @@ export async function POST(request: Request) {
 
     const verificationToken = "linaw-sso-verification=" + randomToken(24);
     try {
-      const result = await db.transaction(async (tx) => {
-        const [provider] = await tx.insert(identityProviders).values({
-          organizationId,
-          name: name.slice(0, 120),
-          issuer: discovery.issuer,
-          clientId: clientId.slice(0, 240),
-          clientSecretEncrypted: encryptEnterpriseSecret(clientSecret),
-          authorizationEndpoint: discovery.authorization_endpoint,
-          tokenEndpoint: discovery.token_endpoint,
-          jwksUri: discovery.jwks_uri,
-          scopes: "openid email profile",
-          emailClaim: "email",
-          enabled: false,
-          discoveryVerifiedAt: new Date(),
-          createdByUserId: user.id,
-        }).returning();
+      return await db.transaction(async (tx) => {
+        const result = await tx.transaction(async (tx) => {
+          const [provider] = await tx.insert(identityProviders).values({
+            organizationId,
+            name: name.slice(0, 120),
+            issuer: discovery.issuer,
+            clientId: clientId.slice(0, 240),
+            clientSecretEncrypted: encryptEnterpriseSecret(clientSecret),
+            authorizationEndpoint: discovery.authorization_endpoint,
+            tokenEndpoint: discovery.token_endpoint,
+            jwksUri: discovery.jwks_uri,
+            scopes: "openid email profile",
+            emailClaim: "email",
+            enabled: false,
+            discoveryVerifiedAt: new Date(),
+            createdByUserId: user.id,
+          }).returning();
 
-        const [domainRow] = await tx.insert(identityDomains).values({
-          organizationId,
-          providerId: provider.id,
-          domain,
-          verificationTokenHash: sha256(verificationToken),
-          verified: false,
-        }).returning();
-        return { provider, domain: domainRow };
-      });
+          const [domainRow] = await tx.insert(identityDomains).values({
+            organizationId,
+            providerId: provider.id,
+            domain,
+            verificationTokenHash: sha256(verificationToken),
+            verified: false,
+          }).returning();
+          return { provider, domain: domainRow };
+        });
 
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "OIDC provider configured",
-        resource: result.provider.name,
-        metadata: { providerId: result.provider.id, issuer: result.provider.issuer, domain },
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "OIDC provider configured",
+          resource: result.provider.name,
+          metadata: { providerId: result.provider.id, issuer: result.provider.issuer, domain },
+        }, tx);
+        return Response.json({
+          provider: { ...result.provider, clientSecretEncrypted: undefined },
+          domain: result.domain,
+          dnsTxtRecord: verificationToken,
+          warning: "Publish this exact TXT value on the company domain, then run domain verification. It is shown only in this response.",
+        }, { status: 201 });
       });
-      return Response.json({
-        provider: { ...result.provider, clientSecretEncrypted: undefined },
-        domain: result.domain,
-        dnsTxtRecord: verificationToken,
-        warning: "Publish this exact TXT value on the company domain, then run domain verification. It is shown only in this response.",
-      }, { status: 201 });
     } catch {
       return Response.json({ error: "Provider name or email domain is already configured." }, { status: 409 });
     }
@@ -397,71 +401,73 @@ export async function POST(request: Request) {
 
     const verificationToken = "linaw-sso-verification=" + randomToken(24);
     try {
-      const result = await db.transaction(async (tx) => {
-        const [provider] = await tx.insert(identityProviders).values({
-          organizationId,
-          name: name.slice(0, 120),
-          protocol: "saml",
-          issuer: null,
-          clientId: null,
-          clientSecretEncrypted: null,
-          authorizationEndpoint: null,
-          tokenEndpoint: null,
-          jwksUri: null,
-          scopes: "",
-          emailClaim: "email",
-          samlEntityId: entityId,
-          samlSsoUrl: ssoUrl,
-          samlX509Certificate: certificate,
-          samlNameIdFormat: SAML_NAME_ID_FORMAT_EMAIL,
-          samlEmailAttribute: emailAttribute.slice(0, 180),
-          samlMetadataVerifiedAt: new Date(),
-          enabled: false,
-          discoveryVerifiedAt: null,
-          createdByUserId: user.id,
-        }).returning();
+      return await db.transaction(async (tx) => {
+        const result = await tx.transaction(async (tx) => {
+          const [provider] = await tx.insert(identityProviders).values({
+            organizationId,
+            name: name.slice(0, 120),
+            protocol: "saml",
+            issuer: null,
+            clientId: null,
+            clientSecretEncrypted: null,
+            authorizationEndpoint: null,
+            tokenEndpoint: null,
+            jwksUri: null,
+            scopes: "",
+            emailClaim: "email",
+            samlEntityId: entityId,
+            samlSsoUrl: ssoUrl,
+            samlX509Certificate: certificate,
+            samlNameIdFormat: SAML_NAME_ID_FORMAT_EMAIL,
+            samlEmailAttribute: emailAttribute.slice(0, 180),
+            samlMetadataVerifiedAt: new Date(),
+            enabled: false,
+            discoveryVerifiedAt: null,
+            createdByUserId: user.id,
+          }).returning();
 
-        const [domainRow] = await tx.insert(identityDomains).values({
-          organizationId,
-          providerId: provider.id,
-          domain,
-          verificationTokenHash: sha256(verificationToken),
-          verified: false,
-        }).returning();
-        return { provider, domain: domainRow };
-      });
+          const [domainRow] = await tx.insert(identityDomains).values({
+            organizationId,
+            providerId: provider.id,
+            domain,
+            verificationTokenHash: sha256(verificationToken),
+            verified: false,
+          }).returning();
+          return { provider, domain: domainRow };
+        });
 
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "SAML provider configured",
-        resource: result.provider.name,
-        metadata: {
-          providerId: result.provider.id,
-          entityId,
-          ssoUrl,
-          certificateFingerprintSha256: samlCertificateFingerprintSha256(certificate),
-          domain,
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "SAML provider configured",
+          resource: result.provider.name,
+          metadata: {
+            providerId: result.provider.id,
+            entityId,
+            ssoUrl,
+            certificateFingerprintSha256: samlCertificateFingerprintSha256(certificate),
+            domain,
+            runtimeReady: false,
+          },
+        }, tx);
+
+        return Response.json({
+          provider: {
+            id: result.provider.id,
+            name: result.provider.name,
+            protocol: result.provider.protocol,
+            samlEntityId: result.provider.samlEntityId,
+            samlSsoUrl: result.provider.samlSsoUrl,
+            enabled: result.provider.enabled,
+          },
+          domain: result.domain,
+          dnsTxtRecord: verificationToken,
+          metadataUrl: `${canonicalAppOrigin(request)}/api/auth/saml/metadata/${result.provider.id}`,
+          acsUrl: `${canonicalAppOrigin(request)}/api/auth/saml/acs/${result.provider.id}`,
           runtimeReady: false,
-        },
+          warning: SAML_RUNTIME_BLOCK_REASON,
+        }, { status: 201 });
       });
-
-      return Response.json({
-        provider: {
-          id: result.provider.id,
-          name: result.provider.name,
-          protocol: result.provider.protocol,
-          samlEntityId: result.provider.samlEntityId,
-          samlSsoUrl: result.provider.samlSsoUrl,
-          enabled: result.provider.enabled,
-        },
-        domain: result.domain,
-        dnsTxtRecord: verificationToken,
-        metadataUrl: `${canonicalAppOrigin(request)}/api/auth/saml/metadata/${result.provider.id}`,
-        acsUrl: `${canonicalAppOrigin(request)}/api/auth/saml/acs/${result.provider.id}`,
-        runtimeReady: false,
-        warning: SAML_RUNTIME_BLOCK_REASON,
-      }, { status: 201 });
     } catch {
       return Response.json({ error: "Provider name or email domain is already configured." }, { status: 409 });
     }
@@ -484,16 +490,18 @@ export async function POST(request: Request) {
     const verified = records.some((record) => sha256(flattenedTxt(record)) === domain.verificationTokenHash);
     if (!verified) return Response.json({ error: "The expected Linaw SSO verification TXT value was not found." }, { status: 409 });
 
-    const [row] = await db.update(identityDomains).set({ verified: true, verifiedAt: new Date() })
-      .where(eq(identityDomains.id, domain.id)).returning();
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "SSO domain verified",
-      resource: domain.domain,
-      metadata: { domainId: domain.id, providerId: domain.providerId },
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.update(identityDomains).set({ verified: true, verifiedAt: new Date() })
+        .where(eq(identityDomains.id, domain.id)).returning();
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "SSO domain verified",
+        resource: domain.domain,
+        metadata: { domainId: domain.id, providerId: domain.providerId },
+      }, tx);
+      return Response.json(row);
     });
-    return Response.json(row);
   }
 
   if (action === "set-provider-enabled") {
@@ -546,66 +554,72 @@ export async function POST(request: Request) {
         return Response.json({ error: error instanceof Error ? error.message : "OIDC discovery revalidation failed." }, { status: 422 });
       }
     }
-    const result = await db.transaction(async (tx) => {
-      const [row] = await tx.update(identityProviders).set({ enabled, updatedAt: new Date() })
-        .where(eq(identityProviders.id, providerId)).returning();
-      let revokedSessions = 0;
-      if (!enabled) {
-        const revoked = await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
-          eq(sessions.identityProviderId, providerId),
-          isNull(sessions.revokedAt),
-        )).returning({ id: sessions.id });
-        revokedSessions = revoked.length;
-      }
-      return { row, revokedSessions };
+    return await db.transaction(async (tx) => {
+      const result = await tx.transaction(async (tx) => {
+        const [row] = await tx.update(identityProviders).set({ enabled, updatedAt: new Date() })
+          .where(eq(identityProviders.id, providerId)).returning();
+        let revokedSessions = 0;
+        if (!enabled) {
+          const revoked = await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
+            eq(sessions.identityProviderId, providerId),
+            isNull(sessions.revokedAt),
+          )).returning({ id: sessions.id });
+          revokedSessions = revoked.length;
+        }
+        return { row, revokedSessions };
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: enabled ? "OIDC provider enabled" : "OIDC provider disabled",
+        resource: provider.name,
+        metadata: { providerId, revokedSessions: result.revokedSessions },
+      }, tx);
+      return Response.json({ id: result.row.id, enabled: result.row.enabled, revokedSessions: result.revokedSessions });
     });
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: enabled ? "OIDC provider enabled" : "OIDC provider disabled",
-      resource: provider.name,
-      metadata: { providerId, revokedSessions: result.revokedSessions },
-    });
-    return Response.json({ id: result.row.id, enabled: result.row.enabled, revokedSessions: result.revokedSessions });
   }
 
   if (action === "create-scim-token") {
     const name = String(body.name ?? "").trim();
     if (!name) return Response.json({ error: "SCIM token name is required." }, { status: 400 });
     const minted = mintScimToken();
-    const [row] = await db.insert(scimTokens).values({
-      organizationId,
-      name: name.slice(0, 120),
-      prefix: minted.prefix,
-      tokenHash: minted.tokenHash,
-      createdByUserId: user.id,
-    }).returning();
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "SCIM token created",
-      resource: row.name,
-      metadata: { scimTokenId: row.id, prefix: row.prefix },
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.insert(scimTokens).values({
+        organizationId,
+        name: name.slice(0, 120),
+        prefix: minted.prefix,
+        tokenHash: minted.tokenHash,
+        createdByUserId: user.id,
+      }).returning();
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "SCIM token created",
+        resource: row.name,
+        metadata: { scimTokenId: row.id, prefix: row.prefix },
+      }, tx);
+      return Response.json({
+        id: row.id,
+        name: row.name,
+        prefix: row.prefix,
+        token: minted.token,
+        warning: "This SCIM bearer token is shown once and stored only as a SHA-256 hash.",
+      }, { status: 201 });
     });
-    return Response.json({
-      id: row.id,
-      name: row.name,
-      prefix: row.prefix,
-      token: minted.token,
-      warning: "This SCIM bearer token is shown once and stored only as a SHA-256 hash.",
-    }, { status: 201 });
   }
 
   if (action === "revoke-scim-token") {
     const tokenId = Number(body.tokenId);
     if (!Number.isInteger(tokenId)) return Response.json({ error: "tokenId is required." }, { status: 400 });
-    const [row] = await db.update(scimTokens).set({ revokedAt: new Date() }).where(and(
-      eq(scimTokens.id, tokenId),
-      eq(scimTokens.organizationId, organizationId),
-    )).returning();
-    if (!row) return Response.json({ error: "SCIM token not found." }, { status: 404 });
-    await recordAuditEvent({ organizationId, actor: user.name, action: "SCIM token revoked", resource: row.name, metadata: { prefix: row.prefix } });
-    return Response.json({ ok: true });
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.update(scimTokens).set({ revokedAt: new Date() }).where(and(
+        eq(scimTokens.id, tokenId),
+        eq(scimTokens.organizationId, organizationId),
+      )).returning();
+      if (!row) return Response.json({ error: "SCIM token not found." }, { status: 404 });
+      await recordAuditEvent({ organizationId, actor: user.name, action: "SCIM token revoked", resource: row.name, metadata: { prefix: row.prefix } }, tx);
+      return Response.json({ ok: true });
+    });
   }
 
   if (action === "save-permission-set") {
@@ -637,28 +651,32 @@ export async function POST(request: Request) {
         }
       }
 
-      const [row] = await db.update(permissionSets).set({
-        name: name.slice(0, 120),
-        description: description.slice(0, 4000) || null,
-        permissions,
-        active: nextActive,
-        updatedAt: new Date(),
-      }).where(and(eq(permissionSets.id, id), eq(permissionSets.organizationId, organizationId))).returning();
-      if (!row) return Response.json({ error: "Permission set not found." }, { status: 404 });
-      await recordAuditEvent({ organizationId, actor: user.name, action: "Permission set updated", resource: row.name, metadata: { permissionSetId: row.id, permissions } });
-      return Response.json(row);
+      return await db.transaction(async (tx) => {
+        const [row] = await tx.update(permissionSets).set({
+          name: name.slice(0, 120),
+          description: description.slice(0, 4000) || null,
+          permissions,
+          active: nextActive,
+          updatedAt: new Date(),
+        }).where(and(eq(permissionSets.id, id), eq(permissionSets.organizationId, organizationId))).returning();
+        if (!row) return Response.json({ error: "Permission set not found." }, { status: 404 });
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Permission set updated", resource: row.name, metadata: { permissionSetId: row.id, permissions } }, tx);
+        return Response.json(row);
+      });
     }
     try {
-      const [row] = await db.insert(permissionSets).values({
-        organizationId,
-        name: name.slice(0, 120),
-        description: description.slice(0, 4000) || null,
-        permissions,
-        active: true,
-        createdByUserId: user.id,
-      }).returning();
-      await recordAuditEvent({ organizationId, actor: user.name, action: "Permission set created", resource: row.name, metadata: { permissionSetId: row.id, permissions } });
-      return Response.json(row, { status: 201 });
+      return await db.transaction(async (tx) => {
+        const [row] = await tx.insert(permissionSets).values({
+          organizationId,
+          name: name.slice(0, 120),
+          description: description.slice(0, 4000) || null,
+          permissions,
+          active: true,
+          createdByUserId: user.id,
+        }).returning();
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Permission set created", resource: row.name, metadata: { permissionSetId: row.id, permissions } }, tx);
+        return Response.json(row, { status: 201 });
+      });
     } catch {
       return Response.json({ error: "A permission set with this name already exists." }, { status: 409 });
     }
@@ -701,25 +719,27 @@ export async function POST(request: Request) {
     }
 
     try {
-      const [updated] = await db.update(userOrganizations)
-        .set({ workerEmployeeId: employeeId })
-        .where(and(
-          eq(userOrganizations.id, membershipId),
-          eq(userOrganizations.organizationId, organizationId),
-        )).returning();
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "Workspace worker identity link updated",
-        resource: `Membership #${membershipId}`,
-        metadata: {
-          membershipId,
-          previousWorkerEmployeeId: membership.workerEmployeeId,
-          workerEmployeeId: updated.workerEmployeeId,
-          actorUserId: user.id,
-        },
+      return await db.transaction(async (tx) => {
+        const [updated] = await tx.update(userOrganizations)
+          .set({ workerEmployeeId: employeeId })
+          .where(and(
+            eq(userOrganizations.id, membershipId),
+            eq(userOrganizations.organizationId, organizationId),
+          )).returning();
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "Workspace worker identity link updated",
+          resource: `Membership #${membershipId}`,
+          metadata: {
+            membershipId,
+            previousWorkerEmployeeId: membership.workerEmployeeId,
+            workerEmployeeId: updated.workerEmployeeId,
+            actorUserId: user.id,
+          },
+        }, tx);
+        return Response.json({ membershipId, workerEmployeeId: updated.workerEmployeeId });
       });
-      return Response.json({ membershipId, workerEmployeeId: updated.workerEmployeeId });
     } catch (error) {
       if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505") {
         return Response.json({ error: "This worker is already linked to another account in the workspace." }, { status: 409 });
@@ -743,12 +763,14 @@ export async function POST(request: Request) {
     if (!membership) return Response.json({ error: "Workspace membership not found." }, { status: 404 });
 
     if (!permissionSetId) {
-      await db.delete(userPermissionAssignments).where(and(
-        eq(userPermissionAssignments.organizationId, organizationId),
-        eq(userPermissionAssignments.userOrganizationId, membershipId),
-      ));
-      await recordAuditEvent({ organizationId, actor: user.name, action: "Custom permission set cleared", resource: "Membership #" + membershipId, metadata: { membershipId } });
-      return Response.json({ ok: true, permissionSetId: null });
+      return await db.transaction(async (tx) => {
+        await tx.delete(userPermissionAssignments).where(and(
+          eq(userPermissionAssignments.organizationId, organizationId),
+          eq(userPermissionAssignments.userOrganizationId, membershipId),
+        ));
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Custom permission set cleared", resource: "Membership #" + membershipId, metadata: { membershipId } }, tx);
+        return Response.json({ ok: true, permissionSetId: null });
+      });
     }
 
     const [permissionSet] = await db.select().from(permissionSets).where(and(
@@ -790,26 +812,28 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const [row] = await db.insert(userPermissionAssignments).values({
-      organizationId,
-      userOrganizationId: membershipId,
-      permissionSetId,
-      dynamicGroupId: groupId,
-      dynamicGroupVersion,
-      assignedByUserId: user.id,
-    }).onConflictDoUpdate({
-      target: userPermissionAssignments.userOrganizationId,
-      set: { permissionSetId, dynamicGroupId: groupId, dynamicGroupVersion, assignedByUserId: user.id },
-    }).returning();
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.insert(userPermissionAssignments).values({
+        organizationId,
+        userOrganizationId: membershipId,
+        permissionSetId,
+        dynamicGroupId: groupId,
+        dynamicGroupVersion,
+        assignedByUserId: user.id,
+      }).onConflictDoUpdate({
+        target: userPermissionAssignments.userOrganizationId,
+        set: { permissionSetId, dynamicGroupId: groupId, dynamicGroupVersion, assignedByUserId: user.id },
+      }).returning();
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Custom permission set assigned",
-      resource: "Membership #" + membershipId,
-      metadata: { membershipId, permissionSetId, role: membership.role, dynamicGroupId: groupId, dynamicGroupVersion },
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Custom permission set assigned",
+        resource: "Membership #" + membershipId,
+        metadata: { membershipId, permissionSetId, role: membership.role, dynamicGroupId: groupId, dynamicGroupVersion },
+      }, tx);
+      return Response.json(row);
     });
-    return Response.json(row);
   }
 
   if (action === "save-automation-rule") {
@@ -827,31 +851,35 @@ export async function POST(request: Request) {
     }
 
     if (id) {
-      const [row] = await db.update(automationRules).set({
-        name: name.slice(0, 160),
-        trigger,
-        conditions,
-        actions,
-        active: body.active === undefined ? true : Boolean(body.active),
-        updatedAt: new Date(),
-      }).where(and(eq(automationRules.id, id), eq(automationRules.organizationId, organizationId))).returning();
-      if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
-      await recordAuditEvent({ organizationId, actor: user.name, action: "Lifecycle automation updated", resource: row.name, metadata: { ruleId: row.id, trigger } });
-      return Response.json(row);
+      return await db.transaction(async (tx) => {
+        const [row] = await tx.update(automationRules).set({
+          name: name.slice(0, 160),
+          trigger,
+          conditions,
+          actions,
+          active: body.active === undefined ? true : Boolean(body.active),
+          updatedAt: new Date(),
+        }).where(and(eq(automationRules.id, id), eq(automationRules.organizationId, organizationId))).returning();
+        if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Lifecycle automation updated", resource: row.name, metadata: { ruleId: row.id, trigger } }, tx);
+        return Response.json(row);
+      });
     }
 
     try {
-      const [row] = await db.insert(automationRules).values({
-        organizationId,
-        name: name.slice(0, 160),
-        trigger,
-        conditions,
-        actions,
-        active: true,
-        createdByUserId: user.id,
-      }).returning();
-      await recordAuditEvent({ organizationId, actor: user.name, action: "Lifecycle automation created", resource: row.name, metadata: { ruleId: row.id, trigger } });
-      return Response.json(row, { status: 201 });
+      return await db.transaction(async (tx) => {
+        const [row] = await tx.insert(automationRules).values({
+          organizationId,
+          name: name.slice(0, 160),
+          trigger,
+          conditions,
+          actions,
+          active: true,
+          createdByUserId: user.id,
+        }).returning();
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Lifecycle automation created", resource: row.name, metadata: { ruleId: row.id, trigger } }, tx);
+        return Response.json(row, { status: 201 });
+      });
     } catch {
       return Response.json({ error: "An automation rule with this name already exists." }, { status: 409 });
     }
@@ -861,13 +889,15 @@ export async function POST(request: Request) {
     const ruleId = Number(body.ruleId);
     const active = Boolean(body.active);
     if (!Number.isInteger(ruleId)) return Response.json({ error: "ruleId is required." }, { status: 400 });
-    const [row] = await db.update(automationRules).set({ active, updatedAt: new Date() }).where(and(
-      eq(automationRules.id, ruleId),
-      eq(automationRules.organizationId, organizationId),
-    )).returning();
-    if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
-    await recordAuditEvent({ organizationId, actor: user.name, action: active ? "Lifecycle automation enabled" : "Lifecycle automation disabled", resource: row.name, metadata: { ruleId } });
-    return Response.json(row);
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.update(automationRules).set({ active, updatedAt: new Date() }).where(and(
+        eq(automationRules.id, ruleId),
+        eq(automationRules.organizationId, organizationId),
+      )).returning();
+      if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
+      await recordAuditEvent({ organizationId, actor: user.name, action: active ? "Lifecycle automation enabled" : "Lifecycle automation disabled", resource: row.name, metadata: { ruleId } }, tx);
+      return Response.json(row);
+    });
   }
 
   return Response.json({ error: "Unknown enterprise action." }, { status: 400 });
