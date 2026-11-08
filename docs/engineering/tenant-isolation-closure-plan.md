@@ -191,7 +191,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 25 | 0 | 2 | PROVISIONAL — NOT ACCEPTED |
+| 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -260,13 +260,13 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
-| 1 | **DL-02** | 26 | 26 | 0 | 0 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 39 | 0 | 0 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
