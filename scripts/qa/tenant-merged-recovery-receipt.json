@@ -1,14 +1,14 @@
 {
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
   "execution": "local-production-http-pg16",
-  "sourceHead": "c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5",
-  "runLabel": "Local PG16 HTTP c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5 TOTP+WPS01 PASS",
+  "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+  "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
   "productionCertified": false,
   "independentlyAccepted": false,
   "runs": {
     "totp": {
       "label": "SOLO_VERIFIED_DEV_RECOVERY",
-      "sourceHead": "c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5",
+      "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
       "execution": "local-production-http-pg16",
       "family": "totp",
       "result": {
@@ -39,7 +39,7 @@
     },
     "scenarios": {
       "label": "SOLO_VERIFIED_DEV_RECOVERY",
-      "sourceHead": "c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5",
+      "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
       "execution": "local-production-http-pg16",
       "family": "scenarios",
       "result": {
@@ -110,8 +110,8 @@
         "unchangedDbLine": 92,
         "routeBlobSha": "319cf579aa04b85a92a7e265c239aa723ad0f761",
         "proofBlobSha": "0a6b611bd79889748debf5eb482bcd90022ed6f5",
-        "sourceHead": "c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5",
-        "runLabel": "Local PG16 HTTP c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5 TOTP+WPS01 PASS",
+        "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+        "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
         "label": "SOLO_VERIFIED_DEV_RECOVERY",
         "recoveryCredit": "merged-three-methods",
         "postgresMajor": 16,
@@ -151,8 +151,8 @@
         "unchangedDbLine": 92,
         "routeBlobSha": "319cf579aa04b85a92a7e265c239aa723ad0f761",
         "proofBlobSha": "0a6b611bd79889748debf5eb482bcd90022ed6f5",
-        "sourceHead": "c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5",
-        "runLabel": "Local PG16 HTTP c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5 TOTP+WPS01 PASS",
+        "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+        "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
         "label": "SOLO_VERIFIED_DEV_RECOVERY",
         "recoveryCredit": "merged-three-methods",
         "postgresMajor": 16,
@@ -167,33 +167,33 @@
       "family": "scenarios",
       "anchors": [
         {
-          "line": 121,
+          "line": 128,
           "text": "const row = assertWps01Created(response, added[0]"
         },
         {
-          "line": 170,
+          "line": 181,
           "text": "}, 403, \"foreign employer selector\""
         },
         {
-          "line": 169,
+          "line": 180,
           "text": "planId: victimPlan.id,"
         },
         {
-          "line": 101,
+          "line": 108,
           "text": "assertWps01Unchanged(before, await allStates()"
         }
       ],
       "evidence": {
         "file": "scripts/qa/tenant-wps01-scenarios-http.mjs",
-        "line": 121,
-        "ownPositiveLine": 121,
-        "foreignDenialLine": 170,
-        "forgedSelectorLine": 169,
-        "unchangedDbLine": 101,
+        "line": 128,
+        "ownPositiveLine": 128,
+        "foreignDenialLine": 181,
+        "forgedSelectorLine": 180,
+        "unchangedDbLine": 108,
         "routeBlobSha": "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0",
-        "proofBlobSha": "573110818cae290925a796efa5e82fcce22b5b57",
-        "sourceHead": "c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5",
-        "runLabel": "Local PG16 HTTP c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5 TOTP+WPS01 PASS",
+        "proofBlobSha": "eb76751e14a1011eeaa00c041374f5ec813c22d5",
+        "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+        "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
         "label": "SOLO_VERIFIED_DEV_RECOVERY",
         "recoveryCredit": "merged-three-methods",
         "postgresMajor": 16,
@@ -227,7 +227,7 @@
     "scripts/qa/tenant-table-path.mjs": "aa84a05716961b2b01e4ab4d1e5e5dfd5a31d6f1",
     "scripts/qa/tenant-totp-setup-http.mjs": "0a6b611bd79889748debf5eb482bcd90022ed6f5",
     "scripts/qa/tenant-wps01-scenarios-contract.mjs": "f5e808125f4602b78d7db6b9a3d4186cdb47e10a",
-    "scripts/qa/tenant-wps01-scenarios-http.mjs": "573110818cae290925a796efa5e82fcce22b5b57",
+    "scripts/qa/tenant-wps01-scenarios-http.mjs": "eb76751e14a1011eeaa00c041374f5ec813c22d5",
     "src/app/api/auth/totp/setup/route.ts": "319cf579aa04b85a92a7e265c239aa723ad0f761",
     "src/app/api/workforce-planning/scenarios/route.ts": "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0",
     "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",

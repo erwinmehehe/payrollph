@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 export const RECOVERY_RECEIPT='scripts/qa/tenant-merged-recovery-receipt.json';
-const SEALED_DIGEST='00869b5348eb88fd138c07e285dbbd003604fb337f695d4deed47c19b3ff16ec';
+const SEALED_DIGEST='613f2c9046bb99233a0773857088812bf15b1879d2206155dd2c1d3dec596263';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 export const RECOVERY_TARGETS=Object.freeze([
   {path:'src/app/api/auth/totp/setup/route.ts',method:'GET',family:'totp'},
@@ -73,10 +73,11 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const m=JSON.parse(readFileSync(MANIFEST,'utf8'));
   if(mode==='--check'){assert.deepEqual(process.argv.slice(2),['--check']);console.log(JSON.stringify({verified:verifyRecoveryCredits(m),write:false}));}
   else if(mode==='--refresh-links'){
-    assert.deepEqual(process.argv.slice(2),['--refresh-links']);const r=readRecoveryEvidence();
+    const r=readRecoveryEvidence();assert.deepEqual(process.argv.slice(2),['--refresh-links','--run-label',r.runLabel]);
     for(const t of r.targets){const mth=m.allApiRouteFiles[t.path].methods.find(x=>x.name===t.method);
       assert.equal(mth.status,'COVERED');assert.equal(mth.testedBy.recoveryCredit,'merged-three-methods');
-      assert.equal(mth.testedBy.sourceHead,r.sourceHead);mth.testedBy=t.evidence;
+      assert.equal(mth.testedBy.file,t.evidence.file);assert.equal(mth.testedBy.routeBlobSha,t.evidence.routeBlobSha);
+      mth.testedBy=t.evidence;
     }verifyRecoveryCredits(m);writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');
     console.log(JSON.stringify({refreshed:3,newCredits:0}));
   }else{

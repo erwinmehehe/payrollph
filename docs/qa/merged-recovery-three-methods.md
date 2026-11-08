@@ -12,7 +12,7 @@ proposal adds exactly three distinct methods, for **439 COVERED / 48 GAP / 11 PU
 | POST workforce-planning/scenarios | Seven persisted creates, twelve denied requests, seven actual wrong-employer discriminators, two reached audit-veto rollbacks, immutable versions, and revoked membership denied. |
 
 The fresh production-build HTTP/PG16 run used committed source
-`c2d3028bd753c71c0c50f5fcb7b33c3bcf318ec5`. The sealed receipt at
+`5583a43f1a58584b56673cfbc53d90cea07c1e4d`. The sealed receipt at
 `scripts/qa/tenant-merged-recovery-receipt.json` pins 83 transitive runtime,
 proof, schema and configuration inputs. Metadata-only credit changes do not
 alter those executed inputs. Both original hosted-CI entry gates remain;
