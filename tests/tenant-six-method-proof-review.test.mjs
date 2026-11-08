@@ -16,6 +16,7 @@ import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
+import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
@@ -579,6 +580,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const careersPatchCredits = verifyCareersPatchCredit(m);
   assert.equal(careersPatchCredits, 1);
   expectedStatuses[careersPath].PATCH = "COVERED";
+  // #1826 is disjoint from the two year-end methods already credited on main.
+  // Both POST claims are backed by the same immutable fictional PG16 receipt.
+  const billingCredits = verifyBillingSubscriptionCredits(m);
+  assert.equal(billingCredits, 2);
+  for (const path of ["src/app/api/billing/subscription/start/route.ts",
+                      "src/app/api/billing/subscription/cancel/route.ts"]) {
+    assert.equal(expectedStatuses[path]?.POST, "GAP",
+      "Billing POST must begin uncredited in the historical six-method snapshot");
+    expectedStatuses[path].POST = "COVERED";
+  }
   const migrationPath = "src/app/api/migrations/route.ts";
   assert.equal(expectedStatuses[migrationPath]?.POST, "GAP");
   const migrationCredits = verifyMigrationPostCredit(m);
@@ -620,17 +631,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only a previously uncredited method may be promoted: " + spec.method);
     expectedStatuses[spec.path][spec.method] = "COVERED";
   }
-  const mergedRecoveryCredits=verifyRecoveryCredits(m);
-  for(const t of RECOVERY_TARGETS){
-    assert.equal(expectedStatuses[t.path]?.[t.method],'GAP','Only distinct missing methods may be recovered');
-    expectedStatuses[t.path][t.method]='COVERED';
+  const mergedRecoveryCredits = verifyRecoveryCredits(m);
+  assert.equal(mergedRecoveryCredits, 3);
+  for (const target of RECOVERY_TARGETS) {
+    assert.equal(expectedStatuses[target.path]?.[target.method], "GAP",
+      "Only distinct previously GAP methods may be credited");
+    expectedStatuses[target.path][target.method] = "COVERED";
   }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves payout PATCH and revoked year-end pair while permitting exactly three source-verified additional credits");
+    "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + posDemandCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - posDemandCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -642,7 +655,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **355 COVERED + 3 PUBLIC-BY-DESIGN + 48 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **357 COVERED + 3 PUBLIC-BY-DESIGN + 46 GAP = 406**"),
     "Current frozen subtotal includes three independently verified credits and retains invalidated year-end GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -893,15 +906,51 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
       (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits;
+    // Compute the descriptive batch line from the immutable source-linked
+    // frozen method queue and current main manifest, not an old blanket
+    // "all twelve incomplete" assumption. Never count a zero-GAP batch as
+    // independently accepted: these remain explicitly PROVISIONAL.
+    const frozenQueue = baselinePlan.split("### Batch DL-01 —")[1]
+      ?.split("## Page and server-action closure")[0];
+    assert.ok(frozenQueue, "origin/main must retain its 12 source-linked frozen batches");
+    const frozenSections = ("### Batch DL-01 —" + frozenQueue)
+      .split("### Batch ").slice(1);
+    assert.equal(frozenSections.length, 12, "all frozen batches must remain in main");
+    const statuses = [];
+    const provisionalBatches = frozenSections.filter(section => {
+      const links = section.split("\n").filter(line =>
+        line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"));
+      assert.ok(links.length > 0, "each batch must link its frozen API methods");
+      const sectionStatuses = links.map(line => {
+        const method = line.split("`")[1]?.split(" ")[0];
+        const path = line.split(" — [source](../../")[1]?.split("#L")[0];
+        const status = baseline.allApiRouteFiles[path]?.methods
+          .find(row => row.name === method)?.status;
+        assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(status),
+          "Every frozen source link must map to a known method status");
+        statuses.push(status);
+        return status;
+      });
+      return sectionStatuses.every(status => status !== "GAP");
+    }).map(section => section.split(" ")[0]);
+    assert.equal(statuses.length, 406, "the frozen queue must still contain exactly 406 methods");
+    assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
+      "the frozen queue must match current main source-credited methods");
+    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3);
+    assert.equal(statuses.filter(status => status === "GAP").length, 403 - frozenCovered);
+    const incomplete = 12 - provisionalBatches.length;
+    const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
+      provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
+    const word = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+      "Eight", "Nine", "Ten", "Eleven", "Twelve"][incomplete];
+    const batchSummary = provisionalBatches.length === 0
+      ? "All 12 batches remain INCOMPLETE."
+      : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
       .replace("91 GAP", (403 - frozenCovered) + " GAP")
-      // Main's source-pinned proof closed the *method* gaps in DL-02/WRK-01,
-      // but those two batches are still provisional, not security-accepted.
-      // Preserve exact frozen counts and fail closed on any other ledger text.
-      .replace("All 12 batches remain INCOMPLETE.",
-        "Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.");
+.replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>

@@ -2,8 +2,10 @@
 
 Evidence label: **SOLO_VERIFIED_DEV_RECOVERY**. No independent or production acceptance.
 
-The current-main baseline has 436 COVERED / 51 GAP / 11 PUBLIC methods. This
-proposal adds exactly three distinct methods, for **439 COVERED / 48 GAP / 11 PUBLIC**:
+This proof batch began against the historical 436 COVERED / 51 GAP / 11 PUBLIC
+baseline and proposed three distinct credits (439 / 48 / 11). After the separate
+two billing POST credits merged into `main`, the synchronized PR branch proposes
+**441 COVERED / 46 GAP / 11 PUBLIC**, still provisional and not independently accepted:
 
 | Method | Executed boundary |
 |---|---|

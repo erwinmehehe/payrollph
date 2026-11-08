@@ -6,6 +6,7 @@ import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
+import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyDocumentCallerReproof } from "../scripts/qa/tenant-document-caller-reproof-verify.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
@@ -246,6 +247,16 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (key === "src/app/api/careers/admin/route.ts PATCH" && method.status === "COVERED") {
     assert.equal(currentBlob, "fc7920e19fc75389c5f5e7fe3cb4f90046028f00");
     assert.equal(verifyCareersPatchCredit(manifest), 1);
+    return true;
+  }
+  if (method.status === "COVERED" && [
+      "src/app/api/billing/subscription/start/route.ts POST",
+      "src/app/api/billing/subscription/cancel/route.ts POST",
+    ].includes(key)) {
+    const path = key.slice(0, key.lastIndexOf(" "));
+    assert.equal(currentBlob, manifest.allApiRouteFiles[path].gitBlobSha,
+      "Changed billing route needs new source-current PG16 evidence");
+    assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
     return true;
   }
   if (key === "src/app/api/migrations/route.ts POST" && method.status === "COVERED") {
@@ -4006,8 +4017,15 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
-      if(RECOVERY_TARGETS.some(t=>t.path===path&&t.method===method.name)){
-        assert.equal(verifyRecoveryCredits(manifest),3); continue;
+      if (RECOVERY_TARGETS.some(t => t.path === path && t.method === method.name)) {
+        assert.equal(verifyRecoveryCredits(manifest), 3);
+        continue;
+      }
+      if (["src/app/api/billing/subscription/start/route.ts",
+           "src/app/api/billing/subscription/cancel/route.ts"].includes(path) && method.name === "POST") {
+        assert.equal(verifyBillingSubscriptionCredits(manifest), 2,
+          "Both billing POST methods need exact owned/foreign/unchanged receipts");
+        continue;
       }
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
