@@ -60,3 +60,48 @@ export function leaveTaxReleaseDateNeedsReconciliation(
     || !isoDate(asOfDate) || actualPayoutDate !== record.taxDate
     || actualPayoutDate > asOfDate;
 }
+
+/**
+ * Historical final-pay snapshots could claim an exemption using a checkbox
+ * without the reviewed Phase 7 tax allocation. Never approve or release those
+ * exemption claims until they are recomputed with actual supporting evidence.
+ * Fully taxable historical packages do not acquire a new exemption or hold.
+ */
+export function legacyFinalPayExemptionNeedsRecompute(snapshot: unknown): boolean {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return false;
+  const record = snapshot as Record<string, unknown>;
+  const leaveExempt = record.leaveMonetizationTaxExempt === true;
+  const separationExempt = record.separationPayTaxExempt === true;
+  if (!leaveExempt && !separationExempt) return false;
+
+  const rawReview = record.taxClassification;
+  if (!rawReview || typeof rawReview !== "object" || Array.isArray(rawReview)) return true;
+  const review = rawReview as Record<string, unknown>;
+  if (typeof review.reviewerUserId !== "number" || !Number.isSafeInteger(review.reviewerUserId)
+    || !isoDate(review.taxDate)) return true;
+
+  if (leaveExempt) {
+    const rawLeave = review.leave;
+    if (review.leaveTaxBasis !== "private_vacation_de_minimis" || !rawLeave
+      || typeof rawLeave !== "object" || Array.isArray(rawLeave)) return true;
+    const leave = rawLeave as Record<string, unknown>;
+    if (typeof leave.deMinimisPay !== "number" || !Number.isFinite(leave.deMinimisPay)
+      || leave.deMinimisPay <= 0 || leave.benefitsPoolPay !== 0
+      || typeof leave.evidenceReference !== "string"
+      || leave.evidenceReference.trim().length < 8) return true;
+  }
+
+  if (separationExempt) {
+    const rawSeparation = review.separation;
+    if (!rawSeparation || typeof rawSeparation !== "object" || Array.isArray(rawSeparation)) return true;
+    const separation = rawSeparation as Record<string, unknown>;
+    if (typeof separation.exemptPay !== "number" || !Number.isFinite(separation.exemptPay)
+      || separation.exemptPay <= 0 || separation.taxablePay !== 0
+      || separation.grossPay !== separation.exemptPay
+      || !["death", "sickness", "disability", "redundancy", "retrenchment",
+        "closure", "other_beyond_control"].includes(String(separation.exemptionReason))
+      || typeof separation.evidenceReference !== "string"
+      || separation.evidenceReference.trim().length < 8) return true;
+  }
+  return false;
+}

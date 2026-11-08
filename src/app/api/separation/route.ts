@@ -70,7 +70,7 @@ import {
 
 import { approvedLeaveConversionCap } from "@/lib/leave-conversion-policy";
 import { classifyPrivateVacationLeave, classifyReviewedSeparationPay } from "@/lib/final-pay-tax-classification";
-import { priorExemptLeaveDaysInTaxYear, leaveTaxReleaseDateNeedsReconciliation } from "@/lib/final-pay-leave-tax-year";
+import { priorExemptLeaveDaysInTaxYear, leaveTaxReleaseDateNeedsReconciliation, legacyFinalPayExemptionNeedsRecompute } from "@/lib/final-pay-leave-tax-year";
 import { separationLeaveAllowance, validateSeparationLeaveCredits } from "@/lib/separation-leave";
 
 async function verifiedPriorLeaveExemptDays(input: {
@@ -1618,6 +1618,12 @@ export async function PATCH(request: Request) {
     }
 
     const snapshot = (sep.computationSnapshot ?? {}) as Record<string, unknown>;
+    if (legacyFinalPayExemptionNeedsRecompute(snapshot)) {
+      return Response.json({
+        code: "FINAL_PAY_LEGACY_TAX_REVIEW_REQUIRED",
+        error: "This older final-pay package claimed a tax exemption without the current evidence-backed classification. Recompute and independently review before approval or release.",
+      }, { status: 409 });
+    }
     const storedFingerprint = snapshot.sourceFingerprint;
     const sources = await loadFinalPaySources({
       organizationId: sep.organizationId,
@@ -1712,6 +1718,9 @@ export async function PATCH(request: Request) {
             throw new Error("FINAL_PAY_CLEARANCE_STALE");
           }
           const frozen = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
+          if (legacyFinalPayExemptionNeedsRecompute(frozen)) {
+            throw new Error("FINAL_PAY_LEGACY_TAX_REVIEW_REQUIRED");
+          }
           const transactionSources = await loadFinalPaySources(
             { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
             { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
@@ -1855,6 +1864,9 @@ export async function PATCH(request: Request) {
       }
 
       const freshSnapshot = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
+      if (legacyFinalPayExemptionNeedsRecompute(freshSnapshot)) {
+        throw new Error("FINAL_PAY_LEGACY_TAX_REVIEW_REQUIRED");
+      }
       if (leaveTaxReleaseDateNeedsReconciliation(
         freshSnapshot.taxClassification, body.actualLeavePayoutDate, todayPh(),
       )) {

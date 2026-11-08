@@ -9,7 +9,7 @@ import {
 } from "../src/lib/final-pay-tax-classification";
 import { computeFinalPay } from "../src/lib/final-pay";
 import { finalPayReviewCsv } from "../src/lib/final-pay-review-evidence";
-import { priorExemptLeaveDaysInTaxYear, leaveTaxReleaseDateNeedsReconciliation } from "../src/lib/final-pay-leave-tax-year";
+import { priorExemptLeaveDaysInTaxYear, leaveTaxReleaseDateNeedsReconciliation, legacyFinalPayExemptionNeedsRecompute } from "../src/lib/final-pay-leave-tax-year";
 
 const reference = "BIR-RR29-2025-private-VL-ledger-review-2026";
 
@@ -249,6 +249,39 @@ test("manual release holds missing, future or cross-year leave payout evidence",
   ), false, "Fully taxable leave cannot be blocked by private-de-minimis evidence");
 });
 
+test("old checkbox-only exemptions cannot pass approval or release without Phase 7 tax review", () => {
+  const reviewed = {
+    reviewerUserId: 18, taxDate: "2026-11-08",
+    leaveTaxBasis: "private_vacation_de_minimis",
+    leave: { deMinimisPay: 12000, benefitsPoolPay: 0,
+      evidenceReference: "SYNTHETIC-LEAVE-LEDGER-2026" },
+    separation: { grossPay: 10000, taxablePay: 0, exemptPay: 10000,
+      exemptionReason: "redundancy", evidenceReference: "SYNTHETIC-CTE-2026" },
+  };
+  assert.equal(legacyFinalPayExemptionNeedsRecompute({
+    leaveMonetizationTaxExempt: false, separationPayTaxExempt: false,
+  }), false, "fully taxable historical package must not gain an exemption");
+  for (const claim of [
+    { leaveMonetizationTaxExempt: true },
+    { separationPayTaxExempt: true },
+    { leaveMonetizationTaxExempt: true, taxClassification: {} },
+    { separationPayTaxExempt: true, taxClassification: reviewed && { ...reviewed, separation: null } },
+    { leaveMonetizationTaxExempt: true,
+      taxClassification: { ...reviewed, leave: { ...reviewed.leave, evidenceReference: "" } } },
+  ]) assert.equal(legacyFinalPayExemptionNeedsRecompute(claim), true,
+    "legacy exemption without complete evidence requires recomputation");
+  assert.equal(legacyFinalPayExemptionNeedsRecompute({
+    leaveMonetizationTaxExempt: true, separationPayTaxExempt: true,
+    taxClassification: reviewed,
+  }), false, "new evidence-backed split remains releasable through the other checks");
+  const route = readFileSync("src/app/api/separation/route.ts", "utf8");
+  for (const phase of ["snapshot", "frozen", "freshSnapshot"]) {
+    assert.ok(route.includes("legacyFinalPayExemptionNeedsRecompute(" + phase + ")"),
+      "missing fail-closed legacy gate in " + phase + " approval/release path");
+  }
+  assert.match(route, /FINAL_PAY_LEGACY_TAX_REVIEW_REQUIRED/);
+});
+
 test("Separation route holds stale annual leave evidence and payout-year changes at release", () => {
   const source = readFileSync("src/app/api/separation/route.ts", "utf8");
   assert.ok(!source.includes("new Date(row.createdAt)"), "createdAt must not classify a prior leave tax year");
@@ -320,7 +353,7 @@ test("Phase 7 separation source re-inventory preserves existing tenant evidence,
   assert.equal(record.gitBlobSha, fingerprint, "route changes require fresh source review");
   assert.equal(review.previousRouteBlobSha, "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a");
   assert.equal(review.currentRouteBlobSha, fingerprint);
-  assert.equal(review.changedMethod, "POST");
+  assert.deepEqual(review.changedMethods, ["POST", "PATCH"]);
   assert.equal(review.priorTenantIsolationHttpProof, "scripts/qa/payroll-approved-exit-http.mjs");
   assert.equal(review.taxContractFile, "tests/final-pay-tax-classification.test.ts");
   assert.equal(review.newTenantIsolationMethodCredits, 0);
