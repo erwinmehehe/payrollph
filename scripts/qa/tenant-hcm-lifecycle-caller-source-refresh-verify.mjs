@@ -55,7 +55,12 @@ function blob(raw) {
 }
 
 export function verifyCurrentHcmCallerReproof(read = readFileSync) {
-  const receipt = JSON.parse(read(CURRENT_REPROOF, "utf8"));
+  const raw = read(CURRENT_REPROOF, "utf8");
+  // Pin the exact receipt bytes, not merely the parsed JSON. Even whitespace
+  // mutations of an executed CI evidence record invalidate this attestation.
+  assert.equal(blob(raw), "6e811217b10f0d1e1aeccdcfe536b7c51b444e8e",
+    "Executed HCM caller refresh receipt bytes changed");
+  const receipt = JSON.parse(raw);
   assert.deepEqual(receipt, EXPECTED,
     "Only the independently observed, successful exact-source HCM caller job may replace its own old source pin");
   assert.equal(receipt.historicalRouteBlobSha, OLD_HCM_SHA);
