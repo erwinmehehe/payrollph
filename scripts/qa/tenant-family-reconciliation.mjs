@@ -5,6 +5,7 @@ import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { METHODS as developmentMethods, verifyCredit as verifyDevelopmentCredit } from "./tenant-performance-development-actions.mjs";
 import { METHODS as coreMethods } from "./tenant-performance-core-contract.mjs";
 import { verifyCredit as verifyCoreCredit } from "./tenant-performance-core-credit.mjs";
+import {verifySecurityCredits,SECURITY_TARGETS} from './tenant-security-write-credit.mjs';
 
 export const RECONCILIATION_FILE = "scripts/qa/tenant-merged-family-reconciliation.json";
 export const RECONCILED_METHODS = Object.freeze(["POST performance/calibration", "GET enterprise", "PUT organizations"]);
@@ -52,7 +53,8 @@ export function verifyReconciledFamilyCredits(manifest, read) {
   for (const { key } of receipt.held) {
     const [verb, route] = key.split(" ");
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb);
-    if (method.status === "COVERED" && coreMethods.includes(key)) verifyCoreCredit(key, method);
+    if (method.status === 'COVERED' && SECURITY_TARGETS.some(t=>t.path==='src/app/api/'+route+'/route.ts'&&t.method===verb)) verifySecurityCredits(manifest);
+    else if (method.status === "COVERED" && coreMethods.includes(key)) verifyCoreCredit(key, method);
     else if (method.status === "COVERED" && developmentMethods.includes(key)) verifyDevelopmentCredit(key, method, read);
     else assert.equal(method.status, "GAP", key + ": partial action is not full method credit");
   }

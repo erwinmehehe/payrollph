@@ -1,4 +1,4 @@
-> **2026-11-08 Account email request POST provisional recovery — NOT ACCEPTED:** 498 methods = 442 COVERED + 11 PUBLIC-BY-DESIGN + 45 GAP. Exactly one new account-email **request** POST credit from [source-identical two-attacker PG16 real-HTTP/local SMTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810), not a second credit for the already covered email-verification POST. Independent identity/security review **PENDING**. No production acceptance.
+> **Security write recovery — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = 445 COVERED + 11 PUBLIC-BY-DESIGN + 42 GAP. Three security-write credits plus one separate account-email-request credit (PR #1862), all provisional and source-pinned; independent review PENDING; NOT ACCEPTED for production.
 
 > **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP; frozen 357 COVERED / 3 PUBLIC / 46 GAP. Three distinct TOTP/scenario receipts and two separately proven billing POST methods; exact-head CI and independent security/financial review PENDING. Production not authorized.
 
@@ -205,7 +205,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 23 | 2 | 1 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 30 | 0 | 3 | INCOMPLETE |
@@ -214,11 +214,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 38 | 0 | 2 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 9 | 0 | 24 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 24 | 1 | 8 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 25 | 1 | 7 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **358 COVERED + 3 PUBLIC-BY-DESIGN + 45 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 9 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **361 COVERED + 3 PUBLIC-BY-DESIGN + 42 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 9 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
