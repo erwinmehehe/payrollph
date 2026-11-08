@@ -26,7 +26,7 @@ Three statutory constants were each changed and confirmed to fail exactly the ca
 
 - **Regular 13th-month pay.** Regular payroll runs do not compute it (only final pay and year-end do), so there is nothing to certify here yet.
 - The PhilHealth ₱100,000 ceiling and the Pag-IBIG ₱10,000 cap are exercised by Phase 2A.
-- Daily-paid and hourly workers' statutory contributions.
+- Daily-paid and hourly workers' statutory contributions (now certified in Phase 8).
 - Second-cutoff month-to-date true-up (Phase 2B).
 
 Salaries 9,000 and 14,740–14,760 are below the NCR minimum-wage equivalent. They are valid fictional part-time rates used only to reach the SSS and PhilHealth edges.

@@ -1,0 +1,53 @@
+{
+  "version": "phase8-daily-hourly-statutory-2026-11-08",
+  "toleranceCentavos": 0,
+  "description": "Engine-backed golden cases for daily-paid and hourly-paid workers. Phases 1-6 certify statutory contributions only for monthly-salaried employees. For a daily or hourly worker the SSS and Pag-IBIG base is the pay actually earned in the cutoff (projected to a month), while PhilHealth uses the fixed monthly equivalent of the rate, so an absence lowers SSS but not PhilHealth. Every expected value is hand-derived below from the published rules, never copied from engine output.",
+  "sources": {
+    "sss": "SSS Circular 2024-006 (effective 2025-01-01): employee 5% and employer 10% of the monthly salary credit (MSC); MSC floor 5,000, cap 35,000, step 500, so compensation from X250 to X749.99 maps to MSC X500/X000 (14,400 -> 14,500; 16,000 -> 16,000; 40,000 -> 35,000); EC is 10 per month when MSC < 15,000 and 30 from MSC 15,000.",
+    "philHealth": "PhilHealth 2024 schedule: 5% premium on a monthly basic salary of at least 10,000 and at most 100,000, shared equally. PhilHealth Circular 2020-0005: the base is the fixed monthly basic salary, not reduced by absences or lateness.",
+    "pagIbig": "Pag-IBIG Fund (effective 2024-02): 2% employee and 2% employer of the fund salary, capped at a fund salary of 10,000.",
+    "bir": "BIR Revised Withholding Tax Tables effective 2023 onward, semi-monthly: taxable <= 10,417 exempt; 10,417-16,667 at 15% over 10,417; 16,667-33,333 at 937.50 + 20% over 16,667. Taxable compensation = cutoff gross - employee SSS, PhilHealth and Pag-IBIG."
+  },
+  "assumptions": [
+    "September 1-15 2026 cutoff, no holidays, allowances, loans or leave. Statutory deduction timing is 'split', so each cutoff carries 50% of the monthly contribution (EC and employer shares likewise).",
+    "Workers punch 09:00-18:00 with a 12:00-13:00 break (8 paid hours) on 10 working days (Sep 1-4, 7-11, 14), as in Phase 5. Standard month: 22 days of 8 hours.",
+    "Fixed monthly equivalent = rate x 22 days (daily) or rate x 8 hours x 22 days (hourly). The first cutoff of a month projects SSS and Pag-IBIG compensation as twice the cutoff's earned pay.",
+    "The employee is 'Active' in NCR. The 800/day and 100/hour rates are below the NCR minimum-wage equivalent and are valid fictional rates; the engine only flags them for review."
+  ],
+  "cases": {
+    "dailyTenDaysBaseline": {
+      "description": "PHP 800/day, 10 days: 80 h x 100/h = 8,000 gross. SSS compensation 8,000 x 2 = 16,000 -> MSC 16,000: EE 5% = 800 -> 400.00 per cutoff; ER 1,600 -> 800.00; EC 30/month -> 15.00. PhilHealth on the fixed monthly equivalent 800 x 22 = 17,600: 2.5% = 440 -> 220.00; ER 220.00. Pag-IBIG fund salary capped at 10,000: 2% = 200 -> 100.00. Taxable = 8,000 - 400 - 220 - 100 = 7,280 (<= 10,417: no tax). Net 7,280.",
+      "payBasis": "daily",
+      "rate": 800,
+      "workedDays": 10,
+      "expected": { "grossPay": 8000, "sss": 400, "philHealth": 220, "pagIbig": 100, "taxableCompensation": 7280, "withholdingTax": 0, "deductions": 720, "netPay": 7280, "sssEmployer": 800, "ecEmployer": 15, "philHealthEmployer": 220, "pagIbigEmployer": 100 }
+    },
+    "dailyAbsenceLowersSssNotPhilHealth": {
+      "description": "Same worker with one absence: 9 days = 72 h x 100/h = 7,200 gross. SSS compensation 14,400 -> MSC 14,500 (14,250-14,749.99): EE 725 -> 362.50; ER 1,450 -> 725.00; EC 10/month -> 5.00 (below the 15,000 threshold). PhilHealth is unchanged at 220.00 because its base is the fixed monthly equivalent 17,600, not the worked days. Pag-IBIG 100.00. Taxable = 7,200 - 362.50 - 220 - 100 = 6,517.50. Net 6,517.50.",
+      "payBasis": "daily",
+      "rate": 800,
+      "workedDays": 9,
+      "expected": { "grossPay": 7200, "sss": 362.5, "philHealth": 220, "pagIbig": 100, "taxableCompensation": 6517.5, "withholdingTax": 0, "deductions": 682.5, "netPay": 6517.5, "sssEmployer": 725, "ecEmployer": 5, "philHealthEmployer": 220, "pagIbigEmployer": 100 }
+    },
+    "hourlyEqualsDailyEquivalent": {
+      "description": "PHP 100/hour with the same 10 days: 80 h x 100 = 8,000 gross and the same fixed monthly equivalent 100 x 8 x 22 = 17,600 as the 800/day worker. Every statutory amount must therefore equal the daily baseline: SSS 400.00, PhilHealth 220.00, Pag-IBIG 100.00, net 7,280.",
+      "payBasis": "hourly",
+      "rate": 100,
+      "workedDays": 10,
+      "expected": { "grossPay": 8000, "sss": 400, "philHealth": 220, "pagIbig": 100, "taxableCompensation": 7280, "withholdingTax": 0, "deductions": 720, "netPay": 7280, "sssEmployer": 800, "ecEmployer": 15, "philHealthEmployer": 220, "pagIbigEmployer": 100 }
+    },
+    "dailyHighRateCapsAndTaxes": {
+      "description": "PHP 2,000/day (250/h), 10 days: 80 h x 250 = 20,000 gross. SSS compensation 40,000 is above the cap -> MSC 35,000: EE 1,750 -> 875.00; ER 3,500 -> 1,750.00; EC 30 -> 15.00. PhilHealth on 2,000 x 22 = 44,000: 2.5% = 1,100 -> 550.00; ER 550.00. Pag-IBIG 100.00. Taxable = 20,000 - 875 - 550 - 100 = 18,475, in the 20% bracket: 937.50 + 20% x (18,475 - 16,667) = 937.50 + 361.60 = 1,299.10. Deductions 875 + 550 + 100 + 1,299.10 = 2,824.10. Net 17,175.90.",
+      "payBasis": "daily",
+      "rate": 2000,
+      "workedDays": 10,
+      "expected": { "grossPay": 20000, "sss": 875, "philHealth": 550, "pagIbig": 100, "taxableCompensation": 18475, "withholdingTax": 1299.1, "deductions": 2824.1, "netPay": 17175.9, "sssEmployer": 1750, "ecEmployer": 15, "philHealthEmployer": 550, "pagIbigEmployer": 100 }
+    }
+  },
+  "limitations": [
+    "First cutoff of the month only. The second-cutoff true-up to actual month-to-date pay is certified for monthly workers in Phase 2B and is not repeated for daily or hourly workers here.",
+    "No overtime, night differential, holiday or rest-day premium: those change the SSS and Pag-IBIG bases and are covered by the pay-rules suites.",
+    "Rates are below the NCR minimum-wage equivalent on purpose (the engine only flags them for review); minimum-wage screening is not asserted here.",
+    "Whether the engine should project SSS from the cutoff's earned pay (rather than the monthly equivalent) for a daily worker is a policy position this suite pins, not a legal conclusion; it is flagged for practitioner review."
+  ]
+}
