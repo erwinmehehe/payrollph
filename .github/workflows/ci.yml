@@ -324,6 +324,15 @@ jobs:
           name: payrollph-golden-payroll-phase7
           path: qa-artifacts/golden-payroll-phase7-reconciliation.json
           retention-days: 14
+      - name: Run daily and hourly statutory golden reconciliation (Phase 8)
+        run: npx tsx scripts/golden-payroll-phase8.ts
+      - name: Upload Phase 8 daily and hourly statutory reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase8
+          path: qa-artifacts/golden-payroll-phase8-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
