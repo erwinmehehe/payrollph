@@ -1,9 +1,10 @@
 /** Explicit fictional local/CI runner. Requires an already provisioned PG16 listener. */
 import assert from 'node:assert/strict';import {randomBytes} from 'node:crypto';
-import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';import {spawnSync,spawn} from 'node:child_process';
+import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';import {spawnSync,spawn} from 'node:child_process';
 import {TENANT_TABLE_BASE_ENV} from './tenant-table-env.mjs';
 import {ENTERPRISE_OFF_FLAGS,ENTERPRISE_PROOF_MODE,requireEnterpriseProofEnvironment} from './tenant-enterprise-admin-contract.mjs';
 const keyNames=['PII_ENCRYPTION_KEY','BANK_DATA_ENCRYPTION_KEY','TOTP_ENCRYPTION_KEY','ENTERPRISE_IDENTITY_ENCRYPTION_KEY'];
+for(const file of ['.env','.env.local','.env.production','.env.production.local'])assert.ok(!existsSync(file),'ENTERPRISE_PROOF_REFUSED: use a clean worktree without dotenv files');
 for(const name of ['RESEND_API_KEY','OPENAI_API_KEY','XENDIT_SECRET_KEY','PAYMONGO_SECRET_KEY','NEON_API_KEY'])assert.ok(!process.env[name],'ENTERPRISE_PROOF_REFUSED: external credential configured');
 mkdirSync('outputs',{recursive:true});const file='outputs/enterprise-fixture-env.json';let keys;
 try{keys=JSON.parse(readFileSync(file,'utf8'));}catch(error){

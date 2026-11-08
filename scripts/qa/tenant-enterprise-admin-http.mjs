@@ -7,7 +7,7 @@ import {createRows as enterpriseReadRows} from './tenant-table-rows/read/platfor
 requireEnterpriseProofEnvironment();
 const sourceHead=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 execFileSync('git',['ls-files','--error-unmatch','scripts/qa/tenant-enterprise-admin-http.mjs'],{stdio:'pipe'});
-execFileSync('git',['diff','--quiet','HEAD','--','src','scripts/qa/tenant-enterprise-admin-http.mjs','scripts/qa/tenant-enterprise-admin-contract.mjs','scripts/qa/tenant-enterprise-admin-preload.mjs','scripts/qa/tenant-enterprise-admin-local.mjs','fixtures/qa/enterprise-idp-public.pem'],{stdio:'pipe'});
+execFileSync('git',['diff','--quiet','HEAD','--','src','scripts/qa','fixtures/qa/enterprise-idp-public.pem','package.json','package-lock.json','next.config.ts','tsconfig.json','.github/workflows/tenant-enterprise-admin-http.yml'],{stdio:'pipe'});
 const [{db,pool},s,{eq},f]=await Promise.all([import('../../src/db/index.ts'),import('../../src/db/schema.ts'),import('drizzle-orm'),import('./tenant-table-http.mjs')]);
 const TABLES=['organization_security_policies','identity_providers','identity_domains','scim_tokens','permission_sets','user_permission_assignments','user_organizations','automation_rules','automation_executions','dynamic_worker_groups','employees','payroll_runs','audit_events'];
 const same=(a,b,label)=>assert.ok(JSON.stringify(a)===JSON.stringify(b),label);
