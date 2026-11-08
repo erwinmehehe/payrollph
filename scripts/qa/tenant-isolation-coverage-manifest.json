@@ -9315,7 +9315,7 @@
       ]
     },
     "src/app/api/documents/[id]/route.ts": {
-      "gitBlobSha": "e4decf0b28ff6d0f070d7ee0e5027255590bb816",
+      "gitBlobSha": "0acb38b1396b1e35adf02efd6e033cdd0416e0d0",
       "route": "documents/[id]",
       "methods": [
         {
@@ -9435,7 +9435,17 @@
           "line": 71,
           "token": "organizationId"
         }
-      ]
+      ],
+      "sourceRevisionReview": {
+        "kind": "tenant-private-document-active-membership-prefilter-review-only",
+        "oldRouteBlobSha": "e4decf0b28ff6d0f070d7ee0e5027255590bb816",
+        "newRouteBlobSha": "0acb38b1396b1e35adf02efd6e033cdd0416e0d0",
+        "sourceContractTest": "tests/tenant-private-document-id-boundary.test.mjs",
+        "currentHeadAuthenticatedPg16Http": "PENDING",
+        "independentSecurityReview": "PENDING",
+        "productionCertified": false,
+        "noNewMethodCredit": true
+      }
     },
     "src/app/api/documents/route.ts": {
       "gitBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
@@ -10165,7 +10175,7 @@
       ]
     },
     "src/app/api/employee-vault/[id]/route.ts": {
-      "gitBlobSha": "001d4aab560bb2678e386063860ae160f0473bb4",
+      "gitBlobSha": "fb346a433734d5c574d2bef1b5c44b031954156b",
       "route": "employee-vault/[id]",
       "methods": [
         {
@@ -10273,7 +10283,17 @@
           "line": 57,
           "token": "employeeId"
         }
-      ]
+      ],
+      "sourceRevisionReview": {
+        "kind": "tenant-private-document-active-membership-prefilter-review-only",
+        "oldRouteBlobSha": "001d4aab560bb2678e386063860ae160f0473bb4",
+        "newRouteBlobSha": "fb346a433734d5c574d2bef1b5c44b031954156b",
+        "sourceContractTest": "tests/tenant-private-document-id-boundary.test.mjs",
+        "currentHeadAuthenticatedPg16Http": "PENDING",
+        "independentSecurityReview": "PENDING",
+        "productionCertified": false,
+        "noNewMethodCredit": true
+      }
     },
     "src/app/api/employee-vault/route.ts": {
       "gitBlobSha": "db9cacd86bd9f19f92d64206544a4b6ab448bb00",
