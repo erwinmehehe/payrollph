@@ -119,7 +119,7 @@ test("WPS-01 never reclassifies the canonical workforce scenario POST GAP", () =
   const source = route.toString();
   for (const safeguard of [
     "enforceSameOriginMutation(request)", "getSessionUser()",
-    "assertOrganizationRole(", "getAccess(user.id, organizationId)",
+    "assertOrganizationRole(", "workforceAccess(user.id, organizationId)", "getAccess(userId, organizationId)",
     "eq(workforcePlans.organizationId, organizationId)",
     "eq(orgUnits.organizationId, organizationId)",
     "db.transaction(async (tx) =>",
