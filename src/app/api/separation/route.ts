@@ -576,7 +576,18 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
     let leaveTax: ReturnType<typeof classifyPrivateVacationLeave> | null = null;
+    const leaveTaxDate = String(body.leaveTaxDate ?? "").trim();
     if (leaveTaxBasis === "private_vacation_de_minimis") {
+      // The limit is effective on the expected payment date, not blindly on
+      // the worker's last day. Cross-tax-year settlement needs a separate
+      // annualization workflow and is not silently guessed here.
+      if (!validSeparationDate(leaveTaxDate) || leaveTaxDate < lastDay ||
+          leaveTaxDate.slice(0, 4) !== lastDay.slice(0, 4)) {
+        return Response.json({
+          code: "FINAL_PAY_LEAVE_TAX_DATE_REVIEW_REQUIRED",
+          error: "Enter a valid reviewed expected leave payout date on or after the last day in the same taxable year. Cross-year payments require a separate tax reconciliation.",
+        }, { status: 422 });
+      }
       if (unusedLeaveCredits <= 0) {
         return Response.json({ code: "FINAL_PAY_LEAVE_TAX_BASIS_INVALID",
           error: "A vacation-leave de minimis review requires positive authorized leave days." }, { status: 422 });
@@ -592,7 +603,7 @@ export async function POST(request: Request) {
         .reduce((sum, row) => sum + Number(row.daysConverted), 0);
       try {
         leaveTax = classifyPrivateVacationLeave({
-          taxDate: lastDay,
+          taxDate: leaveTaxDate,
           leaveType: unusedLeaveType,
           days: unusedLeaveCredits,
           dailyRate: sources.resolvedPayProfile.dailyRate,
@@ -691,7 +702,7 @@ export async function POST(request: Request) {
       retirementPayTaxExempt,
       taxClassification: {
         reviewerUserId: user.id,
-        taxDate: lastDay,
+        taxDate: leaveTax ? leaveTaxDate : lastDay,
         leaveTaxBasis,
         leave: leaveTax ? {
           annualExemptDayLimit: leaveTax.annualExemptDayLimit,
