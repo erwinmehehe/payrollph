@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {mkdirSync} from 'node:fs';
-import {mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import test from 'node:test';
 import {OFF,ABSENT} from '../scripts/qa/tenant-recovery-local-contract.mjs';
@@ -29,9 +28,6 @@ test('preload refuses every non-fixture HTTPS, DNS and fetch destination',()=>{
   // A pristine CI checkout has no generated outputs directory. The sealed
   // fixture preload writes initial zeroed transport counters on import; create
   // only its local destination without touching the pinned proof or egress guard.
-  mkdirSync('outputs',{recursive:true});
-  // The sealed preload writes its sanitized counters immediately on import.
-  // Prepare the disposable output folder here without changing proof-pinned code.
   mkdirSync('outputs',{recursive:true});
   const child=spawnSync(process.execPath,['--import','./scripts/qa/tenant-security-write-preload.mjs','--input-type=module','-e',code],{env,encoding:'utf8'});
   assert.equal(child.status,0,child.stderr);assert.match(child.stdout,/EGRESS_REFUSED/);
