@@ -88,3 +88,25 @@ test("dedicated real HTTP run covers two owners, nonmatching worker, all actions
     assert.ok(workflow.includes(item), "missing safe isolated step: " + item);
   assert.doesNotMatch(workflow, /workflow_dispatch|secrets\./);
 });
+
+
+test("new caller receipt refuses source drift and grants zero credits", async () => {
+  const { verifyCurrentHcmCallerReproof } =
+    await import("../scripts/qa/tenant-hcm-lifecycle-caller-source-refresh-verify.mjs");
+  const receipt = verifyCurrentHcmCallerReproof();
+  assert.equal(receipt.kind, "SOURCE_CURRENT_DOCUMENT_CALLER_REPROOF");
+  assert.equal(receipt.jobConclusion, "success");
+  assert.equal(receipt.result.result, "PASS");
+  assert.equal(receipt.credits, 0);
+  assert.equal(receipt.productionCertified, false);
+  assert.equal(receipt.independentSecurityReview, "PENDING");
+  assert.equal(receipt.auditVetoReview, "PENDING");
+  for (const path of [
+    "scripts/qa/tenant-hcm-lifecycle-caller-source-refresh.json",
+    "src/app/api/hcm/lifecycle-notifications/route.ts",
+    "src/lib/hcm-lifecycle-notification-tenant.ts",
+    "scripts/qa/hcm-work-queue-http.mjs",
+  ]) assert.throws(() => verifyCurrentHcmCallerReproof((file, encoding) =>
+    file === path ? readFileSync(file, encoding) + "\n" : readFileSync(file, encoding)),
+  "source-current executed caller evidence must fail closed when modified: " + path);
+});
