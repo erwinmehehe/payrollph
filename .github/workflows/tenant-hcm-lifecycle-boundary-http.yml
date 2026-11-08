@@ -127,3 +127,83 @@ jobs:
       - name: Display disposable server diagnostics only on failure
         if: failure()
         run: tail -n 100 /tmp/hcm-lifecycle-boundary-next.log || true
+
+  hmo-and-hcm-caller-reproof:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      HCM_GOVERNANCE_READINESS_ENABLED: "true"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      SMTP_URL: ""
+      STRIPE_SECRET_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Isolate the existing 208-input document/HMO/HCM caller suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http' >> "$GITHUB_ENV"
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Start isolated production-mode app for the historical caller re-execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/hcm-lifecycle-caller-reproof-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 120 /tmp/hcm-lifecycle-caller-reproof-next.log
+          exit 1
+      - name: Re-execute unchanged two-attacker HCM queue and four HMO POST actions
+        run: node --import tsx scripts/qa/tenant-document-caller-reproof-http.mjs
+      - name: Display localhost diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/hcm-lifecycle-caller-reproof-next.log || true
