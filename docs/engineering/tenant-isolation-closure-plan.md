@@ -1,4 +1,4 @@
-> **Current combined PR #1826 billing + main year-end proposal — NOT ACCEPTED:** 498 methods = 438 COVERED / 11 PUBLIC-BY-DESIGN / 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Prior year-end GET/POST and new subscription start/cancel POST receipts are distinct and provisional; fresh exact-head CI and independent security/payroll/billing review PENDING. No production acceptance.
+> **Current combined PR #1826 billing + main year-end proposal — NOT ACCEPTED:** 498 methods = 438 COVERED + 11 PUBLIC-BY-DESIGN + 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Prior year-end GET/POST and new subscription start/cancel POST receipts are distinct and provisional; fresh exact-head CI and independent security/payroll/billing review PENDING. No production acceptance.
 
 > **Main baseline before this draft — SOLO_VERIFIED_DEV_RECOVERY:** 434 COVERED / 11 PUBLIC-BY-DESIGN / 53 GAP. Three methods from #1829 OFF-profile PG16 receipt; no production acceptance.
 
