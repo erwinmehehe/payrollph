@@ -459,9 +459,17 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       .replaceAll("throw new TransferDecisionConflict(", "throw new Error(");
     assert.equal(gitBlobSha(Buffer.from(restored)), "a27a0b307cd5dd0ef2bb26a83eae0bb94248e733",
       "No source change beyond the reviewed POST/PATCH error boundary is allowed");
+    const dedicatedCredit = method.name !== "GET" && method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-transfers-http.mjs";
+    if (dedicatedCredit) {
+      // Credited by the later dedicated two-attacker proof (#1853); its exact pins are verified by the dedicated test at the end of this file.
+      assert.equal(method.reviewedUncertified, undefined, "the superseded candidate hold is removed, not kept beside a credit");
+    } else {
     assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP",
       "Source hardening must not grant unreviewed write-method credit");
-    if (method.name === "GET") {
+    }
+    if (dedicatedCredit) {
+      // no further hold checks apply to a credited method
+    } else if (method.name === "GET") {
       assert.equal(method.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
         "Preserve the earlier GET own/foreign proof");
     } else {
@@ -471,7 +479,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
         "Source and PG16 evidence must match the uncredited transfer review");
     }
     for (const [file, sha] of [
-      ["tests/tenant-multi-entity-transfers-write-candidate.test.mjs", "98015ffb48b1832c5f618405b1c9b230e99876bb"],
+      // Repinned after #1853: this candidate test now asserts the dedicated credit instead of the GAP hold. Reviewed together with the dedicated proof.
+      ["tests/tenant-multi-entity-transfers-write-candidate.test.mjs", "6c552aa240f537c54db74815b44a5b66339d6649"],
       ["scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "f628eb48ac5bd0064c7da5915d8b51c990ab3a32"],
       [".github/workflows/multi-entity-browser-qa.yml", "ae71b132c1e495f58a0589a5fc44a956e85fc924"],
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
@@ -4825,6 +4834,22 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 128584165166);
         continue;
       }
+      // POST and PATCH multi-entity/transfers: dedicated two-attacker receipt (#1853, no provider, no money); pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-transfers-http.mjs") {
+        assert.equal(path, "src/app/api/multi-entity/transfers/route.ts", "No unrelated route may reuse the transfers evidence");
+        assert.ok(["POST", "PATCH"].includes(method.name));
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.externalProviderCalled, false);
+        assert.equal(proof.moneyMovedByLinaw, false);
+        assert.equal(proof.proofPullRequest, 1853);
+        assert.equal(proof.mergedProofCommit, "073e23f019c00fc6638e2c2854a22a7fda4281b0");
+        assert.equal(proof.verifiedPrHeadSha, "538c70b05588d1aae223e32d11230cb5a715afdf");
+        assert.equal(proof.workflowRunId, 42480658953);
+        assert.equal(proof.workflowJobId, 128731654457);
+        continue;
+      }
       // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt (test-only exact-host provider preload); pins are checked by the dedicated test at the end of this file.
       if (proof?.file === "scripts/qa/tenant-pos-demand-http.mjs") {
         assert.ok(["src/app/api/workforce/demand-observations/loyverse/route.ts", "src/app/api/workforce/demand-observations/square-sandbox/route.ts"].includes(path),
@@ -6895,7 +6920,6 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
   }
   const held = [
     ["bir/annual-employer/candidate", "POST"],
-    ["multi-entity/transfers", "POST"], ["multi-entity/transfers", "PATCH"],
     ["workforce-planning", "POST"],
     ["workforce-planning", "PATCH"], ["workforce-planning/scenarios", "POST"],
   ];
@@ -7482,5 +7506,67 @@ test("POS demand credit (loyverse and square-sandbox GET/POST) requires the exac
     assert.equal(proof.foreignDenialLine, methodName === "GET" ? proof.foreignGetDenialLine : proof.foreignPostDenialLine);
     // The routes must keep the authenticated scope checks the proof exercises.
     for (const token of ["getSessionUser(", "assertOrganizationRole("]) assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
+  }
+});
+
+test("multi-entity transfers credit (POST and PATCH) requires the exact passing run, byte-pinned inputs, no provider and every cited proof line", () => {
+  const harnessFile = "scripts/qa/tenant-transfers-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-transfers-http.yml", "utf8");
+  for (const token of ["image: postgres:16", "fictional-multi-entity-transfers-http:", "node scripts/qa/tenant-table-env.mjs multi-entity", "XENDIT_PAYOUTS_ENABLED=false",
+    "PAYMONGO_DISBURSEMENTS_ENABLED=false", "WORKER_ENABLED=false", "node --import tsx scripts/qa/tenant-transfers-http.mjs"]) assert.ok(workflow.includes(token), "workflow lacks " + token);
+  assert.ok(!workflow.includes("secrets."), "the proof workflow must hold no secret");
+  assert.ok(harness.includes("requireDisposableTransfers();"), "fail-closed target guard required");
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  const routePath = "src/app/api/multi-entity/transfers/route.ts";
+  const route = readFileSync(routePath, "utf8");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.equal(api.gitBlobSha, "a4ac9ec92df17492c4c0918f08114660bc4c6ebe", "the proof was written against this exact route");
+  assert.equal(gitBlobSha(Buffer.from(route)), api.gitBlobSha);
+  for (const methodName of ["POST", "PATCH"]) {
+    const method = api.methods.find(entry => entry.name === methodName);
+    assert.equal(method.status, "COVERED", methodName);
+    assert.equal(method.reviewedUncertified, undefined, methodName + ": the superseded hold must be gone");
+    const proof = method.testedBy;
+    assert.equal(proof.file, harnessFile);
+    assert.equal(proof.postgresMajor, 16);
+    assert.equal(proof.providerMode, "none-configured");
+    assert.equal(proof.externalProviderCalled, false);
+    assert.equal(proof.moneyMovedByLinaw, false);
+    assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 multi-entity-transfers-two-methods PASS");
+    assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+    assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+    assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-transfers-contract.mjs")));
+    assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-transfers-contract.test.mjs")));
+    assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+    assert.equal(proof.routeBlobSha, api.gitBlobSha);
+    assert.equal(proof.line, proof.ownPositiveLine);
+    cites(proof.ownPostLine, "const proposed = await propose(attacker);", "own proposal anchor");
+    cites(proof.replayConflictLine, "assert.equal(replay.status, 409);", "replay conflict anchor");
+    cites(proof.foreignPostDenialLine, "const foreignOrg = await propose(attacker,", "foreign proposal denial anchor");
+    cites(proof.foreignWorkerSameAnswerLine, "assertSameAnswer(foreignWorker, absent,", "foreign worker indistinguishable-from-absent anchor");
+    cites(proof.anonymousPostLine, "401, forbidden", "anonymous proposal anchor");
+    cites(proof.crossSitePostLine, 'crossSite("POST"', "cross-site proposal anchor");
+    cites(proof.postUnchangedDbLine, 'mustStayUnchanged("refused proposals")', "proposal unchanged-snapshot anchor");
+    cites(proof.makerSelfApprovalRefusedLine, "the maker cannot approve their own request", "maker self-approval anchor");
+    cites(proof.ownPatchLine, 'const approved = await decide(attacker, transferId, "approve");', "own approval anchor");
+    cites(proof.ownRejectLine, 'const rejected = await decide(attacker, second.json.transfer.id, "reject");', "own rejection anchor");
+    cites(proof.foreignPatchDenialLine, "assertRefusal(foreignDecision, 404, forbidden);", "foreign decision denial anchor");
+    cites(proof.foreignTransferSameAnswerLine, "assertSameAnswer(foreignDecision, absentDecision,", "foreign transfer indistinguishable-from-absent anchor");
+    cites(proof.anonymousPatchLine, 'method: "PATCH", body:', "anonymous decision anchor");
+    cites(proof.crossSitePatchLine, 'crossSite("PATCH"', "cross-site decision anchor");
+    cites(proof.patchUnchangedDbLine, 'mustStayUnchanged("refused decisions")', "decision unchanged-snapshot anchor");
+    cites(proof.approvalUnchangedDbLine, 'mustStayUnchanged("own approval")', "approval unchanged-snapshot anchor");
+    cites(proof.victimIdOrderingLine, "victim.owner.id > Math.max(a.owner.id, b.owner.id, 6)", "high-ID victim anchor");
+    cites(proof.twoAttackersLine, 'for (const [attacker, other, key] of [[a, b, "A"], [b, a, "B"]])', "two independent attackers anchor");
+    assert.equal(proof.line, methodName === "POST" ? proof.ownPostLine : proof.ownPatchLine);
+    assert.equal(proof.foreignDenialLine, methodName === "POST" ? proof.foreignPostDenialLine : proof.foreignPatchDenialLine);
+    assert.equal(proof.unchangedDbLine, methodName === "POST" ? proof.postUnchangedDbLine : proof.patchUnchangedDbLine);
+  }
+  // The route must keep the authentication, same-origin, MFA, membership and maker-checker bounds the proof exercises.
+  for (const token of ["getSessionUser(", "enforceSameOriginMutation(", "requireSensitiveActionMfa(", "resolveMultiEntityContext(", "canActOnEntityTransfer(", "pg_advisory_xact_lock"]) {
+    assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
   }
 });
