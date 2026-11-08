@@ -105,6 +105,26 @@ test("mail evidence needs the right fictional recipient and a nonempty token-bea
       "https://payroll.example.test/verify-email?token=" + "a".repeat(48),
   };
   assert.equal(assertLocalSmtpMessage(m, ownEmail), "a".repeat(48));
+
+  const body = "https://payroll.example.test/verify-email?token=" + "a".repeat(48);
+  const base64 = {
+    recipients: [ownEmail],
+    data: "To: " + ownEmail + "\r\nSubject: Verify your new Linaw email\r\n" +
+      "Content-Transfer-Encoding: base64\r\n\r\n" +
+      Buffer.from(body).toString("base64").replace(/.{40}/g, "  assert.equal(assertLocalSmtpMessage(m, ownEmail), "a".repeat(48));\r\n"),
+  };
+  assert.equal(assertLocalSmtpMessage(base64, ownEmail), "a".repeat(48),
+    "MIME base64 must decode before deciding a real verification token is absent");
+  const qp = {
+    recipients: [ownEmail],
+    data: "To: " + ownEmail + "\r\nSubject: Verify your new Linaw email\r\n" +
+      "Content-Transfer-Encoding: quoted-printable\r\n\r\n" +
+      "https://payroll.example.test/verify-email?token=3D" +
+      "a".repeat(22) + "=\r\n" + "a".repeat(26),
+  };
+  assert.equal(assertLocalSmtpMessage(qp, ownEmail), "a".repeat(48),
+    "quoted-printable soft lines and equals-encoding must decode");
+
   for (const bad of [
     { ...m, recipients: ["victim@example.invalid"] },
     { ...m, recipients: [ownEmail, "other@example.invalid"] },
