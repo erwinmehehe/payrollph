@@ -1,4 +1,5 @@
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
+import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
@@ -302,7 +303,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       contractFile: "scripts/qa/tenant-account-email-request-contract.mjs",
       contractBlobSha: "f654b5516bb816358f8983b991c7240350e8799f",
       testFile: "tests/tenant-account-email-request-contract.test.mjs",
-      testBlobSha: "bbb024a3b62122dacf97d8732e949aa058061a58",
+      testBlobSha: "4335215197f2b539964c17fde8941fa39d111a07",
       workflowFile: ".github/workflows/tenant-account-email-request-http.yml",
       workflowBlobSha: "9a2af396fa9ea70adca8ebf7035bd41a83b8829f",
       coverageCredits: 0,
@@ -2869,38 +2870,34 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   }
 
 
-  if (isNewOrChanged && ["src/app/api/year-end/route.ts GET", "src/app/api/year-end/route.ts POST"].includes(key)) {
-    // Exact reviewed source candidate only: no HTTP or financial acceptance.
-    const expected = {
-      kind: "year-end-binding-atomic-source-only-zero-credit",
-      priorRouteBlobSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-      routeBlobSha: "f040f5bbbc3df275d32d23f1728b1b0345f77814",
-      contractFile: "tests/year-end-binding-transaction-contract.test.mjs",
-      contractBlobSha: "9562442c4d9e7d820027630cead6d753c0fc3767",
-      annualizationBlobSha: "7194658c42b9ef33c84acd84ab356c28c6303883",
-      queueBlobSha: "961cfb5535063a9683b04dbd5260c2a9730ffd66",
-      currentQueueBlobSha: "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
-      queueSourceChange: "Work-date anchor only; no inherited year-end source credit or financial acceptance",
-      credits: 0, actualPg16Http: "PENDING",
-      independentSecurityReview: "PENDING", productionCertified: false,
-    };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
-    assert.equal(currentBlob, expected.routeBlobSha);
-    assert.deepEqual(method.reviewedUncertified, expected);
+  if (isNewOrChanged && ["src/app/api/year-end/route.ts GET",
+      "src/app/api/year-end/route.ts POST"].includes(key)) {
+    // Old #1730 proof is source-revoked by #1744. A distinct #1804 fictional
+    // PG16 real-HTTP run now proves both current-source year-end methods.
+    assert.equal(currentBlob, YEAR_END_SOURCE_PINS["src/app/api/year-end/route.ts"]);
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy?.proofPullRequest, 1804);
+    assert.equal(method.testedBy?.workflowRunId, 42254117862);
+    assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+    assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
+    assert.equal(method.testedBy?.productionCertified, false);
+    assert.equal(method.reviewedUncertified, undefined);
+    assert.equal(verifyYearEndCredits(manifest), 2);
     for (const [file, hash] of [
-      [expected.contractFile, expected.contractBlobSha],
-      ["src/lib/year-end.ts", expected.annualizationBlobSha],
-      ["src/lib/payroll-engine.ts", expected.currentQueueBlobSha],
-    ]) assert.equal(gitBlobSha(readFileSync(file)), hash);
+      ["tests/year-end-binding-transaction-contract.test.mjs",
+        "9562442c4d9e7d820027630cead6d753c0fc3767"],
+      ["src/lib/year-end.ts", "7194658c42b9ef33c84acd84ab356c28c6303883"],
+      ["src/lib/payroll-engine.ts", "dc5719a2c34094b5449bf4ecacb198ab0d74a313"],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
+      "Financial binding dependency changed; require new PG16 proof");
     const source = readFileSync("src/app/api/year-end/route.ts", "utf8");
     assert.match(source, /\.innerJoin\(employees, and\([\s\S]*?eq\(employees\.organizationId, organizationId\)/,
-      "Year-end tax read must not join employee rows from a different employer");
+      "Cross-employer employee joins are forbidden");
     assert.equal(gitBlobSha(Buffer.from(source.split("export async function POST")[0])),
-      "9f1b67735c5178d0e2172568243e25ff01b964cc", "The reviewed GET join and shared pre-POST source must remain unchanged");
+      "9f1b67735c5178d0e2172568243e25ff01b964cc");
     for (const token of ["onBoundToPayrollRun: async (tx, boundSummary) => {",
       "await enqueuePayrollRun(boundRun.id, undefined, tx);", "}, tx);"])
-      assert.ok(source.includes(token));
+      assert.ok(source.includes(token), "Atomic bind guard missing: " + token);
     return;
   }
 
@@ -4794,9 +4791,25 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(path + " " + method.name, "src/app/api/auth/logout/route.ts POST", "No unrelated method may reuse the auth logout evidence");
         assert.equal(proof.independentSecurityReview, "PENDING");
         assert.equal(proof.productionTested, false);
-        assert.equal(proof.verifiedPrHeadSha, "b32c2286ea6ef91cbe2f2f227f01278de613588d");
-        assert.equal(proof.workflowRunId, 42203481558);
-        assert.equal(proof.workflowJobId, 127844239303);
+        assert.equal(proof.verifiedPrHeadSha, "af5cfba882c2461594f5c30b5e44aecfa4f660d4");
+        assert.equal(proof.workflowRunId, 42432472070);
+        assert.equal(proof.workflowJobId, 128584165166);
+        continue;
+      }
+      // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt (test-only exact-host provider preload); pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-pos-demand-http.mjs") {
+        assert.ok(["src/app/api/workforce/demand-observations/loyverse/route.ts", "src/app/api/workforce/demand-observations/square-sandbox/route.ts"].includes(path),
+          "No unrelated route may reuse the POS-demand evidence");
+        assert.ok(["GET", "POST"].includes(method.name));
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.externalProviderCalled, false);
+        assert.equal(proof.providerMode, "test-only-exact-host-preload");
+        assert.equal(proof.proofPullRequest, 1806);
+        assert.equal(proof.mergedProofCommit, "6e0bf18bb6c3f81847f9a0b40163c77eff3850f0");
+        assert.equal(proof.verifiedPrHeadSha, "d2e610e63c0bdc3463587b8a3eec0bd3cd4dd9b1");
+        assert.equal(proof.workflowRunId, 42241996122);
+        assert.equal(proof.workflowJobId, 127974379036);
         continue;
       }
       // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt (test-only exact-host provider preload); pins are checked by the dedicated test at the end of this file.
@@ -5525,6 +5538,14 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/careers/admin/route.ts" && method.name === "PATCH") {
         assert.equal(verifyCareersPatchCredit(manifest), 1);
+        continue;
+      }
+      if (path === "src/app/api/year-end/route.ts" &&
+          ["GET", "POST"].includes(method.name)) {
+        // Scope-locked exception: a separate source-pinned #1804 real-HTTP proof,
+        // never an additional general proof-file allowlist entry.
+        assert.equal(proof.file, "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs");
+        assert.equal(verifyYearEndCredits(manifest), 2);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
@@ -7139,7 +7160,28 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
   assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
   assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
   assert.equal(api.gitBlobSha, proof.routeBlobSha);
-  assert.equal(proof.routeBlobSha, "290f703135c3051d5feb8a3dd594ce9b29da3796", "the proof was written against this exact route");
+  assert.equal(proof.routeBlobSha, "5e385d15d457620af0bcbd910bc0fe535103c53e", "the proof was written against this exact route");
+  assert.deepEqual(proof.integrityReproof.pins, {
+  "src/app/api/auth/logout/route.ts": "5e385d15d457620af0bcbd910bc0fe535103c53e",
+  "src/lib/revoke-presented-session.ts": "e6bd056401cf8998950834732b6c2f2e83508f88",
+  "scripts/qa/tenant-auth-logout-http.mjs": "6b2b45bf6f06580d88db03ca29d0ac546bc3514b",
+  "scripts/qa/tenant-auth-logout-contract.mjs": "36516e9ce60b75109f325df2a4047bb2cb9b3154",
+  "tests/tenant-auth-logout-contract.test.mjs": "3c1e4222c0c549a282202c614aa12bb60bc5608a",
+  ".github/workflows/tenant-auth-logout-http.yml": "f3359240462e4bbd732e9186f0336e950b1e7c17",
+  "scripts/qa/tenant-approval-task-contract.mjs": "aec1742a120c93e7c2f54ab127bd8312501c733a",
+  "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+  "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
+  "scripts/qa/apply-isolated-baseline.mjs": "75b9e7f1b39a6ca5b2253086e519ae7d71229255",
+  "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+  "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+  "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+  "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+  "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02"
+});
+  for (const [file, sha] of Object.entries(proof.integrityReproof.pins)) assert.equal(gitBlobSha(readFileSync(file)), sha, "Logout reproof input changed: " + file);
+  assert.ok(harness.includes("assert.deepEqual(afterReplay, afterFirst"), "replay must compare every SQL field");
+  const helper = readFileSync("src/lib/revoke-presented-session.ts", "utf8");
+  for (const guard of ["eq(sessions.tokenHash, sha256(token))", "isNull(sessions.revokedAt)"]) assert.ok(helper.includes(guard));
   assert.equal(proof.line, proof.ownPositiveLine);
   const lines = harness.split(String.fromCharCode(10));
   const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
@@ -7154,7 +7196,7 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
     assert.ok(harness.includes(token), "harness lacks " + token);
   }
   // The credited route must keep the same-origin check and revoke only the token in the caller's own cookie.
-  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokeSession(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
+  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokePresentedSessionOnce(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
   assert.ok(!/await request\.(?:json|formData)\(/.test(route), "the route must never read an identity from the request body");
 });
 
@@ -7285,6 +7327,66 @@ test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) require
     return xenditContext.indexOf(token);
   });
   assert.deepEqual([...gateOrder].sort((x, y) => x - y), gateOrder, "session, treasury, unit scope and legal employer must precede the read");
+});
+
+test("POS demand credit (loyverse and square-sandbox GET/POST) requires the exact passing run, byte-pinned inputs, a test-only provider and every cited proof line", () => {
+  const harnessFile = "scripts/qa/tenant-pos-demand-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-pos-demand-http.yml", "utf8");
+  const mock = readFileSync("scripts/qa/tenant-pos-demand-provider-mock.cjs", "utf8");
+  for (const token of ["image: postgres:16", "pos-demand-four-methods:", "TENANT_POS_DEMAND_PROOF=fictional-provider-only", 'echo "WFM_LOYVERSE_ACCESS_TOKEN="',
+    'echo "WFM_SQUARE_SANDBOX_ACCESS_TOKEN="', 'echo "PAYMONGO_SECRET_KEY="']) assert.ok(workflow.includes(token), "workflow lacks " + token);
+  for (const token of ["POS_MOCK_BLOCKED_EXTERNAL_NETWORK", "api.loyverse.com"]) assert.ok(mock.includes(token), "provider mock lacks " + token);
+  assert.ok(harness.includes("requireDisposablePosDemand();"), "fail-closed target guard required");
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  const targets = [
+    ["src/app/api/workforce/demand-observations/loyverse/route.ts", "GET", "84125e11d3b6558922ceec600c2ccb8f0a778afb"],
+    ["src/app/api/workforce/demand-observations/loyverse/route.ts", "POST", "84125e11d3b6558922ceec600c2ccb8f0a778afb"],
+    ["src/app/api/workforce/demand-observations/square-sandbox/route.ts", "GET", "de84727241fdd90dcaf2f7138bdd54f751ec2f95"],
+    ["src/app/api/workforce/demand-observations/square-sandbox/route.ts", "POST", "de84727241fdd90dcaf2f7138bdd54f751ec2f95"],
+  ];
+  for (const [routePath, methodName, routeBlob] of targets) {
+    const route = readFileSync(routePath, "utf8");
+    const api = manifest.allApiRouteFiles[routePath];
+    const method = api.methods.find(entry => entry.name === methodName);
+    assert.equal(method.status, "COVERED", routePath + " " + methodName);
+    const proof = method.testedBy;
+    assert.equal(proof.file, harnessFile);
+    assert.equal(proof.postgresMajor, 16);
+    assert.equal(proof.providerMode, "test-only-exact-host-preload");
+    assert.equal(proof.externalProviderCalled, false);
+    assert.equal(proof.moneyMovedByLinaw, false);
+    assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 pos-demand-four-methods PASS");
+    assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+    assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+    assert.equal(proof.contractBlobSha, gitBlobSha(readFileSync("scripts/qa/tenant-pos-demand-contract.mjs")));
+    assert.equal(proof.mockBlobSha, gitBlobSha(Buffer.from(mock)));
+    assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-pos-demand-contract.test.mjs")));
+    assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+    assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+    assert.equal(api.gitBlobSha, proof.routeBlobSha);
+    assert.equal(proof.routeBlobSha, routeBlob, "the proof was written against this exact route");
+    assert.equal(proof.line, proof.ownPositiveLine);
+    cites(proof.ownGetLine, "assertOwnGet(own, actor, provider, actor.site);", "own GET anchor");
+    cites(proof.ownDryRunLine, "assertOwnPost(dry, provider, true);", "own dry-run anchor");
+    cites(proof.ownPostLine, "assertOwnPost(stored, provider, false);", "own applied POST anchor");
+    cites(proof.foreignGetDenialLine, "real high-ID victim GET", "foreign GET denial anchor");
+    cites(proof.foreignPostDenialLine, "real high-ID victim POST", "foreign POST denial anchor");
+    cites(proof.stolenWorksiteGetLine, "stolen victim worksite GET", "stolen worksite GET anchor");
+    cites(proof.stolenWorksitePostLine, "stolen victim worksite POST", "stolen worksite POST anchor");
+    cites(proof.anonymousGetLine, "anonymous GET", "anonymous GET anchor");
+    cites(proof.anonymousPostLine, "anonymous POST", "anonymous POST anchor");
+    cites(proof.dryRunWritesNothingLine, "dry-run must write nothing", "dry-run writes nothing anchor");
+    cites(proof.unchangedDbLine, "successful POST", "own write unchanged-elsewhere anchor");
+    cites(proof.victimIdOrderingLine, "victim.org.id > Math.max(a.org.id, b.org.id)", "high-ID victim anchor");
+    cites(proof.twoAttackersLine, "for (const actor of [a, b, victim])", "two independent attackers anchor");
+    assert.equal(proof.line, methodName === "GET" ? proof.ownGetLine : proof.ownPostLine);
+    assert.equal(proof.foreignDenialLine, methodName === "GET" ? proof.foreignGetDenialLine : proof.foreignPostDenialLine);
+    // The routes must keep the authenticated scope checks the proof exercises.
+    for (const token of ["getSessionUser(", "assertOrganizationRole("]) assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
+  }
 });
 
 test("POS demand credit (loyverse and square-sandbox GET/POST) requires the exact passing run, byte-pinned inputs, a test-only provider and every cited proof line", () => {

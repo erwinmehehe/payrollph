@@ -103,16 +103,14 @@ export async function verifyAuthLogoutTenantIsolation() {
       assert.ok(rows.find((row) => row.revokedAt).tokenHash !== rows.find((row) => !row.revokedAt).tokenHash);
       assert.equal((await account(device[key].one)).status, 401, "the presented session is revoked");
       assert.equal((await account(device[key].two)).status, 200, "the caller's other device still works");
-      // A replayed logout of an already-revoked session is the same constant answer. Observed route behavior: the revoke has no
-      // "only if not already revoked" guard, so the replayed session's own revokedAt is re-stamped (still revoked, never cleared).
-      // Everything else, including the caller's other device and every other account, is untouched.
+      // A replay must be a complete SQL no-op, including the original revocation
+      // timestamp. Delay past millisecond precision so an unconditional UPDATE
+      // cannot pass merely because two requests happened in the same instant.
       const afterFirst = await sessionRows(attacker.owner.id);
+      await new Promise(resolve => setTimeout(resolve, 30));
       assertLogoutOk(await logout(device[key].one, {}));
       const afterReplay = await sessionRows(attacker.owner.id);
-      const stripRevoked = (rows) => rows.map(({ revokedAt, ...rest }) => ({ ...rest, revoked: Boolean(revokedAt) }));
-      assert.deepEqual(stripRevoked(afterReplay), stripRevoked(afterFirst), "a replayed logout changes nothing but the replayed session's revocation timestamp");
-      const stamped = afterReplay.filter((row, index) => String(row.revokedAt) !== String(afterFirst[index].revokedAt));
-      assert.ok(stamped.length <= 1 && stamped.every((row) => row.revokedAt), "at most the replayed session is re-stamped, and it stays revoked");
+      assert.deepEqual(afterReplay, afterFirst, "logout replay must preserve every SQL field and the first revokedAt timestamp");
       assertRowsUnchanged(otherBefore, await snapshot(other), "the other attacker after " + attacker.label + "'s logout");
       assertRowsUnchanged(victimBefore, await snapshot(victim), "victim after " + attacker.label + "'s logout");
       assert.equal(await live(other.owner.id), otherLiveBefore, otherKey + " keeps exactly the devices it had");
