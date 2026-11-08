@@ -22,3 +22,5 @@ Open the resulting local HTML file in a browser. The viewer uses inline CSS, no 
 Do not run this viewer on a customer's real report by adding a fictional marker. For a real employer, use the existing private `#579` handoff and approved encrypted evidence vault. The canonical verifier and independent reviewer remain authoritative; this viewer adds no reconciliation logic and no production gate.
 
 Regression test: `node --test tests/fictional-parallel-report-viewer.test.mjs`.
+Windows note: output files inherit Windows ACLs; the POSIX `0600` mode is not a Windows privacy guarantee. This viewer accepts only explicitly fictional fixtures and must not be used to render real employer reports. Linux/macOS output still requires owner-only `0600` permissions, and all platforms refuse to overwrite an existing output file.
+

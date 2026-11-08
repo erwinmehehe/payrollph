@@ -67,7 +67,7 @@ test("viewer refuses real/unmarked input, unexpected worker fields and false mat
   assert.throws(() => validateFictionalParallelReport(hiddenIssue), /conflicts with incomplete/);
 });
 
-test("CLI creates a private offline HTML file, refuses overwrites and requires opt-in", (t) => {
+test("CLI creates offline HTML (POSIX 0600), refuses overwrites and requires opt-in", (t) => {
   const root = mkdtempSync(join(tmpdir(), "fictional-payroll-report-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const output = join(root, "local-report.html");
@@ -75,7 +75,9 @@ test("CLI creates a private offline HTML file, refuses overwrites and requires o
   const valid = run("--fictional");
   assert.equal(valid.status, 0, valid.stderr);
   assert.match(readFileSync(output, "utf8"), /Fictional demonstration only/);
-  assert.equal(statSync(output).mode & 0o777, 0o600);
+  // Windows exposes synthetic mode bits; POSIX permissions do not describe its ACLs.
+  // Keep the privacy assertion on every platform where mode 0600 is meaningful.
+  if (process.platform !== "win32") assert.equal(statSync(output).mode & 0o777, 0o600);
   assert.equal(run("--fictional").status, 1, "Existing local file must never be overwritten.");
   const missing = join(root, "missing-confirmation.html");
   const refused = spawnSync(process.execPath, [script, fixturePath, missing], { encoding: "utf8" });
