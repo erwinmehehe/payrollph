@@ -27,7 +27,7 @@ const env={...process.env,...TENANT_TABLE_BASE_ENV,...TENANT_TABLE_PROFILES['com
 requireSecurityWrite(env);
 if(mode==='db'){Object.assign(process.env,env);const {default:pg}=await import('pg');const p=new pg.Pool({connectionString:env.DATABASE_URL});try{await assertSecurityDatabase(p,{empty:false});}finally{await p.end();}}
 const proof={email:'tenant-account-email-request-http.mjs',documents:'tenant-document-upload-http.mjs',biometrics:'tenant-bio01-biometric-http.mjs',developer:'tenant-developer-key-http.mjs'};
-const args=mode==='db'?['scripts/qa/local-tenant-proof-db.mjs','--reset']:mode==='build'?['node_modules/next/dist/bin/next','build']:
+const args=mode==='db'?['scripts/qa/tenant-security-write-db.mjs']:mode==='build'?['node_modules/next/dist/bin/next','build']:
  mode==='start'?['--import','./scripts/qa/tenant-security-write-preload.mjs','node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3000']:
  proof[mode]?['--import','tsx','scripts/qa/'+proof[mode]]:null;
 assert.ok(args,'Usage: db | build | start | email | documents | biometrics | developer [legacy|vault]');
