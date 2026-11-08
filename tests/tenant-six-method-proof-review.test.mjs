@@ -887,10 +887,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
       (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits;
+    // The immutable 2026-11-03 baseline classed all 12 batches incomplete.
+    // Current main explicitly distinguishes 10 incomplete batches from two
+    // zero-GAP but still PROVISIONAL families. This is a wording-only,
+    // exact-string reconciliation: the frozen method counts, statuses and
+    // lack of independent security acceptance must remain identical.
+    assert.ok(snapshot.frozenSubtotal.endsWith("All 12 batches remain INCOMPLETE."),
+      "historical six-method snapshot is no longer the reviewed source");
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
-      .replace("91 GAP", (403 - frozenCovered) + " GAP");
+      .replace("91 GAP", (403 - frozenCovered) + " GAP")
+      .replace("All 12 batches remain INCOMPLETE.",
+        "Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.");
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
