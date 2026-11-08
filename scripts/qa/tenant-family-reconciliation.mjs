@@ -16,9 +16,10 @@ export const RECONCILED_METHODS = Object.freeze(["POST performance/calibration",
 export function verifyEnterprisePostAuditSource(source, historicalDigest) {
   const normalized = source.replaceAll("\r\n", "\n");
   assert.equal(historicalDigest, "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
-  assert.equal(createHash("sha256").update(normalized).digest("hex"),
-    "6357488b5eff15e943687d853d05398636f87114485ccee0bea1c6c418bbd5fb",
-    "Enterprise changed proof/route requires renewed POST audit source review");
+  const sourceBytes = Buffer.from(normalized, "utf8");
+  assert.equal(createHash("sha1").update("blob " + sourceBytes.length + "\0").update(sourceBytes).digest("hex"),
+    "be3e320df828d681ad34c034b6469cf4940846cc",
+    "Enterprise current POST route changed: renew source review and exact-head proof");
   const get = normalized.slice(normalized.indexOf("export async function GET("), normalized.indexOf("export async function POST(")).trim();
   assert.equal(createHash("sha256").update(get).digest("hex"),
     "14041996a56ebf3fd95fba2b03a9e4557ba811fb656781041e71c65967f6e760",

@@ -1,9 +1,62 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';import ts from 'typescript';
-import {spawnSync} from 'node:child_process';
+import {spawnSync} from 'node:child_process';import {runInNewContext} from 'node:vm';
 import {ENTERPRISE_OFF_FLAGS,ENTERPRISE_PROOF_MODE,requireEnterpriseProofEnvironment} from '../scripts/qa/tenant-enterprise-admin-contract.mjs';
 import {verifyEnterprisePostAuditSource} from '../scripts/qa/tenant-family-reconciliation.mjs';
 const source=readFileSync('src/app/api/enterprise/route.ts','utf8').replaceAll('\r\n','\n'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);
+test('enterprise create failure handling distinguishes real named unique constraints from audit/database errors',()=>{
+ const first=source.indexOf('function enterpriseCreateFailure(');
+ const last=source.indexOf('export async function GET(',first);
+ assert.ok(first>0&&last>first,'create error guard must exist outside GET and POST');
+ const helper=ts.transpileModule(source.slice(first,last),{
+   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None},
+ }).outputText;
+ const log=[];
+ const Response={json:(body,init)=>({body,status:init?.status,headers:init?.headers})};
+ const classify=runInNewContext(helper+'\nenterpriseCreateFailure;',{
+   Response,console:{error:(...args)=>log.push(args)},
+ });
+ const constraints=['permission_sets_org_name_unique'];
+ const message='Permission set already exists';
+ const valid=classify({code:'23505',constraint:constraints[0]},'permission',constraints,message);
+ assert.equal(valid.status,409);
+ assert.equal(valid.body.error,message);
+ const wrapped=classify({cause:{code:'23505',constraint:constraints[0]}},'permission',constraints,message);
+ assert.equal(wrapped.status,409,'Drizzle-wrapped 23505 must remain a conflict');
+ for(const err of [
+   {code:'P0001',message:'fictional enterprise audit veto'},
+   {code:'23505',constraint:'audit_events_row_unique'},
+   {code:'23503',constraint:constraints[0]},
+   {cause:{code:'P0001',message:'sensitive SQL error'}},
+ ]) {
+   const failed=classify(err,'permission',constraints,message);
+   assert.equal(failed.status,500,'audit, foreign-key and unknown errors are not name conflicts');
+   assert.ok(!JSON.stringify(failed.body).includes('audit veto'));
+   assert.equal(failed.headers['Cache-Control'],'no-store');
+ }
+ assert.equal(log.length,4);
+ assert.ok(log.every(([label,metadata])=>label==='enterprise administration persistence failure'&&
+   metadata.operation==='permission'&&metadata.kind==='transaction_or_audit'));
+ for(const [action,constraint] of [
+   ['create-oidc-provider','identity_providers_org_name_unique'],
+   ['create-saml-provider','identity_domains_domain_unique'],
+   ['save-permission-set','permission_sets_org_name_unique'],
+   ['save-automation-rule','automation_rules_org_name_unique'],
+ ]) {
+   assert.ok(source.includes('enterpriseCreateFailure(error, "'+action+'"'), 'missing expected error classification for '+action);
+   assert.ok(source.includes('"'+constraint+'"'),'expected named unique constraint '+constraint);
+ }
+});
+
+test('fictional OIDC fixture rejects untrusted response values and audit veto is a true 500',()=>{
+ const proof=readFileSync('scripts/qa/tenant-enterprise-admin-http.mjs','utf8');
+ assert.ok(proof.includes("assert.equal(oidc.domain?.domain,expectedDomain"));
+ assert.ok(proof.includes("assert.match(oidc.dnsTxtRecord,/^linaw-sso-verification=[a-f0-9]{48}$/"));
+ assert.ok(proof.includes("dnsMap[expectedDomain]=oidc.dnsTxtRecord"));
+ assert.ok(!proof.includes("dnsMap[oidc.domain.domain]="));
+ assert.ok(proof.includes("status(rejected,500,'audit failure must not masquerade as "));
+});
+
 test('all enterprise mutation writes and audit receipts share a transaction',()=>{
  let audits=0,writes=0;
  function visit(node){if(ts.isCallExpression(node)){

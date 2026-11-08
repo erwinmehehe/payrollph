@@ -42,6 +42,37 @@ import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Distinguish a known create-name/domain conflict from a failed transaction,
+ * especially the mandatory audit INSERT. Drizzle may wrap the PostgreSQL
+ * error in cause; only an allowlisted 23505 constraint is an HTTP 409.
+ */
+function enterpriseCreateFailure(
+  error: unknown,
+  operation: string,
+  allowedConstraints: readonly string[],
+  conflictMessage: string,
+): Response {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current && typeof current === "object" && !seen.has(current); depth++) {
+    seen.add(current);
+    const issue = current as { code?: unknown; constraint?: unknown; cause?: unknown };
+    if (issue.code === "23505" &&
+        typeof issue.constraint === "string" &&
+        allowedConstraints.includes(issue.constraint)) {
+      return Response.json({ error: conflictMessage }, { status: 409 });
+    }
+    current = issue.cause;
+  }
+  // Never log exception messages, names, issuer URLs, secrets or SQL parameters.
+  console.error("enterprise administration persistence failure", { operation, kind: "transaction_or_audit" });
+  return Response.json(
+    { error: "Enterprise administration could not save this change. Please try again." },
+    { status: 500, headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 const DEFAULT_SECURITY_POLICY = {
   sessionIdleMinutes: 1440,
   sessionMaxHours: 336,
@@ -370,8 +401,9 @@ export async function POST(request: Request) {
           warning: "Publish this exact TXT value on the company domain, then run domain verification. It is shown only in this response.",
         }, { status: 201 });
       });
-    } catch {
-      return Response.json({ error: "Provider name or email domain is already configured." }, { status: 409 });
+    } catch (error) {
+      return enterpriseCreateFailure(error, "create-oidc-provider", ["identity_providers_org_name_unique", "identity_domains_domain_unique"],
+        "Provider name or email domain is already configured.");
     }
   }
 
@@ -468,8 +500,9 @@ export async function POST(request: Request) {
           warning: SAML_RUNTIME_BLOCK_REASON,
         }, { status: 201 });
       });
-    } catch {
-      return Response.json({ error: "Provider name or email domain is already configured." }, { status: 409 });
+    } catch (error) {
+      return enterpriseCreateFailure(error, "create-saml-provider", ["identity_providers_org_name_unique", "identity_domains_domain_unique"],
+        "Provider name or email domain is already configured.");
     }
   }
 
@@ -677,8 +710,9 @@ export async function POST(request: Request) {
         await recordAuditEvent({ organizationId, actor: user.name, action: "Permission set created", resource: row.name, metadata: { permissionSetId: row.id, permissions } }, tx);
         return Response.json(row, { status: 201 });
       });
-    } catch {
-      return Response.json({ error: "A permission set with this name already exists." }, { status: 409 });
+    } catch (error) {
+      return enterpriseCreateFailure(error, "save-permission-set", ["permission_sets_org_name_unique"],
+        "A permission set with this name already exists.");
     }
   }
 
@@ -880,8 +914,9 @@ export async function POST(request: Request) {
         await recordAuditEvent({ organizationId, actor: user.name, action: "Lifecycle automation created", resource: row.name, metadata: { ruleId: row.id, trigger } }, tx);
         return Response.json(row, { status: 201 });
       });
-    } catch {
-      return Response.json({ error: "An automation rule with this name already exists." }, { status: 409 });
+    } catch (error) {
+      return enterpriseCreateFailure(error, "save-automation-rule", ["automation_rules_org_name_unique"],
+        "An automation rule with this name already exists.");
     }
   }
 

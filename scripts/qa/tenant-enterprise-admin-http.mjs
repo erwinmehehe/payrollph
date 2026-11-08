@@ -68,7 +68,8 @@ try{
    const before=await snapshot(org),beforeSeq=Number((await pool.query("SELECT CASE WHEN is_called THEN last_value ELSE 0 END AS n FROM qa_enterprise_audit_attempt")).rows[0].n);
    await pool.query('INSERT INTO qa_enterprise_audit_fault VALUES ($1,$2)',[org,auditActions[key]]);
    const rejected=await post(fault.cookie,payload);
-   assert.ok(rejected.status>=400,'audit veto must refuse '+key);
+   if(['oidc','saml','permission','rule'].includes(key))status(rejected,500,'audit failure must not masquerade as '+key+' duplicate');
+   else assert.ok(rejected.status>=400,'audit veto must refuse '+key);
    const afterSeq=Number((await pool.query("SELECT last_value AS n FROM qa_enterprise_audit_attempt")).rows[0].n);
    assert.equal(afterSeq,beforeSeq+1,'audit insert must actually be reached for '+key);
    same(await snapshot(org),before,'audit failure must roll back all business state, sessions and chain head: '+key);vetoes++;
@@ -80,6 +81,7 @@ try{
    const audits=await pool.query('SELECT actor,action FROM audit_events WHERE organization_id=$1 ORDER BY id DESC LIMIT 1',[org]);
    assert.equal(audits.rows[0].action,auditActions[key]);assert.equal(audits.rows[0].actor,actor.owner.name);
    if(check)await check(value);own++;
+
    status(await post(actor.cookie,{...payload,organizationId:victim.org.id}),403,'real victim '+key);foreign++;
    same(await snapshot(victim.org.id),victimBefore,'victim SQL/audit/chain unchanged after '+key);
    console.log(JSON.stringify({kind:'ENTERPRISE_ACTION',key,attacker:actor.label,own:expected,auditVeto:'rollback',foreign:403}));
@@ -90,7 +92,11 @@ try{
    assert.equal(x.provider.organizationId,org);assert.ok(!Object.hasOwn(x.provider,'clientSecretEncrypted'));
    const row=(await db.select().from(s.identityProviders).where(eq(s.identityProviders.id,x.provider.id)))[0];assert.ok(row.clientSecretEncrypted.startsWith('enc:v1:')&&!row.clientSecretEncrypted.includes('fictional-secret-only'));
   });ctx.provider=oidc.provider.id;
-  dnsMap[oidc.domain.domain]=oidc.dnsTxtRecord;writeFileSync('outputs/tenant-enterprise-dns.json',JSON.stringify(dnsMap));
+  const expectedDomain='employer-'+org+'.enterprise.example.test';
+  assert.equal(oidc.domain?.domain,expectedDomain,'returned OIDC domain must be exact reserved fictional fixture');
+  assert.match(oidc.dnsTxtRecord,/^linaw-sso-verification=[a-f0-9]{48}$/,'DNS TXT token must be a bounded 24-byte hex fixture');
+  dnsMap[expectedDomain]=oidc.dnsTxtRecord;
+  writeFileSync('outputs/tenant-enterprise-dns.json',JSON.stringify(dnsMap));
   await run('saml',{action:'create-saml-provider',name:'Fictional SAML '+nonce,entityId:'urn:fictional:'+org,ssoUrl:'https://idp-'+org+'.enterprise.example.test/saml',x509Certificate:certificate,emailAttribute:'email',domain:'saml-'+org+'.example.test'},201,x=>{assert.equal(x.runtimeReady,false);assert.equal(x.provider.enabled,false);ctx.saml=x.provider.id;});
   await run('verify',{action:'verify-domain',domainId:oidc.domain.id},200,x=>assert.equal(x.verified,true));
   await run('enable',{action:'set-provider-enabled',providerId:ctx.provider,enabled:true},200,x=>assert.equal(x.enabled,true));
