@@ -4,6 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {requireEnterpriseProofEnvironment} from './tenant-enterprise-admin-contract.mjs';
 import {createRows as enterpriseReadRows} from './tenant-table-rows/read/platform-controls.mjs';
+import {assertEnterpriseMutation} from './tenant-enterprise-admin-state.mjs';
 requireEnterpriseProofEnvironment();
 const sourceHead=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 execFileSync('git',['ls-files','--error-unmatch','scripts/qa/tenant-enterprise-admin-http.mjs'],{stdio:'pipe'});
@@ -22,6 +23,7 @@ const certificate=readFileSync('fixtures/qa/enterprise-idp-public.pem','utf8');
 const auditActions={policy:'Enterprise security policy updated',oidc:'OIDC provider configured',saml:'SAML provider configured',verify:'SSO domain verified',enable:'OIDC provider enabled',disable:'OIDC provider disabled',token:'SCIM token created',revoke:'SCIM token revoked',permission:'Permission set created',permissionUpdate:'Permission set updated',link:'Workspace worker identity link updated',assign:'Custom permission set assigned',clear:'Custom permission set cleared',rule:'Lifecycle automation created',ruleUpdate:'Lifecycle automation updated',inactive:'Lifecycle automation disabled',active:'Lifecycle automation enabled'};
 let own=0,foreign=0,forged=0,vetoes=0;
 let readPairs=0,readDiscriminating=0;
+let writeDiscriminating=0;
 try{
  const version=(await pool.query('SHOW server_version_num')).rows[0].server_version_num;assert.ok(Number(version)>=160000&&Number(version)<170000,'real PG16 required');
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM organizations')).rows[0].n,0,'fresh empty fictional database required');
@@ -73,6 +75,8 @@ try{
    await pool.query('DELETE FROM qa_enterprise_audit_fault WHERE organization_id=$1',[org]);
    const response=await post(actor.cookie,payload),value=status(response,expected,key);
    const after=await snapshot(org);assert.ok(JSON.stringify(after)!==JSON.stringify(before),'own write must persist '+key);
+   assertEnterpriseMutation(before,after,payload,value,actor.owner.id);
+   assert.throws(()=>assertEnterpriseMutation(before,after,{...payload,organizationId:victim.org.id},value,victim.owner.id),undefined,'write validator accepts another employer\'s data');writeDiscriminating++;
    const audits=await pool.query('SELECT actor,action FROM audit_events WHERE organization_id=$1 ORDER BY id DESC LIMIT 1',[org]);
    assert.equal(audits.rows[0].action,auditActions[key]);assert.equal(audits.rows[0].actor,actor.owner.name);
    if(check)await check(value);own++;
@@ -146,7 +150,7 @@ try{
  }
  same(await snapshot(victim.org.id),victimBefore,'final victim unchanged');
  const blob=file=>{const b=Buffer.from(readFileSync(file,'utf8').replaceAll('\r\n','\n'));return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
- const receipt={kind:'ENTERPRISE_ADMIN_HTTP',label:'SOLO_VERIFIED_DEV_RECOVERY',result:'PASS',sourceHead,routeBlobSha:blob('src/app/api/enterprise/route.ts'),proofBlobSha:blob('scripts/qa/tenant-enterprise-admin-http.mjs'),attackers:2,ownTransitions:own,auditVetoRollbacks:vetoes,foreignDenials:foreign,forgedDenials:forged,readPairs,readDiscriminating,coverageCredits:0,actualProviderTraffic:false,productionCertified:false};
+ const receipt={kind:'ENTERPRISE_ADMIN_HTTP',label:'SOLO_VERIFIED_DEV_RECOVERY',result:'PASS',sourceHead,routeBlobSha:blob('src/app/api/enterprise/route.ts'),proofBlobSha:blob('scripts/qa/tenant-enterprise-admin-http.mjs'),stateBlobSha:blob('scripts/qa/tenant-enterprise-admin-state.mjs'),attackers:2,ownTransitions:own,auditVetoRollbacks:vetoes,foreignDenials:foreign,forgedDenials:forged,readPairs,readDiscriminating,writeDiscriminating,coverageCredits:0,actualProviderTraffic:false,productionCertified:false};
  writeFileSync('outputs/tenant-enterprise-admin-receipt.json',JSON.stringify(receipt,null,2)+'\n');
  console.log(JSON.stringify(receipt));
 }finally{
