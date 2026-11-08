@@ -19,15 +19,32 @@
   },
   "allApiRouteFiles": {
     "src/app/api/account/email/route.ts": {
-      "gitBlobSha": "0bb833a3219e5f4b136276b6327b2b1a69563bb9",
+      "gitBlobSha": "b9c759114b8082b3493ef3c4671134dabbf7e72e",
       "route": "account/email",
       "methods": [
         {
           "name": "POST",
           "line": 22,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: pre-password global email existence probe hardened; exact-source fictional PG16 localhost SMTP candidate awaits independent review; zero coverage credits",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "account-email-request-reauth-before-global-uniqueness-zero-credit",
+            "originalRouteBlobSha": "0bb833a3219e5f4b136276b6327b2b1a69563bb9",
+            "routeBlobSha": "b9c759114b8082b3493ef3c4671134dabbf7e72e",
+            "runnerFile": "scripts/qa/tenant-account-email-request-http.mjs",
+            "runnerBlobSha": "2fb082e2369960d5a0b39551ffec5b8b13498387",
+            "contractFile": "scripts/qa/tenant-account-email-request-contract.mjs",
+            "contractBlobSha": "ba1dfef040197adb94e5b2deda14d3520360925f",
+            "testFile": "tests/tenant-account-email-request-contract.test.mjs",
+            "testBlobSha": "4842269e62ddc6bd591e71c09e1247962bce57fb",
+            "workflowFile": ".github/workflows/tenant-account-email-request-http.yml",
+            "workflowBlobSha": "9a2af396fa9ea70adca8ebf7035bd41a83b8829f",
+            "coverageCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "exactHeadPg16Http": "PENDING"
+          }
         }
       ],
       "employerSources": [
