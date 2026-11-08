@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {verifyRecoveryCredits} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 
 // WRK-02 source-only defense-in-depth. Not a substitute for disposable
 // PostgreSQL 16 signed-in own/victim HTTP proof or method-level coverage.
@@ -186,6 +187,9 @@ test("only the methods with executed HTTP proof are credited; the rest of this W
         assert.equal(method.status, "COVERED", path + " " + method.name + " is credited by its own executed row");
         assert.equal(method.testedBy?.rowFile, "scripts/qa/tenant-table-rows/write/workforce-planning.mjs");
         assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
+      } else if(path===FILES.scenarios&&method.name==='POST') {
+        assert.equal(verifyRecoveryCredits(manifest),3);
+        assert.equal(method.testedBy.file,'scripts/qa/tenant-wps01-scenarios-http.mjs');
       } else {
         assert.equal(method.status, "GAP", path + " does not gain proof credit");
         assert.equal(method.testedBy, null);

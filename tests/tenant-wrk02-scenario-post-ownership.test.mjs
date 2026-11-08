@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {verifyRecoveryCredits} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 
 // Source contract only. NOT signed-in PG16/HTTP method acceptance or coverage credit.
 const src = readFileSync("src/app/api/workforce-planning/scenarios/route.ts", "utf8");
@@ -75,6 +76,7 @@ test("candidate HTTP write-table scenario uses two attackers, immutable state an
     "A merge must not duplicate the scenarios POST family row");
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const post = manifest.allApiRouteFiles["src/app/api/workforce-planning/scenarios/route.ts"].methods.find(method => method.name === "POST");
-  assert.equal(post.status, "GAP", "Current main requires SQL-error injection and independent review before a method credit");
-  assert.equal(post.testedBy, null);
+  assert.equal(verifyRecoveryCredits(manifest),3,'Fresh reached SQL/audit-veto HTTP evidence is mandatory');
+  assert.equal(post.status,'COVERED');
+  assert.equal(post.testedBy.independentSecurityReview,'PENDING');
 });
