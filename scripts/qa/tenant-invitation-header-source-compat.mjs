@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 
 const REVIEWED_SOURCE_SHA = "72fe25fba8c44a20c29eabfd85568114f5c70c6f";
 const HISTORICAL_SOURCE_SHA = "a61ed6eeefbf0795e94982ae3df55223c9e11dfa";
-const INVITATION_HEADER_RULE = \`      // Invitation previews expose a bearer token in the URL. Next's
+const INVITATION_HEADER_RULE = `      // Invitation previews expose a bearer token in the URL. Next's
       // catch-all security header would otherwise overwrite the route's
       // stricter Referrer-Policy on the actual HTTP response.
       {
@@ -18,7 +18,7 @@ const INVITATION_HEADER_RULE = \`      // Invitation previews expose a bearer to
           { key: "Referrer-Policy", value: "no-referrer" },
         ],
       },
-\`;
+`;
 
 const gitBlobSha = value => {
   const bytes = Buffer.from(value);
