@@ -882,6 +882,30 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }).length;
     assert.ok([0, 2].includes(baselineBillingCredits), "Billing credits must merge as a complete two-method PR");
     if (baselineBillingCredits) for (const path of billingPaths) expectedOriginalMain[path].POST = "COVERED";
+    // Main merged three distinct, provisional TOTP GET/POST and WPS-01
+    // scenarios POST credits since the immutable six-method snapshot.
+    // Reconcile exactly these methods via their sealed, source-current
+    // receipt, without granting partial, unsupported or production credit.
+    const baselineMergedRecoveryStatuses = RECOVERY_TARGETS.map(({ path, method }) =>
+      baseline.allApiRouteFiles[path]?.methods.find(row => row.name === method)?.status === "COVERED");
+    assert.ok(baselineMergedRecoveryStatuses.every(credited => credited === baselineMergedRecoveryStatuses[0]),
+      "origin/main cannot partially credit the three TOTP/scenario recovery methods");
+    const baselineMergedRecoveryCredits = baselineMergedRecoveryStatuses[0]
+      ? verifyRecoveryCredits(baseline) : 0;
+    if (baselineMergedRecoveryCredits) {
+      assert.equal(baselineMergedRecoveryCredits, 3, "Only the three pinned recovery methods may be credited");
+      for (const { path, method } of RECOVERY_TARGETS) {
+        assert.equal(expectedOriginalMain[path][method], "GAP",
+          "A recovery method must be GAP in the frozen snapshot");
+        expectedOriginalMain[path][method] = "COVERED";
+      }
+    } else {
+      for (const { path, method } of RECOVERY_TARGETS) {
+        const uncredited = baseline.allApiRouteFiles[path]?.methods.find(row => row.name === method);
+        assert.equal(uncredited?.status, "GAP", "Unverified TOTP/scenarios must stay GAP");
+        assert.equal(uncredited?.testedBy, null, "Do not borrow a TOTP/scenarios receipt");
+      }
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -894,18 +918,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineMergedRecoveryCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineMergedRecoveryCredits - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineMergedRecoveryCredits;
     // Preserve the historical frozen snapshot, which classed all 12 batches incomplete.
     // Later provisional credits may change the live summary, not its source evidence.
     assert.ok(snapshot.frozenSubtotal.endsWith("All 12 batches remain INCOMPLETE."),
