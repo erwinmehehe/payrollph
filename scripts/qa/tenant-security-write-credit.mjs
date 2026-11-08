@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 export const SECURITY_RECEIPT='scripts/qa/tenant-security-write-receipt.json';
-const SEALED_DIGEST='994a2bdbb7636c37290f4870e88fe6a6bff64bcf6f5b92b1a455197d290ff613';
+const SEALED_DIGEST='1631f96dca30437b852c7eb777b3d787fca5223fcc72800c68dcae0d1debe8b3';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 export const SECURITY_TARGETS=Object.freeze(['documents','biometrics/sync','developer'].map(route=>({path:'src/app/api/'+route+'/route.ts',method:'POST'})));
 const normalized=x=>x.toString().replaceAll('\r\n','\n');
@@ -54,6 +54,13 @@ export function verifySecurityCredits(manifest,read=readFileSync){
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const m=JSON.parse(readFileSync(MANIFEST,'utf8')),mode=process.argv[2];
   if(mode==='--check'){assert.deepEqual(process.argv.slice(2),['--check']);console.log(JSON.stringify({verified:verifySecurityCredits(m),write:false}));}
+  else if(mode==='--refresh-links'){
+    const r=readSecurityEvidence();assert.deepEqual(process.argv.slice(2),['--refresh-links','--run-label',r.runLabel]);
+    for(const t of r.targets){const method=m.allApiRouteFiles[t.path].methods.find(x=>x.name===t.method);
+      assert.equal(method.status,'COVERED');assert.equal(method.testedBy.recoveryCredit,'security-three-writes');
+      assert.equal(method.testedBy.file,t.evidence.file);assert.equal(method.testedBy.routeBlobSha,t.evidence.routeBlobSha);method.testedBy=t.evidence;
+    }verifySecurityCredits(m);writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');console.log(JSON.stringify({refreshed:3,newCredits:0}));
+  }
   else{
     const r=readSecurityEvidence();assert.deepEqual(process.argv.slice(2),['--credit','--run-label',r.runLabel]);const before={...m.metrics};
     for(const t of r.targets){const method=m.allApiRouteFiles[t.path].methods.find(x=>x.name===t.method);assert.equal(method.status,'GAP','Never double-credit');assert.equal(method.testedBy,null);
@@ -66,6 +73,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');
     for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
       let doc=readFileSync(file,'utf8').replace(`| coveredAfter | ${before.coveredAfter} |`,`| coveredAfter | ${m.metrics.coveredAfter} |`).replace(`| gap | ${before.gap} |`,`| gap | ${m.metrics.gap} |`);
+      if(file.includes('coverage-inventory'))doc=doc.replace(/\*\*RELEASE BLOCKER:\*\* \d+ API methods/,'**RELEASE BLOCKER:** '+m.metrics.gap+' API methods').replace(/\*\*NOT ACCEPTED\*\*: \d+ method gaps/,'**NOT ACCEPTED**: '+m.metrics.gap+' method gaps');
       if(file.includes('closure-plan')){
         const start=doc.indexOf('### Current 406-method frozen batch queue'),end=doc.indexOf('### Three narrowly promoted API methods',start);
         assert.ok(start>=0&&end>start);const sections=('### Batch DL-01 —'+doc.split('### Batch DL-01 —')[1].split('## Page and server-action closure')[0]).split('### Batch ').slice(1),counts=new Map(),totals={COVERED:0,GAP:0,'PUBLIC-BY-DESIGN':0};

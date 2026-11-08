@@ -965,8 +965,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
       line.startsWith("Frozen subtotal: **") ||
       line.startsWith("Frozen subtotal (2026-11-04 proposal): **"));
-    assert.equal(mainFrozenSubtotal?.replace(
-      /^Frozen subtotal \(2026-11-04 proposal\):/, "Frozen subtotal:"),
-      expectedMainFrozen, "origin/main frozen ledger drift");
+    const normalizeCaption=line=>line?.replace(/^Frozen subtotal \(2026-11-04 proposal\):/, 'Frozen subtotal:')
+      .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
+      .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
+    assert.equal(normalizeCaption(mainFrozenSubtotal),normalizeCaption(expectedMainFrozen), 'origin/main frozen ledger drift');
   }
 });
