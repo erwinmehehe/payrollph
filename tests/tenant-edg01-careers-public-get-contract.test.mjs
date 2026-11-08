@@ -43,7 +43,7 @@ test("public GET remains GAP until a separate executed run and owner privacy cla
   }
   const workflow = readFileSync(".github/workflows/tenant-edg01-careers-public-get-http.yml", "utf8");
   const old = workflow.indexOf("tenant-edg01-careers-publication-http.mjs --prove");
-  const next = workflow.indexOf("tenant-edg01-careers-public-get-http.mjs");
+  const next = workflow.indexOf("run: node --import tsx scripts/qa/tenant-edg01-careers-public-get-http.mjs");
   assert.ok(old >= 0 && next > old,
     "first run original PG16 publication and unpublish, THEN public GET privacy checks");
   for (const guard of ["postgres:16", "npm run db:push", "--migrate",
