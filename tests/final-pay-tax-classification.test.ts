@@ -239,7 +239,7 @@ test("Phase 7 separation source re-inventory preserves existing tenant evidence,
   const path = "src/app/api/separation/route.ts";
   const sourceBytes = readFileSync(path);
   const fingerprint = createHash("sha1")
-    .update("blob " + sourceBytes.length + "\\0")
+    .update("blob " + sourceBytes.length).update(Buffer.from([0]))
     .update(sourceBytes).digest("hex");
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = manifest.allApiRouteFiles[path];
