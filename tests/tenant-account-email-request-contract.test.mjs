@@ -111,7 +111,7 @@ test("mail evidence needs the right fictional recipient and a nonempty token-bea
     recipients: [ownEmail],
     data: "To: " + ownEmail + "\r\nSubject: Verify your new Linaw email\r\n" +
       "Content-Transfer-Encoding: base64\r\n\r\n" +
-      Buffer.from(body).toString("base64").replace(/.{40}/g, "  assert.equal(assertLocalSmtpMessage(m, ownEmail), "a".repeat(48));\r\n"),
+      Buffer.from(body).toString("base64").replace(/.{40}/g, "      Buffer.from(body).toString("base64").replace(/.{40}/g, "  assert.equal(assertLocalSmtpMessage(m, ownEmail), "a".repeat(48));\r\n"),\\r\\n"),
   };
   assert.equal(assertLocalSmtpMessage(base64, ownEmail), "a".repeat(48),
     "MIME base64 must decode before deciding a real verification token is absent");
