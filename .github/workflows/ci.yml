@@ -313,6 +313,8 @@ jobs:
           name: payrollph-golden-payroll-phase6
           path: qa-artifacts/golden-payroll-phase6-reconciliation.json
           retention-days: 14
+      - name: Review Phase 7 leave and separation tax allocations
+        run: node --import tsx --test tests/final-pay-tax-classification.test.ts
       - name: Run separation-pay golden reconciliation (Phase 7)
         run: npx tsx scripts/golden-payroll-phase7.ts
       - name: Upload Phase 7 separation-pay reconciliation evidence
