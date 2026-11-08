@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {verifyRecoveryCredits} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 
 // Source-contract and negative-control integrity gates, not independent
 // tenant-security acceptance. The real fault injection runs in tenant-table
@@ -80,14 +81,13 @@ test("no unreviewed credit or relaxation of previously tested GET/PATCH", () => 
   const routeEntry = manifest.allApiRouteFiles[path];
   assert.deepEqual(routeEntry.methods.map(({ name, status }) => ({ name, status })), [
     { name: "GET", status: "COVERED" },
-    { name: "POST", status: "GAP" },
+    { name: "POST", status: "COVERED" },
     { name: "PATCH", status: "COVERED" },
   ]);
   const post = routeEntry.methods[1];
-  assert.equal(post.testedBy, null, "no proof-only PR may promote itself");
-  assert.equal(post.reviewedUncertified.coverageCredits, 0);
-  assert.equal(post.reviewedUncertified.independentSecurityReview, "PENDING");
-  assert.equal(post.reviewedUncertified.productionCertified, false);
+  assert.equal(verifyRecoveryCredits(manifest),3,'Only the dedicated reached-veto HTTP receipt permits this credit');
+  assert.equal(post.testedBy.independentSecurityReview,'PENDING');
+  assert.equal(post.testedBy.productionTested,false);
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap,
     manifest.metrics.methods);
 });

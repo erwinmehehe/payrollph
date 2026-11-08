@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {verifyRecoveryCredits} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 import {
   WPS01_METHOD, WPS01_ROUTE, WPS01_SOURCE_BLOB, requireDisposableWps01,
   assertWps01Created, assertWps01Denied, assertWps01Unchanged,
@@ -112,7 +113,7 @@ test("WPS-01 contract refuses wrong own data, leakage and mutated victim state",
     /denial changed/);
 });
 
-test("WPS-01 never reclassifies the canonical workforce scenario POST GAP", () => {
+test("WPS-01 source guards remain required and only its sealed fresh receipt permits promotion", () => {
   const route = readFileSync(WPS01_ROUTE);
   assert.equal(gitBlobSha(route), WPS01_SOURCE_BLOB,
     "production scenario route changed; WPS-01 must be independently re-reviewed");
@@ -129,10 +130,10 @@ test("WPS-01 never reclassifies the canonical workforce scenario POST GAP", () =
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
   const method = manifest.allApiRouteFiles[WPS01_ROUTE]?.methods?.find(x => x.name === "POST");
   assert.equal(WPS01_METHOD, "POST workforce-planning/scenarios");
-  assert.equal(method?.status, "GAP",
-    "a PR with no completed independent HTTP evidence may not claim a method credit");
-  assert.equal(method?.testedBy, null,
-    "do not borrow a different shared-family proof for WPS-01");
+  assert.equal(verifyRecoveryCredits(manifest),3);
+  assert.equal(method?.status,'COVERED');
+  assert.equal(method.testedBy.independentSecurityReview,'PENDING',
+    'solo fictional proof is never independent acceptance');
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
 });
 

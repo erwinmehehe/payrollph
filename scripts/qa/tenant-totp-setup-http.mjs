@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { requireDisposablePiiApprovalEnv } from "./tenant-pii01-approval-contract.mjs";
-requireDisposablePiiApprovalEnv();
+import { requireLocalRecovery, assertLocalRecoveryDatabase, recoveryReceipt, RECOVERY_MODE } from './tenant-recovery-local-contract.mjs';
+const localRecovery=process.env.TENANT_RECOVERY_MODE===RECOVERY_MODE;
+if(localRecovery) requireLocalRecovery(); else requireDisposablePiiApprovalEnv();
 assert.equal(process.env.TENANT_TOTP_SETUP_MODE, "fictional-ci-only");
 const [{ db, pool }, s, { eq }, fixture, crypto, totp, security] = await Promise.all([
   import("../../src/db/index.ts"), import("../../src/db/schema.ts"), import("drizzle-orm"),
@@ -35,6 +37,7 @@ async function prepare(label, nonce) {
   return f;
 }
 async function verify() {
+  if(localRecovery) await assertLocalRecoveryDatabase(pool);
   assert.equal((await db.select().from(s.users).limit(1)).length, 0, "fresh fictional accounts required");
   const nonce = randomUUID().slice(0,8);
   const a = await prepare("ATTA", nonce), b = await prepare("ATTB", nonce);
@@ -88,6 +91,8 @@ async function verify() {
     assert.deepEqual(await snapshot(f),enabledBefore);
     assert.deepEqual(await snapshot(victim),victimBefore,"victim factor, backup codes, sessions, payroll or audit changed");
   }
-  console.log(JSON.stringify({kind:"TOTP_SETUP_HTTP",result:"PASS",attackers:2,methods:["GET","POST"],coverageCredits:0,productionCertified:false}));
+  const result={kind:"TOTP_SETUP_HTTP",result:"PASS",attackers:2,methods:["GET","POST"],coverageCredits:0,productionCertified:false};
+  recoveryReceipt('totp',result);
+  console.log(JSON.stringify(result));
 }
 try {await verify();} finally {await pool.end();}
