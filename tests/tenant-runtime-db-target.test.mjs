@@ -63,6 +63,10 @@ test("readiness token denials are opaque, equal and cannot disclose tenant marke
     404, { error: "Not found." }, {
       "cache-control": "no-store, public", vary: "x-readiness-token",
     })));
+  assert.throws(() => assertPrivateDenial(makeResponse(
+    404, { error: "Not found." }, {
+      "cache-control": "no-store, s-maxage=60", vary: "x-readiness-token",
+    })));
   assert.throws(() => assertPrivateDenial(makeResponse(200, { error: "Not found." })));
   assert.throws(() => assertPrivateDenial(makeResponse(404, { database: "app_db" })));
   assert.throws(() => assertPrivateDenial(makeResponse(404, { error: "VICTIM-SECRET" }),
