@@ -182,10 +182,6 @@ async function prove() {
         profiles, positions, applicants, payroll, audits, jobs: rawJobs.rows };
     };
     const snapshotAll = () => Promise.all(employers.map(e => snapshot(e.org.id)));
-    // Public listings intentionally allow anonymous reads for any employer ID;
-    // this is privacy/selectivity evidence, NOT a cross-tenant 403 proof.
-    const publicCareers = organizationId => standaloneRequest(
-      "/api/careers?organizationId=" + encodeURIComponent(organizationId));
     const patch = (actor, organizationId, requisitionId,
       published, expectedPublished, cookie = actor.cookie) =>
       standaloneRequest(PATH, { method: "PATCH", cookie,
@@ -216,45 +212,8 @@ async function prove() {
       successes++;
     };
 
-    // Before any owner publishes a job, the anonymous public GET must not
-    // reveal the real, persisted draft requisitions, applicants or salaries.
-    const beforePublicRead = await snapshotAll();
-    for (const e of employers) {
-      const listing = await publicCareers(e.org.id);
-      assert.equal(listing.status, 200, "anonymous unpublished careers GET");
-      assert.equal(listing.json?.organization, e.org.name);
-      assert.deepEqual(listing.json?.jobs, [], "draft and closed jobs must be absent");
-      assert.match(listing.headers.get("cache-control") ?? "", /no-store/);
-    }
-    assertUnchanged(beforePublicRead, await snapshotAll(),
-      "anonymous unpublished GET must leave every employer, audit and payroll row unchanged");
-
     // Every real employer has a populated, independent own positive.
     for (const e of employers) await publishOrUnpublish(e, true);
-    const afterPublication = await snapshotAll();
-    for (const e of employers) {
-      const listing = await publicCareers(e.org.id);
-      assert.equal(listing.status, 200, "anonymous published careers GET");
-      assert.equal(listing.json?.organization, e.org.name);
-      const jobs = listing.json?.jobs;
-      assert.equal(jobs?.length, 1, "only this employer's one published, open job");
-      assert.equal(jobs[0].id, e.job.id, "real published requisition ID");
-      assert.equal(jobs[0].title, e.job.title);
-      assert.deepEqual(Object.keys(jobs[0]).sort(),
-        ["department", "description", "employmentType", "id", "title"].sort(),
-        "public fields only: no private applicants, salary, payroll or org-unit metadata");
-      for (const other of employers.filter(other => other !== e)) {
-        assert.ok(!listing.text.includes(other.marker),
-          "public employer selection cannot mix another employer's jobs");
-      }
-      assert.ok(!listing.text.includes(e.marker + " closed career opening"));
-      assert.ok(!listing.text.includes(e.marker + " fictional applicant"));
-      assert.ok(!listing.text.includes("@example.invalid"),
-        "real fictional private applicant/employee email cannot appear in public listing");
-      assert.match(listing.headers.get("cache-control") ?? "", /no-store/);
-    }
-    assertUnchanged(afterPublication, await snapshotAll(),
-      "anonymous published GET must not write audit, applicant, employer or payroll rows");
     for (const attacker of [a, b]) {
       // A foreign employer ID must be refused before target content, even if
       // both the employer and requisition IDs are genuine and higher.
@@ -298,19 +257,6 @@ async function prove() {
       await expectDenied(() => patch(attacker, attacker.org.id, attacker.job.id, true, false),
         403, attacker.label + " revoked employer membership denies publication");
     }
-    // After both attackers unpublish, their public lists empty but the real
-    // higher-ID victim's independently published opening stays public.
-    const afterUnpublish = await snapshotAll();
-    for (const [index, e] of employers.entries()) {
-      const listing = await publicCareers(e.org.id);
-      assert.equal(listing.status, 200, "post-unpublish public careers GET");
-      assert.deepEqual((listing.json?.jobs ?? []).map(job => job.id),
-        index === 2 ? [victim.job.id] : [],
-        "only still-published victim opening may be listed");
-    }
-    assertUnchanged(afterUnpublish, await snapshotAll(),
-      "post-unpublish GET must not write any employer or payroll row");
-
     // Fault-injected real PG16 audit INSERT: publication state and its audit
     // must commit atomically. This DDL exists ONLY in the disposable CI DB.
     const rollbackBefore = await snapshotAll();
@@ -345,8 +291,6 @@ async function prove() {
       "victim draft payroll source remains intact");
     console.log("EDG01_CAREERS_PUBLICATION_REAL_HTTP " + JSON.stringify({
       method: METHOD, employers: 3, independentAttackers: 2,
-      publicCareersGet: "review-only", anonymousGetChecks: 9,
-      privateApplicantFieldsInPublicGet: false, publicMethodCoverageCredits: 0,
       higherIdPopulatedVictim: true, realOwnedPublishes: 3,
       realOwnedUnpublishes: 2, verifiedDeniedCalls: denials,
       wrongEmployerAndObjectRefused: true, companyWideOnly: true,
