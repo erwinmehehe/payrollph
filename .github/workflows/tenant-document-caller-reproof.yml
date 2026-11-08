@@ -1,0 +1,79 @@
+name: Document caller dependency reproof (fictional PG16)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/tenant-document-caller-reproof.yml'
+      - 'scripts/qa/tenant-document-caller-reproof-http.mjs'
+      - 'scripts/qa/tenant-second-pass-http.mjs'
+      - 'scripts/qa/tenant-hmo-http.mjs'
+      - 'scripts/qa/hcm-work-queue-http.mjs'
+permissions:
+  contents: read
+concurrency:
+  group: document-caller-reproof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  caller-reproof:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      HCM_GOVERNANCE_READINESS_ENABLED: 'true'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Guarded disposable profile and ephemeral fictional encryption only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - run: node --test tests/tenant-document-caller-reproof.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Execute complete existing assertions against localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 > /tmp/document-caller-reproof.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in $(seq 1 90); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then ready=true; break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then echo "Local fixture server unavailable"; exit 1; fi
+          node --import tsx scripts/qa/tenant-document-caller-reproof-http.mjs

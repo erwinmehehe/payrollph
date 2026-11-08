@@ -141,9 +141,15 @@ export async function verifyDl01Vault(f, { request, expectStatus }) {
     assertOwnList(forged, ownPrimary.id, victimDoc.id, victimMarker,
       org.id, worker.id);
 
+    const foreignRemoval =
     expectStatus(await request("/api/employee-vault/" + victimDoc.id, {
       method: "DELETE", cookie,
-    }), 403, "DL-01 vault DELETE must deny actual higher-ID victim document");
+    }), 404, "DL-01 vault DELETE must hide actual higher-ID victim document");
+    const missingRemoval = expectStatus(await request("/api/employee-vault/2147483647", {
+      method: "DELETE", cookie,
+    }), 404, "DL-01 vault DELETE must hide unknown document IDs");
+    assert.deepEqual(foreignRemoval.json, missingRemoval.json,
+      "vault foreign and absent path IDs must be indistinguishable");
 
     expectStatus(await request("/api/employee-vault/" + ownPrimary.id, {
       method: "DELETE", cookie,

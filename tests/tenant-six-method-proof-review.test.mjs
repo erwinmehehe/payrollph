@@ -890,7 +890,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
-      .replace("91 GAP", (403 - frozenCovered) + " GAP");
+      .replace("91 GAP", (403 - frozenCovered) + " GAP")
+      // Main's source-pinned proof closed the *method* gaps in DL-02/WRK-01,
+      // but those two batches are still provisional, not security-accepted.
+      // Preserve exact frozen counts and fail closed on any other ledger text.
+      .replace("All 12 batches remain INCOMPLETE.",
+        "Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.");
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
