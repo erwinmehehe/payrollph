@@ -1,3 +1,4 @@
+import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -112,7 +113,7 @@ test("five distinct platform targets credit only the reviewed read and single up
   const keys = [...rows.map(r => r.key), "GET enterprise"]; assert.equal(keys.length, 5); assert.equal(new Set(keys).size, 5);
   const catalog = [...tenantFamilyCatalog("write"), ...tenantFamilyCatalog("read")]; for (const key of keys) assert.equal(catalog.filter(r => r.key === key).length, 1);
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
-  for (const key of keys) { const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route); assert.equal(record.methods.find(m => m.name === method).status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP"); }
+  for (const key of keys) { const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route); if(key==='POST developer')assert.equal(verifySecurityCredits(manifest),3);else assert.equal(record.methods.find(m => m.name === method).status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP"); }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
 });

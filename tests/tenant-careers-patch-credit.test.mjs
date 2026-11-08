@@ -1,3 +1,4 @@
+import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -36,5 +37,6 @@ test("neighboring unproved careers mutations do not receive an implicit credit",
   for(const [p,v] of [["src/app/api/documents/route.ts","POST"],
     ["src/app/api/approvals/[id]/route.ts","PATCH"],
     ["src/app/api/bir/annual-employer/candidate/route.ts","POST"]])
-      assert.equal(manifest.allApiRouteFiles[p].methods.find(x=>x.name===v).status,"GAP");
+      if(p==='src/app/api/documents/route.ts')assert.equal(verifySecurityCredits(manifest),3);
+      else assert.equal(manifest.allApiRouteFiles[p].methods.find(x=>x.name===v).status,'GAP');
 });

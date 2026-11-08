@@ -5,6 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import {securityWriteRun,requireSecurityWrite,assertSecurityDatabase,securityReceipt} from './tenant-security-write-local-contract.mjs';
 import {
   requireDisposableBio01, assertBio01Denied,
   assertBio01Owned, assertBio01Unchanged,
@@ -35,7 +36,7 @@ async function request(body, { cookie, credential, crossSite = false } = {}) {
 
 async function proveBio01() {
   // MUST execute before importing any application code or opening any DB.
-  requireDisposableBio01();
+  if(securityWriteRun())requireSecurityWrite();else requireDisposableBio01();
   const [{ pool }, credentialLib] = await Promise.all([
     import("../../src/db/index.ts"),
     import("../../src/lib/biometric-auth.ts"),
@@ -46,6 +47,7 @@ async function proveBio01() {
   const tag = "BIO01-" + nonce;
 
   try {
+    if(securityWriteRun())await assertSecurityDatabase(pool);
     const v = await query("SHOW server_version_num");
     assert.equal(Math.floor(Number(v.rows[0].server_version_num) / 10000), 16,
       "BIO01_REFUSED: actual disposable PostgreSQL 16 only");
@@ -104,10 +106,12 @@ async function proveBio01() {
     // The real third employer and its worker/device IDs are higher than both attackers.
     const a = await employer("ATTA");
     const b = await employer("ATTB");
+    for(let i=0;i<7;i++)await employer('PADDING'+i);
     const victim = await employer("VICTIM");
     assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id);
     assert.ok(victim.worker.id > a.worker.id && victim.worker.id > b.worker.id);
     assert.ok(victim.device.id > a.device.id && victim.device.id > b.device.id);
+    assert.ok(victim.device.id>6&&victim.worker.id>6&&victim.org.id>6);
     const employers = [a, b, victim];
     const foreignMarkers = [victim.marker, victim.serial, victim.owner.id.toString() + "@not-used"];
 
@@ -181,6 +185,8 @@ async function proveBio01() {
       unmatched: 0, invalid: 0, locked: 0,
     }, foreignMarkers);
     const afterA = await allStates();
+    assert.throws(()=>assertBio01Owned(goodA,{deviceSerial:victim.serial}),undefined,
+      "biometric validator accepts another employer's data");
     assertBio01Unchanged(beforeA[1], afterA[1], "A device cannot mutate B");
     assertBio01Unchanged(beforeA[2], afterA[2], "A device cannot mutate VICTIM");
     assert.equal(afterA[0].time_punches.length, beforeA[0].time_punches.length + 1);
@@ -239,6 +245,8 @@ async function proveBio01() {
       unmatched: 0, invalid: 0, locked: 0,
     }, foreignMarkers);
     const afterB = await allStates();
+    assert.throws(()=>assertBio01Owned(goodB,{deviceSerial:victim.serial}),undefined,
+      "biometric validator accepts another employer's data");
     assert.equal(afterB[1].time_punches.length, beforeB[1].time_punches.length + 1);
     assert.equal(afterB[1].time_punches.at(-1).employee_id, b.worker.id);
     assert.equal(afterB[1].audit_events.length, beforeB[1].audit_events.length + 1);
@@ -246,19 +254,41 @@ async function proveBio01() {
     assertBio01Unchanged(beforeB[0], afterB[0], "B session cannot mutate A");
     assertBio01Unchanged(beforeB[2], afterB[2], "B session cannot mutate VICTIM");
 
+    // Both auth modes must succeed for EACH independently owned employer.
+    for(const [actor,auth] of [[a,{cookie:a.cookie}],[b,{credential:token(b.org.id,b.serial)}]]){
+      const before=await allStates();const payload=own(actor);
+      payload.logs[0].timestamp='2026-11-05T17:00:00+08:00';payload.logs[0].punchType='OUT';
+      const result=await request(payload,auth);
+      assertBio01Owned(result,{deviceSerial:actor.serial,ingested:1,duplicates:0,unmatched:0,invalid:0,locked:0},foreignMarkers);
+      const after=await allStates(),slot=actor===a?0:1;
+      assert.equal(after[slot].time_punches.length,before[slot].time_punches.length,'OUT updates the existing work-date punch');
+      const previous=before[slot].time_punches.at(-1),saved=after[slot].time_punches.at(-1);
+      assert.equal(saved.id,previous.id);assert.equal(saved.employee_id,actor.worker.id);
+      assert.equal(saved.organization_id,actor.org.id);assert.equal(previous.time_out,null);
+      assert.equal(new Date(saved.time_out).toISOString(),'2026-11-05T09:00:00.000Z');
+      assert.equal(saved.time_in,previous.time_in);assert.equal(saved.status,'Complete');
+      assert.equal(after[slot].audit_events.length,before[slot].audit_events.length+1);
+      assert.equal(after[slot].audit_events.at(-1).metadata.authentication,actor===a?'session':'device-secret');
+      assertBio01Unchanged(before[slot].payroll_runs,after[slot].payroll_runs,'OUT cannot change payroll');
+      assertBio01Unchanged(before[slot].employee_pay_profiles,after[slot].employee_pay_profiles,'OUT cannot change pay');
+      for(let i=0;i<3;i++)if(i!==slot)assertBio01Unchanged(before[i],after[i],'second auth-mode isolation');
+      assert.throws(()=>assertBio01Owned(result,{deviceSerial:victim.serial}),undefined,
+        "biometric validator accepts another employer's data");
+    }
     // A cookie is not authority once its backing session is revoked.
     await query("UPDATE sessions SET revoked_at = NOW() WHERE id = $1", [b.sessionId]);
     await deny("revoked-session", own(b), { cookie: b.cookie }, 401);
     assert.equal(denials, 9, "all denial guards must execute without mutations");
-    console.log(JSON.stringify({
+    const result={
       family: "BIO-01", postgresMajor: 16, http: "production-mode loopback",
-      ownDeviceIngested: 1, ownSessionIngested: 1,
+      ownDeviceIngested: 2, ownSessionIngested: 2,biometricDiscriminators:4,
       replayCreatesNoSecondPunch: true,
       trueHigherIdVictimImmutable: true,
       deniedChecks: denials, crossTenantBadgeUnmatched: true,
       payrollUnchanged: true, newCoverageCredits: 0,
       independentSecurityReview: "PENDING", productionCertified: false,
-    }));
+    };
+    securityReceipt('biometrics',result);console.log(JSON.stringify(result));
   } finally {
     await pool.end();
   }
@@ -267,5 +297,6 @@ async function proveBio01() {
 proveBio01().catch(err => {
   // Never print credentials, cookies, DB parameters or device identifiers.
   console.error("BIO01_PROOF_FAILED: " + (err?.code ?? err?.name ?? "unexpected"));
+  console.error(String(err?.stack ?? '').split('\n').filter(line => line.trim().startsWith('at ')).join('\n'));
   process.exitCode = 1;
 });
