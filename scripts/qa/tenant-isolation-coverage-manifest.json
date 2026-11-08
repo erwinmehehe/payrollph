@@ -1862,7 +1862,14 @@
             "routeBlobSha": "99e3fa0e48f6a8dde88b9505f49524898cdf957a",
             "proofBlobSha": "45cc7499ec33cc44d6ec7b826c075262411ed657",
             "runnerBlobSha": "3765c1923e137f68b75fd545348868672f3f2f5d",
-            "scope": "POST /api/benefits/hmo only. All four HMO POST actions: two independent fictional own-employer successes, real high-ID victim tenant 403, forged victim object 404, unchanged victim HMO/employee/payroll/audit and revoked-session denials. No carrier traffic."
+            "scope": "POST /api/benefits/hmo only. All four HMO POST actions: two independent fictional own-employer successes, real high-ID victim tenant 403, forged victim object 404, unchanged victim HMO/employee/payroll/audit and revoked-session denials. No carrier traffic.",
+            "callerReproof": {
+              "receiptFile": "scripts/qa/tenant-document-caller-reproof-receipt.json",
+              "head": "2d239ffa212a92205476083a1e9d960fd8be46a3",
+              "run": 42434366023,
+              "job": 128589939228,
+              "credits": 0
+            }
           }
         }
       ],
@@ -42734,6 +42741,13 @@
         "coverageCredits": 0,
         "independentSecurityReview": "PENDING",
         "productionCertified": false
+      },
+      "callerReproof": {
+        "receiptFile": "scripts/qa/tenant-document-caller-reproof-receipt.json",
+        "head": "2d239ffa212a92205476083a1e9d960fd8be46a3",
+        "run": 42434366023,
+        "job": 128589939228,
+        "credits": 0
       }
     },
     {

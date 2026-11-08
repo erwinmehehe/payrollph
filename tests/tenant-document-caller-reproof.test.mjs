@@ -1,4 +1,14 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {readFileSync} from 'node:fs';
+import {verifyDocumentCallerReproof} from '../scripts/qa/tenant-document-caller-reproof-verify.mjs';
+test('executed caller renewal rejects input, receipt and provenance mutations',()=>{
+ const m=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+ const ref=m.scopedPages.find(x=>x.path==='src/app/hcm/work-items/page.tsx').callerReproof;
+ const r=verifyDocumentCallerReproof(ref);
+ assert.equal(r.credits,0);
+ assert.throws(()=>verifyDocumentCallerReproof({...ref,job:1}));
+ for(const path of ['scripts/qa/tenant-document-caller-reproof-receipt.json','src/lib/auth.ts','src/app/api/benefits/hmo/route.ts','scripts/qa/hcm-work-queue-http.mjs'])
+  assert.throws(()=>verifyDocumentCallerReproof(ref,(file,encoding)=>file===path?readFileSync(file,encoding)+'\n':readFileSync(file,encoding)),path);
+});
 test('reproof refuses a local/non-CI target before importing DB modules',()=>{
  const r=spawnSync(process.execPath,['scripts/qa/tenant-document-caller-reproof-http.mjs'],{env:{...process.env,CI:'false',GITHUB_ACTIONS:'false'},encoding:'utf8'});
  assert.notEqual(r.status,0);assert.match(r.stderr,/APPROVAL_TASK_PROOF_REFUSED/);
