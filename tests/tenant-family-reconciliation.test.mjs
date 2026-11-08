@@ -67,6 +67,12 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
     for (const file of Object.keys(receipt.sources)) {
       mkdirSync(dirname(join(sandbox, file)), { recursive: true }); cpSync(file, join(sandbox, file));
     }
+    // The independent enterprise POST receipt requires its actual runtime and
+    // fixture inputs in this isolated writer regression as well.
+    const enterpriseReceipt = JSON.parse(readFileSync("scripts/qa/tenant-enterprise-admin-credit-receipt.json", "utf8"));
+    for (const file of Object.keys(enterpriseReceipt.pins)) {
+      mkdirSync(dirname(join(sandbox, file)), { recursive: true }); cpSync(file, join(sandbox, file));
+    }
     const input = structuredClone(manifest);
     for (const entry of Object.values(input.allApiRouteFiles)) for (const method of entry.methods) {
       if (selected.has(method.name + " " + entry.route)) {

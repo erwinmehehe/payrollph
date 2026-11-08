@@ -69,9 +69,12 @@ contains only the sanitized source-head/count receipt.
 ## Acceptance boundaries
 
 The historical enterprise GET receipt is retained. Its function is byte-identical,
-and the full reviewed POST-only source rewrite is separately pinned. POST remains
-GAP with zero new method credits in this security-fix PR; final-head CI and method
-credit review are separate acceptance steps. No metrics are rounded up.
+and the full reviewed POST-only source rewrite is separately pinned. POST now has
+one provisional Owner-method credit backed by the fresh source-bound local PG16
+receipt: 42 persisted-state and 42 wrong-employer discriminator checks, in addition
+to the audit-veto and foreign/forged controls. The receipt binds 199 proof/runtime
+inputs and is verified before accepting the credit. Current-head CI remains
+mandatory. This is one API method, not twelve method credits.
 
 Actual SSO login/token exchange, SCIM provisioning, automation execution, external
 DNS ownership and production operations are not certified. All money/provider

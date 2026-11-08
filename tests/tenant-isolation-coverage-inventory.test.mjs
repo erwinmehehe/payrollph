@@ -16,6 +16,7 @@ import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "../sc
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
+import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 /**
@@ -242,13 +243,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(currentBlob, "4867e820934e87452ac1e593cbdd7f0d7e2a4ab5");
     verifyEnterprisePostAuditSource(readFileSync("src/app/api/enterprise/route.ts", "utf8"),
       "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
-    assert.equal(method.status, method.name === "GET" ? "COVERED" : "GAP");
+    assert.equal(method.status, "COVERED");
     if (method.name === "POST") {
-      assert.equal(method.testedBy, null);
-      assert.equal(method.reviewedUncertified.kind, "enterprise-post-atomic-audit-PG16-candidate");
-      assert.equal(method.reviewedUncertified.coverageCredits, 0);
-      assert.equal(gitBlobSha(readFileSync(method.reviewedUncertified.proofFile)), method.reviewedUncertified.proofBlobSha);
-      assert.equal(gitBlobSha(readFileSync(method.reviewedUncertified.workflowFile)), method.reviewedUncertified.workflowBlobSha);
+      assert.equal(verifyEnterprisePostCredit(manifest), 1);
     }
     return true;
   }
@@ -4020,6 +4017,10 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/migrations/route.ts" && method.name === "POST") {
         assert.equal(verifyMigrationPostCredit(manifest), 1);
+        continue;
+      }
+      if (path === "src/app/api/enterprise/route.ts" && method.name === "POST") {
+        assert.equal(verifyEnterprisePostCredit(manifest), 1);
         continue;
       }
       if (path === "src/app/api/workforce-planning/route.ts" && ["POST","PATCH"].includes(method.name)) {

@@ -19,6 +19,8 @@ test('all enterprise mutation writes and audit receipts share a transaction',()=
  }ts.forEachChild(node,visit);}visit(ast);assert.equal(audits,15);assert.ok(writes>=18);
 });
 test('existing GET and pre-action authorization remain intact',()=>{
+ const workflow=readFileSync('.github/workflows/tenant-enterprise-admin-http.yml','utf8');
+ assert.ok(workflow.includes('--health-cmd "pg_isready -U postgres -d app_db"'),'Docker health command must stay one double-quoted argument');
  const historical='3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3';
  verifyEnterprisePostAuditSource(source,historical);
  for(const mutated of [source.replace('requireSensitiveActionMfa(user)','null'),source.replace('}, tx);','});'),source.replace('eq(identityDomains.organizationId, organizationId)','eq(identityDomains.organizationId, 1)')])assert.throws(()=>verifyEnterprisePostAuditSource(mutated,historical));
