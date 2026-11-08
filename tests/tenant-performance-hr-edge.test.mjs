@@ -102,3 +102,15 @@ test("edge runner contains explicit own, peer-unit, real foreign, absent, revoke
   ]) assert.ok(source.includes(marker), "missing evidence barrier: " + marker);
   assert.doesNotMatch(source, /DROP TABLE|TRUNCATE|DELETE FROM|payrollRuns\)\.set|employeePayProfiles\)\.set/);
 });
+
+test("fictional second-unit employee supplies required employee title without accessing payroll", () => {
+  const source = readFileSync("scripts/qa/tenant-performance-hr-edge-http.mjs", "utf8");
+  const start = source.indexOf('const peerWorker = await insert(e, "employees", {');
+  assert.ok(start > -1, "actual second-unit worker fixture is required");
+  const fixture = source.slice(start,source.indexOf("});",start)+3);
+  for(const key of [
+    "legalEntityId: e.entity.id", "orgUnitId: peerUnit.id",
+    'employeeNo: e.marker + "-PEER"', 'title: "Fictional peer"',
+    'basicRate: "20000.00"', 'startDate: "2026-01-05"',
+  ]) assert.ok(fixture.includes(key),"missing a required synthetic worker field: " + key);
+});

@@ -40,7 +40,8 @@ async function fixture(label, nonce) {
   });
   const peerWorker = await insert(e, "employees", {
     legalEntityId: e.entity.id, orgUnitId: peerUnit.id, employeeNo: e.marker + "-PEER",
-    firstName: "Other", lastName: e.marker, basicRate: "20000.00", startDate: "2026-01-05",
+    firstName: "Other", lastName: e.marker, title: "Fictional peer",
+    basicRate: "20000.00", startDate: "2026-01-05",
   });
   const [manager] = await db.insert(t.users).values({
     name: e.marker + " manager", email: (e.marker + "-mgr@example.invalid").toLowerCase(),
