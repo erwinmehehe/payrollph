@@ -139,13 +139,16 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     unusedLeaveCredits: "0",
     unusedLeaveType: "Vacation leave",
     leaveTaxReviewed: false,
-    leaveMonetizationTaxExempt: false,
+    leaveTaxBasis: "taxable",
+    leaveTaxEvidenceReference: "",
     separationPay: "0",
+    taxableSeparationPay: "",
+    separationExemptionReason: "",
+    separationTaxEvidenceReference: "",
     retirementPay: "0",
     otherBenefits: "0",
     deductOutstandingLoans: false,
     specialPayTaxReviewed: false,
-    separationPayTaxExempt: false,
     retirementPayTaxExempt: false,
   });
 
@@ -230,6 +233,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         finalStatutoryDeductions: Number(form.finalStatutoryDeductions),
         unusedLeaveCredits: Number(form.unusedLeaveCredits),
         separationPay: Number(form.separationPay),
+        taxableSeparationPay: form.taxableSeparationPay.trim() === ""
+          ? undefined : Number(form.taxableSeparationPay),
         retirementPay: Number(form.retirementPay),
         otherBenefits: Number(form.otherBenefits),
       }),
@@ -590,10 +595,20 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                     <input type="checkbox" checked={form.leaveTaxReviewed} onChange={(e) => setForm({ ...form, leaveTaxReviewed: e.target.checked })} />
                     Leave monetization tax treatment reviewed
                   </label>
-                  <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input type="checkbox" checked={form.leaveMonetizationTaxExempt} onChange={(e) => setForm({ ...form, leaveMonetizationTaxExempt: e.target.checked })} />
-                    Reviewed leave monetization is tax-exempt
+                  <label>Reviewed leave tax classification
+                    <select value={form.leaveTaxBasis} onChange={(e) => setForm({ ...form, leaveTaxBasis: e.target.value })}>
+                      <option value="taxable">Taxable compensation (no verified de minimis basis)</option>
+                      <option value="private_vacation_de_minimis">Private-sector unused vacation leave (verified de minimis annual days)</option>
+                    </select>
+                    <small>Verified private vacation leave: up to 12 days/year from January 6, 2026 (10 days before). Any excess uses the combined ₱90,000 13th-month / other-benefits pool. Other leave types need specialist classification; do not use the vacation-leave exemption for sick or SIL credits.</small>
                   </label>
+                  {form.leaveTaxBasis === "private_vacation_de_minimis" && (
+                    <label>Vacation-leave tax review evidence reference
+                      <input required minLength={8} maxLength={200} value={form.leaveTaxEvidenceReference}
+                        onChange={(e) => setForm({ ...form, leaveTaxEvidenceReference: e.target.value })} />
+                      <small>Reference the verified annual leave-conversion history, employer category and supporting tax review. Prior exempt conversions are read from the worker's ledger.</small>
+                    </label>
+                  )}
                 </>
               )}
               <label>Separation pay, if applicable
@@ -614,10 +629,36 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 Tax treatment reviewed for separation / retirement pay
               </label>
               {Number(form.separationPay) > 0 && (
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="checkbox" checked={form.separationPayTaxExempt} onChange={(e) => setForm({ ...form, separationPayTaxExempt: e.target.checked })} />
-                  Reviewed separation pay is tax-exempt
-                </label>
+                <>
+                  <label>Taxable portion of separation pay (PHP)
+                    <input type="number" min="0" step="0.01" max={form.separationPay}
+                      value={form.taxableSeparationPay}
+                      onChange={(e) => setForm({ ...form, taxableSeparationPay: e.target.value })} />
+                    <small>Leave blank if fully taxable. For an exempt or partly exempt payment, enter the actual taxable portion and document the exempt portion below. Ordinary wages and 13th month are classified separately.</small>
+                  </label>
+                  {form.taxableSeparationPay.trim() !== "" &&
+                    Number(form.taxableSeparationPay) < Number(form.separationPay) && (
+                    <>
+                      <label>Reviewed legal reason for exempt separation benefit
+                        <select required value={form.separationExemptionReason} onChange={(e) => setForm({ ...form, separationExemptionReason: e.target.value })}>
+                          <option value="">Select verified cause</option>
+                          <option value="death">Death</option>
+                          <option value="sickness">Qualifying sickness</option>
+                          <option value="disability">Physical disability</option>
+                          <option value="redundancy">Redundancy</option>
+                          <option value="retrenchment">Retrenchment</option>
+                          <option value="closure">Business closure</option>
+                          <option value="other_beyond_control">Other substantiated cause beyond employee control</option>
+                        </select>
+                        <small>Exemption requires an authorized-cause exit category and supporting BIR/HR evidence.</small>
+                      </label>
+                      <label>Separation exemption documentary reference
+                        <input required minLength={8} maxLength={200} value={form.separationTaxEvidenceReference}
+                          onChange={(e) => setForm({ ...form, separationTaxEvidenceReference: e.target.value })} />
+                      </label>
+                    </>
+                  )}
+                </>
               )}
               {Number(form.retirementPay) > 0 && (
                 <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
