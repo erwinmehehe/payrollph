@@ -44,7 +44,7 @@ export function verifyAccountEmailRequestCredit(manifest) {
   assert.equal(p.independentSecurityReview, "PENDING");
   assert.equal(p.independentlyAccepted, false);
   assert.equal(p.productionTested, false);
-  assert.ok(p.scope.includes("two independent employer owners"));
+  assert.ok(p.scope.toLowerCase().includes("two independent employer owners"));
   for (const [path, expected] of Object.entries(receipt.hashes)) {
     assert.equal(sha(path), expected, "changed source invalidates prior executed PG16 proof: " + path);
   }
