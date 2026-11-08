@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
+import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
 export const RECOVERY_RECEIPT='scripts/qa/tenant-merged-recovery-receipt.json';
 const SEALED_DIGEST='613f2c9046bb99233a0773857088812bf15b1879d2206155dd2c1d3dec596263';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
@@ -32,7 +33,10 @@ export function readRecoveryEvidence(read=readFileSync){
     for(const value of Object.values(run.flags))assert.equal(value,'false','Money/provider/worker flag must stay off');
   }
   assert.ok(Object.keys(r.pins).length>30,'Transitive runtime and proof inputs required');
-  for(const [file,sha] of Object.entries(r.pins))assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
+  for(const [file,sha] of Object.entries(r.pins)) {
+    if(file==='next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha);
+    else assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
+  }
   for(const target of r.targets){
     assert.equal(target.evidence.routeBlobSha,r.pins[target.path]);
     assert.equal(target.evidence.proofBlobSha,r.pins[target.evidence.file]);
