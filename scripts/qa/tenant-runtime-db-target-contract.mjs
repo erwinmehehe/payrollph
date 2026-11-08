@@ -39,8 +39,8 @@ function assertHeaders(result) {
   assert.ok(directives.includes("no-store"), "private diagnostic must not cache");
   assert.ok(!directives.some(value =>
     value === "public" || value === "immutable" ||
-    /^s-maxage\\s*=/.test(value) ||
-    (/^max-age\\s*=/.test(value) && value !== "max-age=0")
+    /^s-maxage\s*=/.test(value) ||
+    (/^max-age\s*=/.test(value) && value !== "max-age=0")
   ), "private diagnostic must not advertise cacheable content");
   assert.equal(result.headers.get("vary")?.toLowerCase(), "x-readiness-token",
     "shared caches must vary on the private token");
