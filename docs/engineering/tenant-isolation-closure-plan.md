@@ -189,9 +189,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 30 | 0 | 3 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 27 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 3 | **STA-01** | 27 | 25 | 0 | 2 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -259,18 +259,18 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 19 | 2 | 5 | INCOMPLETE |
-| 1 | **DL-02** | 26 | 22 | 0 | 4 | INCOMPLETE |
-| 2 | **MNY-01** | 33 | 20 | 0 | 13 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 21 | 0 | 12 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 21 | 0 | 6 | INCOMPLETE |
-| 4 | **PII-01** | 39 | 32 | 0 | 7 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 28 | 0 | 10 | INCOMPLETE |
-| 5 | **WRK-01** | 39 | 20 | 0 | 19 | INCOMPLETE |
-| 5 | **WRK-02** | 39 | 23 | 0 | 16 | INCOMPLETE |
-| 5 | **WRK-03** | 40 | 29 | 0 | 11 | INCOMPLETE |
-| 6 | **EDG-01** | 33 | 3 | 0 | 30 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 17 | 0 | 16 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 26 | 0 | 0 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
+| 5 | **WRK-01** | 39 | 39 | 0 | 0 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 38 | 0 | 1 | INCOMPLETE |
+| 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 23 | 1 | 9 | INCOMPLETE |
 
 **Live inventory (proposed sweep):** 295 API route files, **498 HTTP methods = 340 COVERED + 10 PUBLIC-BY-DESIGN + 148 GAP**, plus 21 scoped page/action entries (4 provisionally COVERED / 17 GAP). The frozen 406-method queue above is a historical subset; **do not equate its per-batch GAP subtotal with the live global GAP total**. No batch in this snapshot is fully resolved. Tenant-isolation acceptance stays **NOT ACCEPTED**.
 
