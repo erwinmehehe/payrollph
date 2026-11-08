@@ -1,3 +1,4 @@
+import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
@@ -230,24 +231,17 @@ test("already credited and partial-action methods are not double-counted", () =>
       continue;
     }
     if (key === "GET year-end" || key === "POST year-end") {
-      // The #1730 receipts belong to the previous route blob. Both methods
-      // have zero current coverage credit after the atomic-binding rewrite.
-      // They cannot silently inherit the old PG16 source proof.
+      // Old #1730 route proof stays invalid; distinct executed #1804 current-source
+      // PG16 receipt now supports two provisional methods, not tax acceptance.
       const method = methods.get(key);
-      const review = method?.reviewedUncertified;
-      assert.equal(method?.status, "GAP", key);
-      assert.equal(method?.testedBy, null, key + ": no accepted source-current method proof");
-      assert.equal(review?.kind, "year-end-binding-atomic-source-only-zero-credit", key);
-      assert.equal(review?.credits, 0, key);
-      assert.equal(review?.routeBlobSha,
-        manifest.allApiRouteFiles["src/app/api/year-end/route.ts"].gitBlobSha,
-        key + ": source hash must match the modified route");
-      assert.equal(review?.actualPg16Http, "PENDING", key);
-      assert.equal(review?.independentSecurityReview, "PENDING", key);
-      assert.equal(review?.productionCertified, false, key);
+      assert.equal(verifyYearEndCredits(manifest), 2);
+      assert.equal(method?.status, "COVERED", key);
+      assert.equal(method?.testedBy?.proofPullRequest, 1804);
+      assert.equal(method?.testedBy?.workflowRunId, 42254117862);
+      assert.equal(method?.reviewedUncertified, undefined);
       continue;
     }
-    if (key === "PATCH performance/follow-through-governance") {
+        if (key === "PATCH performance/follow-through-governance") {
       verifyPerformanceCoreCredit(key, methods.get(key));
       assert.notEqual(methods.get(key).testedBy.verifiedMainCommit, base, "new complete proof is not borrowed historical promotion evidence");
       continue;

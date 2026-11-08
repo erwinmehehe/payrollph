@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { HelpCenterSearch } from "@/components/marketing/help-center-search";
+import { HelpOnboardingPaths } from "@/components/marketing/help-onboarding-paths";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
@@ -36,6 +37,7 @@ export default function HelpCenterPage() {
             </div>
           </div>
         </header>
+        <HelpOnboardingPaths />
         <HelpCenterSearch />
         <aside className="border-t border-slate-200 bg-slate-50 py-9">
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-4 px-5 text-sm leading-relaxed text-slate-700 sm:px-8">
