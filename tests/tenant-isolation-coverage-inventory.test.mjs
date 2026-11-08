@@ -3812,7 +3812,7 @@ test("new sensitive download, legal-employer, leave mutation, and ESS proofs are
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8").split("\n");
   const cases = [
     { route: "documents/[id]", method: "GET", own: "ownDocumentDownload",
-      prefix: "/api/documents/", success: 200, deny: 403 },
+      prefix: "/api/documents/", success: 200, deny: 404 },
     { route: "legal-entities", method: "GET", own: "ownLegalEntities",
       prefix: "/api/legal-entities", success: 200, deny: 403 },
     { route: "leave/balances", method: "POST", own: "ownLeavePolicy",

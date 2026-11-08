@@ -141,7 +141,8 @@ export async function verifyDl01Vault(f, { request, expectStatus }) {
     assertOwnList(forged, ownPrimary.id, victimDoc.id, victimMarker,
       org.id, worker.id);
 
-    const foreignRemoval = expectStatus(await request("/api/employee-vault/" + victimDoc.id, {
+    const foreignRemoval =
+    expectStatus(await request("/api/employee-vault/" + victimDoc.id, {
       method: "DELETE", cookie,
     }), 404, "DL-01 vault DELETE must hide actual higher-ID victim document");
     const missingRemoval = expectStatus(await request("/api/employee-vault/2147483647", {

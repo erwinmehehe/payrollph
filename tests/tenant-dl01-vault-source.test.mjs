@@ -58,12 +58,12 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   const expected = [
     { path: "src/app/api/employee-vault/route.ts", method: "GET",
       pins: { line: 128, ownPositiveLine: 128, foreignDenialLine: 132,
-        forgedSelectorLine: 138, unchangedDbLine: 178,
+        forgedSelectorLine: 138, unchangedDbLine: 179,
         victimExistsLine: 110, victimIdOrderingLine: 104 },
       ownStatus: 200, forgedStatus: 200 },
     { path: "src/app/api/employee-vault/[id]/route.ts", method: "DELETE",
-      pins: { line: 153, ownPositiveLine: 153, foreignDenialLine: 144,
-        forgedSelectorLine: 165, unchangedDbLine: 178,
+      pins: { line: 154, ownPositiveLine: 154, foreignDenialLine: 145,
+        forgedSelectorLine: 166, unchangedDbLine: 179,
         victimExistsLine: 110, victimIdOrderingLine: 104 },
       ownStatus: 204, forgedStatus: 204 },
   ];
