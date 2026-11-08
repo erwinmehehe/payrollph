@@ -295,7 +295,7 @@ async function runEmployer(label) {
   assert.equal(preview.metadata.bankExportSha256, digest(bank.text));
   assert.equal(preview.metadata.bankExportTotalNet, moneyString(netCents));
   assert.equal(preview.metadata.bankExportRowCount, 25);
-  for (const action of ["Payroll attendance cutoff locked", "Payroll submitted for review", "Payroll released"]) {
+  for (const action of ["Payroll attendance cutoff locked", "Payroll submitted for review", "Payroll release receipt"]) {
     assert.ok(events.some(x => x.action === action), "Required audit event missing: " + action);
   }
   summary.checks.push("locked-cutoff", "timesheets-approved", "actual-calculation",
