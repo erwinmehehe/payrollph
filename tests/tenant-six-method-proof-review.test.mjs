@@ -964,7 +964,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Eight", "Nine", "Ten", "Eleven", "Twelve"][incomplete];
     const batchSummary = provisionalBatches.length === 0
       ? "All 12 batches remain INCOMPLETE."
-      : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
+      : baselineMergedCredits
+        // Merged #1855 reformatted only this descriptive sentence, not any
+        // frozen membership, source receipt, total or security acceptance gate.
+        ? `${incomplete} batches remain INCOMPLETE; ${provisionalBatches.join(", ")} remain PROVISIONAL — NOT ACCEPTED.`
+        : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
