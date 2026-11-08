@@ -7,6 +7,7 @@ import {
   classifyReviewedSeparationPay,
 } from "../src/lib/final-pay-tax-classification";
 import { computeFinalPay } from "../src/lib/final-pay";
+import { finalPayReviewCsv } from "../src/lib/final-pay-review-evidence";
 
 const reference = "BIR-RR29-2025-private-VL-ledger-review-2026";
 
@@ -200,4 +201,34 @@ test("production route keeps review gates, evidence in snapshot and full-pay rel
   assert.match(source, /sourceFingerprint/);
   assert.match(source, /FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED/);
   assert.match(source, /FINAL_PAY_MAKER_CHECKER_REQUIRED/);
+});
+
+test("final-pay review CSV surfaces tax split and evidence, including safe formula quoting", () => {
+  const csv = finalPayReviewCsv({
+    id: 12, employeeNo: "TEST-12", employeeName: "Fictional Worker",
+    grossFinalPay: "215000.00", netFinalPay: "150000.00",
+    taxAdjustment: "-65000.00", finalStatutoryDeductions: "0.00",
+    loanDeductions: "0.00",
+    computationSnapshot: {
+      taxClassification: {
+        reviewerUserId: 19, taxDate: "2026-11-08",
+        leaveTaxBasis: "private_vacation_de_minimis",
+        leave: {
+          deMinimisPay: 12000, benefitsPoolPay: 3000,
+          evidenceReference: "=REVIEW_LEDGER_2026",
+        },
+        separation: {
+          taxablePay: 50000, exemptPay: 150000,
+          exemptionReason: "redundancy",
+          evidenceReference: "CTE-REFERENCE-SYNTHETIC",
+        },
+      },
+    },
+  });
+  assert.match(csv, /"Leave de minimis \(PHP\)","12000\.00"/);
+  assert.match(csv, /"Leave excess in combined 90k benefits pool \(PHP\)","3000\.00"/);
+  assert.match(csv, /"Separation taxable portion \(PHP\)","50000\.00"/);
+  assert.match(csv, /"Separation exempt portion \(PHP\)","150000\.00"/);
+  assert.match(csv, /"Separation tax-exemption reason","redundancy"/);
+  assert.match(csv, /"Leave review evidence reference","'=REVIEW_LEDGER_2026"/);
 });
