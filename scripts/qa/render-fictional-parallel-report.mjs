@@ -4,7 +4,7 @@
  * private parallel-payroll checker. Never reads a manifest, CSV or database,
  * and never makes an HTTP request. Not a certification or payout tool.
  */
-import { closeSync, openSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -198,6 +198,27 @@ export function renderFictionalParallelReport(view) {
   ].join("\n");
 }
 
+export function readBoundedFictionalFixture(input) {
+  const fd = openSync(input, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const info = fstatSync(fd);
+    if (!info.isFile() || info.size > MAX_BYTES) {
+      throw new Error("Fixture summary must be a bounded regular file.");
+    }
+    // Read the same opened object, including one extra byte to reject growth.
+    // Never check one pathname object and subsequently reopen a replacement.
+    const buffer = Buffer.alloc(MAX_BYTES + 1);
+    let size = 0;
+    while (size < buffer.length) {
+      const n = readSync(fd, buffer, size, buffer.length - size, null);
+      if (n === 0) break;
+      size += n;
+    }
+    if (size > MAX_BYTES) throw new Error("Fixture summary exceeds the safe size bound.");
+    return JSON.parse(buffer.subarray(0, size).toString("utf8"));
+  } finally { closeSync(fd); }
+}
+
 function runCLI() {
   const [input, output, confirmation, ...extra] = process.argv.slice(2);
   if (!input || !output || confirmation !== "--fictional" || extra.length) {
@@ -207,8 +228,7 @@ function runCLI() {
   }
   try {
     if (resolve(input) === resolve(output)) throw new Error("Input and output paths must differ.");
-    if (statSync(input).size > MAX_BYTES) throw new Error("Fixture summary exceeds the safe size bound.");
-    const envelope = JSON.parse(readFileSync(input, "utf8"));
+    const envelope = readBoundedFictionalFixture(input);
     const html = renderFictionalParallelReport(validateFictionalParallelReport(envelope));
     // 'wx' refuses to overwrite any existing private file; 0600 protects the output.
     const fd = openSync(output, "wx", 0o600);

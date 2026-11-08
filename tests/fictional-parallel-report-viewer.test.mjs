@@ -7,11 +7,21 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   renderFictionalParallelReport,
+  readBoundedFictionalFixture,
   validateFictionalParallelReport,
 } from "../scripts/qa/render-fictional-parallel-report.mjs";
 
 const fixturePath = resolve("fixtures/qa/fictional-parallel-report.json");
 const script = fileURLToPath(new URL("../scripts/qa/render-fictional-parallel-report.mjs", import.meta.url));
+test("fixture reader bounds the opened regular file and rejects oversized data", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "bounded-fictional-report-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  assert.deepEqual(readBoundedFictionalFixture(fixturePath), JSON.parse(readFileSync(fixturePath, "utf8")));
+  const tooLarge = join(root, "large.json");
+  writeFileSync(tooLarge, Buffer.alloc(256 * 1024 + 1, 32));
+  assert.throws(() => readBoundedFictionalFixture(tooLarge), /bounded regular file|safe size bound/);
+  assert.throws(() => readBoundedFictionalFixture(root));
+});
 function fixture() { return JSON.parse(readFileSync(fixturePath, "utf8")); }
 
 test("fictional reconciliation renders a local-only, explicitly unapproved count summary", () => {
