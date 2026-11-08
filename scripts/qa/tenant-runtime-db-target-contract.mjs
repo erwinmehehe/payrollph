@@ -32,7 +32,16 @@ export function requireDisposableDbTarget(env = process.env) {
 }
 
 function assertHeaders(result) {
-  assert.equal(result.headers.get("cache-control"), "no-store", "private diagnostic must not cache");
+  // Next.js can append max-age=0 to the route's no-store response header.
+  // Require no-store itself, and reject conflicting cache-enabling directives.
+  const directives = (result.headers.get("cache-control") ?? "")
+    .split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+  assert.ok(directives.includes("no-store"), "private diagnostic must not cache");
+  assert.ok(!directives.some(value =>
+    value === "public" || value === "immutable" ||
+    /^s-maxage\\s*=/.test(value) ||
+    (/^max-age\\s*=/.test(value) && value !== "max-age=0")
+  ), "private diagnostic must not advertise cacheable content");
   assert.equal(result.headers.get("vary")?.toLowerCase(), "x-readiness-token",
     "shared caches must vary on the private token");
 }
