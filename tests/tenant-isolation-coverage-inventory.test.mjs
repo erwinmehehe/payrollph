@@ -1,4 +1,5 @@
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
+import {verifyRecoveryCredits, RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
@@ -2078,6 +2079,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       assert.equal(method.reviewedUncertified, undefined, "a credited method no longer carries the zero-credit hold");
       return;
     }
+    if(wrk02Path.endsWith('/scenarios/route.ts') && method.name==='POST') {
+      assert.equal(verifyRecoveryCredits(manifest),3);
+      return; // Separate, sealed fresh PG16 receipt, never source-only credit.
+    }
     assert.equal(method.status, "GAP", "Source-only WRK-02 changes earn zero new method credits");
     assert.equal(method.testedBy, null);
     assert.deepEqual(method.reviewedUncertified, {
@@ -4001,6 +4006,9 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
+      if(RECOVERY_TARGETS.some(t=>t.path===path&&t.method===method.name)){
+        assert.equal(verifyRecoveryCredits(manifest),3); continue;
+      }
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
         continue;
@@ -6813,6 +6821,9 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
   ];
   for (const [route, name] of held) {
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]?.methods.find(m => m.name === name);
+    if(route==='workforce-planning/scenarios'&&name==='POST'){
+      assert.equal(verifyRecoveryCredits(manifest),3);continue;
+    }
     if (route === "workforce-planning" && ["POST","PATCH"].includes(name)) {
       assert.equal(verifyRootCredits(manifest),2);
       continue;

@@ -1,3 +1,5 @@
+> **Merged-proof recovery — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = 439 COVERED + 11 PUBLIC-BY-DESIGN + 48 GAP. Three distinct methods; independent security review PENDING; NOT ACCEPTED for production.
+
 > **Current PR #1827 year-end-only proposal — NOT ACCEPTED:** 498 methods = 436 COVERED / 11 PUBLIC-BY-DESIGN / 51 GAP; frozen 352 COVERED / 3 PUBLIC / 51 GAP. All source-linked credits provisional; security and production acceptance NOT GRANTED.
 
 > **Main baseline before this draft — SOLO_VERIFIED_DEV_RECOVERY:** 434 COVERED / 11 PUBLIC-BY-DESIGN / 53 GAP. Three methods from #1829 OFF-profile PG16 receipt; no production acceptance.
@@ -205,12 +207,12 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 5 | **WRK-02** | 39 | 38 | 0 | 1 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
-| 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 9 | 0 | 24 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 24 | 1 | 8 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **352 COVERED + 3 PUBLIC-BY-DESIGN + 51 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **355 COVERED + 3 PUBLIC-BY-DESIGN + 48 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 9 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

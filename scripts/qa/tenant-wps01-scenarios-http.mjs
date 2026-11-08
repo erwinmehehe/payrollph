@@ -45,14 +45,20 @@ export async function proveWps01Scenarios() {
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
     const a = await seedEmployer("ATTA", nonce, standaloneMakeSession);
     const b = await seedEmployer("ATTB", nonce, standaloneMakeSession);
+    // Early/first-row fallbacks must not accidentally select the victim.
+    for(let i=0;i<7;i++) await seedEmployer('PADDING'+i,nonce,standaloneMakeSession);
     const victim = await seedEmployer("VICTIM", nonce, standaloneMakeSession);
     const employers = [a, b, victim];
     for (const field of ["org", "unit", "worker", "owner"]) {
       assert.ok(victim[field].id > a[field].id && victim[field].id > b[field].id,
         "the victim must be a real higher-ID employer, user, unit and worker");
+      assert.ok(victim[field].id>6,'victim employer/user/unit/worker must be above six');
     }
     const plans = new Map();
     for (const e of employers) {
+      if(e===victim)for(let i=0;i<7;i++)await db.insert(workforcePlans).values({
+        organizationId:a.org.id,name:a.marker+' padding plan '+i,startDate:'2026-01-01',endDate:'2026-12-31',
+      });
       const [plan] = await db.insert(workforcePlans).values({
         organizationId: e.org.id, name: e.marker + " WPS01 owned plan",
         startDate: "2026-01-01", endDate: "2026-12-31",
@@ -63,6 +69,7 @@ export async function proveWps01Scenarios() {
     assert.ok(victimPlan.id > plans.get(a.org.id).id &&
       victimPlan.id > plans.get(b.org.id).id,
       "the forged foreign plan must be real and higher-ID");
+    assert.ok(victimPlan.id>6,'real victim plan must be above six');
 
     async function state(orgId) {
       const read = table => db.select().from(table)
@@ -156,9 +163,13 @@ export async function proveWps01Scenarios() {
       "anonymous request with a valid employer and plan");
     const firstA = await createAndProve(a, body(a, a.marker + " owned scenario"), 1);
     const firstB = await createAndProve(b, body(b, b.marker + " owned scenario"), 1);
+    for(let i=0;i<7;i++)await db.insert(workforcePlanningScenarios).values({
+      ...firstA,id:undefined,name:a.marker+' padding scenario '+i,
+    });
     const realVictim = await createAndProve(victim, body(victim, victim.marker + " protected scenario"), 1);
     assert.ok(realVictim.id > firstA.id && realVictim.id > firstB.id,
       "higher-ID victim scenario is persisted before attack probes");
+    assert.ok(realVictim.id>6,'real victim scenario must be above six');
 
     for (const attacker of [a, b]) {
       const plan = plans.get(attacker.org.id);
