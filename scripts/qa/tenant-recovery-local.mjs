@@ -31,4 +31,5 @@ const args=mode==='db'?['scripts/qa/local-tenant-proof-db.mjs','--reset']:
   mode==='totp'?['--import','tsx','scripts/qa/tenant-totp-setup-http.mjs']:
   mode==='scenarios'?['--import','tsx','scripts/qa/tenant-wps01-scenarios-http.mjs']:null;
 assert.ok(args,'Usage: db | build | start | totp | scenarios');
-const child=spawn(process.execPath,args,{env,stdio:'inherit'});child.on('exit',code=>process.exit(code??1));
+// Schema initialization is explicitly LOCAL, never a fabricated hosted CI job.
+const child=spawn(process.execPath,args,{env:mode==='db'?{...env,CI:'false'}:env,stdio:'inherit'});child.on('exit',code=>process.exit(code??1));
