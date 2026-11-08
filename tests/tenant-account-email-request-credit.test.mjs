@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { EMAIL_REQUEST_RECEIPT, verifyAccountEmailRequestCredit }
   from "../scripts/qa/tenant-account-email-request-credit.mjs";
 
@@ -13,8 +14,7 @@ test("distinct account email request POST is provisionally credited only by pinn
   const methods = Object.values(m.allApiRouteFiles).flatMap(x => x.methods);
   assert.equal(methods.filter(x => x.status === "COVERED").length, m.metrics.coveredAfter);
   assert.equal(methods.filter(x => x.status === "GAP").length, m.metrics.gap);
-  assert.equal(m.metrics.coveredAfter, 442);
-  assert.equal(m.metrics.gap, 45);
+  assertLiveTenantCounts(assert, m);
   assert.equal(m.allApiRouteFiles["src/app/api/account/email/verify/route.ts"]
     .methods.find(x => x.name === "POST").status, "COVERED",
     "request and verification are distinct methods; do not double count verification");

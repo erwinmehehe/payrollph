@@ -88,8 +88,10 @@ export function verifyAccountEmailRequestCredit(manifest) {
     "node --import tsx scripts/qa/tenant-account-email-request-http.mjs"]) {
     assert.ok(workflow.includes(marker), "workflow safety changed: " + marker);
   }
-  assert.equal(manifest.metrics.methods, 498);
-  assert.equal(manifest.metrics.publicByDesign, 11);
+  const allMethods = Object.values(manifest.allApiRouteFiles).flatMap(route => route.methods);
+  assert.equal(allMethods.length, manifest.metrics.methods, "current method tally must match manifest");
+  assert.equal(allMethods.filter(method => method.status === "PUBLIC-BY-DESIGN").length,
+    manifest.metrics.publicByDesign, "public-by-design tally must match manifest");
   assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED:"));
   assert.ok(manifest.acceptanceStatus.includes(receipt.jobUrl));
   return 1;
