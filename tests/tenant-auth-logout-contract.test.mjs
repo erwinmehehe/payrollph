@@ -63,7 +63,7 @@ test("the harness proves own revocation, forged session IDs, no-ops, cross-site 
   for (const required of [
     "exactly the presented session is revoked", "the caller's other device still works", "sessionId: victimSession.id",
     "token: token(device.v.one)", "a cross-site logout must revoke nothing", "attacker A after anonymous and garbage logouts",
-    "victim after both complete attacker journeys", "A's session evidence cannot satisfy B's", "replayed session's revocation timestamp",
+    "victim after both complete attacker journeys", "A's session evidence cannot satisfy B's", "logout replay must preserve every SQL field and the first revokedAt timestamp",
     "coverageCredits: 0", "independentlyAccepted: false", "for (let i = 0; i < 7; i++)",
   ]) assert.ok(harness.includes(required), "missing harness step " + required);
   assert.doesNotMatch(harness, /\bcoverageCredits: [1-9]/);
