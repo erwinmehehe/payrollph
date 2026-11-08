@@ -537,7 +537,7 @@ export async function POST(request: Request) {
 
     // Explicit taxable/exempt separation split. Never infer an exemption from
     // the old checkbox: require a legally qualified reason and supporting ref.
-    if (body.separationPayTaxExempt === true && body.taxableSeparationPay === undefined) {
+    if (body.separationPayTaxExempt === true) {
       return Response.json({
         code: "FINAL_PAY_SEPARATION_EXEMPTION_EVIDENCE_REQUIRED",
         error: "Enter the taxable separation-pay amount, qualifying authorized cause and exemption evidence reference; an exemption checkbox alone is insufficient.",
@@ -569,7 +569,7 @@ export async function POST(request: Request) {
     }
     const leaveTaxBasis = String(body.leaveTaxBasis ?? "taxable");
     if (!["taxable", "private_vacation_de_minimis"].includes(leaveTaxBasis) ||
-        (body.leaveMonetizationTaxExempt === true && leaveTaxBasis !== "private_vacation_de_minimis")) {
+        body.leaveMonetizationTaxExempt === true) {
       return Response.json({
         code: "FINAL_PAY_LEAVE_TAX_BASIS_REQUIRED",
         error: "Choose the reviewed leave tax basis; an exemption checkbox alone is not valid.",
