@@ -83,7 +83,7 @@ async function request(token, cookie, query = "") {
   if (token !== undefined) headers["x-readiness-token"] = token;
   if (cookie !== undefined) headers.cookie = cookie;
   const response = await fetch(process.env.SECURITY_SMOKE_URL +
-    "api/readiness/database-target" + query, {
+    "/api/readiness/database-target" + query, {
     method: "GET", headers, cache: "no-store", redirect: "manual",
   });
   const text = await response.text();
