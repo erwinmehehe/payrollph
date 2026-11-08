@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import {
   requireDisposableDocumentEnv, assertDeniedDocumentResponse,
@@ -35,6 +36,30 @@ test("refuses real networks, providers, worker or non-disposable upload flags", 
     assert.throws(() => requireDisposableDocumentEnv({ ...fixture, [name]: value }),
       undefined, "Must refuse " + name);
   }
+});
+
+test("runner rejects a forbidden database before importing DB/application fixtures", () => {
+  const source = readFileSync("scripts/qa/tenant-document-upload-http.mjs", "utf8");
+  assert.ok(source.indexOf("requireDisposableDocumentEnv();") <
+    source.indexOf('import("../../src/db")'),
+    "The disposable gate must precede every DB/application dynamic import");
+  assert.ok(!/^import\s+.*(?:src\/db|tenant-table-http|disposable-insert-veto)/m.test(source),
+    "No DB or fixture static imports may run before the environment gate");
+
+  const result = spawnSync(process.execPath, [
+    "--import", "tsx", "scripts/qa/tenant-document-upload-http.mjs",
+  ], {
+    cwd: process.cwd(), encoding: "utf8", timeout: 15000,
+    env: {
+      ...process.env, ...fixture,
+      DATABASE_URL: "postgresql://forbidden-production.invalid/real",
+    },
+  });
+  assert.equal(result.status, 1,
+    "A forbidden DB target must exit before any DB/fixture module initialization");
+  assert.match(result.stderr, /Refusing non-disposable setting: DATABASE_URL/);
+  assert.doesNotMatch(result.stderr, /getaddrinfo|ECONNREFUSED|ENOTFOUND|ETIMEDOUT/,
+    "The rejected runner must not reach a DB network attempt");
 });
 
 test("denial oracle rejects success and foreign-employer leaks, including headers", () => {

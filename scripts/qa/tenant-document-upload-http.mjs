@@ -6,17 +6,24 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { asc, eq } from "drizzle-orm";
-import { db, pool } from "../../src/db";
-import * as s from "../../src/db/schema";
-import { seedEmployer, standaloneMakeSession, standaloneRequest } from "./tenant-table-http.mjs";
-import { withDisposableInsertVeto } from "./disposable-insert-veto.mjs";
 import {
   APP_ORIGIN, ENDPOINT, requireDisposableDocumentEnv,
   assertDeniedDocumentResponse, assertStoredDocument, assertNoChanges,
 } from "./tenant-document-upload-contract.mjs";
 
+// Validate the disposable target before evaluating any DB, application or fixture module.
 requireDisposableDocumentEnv();
+const [
+  { asc, eq }, { db, pool }, s,
+  { seedEmployer, standaloneMakeSession, standaloneRequest },
+  { withDisposableInsertVeto },
+] = await Promise.all([
+  import("drizzle-orm"),
+  import("../../src/db"),
+  import("../../src/db/schema"),
+  import("./tenant-table-http.mjs"),
+  import("./disposable-insert-veto.mjs"),
+]);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const TABLES = Object.freeze([
   "employees", "employeePayProfiles", "payrollRuns", "documents",
