@@ -1,3 +1,5 @@
+> **2026-11-08 Account email request POST provisional recovery — NOT ACCEPTED:** 498 methods = **442 COVERED / 11 PUBLIC-BY-DESIGN / 45 GAP**. Exactly one new account-email **request** POST credit from [source-identical two-attacker PG16 real-HTTP/local SMTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810), not a second credit for the already covered email-verification POST. Independent identity/security review **PENDING**. No production acceptance.
+
 > **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP. Three distinct recovered methods; CI and independent identity/WFM/security/billing review PENDING. No production authorization.
 
 > **Current combined PR #1826 billing and main year-end proposal — NOT ACCEPTED:** 438 COVERED / 11 PUBLIC-BY-DESIGN / 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Two additional billing POST proofs provisional; exact-head CI and independent review PENDING. No production acceptance.
@@ -230,9 +232,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 441 |
+| coveredAfter | 442 |
 | publicByDesign | 11 |
-| gap | 46 |
+| gap | 45 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -348,7 +350,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 
 | Route + method (source) | Employer source signal | Auth helper (file:line) | Client ID reference | Evidence | Status |
 |---|---|---|---|---|---|
-| [`account/email` POST](../../src/app/api/account/email/route.ts#L22) | SESSION, BODY_CANDIDATE | getSessionUser L5, getSessionUser L29 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`account/email` POST](../../src/app/api/account/email/route.ts#L22) | SESSION, BODY_CANDIDATE | getSessionUser L5, getSessionUser L29 | none found | [source-pinned PG16 own/foreign email request](../../scripts/qa/tenant-account-email-request-http.mjs#L262) ([passing job](https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810)) | **COVERED** |
 | [`account/email/verify` POST](../../src/app/api/account/email/verify/route.ts#L13) | BODY_CANDIDATE | NONE FOUND | none found | [token-scoped PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/42316473226/job/128230185900) | **COVERED** |
 | [`account/password` POST](../../src/app/api/account/password/route.ts#L29) | SESSION, BODY_CANDIDATE | getSessionUser L9, getSessionUser L39 | none found | [account/password dedicated proof](../../scripts/qa/tenant-account-password-http.mjs#L108) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531)) | **COVERED** |
 | [`account/profile` POST](../../src/app/api/account/profile/route.ts#L13) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L17 | none found | [three-org HTTP L660](../../scripts/qa/tenant-second-pass-http.mjs#L660) | **COVERED** |

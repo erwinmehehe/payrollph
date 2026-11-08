@@ -1,3 +1,5 @@
+> **2026-11-08 Account email request POST provisional recovery — NOT ACCEPTED:** 498 methods = **442 COVERED / 11 PUBLIC-BY-DESIGN / 45 GAP**. Exactly one new account-email **request** POST credit from [source-identical two-attacker PG16 real-HTTP/local SMTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810), not a second credit for the already covered email-verification POST. Independent identity/security review **PENDING**. No production acceptance.
+
 > **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP; frozen 357 COVERED / 3 PUBLIC / 46 GAP. Three distinct TOTP/scenario receipts and two separately proven billing POST methods; exact-head CI and independent security/financial review PENDING. Production not authorized.
 
 > **Current combined PR #1826 billing + main year-end proposal — NOT ACCEPTED:** 498 methods = 438 COVERED + 11 PUBLIC-BY-DESIGN + 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Prior year-end GET/POST and new subscription start/cancel POST receipts are distinct and provisional; fresh exact-head CI and independent security/payroll/billing review PENDING. No production acceptance.
@@ -216,7 +218,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 9 | 0 | 24 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 24 | 1 | 8 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **357 COVERED + 3 PUBLIC-BY-DESIGN + 46 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 9 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **358 COVERED + 3 PUBLIC-BY-DESIGN + 45 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 9 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
