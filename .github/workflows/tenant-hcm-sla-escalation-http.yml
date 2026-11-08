@@ -1,0 +1,104 @@
+name: HCM SLA escalation isolation (fictional PG16 HTTP)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-hcm-sla-escalation-http.yml'
+      - 'scripts/qa/tenant-hcm-sla-escalation-*.mjs'
+      - 'tests/tenant-hcm-sla-escalation-contract.test.mjs'
+      - 'docs/qa/tenant-hcm-sla-escalation.md'
+      - 'src/app/api/hcm/work-items/escalate/**'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'docs/sql/source-baseline-supplement.sql'
+      - 'drizzle/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hcm-sla-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tenant-hcm-sla:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Disposable localhost-only, provider-disabled test profile
+        run: |
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          echo 'TENANT_HCM_SLA_QA_MODE=fictional-disposable-only' >> "$GITHUB_ENV"
+      - name: Source contract and adversarial negative tests (no DB or HTTP)
+        run: |
+          node --check scripts/qa/tenant-hcm-sla-escalation-contract.mjs
+          node --check scripts/qa/tenant-hcm-sla-escalation-http.mjs
+          node --test tests/tenant-hcm-sla-escalation-contract.test.mjs
+      - name: Generate ephemeral fictional-only tokens; no providers enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY HCM_SLA_CRON_SECRET; do
+            token=$(openssl rand -hex 32)
+            echo "::add-mask::$token"
+            echo "$name=$token" >> "$GITHUB_ENV"
+          done
+          webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$webhook_secret"
+          echo "RESEND_WEBHOOK_SECRET=$webhook_secret" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start production-mode Next.js on loopback only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/hcm-sla-isolation-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/hcm-sla-isolation-server.log
+          exit 1
+      - name: Verify A/B due records, cross-tenant notification boundary, retry and victim immutability
+        run: env -u NODE_ENV node --import tsx scripts/qa/tenant-hcm-sla-escalation-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: tenant-hcm-sla-escalation-fictional-pg16
+          path: outputs/tenant-hcm-sla-escalation.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Display isolated server error log only if a check failed
+        if: failure()
+        run: cat /tmp/hcm-sla-isolation-server.log || true
