@@ -1,3 +1,4 @@
+import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
@@ -236,6 +237,9 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status === 'COVERED' && spendManagedTargets.some(t=>{const [verb,route]=t.split(' ');return key==='src/app/api/'+route+'/route.ts '+verb;})){
+    assert.equal(verifySpendManaged(manifest),3);return true;
+  }
   if (key === "src/app/api/careers/admin/route.ts PATCH" && method.status === "COVERED") {
     assert.equal(currentBlob, "fc7920e19fc75389c5f5e7fe3cb4f90046028f00");
     assert.equal(verifyCareersPatchCredit(manifest), 1);
@@ -3997,6 +4001,7 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
