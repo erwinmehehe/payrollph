@@ -243,7 +243,7 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (["src/app/api/enterprise/route.ts GET", "src/app/api/enterprise/route.ts POST"].includes(key)) {
-    assert.equal(currentBlob, "4867e820934e87452ac1e593cbdd7f0d7e2a4ab5");
+    assert.equal(currentBlob, "be3e320df828d681ad34c034b6469cf4940846cc");
     verifyEnterprisePostAuditSource(readFileSync("src/app/api/enterprise/route.ts", "utf8"),
       "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
     assert.equal(method.status, "COVERED");

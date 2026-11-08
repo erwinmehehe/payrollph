@@ -50,6 +50,22 @@ refuses unlisted hosts and external fetch destinations. No external identity,
 email, carrier, bank or payroll provider is contacted. The checked-in X.509
 certificate is a fictional public certificate; no private signing key is added.
 
+## Source-current GitHub Actions re-proof (2026-11-08)
+The audit-error classification and reserved OIDC response validation changed the
+application route and fictional proof harness after the first 199-input local
+receipt was sealed. That earlier receipt was no longer valid and is not used
+for the current provisional POST method.
+
+[Fresh GitHub Actions PG16 HTTP job](https://github.com/erwinmehehe/payrollph/actions/runs/42489689534/job/128759143344) passed against actual
+pull-request merge source `79bc9cd062e76af102c63fe0263a7b75ffad9e65` (parent branch head
+`5d5d93b7ebb925d01ec93d73727c89fb9a3ba631`). The emitted executed counters are 42 own persisted transitions,
+42 reached audit-veto rollbacks, 42 foreign employer denials, 22 forged
+denials and two independent GET positives; the new audit failures return
+generic HTTP 500 rather than a misleading 409. The renewed receipt pins
+the exact execution, unchanged 199-file dependency set and the new route
+and proof blob identities. Its review status stays PENDING. This is still
+fictional development proof, not independent security review.
+
 ## Reproduce
 
 Use a separate worktree, `npm ci`, and a dedicated local PG16 cluster listening

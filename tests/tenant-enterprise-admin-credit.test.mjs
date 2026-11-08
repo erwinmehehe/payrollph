@@ -14,9 +14,13 @@ test('the actual HTTP-loop discriminator fails if its write oracle is replaced b
  assert.throws(()=>check(()=>{}),/accepts another employer/);
  assert.throws(()=>assertEnterpriseMutation(before,{...before,audit_events:[{row:{action:'only audit'}}]},payload,{},501),/business state must change/);
 });
-test('exact executed enterprise Owner method receives exactly one provisional credit',()=>{
+test('exact executed GitHub PG16 proof and 199 source pins renew only one provisional method',()=>{
  assert.equal(verifyEnterprisePostCredit(manifest),1);const m=manifest.allApiRouteFiles[ENTERPRISE_POST_PATH].methods.find(x=>x.name==='POST');
  assert.equal(m.testedBy.label,'SOLO_VERIFIED_DEV_RECOVERY');assert.equal(m.testedBy.productionTested,false);
+ assert.equal(m.testedBy.workflowRunId,42489689534);assert.equal(m.testedBy.workflowJobId,128759143344);
+ assert.equal(m.testedBy.verifiedPrHeadSha,'79bc9cd062e76af102c63fe0263a7b75ffad9e65');
+ assert.equal(m.testedBy.independentSecurityReview,'PENDING');
+ assert.equal(m.testedBy.execution,'github-actions-http-pg16');
 });
 test('credit rejects counterfeit receipts, partial method metadata and changed proof/runtime inputs',()=>{
  for(const path of ['scripts/qa/tenant-enterprise-admin-credit-receipt.json','scripts/qa/tenant-enterprise-admin-state.mjs','scripts/qa/tenant-enterprise-admin-http.mjs','src/app/api/enterprise/route.ts','src/lib/auth.ts','src/db/schema.ts']){

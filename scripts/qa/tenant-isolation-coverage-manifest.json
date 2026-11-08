@@ -11303,7 +11303,7 @@
       ]
     },
     "src/app/api/enterprise/route.ts": {
-      "gitBlobSha": "4867e820934e87452ac1e593cbdd7f0d7e2a4ab5",
+      "gitBlobSha": "be3e320df828d681ad34c034b6469cf4940846cc",
       "route": "enterprise",
       "methods": [
         {
@@ -11329,29 +11329,32 @@
           "name": "POST",
           "line": 201,
           "status": "COVERED",
-          "reason": "Provisional full POST enterprise Owner method proof: twelve action names and all fifteen audited mutation paths, two fictional attacker employers, persisted own state, victim/forged denial, discriminator and audit-veto rollback. Local PG16 HTTP 05dd6308f73de7b0e5a2cb66a295b9d25b2b7c18 enterprise-admin PASS. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production certification.",
+          "reason": "Provisional full POST enterprise Owner method proof: twelve action names and all fifteen audited mutation paths, two fictional attacker employers, persisted own state, victim/forged denial, discriminator and audit-veto rollback. GitHub Actions 42489689534/128759143344 PG16 enterprise-admin PASS. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production certification.",
           "testedBy": {
             "file": "scripts/qa/tenant-enterprise-admin-http.mjs",
             "testFile": "tests/tenant-enterprise-admin-credit.test.mjs",
-            "line": 76,
-            "ownPositiveLine": 76,
-            "foreignDenialLine": 83,
-            "forgedSelectorLine": 140,
-            "unchangedDbLine": 151,
-            "persistedStateLine": 78,
-            "writeDiscriminationLine": 79,
+            "line": 77,
+            "ownPositiveLine": 77,
+            "foreignDenialLine": 85,
+            "forgedSelectorLine": 146,
+            "unchangedDbLine": 157,
+            "persistedStateLine": 79,
+            "writeDiscriminationLine": 80,
             "victimIdOrderingLine": 32,
-            "routeBlobSha": "4867e820934e87452ac1e593cbdd7f0d7e2a4ab5",
-            "proofBlobSha": "b792e114150cd0cd34cfe2880762e3a59739308c",
+            "routeBlobSha": "be3e320df828d681ad34c034b6469cf4940846cc",
+            "proofBlobSha": "415c2005393dadfeccb106260495b2ce7d408c91",
             "stateBlobSha": "c44079a8811320e11bf512f0b8751d6370d94145",
-            "verifiedPrHeadSha": "05dd6308f73de7b0e5a2cb66a295b9d25b2b7c18",
-            "runLabel": "Local PG16 HTTP 05dd6308f73de7b0e5a2cb66a295b9d25b2b7c18 enterprise-admin PASS",
+            "verifiedPrHeadSha": "79bc9cd062e76af102c63fe0263a7b75ffad9e65",
+            "runLabel": "GitHub Actions 42489689534/128759143344 PG16 enterprise-admin PASS",
             "label": "SOLO_VERIFIED_DEV_RECOVERY",
-            "execution": "local-http-pg16",
-            "evidence": "Executed local production-mode localhost/PG16 receipt in scripts/qa/tenant-enterprise-admin-credit-receipt.json; exact credit-head CI required.",
+            "execution": "github-actions-http-pg16",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42489689534/job/128759143344",
             "scope": "POST enterprise Owner method: all twelve action names, fifteen mutation paths, 42 persisted own transitions, 42 wrong-employer discriminators, 42 real victim denials, 22 forged-reference denials and 42 reached audit-veto rollbacks. Mocked exact-host DNS/OIDC discovery only; no real provider, login exchange, SCIM provisioning, automation execution or production certification.",
             "independentSecurityReview": "PENDING",
-            "productionTested": false
+            "productionTested": false,
+            "prBranchHeadSha": "5d5d93b7ebb925d01ec93d73727c89fb9a3ba631",
+            "workflowRunId": 42489689534,
+            "workflowJobId": 128759143344
           }
         }
       ],
