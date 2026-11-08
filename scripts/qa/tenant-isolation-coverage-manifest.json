@@ -10185,11 +10185,11 @@
           "reason": "PROVISIONAL DL-01 vault synthetic PG16 HTTP proof: owned soft-removal DELETE 204 and audit, actual higher-ID victim-only document 403, forged-selector owned DELETE 204; victim rows/audit unchanged. Two independent signed-in fictional employer owners, real victim ID exceeds both persisted attacker-owned document IDs, victim PostgreSQL unchanged. Flag ON only on disposable localhost CI; feature OFF in production. Exact-head CI and human source review outstanding; not whole-system acceptance.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl01-vault-http.mjs",
-            "line": 148,
-            "ownPositiveLine": 148,
+            "line": 153,
+            "ownPositiveLine": 153,
             "foreignDenialLine": 144,
-            "forgedSelectorLine": 160,
-            "unchangedDbLine": 173,
+            "forgedSelectorLine": 165,
+            "unchangedDbLine": 178,
             "victimExistsLine": 110,
             "victimIdOrderingLine": 104,
             "scope": "Independent two-attacker nonempty own HTTP, higher-ID persisted real victim and forged-selector denials, unchanged victim documents/audit. Isolated PG16 localhost only; no S3 or real user records."
@@ -10310,7 +10310,7 @@
             "ownPositiveLine": 128,
             "foreignDenialLine": 132,
             "forgedSelectorLine": 138,
-            "unchangedDbLine": 173,
+            "unchangedDbLine": 178,
             "victimExistsLine": 110,
             "victimIdOrderingLine": 104,
             "scope": "Independent two-attacker nonempty own HTTP, higher-ID persisted real victim and forged-selector denials, unchanged victim documents/audit. Isolated PG16 localhost only; no S3 or real user records."

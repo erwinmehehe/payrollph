@@ -4788,7 +4788,7 @@ test("all credited proof links point to the claimed route and every recertified 
         const spec = method.name === "GET" && path === "src/app/api/employee-vault/route.ts"
           ? { own: 128, foreign: 132, forged: 138, ownStatus: 200, forgedStatus: 200 }
           : method.name === "DELETE" && path === "src/app/api/employee-vault/[id]/route.ts"
-            ? { own: 148, foreign: 144, forged: 160, ownStatus: 204, forgedStatus: 204 }
+            ? { own: 153, foreign: 144, forged: 165, ownStatus: 204, forgedStatus: 204 }
             : null;
         assert.ok(spec, path + ": no unrelated API may borrow provisional vault evidence");
         const suite = readFileSync(proof.file, "utf8").split("\n");
@@ -4797,18 +4797,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.ownPositiveLine, spec.own);
         assert.equal(proof.foreignDenialLine, spec.foreign);
         assert.equal(proof.forgedSelectorLine, spec.forged);
-        assert.equal(proof.unchangedDbLine, 173);
+        assert.equal(proof.unchangedDbLine, 178);
         assert.equal(proof.victimExistsLine, 110);
         assert.equal(proof.victimIdOrderingLine, 104);
         assert.match(span(spec.own), /expectStatus\(await request\(/);
         assert.ok(span(spec.own).includes("), " + spec.ownStatus + ","));
         assert.match(span(spec.foreign), /expectStatus\(await request\(/);
-        assert.match(span(spec.foreign), /\), 403,/);
+        assert.match(span(spec.foreign), method.name === "DELETE" ? /\), 404,/ : /\), 403,/);
         assert.match(span(spec.forged), /expectStatus\(await request\(/);
         assert.ok(span(spec.forged).includes("), " + spec.forgedStatus + ","));
         assert.match(suite[109], /persistedVictimDoc\?\.organizationId, victimOrg\.id/);
         assert.match(span(104), /victimDoc\.id > created\[2\]\[1\]\.id/);
-        assert.match(suite[172], /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/);
+        assert.match(suite[177], /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/);
         assert.match(source.join("\n"), /verifyDl01Vault\(f, \{ request, expectStatus \}\)/);
         assert.match(source.join("\n"), /TENANT_DL01_VAULT_PROOF === "isolated-ci-only"/);
         assert.match(suite.join("\n"), /TENANT_SECOND_PASS_MODE, "isolated-ci-only"/);
