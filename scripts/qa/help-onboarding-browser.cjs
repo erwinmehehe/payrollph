@@ -90,7 +90,7 @@ async function exercise(browser, base, name, viewport) {
       name + ": role-guide navigation failed to clear role filter.");
 
     // Validate a bookmarked deep link after a fresh page load.
-    const direct = await page.goto(base + "/help#payroll-checker-evidence", {
+    const direct = await page.goto(base + "/help?qa-deep-link=1#payroll-checker-evidence", {
       waitUntil: "networkidle", timeout: 90000,
     });
     check(Boolean(direct?.ok()), name + ": deep link did not load.");
