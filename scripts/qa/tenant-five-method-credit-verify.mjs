@@ -200,7 +200,7 @@ export function verifyFiveMethodCredits(
       ["proofFile", "proofBlobSha", "scripts/qa/tenant-multi-entity-transfers-write-http.mjs",
         "f628eb48ac5bd0064c7da5915d8b51c990ab3a32"],
       ["contractFile", "contractBlobSha", "tests/tenant-multi-entity-transfers-write-candidate.test.mjs",
-        "6c552aa240f537c54db74815b44a5b66339d6649"],
+        "98015ffb48b1832c5f618405b1c9b230e99876bb"],
       ["workflowFile", "workflowBlobSha", ".github/workflows/multi-entity-browser-qa.yml",
         "ae71b132c1e495f58a0589a5fc44a956e85fc924"],
     ]) {
