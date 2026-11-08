@@ -78,12 +78,28 @@ export function assertPersistedUnchanged(before, after, label) {
   assert.deepEqual(after, before, label + ": forbidden request or another account changed persisted state");
 }
 
-export function assertLocalSmtpMessage(message, expectedRecipient, tokenHash) {
-  assert.deepEqual(message.recipients, [expectedRecipient], "verification mail must target only the actor's chosen address");
-  const normalized = message.data.replace(/=\r\n/g, "").replace(/=3D/gi, "=").replace(/=3F/gi, "?");
-  assert.ok(normalized.includes("Verify your new Linaw email"), "genuine SMTP message subject required");
-  assert.ok(normalized.includes(expectedRecipient), "SMTP message recipient must be the requested own email");
-  const match = normalized.match(/verify-email\?token=([a-f0-9]{48})\b/);
+export function assertLocalSmtpMessage(message, expectedRecipient) {
+  assert.deepEqual(message.recipients, [expectedRecipient],
+    "verification mail must target only the actor's chosen address");
+  const wire = message.data;
+  assert.ok(wire.includes("Verify your new Linaw email"), "genuine SMTP message subject required");
+  assert.ok(wire.includes(expectedRecipient), "SMTP recipient must be exactly the requested own email");
+
+  // Nodemailer may encode a UTF-8 text body using MIME base64 or quoted-printable.
+  // The proof must decode the on-wire message rather than mistake MIME wrapping
+  // for a missing verification link. This decoder is test-only, never a mail relay.
+  const headerEnd = wire.search(/\r?\n\r?\n/);
+  const headers = headerEnd >= 0 ? wire.slice(0, headerEnd) : "";
+  const encodedBody = headerEnd >= 0 ? wire.slice(headerEnd).replace(/^\r?\n\r?\n/, "") : wire;
+  const candidates = [wire, encodedBody];
+  if (/^Content-Transfer-Encoding:\s*base64\b/im.test(headers)) {
+    candidates.push(Buffer.from(encodedBody.replace(/\s/g, ""), "base64").toString("utf8"));
+  }
+  const unfold = (s) => s.replace(/=\r?\n/g, "")
+    .replace(/=([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\r?\n/g, "");
+  const match = candidates.map(unfold).map((text) =>
+    text.match(/verify-email\?token=([a-f0-9]{48})\b/i)).find(Boolean);
   assert.ok(match, "fictional mailbox must receive a real one-time verification link");
-  return match[1];
+  return match[1].toLowerCase();
 }
