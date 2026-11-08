@@ -1,0 +1,123 @@
+name: Government filing-outcome tenant boundary (fictional PG16; zero credits)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-filing-outcome-http.yml'
+      - 'scripts/qa/tenant-filing-outcome-*.mjs'
+      - 'tests/tenant-filing-outcome-contract.test.mjs'
+      - 'docs/qa/tenant-filing-outcome.md'
+      - 'src/app/api/compliance/filing-validations/**'
+      - 'src/lib/filing-evidence*'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/access.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/disposable-insert-veto.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-filing-outcome-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fictional-filing-outcome:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install committed dependencies
+        run: npm ci
+      - name: Require disposable PG16, disabled workers, zero providers, and fictional proof profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_FILING_OUTCOME_MODE=fictional-pg16-filing-outcome'
+            echo 'MULTI_ENTITY_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'XENDIT_PAYOUT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+            echo 'POSTMARK_SERVER_TOKEN='
+            echo 'SMTP_URL='
+            echo 'STRIPE_SECRET_KEY='
+            echo 'OPENAI_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Fail-closed source pins, negative controls and syntax
+        run: |
+          node --check scripts/qa/tenant-filing-outcome-contract.mjs
+          node --check scripts/qa/tenant-filing-outcome-http.mjs
+          node --check tests/tenant-filing-outcome-contract.test.mjs
+          node --test tests/tenant-filing-outcome-contract.test.mjs
+      - name: Generate ephemeral application encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key="$(openssl rand -hex 32)"
+            echo "::add-mask::$key"
+            printf '%s=%s\n' "$name" "$key" >> "$GITHUB_ENV"
+          done
+      - name: Push schema to fresh disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply reviewed fictional database baseline only
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next.js on disposable database
+        run: npm run build
+      - name: Start localhost-only production-mode HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-filing-outcome-next.log 2>&1 &
+          server="$!"
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 90 /tmp/tenant-filing-outcome-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          tail -n 90 /tmp/tenant-filing-outcome-next.log
+          exit 1
+      - name: Prove own filing rejections, real high-ID victim denials and transactional audit veto
+        run: node --import tsx scripts/qa/tenant-filing-outcome-http.mjs
+      - name: Show only fictional localhost diagnostics when a step fails
+        if: failure()
+        run: tail -n 80 /tmp/tenant-filing-outcome-next.log || true
