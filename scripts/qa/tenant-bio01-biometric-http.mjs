@@ -289,5 +289,6 @@ async function proveBio01() {
 proveBio01().catch(err => {
   // Never print credentials, cookies, DB parameters or device identifiers.
   console.error("BIO01_PROOF_FAILED: " + (err?.code ?? err?.name ?? "unexpected"));
+  console.error(String(err?.stack ?? '').split('\n').filter(line => line.trim().startsWith('at ')).join('\n'));
   process.exitCode = 1;
 });
