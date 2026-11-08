@@ -66,6 +66,12 @@ export function assertForeignKeyDenial(foreign, missing, victimId) {
   requireHttpStatus(missing, 404, "missing key revocation");
   assert.deepEqual(foreign.json, missing.json, "foreign key cannot reveal its existence");
   const text = foreign.text + JSON.stringify([...foreign.headers.entries()]);
-  assert.ok(!text.includes(String(victimId)), "victim key ID disclosed in denial");
+  // Numeric IDs can appear coincidentally in HTTP Date/Content-Length headers.
+  // Verify the entire denial instead: foreign and missing IDs must have the
+  // same raw, generic JSON body with no echoed victim selector or key material.
+  assert.ok(Number.isSafeInteger(victimId) && victimId > 0, "victim key ID must be real");
+  assert.deepEqual(foreign.json, { error: "Key not found in this workspace." },
+    "only a generic not-found response may be returned for a foreign key");
+  assert.equal(foreign.text, missing.text, "raw foreign and absent key denials must match");
   assert.ok(!/sk_live_|keyHash|key_hash|keySecret/.test(text), "key material disclosed in denial");
 }

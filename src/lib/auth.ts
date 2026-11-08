@@ -57,10 +57,7 @@ export async function revokeAllSessions(userId: number) {
 export async function revokeSession(token: string) {
   await db.update(sessions)
     .set({ revokedAt: new Date() })
-    .where(and(
-      eq(sessions.tokenHash, sha256(token)),
-      isNull(sessions.revokedAt),
-    ));
+    .where(eq(sessions.tokenHash, sha256(token)));
 }
 
 /**
