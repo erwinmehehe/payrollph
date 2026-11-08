@@ -261,8 +261,16 @@ async function proveBio01() {
       const result=await request(payload,auth);
       assertBio01Owned(result,{deviceSerial:actor.serial,ingested:1,duplicates:0,unmatched:0,invalid:0,locked:0},foreignMarkers);
       const after=await allStates(),slot=actor===a?0:1;
-      assert.equal(after[slot].time_punches.length,before[slot].time_punches.length+1);
-      assert.equal(after[slot].time_punches.at(-1).employee_id,actor.worker.id);
+      assert.equal(after[slot].time_punches.length,before[slot].time_punches.length,'OUT updates the existing work-date punch');
+      const previous=before[slot].time_punches.at(-1),saved=after[slot].time_punches.at(-1);
+      assert.equal(saved.id,previous.id);assert.equal(saved.employee_id,actor.worker.id);
+      assert.equal(saved.organization_id,actor.org.id);assert.equal(previous.time_out,null);
+      assert.equal(new Date(saved.time_out).toISOString(),'2026-11-05T09:00:00.000Z');
+      assert.equal(saved.time_in,previous.time_in);assert.equal(saved.status,'Complete');
+      assert.equal(after[slot].audit_events.length,before[slot].audit_events.length+1);
+      assert.equal(after[slot].audit_events.at(-1).metadata.authentication,actor===a?'session':'device-secret');
+      assertBio01Unchanged(before[slot].payroll_runs,after[slot].payroll_runs,'OUT cannot change payroll');
+      assertBio01Unchanged(before[slot].employee_pay_profiles,after[slot].employee_pay_profiles,'OUT cannot change pay');
       for(let i=0;i<3;i++)if(i!==slot)assertBio01Unchanged(before[i],after[i],'second auth-mode isolation');
       assert.throws(()=>assertBio01Owned(result,{deviceSerial:victim.serial}),undefined,
         "biometric validator accepts another employer's data");
