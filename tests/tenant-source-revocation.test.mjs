@@ -2,72 +2,53 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 
 const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-const path = "src/app/api/year-end/route.ts";
-function prior(liveManifest) {
-  const base = structuredClone(liveManifest);
-  const r = base.allApiRouteFiles[path];
-  r.gitBlobSha = "7572c6111cf40d398b3cc8c1f940efd0a9b8d362";
-  for (const m of r.methods) {
-    m.status = "COVERED";
-    m.testedBy = {
-      routeBlobSha: r.gitBlobSha,
-      verifiedPrHeadSha: "066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5",
-      workflowRunId: 41446394887,
-      proofBlobSha: "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",
-      workflowBlobSha: "9e6ca6431b168e05afecc5e40a42b1973ad1f675",
-      independentlyAccepted: false,
-      productionCertified: false,
-      methodActions: m.name === "GET" ?
-        ["json", "preflight", "2316", "2316-print", "alphalist"] :
-        ["annualization", "bind-run"],
-    };
-    delete m.reviewedUncertified;
-  }
-  base.metrics.coveredAfter += 2;
-  base.metrics.gap -= 2;
-  return { ref: "synthetic pre-supersession", manifest: base };
-}
-function check(doc, old=prior(live)) { return assertLiveTenantCounts(assert, doc, {}, old); }
-test("only the exact old year-end GET/POST proof pair is superseded; payout remains covered", () => {
-  // Guard method status and source evidence, never a moving live-count constant.
-  assert.deepEqual(live.allApiRouteFiles[path].methods.map(method =>
-    [method.name, method.status, method.testedBy, method.reviewedUncertified?.credits]),
-  [["GET", "GAP", null, 0], ["POST", "GAP", null, 0]]);
-  assert.equal(live.metrics.coveredAfter + live.metrics.publicByDesign + live.metrics.gap,
-    live.metrics.methods);
-  assert.ok(check(live));
+const yearEndRoute = "src/app/api/year-end/route.ts";
+
+test("old #1730 year-end proof stays source-revoked; #1804 adds two new provisional source-pinned receipts", () => {
+  assert.equal(verifyYearEndCredits(live), 2);
+  assert.deepEqual(live.allApiRouteFiles[yearEndRoute].methods.map(method => [
+    method.name, method.status, method.testedBy?.proofPullRequest,
+    method.testedBy?.independentlyAccepted,
+  ]), [["GET", "COVERED", 1804, false], ["POST", "COVERED", 1804, false]]);
+  assert.equal(live.allApiRouteFiles[yearEndRoute].gitBlobSha,
+    "f040f5bbbc3df275d32d23f1728b1b0345f77814");
+  assertLiveTenantCounts(assert, live);
   assert.equal(live.allApiRouteFiles["src/app/api/payout-profiles/route.ts"].methods
-    .find(m => m.name === "PATCH").status, "COVERED");
+    .find(method => method.name === "PATCH").status, "COVERED");
 });
-test("changed source, evidence pins, reviewer state, or half-revocation fail closed", () => {
-  const mutations = [
-    d => { d.allApiRouteFiles[path].gitBlobSha = "0".repeat(40); },
-    d => { d.allApiRouteFiles[path].methods[0].reviewedUncertified.credits = 1; },
-    d => { d.allApiRouteFiles[path].methods[0].reviewedUncertified.independentSecurityReview = "ACCEPTED"; },
-    d => { d.allApiRouteFiles[path].methods[1].status = "COVERED";
-      d.metrics.coveredAfter++; d.metrics.gap--;
-      d.acceptanceStatus = d.acceptanceStatus.replace(
-        "NOT ACCEPTED: " + live.metrics.gap + " API methods",
-        "NOT ACCEPTED: " + (live.metrics.gap - 1) + " API methods"); },
+
+test("current year-end proof refuses changed source, evidence, approval claims and partial credit", () => {
+  const alterations = [
+    doc => { doc.allApiRouteFiles[yearEndRoute].gitBlobSha = "0".repeat(40); },
+    doc => { doc.allApiRouteFiles[yearEndRoute].methods[0].testedBy.workflowRunId++; },
+    doc => { doc.allApiRouteFiles[yearEndRoute].methods[0].testedBy.proofBlobSha = "0".repeat(40); },
+    doc => { doc.allApiRouteFiles[yearEndRoute].methods[1].testedBy.independentSecurityReview = "APPROVED"; },
+    doc => { doc.allApiRouteFiles[yearEndRoute].methods[0].testedBy.productionCertified = true; },
+    doc => { doc.allApiRouteFiles[yearEndRoute].methods[1].status = "GAP"; },
   ];
-  for (const mutate of mutations) {
-    const d = structuredClone(live); mutate(d);
-    assert.throws(() => check(d), "a changed or partial source-supersession is prohibited");
+  for (const change of alterations) {
+    const candidate = structuredClone(live);
+    change(candidate);
+    assert.throws(() => verifyYearEndCredits(candidate),
+      "source revocation and credit changes must remain fail-closed");
   }
-  const base = prior(live);
-  base.manifest.allApiRouteFiles[path].methods[0].testedBy.workflowRunId = 0;
-  assert.throws(() => check(live, base), "historical source receipt must match");
 });
-test("unrelated payout credit cannot be revoked along with the year-end pair", () => {
-  const d = structuredClone(live);
-  const method = d.allApiRouteFiles["src/app/api/payout-profiles/route.ts"].methods.find(m => m.name === "PATCH");
-  assert.equal(method.status, "COVERED");
-  method.status = "GAP"; method.testedBy = null;
-  d.metrics.coveredAfter--; d.metrics.gap++;
-  d.acceptanceStatus = d.acceptanceStatus.replace(
+
+test("the year-end re-credit cannot conceal revocation of independent payout evidence", () => {
+  const candidate = structuredClone(live);
+  const method = candidate.allApiRouteFiles["src/app/api/payout-profiles/route.ts"].methods
+    .find(entry => entry.name === "PATCH");
+  method.status = "GAP";
+  method.testedBy = null;
+  candidate.metrics.coveredAfter--;
+  candidate.metrics.gap++;
+  candidate.acceptanceStatus = candidate.acceptanceStatus.replace(
     "NOT ACCEPTED: " + live.metrics.gap + " API methods",
-    "NOT ACCEPTED: " + (live.metrics.gap + 1) + " API methods");
-  assert.throws(() => check(d), "only two explicitly source-invalidated methods may be revoked");
+    "NOT ACCEPTED: " + candidate.metrics.gap + " API methods");
+  assert.throws(() => assertLiveTenantCounts(assert, candidate, {},
+    { ref: "current main plus year-end", manifest: live }),
+    "a separate payout credit cannot be silently downgraded");
 });

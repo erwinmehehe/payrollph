@@ -67,6 +67,10 @@ The verifier fails closed unless:
   exact original branch ID.
 - The planned request explicitly says `finalize:false` and never
   supplies `target_branch_id`.
+- The postflight request has exactly the preflight project, snapshot and
+  destination name, with no extra keys or overrides. A missing or non-boolean
+  `default:false` or `primary:false` marker on the restored branch is **not**
+  proof of isolation and must be refused.
 
 On any mismatch, **stop**, initiate the production incident procedure,
 and restore endpoint/default identity only through a controlled,

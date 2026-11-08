@@ -1,3 +1,4 @@
+import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -22,11 +23,14 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   const yearEnd = manifest.allApiRouteFiles["src/app/api/year-end/route.ts"];
   assert.equal(yearEnd.gitBlobSha, "f040f5bbbc3df275d32d23f1728b1b0345f77814",
     "Atomic year-end changed source must not borrow the old PG16 receipts");
+  assert.equal(verifyYearEndCredits(manifest), 2,
+    "Only the separate executed #1804 current-source PG16 proof can re-credit year-end");
   for (const method of yearEnd.methods) {
     assert.ok(["GET", "POST"].includes(method.name));
-    assert.equal(method.status, "GAP", "Changed year-end method requires a new complete proof");
-    assert.equal(method.testedBy, null, "Revoked year-end method is uncredited");
-    assert.equal(method.reviewedUncertified?.kind, "year-end-binding-atomic-source-only-zero-credit");
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy?.proofPullRequest, 1804);
+    assert.equal(method.testedBy?.independentlyAccepted, false);
+    assert.equal(method.reviewedUncertified, undefined);
   }
   assert.deepEqual(verifyFiveMethodCredits(manifest), {
     status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
