@@ -110,7 +110,7 @@ test("fictional second-unit employee supplies required employee title without ac
   const fixture = source.slice(start,source.indexOf("});",start)+3);
   for(const key of [
     "legalEntityId: e.entity.id", "orgUnitId: peerUnit.id",
-    'employeeNo: e.marker + "-PEER"', 'title: "Fictional peer"',
+    'employeeNo: e.marker + "-PEER"', 'title: "Fictional peer"', 'avatarInitials: "FP"',
     'basicRate: "20000.00"', 'startDate: "2026-01-05"',
   ]) assert.ok(fixture.includes(key),"missing a required synthetic worker field: " + key);
 });
