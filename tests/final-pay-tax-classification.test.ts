@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   privateVacationLeaveExemptDaysForDate,
   classifyPrivateVacationLeave,
@@ -231,4 +232,44 @@ test("final-pay review CSV surfaces tax split and evidence, including safe formu
   assert.match(csv, /"Separation exempt portion \(PHP\)","150000\.00"/);
   assert.match(csv, /"Separation tax-exemption reason","redundancy"/);
   assert.match(csv, /"Leave review evidence reference","'=REVIEW_LEDGER_2026"/);
+});
+
+
+test("Phase 7 separation source re-inventory preserves existing tenant evidence, no new credits", () => {
+  const path = "src/app/api/separation/route.ts";
+  const sourceBytes = readFileSync(path);
+  const fingerprint = createHash("sha1")
+    .update("blob " + sourceBytes.length + "\\0")
+    .update(sourceBytes).digest("hex");
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const record = manifest.allApiRouteFiles[path];
+  const review = record.sourceRevisionReview;
+  assert.equal(record.gitBlobSha, fingerprint, "route changes require fresh source review");
+  assert.equal(review.previousRouteBlobSha, "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a");
+  assert.equal(review.currentRouteBlobSha, fingerprint);
+  assert.equal(review.changedMethod, "POST");
+  assert.equal(review.priorTenantIsolationHttpProof, "scripts/qa/payroll-approved-exit-http.mjs");
+  assert.equal(review.taxContractFile, "tests/final-pay-tax-classification.test.ts");
+  assert.equal(review.newTenantIsolationMethodCredits, 0);
+  assert.equal(review.exactHeadFullSuite, "PENDING");
+  assert.equal(review.independentPhilippineTaxAndSecurityReview, "PENDING");
+  assert.equal(review.productionCertified, false);
+  assert.deepEqual(record.methods.map((m: { name: string; status: string }) => [m.name, m.status]),
+    [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]],
+    "this source reconciliation must not inflate tenant-isolation method credits");
+  const tenantProof = readFileSync(review.priorTenantIsolationHttpProof, "utf8");
+  for (const token of [
+    "Actual Separation POST creates package", "Owned Separation GET",
+    "Foreign GET denied", "Foreign POST denied", "Foreign PATCH denied",
+    "Foreign separation mutations leave victim rows unchanged",
+  ]) assert.ok(tenantProof.includes(token), "existing reviewed tenant proof missing: " + token);
+  const source = sourceBytes.toString("utf8");
+  const post = source.slice(source.indexOf("export async function POST("), source.indexOf("export async function PATCH("));
+  for (const guard of [
+    "enforceSameOriginMutation(request)", "getSessionUser()", "assertOrganizationRole(",
+    "getAccess(", "classifyPrivateVacationLeave(", "classifyReviewedSeparationPay(",
+    "taxableSeparationPay: separationTax.taxablePay",
+    "benefitPoolLeaveMonetizationPay: leaveTax?.benefitsPoolPay",
+    "deMinimisLeaveMonetizationPay: leaveTax?.deMinimisPay",
+  ]) assert.ok(post.includes(guard), "Phase 7 re-inventory lost a reviewed guard: " + guard);
 });
