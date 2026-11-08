@@ -4,6 +4,7 @@ import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
 import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
+import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyPayoutProfileCredit, PAYOUT_PATCH_EVIDENCE } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyCredit as verifyOnboardingCredit } from "../scripts/qa/tenant-onboarding-credit.mjs";
 import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-verify.mjs";
@@ -247,6 +248,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     ].includes(key)) {
     assert.equal(currentBlob, manifest.allApiRouteFiles[key.slice(0, key.lastIndexOf(" "))].gitBlobSha);
     assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
+    return true;
+  }
+  if (key === "src/app/api/migrations/route.ts POST" && method.status === "COVERED") {
+    assert.equal(currentBlob, "6f2aabfe906a2c38594ea8b20d17b27a90dafb95");
+    assert.equal(verifyMigrationPostCredit(manifest), 1);
     return true;
   }
   if (method.status === "COVERED" && ["src/app/api/workforce-planning/route.ts POST","src/app/api/workforce-planning/route.ts PATCH"].includes(key)) {
@@ -3955,6 +3961,10 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
+        continue;
+      }
+      if (path === "src/app/api/migrations/route.ts" && method.name === "POST") {
+        assert.equal(verifyMigrationPostCredit(manifest), 1);
         continue;
       }
       if (path === "src/app/api/workforce-planning/route.ts" && ["POST","PATCH"].includes(method.name)) {
