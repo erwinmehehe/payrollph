@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
+import {mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import test from 'node:test';
 import {OFF,ABSENT} from '../scripts/qa/tenant-recovery-local-contract.mjs';
@@ -24,6 +25,10 @@ test('four-method proof refuses external DB, mail, storage, credentials and enab
 test('preload refuses every non-fixture HTTPS, DNS and fetch destination',()=>{
   const env={...process.env,...safe};delete env.GITHUB_ACTIONS;
   const code="import dns from 'node:dns/promises';import https from 'node:https';import assert from 'node:assert/strict';await assert.rejects(dns.lookup('not-a-fixture.example.test'));assert.throws(()=>https.request('https://not-a-fixture.example.test/'));await assert.rejects(fetch('https://not-a-fixture.example.test/'));console.log('EGRESS_REFUSED');";
+  // A pristine CI checkout has no generated outputs directory. The sealed
+  // fixture preload writes initial zeroed transport counters on import; create
+  // only its local destination without touching the pinned proof or egress guard.
+  mkdirSync('outputs',{recursive:true});
   const child=spawnSync(process.execPath,['--import','./scripts/qa/tenant-security-write-preload.mjs','--input-type=module','-e',code],{env,encoding:'utf8'});
   assert.equal(child.status,0,child.stderr);assert.match(child.stdout,/EGRESS_REFUSED/);
 });
