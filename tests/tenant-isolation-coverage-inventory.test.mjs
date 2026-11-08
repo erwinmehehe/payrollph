@@ -3406,6 +3406,9 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       currentBlob === "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e") {
     const routeFile = "src/app/api/invitations/accept/route.ts";
     assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, currentBlob);
+    assert.equal(gitBlobSha(readFileSync("scripts/qa/tenant-invitation-header-source-compat.mjs")),
+      "329c50621b5ce5dad4a356a4cac66414300f0d10",
+      "Historic proof compatibility guard changed without renewed review");
     assert.equal(method.status, "GAP", "Invitation privacy and audit source review earns no method credit");
     assert.equal(method.testedBy, null, "Only independent executed method proof may earn coverage");
     assert.match(method.reason, /No valid own-object/);
