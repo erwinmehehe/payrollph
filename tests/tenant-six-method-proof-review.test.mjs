@@ -898,10 +898,51 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
       (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits;
+    // Compute the descriptive batch line from the immutable source-linked
+    // frozen method queue and current main manifest, not an old blanket
+    // "all twelve incomplete" assumption. Never count a zero-GAP batch as
+    // independently accepted: these remain explicitly PROVISIONAL.
+    const frozenQueue = baselinePlan.split("### Batch DL-01 —")[1]
+      ?.split("## Page and server-action closure")[0];
+    assert.ok(frozenQueue, "origin/main must retain its 12 source-linked frozen batches");
+    const frozenSections = ("### Batch DL-01 —" + frozenQueue)
+      .split("### Batch ").slice(1);
+    assert.equal(frozenSections.length, 12, "all frozen batches must remain in main");
+    const statuses = [];
+    const provisionalBatches = frozenSections.filter(section => {
+      const links = section.split("\n").filter(line =>
+        line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"));
+      assert.ok(links.length > 0, "each batch must link its frozen API methods");
+      const sectionStatuses = links.map(line => {
+        const method = line.split("`")[1]?.split(" ")[0];
+        const path = line.split(" — [source](../../")[1]?.split("#L")[0];
+        const status = baseline.allApiRouteFiles[path]?.methods
+          .find(row => row.name === method)?.status;
+        assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(status),
+          "Every frozen source link must map to a known method status");
+        statuses.push(status);
+        return status;
+      });
+      return sectionStatuses.every(status => status !== "GAP");
+    }).map(section => section.split(" ")[0]);
+    assert.equal(statuses.length, 406, "the frozen queue must still contain exactly 406 methods");
+    assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
+      "the frozen queue must match current main source-credited methods");
+    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3);
+    assert.equal(statuses.filter(status => status === "GAP").length, 403 - frozenCovered);
+    const incomplete = 12 - provisionalBatches.length;
+    const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
+      provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
+    const word = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+      "Eight", "Nine", "Ten", "Eleven", "Twelve"][incomplete];
+    const batchSummary = provisionalBatches.length === 0
+      ? "All 12 batches remain INCOMPLETE."
+      : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
-      .replace("91 GAP", (403 - frozenCovered) + " GAP");
+      .replace("91 GAP", (403 - frozenCovered) + " GAP")
+      .replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
