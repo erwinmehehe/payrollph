@@ -1,0 +1,91 @@
+name: De minimis grant DELETE tenant boundary (fictional PG16)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-de-minimis-delete-http.yml'
+      - 'src/app/api/de-minimis/**'
+      - 'scripts/qa/tenant-de-minimis-delete-*.mjs'
+      - 'tests/tenant-de-minimis-delete-*.test.mjs'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/schema.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-de-minimis-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  de-minimis-delete-isolation:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TENANT_DE_MINIMIS_MODE: isolated-ci-only
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Parse isolated runner and run negative boundary controls
+        run: |
+          node --check scripts/qa/tenant-de-minimis-delete-contract.mjs
+          node --check scripts/qa/tenant-de-minimis-delete-http.mjs
+          node --test tests/tenant-de-minimis-delete-boundary.test.mjs
+      - name: Export disposable localhost tenant environment
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Generate disposable PII/bank encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Push fictional fresh PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated audit-chain baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode app (no production data)
+        run: npm run build
+      - name: Start loopback-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/de-minimis-http.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/de-minimis-http.log
+          exit 1
+      - name: Two real owner deletes, foreign/missing parity, revoked/role denials
+        run: node --import tsx scripts/qa/tenant-de-minimis-delete-http.mjs
+      - name: Show isolated server logs only on failure
+        if: failure()
+        run: cat /tmp/de-minimis-http.log || true

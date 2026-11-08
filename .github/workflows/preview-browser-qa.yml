@@ -1445,6 +1445,9 @@ jobs:
 
           node preview-qa.cjs
 
+      - name: Check Help Center role-guide links in desktop and mobile Chromium
+        run: node scripts/qa/help-onboarding-browser.cjs
+
       # All synthetic HTTP mutations are confined to the disposable CI Postgres
       # service. The script rejects remote URLs and unknown database targets.
       - name: Verify ESS Web Bundy employee and tenant isolation with synthetic HTTP

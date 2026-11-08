@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Search, X } from "lucide-react";
 import { HELP_AUDIENCES, HELP_ARTICLES, searchHelpArticles, type HelpAudience } from "@/lib/help-center-content";
+import { repeatedHelpGuideSlug } from "@/lib/help-guide-navigation";
 
 const QUICK_GUIDES = [
   { slug: "find-released-payslips", label: "Download a payslip" },
@@ -40,6 +41,26 @@ export function HelpCenterSearch() {
     return () => window.removeEventListener("hashchange", openHashGuide);
   }, [openGuide]);
 
+  // React/Next Link handles navigation in the bubbling phase, but clicking a
+  // link to the *existing* hash does not emit hashchange. The capture listener
+  // re-opens a manually collapsed guide without interrupting normal routing.
+  useEffect(() => {
+    function reopenSameHashGuide(event: MouseEvent) {
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest<HTMLAnchorElement>('a[href^="/help#"]');
+      const slug = repeatedHelpGuideSlug({
+        href: link?.getAttribute("href") ?? null,
+        pathname: window.location.pathname,
+        currentHash: window.location.hash,
+        primaryUnmodified: event.button === 0 && !event.metaKey &&
+          !event.ctrlKey && !event.shiftKey && !event.altKey &&
+          (!link?.target || link.target === "_self"),
+      });
+      if (slug) openGuide(slug);
+    }
+    document.addEventListener("click", reopenSameHashGuide, true);
+    return () => document.removeEventListener("click", reopenSameHashGuide, true);
+  }, [openGuide]);
   useEffect(() => {
     if (!guideNavigation) return;
     const article = document.getElementById(guideNavigation.slug);
