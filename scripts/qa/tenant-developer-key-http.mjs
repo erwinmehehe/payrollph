@@ -5,12 +5,14 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
+import {readFileSync} from 'node:fs';
+import {securityWriteRun,requireSecurityWrite,assertSecurityDatabase,securityReceipt,withSecurityVeto} from './tenant-security-write-local-contract.mjs';
 import {
   requireDeveloperKeyProofEnvironment, requireHttpStatus,
   assertOneTimeKeyCreated, assertForeignKeyDenial,
 } from "./tenant-developer-key-contract.mjs";
 
-requireDeveloperKeyProofEnvironment(); // Fail before importing any database code.
+if(securityWriteRun())requireSecurityWrite();else requireDeveloperKeyProofEnvironment(); // Before DB imports.
 const [{ db, pool }, s, { and, asc, eq }, fixture] = await Promise.all([
   import("../../src/db/index.ts"), import("../../src/db/schema.ts"),
   import("drizzle-orm"), import("./tenant-table-http.mjs"),
@@ -82,6 +84,7 @@ function action(organizationId, verb, extra = {}) {
 }
 
 async function verify() {
+  if(securityWriteRun())await assertSecurityDatabase(pool);
   // No source data or production secrets. All employers and credentials are fictional.
   assert.deepEqual(await db.select({ id: s.organizations.id }).from(s.organizations).limit(1), [],
     "disposable clean PG16 database required");
@@ -115,6 +118,7 @@ async function verify() {
     db.select().from(s.sessions).where(eq(s.sessions.userId, victim.owner.id)).orderBy(asc(s.sessions.id)),
   ]);
   const ownCreatedIds = new Set();
+  let webhookCreates=0,webhookTests=0,mutationDiscriminators=0,auditRollbacks=0;
 
   // Two distinct auth sessions and two genuine owned credential-creation positives.
   for (const actor of [a, b]) {
@@ -132,6 +136,8 @@ async function verify() {
     assert.equal(ownKey.keyHash, hash(created.json.key), "one-time token must be stored only as SHA-256");
     assert.equal(ownKey.prefix, created.json.key.slice(0, 12));
     assert.equal(ownKey.revokedAt, null);
+    assert.throws(()=>assertOneTimeKeyCreated(created,victimKey.name),undefined,
+      "developer validator accepts another employer's data");mutationDiscriminators++;
     assert.ok(ownKey.scopes.includes("employees:read"));
 
     const listed = requireHttpStatus(await request("/api/developer?organizationId=" +
@@ -185,7 +191,7 @@ async function verify() {
     assertForeignKeyDenial(foreignKey, missingKey, victimKey.id);
     noVictimLeak(foreignKey, victim, victimKey);
 
-    for (const verb of ["create-key", "revoke-key"]) {
+    for (const verb of (securityWriteRun()?["create-key", "revoke-key","create-webhook","test-webhook"]:["create-key", "revoke-key"])) {
       const ownAction = verb === "create-key"
         ? { name: "foreign-org-forbidden" } : { keyId: victimKey.id };
       const cross = requireHttpStatus(await request("/api/developer", {
@@ -205,6 +211,49 @@ async function verify() {
     }), 403, "cross-site credential creation rejected");
     assert.deepEqual(await snapshotOrganization(actor.org.id), stateBeforeDenials,
       "denied probes must not create credentials or audit receipts");
+
+    if(securityWriteRun()){
+      const url='https://hooks.fixture.invalid/fictional/'+actor.marker;
+      // Prove all previously missing webhook sub-actions, through the real
+      // request handler and persisted delivery ledger. Transport is reserved-host only.
+      const createdHook=requireHttpStatus(await request('/api/developer',{cookie:actor.cookie,
+        body:action(actor.org.id,'create-webhook',{url,events:['payroll.processed'],
+          endpointId:victimKey.id,targetOrganizationId:victim.org.id,userId:victim.owner.id})}),201,'owned webhook created');
+      const [endpoint]=await db.select().from(s.webhookEndpoints).where(eq(s.webhookEndpoints.id,createdHook.json.id));
+      assert.equal(endpoint.organizationId,actor.org.id);assert.equal(endpoint.url,url);
+      assert.equal(endpoint.secret,createdHook.json.secret);assert.match(endpoint.secret,/^whsec_[a-f0-9]{64}$/);
+      assert.deepEqual(endpoint.events,['payroll.processed']);webhookCreates++;
+      const ownedHook=(row,org)=>{assert.equal(row.organizationId,org);assert.equal(row.url,url);};
+      ownedHook(endpoint,actor.org.id);assert.throws(()=>ownedHook(endpoint,victim.org.id),undefined,
+        "developer webhook validator accepts another employer's data");mutationDiscriminators++;
+      const statsBefore=JSON.parse(readFileSync('outputs/security-write-transport.json','utf8'));
+      const deliveriesBefore=await db.select().from(s.webhookDeliveries).where(eq(s.webhookDeliveries.organizationId,actor.org.id));
+      const tested=requireHttpStatus(await request('/api/developer',{cookie:actor.cookie,
+        body:action(actor.org.id,'test-webhook',{endpointId:victimKey.id,userId:victim.owner.id,targetOrganizationId:victim.org.id})}),200,'owned webhook delivery persisted');
+      assert.equal(tested.json.attempted,1);assert.equal(tested.json.results[0].endpointId,endpoint.id);
+      assert.equal(tested.json.results[0].status,'delivered');webhookTests++;
+      const deliveries=await db.select().from(s.webhookDeliveries).where(eq(s.webhookDeliveries.organizationId,actor.org.id));
+      assert.equal(deliveries.length,deliveriesBefore.length+1);const delivery=deliveries.at(-1);
+      assert.equal(delivery.organizationId,actor.org.id);assert.equal(delivery.endpointId,endpoint.id);
+      assert.equal(delivery.status,'delivered');assert.equal(delivery.attempts,1);assert.equal(delivery.responseCode,204);
+      assert.equal(delivery.payload.organizationId,actor.org.id);assert.equal(delivery.payload.data.test,true);
+      const {signWebhookPayload}=await import('../../src/lib/webhook-signing.ts');
+      const stamp=Number(delivery.signature.match(/^t=(\d+),/)?.[1]);
+      assert.equal(delivery.signature,signWebhookPayload(endpoint.secret,JSON.stringify(delivery.payload),stamp));
+      const statsAfter=JSON.parse(readFileSync('outputs/security-write-transport.json','utf8'));
+      assert.equal(statsAfter.webhooks.length,statsBefore.webhooks.length+1);
+      assert.equal(statsAfter.webhooks.at(-1).organizationId,actor.org.id);
+      assert.equal(statsAfter.webhooks.at(-1).signatureSha256,hash(delivery.signature));
+      assert.deepEqual(await snapshotOrganization(victim.org.id),victimBefore,'webhook actions cannot deliver or modify victim');
+      for(const [verb,extras] of [['create-key',{name:'audit-veto'}],['revoke-key',{keyId:forged.json.id}],['create-webhook',{url,events:['payroll.processed']}]]){
+        const before=await snapshotOrganization(actor.org.id);
+        await withSecurityVeto(pool,'audit_events',actor.org.id,async()=>{
+          const failed=await request('/api/developer',{cookie:actor.cookie,body:action(actor.org.id,verb,extras)});
+          assert.equal(failed.status,500,'actual unhandled audit veto must fail HTTP');
+        });
+        assert.deepEqual(await snapshotOrganization(actor.org.id),before,'audit veto rolls back '+verb);auditRollbacks++;
+      }
+    }
 
     // A unit-scoped administrator cannot inherit company-wide credential rights.
     await db.update(s.userOrganizations).set({ role: "admin", orgUnitId: actor.unit.id })
@@ -296,7 +345,7 @@ async function verify() {
     .where(eq(s.sessions.userId, victim.owner.id)).orderBy(asc(s.sessions.id)),
   victimSessionsBefore, "victim sessions must not change");
 
-  console.log(JSON.stringify({
+  const result={
     kind: "TENANT_DEVELOPER_API_KEYS_POST", proof: "fictional-PG16-real-production-HTTP",
     result: "PASS", independentAttackers: 2, ownedCreateAndRevoke: 2,
     realHigherIdVictim: true, foreignExistingAndMissingParity: true,
@@ -305,9 +354,10 @@ async function verify() {
     foreignEmployerQueryIgnoredForKey: true,
     revokedKeyDeniedAtConsumerViaBothHeaders: true,
     unitScopeAndRevokedMembershipDenied: true, victimSqlAndAuditUnchanged: true,
-    webhookDeliveryAttempted: false, production: false,
+    webhookDeliveryAttempted: securityWriteRun(),webhookCreates,webhookTests,mutationDiscriminators,auditRollbacks, production: false,
     POST_method_status: "GAP", newCoverageCredits: 0, independentlyApproved: false,
-  }));
+  };
+  securityReceipt('developer',result);console.log(JSON.stringify(result));
 }
 
 try { await verify(); } finally { await pool.end(); }

@@ -6,13 +6,15 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
+import {securityWriteRun,requireSecurityWrite,assertSecurityDatabase,securityReceipt,withSecurityVeto} from './tenant-security-write-local-contract.mjs';
 import {
   APP_ORIGIN, ENDPOINT, requireDisposableDocumentEnv,
   assertDeniedDocumentResponse, assertStoredDocument, assertNoChanges,
 } from "./tenant-document-upload-contract.mjs";
 
 // Validate the disposable target before evaluating any DB, application or fixture module.
-requireDisposableDocumentEnv();
+if(securityWriteRun())requireSecurityWrite();else requireDisposableDocumentEnv();
+const vaultProfile=process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED==='true';
 const [
   { asc, eq }, { db, pool }, s,
   { seedEmployer, standaloneMakeSession, standaloneRequest },
@@ -110,6 +112,9 @@ async function main() {
   const nonce = randomUUID().replaceAll("-", "").slice(0, 9);
   const subjects = [];
   try {
+    if(securityWriteRun())await assertSecurityDatabase(pool);
+    // Put the real victim records above the low-ID range in every subject table.
+    for(let i=0;i<7;i++)await fixtureEmployer('PADDING'+i,nonce);
     for (const label of ["ATTA", "ATTB", "VICTIM"]) {
       subjects.push(await fixtureEmployer(label, nonce));
     }
@@ -120,6 +125,7 @@ async function main() {
       for (const key of ["org", "worker", "requirement", "compliance"]) {
         assert.ok(victim[key].id > actor[key].id,
           "The higher-ID victim must have an actual persisted " + key);
+        assert.ok(victim[key].id>6,'real victim subject must be above six');
       }
     }
     // Persist real victim document bytes before any negative test. This is not
@@ -133,10 +139,17 @@ async function main() {
       scanNote: "Fictional fixture bytes", uploadedBy: victim.owner.name,
       content: victimBytes.toString("base64"),
     }).returning();
-    assert.ok(victimDocument.id > 0);
+    // Real persisted documents, not sequence manipulation or made-up IDs.
+    for(let i=0;i<7;i++)await db.insert(s.documents).values({
+      ...victimDocument,id:undefined,organizationId:a.org.id,employeeId:a.worker.id,
+      fileName:a.marker+'-padding-'+i+'.pdf',uploadedBy:a.owner.name,
+      content:pdf(a,'padding').toString('base64'),sha256:sha256(pdf(a,'padding')),
+    });
+    const [highVictimDocument]=await db.insert(s.documents).values({...victimDocument,id:undefined,fileName:victim.marker+'-high.pdf'}).returning();
+    assert.ok(highVictimDocument.id>6,'real victim document must be above six');
     const initial = await snapshotAll(subjects);
-    assert.equal(initial.get(victim.org.id).documents.length, 1);
-    let denials = 0, positives = 0, vetoes = 0;
+    assert.equal(initial.get(victim.org.id).documents.length, 2);
+    let denials = 0, positives = 0, vetoes = 0,employeePositives=0,protectedFinalVetoes=0;
     for (const actor of [a, b]) {
       const account = await standaloneRequest("/api/account", { cookie: actor.cookie });
       assert.equal(account.status, 200, "Authenticated session must be real");
@@ -163,7 +176,7 @@ async function main() {
       // Simulate a failed audit insert without mocking the HTTP handler. A
       // successful upload must not survive if its mandatory audit row fails.
       const beforeVeto = await snapshotAll(subjects);
-      await withDisposableInsertVeto(pool, "audit_events", actor.org.id, async () => {
+      await (securityWriteRun()?withSecurityVeto:withDisposableInsertVeto)(pool, "audit_events", actor.org.id, async () => {
         const response = await postDocument({
           actor, requirementId: actor.requirement.id, suffix: "audit-veto",
         });
@@ -183,6 +196,8 @@ async function main() {
         };
         const result = await postDocument({ actor, suffix, requirementId });
         assertStoredDocument(result, actor, expected);
+        assert.throws(()=>assertStoredDocument(result,actor,{...expected,fileName:victim.marker+'-foreign.pdf'}),
+          undefined,"document validator accepts another employer's data");
         ensureNotLeaking(result, subjects, actor);
         const after = await snapshot(actor.org.id);
         const saved = after.documents.find(row => row.id === result.json.id);
@@ -190,13 +205,17 @@ async function main() {
         assert.equal(saved.organizationId, actor.org.id);
         assert.equal(saved.employeeId, actor.worker.id);
         assert.equal(saved.sha256, expected.sha256);
-        assert.equal(saved.content, bytes.toString("base64"));
+        if(vaultProfile){
+          assert.equal(result.json.storage,'private-object');assert.equal(saved.content,'');
+          assert.match(saved.objectStorageKey,new RegExp('^private-documents/'+actor.org.id+'/'+actor.worker.id+'/'));
+          assert.equal(saved.sourceKey,null,'verified object must leave the unreadable pending state');
+        }else{assert.equal(saved.content, bytes.toString("base64"));assert.equal(saved.objectStorageKey,null);}
         assert.equal(saved.scannedClean, true);
         assert.equal(after.documents.length, before.get(actor.org.id).documents.length + 1);
-        assert.equal(after.auditEvents.length, before.get(actor.org.id).auditEvents.length + 1);
+        assert.equal(after.auditEvents.length, before.get(actor.org.id).auditEvents.length + (vaultProfile?2:1));
         const audit = after.auditEvents.at(-1);
         assert.equal(audit.organizationId, actor.org.id);
-        assert.equal(audit.action, "Document uploaded");
+        assert.equal(audit.action, vaultProfile?'Employee document scanned and stored in private vault':"Document uploaded");
         if (requirementId != null) {
           const compliance = after.hcmEmployeeDocumentCompliance.find(
             row => row.id === actor.compliance.id);
@@ -214,6 +233,40 @@ async function main() {
         await assertOthersUnchanged(subjects, before, actor, suffix);
         positives++;
       }
+      if(securityWriteRun()&&vaultProfile){
+        const before=await snapshotAll(subjects);
+        await withSecurityVeto(pool,'audit_events',actor.org.id,async()=>{
+          const response=await postDocument({actor,suffix:'final-audit-veto'});
+          assertDeniedDocumentResponse(response,409,hidden);
+        },{action:'Employee document scanned and stored in private vault'});
+        const after=await snapshot(actor.org.id);
+        const pending=after.documents.filter(row=>!before.get(actor.org.id).documents.some(old=>old.id===row.id));
+        assert.equal(pending.length,1,'ambiguous object commit retains one protected cleanup intent');
+        assert.equal(pending[0].scannedClean,false);assert.match(pending[0].sourceKey,/^vault-upload-pending:/);
+        const listed=await standaloneRequest('/api/documents?organizationId='+actor.org.id,{cookie:actor.cookie});
+        assert.equal(listed.status,200);assert.ok(!listed.json.documents.some(row=>row.id===pending[0].id),'failed vault approval cannot expose bytes');
+        await assertOthersUnchanged(subjects,before,actor,'final vault audit rollback');protectedFinalVetoes++;
+      }
+      if(securityWriteRun()){
+        const before=await snapshotAll(subjects);
+        await db.update(s.users).set({role:'employee',employeeId:actor.worker.id}).where(eq(s.users.id,actor.owner.id));
+        await db.update(s.userOrganizations).set({role:'employee'}).where(eq(s.userOrganizations.userId,actor.owner.id));
+        try{
+          const suffix='employee-self',bytes=pdf(actor,suffix);
+          const response=await postDocument({actor,suffix,employeeId:victim.worker.id});
+          const expected={fileName:actor.marker+'-'+suffix+'.pdf',sha256:sha256(bytes),byteSize:bytes.length,requirementId:null,forbiddenMarker:victim.marker};
+          assertStoredDocument(response,actor,expected);
+          const after=await snapshot(actor.org.id),saved=after.documents.find(row=>row.id===response.json.id);
+          assert.equal(saved.employeeId,actor.worker.id,'employee cannot select another worker');
+          assert.equal(saved.organizationId,actor.org.id);assert.equal(saved.scannedClean,true);
+          assert.throws(()=>assertStoredDocument(response,actor,{...expected,fileName:victim.marker+'.pdf'}),undefined,
+            "document validator accepts another employer's data");
+          await assertOthersUnchanged(subjects,before,actor,'employee self-only upload');employeePositives++;
+        }finally{
+          await db.update(s.users).set({role:'owner',employeeId:null}).where(eq(s.users.id,actor.owner.id));
+          await db.update(s.userOrganizations).set({role:'owner'}).where(eq(s.userOrganizations.userId,actor.owner.id));
+        }
+      }
     }
     // The high-ID victim's document bytes and other business state are still
     // precisely the same after both attackers' real HTTP mutations.
@@ -222,14 +275,16 @@ async function main() {
     assert.equal(denials, 10);
     assert.equal(positives, 4);
     assert.equal(vetoes, 2);
-    console.log(JSON.stringify({
+    const result={
       kind: "fictional-document-upload-tenant-proof",
       methods: ["POST /api/documents"], attackerEmployers: 2,
-      victimEmployers: 1, ownPersistedUploads: positives,
+      victimEmployers: 1, ownPersistedUploads: positives+employeePositives,ownerUploads:positives,employeeUploads:employeePositives,
       tenantAndInputDenials: denials, auditVetoRollbacks: vetoes,
       simulatedScannerOnly: true, claimedCoverageCredits: 0,
       independentSecurityReview: "PENDING", productionTested: false,
-    }, null, 2));
+      vaultProfile,documentDiscriminators:positives+employeePositives,protectedFinalVetoes,
+    };
+    securityReceipt('documents',result);console.log(JSON.stringify(result));
   } finally {
     await pool.end();
   }
