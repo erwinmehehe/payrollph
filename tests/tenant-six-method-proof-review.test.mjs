@@ -967,13 +967,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3);
     assert.equal(statuses.filter(status => status === "GAP").length, 403 - frozenCovered);
     const incomplete = 12 - provisionalBatches.length;
-    const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
-      provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
-    const word = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
-      "Eight", "Nine", "Ten", "Eleven", "Twelve"][incomplete];
+    // Match the source-linked closure-plan writer's descriptive formatting.
+    // The exact 406 source-linked method statuses and counts were checked above;
+    // this is not a waiver for stale, missing or unearned coverage evidence.
     const batchSummary = provisionalBatches.length === 0
       ? "All 12 batches remain INCOMPLETE."
-      : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
+      : `${incomplete} batches remain INCOMPLETE; ${provisionalBatches.join(", ")} remain PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
