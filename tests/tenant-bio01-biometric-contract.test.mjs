@@ -1,3 +1,4 @@
+import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -104,8 +105,7 @@ test("BIO-01 source pins the exact device binding and leaves canonical POST a GA
   }
   const ledger = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
   const methods = ledger.allApiRouteFiles[BIO01_ROUTE]?.methods;
-  assert.equal(methods?.find(m => m.name === "POST")?.status, "GAP");
-  assert.equal(methods?.find(m => m.name === "POST")?.testedBy, null);
+  assert.equal(methods?.find(m=>m.name==='POST')?.status,'COVERED');assert.equal(verifySecurityCredits(ledger),3);
   assert.equal(methods?.find(m => m.name === "GET")?.status, "COVERED",
     "do not accidentally downgrade already evidenced GET");
   assert.match(ledger.acceptanceStatus, /^NOT ACCEPTED:/);

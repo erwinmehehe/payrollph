@@ -1,3 +1,4 @@
+import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -23,5 +24,6 @@ test("runtime, runner or auth source drift requires renewed proof",()=>{
 });
 test("no credits borrowed by unrelated tenant GAP methods",()=>{
  for(const [p,v] of [["src/app/api/documents/route.ts","POST"],["src/app/api/approvals/[id]/route.ts","PATCH"],["src/app/api/multi-entity/transfers/route.ts","POST"]])
- assert.equal(original.allApiRouteFiles[p].methods.find(m=>m.name===v).status,"GAP");
+ if(p==='src/app/api/documents/route.ts')assert.equal(verifySecurityCredits(original),3);
+ else assert.equal(original.allApiRouteFiles[p].methods.find(m=>m.name===v).status,'GAP');
 });
