@@ -1,8 +1,12 @@
-> **Combined current proposal (#1818 careers, #1817 audit atomicity, #1822 POS, #1816 migrations, #1827 year-end):** 433 COVERED / 11 PUBLIC-BY-DESIGN / 54 GAP; frozen 349 COVERED / 3 PUBLIC / 54 GAP. All source-linked credits provisional; security and production acceptance NOT GRANTED.
+> **Current PR #1827 year-end-only proposal — NOT ACCEPTED:** 498 methods = 436 COVERED / 11 PUBLIC-BY-DESIGN / 51 GAP; frozen 352 COVERED / 3 PUBLIC / 51 GAP. All source-linked credits provisional; security and production acceptance NOT GRANTED.
+
+> **Main baseline before this draft — SOLO_VERIFIED_DEV_RECOVERY:** 434 COVERED / 11 PUBLIC-BY-DESIGN / 53 GAP. Three methods from #1829 OFF-profile PG16 receipt; no production acceptance.
+
+> **Earlier combined proposal (#1818 careers, #1817 audit atomicity, #1822 POS):** 430 COVERED / 11 PUBLIC-BY-DESIGN / 57 GAP; frozen 346 COVERED / 3 PUBLIC / 57 GAP. All source-linked credits provisional; security and production acceptance NOT GRANTED.
 
 ## 2026-11-07 Year-End GET/POST source-current ledger reconciliation — PROVISIONAL / NOT ACCEPTED
 
-**This PR #1827 proposes only two new method credits:** `GET /api/year-end` and `POST /api/year-end`, each tied to merged #1804's [successful fictional PostgreSQL 16 real-HTTP run 42254117862/job 128016606342](https://github.com/erwinmehehe/payrollph/actions/runs/42254117862/job/128016606342) against the current route SHA `f040f5bbbc3df275d32d23f1728b1b0345f77814`. Five GET formats, two POST modes, owned actions, higher-ID victim denials, forged selectors, unchanged cross-employer SQL/audits and atomic payroll binding are backed by source pins. Old #1730 route proof is not reused. **Proposed branch ledger: 498 methods = 433 COVERED + 11 PUBLIC-BY-DESIGN + 54 GAP; frozen 406 = 349 COVERED + 3 PUBLIC-BY-DESIGN + 54 GAP.** The separately opened draft #1826 owns two *different* billing start/cancel POST method credits; those are **not** credited in this branch and are not double-counted. STA-01 has 25 provisionally COVERED methods and 2 unresolved method GAPs, so its batch remains INCOMPLETE. Nine other batches are also incomplete; DL-02 and WRK-01 have zero method GAPs but remain PROVISIONAL — NOT ACCEPTED. **Independent payroll/tax/security/privacy review and exact-final-head CI are required.** No real subscriptions, filings, payroll release, transfers, production deployment or tenant-wide isolation acceptance is authorized. All 17 page/action gaps remain.
+**This PR #1827 proposes only two new method credits:** `GET /api/year-end` and `POST /api/year-end`, each tied to merged #1804's [successful fictional PostgreSQL 16 real-HTTP run 42254117862/job 128016606342](https://github.com/erwinmehehe/payrollph/actions/runs/42254117862/job/128016606342) against the current route SHA `f040f5bbbc3df275d32d23f1728b1b0345f77814`. Five GET formats, two POST modes, owned actions, higher-ID victim denials, forged selectors, unchanged cross-employer SQL/audits and atomic payroll binding are backed by source pins. Old #1730 route proof is not reused. **Proposed branch ledger: 498 methods = 436 COVERED + 11 PUBLIC-BY-DESIGN + 51 GAP; frozen 406 = 352 COVERED + 3 PUBLIC-BY-DESIGN + 51 GAP.** The separately opened draft #1826 owns two *different* billing start/cancel POST method credits; those are **not** credited in this branch and are not double-counted. STA-01 has 25 provisionally COVERED methods and 2 unresolved method GAPs, so its batch remains INCOMPLETE. Nine other batches are also incomplete; DL-02 and WRK-01 have zero method GAPs but remain PROVISIONAL — NOT ACCEPTED. **Independent payroll/tax/security/privacy review and exact-final-head CI are required.** No real subscriptions, filings, payroll release, transfers, production deployment or tenant-wide isolation acceptance is authorized. All 17 page/action gaps remain.
 
 ## 2026-11-07 careers publication PATCH four-part method credit — PROVISIONAL / NOT ACCEPTED
 
@@ -196,7 +200,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 0 | 5 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
@@ -206,7 +210,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 24 | 1 | 8 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **349 COVERED + 3 PUBLIC-BY-DESIGN + 54 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **352 COVERED + 3 PUBLIC-BY-DESIGN + 51 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -268,7 +272,7 @@ Current proposed reconciliation is source-bound to exact `main@dac65d5681c9fb028
 | 1 | **DL-01** | 26 | 22 | 2 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 25 | 0 | 8 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 0 | 5 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |

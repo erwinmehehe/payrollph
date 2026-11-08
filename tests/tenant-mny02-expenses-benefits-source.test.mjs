@@ -61,7 +61,11 @@ test("method-specific source links prove real own positive, foreign denial and e
     assert.ok(foreignSpan.includes("/api/" + route), key + ": foreign endpoint missing");
     assert.match(ownSpan, new RegExp("\\),\\s*" + (verb === "POST" ? 201 : 200) + ","),
       key + ": a successful nonempty own response is required");
-    assert.match(foreignSpan, /\),\s*403,/, key + ": genuine foreign access must be denied");
+    // ID-only de minimis DELETE hides foreign grant existence with the same 404 as missing.
+    // Other MNY-02 methods still require their existing 403 foreign-employer denial.
+    const foreignDenialStatus = key === "DELETE de-minimis" ? 404 : 403;
+    assert.match(foreignSpan, new RegExp("\\),\\s*" + foreignDenialStatus + ","),
+      key + ": genuine foreign access must be denied with the reviewed method-specific status");
     assert.equal(method.testedBy.forgedSelectorLine, forged ?? undefined,
       key + ": forged selector pointer must reference the reviewed request");
     if (forged != null && verb === "POST") {

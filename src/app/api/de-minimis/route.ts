@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { deMinimisGrants, employees } from "@/db/schema";
+import { deMinimisGrants, employees, userOrganizations } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -16,6 +16,21 @@ import {
 export const dynamic = "force-dynamic";
 
 const types = Object.keys(DE_MINIMIS_2026) as DeMinimisType[];
+
+// ID-only DELETE must never read an unowned grant before tenant authorization.
+// An existing foreign grant and an absent grant receive the identical 404.
+async function findActiveMemberGrant(userId: number, grantId: number) {
+  const [match] = await db.select({ grant: deMinimisGrants })
+    .from(deMinimisGrants)
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.userId, userId),
+      eq(userOrganizations.organizationId, deMinimisGrants.organizationId),
+      eq(userOrganizations.active, true),
+    ))
+    .where(eq(deMinimisGrants.id, grantId))
+    .limit(1);
+  return match?.grant ?? null;
+}
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -174,7 +189,10 @@ export async function DELETE(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("id") ?? 0);
-  const [grant] = await db.select().from(deMinimisGrants).where(eq(deMinimisGrants.id, id));
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return Response.json({ error: "Valid grant id is required." }, { status: 400 });
+  }
+  const grant = await findActiveMemberGrant(user.id, id);
   if (!grant) return Response.json({ error: "Grant not found." }, { status: 404 });
   const denied = await assertOrganizationRole(
     user.id,
@@ -192,7 +210,10 @@ export async function DELETE(request: Request) {
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   await db.update(deMinimisGrants).set({ active: false, endedOn: new Date().toISOString().slice(0, 10) })
-    .where(eq(deMinimisGrants.id, id));
+    .where(and(
+      eq(deMinimisGrants.id, id),
+      eq(deMinimisGrants.organizationId, grant.organizationId),
+    ));
   await recordAuditEvent({ organizationId: grant.organizationId, actor: user.name, action: "De minimis benefit ended", resource: `${grant.benefitType} grant ${id}` });
   return Response.json({ ok: true });
 }
