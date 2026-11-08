@@ -4674,9 +4674,9 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(path + " " + method.name, "src/app/api/auth/logout/route.ts POST", "No unrelated method may reuse the auth logout evidence");
         assert.equal(proof.independentSecurityReview, "PENDING");
         assert.equal(proof.productionTested, false);
-        assert.equal(proof.verifiedPrHeadSha, "b32c2286ea6ef91cbe2f2f227f01278de613588d");
-        assert.equal(proof.workflowRunId, 42203481558);
-        assert.equal(proof.workflowJobId, 127844239303);
+        assert.equal(proof.verifiedPrHeadSha, "af5cfba882c2461594f5c30b5e44aecfa4f660d4");
+        assert.equal(proof.workflowRunId, 42432472070);
+        assert.equal(proof.workflowJobId, 128584165166);
         continue;
       }
       // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt (test-only exact-host provider preload); pins are checked by the dedicated test at the end of this file.
@@ -7019,7 +7019,28 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
   assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
   assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
   assert.equal(api.gitBlobSha, proof.routeBlobSha);
-  assert.equal(proof.routeBlobSha, "290f703135c3051d5feb8a3dd594ce9b29da3796", "the proof was written against this exact route");
+  assert.equal(proof.routeBlobSha, "5e385d15d457620af0bcbd910bc0fe535103c53e", "the proof was written against this exact route");
+  assert.deepEqual(proof.integrityReproof.pins, {
+  "src/app/api/auth/logout/route.ts": "5e385d15d457620af0bcbd910bc0fe535103c53e",
+  "src/lib/revoke-presented-session.ts": "e6bd056401cf8998950834732b6c2f2e83508f88",
+  "scripts/qa/tenant-auth-logout-http.mjs": "6b2b45bf6f06580d88db03ca29d0ac546bc3514b",
+  "scripts/qa/tenant-auth-logout-contract.mjs": "36516e9ce60b75109f325df2a4047bb2cb9b3154",
+  "tests/tenant-auth-logout-contract.test.mjs": "3c1e4222c0c549a282202c614aa12bb60bc5608a",
+  ".github/workflows/tenant-auth-logout-http.yml": "f3359240462e4bbd732e9186f0336e950b1e7c17",
+  "scripts/qa/tenant-approval-task-contract.mjs": "aec1742a120c93e7c2f54ab127bd8312501c733a",
+  "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+  "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
+  "scripts/qa/apply-isolated-baseline.mjs": "75b9e7f1b39a6ca5b2253086e519ae7d71229255",
+  "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+  "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+  "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+  "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+  "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02"
+});
+  for (const [file, sha] of Object.entries(proof.integrityReproof.pins)) assert.equal(gitBlobSha(readFileSync(file)), sha, "Logout reproof input changed: " + file);
+  assert.ok(harness.includes("assert.deepEqual(afterReplay, afterFirst"), "replay must compare every SQL field");
+  const helper = readFileSync("src/lib/revoke-presented-session.ts", "utf8");
+  for (const guard of ["eq(sessions.tokenHash, sha256(token))", "isNull(sessions.revokedAt)"]) assert.ok(helper.includes(guard));
   assert.equal(proof.line, proof.ownPositiveLine);
   const lines = harness.split(String.fromCharCode(10));
   const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
@@ -7034,7 +7055,7 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
     assert.ok(harness.includes(token), "harness lacks " + token);
   }
   // The credited route must keep the same-origin check and revoke only the token in the caller's own cookie.
-  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokeSession(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
+  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokePresentedSessionOnce(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
   assert.ok(!/await request\.(?:json|formData)\(/.test(route), "the route must never read an identity from the request body");
 });
 

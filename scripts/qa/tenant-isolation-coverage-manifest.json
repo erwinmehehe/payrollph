@@ -1250,22 +1250,22 @@
       "businessIds": []
     },
     "src/app/api/auth/logout/route.ts": {
-      "gitBlobSha": "290f703135c3051d5feb8a3dd594ce9b29da3796",
+      "gitBlobSha": "5e385d15d457620af0bcbd910bc0fe535103c53e",
       "route": "auth/logout",
       "methods": [
         {
           "name": "POST",
-          "line": 5,
+          "line": 6,
           "status": "COVERED",
-          "reason": "Provisional dedicated method proof (revokes only the presented session, forged session ids ignored, cross-site refused and a byte-identical victim) on disposable PG16 at https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303. Independent tenant-security review PENDING; no production or global approval.",
+          "reason": "Existing provisional logout method refreshed by strict replay-preserving PG16 real-HTTP proof https://github.com/erwinmehehe/payrollph/actions/runs/42432472070/job/128584165166. SOLO_VERIFIED_DEV_RECOVERY; zero new credits; independent security review PENDING; no production acceptance.",
           "testedBy": {
             "file": "scripts/qa/tenant-auth-logout-http.mjs",
             "testFile": "tests/tenant-auth-logout-contract.test.mjs",
             "line": 102,
             "ownPositiveLine": 102,
-            "foreignDenialLine": 117,
+            "foreignDenialLine": 115,
             "forgedSelectorLine": 97,
-            "unchangedDbLine": 124,
+            "unchangedDbLine": 122,
             "victimIdOrderingLine": 45,
             "crossSiteLine": 88,
             "methodActions": [
@@ -1276,25 +1276,56 @@
               "anonymous_noop",
               "garbage_cookie_noop",
               "cross_site_refused",
-              "replay_restamp_observed"
+              "replay_preserves_first_revoked_at"
             ],
-            "proofBlobSha": "9356ce3fca272c51786b82c4846c7195db083810",
+            "proofBlobSha": "6b2b45bf6f06580d88db03ca29d0ac546bc3514b",
             "contractBlobSha": "36516e9ce60b75109f325df2a4047bb2cb9b3154",
-            "testBlobSha": "1f6b2452c0a5145fa4288d4980c70cbade53e684",
+            "testBlobSha": "3c1e4222c0c549a282202c614aa12bb60bc5608a",
             "workflowFile": ".github/workflows/tenant-auth-logout-http.yml",
             "workflowBlobSha": "f3359240462e4bbd732e9186f0336e950b1e7c17",
-            "routeBlobSha": "290f703135c3051d5feb8a3dd594ce9b29da3796",
-            "scope": "Real HTTP on disposable PG16 against a production build, two independent attacker accounts, seven fillers and a higher-ID victim, each with two devices. The route accepts no identity, so the claim is that a logout revokes ONLY the session whose cookie was presented. Each attacker's own logout answers 200 with the constant body and a clearing cookie, revokes exactly the presented session (the account endpoint then answers 401), leaves the caller's other device working, and ignores forged userId/sessionId/token/organizationId fields in the body and query that name the victim's session. Anonymous and garbage-cookie logouts are constant 200s that change no row anywhere, and a cross-site logout with a valid cookie is refused 403 and revokes nothing. The other attacker's and the victim's user rows, sessions and audit rows are compared before and after every step and are byte-identical, and both victim devices still work. Observed and pinned, not a tenant issue: replaying a logout on an already-revoked session re-stamps that session's own revokedAt. Not proven: the Set-Cookie attributes beyond clearing, and behaviour behind a proxy that rewrites Origin.",
-            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303",
-            "runLabel": "GitHub Actions 42203481558/127844239303 PG16 auth-logout PASS",
+            "routeBlobSha": "5e385d15d457620af0bcbd910bc0fe535103c53e",
+            "scope": "Real HTTP on disposable PG16 against a production build, two independent attacker accounts, seven fillers and a higher-ID victim, each with two devices. The route accepts no identity, so the claim is that a logout revokes ONLY the session whose cookie was presented. Each attacker's own logout answers 200 with the constant body and a clearing cookie, revokes exactly the presented session (the account endpoint then answers 401), leaves the caller's other device working, and ignores forged userId/sessionId/token/organizationId fields in the body and query that name the victim's session. Anonymous and garbage-cookie logouts are constant 200s that change no row anywhere, and a cross-site logout with a valid cookie is refused 403 and revokes nothing. The other attacker's and the victim's user rows, sessions and audit rows are compared before and after every step and are byte-identical, and both victim devices still work. Fresh #1831 reproof verifies delayed replay preserves every SQL field, including the first revokedAt timestamp, through the logout-only atomic token-hash / revoked-at-NULL update. Not proven: the Set-Cookie attributes beyond clearing, and behaviour behind a proxy that rewrites Origin.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42432472070/job/128584165166",
+            "runLabel": "GitHub Actions 42432472070/128584165166 PG16 auth-logout PASS",
             "postgresMajor": 16,
-            "workflowRunId": 42203481558,
-            "workflowJobId": 127844239303,
-            "verifiedPrHeadSha": "b32c2286ea6ef91cbe2f2f227f01278de613588d",
+            "workflowRunId": 42432472070,
+            "workflowJobId": 128584165166,
+            "verifiedPrHeadSha": "af5cfba882c2461594f5c30b5e44aecfa4f660d4",
             "mergedProofCommit": "b1824479000a69b9657b250344b7edc57ae288a2",
             "proofPullRequest": 1795,
             "independentSecurityReview": "PENDING",
-            "productionTested": false
+            "productionTested": false,
+            "previousExecution": {
+              "head": "b32c2286ea6ef91cbe2f2f227f01278de613588d",
+              "run": 42203481558,
+              "job": 127844239303,
+              "routeBlobSha": "290f703135c3051d5feb8a3dd594ce9b29da3796"
+            },
+            "integrityReproof": {
+              "pullRequest": 1831,
+              "label": "SOLO_VERIFIED_DEV_RECOVERY",
+              "head": "af5cfba882c2461594f5c30b5e44aecfa4f660d4",
+              "run": 42432472070,
+              "job": 128584165166,
+              "pins": {
+                "src/app/api/auth/logout/route.ts": "5e385d15d457620af0bcbd910bc0fe535103c53e",
+                "src/lib/revoke-presented-session.ts": "e6bd056401cf8998950834732b6c2f2e83508f88",
+                "scripts/qa/tenant-auth-logout-http.mjs": "6b2b45bf6f06580d88db03ca29d0ac546bc3514b",
+                "scripts/qa/tenant-auth-logout-contract.mjs": "36516e9ce60b75109f325df2a4047bb2cb9b3154",
+                "tests/tenant-auth-logout-contract.test.mjs": "3c1e4222c0c549a282202c614aa12bb60bc5608a",
+                ".github/workflows/tenant-auth-logout-http.yml": "f3359240462e4bbd732e9186f0336e950b1e7c17",
+                "scripts/qa/tenant-approval-task-contract.mjs": "aec1742a120c93e7c2f54ab127bd8312501c733a",
+                "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+                "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
+                "scripts/qa/apply-isolated-baseline.mjs": "75b9e7f1b39a6ca5b2253086e519ae7d71229255",
+                "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+                "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+                "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+                "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+                "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02"
+              },
+              "credits": 0
+            }
           }
         }
       ],
@@ -1311,7 +1342,7 @@
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 6,
+          "line": 7,
           "token": "enforceSameOriginMutation"
         }
       ],
