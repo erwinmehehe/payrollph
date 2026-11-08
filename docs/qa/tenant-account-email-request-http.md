@@ -5,7 +5,7 @@ Status: **draft security proof candidate; zero tenant-isolation manifest credits
 ## Scope and independent family
 
 - Endpoint: POST /api/account/email. **Separate** from GET /api/account, POST /api/account/password, and POST /api/account/email/verify.
-- This PR changes only the account-email request route and adds a path-scoped test, runner, contract, workflow and documentation. No payroll or payout logic, existing shared tenant manifest, baseline helper, invitation-preview proof or other open PR's files are changed.
+- This PR changes the account-email request route and adds a path-scoped test, runner, contract, workflow and documentation. It also performs the repository-required, **zero-credit** re-inventory for that exact changed route in the shared tenant manifest and inventory guard. No payroll or payout logic, baseline helper, or other PR's branch is modified. The two shared-file edits may require careful merge coordination with existing open tenant-credit PRs.
 - Explicit runtime hardening: authenticate the current password **before** querying globally unique user email addresses. Otherwise a signed-in account can distinguish a foreign user's email by posting an invalid password. This change intentionally returns 422 (incorrect current password) instead of 409 (email already taken) when the password is wrong. A valid current password still receives the existing 409 for an occupied address.
 
 ## Real HTTP PG16 proof
@@ -29,7 +29,7 @@ To prove the success path under production-mode route checks, the job enables **
 
 ## Acceptance limitations
 
-- No shared manifest edits or provisional credits from this PR; POST account/email remains GAP until review explicitly verifies the current exact source, PG16 workflow evidence, independent accounts, negative controls and approval receipts.
+- Shared manifest + inventory guard are updated solely to pin this changed route, changed QA evidence and an explicit **zero-credit GAP** exception; POST account/email remains GAP until review explicitly verifies the current exact source, PG16 workflow evidence, independent accounts, negative controls and approval receipts.
 - Automated proof passing demonstrates this specific route and threat model. It is not a blanket tenant-isolation, email-delivery, identity-management, payroll-safety or production readiness certification.
 - A source change to the route invalidates the exact Git blob SHA pin until the new code receives a fresh review and rerun.
 - Do not merge or promote coverage based solely on this document; security reviewer should inspect actual workflow logs and behavior.
