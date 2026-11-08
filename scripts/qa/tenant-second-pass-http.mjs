@@ -843,12 +843,19 @@ async function verifySensitiveTenantDownloadsAndRoles(f) {
     assert.equal(ownDocumentDownload.text, Buffer.from(storedOwnDoc.content, "base64").toString("utf8"),
       "Document own-positive must return actual seeded bytes, not a successful empty response");
     assert.match(ownDocumentDownload.headers.get("content-disposition") ?? "", /^attachment;/);
-    expectStatus(await request("/api/documents/" + victimDocId + "?download=1", {
+    const deniedDownload = expectStatus(await request("/api/documents/" + victimDocId + "?download=1", {
       cookie: attackerCookie,
-    }), 403, "Attacker " + idx + " must not download existing victim-only document bytes");
-    expectStatus(await request("/api/documents/" + victimDocId, {
+    }), 404, "Attacker " + idx + " must not download existing victim-only document bytes");
+    const deniedInline = expectStatus(await request("/api/documents/" + victimDocId, {
       cookie: attackerCookie,
-    }), 403, "Attacker " + idx + " must not view existing victim-only document inline");
+    }), 404, "Attacker " + idx + " must not view existing victim-only document inline");
+    const missingDocument = expectStatus(await request("/api/documents/2147483647", {
+      cookie: attackerCookie,
+    }), 404, "Unknown document ID must match a foreign employer document denial");
+    assert.deepEqual(deniedDownload.json, missingDocument.json,
+      "foreign document download and absent ID must have the same generic response");
+    assert.deepEqual(deniedInline.json, missingDocument.json,
+      "foreign inline document and absent ID must have the same generic response");
 
     const ownLegalEntities = expectStatus(await request("/api/legal-entities?organizationId=" +
       attacker.id + "&mode=selector", { cookie: attackerCookie }), 200,

@@ -48,9 +48,26 @@ function makeResponse(status, json, headers) {
       vary: "x-readiness-token" }) };
 }
 
+const NEXT_VARY = "RSC, Next-Router-State-Tree, Next-Router-Prefetch, " +
+  "Next-Router-Segment-Prefetch, x-readiness-token";
+
 test("readiness token denials are opaque, equal and cannot disclose tenant markers", () => {
   const denied = makeResponse(404, { error: "Not found." });
   assert.doesNotThrow(() => assertPrivateDenial(denied, ["VICTIM-SECRET"]));
+  assert.doesNotThrow(() => assertPrivateDenial(makeResponse(
+    404, { error: "Not found." }, {
+      "cache-control": "no-store, max-age=0", vary: NEXT_VARY,
+    }), ["VICTIM-SECRET"]), "Next.js routing Vary fields are legitimate");
+  for (const badVary of [
+    "RSC, Next-Router-State-Tree",
+    "x-readiness-token-not",
+    "x-readiness-token, X-READINESS-TOKEN",
+  ]) {
+    assert.throws(() => assertPrivateDenial(makeResponse(
+      404, { error: "Not found." }, {
+        "cache-control": "no-store", vary: badVary,
+      })), /shared caches must vary|duplicate Vary/, badVary);
+  }
   assert.doesNotThrow(() => assertPrivateDenial(makeResponse(
     404, { error: "Not found." }, {
       "cache-control": "no-store, max-age=0", vary: "x-readiness-token",
@@ -92,6 +109,9 @@ test("authenticated response must carry only session metadata and catalog counts
   });
   assert.doesNotThrow(() => assertRuntimeEvidence(valid, expected,
     ["VICTIM-SECRET", "postgres:postgres"]));
+  assert.doesNotThrow(() => assertRuntimeEvidence(makeResponse(
+    200, valid.json, { "cache-control": "no-store", vary: NEXT_VARY }),
+    expected), "authorized response accepts additional framework Vary fields");
   assert.throws(() => assertRuntimeEvidence(makeResponse(200, {
     ...valid.json, database: { ...valid.json.database, databaseName: "other" } }),
     expected));

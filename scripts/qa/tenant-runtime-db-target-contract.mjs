@@ -42,8 +42,14 @@ function assertHeaders(result) {
     /^s-maxage\s*=/.test(value) ||
     (/^max-age\s*=/.test(value) && value !== "max-age=0")
   ), "private diagnostic must not advertise cacheable content");
-  assert.equal(result.headers.get("vary")?.toLowerCase(), "x-readiness-token",
-    "shared caches must vary on the private token");
+  // Next.js appends its own RSC/router Vary fields to the route header.
+  // Require an exact, unique token field without rejecting safe framework fields.
+  const vary = (result.headers.get("vary") ?? "")
+    .split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+  assert.equal(vary.filter(value => value === "x-readiness-token").length, 1,
+    "shared caches must vary exactly once on the private token");
+  assert.equal(new Set(vary).size, vary.length,
+    "duplicate Vary fields are not accepted");
 }
 
 export function assertPrivateDenial(result, forbidden = []) {
