@@ -69,6 +69,7 @@ import {
 } from "@/lib/final-pay-source-fingerprint";
 
 import { approvedLeaveConversionCap } from "@/lib/leave-conversion-policy";
+import { classifyPrivateVacationLeave, classifyReviewedSeparationPay } from "@/lib/final-pay-tax-classification";
 import { separationLeaveAllowance, validateSeparationLeaveCredits } from "@/lib/separation-leave";
 
 export const dynamic = "force-dynamic";
@@ -526,7 +527,6 @@ export async function POST(request: Request) {
     const otherBenefits = nonNegative(body.otherBenefits, "Other final-pay benefits");
     const deductOutstandingLoans = Boolean(body.deductOutstandingLoans);
     const specialPayTaxReviewed = Boolean(body.specialPayTaxReviewed);
-    const separationPayTaxExempt = Boolean(body.separationPayTaxExempt);
     const retirementPayTaxExempt = Boolean(body.retirementPayTaxExempt);
 
     if ((separationPay > 0 || retirementPay > 0) && !specialPayTaxReviewed) {
@@ -535,14 +535,81 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    const leaveMonetizationPay = calculateLeaveMonetizationPay(unusedLeaveCredits, sources.resolvedPayProfile.dailyRate);
-    const leaveTaxReviewed = Boolean(body.leaveTaxReviewed);
-    const leaveMonetizationTaxExempt = Boolean(body.leaveMonetizationTaxExempt);
-    if (leaveMonetizationPay > 0 && !leaveTaxReviewed) {
+    // Explicit taxable/exempt separation split. Never infer an exemption from
+    // the old checkbox: require a legally qualified reason and supporting ref.
+    if (body.separationPayTaxExempt === true && body.taxableSeparationPay === undefined) {
       return Response.json({
-        error: "Leave monetization tax treatment must be reviewed before computing final pay. Confirm whether the convertible leave cash amount is taxable or exempt.",
+        code: "FINAL_PAY_SEPARATION_EXEMPTION_EVIDENCE_REQUIRED",
+        error: "Enter the taxable separation-pay amount, qualifying authorized cause and exemption evidence reference; an exemption checkbox alone is insufficient.",
       }, { status: 422 });
     }
+    let separationTax: ReturnType<typeof classifyReviewedSeparationPay>;
+    try {
+      separationTax = classifyReviewedSeparationPay({
+        separationPay,
+        taxableAmount: body.taxableSeparationPay,
+        exemptionReason: body.separationExemptionReason,
+        evidenceReference: body.separationTaxEvidenceReference,
+        separationType,
+      });
+    } catch (error) {
+      return Response.json({
+        code: "FINAL_PAY_SEPARATION_TAX_CLASSIFICATION_INVALID",
+        error: error instanceof Error ? error.message : "Invalid separation-pay tax classification.",
+      }, { status: 422 });
+    }
+    const separationPayTaxExempt = separationPay > 0 && separationTax.exemptPay === separationPay;
+
+    const leaveMonetizationPay = calculateLeaveMonetizationPay(unusedLeaveCredits, sources.resolvedPayProfile.dailyRate);
+    const leaveTaxReviewed = Boolean(body.leaveTaxReviewed);
+    if (leaveMonetizationPay > 0 && !leaveTaxReviewed) {
+      return Response.json({
+        error: "Leave monetization tax treatment must be reviewed before computing final pay. Confirm the category and annual de minimis allocation.",
+      }, { status: 422 });
+    }
+    const leaveTaxBasis = String(body.leaveTaxBasis ?? "taxable");
+    if (!["taxable", "private_vacation_de_minimis"].includes(leaveTaxBasis) ||
+        (body.leaveMonetizationTaxExempt === true && leaveTaxBasis !== "private_vacation_de_minimis")) {
+      return Response.json({
+        code: "FINAL_PAY_LEAVE_TAX_BASIS_REQUIRED",
+        error: "Choose the reviewed leave tax basis; an exemption checkbox alone is not valid.",
+      }, { status: 422 });
+    }
+    let leaveTax: ReturnType<typeof classifyPrivateVacationLeave> | null = null;
+    if (leaveTaxBasis === "private_vacation_de_minimis") {
+      if (unusedLeaveCredits <= 0) {
+        return Response.json({ code: "FINAL_PAY_LEAVE_TAX_BASIS_INVALID",
+          error: "A vacation-leave de minimis review requires positive authorized leave days." }, { status: 422 });
+      }
+      // Count previously exempt, non-rejected leave conversions in this tax
+      // year from the authoritative employee ledger. Counting all types is
+      // conservative and avoids reusing days if a legacy conversion was
+      // labelled differently; the reviewer verifies the source is complete.
+      const annualExemptDaysPreviouslyUsed = sources.leave.conversions
+        .filter((row) => row.status !== "rejected" && row.taxExempt &&
+          Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric" })
+            .format(new Date(row.createdAt))) === Number(lastDay.slice(0, 4)))
+        .reduce((sum, row) => sum + Number(row.daysConverted), 0);
+      try {
+        leaveTax = classifyPrivateVacationLeave({
+          taxDate: lastDay,
+          leaveType: unusedLeaveType,
+          days: unusedLeaveCredits,
+          dailyRate: sources.resolvedPayProfile.dailyRate,
+          annualExemptDaysPreviouslyUsed,
+          evidenceReference: body.leaveTaxEvidenceReference,
+        });
+        if (Math.round(leaveTax.grossPay * 100) !== Math.round(leaveMonetizationPay * 100)) {
+          throw new Error("Reviewed leave tax allocation does not match payable leave.");
+        }
+      } catch (error) {
+        return Response.json({
+          code: "FINAL_PAY_LEAVE_TAX_CLASSIFICATION_INVALID",
+          error: error instanceof Error ? error.message : "Invalid leave tax classification.",
+        }, { status: 422 });
+      }
+    }
+    const leaveMonetizationTaxExempt = Boolean(leaveTax && leaveTax.benefitsPoolPay === 0);
     const loanAuthority = reviewFinalPayLoans(sources.loans);
     if (loanAuthority.invalidLoanIds.length) {
       return Response.json({
@@ -568,10 +635,12 @@ export async function POST(request: Request) {
       mwe: sources.employee.mwe,
       mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       leaveMonetizationPay,
-      taxableLeaveMonetizationPay: leaveMonetizationTaxExempt ? 0 : leaveMonetizationPay,
+      taxableLeaveMonetizationPay: leaveTax ? undefined : leaveMonetizationPay,
+      deMinimisLeaveMonetizationPay: leaveTax?.deMinimisPay,
+      benefitPoolLeaveMonetizationPay: leaveTax?.benefitsPoolPay,
       separationPay,
       retirementPay,
-      taxableSeparationPay: separationPayTaxExempt ? 0 : separationPay,
+      taxableSeparationPay: separationTax.taxablePay,
       taxableRetirementPay: retirementPayTaxExempt ? 0 : retirementPay,
       otherBenefits,
       finalStatutoryDeductions,
@@ -620,6 +689,20 @@ export async function POST(request: Request) {
       specialPayTaxReviewed,
       separationPayTaxExempt,
       retirementPayTaxExempt,
+      taxClassification: {
+        reviewerUserId: user.id,
+        taxDate: lastDay,
+        leaveTaxBasis,
+        leave: leaveTax ? {
+          annualExemptDayLimit: leaveTax.annualExemptDayLimit,
+          annualExemptDaysPreviouslyUsed: leaveTax.annualExemptDaysPreviouslyUsed,
+          exemptDaysThisPay: leaveTax.exemptDaysThisPay,
+          deMinimisPay: leaveTax.deMinimisPay,
+          benefitsPoolPay: leaveTax.benefitsPoolPay,
+          evidenceReference: leaveTax.evidenceReference,
+        } : { directTaxablePay: leaveMonetizationPay },
+        separation: separationTax,
+      },
       activeLoanBalanceAtComputation: sources.totals.activeLoanBalance,
       importedHistoryRows: sources.historical.length,
       releasedPayrollEntries: sources.released.length,
