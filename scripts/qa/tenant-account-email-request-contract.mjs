@@ -91,15 +91,18 @@ export function assertLocalSmtpMessage(message, expectedRecipient) {
   const headerEnd = wire.search(/\r?\n\r?\n/);
   const headers = headerEnd >= 0 ? wire.slice(0, headerEnd) : "";
   const encodedBody = headerEnd >= 0 ? wire.slice(headerEnd).replace(/^\r?\n\r?\n/, "") : wire;
-  const candidates = [wire, encodedBody];
-  if (/^Content-Transfer-Encoding:\s*base64\b/im.test(headers)) {
-    candidates.push(Buffer.from(encodedBody.replace(/\s/g, ""), "base64").toString("utf8"));
+  // Decode only the declared MIME transfer encoding. Running quoted-printable
+  // decoding unconditionally corrupts plain tokens starting with hex bytes:
+  // "?token=aa..." would be interpreted as the encoded character "=aa".
+  const encoding = headers.match(/^Content-Transfer-Encoding:\s*([a-z0-9-]+)/im)?.[1]?.toLowerCase() ?? "";
+  let decoded = encodedBody;
+  if (encoding === "base64") {
+    decoded = Buffer.from(encodedBody.replace(/\s/g, ""), "base64").toString("utf8");
+  } else if (encoding === "quoted-printable") {
+    decoded = encodedBody.replace(/=\r?\n/g, "")
+      .replace(/=([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
   }
-  const unfold = (s) => s.replace(/=\r?\n/g, "")
-    .replace(/=([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/\r?\n/g, "");
-  const match = candidates.map(unfold).map((text) =>
-    text.match(/verify-email\?token=([a-f0-9]{48})\b/i)).find(Boolean);
+  const match = decoded.match(/verify-email\?token=([a-f0-9]{48})\b/i);
   assert.ok(match, "fictional mailbox must receive a real one-time verification link");
   return match[1].toLowerCase();
 }

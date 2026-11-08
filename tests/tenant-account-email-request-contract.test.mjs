@@ -106,6 +106,14 @@ test("mail evidence needs the right fictional recipient and a nonempty token-bea
   };
   assert.equal(assertLocalSmtpMessage(m, ownEmail), "a".repeat(48));
 
+  // A raw token starts with "=ab"; it is NOT quoted-printable unless the
+  // message explicitly declares that transfer encoding.
+  const plainHexToken = "ab".repeat(24);
+  const rawHexLink = { ...m, data: m.data.replace("a".repeat(48), plainHexToken) };
+  assert.equal(assertLocalSmtpMessage(rawHexLink, ownEmail), plainHexToken,
+    "raw hex-prefixed tokens must survive MIME parsing without implicit decoding");
+
+
   const body = "https://payroll.example.test/verify-email?token=" + "a".repeat(48);
   const base64 = {
     recipients: [ownEmail],
