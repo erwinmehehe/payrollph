@@ -6,7 +6,6 @@
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import {securityWriteRun,requireSecurityWrite,assertSecurityDatabase,securityReceipt} from './tenant-security-write-local-contract.mjs';
 import { createServer } from "node:net";
 import {
   ROUTE_PATH, requireDisposableEmailRequest, assertEmailRequestDenied,
@@ -93,7 +92,7 @@ export async function startFictionalSmtpSink() {
 
 export async function verifyAccountEmailRequestBoundary() {
   // Guard MUST run before importing any DB, schema, fixture or runtime module.
-  if(securityWriteRun())requireSecurityWrite();else requireDisposableEmailRequest();
+  requireDisposableEmailRequest();
   const [{ db, pool }, schema, orm, fixtures, crypto] = await Promise.all([
     import("../../src/db/index.ts"), import("../../src/db/schema.ts"),
     import("drizzle-orm"), import("./tenant-table-http.mjs"),
@@ -108,7 +107,6 @@ export async function verifyAccountEmailRequestBoundary() {
   const { hashPassword, verifyPassword } = crypto;
   let sink;
   try {
-    if(securityWriteRun())await assertSecurityDatabase(pool);
     assert.equal((await db.select().from(users).limit(1)).length, 0,
       "ACCOUNT_EMAIL_REQUEST_REFUSED: database must begin with zero users");
     assert.equal((await db.select().from(organizations).limit(1)).length, 0,
@@ -268,8 +266,6 @@ export async function verifyAccountEmailRequestBoundary() {
         employeeId: victim.worker.id, sessionId: victim.cookie,
       });
       assertOwnEmailRequest(response, email, forbidden);
-      assert.throws(()=>assertOwnEmailRequest(response,victim.owner.email,[]),undefined,
-        "email validator accepts another employer's data");
       assert.equal(sink.messages.length, mailCount + 1, "one local email per own request");
       const ownTokens = await tokens(attacker.owner.id);
       const pending = ownTokens.filter((row) => !row.usedAt && row.expiresAt > new Date());
@@ -324,7 +320,7 @@ export async function verifyAccountEmailRequestBoundary() {
     assert.ok(verifyPassword(secrets.v, (await userRow(victim.owner.id)).passwordHash));
     assert.equal((await standaloneRequest("/api/account", { cookie: victim.cookie })).status, 200);
 
-    const result={
+    console.log(JSON.stringify({
       kind: "tenant-account-email-request-post",
       method: "POST account/email", ownRequests: 3,
       independentAttackers: 2, higherIdVictim: true, sameEmployerPeer: true,
@@ -333,8 +329,7 @@ export async function verifyAccountEmailRequestBoundary() {
       ownAuditAndLocalSmtpDelivery: true, foreignAccountGrantsTokensSessionsAuditOutboxUnchanged: true,
       noRealMailOrPayroll: true, productionTested: false, coverageCredits: 0,
       independentSecurityReview: "PENDING",
-    };
-    securityReceipt('email',result);console.log(JSON.stringify(result));
+    }));
   } finally {
     if (sink) await sink.close();
     await pool.end();

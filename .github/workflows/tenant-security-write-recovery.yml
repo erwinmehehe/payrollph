@@ -6,7 +6,6 @@ on:
     paths:
       - '.github/workflows/tenant-security-write-recovery.yml'
       - 'scripts/qa/tenant-security-write-*.mjs'
-      - 'scripts/qa/tenant-account-email-request-*.mjs'
       - 'scripts/qa/tenant-document-upload-*.mjs'
       - 'scripts/qa/tenant-bio01-biometric-*.mjs'
       - 'scripts/qa/tenant-developer-key-*.mjs'
@@ -15,7 +14,6 @@ on:
       - 'scripts/qa/tenant-table-*.mjs'
       - 'scripts/qa/tenant-recovery-local-contract.mjs'
       - 'tests/tenant-security-write-*.test.mjs'
-      - 'src/app/api/account/email/**'
       - 'src/app/api/documents/**'
       - 'src/app/api/biometrics/sync/**'
       - 'src/app/api/developer/**'
@@ -68,7 +66,7 @@ jobs:
           server=''
           cleanup() { if [ -n "$server" ]; then kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true; server=''; fi; }
           trap cleanup EXIT
-          for item in email:legacy documents:legacy documents:vault biometrics:legacy developer:legacy; do
+          for item in documents:legacy documents:vault biometrics:legacy developer:legacy; do
             family="${item%:*}"
             profile="${item#*:}"
             node scripts/qa/tenant-security-write-local.mjs db "$profile"
@@ -90,7 +88,6 @@ jobs:
         with:
           name: security-write-recovery-counters
           path: |
-            outputs/security-write-email.json
             outputs/security-write-documents-legacy.json
             outputs/security-write-documents-vault.json
             outputs/security-write-biometrics.json

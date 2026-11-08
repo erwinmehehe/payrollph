@@ -1,3 +1,5 @@
+> **Security write recovery — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = 444 COVERED + 11 PUBLIC-BY-DESIGN + 43 GAP. Three complete methods, four real local PG16 HTTP cases; independent review PENDING; NOT ACCEPTED for production.
+
 > **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP. Three distinct recovered methods; CI and independent identity/WFM/security/billing review PENDING. No production authorization.
 
 > **Current combined PR #1826 billing and main year-end proposal — NOT ACCEPTED:** 438 COVERED / 11 PUBLIC-BY-DESIGN / 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Two additional billing POST proofs provisional; exact-head CI and independent review PENDING. No production acceptance.
@@ -230,9 +232,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 441 |
+| coveredAfter | 444 |
 | publicByDesign | 11 |
-| gap | 46 |
+| gap | 43 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |

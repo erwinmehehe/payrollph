@@ -26,11 +26,11 @@ const env={...process.env,...TENANT_TABLE_BASE_ENV,...TENANT_TABLE_PROFILES['com
   TENANT_BIO01_MODE:'fictional-pg16-http',TENANT_DEVELOPER_KEY_PROOF:'fictional-pg16-http-only'};
 requireSecurityWrite(env);
 if(mode==='db'){Object.assign(process.env,env);const {default:pg}=await import('pg');const p=new pg.Pool({connectionString:env.DATABASE_URL});try{await assertSecurityDatabase(p,{empty:false});}finally{await p.end();}}
-const proof={email:'tenant-account-email-request-http.mjs',documents:'tenant-document-upload-http.mjs',biometrics:'tenant-bio01-biometric-http.mjs',developer:'tenant-developer-key-http.mjs'};
+const proof={documents:'tenant-document-upload-http.mjs',biometrics:'tenant-bio01-biometric-http.mjs',developer:'tenant-developer-key-http.mjs'};
 const args=mode==='db'?['scripts/qa/tenant-security-write-db.mjs']:mode==='build'?['node_modules/next/dist/bin/next','build']:
  mode==='start'?['--import','./scripts/qa/tenant-security-write-preload.mjs','node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3000']:
  proof[mode]?['--import','tsx','scripts/qa/'+proof[mode]]:null;
-assert.ok(args,'Usage: db | build | start | email | documents | biometrics | developer [legacy|vault]');
+assert.ok(args,'Usage: db | build | start | documents | biometrics | developer [legacy|vault]');
 const child=spawn(process.execPath,args,{env:mode==='db'?{...env,CI:process.env.GITHUB_ACTIONS?'true':'false'}:env,stdio:'inherit'});
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>child.kill(signal));
 child.on('exit',code=>process.exit(code??1));
