@@ -1,0 +1,291 @@
+{
+  "label": "SOLO_VERIFIED_DEV_RECOVERY",
+  "execution": "local-production-http-pg16",
+  "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+  "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
+  "productionCertified": false,
+  "independentlyAccepted": false,
+  "runs": {
+    "totp": {
+      "label": "SOLO_VERIFIED_DEV_RECOVERY",
+      "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+      "execution": "local-production-http-pg16",
+      "family": "totp",
+      "result": {
+        "kind": "TOTP_SETUP_HTTP",
+        "result": "PASS",
+        "attackers": 2,
+        "methods": [
+          "GET",
+          "POST"
+        ],
+        "coverageCredits": 0,
+        "productionCertified": false
+      },
+      "coverageCredits": 0,
+      "productionCertified": false,
+      "independentlyAccepted": false,
+      "flags": {
+        "FINAL_PAY_SIGNED_REVIEW_ENABLED": "false",
+        "EXACT_THIRTEENTH_CENTAVOS_ENABLED": "false",
+        "PAYROLL_CALCULATION_HISTORY_ENABLED": "false",
+        "NEXT_CSP_ENABLED": "false",
+        "PAYMONGO_DISBURSEMENTS_ENABLED": "false",
+        "XENDIT_PAYOUTS_ENABLED": "false",
+        "XENDIT_BILLING_ENABLED": "false",
+        "WORKER_ENABLED": "false",
+        "CENTRAL_SCHEDULER_ENABLED": "false"
+      }
+    },
+    "scenarios": {
+      "label": "SOLO_VERIFIED_DEV_RECOVERY",
+      "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+      "execution": "local-production-http-pg16",
+      "family": "scenarios",
+      "result": {
+        "family": "WPS-01",
+        "method": "POST workforce-planning/scenarios",
+        "fictionalEmployers": 3,
+        "realOwnedHttpWrites": 7,
+        "realDeniedHttpCalls": 12,
+        "separateAttackerOwners": 2,
+        "persistedHigherIdVictim": true,
+        "nonexistentVsForeignScopeIndistinguishable": true,
+        "scenarioVersionHistoryImmutable": true,
+        "auditVetoRollbacks": 2,
+        "scenarioDiscriminators": 7,
+        "revokedMembershipDenied": true,
+        "allVictimRowsUnchanged": true,
+        "payrollMutations": 0,
+        "providerCalls": 0,
+        "productionTested": false,
+        "newCoverageCredits": 0,
+        "independentSecurityReview": "PENDING"
+      },
+      "coverageCredits": 0,
+      "productionCertified": false,
+      "independentlyAccepted": false,
+      "flags": {
+        "FINAL_PAY_SIGNED_REVIEW_ENABLED": "false",
+        "EXACT_THIRTEENTH_CENTAVOS_ENABLED": "false",
+        "PAYROLL_CALCULATION_HISTORY_ENABLED": "false",
+        "NEXT_CSP_ENABLED": "false",
+        "PAYMONGO_DISBURSEMENTS_ENABLED": "false",
+        "XENDIT_PAYOUTS_ENABLED": "false",
+        "XENDIT_BILLING_ENABLED": "false",
+        "WORKER_ENABLED": "false",
+        "CENTRAL_SCHEDULER_ENABLED": "false"
+      }
+    }
+  },
+  "targets": [
+    {
+      "path": "src/app/api/auth/totp/setup/route.ts",
+      "method": "GET",
+      "family": "totp",
+      "anchors": [
+        {
+          "line": 60,
+          "text": "proveStatus(status,false);"
+        },
+        {
+          "line": 59,
+          "text": "const status=await request(f,undefined"
+        },
+        {
+          "line": 58,
+          "text": "const forged={userId:victim.owner.id"
+        },
+        {
+          "line": 92,
+          "text": "assert.deepEqual(await snapshot(victim),victimBefore"
+        }
+      ],
+      "evidence": {
+        "file": "scripts/qa/tenant-totp-setup-http.mjs",
+        "line": 60,
+        "ownPositiveLine": 60,
+        "foreignDenialLine": 59,
+        "forgedSelectorLine": 58,
+        "unchangedDbLine": 92,
+        "routeBlobSha": "319cf579aa04b85a92a7e265c239aa723ad0f761",
+        "proofBlobSha": "0a6b611bd79889748debf5eb482bcd90022ed6f5",
+        "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+        "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
+        "label": "SOLO_VERIFIED_DEV_RECOVERY",
+        "recoveryCredit": "merged-three-methods",
+        "postgresMajor": 16,
+        "independentSecurityReview": "PENDING",
+        "productionTested": false,
+        "boundary": "Self-account GET ignores victim selector and returns only caller status; genuine victim true/caller false discriminator; no claim of a 403 for selector-ignored reads"
+      }
+    },
+    {
+      "path": "src/app/api/auth/totp/setup/route.ts",
+      "method": "POST",
+      "family": "totp",
+      "anchors": [
+        {
+          "line": 65,
+          "text": "const issued=await request(f"
+        },
+        {
+          "line": 64,
+          "text": "assert.equal(denied.status,403)"
+        },
+        {
+          "line": 58,
+          "text": "const forged={userId:victim.owner.id"
+        },
+        {
+          "line": 92,
+          "text": "assert.deepEqual(await snapshot(victim),victimBefore"
+        }
+      ],
+      "evidence": {
+        "file": "scripts/qa/tenant-totp-setup-http.mjs",
+        "line": 65,
+        "ownPositiveLine": 65,
+        "foreignDenialLine": 64,
+        "forgedSelectorLine": 58,
+        "unchangedDbLine": 92,
+        "routeBlobSha": "319cf579aa04b85a92a7e265c239aa723ad0f761",
+        "proofBlobSha": "0a6b611bd79889748debf5eb482bcd90022ed6f5",
+        "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+        "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
+        "label": "SOLO_VERIFIED_DEV_RECOVERY",
+        "recoveryCredit": "merged-three-methods",
+        "postgresMajor": 16,
+        "independentSecurityReview": "PENDING",
+        "productionTested": false,
+        "boundary": "Both enrollment actions, repeat rotation, backup hashing, current-session MFA and wrong-password victim attempt; forged IDs cannot select victim"
+      }
+    },
+    {
+      "path": "src/app/api/workforce-planning/scenarios/route.ts",
+      "method": "POST",
+      "family": "scenarios",
+      "anchors": [
+        {
+          "line": 128,
+          "text": "const row = assertWps01Created(response, added[0]"
+        },
+        {
+          "line": 181,
+          "text": "}, 403, \"foreign employer selector\""
+        },
+        {
+          "line": 180,
+          "text": "planId: victimPlan.id,"
+        },
+        {
+          "line": 108,
+          "text": "assertWps01Unchanged(before, await allStates()"
+        }
+      ],
+      "evidence": {
+        "file": "scripts/qa/tenant-wps01-scenarios-http.mjs",
+        "line": 128,
+        "ownPositiveLine": 128,
+        "foreignDenialLine": 181,
+        "forgedSelectorLine": 180,
+        "unchangedDbLine": 108,
+        "routeBlobSha": "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0",
+        "proofBlobSha": "eb76751e14a1011eeaa00c041374f5ec813c22d5",
+        "sourceHead": "5583a43f1a58584b56673cfbc53d90cea07c1e4d",
+        "runLabel": "Local PG16 HTTP 5583a43f1a58584b56673cfbc53d90cea07c1e4d TOTP+WPS01 PASS",
+        "label": "SOLO_VERIFIED_DEV_RECOVERY",
+        "recoveryCredit": "merged-three-methods",
+        "postgresMajor": 16,
+        "independentSecurityReview": "PENDING",
+        "productionTested": false,
+        "boundary": "Two actors, real third-employer denial, foreign-plan/unit indistinguishability, seven persisted/discriminated creates and two reached audit-veto rollbacks"
+      }
+    }
+  ],
+  "pins": {
+    "docs/sql/source-baseline-supplement.sql": "9acc7896f4ea382917da7acd53984e73c6aface3",
+    "drizzle.config.ts": "5c21dba2822e3b182fcae3feecca39853c7b006d",
+    "drizzle/0104_hcm_work_item_sla.sql": "e0aac47fc786255876edfac7aaf1795030170757",
+    "drizzle/0109_tamper_evident_audit_chain.sql": "b8cf23d83e80822210309e31f6d6c25ff7e0ba07",
+    "next.config.ts": "a61ed6eeefbf0795e94982ae3df55223c9e11dfa",
+    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2",
+    "package.json": "7078c01f09c85f79dd79ba5517a80e80cdb72ae3",
+    "scripts/lib/isolated-db-push-target.mjs": "ea85bf71d722e43431bd7a5e22799ad0bb5131bb",
+    "scripts/qa/local-tenant-proof-db.mjs": "d668d5554a274464da5ace61fd8e339a0a03235e",
+    "scripts/qa/prepare-hcm-work-item-fixture.mjs": "3bc9f8046c38cf032ade0b076394be2f2e795c7b",
+    "scripts/qa/tenant-legal-employer-admin-proof.mjs": "b47226154e683f384f01528777204e251465c63d",
+    "scripts/qa/tenant-pii01-approval-contract.mjs": "0504aad8ef484d78adb8fad107b43377c5eb18ba",
+    "scripts/qa/tenant-read-recovery-snapshot.mjs": "89c1976d3fce5842bce84a87754d830e54c675a6",
+    "scripts/qa/tenant-recovery-local-contract.mjs": "c43d04de08679c972bb3d6ccbdbef33b5676e7fb",
+    "scripts/qa/tenant-recovery-local.mjs": "98e11e3bcd707cd494cbf73d29d268e0b437542f",
+    "scripts/qa/tenant-table-catalog.mjs": "77a8814d522fa89a9ac890f2b4725a4259847ad4",
+    "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
+    "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+    "scripts/qa/tenant-table-invariants.mjs": "52f9acded7750a722cb663b9eeb6ea0a709ecd9b",
+    "scripts/qa/tenant-table-loader.mjs": "86660dc3b55b655d75429d04ef22c4d50a7df7fe",
+    "scripts/qa/tenant-table-path.mjs": "aa84a05716961b2b01e4ab4d1e5e5dfd5a31d6f1",
+    "scripts/qa/tenant-totp-setup-http.mjs": "0a6b611bd79889748debf5eb482bcd90022ed6f5",
+    "scripts/qa/tenant-wps01-scenarios-contract.mjs": "f5e808125f4602b78d7db6b9a3d4186cdb47e10a",
+    "scripts/qa/tenant-wps01-scenarios-http.mjs": "eb76751e14a1011eeaa00c041374f5ec813c22d5",
+    "src/app/api/auth/totp/setup/route.ts": "319cf579aa04b85a92a7e265c239aa723ad0f761",
+    "src/app/api/workforce-planning/scenarios/route.ts": "2b1ab188bf9a58d5235e94e00617ecbfd4f2e6a0",
+    "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+    "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02",
+    "src/instrumentation.ts": "d7ce25fe042eb39bc51f82bf759e5c4d1128f65c",
+    "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
+    "src/lib/account.ts": "e9fd7448970b49fa10d97c67478a71ceb0b91c75",
+    "src/lib/approval-chains.ts": "db9f117cc2891067e2c9680583fc12b48e54aac4",
+    "src/lib/audit.ts": "3aa8f2c627884072c0c294dbf7861980b302927c",
+    "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+    "src/lib/bank-account-crypto.ts": "350ab8def720f4c69a6e9a41e2b85d5b708affa5",
+    "src/lib/billing-matrix.ts": "c3f640ad7f1f3097afababef5baaf574e6cf9c2e",
+    "src/lib/billing.ts": "7995d5cb41a6bdcd03f6e449ea89281ff6856557",
+    "src/lib/critical-release-flags.ts": "aa9867f795bbcbe9cfe42c6df7f64d0f0c4a9671",
+    "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+    "src/lib/demo-security.ts": "10f8fa0a7894a66d902ebde5ac4a4e7dee5c1590",
+    "src/lib/dynamic-group-authorization.ts": "8e0fc03182c0936571c7d0e16610d3658c8cec4d",
+    "src/lib/dynamic-worker-group-conditions.ts": "d00a3315a3c4f7fe815fdff5108d8affdfd2c552",
+    "src/lib/enterprise-advanced-plan-policy.ts": "ea1250427005c2975c37e50c58f3dc4957c6aa37",
+    "src/lib/enterprise-advanced-plan-server.ts": "032ff560deaad92f91a314b5d2422b8f3c8e4f60",
+    "src/lib/enterprise-session.ts": "1d3b4d6746a3a1c12fb220299eea7df3e54f29e5",
+    "src/lib/ess-profile-schema.ts": "18f5ad183844efde757c12ea74b8ce7e742e3d4d",
+    "src/lib/governed-approval-handoffs.ts": "e303744032016897a2db768ef6182634ec0fb51b",
+    "src/lib/government-id-crypto.ts": "2b24f55aba6f4032416e5557b3527d3519fafe88",
+    "src/lib/hcm-enterprise-plan-policy.ts": "6c02b69e0b9a5526aa40ff3aa92ce09085866aba",
+    "src/lib/labor-costing.ts": "bc552a32757bdb93516b0543e53c20cd4638c089",
+    "src/lib/labor-vertical-dimensions.ts": "98d3f02913252ec86eaa6dd6b7329dddb1597fa0",
+    "src/lib/multi-entity-hcm-hold.ts": "3b05a6ca3cf157513d37a55ccb3bf2f8002579cc",
+    "src/lib/multi-entity-registration-storage.ts": "57364cd16ac51c5d22fac7f8bb1688dbeb2659b2",
+    "src/lib/nonce-csp.ts": "383ceb95a21ec5237cbbc7b92b9b89a801e9fc42",
+    "src/lib/ops-telemetry.ts": "86bc19ee41d20769d2d922e5555a9bd05f4a8f39",
+    "src/lib/organization-auth-policy.ts": "b38486fda78ac0da767bf79d7b9b6e9f4cfec08e",
+    "src/lib/payroll-period-ui.ts": "69809c7ab56618b5b2299439654007e41e40b0d1",
+    "src/lib/payroll-period-validation.ts": "bc67f500ed47f47e093d3265639de1b852914423",
+    "src/lib/payroll-rules.ts": "4bf8c0482a0f4439cd8b175a97b589f7d9945baa",
+    "src/lib/permission-overlay-absence.ts": "ad995a329485ccabd23cddbf0c56a8a0b3de2673",
+    "src/lib/permissions.ts": "9878a2ab0afb6f0b14a0e9c0e24a095a3f2e0288",
+    "src/lib/pg-tls-policy.ts": "d78604400731d75c5c50912d981402d611d06e60",
+    "src/lib/ph-statutory-rule-packs.ts": "90f35dc102b1c6c4af954fb98df1e4eaef504bf9",
+    "src/lib/pii-key-policy.ts": "82224712c4dbaa92809f2a4f0a0bb1f760474a4d",
+    "src/lib/rate-limit-memory.ts": "04e8d2c464aeba483132e60f80ec6f766d7ab218",
+    "src/lib/rate-limit.ts": "05d7be3acb385e3542cf0ec3904a74796f0647b5",
+    "src/lib/saas-pricing.ts": "142f8c9355d51b8ac98be0279dc8eb962e06339d",
+    "src/lib/safe-otel-error.ts": "227866af8eb17e39438e0b4e30ad2666fb6b3797",
+    "src/lib/security-network.ts": "f263da3898451ee53c7b3d1490241ea8aa46e0c2",
+    "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+    "src/lib/security-secret.ts": "f4fda20e88930b12c9614250cf6e38950ad66fc5",
+    "src/lib/tenant-module-storage.ts": "b2d303007f8a3a383cb44e0d2cb8f17e4cdfa3ea",
+    "src/lib/tenant-modules.ts": "c82266f63fbe8b00f1aa92025f06cc4ec62951d9",
+    "src/lib/totp.ts": "06b3dbd8376a5326b19c5b3444a9830134298f52",
+    "src/lib/validation.ts": "3f96d328ab20f5eda147d14f214257f8044958ac",
+    "src/lib/worker-attribute-context.ts": "f28ed9b3e3cbb198cc593dd13136515393e86c93",
+    "src/lib/workforce-forecast-server.ts": "3ad114ba8874e500f50410ce92e6b0f93be36acc",
+    "src/lib/workforce-forecast.ts": "a302a7f1884782bba3856487a69f78519bff4385",
+    "src/lib/workforce-plan-approval.ts": "ce52f4556a7e9619df7d0e0e670a9df5c08809b3",
+    "src/lib/workforce-role-demand.ts": "4e38f22c0455d3496629fb137d57cfd4a9db9160",
+    "src/lib/workforce-tenant-scope.ts": "ca8f9f018df89994f1b7bd89713f47b38a964480",
+    "src/proxy.ts": "8ed6591c4846cad3251bc1ee2444ceb3461b170a",
+    "tsconfig.json": "51b2236817d4f86d64198a483b0207941862d212"
+  }
+}

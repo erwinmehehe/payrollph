@@ -1,6 +1,8 @@
-> **PR #1846 combined provisional ledger — NOT ACCEPTED:** 498 methods = 439 COVERED + 11 PUBLIC-BY-DESIGN + 48 GAP; frozen 406 = 355 COVERED + 3 PUBLIC-BY-DESIGN + 48 GAP. Main's source-pinned fictional subscription start/cancel POST receipts are retained and this branch proposes exactly one distinct enterprise-admin POST credit backed by fictional PG16 atomic-audit evidence. Independent security review, exact-head CI, all 17 page/action gaps and production acceptance remain outstanding.
+> **Enterprise POST provisional credit — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = 442 COVERED + 11 PUBLIC-BY-DESIGN + 45 GAP. One method, twelve action names; no production or global acceptance.
 
-> **Main baseline #1826 billing + year-end proposal — NOT ACCEPTED:** 498 methods = 438 COVERED + 11 PUBLIC-BY-DESIGN + 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Prior year-end GET/POST and new subscription start/cancel POST receipts are distinct and provisional; fresh exact-head CI and independent security/payroll/billing review PENDING. No production acceptance.
+> **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP; frozen 357 COVERED / 3 PUBLIC / 46 GAP. Three distinct TOTP/scenario receipts and two separately proven billing POST methods; exact-head CI and independent security/financial review PENDING. Production not authorized.
+
+> **Current combined PR #1826 billing + main year-end proposal — NOT ACCEPTED:** 498 methods = 438 COVERED + 11 PUBLIC-BY-DESIGN + 49 GAP; frozen 354 COVERED / 3 PUBLIC / 49 GAP. Prior year-end GET/POST and new subscription start/cancel POST receipts are distinct and provisional; fresh exact-head CI and independent security/payroll/billing review PENDING. No production acceptance.
 
 > **Main baseline before this draft — SOLO_VERIFIED_DEV_RECOVERY:** 434 COVERED / 11 PUBLIC-BY-DESIGN / 53 GAP. Three methods from #1829 OFF-profile PG16 receipt; no production acceptance.
 
@@ -211,12 +213,12 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 5 | **WRK-02** | 39 | 38 | 0 | 1 | INCOMPLETE |
+| 5 | **WRK-02** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 37 | 0 | 3 | INCOMPLETE |
-| 6 | **EDG-01** | 33 | 7 | 0 | 26 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 9 | 0 | 24 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 25 | 1 | 7 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **355 COVERED + 3 PUBLIC-BY-DESIGN + 48 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **358 COVERED + 3 PUBLIC-BY-DESIGN + 45 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 9 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
