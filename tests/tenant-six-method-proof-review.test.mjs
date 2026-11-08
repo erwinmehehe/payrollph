@@ -918,7 +918,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
       .replace("91 GAP", (403 - frozenCovered) + " GAP")
-      .replace("All 12 batches remain INCOMPLETE.", batchSummary);
+.replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>

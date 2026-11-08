@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { verifyDocumentCallerReproof } from "../scripts/qa/tenant-document-caller-reproof-verify.mjs";
 
 const suite = readFileSync("scripts/qa/tenant-hmo-http.mjs", "utf8");
 const route = readFileSync("src/app/api/benefits/hmo/route.ts", "utf8");
@@ -96,7 +97,40 @@ test("HMO POST credit is pinned to the executed source, real victim denials and 
   };
   assert.equal(proof.proofBlobSha, gitBlobSha(suite), "Changed HMO CI proof requires re-review");
   assert.equal(proof.routeBlobSha, gitBlobSha(route), "Changed HMO route requires new PG16 acceptance");
-  assert.equal(proof.runnerBlobSha, gitBlobSha(runner), "Changed HMO runner requires new PG16 acceptance");
+  // Preserve the historical HMO receipt. The shared runner changed only its
+  // document-ID 403-to-404 assertions, never the HMO invocation or scenario.
+  assert.equal(proof.runnerBlobSha, "3765c1923e137f68b75fd545348868672f3f2f5d",
+    "The historical HMO caller proof must not be silently repinned");
+  const oldDocumentAssertions = String.raw`    expectStatus(await request("/api/documents/" + victimDocId + "?download=1", {
+      cookie: attackerCookie,
+    }), 403, "Attacker " + idx + " must not download existing victim-only document bytes");
+    expectStatus(await request("/api/documents/" + victimDocId, {
+      cookie: attackerCookie,
+    }), 403, "Attacker " + idx + " must not view existing victim-only document inline");`;
+  const newDocumentAssertions = String.raw`    const deniedDownload = expectStatus(await request("/api/documents/" + victimDocId + "?download=1", {
+      cookie: attackerCookie,
+    }), 404, "Attacker " + idx + " must not download existing victim-only document bytes");
+    const deniedInline = expectStatus(await request("/api/documents/" + victimDocId, {
+      cookie: attackerCookie,
+    }), 404, "Attacker " + idx + " must not view existing victim-only document inline");
+    const missingDocument = expectStatus(await request("/api/documents/2147483647", {
+      cookie: attackerCookie,
+    }), 404, "Unknown document ID must match a foreign employer document denial");
+    assert.deepEqual(deniedDownload.json, missingDocument.json,
+      "foreign document download and absent ID must have the same generic response");
+    assert.deepEqual(deniedInline.json, missingDocument.json,
+      "foreign inline document and absent ID must have the same generic response");`;
+  assert.equal(runner.split(newDocumentAssertions).length, 2,
+    "The revised private-document HTTP checks must occur exactly once");
+  assert.equal(gitBlobSha(runner.replace(newDocumentAssertions, oldDocumentAssertions)),
+    proof.runnerBlobSha,
+    "Any shared-runner change outside the exact document-ID checks requires new executed HMO acceptance");
+  // This separate executed PG16 receipt reran the full HMO actions against
+  // current inputs, with zero new credits and no independent signoff.
+  const renewed = verifyDocumentCallerReproof(proof.callerReproof);
+  assert.equal(renewed.credits, 0, "Caller reproof cannot mint tenant credits");
+  assert.equal(renewed.pins["scripts/qa/tenant-hmo-http.mjs"], gitBlobSha(suite));
+  assert.equal(renewed.pins["src/app/api/benefits/hmo/route.ts"], gitBlobSha(route));
   assert.equal(proof.reviewedHead, "b85715c76be9bf2c9f0ab0f08741853c8983d7d9");
   assert.equal(proof.passedJob,
     "https://github.com/erwinmehehe/payrollph/actions/runs/40675730756/job/122773670031");

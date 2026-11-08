@@ -1,0 +1,137 @@
+name: BIO-01 biometric-device tenant binding (fictional PG16 HTTP; zero credits)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-bio01-biometric-http.yml'
+      - 'scripts/qa/tenant-bio01-biometric-*.mjs'
+      - 'tests/tenant-bio01-biometric-contract.test.mjs'
+      - 'docs/qa/tenant-bio01-biometric-ingest.md'
+      - 'src/app/api/biometrics/sync/route.ts'
+      - 'src/lib/biometric-auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/db/**'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-bio01-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fictional-biometric-ingest:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BIO01_MODE: fictional-pg16-localhost
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_URL: ''
+      STRIPE_SECRET_KEY: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked application dependencies
+        run: npm ci
+      - name: Set disposable PG16 and no-provider env only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo 'BIO01_MODE=fictional-pg16-localhost'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'XENDIT_PAYOUT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+            echo 'POSTMARK_SERVER_TOKEN='
+            echo 'SMTP_URL='
+            echo 'STRIPE_SECRET_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Mint only fictional HMAC and database-at-rest keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          device="ci-bio01-$(openssl rand -hex 32)"
+          echo "::add-mask::$device"
+          echo "BIOMETRIC_INGEST_SECRET=$device" >> "$GITHUB_ENV"
+          for key_name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$key_name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Deny unsafe proof configurations and unearned method credits
+        run: |
+          node --check scripts/qa/tenant-bio01-biometric-contract.mjs
+          node --check scripts/qa/tenant-bio01-biometric-http.mjs
+          node --check tests/tenant-bio01-biometric-contract.test.mjs
+          node --test tests/tenant-bio01-biometric-contract.test.mjs
+      - name: Initialize only the disposable PostgreSQL database
+        run: npm run db:push
+      - name: Apply reviewed disposable schema supplement
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build the exact-source production-mode app
+        run: npm run build
+      - name: Start app only on loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-bio01-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              echo 'Disposable BIO-01 Next process exited'
+              exit 1
+            fi
+            sleep 2
+          done
+          echo 'Disposable BIO-01 Next process failed readiness'
+          exit 1
+      - name: Real two-owner and higher-ID victim HTTP and persisted-row proof
+        run: node --import tsx scripts/qa/tenant-bio01-biometric-http.mjs
+      - name: Show only noncredentialled diagnostics on error
+        if: failure()
+        run: grep -E 'Error:|Failed|ECONNREFUSED' /tmp/tenant-bio01-next.log | tail -n 25 || true
