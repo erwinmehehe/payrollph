@@ -887,10 +887,32 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
       (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits;
+    const frozenQueue = baselinePlan.split("### Batch DL-01 —")[1]?.split("## Page and server-action closure")[0];
+    assert.ok(frozenQueue, "Main must retain the exact source-linked frozen queue");
+    const frozenSections = ("### Batch DL-01 —" + frozenQueue).split("### Batch ").slice(1);
+    assert.equal(frozenSections.length, 12);
+    const provisionalBatches = frozenSections.filter(section => {
+      const links = section.split("\n").filter(line => line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"));
+      assert.ok(links.length > 0);
+      return links.every(line => {
+        const verb = line.split("`")[1].split(" ")[0];
+        const file = line.split(" — [source](../../")[1].split("#L")[0];
+        const method = baseline.allApiRouteFiles[file]?.methods.find(row => row.name === verb);
+        assert.ok(method, "Main frozen method identity must exist");
+        return method.status !== "GAP";
+      });
+    }).map(section => section.split(" ")[0]);
+    const words = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+    const incomplete = 12 - provisionalBatches.length;
+    const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
+      provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
+    const batchSummary = provisionalBatches.length === 0 ? "All 12 batches remain INCOMPLETE." :
+      `${words[incomplete]} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
-      .replace("91 GAP", (403 - frozenCovered) + " GAP");
+      .replace("91 GAP", (403 - frozenCovered) + " GAP")
+      .replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
