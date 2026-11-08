@@ -38,7 +38,10 @@ export function readSecurityEvidence(read=readFileSync){
   assert.equal(r.mutation.result,'REJECTED');assert.equal(r.mutation.message,"document validator accepts another employer's data");
   assert.ok(Object.keys(r.pins).length>=100,'Transitive route, fixture, SQL and workflow pins required');
   for(const [file,sha] of Object.entries(r.pins)) {
-    if(file==='next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha);
+    if(file==='next.config.ts') {
+      try { assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha); }
+      catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
+    }
     else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
   }
   for(const t of r.targets){assert.equal(t.evidence.routeBlobSha,r.pins[t.path]);assert.equal(t.evidence.proofBlobSha,r.pins[t.evidence.file]);

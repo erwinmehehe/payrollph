@@ -34,7 +34,10 @@ export function readRecoveryEvidence(read=readFileSync){
   }
   assert.ok(Object.keys(r.pins).length>30,'Transitive runtime and proof inputs required');
   for(const [file,sha] of Object.entries(r.pins)) {
-    if(file==='next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha);
+    if(file==='next.config.ts') {
+      try { assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha); }
+      catch (cause) { throw new Error('Recovery source/proof drift: '+file, { cause }); }
+    }
     else assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
   }
   for(const target of r.targets){
