@@ -282,6 +282,23 @@ test("old checkbox-only exemptions cannot pass approval or release without Phase
   assert.match(route, /FINAL_PAY_LEGACY_TAX_REVIEW_REQUIRED/);
 });
 
+test("Finance approval revalidates the linked Released payroll tax year inside its transaction", () => {
+  const route = readFileSync("src/app/api/separation/route.ts", "utf8");
+  const approval = route.slice(route.indexOf('if (action === "approve") {'),
+    route.indexOf('if (sep.status !== "approved") {'));
+  const start = approval.indexOf("const approvalTaxReview = frozen.taxClassification");
+  const check = approval.indexOf("await verifiedPriorLeaveExemptDays", start);
+  const compare = approval.indexOf("priorDays !== recordedLeave.annualExemptDaysPreviouslyUsed", check);
+  const update = approval.indexOf('status: "approved"', compare);
+  assert.ok(start >= 0 && check > start && compare > check && update > compare,
+    "approval must re-read and compare tax-year evidence inside the locked transaction before updating status");
+  assert.match(approval.slice(start, update),
+    /taxDate: String\(approvalTaxReview\.taxDate \?\? ""\)/);
+  assert.match(approval.slice(start, update),
+    /tx as unknown as Pick<typeof db, "select">/);
+  assert.match(approval.slice(start, update), /FINAL_PAY_LEAVE_TAX_HISTORY_CHANGED/);
+});
+
 test("Separation route holds stale annual leave evidence and payout-year changes at release", () => {
   const source = readFileSync("src/app/api/separation/route.ts", "utf8");
   assert.ok(!source.includes("new Date(row.createdAt)"), "createdAt must not classify a prior leave tax year");

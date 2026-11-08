@@ -1725,6 +1725,21 @@ export async function PATCH(request: Request) {
             { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
             { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
           );
+          // Recheck the annual exempt-leave ledger inside the approval
+          // transaction. Its linked Released payroll payDate/status can change
+          // without changing a conversion row's source fingerprint.
+          const approvalTaxReview = frozen.taxClassification as Record<string, unknown> | undefined;
+          if (approvalTaxReview?.leaveTaxBasis === "private_vacation_de_minimis") {
+            const recordedLeave = approvalTaxReview.leave as Record<string, unknown> | undefined;
+            const priorDays = await verifiedPriorLeaveExemptDays({
+              organizationId: fresh.organizationId,
+              taxDate: String(approvalTaxReview.taxDate ?? ""),
+              conversions: transactionSources.leave.conversions,
+            }, tx as unknown as Pick<typeof db, "select">);
+            if (!recordedLeave || priorDays !== recordedLeave.annualExemptDaysPreviouslyUsed) {
+              throw new Error("FINAL_PAY_LEAVE_TAX_HISTORY_CHANGED");
+            }
+          }
           const transactionFingerprint = fingerprint(transactionSources);
           const transactionLoanAuthority = reviewFinalPayLoans(transactionSources.loans);
           if (transactionLoanAuthority.invalidLoanIds.length

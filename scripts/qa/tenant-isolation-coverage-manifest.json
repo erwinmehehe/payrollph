@@ -30087,12 +30087,12 @@
       ]
     },
     "src/app/api/separation/route.ts": {
-      "gitBlobSha": "029fc0388bd2b506d452b30e45a0be609b8fa8ba",
+      "gitBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
       "sourceRevisionReview": {
         "kind": "phase7-final-pay-tax-classification-provisional-source-reconciliation",
         "previousRouteBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
-        "currentRouteBlobSha": "029fc0388bd2b506d452b30e45a0be609b8fa8ba",
-        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET tenant handling remains unchanged. No new tenant method credits; independent tax/security review and exact-head CI PENDING.",
+        "currentRouteBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
+        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET tenant handling remains unchanged. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held.",
         "priorTenantIsolationHttpProof": "scripts/qa/payroll-approved-exit-http.mjs",
         "taxContractFile": "tests/final-pay-tax-classification.test.ts",
         "newTenantIsolationMethodCredits": 0,
