@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Search, X } from "lucide-react";
 import { HELP_AUDIENCES, HELP_ARTICLES, searchHelpArticles, type HelpAudience } from "@/lib/help-center-content";
-import { repeatedHelpGuideSlug } from "@/lib/help-guide-navigation";
+import { clickedHelpGuideSlug } from "@/lib/help-guide-navigation";
 
 const QUICK_GUIDES = [
   { slug: "find-released-payslips", label: "Download a payslip" },
@@ -41,25 +41,25 @@ export function HelpCenterSearch() {
     return () => window.removeEventListener("hashchange", openHashGuide);
   }, [openGuide]);
 
-  // React/Next Link handles navigation in the bubbling phase, but clicking a
-  // link to the *existing* hash does not emit hashchange. The capture listener
-  // re-opens a manually collapsed guide without interrupting normal routing.
+  // Next Link can use history.pushState for client-side hash navigation,
+  // which does not reliably emit a native hashchange. Handle every ordinary
+  // same-page guide activation in capture phase, without cancelling routing.
+  // This also re-opens a manually closed guide at an unchanged hash.
   useEffect(() => {
-    function reopenSameHashGuide(event: MouseEvent) {
+    function openClickedGuide(event: MouseEvent) {
       if (!(event.target instanceof Element)) return;
       const link = event.target.closest<HTMLAnchorElement>('a[href^="/help#"]');
-      const slug = repeatedHelpGuideSlug({
+      const slug = clickedHelpGuideSlug({
         href: link?.getAttribute("href") ?? null,
         pathname: window.location.pathname,
-        currentHash: window.location.hash,
         primaryUnmodified: event.button === 0 && !event.metaKey &&
           !event.ctrlKey && !event.shiftKey && !event.altKey &&
           (!link?.target || link.target === "_self"),
       });
       if (slug) openGuide(slug);
     }
-    document.addEventListener("click", reopenSameHashGuide, true);
-    return () => document.removeEventListener("click", reopenSameHashGuide, true);
+    document.addEventListener("click", openClickedGuide, true);
+    return () => document.removeEventListener("click", openClickedGuide, true);
   }, [openGuide]);
   useEffect(() => {
     if (!guideNavigation) return;
