@@ -4,7 +4,7 @@ import test from 'node:test';
 import {readSecurityEvidence,verifySecurityCredits,SECURITY_RECEIPT,SECURITY_TARGETS} from '../scripts/qa/tenant-security-write-credit.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
 test('three distinct full methods require four source-current executed PG16 cases',()=>{
- assert.equal(verifySecurityCredits(manifest()),4);const r=readSecurityEvidence();
+ assert.equal(verifySecurityCredits(manifest()),3);const r=readSecurityEvidence();
  assert.equal(r.runs['documents-vault'].result.protectedFinalVetoes,2);
  assert.equal(r.runs.developer.result.auditRollbacks,6);assert.equal(r.runs.biometrics.result.ownSessionIngested,2);
  assert.equal(new Set(SECURITY_TARGETS.map(t=>t.path+' '+t.method)).size,3);

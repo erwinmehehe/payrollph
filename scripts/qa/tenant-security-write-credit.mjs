@@ -1,4 +1,4 @@
-/** Four complete method receipts, fictional PG16 only; never production acceptance. */
+/** Three complete method receipts, fictional PG16 only; never production acceptance. */
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';

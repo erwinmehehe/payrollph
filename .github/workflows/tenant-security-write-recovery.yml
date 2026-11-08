@@ -1,4 +1,4 @@
-name: Four-method security write recovery (fictional PG16)
+name: Security write recovery (fictional PG16)
 on:
   pull_request:
     branches: [main]
