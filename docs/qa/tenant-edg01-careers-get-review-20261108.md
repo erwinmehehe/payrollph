@@ -1,15 +1,17 @@
-# EDG-01 public Careers GET — review-only real-HTTP proof expansion
+# EDG-01 public Careers GET — independent, zero-credit privacy test
 
-**Scope:** [issue #1740](https://github.com/erwinmehehe/payrollph/issues/1740), `GET /api/careers` only. Zero new API credits. `GET` and `POST /api/careers` both remain `GAP` on this branch. No code route, migration, coverage manifest, flags, providers, payroll or production data are changed.
+**Scope:** [issue #1740](https://github.com/erwinmehehe/payrollph/issues/1740), `GET /api/careers` only. There are **zero new method credits**. Both public Careers GET and POST remain `GAP` in the canonical manifest; production recruitment and tenant-wide acceptance remain unapproved.
 
-The existing `tenant-edg01-careers-publication-http.mjs` workflow creates three independent fictional employers with two real attacker employers and one higher-ID victim, real published/draft/closed requisitions, fictional private applicants and unrelated draft payroll rows in disposable PostgreSQL 16. This PR extends that **existing** integration runner:
+## Historical proof integrity (mandatory)
 
-- Before any publication, anonymous `GET /api/careers?organizationId=<ID>` returns an empty list for each real employer. No draft or closed job is exposed.
-- After each independent owner publishes their own real open job, anonymous GET returns only that employer's public job with the exact five allowlisted public fields; no other employer's marker, applicant email or private applicant record is exposed.
-- Following the two attackers' legitimate unpublishes, both public lists empty while the higher-ID victim's published job remains visible.
-- Snapshot assertions require every GET to leave employer, applicant, audit, and draft payroll SQL rows unchanged; success responses require `no-store`.
-- Source-contract tests refuse the claim that this test grants a tenant isolation credit or independent security review.
+The previously executed [EDG-01 Careers PATCH proof](https://github.com/erwinmehehe/payrollph/pull/1751) has a fully source-pinned runner and workflow. Its original runner `scripts/qa/tenant-edg01-careers-publication-http.mjs` **must remain byte-for-byte unchanged** (Git blob `9f799cc2344561ab8f4a47a2c0ddc162335f8096`), including historical line citations and separately credited positive/negative PostgreSQL 16 write evidence. This new GET task therefore does **not** edit the original runner, its contract, old workflow, canonical ledger or application route.
 
-Public Careers listings are intentionally **anonymous and employer-selectable**, so a real foreign-company GET may correctly return another employer's published openings. That is **not** a tenant-private 403 and must never be called such. A future `PUBLIC-BY-DESIGN` credit, if appropriate, needs a dedicated public data/privacy review after the exact-head real-HTTP and source-contract CI jobs pass.
+## Separate real-HTTP GET evidence
 
-**Execution:** the existing `.github/workflows/tenant-edg01-careers-publication-http.yml` runs on edits to the harness or contract tests. It uses a localhost Next server with disposable PG16 and no real providers. Test status is **NOT RUN** until a GitHub Actions run proves otherwise. This is neither production permission nor statutory/payroll certification.
+The new workflow `.github/workflows/tenant-edg01-careers-public-get-http.yml` runs with a fresh, empty, disposable PostgreSQL 16 database. It first invokes the **unchanged** original `--migrate` and `--prove` runner, which creates three real fictional employers, publishes one genuine open position for each, then unpublishes the two attackers' positions. The new `scripts/qa/tenant-edg01-careers-public-get-http.mjs` separately checks anonymous public Careers GET against the three **persisted** employers and the remaining higher-ID published victim.
+
+It checks that the two unpublished employers return empty lists; the still-published victim returns one real, open requisition; responses contain only the five intentional public job fields and no other employer marker or private applicant email; responses have `Cache-Control: no-store`; and the underlying organization, requisition, applicant, employee, payroll and audit tables remain completely unchanged by all reads. The public employer selector is **intentionally anonymous**, so foreign-employer public GET is not a 403/404 tenant-private denial.
+
+A new Node source contract rejects modifications to the original source-pinned PATCH evidence or attempts to give either public Careers method a credit without separate executed proof and privacy review.
+
+**Execution gate:** Wait for this **exact-head** public-GET PG16 job, baseline security/CI checks and maintainer review before further changes. A successful synthetic HTTP test may support a future independent `PUBLIC-BY-DESIGN` classification; it does not by itself approve it. No real tenant, provider, payout, production database, migration, payroll operation or feature-flag change occurs.
