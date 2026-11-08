@@ -223,7 +223,17 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     assert.ok(own.includes("), " + expectedStatus + ","),
       key + ": an actual own-employer HTTP success is required");
     assert.match(foreign, /expectStatus\(await request\(/);
-    assert.match(foreign, /\), 403,/, key + ": a real victim-employer denial is required");
+    assert.match(foreign, key === "DELETE employee-vault/[id]" ? /\), 404,/ : /\), 403,/,
+      key + ": a real victim-employer denial is required");
+    if (key === "DELETE employee-vault/[id]") {
+      const fullVaultProof = vaultLines.join("\n");
+      assert.match(fullVaultProof, /foreignRemoval\s*=\s*expectStatus\(await request\("\/api\/employee-vault\/" \+ victimDoc\.id/,
+        "foreign DELETE must target an existing victim-employer document");
+      assert.match(fullVaultProof, /const missingRemoval = expectStatus\(await request\("\/api\/employee-vault\/2147483647"/,
+        "absent IDs must be exercised, not just presumed");
+      assert.match(fullVaultProof, /assert\.deepEqual\(foreignRemoval\.json, missingRemoval\.json,/,
+        "foreign and absent DELETE IDs must have an identical JSON response");
+    }
     assert.match(vaultLines[proof.unchangedDbLine - 1] ?? "",
       /assert\.deepEqual\(await victimSnapshot\(victimOrg\.id\), before/,
       key + ": victim PostgreSQL records must remain unchanged");
