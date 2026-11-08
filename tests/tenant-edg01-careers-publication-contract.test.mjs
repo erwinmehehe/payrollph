@@ -169,3 +169,39 @@ test("real victim-ID ordering and audit failure rollback cannot be silently skip
     runner.indexOf('import("../../src/db/index.ts")'),
     "do not open DB before refusing non-disposable targets");
 });
+
+
+test("public Careers GET has real fictional own/unpublished/foreign-field proof but remains GAP", () => {
+  const runner = readFileSync("scripts/qa/tenant-edg01-careers-publication-http.mjs", "utf8");
+  const route = readFileSync("src/app/api/careers/route.ts", "utf8");
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const get = manifest.allApiRouteFiles["src/app/api/careers/route.ts"].methods
+    .find(method => method.name === "GET");
+  assert.equal(get?.status, "GAP", "no premature tenant/public-by-design credit");
+  assert.equal(get?.testedBy, null);
+  const required = [
+    '"/api/careers?organizationId="', "const beforePublicRead = await snapshotAll()",
+    "anonymous unpublished careers GET", "draft and closed jobs must be absent",
+    "const afterPublication = await snapshotAll()", "anonymous published careers GET",
+    "only this employer's one published, open job",
+    'listing.json?.organization, e.org.name',
+    "Object.keys(jobs[0]).sort()", "public fields only: no private applicants",
+    "other.marker", '"@example.invalid"',
+    "const afterUnpublish = await snapshotAll()",
+    "post-unpublish public careers GET", "publicMethodCoverageCredits: 0",
+  ];
+  for (const guard of required)
+    assert.ok(runner.includes(guard), "public listing proof omitted " + guard);
+  assert.ok(runner.indexOf("const afterPublication = await snapshotAll()") <
+    runner.indexOf("const afterUnpublish = await snapshotAll()"),
+    "publication positive must precede unpublish state assertions");
+  for (const guard of [
+    "export async function GET(request: Request)",
+    "publishedCareersPredicate(organizationId)",
+    "const organizationId = Number(new URL(request.url).searchParams.get",
+    "jobRequisitions.title", "jobRequisitions.department",
+  ]) assert.ok(route.includes(guard), "public GET route lost scoping rule " + guard);
+  assert.doesNotMatch(route.slice(route.indexOf("export async function GET"),
+    route.indexOf("export async function POST")), /jobApplicants|applicantPrivacyEvidence|payrollRuns/,
+    "anonymous GET must not read private applicant, payroll or consent rows");
+});
