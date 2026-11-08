@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { requireLocalRecovery, assertLocalRecoveryDatabase, recoveryReceipt, RECOVERY_MODE } from './tenant-recovery-local-contract.mjs';
 import {
   WPS01_METHOD, requireDisposableWps01,
   assertWps01Created, assertWps01Denied, assertWps01Unchanged,
@@ -15,7 +16,8 @@ const PATH = "/api/workforce-planning/scenarios";
 
 export async function proveWps01Scenarios() {
   // MUST precede any import of the DB, Drizzle schema or shared fixture.
-  requireDisposableWps01();
+  const localRecovery=process.env.TENANT_RECOVERY_MODE===RECOVERY_MODE;
+  if(localRecovery) requireLocalRecovery(); else requireDisposableWps01();
   const [{ db, pool }, s, orm, fixture] = await Promise.all([
     import("../../src/db/index.ts"),
     import("../../src/db/schema.ts"),
@@ -31,6 +33,7 @@ export async function proveWps01Scenarios() {
     approvalChainInstances, approvalTasks,
   } = s;
   const version = await pool.query("SHOW server_version_num");
+  if(localRecovery) await assertLocalRecoveryDatabase(pool);
   assert.equal(Math.floor(Number(version.rows[0].server_version_num) / 10000), 16,
     "WPS01_REFUSED: a real, disposable PostgreSQL 16 is required");
   try {
@@ -116,6 +119,10 @@ export async function proveWps01Scenarios() {
         !ownBefore.scenarios.some(existing => existing.id === row.id));
       assert.equal(added.length, 1, "a successful POST must insert exactly one real scenario");
       const row = assertWps01Created(response, added[0], e, plans.get(e.org.id), expectedVersion);
+      const wrongEmployer=e===victim?a:victim;
+      assert.throws(()=>assertWps01Created(response,added[0],wrongEmployer,
+        plans.get(wrongEmployer.org.id),expectedVersion), /foreign scenario/,
+        "scenario validator accepts another employer's data");
       assert.equal(row.name, payload.name);
       assert.equal(row.scopeOrgUnitId, payload.scopeOrgUnitId ?? null,
         "the saved scenario must respect the authorized employer unit scope");
@@ -194,6 +201,29 @@ export async function proveWps01Scenarios() {
     }
 
     // A session cookie is NOT an employer grant after revoked membership.
+    // Actual audit failure must roll back both the scenario and receipt. A
+    // sequence is nontransactional, proving this reached the audit insertion.
+    let auditRollbacks=0;
+    await pool.query("CREATE SEQUENCE qa_recovery_audit_reached");
+    await pool.query("CREATE FUNCTION qa_recovery_audit_veto() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'Workforce staffing scenario saved' THEN PERFORM nextval('qa_recovery_audit_reached'); RAISE EXCEPTION 'QA_RECOVERY_AUDIT_VETO'; END IF; RETURN NEW; END $$");
+    await pool.query("CREATE TRIGGER qa_recovery_audit_veto BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION qa_recovery_audit_veto()");
+    try {
+      for(const attacker of [a,b]) {
+        const before=await allStates();
+        const seqBefore=(await pool.query('SELECT last_value,is_called FROM qa_recovery_audit_reached')).rows[0];
+        const response=await post(attacker,body(attacker,attacker.marker+' audit rollback'));
+        assertWps01Denied(response,422,forbidden);
+        const seqAfter=(await pool.query('SELECT last_value,is_called FROM qa_recovery_audit_reached')).rows[0];
+        assert.ok(seqAfter.is_called && (!seqBefore.is_called || Number(seqAfter.last_value)>Number(seqBefore.last_value)),
+          'the audit veto was actually reached');
+        assertWps01Unchanged(before,await allStates(),'audit-veto scenario rollback');
+        auditRollbacks++;
+      }
+    }finally{
+      await pool.query('DROP TRIGGER qa_recovery_audit_veto ON audit_events');
+      await pool.query('DROP FUNCTION qa_recovery_audit_veto()');
+      await pool.query('DROP SEQUENCE qa_recovery_audit_reached');
+    }
     await db.update(userOrganizations).set({ active: false })
       .where(eq(userOrganizations.userId, a.owner.id));
     await deniedWithoutWrites(a, body(a, a.marker + " after revocation"), 403,
@@ -216,16 +246,19 @@ export async function proveWps01Scenarios() {
     assert.equal(createdOwn, 7, "no positive HTTP assertions may be skipped");
     assert.equal(denied, 12, "both attackers, real victim, absent IDs and revocation must be tested");
     assert.equal(immutableVersions, 2);
-    console.log("WPS01_REAL_HTTP " + JSON.stringify({
+    const result={
       family: "WPS-01", method: WPS01_METHOD, fictionalEmployers: 3,
       realOwnedHttpWrites: createdOwn, realDeniedHttpCalls: denied,
       separateAttackerOwners: 2, persistedHigherIdVictim: true,
       nonexistentVsForeignScopeIndistinguishable: true,
       scenarioVersionHistoryImmutable: true,
+      auditVetoRollbacks:auditRollbacks, scenarioDiscriminators:createdOwn,
       revokedMembershipDenied: true, allVictimRowsUnchanged: true,
       payrollMutations: 0, providerCalls: 0, productionTested: false,
       newCoverageCredits: 0, independentSecurityReview: "PENDING",
-    }));
+    };
+    recoveryReceipt('scenarios',result);
+    console.log("WPS01_REAL_HTTP " + JSON.stringify(result));
   } finally {
     await pool.end();
   }
