@@ -34,7 +34,7 @@ try{
  // Reuse the complete existing assertions, including all four HMO writes,
  // forged targets, role checks, actual SQL snapshots and the client-shell limit.
  await queue.verifyHcmWorkQueueIsolation(f,{request,expectStatus});
- await queue.verifyHcmWorkItemsPageTenantBoundary(f,{request,expectStatus});
+ // The queue verifier invokes the complete page-boundary proof itself.
  await hmo.verifyHmoIsolation(f,{request,expectStatus,makeSession});
  console.log(JSON.stringify({kind:'DOCUMENT_CALLER_REPROOF',label:'SOLO_VERIFIED_DEV_RECOVERY',
   result:'PASS',employers:3,attackers:2,credits:0,productionCertified:false,providerCalls:0}));
