@@ -27,8 +27,15 @@ export function requirePrivateNoLeak(response, { status, forbidden = [], label }
   const output = String(response.text ?? "") + "\n" +
     [...(response.headers ?? [])].map(([key, value]) => key + ":" + value).join("\n");
   if (status === 200 || status === 404 || status === 409 || status === 500)
-    assert.match(response.headers.get("cache-control") ?? "", /private.*no-store/,
-      label + ": sensitive HCM task responses must not be publicly cached");
+    {
+      const cache = response.headers.get("cache-control") ?? "";
+      // "no-store" prevents both private and shared caching; middleware may
+      // reorder the Cache-Control directives or omit redundant "private".
+      assert.match(cache, /\bno-store\b/i,
+        label + ": sensitive HCM task response must be no-store");
+      assert.doesNotMatch(cache, /\bpublic\b/i,
+        label + ": public caching is forbidden");
+    }
   for (const marker of forbidden) {
     assert.ok(typeof marker === "string" && marker.length > 0, "forbidden marker required");
     assert.ok(!output.includes(marker), label + ": foreign/private marker leaked");

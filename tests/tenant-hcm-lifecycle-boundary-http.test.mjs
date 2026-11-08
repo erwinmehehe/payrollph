@@ -38,6 +38,9 @@ test("positive must be private and foreign data cannot enter response", () => {
   const good = fake(200, { tasks: [] }, { "cache-control": "private, no-store" });
   assert.doesNotThrow(() => requirePrivateNoLeak(good,
     { status: 200, forbidden: ["victim"], label: "own GET" }));
+  assert.doesNotThrow(() => requirePrivateNoLeak(
+    fake(200, { tasks: [] }, { "cache-control": "no-store, private, must-revalidate" }),
+    { status: 200, forbidden: ["victim"], label: "reordered secure cache" }));
   for (const response of [
     fake(200, { tasks: [], marker: "victim" }, { "cache-control": "private, no-store" }),
     fake(200, { tasks: [] }, { "cache-control": "public" }),
