@@ -21,7 +21,7 @@ https.request=(url,options,callback)=>{
   req.end=body=>{try{assert.ok(Buffer.byteLength(body)<5000);const payload=JSON.parse(body);
     assert.equal(payload.event,'payroll.processed');assert.equal(payload.data?.test,true);assert.ok(Number.isSafeInteger(payload.organizationId));
     assert.match(options.headers['Linaw-Signature'],/^t=\d+,v1=[a-f0-9]{64}$/);
-    stats.webhooks.push({organizationId:payload.organizationId,signatureSha256:createHash('sha256').update(options.headers['Linaw-Signature']).digest('hex')});save();
+    stats.webhooks.push({organizationId:payload.organizationId,signatureSha256:createHash('sha256').update(options.headers['Linaw-Signature']).digest('hex'),bodySha256:createHash('sha256').update(body).digest('hex')});save();
     const res=new EventEmitter();res.statusCode=204;res.resume=()=>res;
     process.nextTick(()=>{callback(res);res.emit('end');});
   }catch(e){process.nextTick(()=>req.emit('error',e));}return req;};return req;

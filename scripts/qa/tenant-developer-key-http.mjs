@@ -96,23 +96,42 @@ async function verify() {
       prefix: "sk_pad_" + i, keyHash: hash("padding-only-" + i + "-" + nonce),
       scopes: ["employees:read"],
     });
+    if(securityWriteRun())await db.insert(s.webhookEndpoints).values({organizationId:padding.org.id,
+      url:'https://hooks.fixture.invalid/fictional/PADDING_'+i,secret:'fixture-padding-'+i,events:['payroll.processed']});
   }
   const a = await fixture.seedEmployer("DEV_A", nonce, fixture.standaloneMakeSession);
   const b = await fixture.seedEmployer("DEV_B", nonce, fixture.standaloneMakeSession);
   const victim = await fixture.seedEmployer("DEV_VICTIM", nonce, fixture.standaloneMakeSession);
   assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id && victim.org.id > 6);
   assert.ok(victim.worker.id > a.worker.id && victim.worker.id > b.worker.id && victim.worker.id > 6);
+  const createdByOrg=new Map(),hooksByOrg=new Map();
+  if(securityWriteRun())for(const actor of [a,b]){
+    const created=requireHttpStatus(await request('/api/developer',{cookie:actor.cookie,
+      body:action(actor.org.id,'create-key',{name:'DEV_OWN_'+actor.label+'_'+nonce,scopes:['employees:read','payroll:read']})}),201,'first owned key precedes real victim');
+    createdByOrg.set(actor.org.id,created);
+    const hook=requireHttpStatus(await request('/api/developer',{cookie:actor.cookie,
+      body:action(actor.org.id,'create-webhook',{url:'https://hooks.fixture.invalid/fictional/'+actor.marker,
+        events:['payroll.processed'],targetOrganizationId:victim.org.id,userId:victim.owner.id})}),201,'first owned endpoint precedes real victim');
+    hooksByOrg.set(actor.org.id,hook);
+  }
   const [victimKey] = await db.insert(s.apiKeys).values({
     organizationId: victim.org.id, name: "VICTIM_ONLY_KEY_" + nonce,
     prefix: "vk_" + nonce, keyHash: hash("victim-key-marker-only-" + nonce),
     scopes: ["employees:read"],
   }).returning();
   assert.ok(victimKey.id > 6, "victim credential ID must be a real higher-numbered SQL key");
+  if(securityWriteRun())assert.ok([...createdByOrg.values()].every(r=>victimKey.id>r.json.id),'victim key must exceed both owned comparator keys');
   // A fictional endpoint is stored only to verify isolation, never contacted.
-  await db.insert(s.webhookEndpoints).values({
-    organizationId: victim.org.id, url: "https://sink.example.invalid/" + nonce,
+  const [victimEndpoint]=await db.insert(s.webhookEndpoints).values({
+    organizationId: victim.org.id, url: securityWriteRun()?'https://hooks.fixture.invalid/fictional/VICTIM_'+nonce:"https://sink.example.invalid/" + nonce,
     secret: "FICTIONAL_NEVER_SEND_" + nonce, events: ["payroll.processed"],
-  });
+  }).returning();
+  if(securityWriteRun()){
+    assert.ok(victimEndpoint.id>6&&[...hooksByOrg.values()].every(r=>victimEndpoint.id>r.json.id));
+    const victimControl=requireHttpStatus(await request('/api/developer',{cookie:victim.cookie,
+      body:action(victim.org.id,'test-webhook')}),200,'real victim endpoint is genuinely operational');
+    assert.equal(victimControl.json.attempted,1);assert.equal(victimControl.json.results[0].status,'delivered');
+  }
   const victimBefore = await snapshotOrganization(victim.org.id);
   const [victimSessionsBefore] = await Promise.all([
     db.select().from(s.sessions).where(eq(s.sessions.userId, victim.owner.id)).orderBy(asc(s.sessions.id)),
@@ -123,7 +142,7 @@ async function verify() {
   // Two distinct auth sessions and two genuine owned credential-creation positives.
   for (const actor of [a, b]) {
     const ownName = "DEV_OWN_" + actor.label + "_" + nonce;
-    const created = requireHttpStatus(await request("/api/developer", {
+    const created = createdByOrg.get(actor.org.id)??requireHttpStatus(await request("/api/developer", {
       cookie: actor.cookie,
       body: action(actor.org.id, "create-key", {
         name: ownName, scopes: ["employees:read", "payroll:read"],
@@ -193,7 +212,9 @@ async function verify() {
 
     for (const verb of (securityWriteRun()?["create-key", "revoke-key","create-webhook","test-webhook"]:["create-key", "revoke-key"])) {
       const ownAction = verb === "create-key"
-        ? { name: "foreign-org-forbidden" } : { keyId: victimKey.id };
+        ? { name: "foreign-org-forbidden" } : verb==='create-webhook'?
+          {url:'https://hooks.fixture.invalid/fictional/'+actor.marker,events:['payroll.processed']}:
+          verb==='test-webhook'?{endpointId:victimEndpoint.id}:{ keyId: victimKey.id };
       const cross = requireHttpStatus(await request("/api/developer", {
         cookie: actor.cookie, body: action(victim.org.id, verb, ownAction),
       }), 403, "foreign employer action forbidden");
@@ -216,9 +237,8 @@ async function verify() {
       const url='https://hooks.fixture.invalid/fictional/'+actor.marker;
       // Prove all previously missing webhook sub-actions, through the real
       // request handler and persisted delivery ledger. Transport is reserved-host only.
-      const createdHook=requireHttpStatus(await request('/api/developer',{cookie:actor.cookie,
-        body:action(actor.org.id,'create-webhook',{url,events:['payroll.processed'],
-          endpointId:victimKey.id,targetOrganizationId:victim.org.id,userId:victim.owner.id})}),201,'owned webhook created');
+      const createdHook=hooksByOrg.get(actor.org.id);
+      assert.equal(createdHook.status,201);
       const [endpoint]=await db.select().from(s.webhookEndpoints).where(eq(s.webhookEndpoints.id,createdHook.json.id));
       assert.equal(endpoint.organizationId,actor.org.id);assert.equal(endpoint.url,url);
       assert.equal(endpoint.secret,createdHook.json.secret);assert.match(endpoint.secret,/^whsec_[a-f0-9]{64}$/);
@@ -229,7 +249,7 @@ async function verify() {
       const statsBefore=JSON.parse(readFileSync('outputs/security-write-transport.json','utf8'));
       const deliveriesBefore=await db.select().from(s.webhookDeliveries).where(eq(s.webhookDeliveries.organizationId,actor.org.id));
       const tested=requireHttpStatus(await request('/api/developer',{cookie:actor.cookie,
-        body:action(actor.org.id,'test-webhook',{endpointId:victimKey.id,userId:victim.owner.id,targetOrganizationId:victim.org.id})}),200,'owned webhook delivery persisted');
+        body:action(actor.org.id,'test-webhook',{endpointId:victimEndpoint.id,userId:victim.owner.id,targetOrganizationId:victim.org.id})}),200,'owned webhook delivery persisted');
       assert.equal(tested.json.attempted,1);assert.equal(tested.json.results[0].endpointId,endpoint.id);
       assert.equal(tested.json.results[0].status,'delivered');webhookTests++;
       const deliveries=await db.select().from(s.webhookDeliveries).where(eq(s.webhookDeliveries.organizationId,actor.org.id));
@@ -239,11 +259,15 @@ async function verify() {
       assert.equal(delivery.payload.organizationId,actor.org.id);assert.equal(delivery.payload.data.test,true);
       const {signWebhookPayload}=await import('../../src/lib/webhook-signing.ts');
       const stamp=Number(delivery.signature.match(/^t=(\d+),/)?.[1]);
-      assert.equal(delivery.signature,signWebhookPayload(endpoint.secret,JSON.stringify(delivery.payload),stamp));
+      const p=delivery.payload;
+      const wireBody=JSON.stringify({id:p.id,event:p.event,createdAt:p.createdAt,organizationId:p.organizationId,
+        data:{test:p.data.test,triggeredBy:p.data.triggeredBy,at:p.data.at}});
+      assert.equal(delivery.signature,signWebhookPayload(endpoint.secret,wireBody,stamp));
       const statsAfter=JSON.parse(readFileSync('outputs/security-write-transport.json','utf8'));
       assert.equal(statsAfter.webhooks.length,statsBefore.webhooks.length+1);
       assert.equal(statsAfter.webhooks.at(-1).organizationId,actor.org.id);
       assert.equal(statsAfter.webhooks.at(-1).signatureSha256,hash(delivery.signature));
+      assert.equal(statsAfter.webhooks.at(-1).bodySha256,hash(wireBody));
       assert.deepEqual(await snapshotOrganization(victim.org.id),victimBefore,'webhook actions cannot deliver or modify victim');
       for(const [verb,extras] of [['create-key',{name:'audit-veto'}],['revoke-key',{keyId:forged.json.id}],['create-webhook',{url,events:['payroll.processed']}]]){
         const before=await snapshotOrganization(actor.org.id);
