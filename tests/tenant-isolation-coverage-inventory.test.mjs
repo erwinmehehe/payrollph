@@ -1,3 +1,4 @@
+import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
@@ -237,6 +238,9 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status === 'COVERED' && spendManagedTargets.some(t=>{const [verb,route]=t.split(' ');return key==='src/app/api/'+route+'/route.ts '+verb;})){
+    assert.equal(verifySpendManaged(manifest),3);return true;
+  }
   if (key === "src/app/api/careers/admin/route.ts PATCH" && method.status === "COVERED") {
     assert.equal(currentBlob, "fc7920e19fc75389c5f5e7fe3cb4f90046028f00");
     assert.equal(verifyCareersPatchCredit(manifest), 1);
@@ -3379,6 +3383,59 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return;
   }
 
+  // Exact-source re-inventory of the ID-only DELETE repair. This does NOT
+  // award any *new* coverage; MNY-02 was already provisionally recorded.
+  if (isNewOrChanged && key === "src/app/api/de-minimis/route.ts DELETE") {
+    const routeFile = "src/app/api/de-minimis/route.ts";
+    assert.equal(currentBlob, "e1a3b7cf09ecf1e86f52bc7a642aae2524092a88", "De minimis DELETE source changed; repeat independent review");
+    assert.equal(method.status, "COVERED", "Preserve existing provisional MNY-02 receipt, not an added credit");
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      "kind": "de-minimis-delete-active-membership-id-boundary-PG16-review-only",
+      "originalRouteBlobSha": "afcb1039472fabb166c239c6153b2508e1ea5f57",
+      "routeBlobSha": "e1a3b7cf09ecf1e86f52bc7a642aae2524092a88",
+      "proofFile": "scripts/qa/tenant-de-minimis-delete-http.mjs",
+      "proofBlobSha": "6fdca8169c355e49a32a986dad8a2b123d853f53",
+      "contractFile": "tests/tenant-de-minimis-delete-boundary.test.mjs",
+      "contractBlobSha": "224ed59a03530680f33ca06788ef4fecf75c75aa",
+      "workflowFile": ".github/workflows/tenant-de-minimis-delete-http.yml",
+      "workflowBlobSha": "87a8e138d72b77ceedd8b1501a1d91bd923d5615",
+      "coverageCredits": 0,
+      "exactHeadPg16Http": "PENDING",
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false
+    },
+      "New DELETE boundary proof must remain exact-source and uncredited");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "De minimis boundary proof/contract/workflow changed: " + file);
+    const source = readFileSync(routeFile, "utf8");
+    const lookup = source.slice(source.indexOf("async function findActiveMemberGrant("),
+      source.indexOf("export async function GET("));
+    const deletion = source.slice(source.indexOf("export async function DELETE("));
+    for (const token of [
+      "innerJoin(userOrganizations, and(",
+      "eq(userOrganizations.userId, userId)",
+      "eq(userOrganizations.organizationId, deMinimisGrants.organizationId)",
+      "eq(userOrganizations.active, true)",
+      "eq(deMinimisGrants.id, grantId)",
+    ]) assert.ok(lookup.includes(token), "DELETE membership-scoped lookup missing: " + token);
+    assert.ok(deletion.indexOf("findActiveMemberGrant(user.id, id)") >= 0 &&
+      deletion.indexOf("findActiveMemberGrant(user.id, id)") < deletion.indexOf("assertOrganizationRole("),
+      "Validate active grant membership before role-sensitive record exposure");
+    for (const token of [
+      "Number.isSafeInteger(id)", "eq(deMinimisGrants.id, id)",
+      "eq(deMinimisGrants.organizationId, grant.organizationId)",
+      'return Response.json({ error: "Grant not found." }, { status: 404 })',
+    ]) assert.ok(deletion.includes(token), "Missing scoped update or 404 guard: " + token);
+    const priorProof = readFileSync("scripts/qa/tenant-mny02-expenses-benefits-http.mjs", "utf8");
+    assert.ok(priorProof.includes('404, "Real victim-only de minimis grant DELETE hidden as not found"'),
+      "MNY-02 must expect a non-disclosing 404 for a foreign DELETE");
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -3945,6 +4002,7 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
@@ -4372,8 +4430,8 @@ test("all credited proof links point to the claimed route and every recertified 
           key + ": positive and negative must reach the claimed API route");
         assert.match(span(own), new RegExp("\\)\\s*,\\s*" + ownStatus + "\\s*,"),
           key + ": a real successful owned response is required");
-        assert.match(span(foreign), /\)\s*,\s*403\s*,/,
-          key + ": foreign employer denial must be a 403");
+        assert.match(span(foreign), new RegExp("\\)\\s*,\\s*" + (key === "DELETE de-minimis" ? "404" : "403") + "\\s*,"),
+          key + ": foreign employer must receive the method-specific denial");
         if (method.name !== "GET") {
           assert.ok(span(own).includes('method: "' + method.name + '"') &&
             span(foreign).includes('method: "' + method.name + '"'),
@@ -4677,9 +4735,9 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(path + " " + method.name, "src/app/api/auth/logout/route.ts POST", "No unrelated method may reuse the auth logout evidence");
         assert.equal(proof.independentSecurityReview, "PENDING");
         assert.equal(proof.productionTested, false);
-        assert.equal(proof.verifiedPrHeadSha, "b32c2286ea6ef91cbe2f2f227f01278de613588d");
-        assert.equal(proof.workflowRunId, 42203481558);
-        assert.equal(proof.workflowJobId, 127844239303);
+        assert.equal(proof.verifiedPrHeadSha, "af5cfba882c2461594f5c30b5e44aecfa4f660d4");
+        assert.equal(proof.workflowRunId, 42432472070);
+        assert.equal(proof.workflowJobId, 128584165166);
         continue;
       }
       // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt (test-only exact-host provider preload); pins are checked by the dedicated test at the end of this file.
@@ -7026,7 +7084,28 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
   assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
   assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
   assert.equal(api.gitBlobSha, proof.routeBlobSha);
-  assert.equal(proof.routeBlobSha, "290f703135c3051d5feb8a3dd594ce9b29da3796", "the proof was written against this exact route");
+  assert.equal(proof.routeBlobSha, "5e385d15d457620af0bcbd910bc0fe535103c53e", "the proof was written against this exact route");
+  assert.deepEqual(proof.integrityReproof.pins, {
+  "src/app/api/auth/logout/route.ts": "5e385d15d457620af0bcbd910bc0fe535103c53e",
+  "src/lib/revoke-presented-session.ts": "e6bd056401cf8998950834732b6c2f2e83508f88",
+  "scripts/qa/tenant-auth-logout-http.mjs": "6b2b45bf6f06580d88db03ca29d0ac546bc3514b",
+  "scripts/qa/tenant-auth-logout-contract.mjs": "36516e9ce60b75109f325df2a4047bb2cb9b3154",
+  "tests/tenant-auth-logout-contract.test.mjs": "3c1e4222c0c549a282202c614aa12bb60bc5608a",
+  ".github/workflows/tenant-auth-logout-http.yml": "f3359240462e4bbd732e9186f0336e950b1e7c17",
+  "scripts/qa/tenant-approval-task-contract.mjs": "aec1742a120c93e7c2f54ab127bd8312501c733a",
+  "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+  "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
+  "scripts/qa/apply-isolated-baseline.mjs": "75b9e7f1b39a6ca5b2253086e519ae7d71229255",
+  "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+  "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+  "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+  "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+  "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02"
+});
+  for (const [file, sha] of Object.entries(proof.integrityReproof.pins)) assert.equal(gitBlobSha(readFileSync(file)), sha, "Logout reproof input changed: " + file);
+  assert.ok(harness.includes("assert.deepEqual(afterReplay, afterFirst"), "replay must compare every SQL field");
+  const helper = readFileSync("src/lib/revoke-presented-session.ts", "utf8");
+  for (const guard of ["eq(sessions.tokenHash, sha256(token))", "isNull(sessions.revokedAt)"]) assert.ok(helper.includes(guard));
   assert.equal(proof.line, proof.ownPositiveLine);
   const lines = harness.split(String.fromCharCode(10));
   const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
@@ -7041,7 +7120,7 @@ test("auth logout POST credit requires the exact passing run, byte-pinned inputs
     assert.ok(harness.includes(token), "harness lacks " + token);
   }
   // The credited route must keep the same-origin check and revoke only the token in the caller's own cookie.
-  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokeSession(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
+  for (const bound of ["enforceSameOriginMutation(request)", "jar.get(SESSION_COOKIE)?.value", "await revokePresentedSessionOnce(token)"]) assert.ok(route.includes(bound), "route lost a bound the proof exercises: " + bound);
   assert.ok(!/await request\.(?:json|formData)\(/.test(route), "the route must never read an identity from the request body");
 });
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {verifySpendManaged} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 
 const ROUTE = "src/app/api/spend/route.ts";
 const HARNESS = "scripts/qa/tenant-spend-write-actions-http.mjs";
@@ -26,9 +27,10 @@ test("Spend write proof cannot borrow the historical GET credit or claim unrevie
   const entry = manifest.allApiRouteFiles[ROUTE];
   assert.equal(entry.gitBlobSha, EXPECTED[ROUTE]);
   assert.deepEqual(entry.methods.map(method => [method.name, method.status]),
-    [["GET", "COVERED"], ["POST", "GAP"], ["PATCH", "GAP"]]);
+    [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]]);
+  assert.equal(verifySpendManaged(manifest),3);
   for (const method of entry.methods.filter(method => method.name !== "GET")) {
-    assert.equal(method.testedBy, null, "no unearned write-method credit");
+    assert.equal(method.testedBy.file,HARNESS,"writes require the dedicated executed proof, never GET evidence");
   }
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap,
     manifest.metrics.methods);
