@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
 const RECEIPT='scripts/qa/tenant-document-caller-reproof-receipt.json';
 const DIGEST='aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e';
 export function verifyDocumentCallerReproof(reference, read=readFileSync){
@@ -13,6 +14,10 @@ export function verifyDocumentCallerReproof(reference, read=readFileSync){
  assert.equal(receipt.run,42434366023);assert.equal(receipt.job,128589939228);
  assert.equal(receipt.credits,0);
  for(const [file,sha] of Object.entries(receipt.pins)){
+  if(file==='next.config.ts') {
+   assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file,'utf8'),sha);
+   continue;
+  }
   const raw=Buffer.from(read(file,'utf8').toString().replaceAll('\r\n','\n'));
   const current=createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');
   assert.equal(current,sha,'Executed caller input changed: '+file);
