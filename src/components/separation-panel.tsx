@@ -111,6 +111,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   }
   const [showCoeModal, setShowCoeModal] = useState(false);
   const [releaseReference, setReleaseReference] = useState("");
+  const [actualLeavePayoutDate, setActualLeavePayoutDate] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [manualReleaseEnabled, setManualReleaseEnabled] = useState(false);
   const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
@@ -436,7 +437,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     const res = await fetch("/api/separation", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action, ...(action === "release" ? { releaseReference } : {}) }),
+      body: JSON.stringify({ id, action, ...(action === "release" ? {
+        releaseReference, actualLeavePayoutDate,
+      } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -451,7 +454,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       : warnings.length
         ? `Final Pay released and employee marked separated. Follow-up: ${warnings.join(" ")}`
         : "Final Pay marked released and employee marked separated.");
-    if (action === "release") setReleaseReference("");
+    if (action === "release") {
+      setReleaseReference("");
+      setActualLeavePayoutDate("");
+    }
     setSelectedRecord(null);
     reload();
   }
@@ -828,6 +834,16 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <div style={{ display: "grid", gap: 8, minWidth: 240 }}>
                   <small>Record a verified external payout reference. This marks final pay released in the HR ledger; it does not initiate a bank transfer. Preparer, checker and releaser must be distinct accounts.</small>
                   {!manualReleaseEnabled && <small><strong>Release disabled:</strong> independent bank/finance verification and controlled-pilot signoff are required before the server will allow a manual final-pay release.</small>}
+                  {(selectedRecord.computationSnapshot?.taxClassification as
+                    { leaveTaxBasis?: string } | undefined)?.leaveTaxBasis === "private_vacation_de_minimis" && (
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <small>Actual vacation-leave payment date (check the external settlement evidence)</small>
+                      <input type="date" value={actualLeavePayoutDate}
+                        aria-label="Actual vacation leave payout date"
+                        onChange={(event) => setActualLeavePayoutDate(event.target.value)} />
+                      <small>The date must match the independently reviewed tax-recognition date. A delayed or cross-year payment requires recomputation and approval, not reuse of the old exemption.</small>
+                    </label>
+                  )}
                   <input
                     value={releaseReference}
                     onChange={(event) => setReleaseReference(event.target.value)}
@@ -837,6 +853,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   <button className="primary-button" disabled={
                     !manualReleaseEnabled
                     || releaseReference.trim().length < 8
+                    || ((selectedRecord.computationSnapshot?.taxClassification as
+                      { leaveTaxBasis?: string } | undefined)?.leaveTaxBasis === "private_vacation_de_minimis"
+                      && !actualLeavePayoutDate)
                     || selectedRecord.preparedByUserId == null
                     || selectedRecord.approvedByUserId == null
                     || selectedRecord.preparedByUserId === currentUserId

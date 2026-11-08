@@ -70,7 +70,29 @@ import {
 
 import { approvedLeaveConversionCap } from "@/lib/leave-conversion-policy";
 import { classifyPrivateVacationLeave, classifyReviewedSeparationPay } from "@/lib/final-pay-tax-classification";
+import { priorExemptLeaveDaysInTaxYear, leaveTaxReleaseDateNeedsReconciliation } from "@/lib/final-pay-leave-tax-year";
 import { separationLeaveAllowance, validateSeparationLeaveCredits } from "@/lib/separation-leave";
+
+async function verifiedPriorLeaveExemptDays(input: {
+  organizationId: number; taxDate: string;
+  conversions: Array<{ id: number; status: string; taxExempt: boolean;
+    daysConverted: string | number; payrollRunId: number | null }>;
+}, reader: Pick<typeof db, "select"> = db) {
+  const ids = [...new Set(input.conversions
+    .filter(row => row.status !== "rejected" && row.taxExempt)
+    .map(row => row.payrollRunId)
+    .filter((id): id is number => Number.isSafeInteger(id) && Number(id) > 0))];
+  const linked = ids.length ? await reader.select({
+    id: payrollRuns.id,
+    organizationId: payrollRuns.organizationId,
+    status: payrollRuns.status,
+    payDate: payrollRuns.payDate,
+  }).from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, input.organizationId),
+    inArray(payrollRuns.id, ids),
+  )) : [];
+  return priorExemptLeaveDaysInTaxYear({ ...input, payrollRuns: linked });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -596,12 +618,11 @@ export async function POST(request: Request) {
       // year from the authoritative employee ledger. Counting all types is
       // conservative and avoids reusing days if a legacy conversion was
       // labelled differently; the reviewer verifies the source is complete.
-      const annualExemptDaysPreviouslyUsed = sources.leave.conversions
-        .filter((row) => row.status !== "rejected" && row.taxExempt &&
-          Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric" })
-            .format(new Date(row.createdAt))) === Number(lastDay.slice(0, 4)))
-        .reduce((sum, row) => sum + Number(row.daysConverted), 0);
+      let annualExemptDaysPreviouslyUsed: number;
       try {
+        annualExemptDaysPreviouslyUsed = await verifiedPriorLeaveExemptDays({
+          organizationId, taxDate: leaveTaxDate, conversions: sources.leave.conversions,
+        });
         leaveTax = classifyPrivateVacationLeave({
           taxDate: leaveTaxDate,
           leaveType: unusedLeaveType,
@@ -1622,6 +1643,29 @@ export async function PATCH(request: Request) {
         error: "Payroll, pay-profile, imported-history, or loan data changed after final pay was computed. Recompute the final pay package before approval or release.",
       }, { status: 409 });
     }
+    const review = snapshot.taxClassification as Record<string, unknown> | undefined;
+    if (review?.leaveTaxBasis === "private_vacation_de_minimis") {
+      const frozenLeave = review.leave as Record<string, unknown> | undefined;
+      let actualPriorDays: number;
+      try {
+        actualPriorDays = await verifiedPriorLeaveExemptDays({
+          organizationId: sep.organizationId,
+          taxDate: String(review.taxDate ?? ""),
+          conversions: sources.leave.conversions,
+        });
+      } catch {
+        return Response.json({
+          code: "FINAL_PAY_LEAVE_TAX_HISTORY_UNVERIFIED",
+          error: "The historic leave-tax recognition ledger is incomplete. Reconcile and recompute this package before approval or release.",
+        }, { status: 409 });
+      }
+      if (!frozenLeave || actualPriorDays !== frozenLeave.annualExemptDaysPreviouslyUsed) {
+        return Response.json({
+          code: "FINAL_PAY_LEAVE_TAX_HISTORY_CHANGED",
+          error: "The verified annual leave-exemption evidence changed. Recompute and independently reapprove final pay.",
+        }, { status: 409 });
+      }
+    }
 
     if (action === "approve") {
       if (sep.status !== "draft") {
@@ -1743,6 +1787,16 @@ export async function PATCH(request: Request) {
       }, { status: 422 });
     }
 
+    const releaseTaxClassification = ((sep.computationSnapshot ?? {}) as Record<string, unknown>).taxClassification;
+    if (leaveTaxReleaseDateNeedsReconciliation(
+      releaseTaxClassification, body.actualLeavePayoutDate, todayPh(),
+    )) {
+      return Response.json({
+        code: "FINAL_PAY_LEAVE_PAYOUT_DATE_REVIEW_REQUIRED",
+        error: "The actual vacation-leave payout date is absent, future-dated or differs from the independently reviewed tax date. Recompute the annual allocation using verified payment-year evidence and obtain fresh approval before release.",
+      }, { status: 409 });
+    }
+
     let released: typeof separationRecords.$inferSelect;
     try {
       released = await db.transaction(async (tx) => {
@@ -1801,11 +1855,28 @@ export async function PATCH(request: Request) {
       }
 
       const freshSnapshot = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
+      if (leaveTaxReleaseDateNeedsReconciliation(
+        freshSnapshot.taxClassification, body.actualLeavePayoutDate, todayPh(),
+      )) {
+        throw new Error("FINAL_PAY_LEAVE_PAYOUT_DATE_REVIEW_REQUIRED");
+      }
       const transactionSources = await loadFinalPaySources(
         { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
         { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
       );
       const transactionFingerprint = fingerprint(transactionSources);
+      const transactionTaxReview = freshSnapshot.taxClassification as Record<string, unknown> | undefined;
+      if (transactionTaxReview?.leaveTaxBasis === "private_vacation_de_minimis") {
+        const recordedLeave = transactionTaxReview.leave as Record<string, unknown> | undefined;
+        const priorDays = await verifiedPriorLeaveExemptDays({
+          organizationId: fresh.organizationId,
+          taxDate: String(transactionTaxReview.taxDate ?? ""),
+          conversions: transactionSources.leave.conversions,
+        }, tx as unknown as Pick<typeof db, "select">);
+        if (!recordedLeave || priorDays !== recordedLeave.annualExemptDaysPreviouslyUsed) {
+          throw new Error("FINAL_PAY_LEAVE_TAX_HISTORY_CHANGED");
+        }
+      }
       const transactionLoanAuthority = reviewFinalPayLoans(transactionSources.loans);
       if (transactionLoanAuthority.invalidLoanIds.length
         || ((freshSnapshot.deductOutstandingLoans === true || Number(fresh.loanDeductions) > 0)

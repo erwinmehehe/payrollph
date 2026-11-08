@@ -30020,13 +30020,13 @@
       ]
     },
     "src/app/api/separation/route.ts": {
-      "gitBlobSha": "2975505e9a8b97e7519cdb283a4c0fd1925aaec0",
+      "gitBlobSha": "d95fb5e76355218e6b2afa7d5412d5332b567cbf",
       "sourceRevisionReview": {
         "kind": "phase7-final-pay-tax-classification-provisional-source-reconciliation",
         "previousRouteBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
-        "currentRouteBlobSha": "2975505e9a8b97e7519cdb283a4c0fd1925aaec0",
+        "currentRouteBlobSha": "d95fb5e76355218e6b2afa7d5412d5332b567cbf",
         "changedMethod": "POST",
-        "scope": "Reviewed unused vacation-leave de minimis / shared benefits-pool split and qualified taxable separation pay; existing tenant authorization and GET/PATCH handlers unchanged.",
+        "scope": "Reviewed unused vacation-leave de minimis / shared benefits-pool split and qualified taxable separation pay; existing tenant authorization and GET/PATCH handlers unchanged. Tax-year follow-up: previous de minimis days use only verified Released payroll payDate; missing legacy recognition dates hold review; manual final-pay release requires actual leave payout date equal to reviewed tax date, with independent approval and no credit promotion.",
         "priorTenantIsolationHttpProof": "scripts/qa/payroll-approved-exit-http.mjs",
         "taxContractFile": "tests/final-pay-tax-classification.test.ts",
         "newTenantIsolationMethodCredits": 0,

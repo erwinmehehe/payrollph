@@ -9,6 +9,7 @@ import {
 } from "../src/lib/final-pay-tax-classification";
 import { computeFinalPay } from "../src/lib/final-pay";
 import { finalPayReviewCsv } from "../src/lib/final-pay-review-evidence";
+import { priorExemptLeaveDaysInTaxYear, leaveTaxReleaseDateNeedsReconciliation } from "../src/lib/final-pay-leave-tax-year";
 
 const reference = "BIR-RR29-2025-private-VL-ledger-review-2026";
 
@@ -187,6 +188,78 @@ test("absence of evidence cannot quietly exempt separation pay", () => {
   ]) {
     assert.throws(() => classifyReviewedSeparationPay(input), /exempt|reason|evidence|exceed|non-negative|authorized/i);
   }
+});
+
+
+test("prior exempt vacation days use the released payroll payment year, not row creation year", () => {
+  const conversions = [
+    { id: 1, status: "paid", taxExempt: true, daysConverted: "7.0",
+      payrollRunId: 21, createdAt: new Date("2026-01-15T00:00:00Z") },
+    { id: 2, status: "paid", taxExempt: true, daysConverted: "4.5",
+      payrollRunId: 22, createdAt: new Date("2025-12-20T00:00:00Z") },
+    { id: 3, status: "rejected", taxExempt: true, daysConverted: "99.0",
+      payrollRunId: null, createdAt: new Date("2026-06-01T00:00:00Z") },
+    { id: 4, status: "paid", taxExempt: false, daysConverted: "6.0",
+      payrollRunId: null, createdAt: new Date("2026-06-01T00:00:00Z") },
+  ];
+  const payrollRuns = [
+    { id: 21, organizationId: 9, status: "Released", payDate: "2025-12-30" },
+    { id: 22, organizationId: 9, status: "Released", payDate: "2026-01-06" },
+  ];
+  assert.equal(priorExemptLeaveDaysInTaxYear({
+    organizationId: 9, taxDate: "2025-12-31", conversions, payrollRuns,
+  }), 7);
+  assert.equal(priorExemptLeaveDaysInTaxYear({
+    organizationId: 9, taxDate: "2026-11-08", conversions, payrollRuns,
+  }), 4.5);
+});
+
+test("unverified previous leave payment year fails closed, not guessed from createdAt", () => {
+  const conversion = {
+    id: 10, status: "paid", taxExempt: true, daysConverted: "3.0",
+    payrollRunId: null, createdAt: new Date("2026-02-01T00:00:00Z"),
+  };
+  const fixture = {
+    organizationId: 9, taxDate: "2026-12-31", conversions: [conversion],
+    payrollRuns: [{ id: 24, organizationId: 9, status: "Released", payDate: "2026-02-01" }],
+  };
+  assert.throws(() => priorExemptLeaveDaysInTaxYear(fixture), /FINAL_PAY_LEAVE_TAX_HISTORY_UNVERIFIED/);
+  for (const run of [
+    { id: 24, organizationId: 10, status: "Released", payDate: "2026-02-01" },
+    { id: 24, organizationId: 9, status: "Draft", payDate: "2026-02-01" },
+    { id: 24, organizationId: 9, status: "Released", payDate: "not-a-date" },
+  ]) {
+    assert.throws(() => priorExemptLeaveDaysInTaxYear({
+      ...fixture, conversions: [{ ...conversion, payrollRunId: 24 }], payrollRuns: [run],
+    }), /FINAL_PAY_LEAVE_TAX_HISTORY_UNVERIFIED/);
+  }
+});
+
+test("manual release holds missing, future or cross-year leave payout evidence", () => {
+  const review = { leaveTaxBasis: "private_vacation_de_minimis", taxDate: "2026-12-31" };
+  assert.equal(leaveTaxReleaseDateNeedsReconciliation(review, "2026-12-31", "2026-12-31"), false);
+  for (const date of [undefined, "", "2027-01-05", "2026-12-30", "2030-01-01", "2026-02-30"]) {
+    assert.equal(leaveTaxReleaseDateNeedsReconciliation(review, date, "2027-01-06"), true,
+      "A moved/unknown payment date requires a fresh signed tax review");
+  }
+  assert.equal(leaveTaxReleaseDateNeedsReconciliation(review, "2026-12-31", "2026-12-30"), true,
+    "Cannot attest a payment date in the future");
+  assert.equal(leaveTaxReleaseDateNeedsReconciliation(
+    { leaveTaxBasis: "taxable", taxDate: "2026-12-31" }, undefined, "2027-01-01",
+  ), false, "Fully taxable leave cannot be blocked by private-de-minimis evidence");
+});
+
+test("Separation route holds stale annual leave evidence and payout-year changes at release", () => {
+  const source = readFileSync("src/app/api/separation/route.ts", "utf8");
+  assert.ok(!source.includes("new Date(row.createdAt)"), "createdAt must not classify a prior leave tax year");
+  assert.match(source, /annualExemptDaysPreviouslyUsed = await verifiedPriorLeaveExemptDays/);
+  assert.match(source, /FINAL_PAY_LEAVE_TAX_HISTORY_UNVERIFIED/);
+  assert.match(source, /actualPriorDays !== frozenLeave.annualExemptDaysPreviouslyUsed/);
+  assert.match(source, /leaveTaxReleaseDateNeedsReconciliation\(\s*releaseTaxClassification/);
+  assert.match(source, /leaveTaxReleaseDateNeedsReconciliation\(\s*freshSnapshot.taxClassification/);
+  assert.match(source, /FINAL_PAY_LEAVE_PAYOUT_DATE_REVIEW_REQUIRED/);
+  const component = readFileSync("src/components/separation-panel.tsx", "utf8");
+  assert.match(component, /actualLeavePayoutDate/);
 });
 
 test("production route keeps review gates, evidence in snapshot and full-pay release controls", () => {
