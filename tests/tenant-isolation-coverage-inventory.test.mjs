@@ -4036,6 +4036,12 @@ test("all credited proof links point to the claimed route and every recertified 
           "Both billing POST methods need exact owned/foreign/unchanged receipts");
         continue;
       }
+      // Scope-locked to the separately sealed, source-pinned request-initiation proof.
+      // Do not broaden the general evidence-source allowlist.
+      if (path === "src/app/api/account/email/route.ts" && method.name === "POST") {
+        assert.equal(verifyAccountEmailRequestCredit(manifest), 1);
+        continue;
+      }
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {
         assert.equal(verifyEmailCredit(manifest, JSON.parse(readFileSync("scripts/qa/tenant-email-verification-credit-receipt.json", "utf8"))), 1);
         continue;
