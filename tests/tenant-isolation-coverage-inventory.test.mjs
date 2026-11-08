@@ -1,3 +1,4 @@
+import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
@@ -2808,38 +2809,34 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   }
 
 
-  if (isNewOrChanged && ["src/app/api/year-end/route.ts GET", "src/app/api/year-end/route.ts POST"].includes(key)) {
-    // Exact reviewed source candidate only: no HTTP or financial acceptance.
-    const expected = {
-      kind: "year-end-binding-atomic-source-only-zero-credit",
-      priorRouteBlobSha: "7572c6111cf40d398b3cc8c1f940efd0a9b8d362",
-      routeBlobSha: "f040f5bbbc3df275d32d23f1728b1b0345f77814",
-      contractFile: "tests/year-end-binding-transaction-contract.test.mjs",
-      contractBlobSha: "9562442c4d9e7d820027630cead6d753c0fc3767",
-      annualizationBlobSha: "7194658c42b9ef33c84acd84ab356c28c6303883",
-      queueBlobSha: "961cfb5535063a9683b04dbd5260c2a9730ffd66",
-      currentQueueBlobSha: "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
-      queueSourceChange: "Work-date anchor only; no inherited year-end source credit or financial acceptance",
-      credits: 0, actualPg16Http: "PENDING",
-      independentSecurityReview: "PENDING", productionCertified: false,
-    };
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
-    assert.equal(currentBlob, expected.routeBlobSha);
-    assert.deepEqual(method.reviewedUncertified, expected);
+  if (isNewOrChanged && ["src/app/api/year-end/route.ts GET",
+      "src/app/api/year-end/route.ts POST"].includes(key)) {
+    // Old #1730 proof is source-revoked by #1744. A distinct #1804 fictional
+    // PG16 real-HTTP run now proves both current-source year-end methods.
+    assert.equal(currentBlob, YEAR_END_SOURCE_PINS["src/app/api/year-end/route.ts"]);
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy?.proofPullRequest, 1804);
+    assert.equal(method.testedBy?.workflowRunId, 42254117862);
+    assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+    assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
+    assert.equal(method.testedBy?.productionCertified, false);
+    assert.equal(method.reviewedUncertified, undefined);
+    assert.equal(verifyYearEndCredits(manifest), 2);
     for (const [file, hash] of [
-      [expected.contractFile, expected.contractBlobSha],
-      ["src/lib/year-end.ts", expected.annualizationBlobSha],
-      ["src/lib/payroll-engine.ts", expected.currentQueueBlobSha],
-    ]) assert.equal(gitBlobSha(readFileSync(file)), hash);
+      ["tests/year-end-binding-transaction-contract.test.mjs",
+        "9562442c4d9e7d820027630cead6d753c0fc3767"],
+      ["src/lib/year-end.ts", "7194658c42b9ef33c84acd84ab356c28c6303883"],
+      ["src/lib/payroll-engine.ts", "dc5719a2c34094b5449bf4ecacb198ab0d74a313"],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
+      "Financial binding dependency changed; require new PG16 proof");
     const source = readFileSync("src/app/api/year-end/route.ts", "utf8");
     assert.match(source, /\.innerJoin\(employees, and\([\s\S]*?eq\(employees\.organizationId, organizationId\)/,
-      "Year-end tax read must not join employee rows from a different employer");
+      "Cross-employer employee joins are forbidden");
     assert.equal(gitBlobSha(Buffer.from(source.split("export async function POST")[0])),
-      "9f1b67735c5178d0e2172568243e25ff01b964cc", "The reviewed GET join and shared pre-POST source must remain unchanged");
+      "9f1b67735c5178d0e2172568243e25ff01b964cc");
     for (const token of ["onBoundToPayrollRun: async (tx, boundSummary) => {",
       "await enqueuePayrollRun(boundRun.id, undefined, tx);", "}, tx);"])
-      assert.ok(source.includes(token));
+      assert.ok(source.includes(token), "Atomic bind guard missing: " + token);
     return;
   }
 
@@ -5466,6 +5463,14 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/careers/admin/route.ts" && method.name === "PATCH") {
         assert.equal(verifyCareersPatchCredit(manifest), 1);
+        continue;
+      }
+      if (path === "src/app/api/year-end/route.ts" &&
+          ["GET", "POST"].includes(method.name)) {
+        // Scope-locked exception: a separate source-pinned #1804 real-HTTP proof,
+        // never an additional general proof-file allowlist entry.
+        assert.equal(proof.file, "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs");
+        assert.equal(verifyYearEndCredits(manifest), 2);
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
