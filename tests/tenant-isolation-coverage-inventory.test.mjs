@@ -1,3 +1,5 @@
+import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
+import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits, RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
@@ -242,14 +244,15 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (SECURITY_TARGETS.some(t=>key===t.path+' '+t.method) && method.status==='COVERED') {
+    assert.equal(verifySecurityCredits(manifest),3);
+    assert.equal(currentBlob,readSecurityEvidence().pins[key.slice(0,key.lastIndexOf(' '))]);return true;
+  }
   if (["src/app/api/enterprise/route.ts GET", "src/app/api/enterprise/route.ts POST"].includes(key)) {
     assert.equal(currentBlob, "be3e320df828d681ad34c034b6469cf4940846cc");
-    verifyEnterprisePostAuditSource(readFileSync("src/app/api/enterprise/route.ts", "utf8"),
-      "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
+    verifyEnterprisePostAuditSource(readFileSync("src/app/api/enterprise/route.ts", "utf8"), "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
     assert.equal(method.status, "COVERED");
-    if (method.name === "POST") {
-      assert.equal(verifyEnterprisePostCredit(manifest), 1);
-    }
+    if (method.name === "POST") assert.equal(verifyEnterprisePostCredit(manifest), 1);
     return true;
   }
   if(method.status === 'COVERED' && spendManagedTargets.some(t=>{const [verb,route]=t.split(' ');return key==='src/app/api/'+route+'/route.ts '+verb;})){
@@ -4090,6 +4093,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
+      if (SECURITY_TARGETS.some(t=>t.path===path&&t.method===method.name)) {assert.equal(verifySecurityCredits(manifest),3);continue;}
       if (RECOVERY_TARGETS.some(t => t.path === path && t.method === method.name)) {
         assert.equal(verifyRecoveryCredits(manifest), 3);
         continue;

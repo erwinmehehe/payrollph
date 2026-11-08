@@ -1,3 +1,4 @@
+import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -108,18 +109,19 @@ test("enterprise read proves a real inactive own permission set, never defaults 
   for (const bad of [{ permissionSets: [] }, { permissionSets: [{ ...payload.permissionSets[0], id: 99 }] }, { permissionSets: [{ ...payload.permissionSets[0], organizationId: 99 }] }, { permissionSets: [{ ...payload.permissionSets[0], active: true }] }, { permissionSets: [{ ...payload.permissionSets[0], permissions: ["unexpected"] }] }]) assert.throws(() => row.prove({ json: bad }, c));
 });
 
-test("platform table credits remain bounded while a separate full enterprise POST receipt is verified", async () => {
+test("five distinct platform targets preserve security-write and full enterprise POST source-pinned receipts", async () => {
   const keys = [...rows.map(r => r.key), "GET enterprise"]; assert.equal(keys.length, 5); assert.equal(new Set(keys).size, 5);
   const catalog = [...tenantFamilyCatalog("write"), ...tenantFamilyCatalog("read")]; for (const key of keys) assert.equal(catalog.filter(r => r.key === key).length, 1);
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
   for (const key of keys) {
     const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
-    if (key === "POST enterprise") {
+    const row = record.methods.find(r => r.name === method);
+    if (key === "POST developer") assert.equal(verifySecurityCredits(manifest), 3);
+    else if (key === "POST enterprise") {
       const { verifyEnterprisePostCredit } = await import("../scripts/qa/tenant-enterprise-admin-credit.mjs");
       assert.equal(verifyEnterprisePostCredit(manifest), 1);
-      assert.equal(record.methods.find(m => m.name === method).testedBy.file, "scripts/qa/tenant-enterprise-admin-http.mjs",
-        "The partial platform table row cannot claim the full POST method");
-    } else assert.equal(record.methods.find(m => m.name === method).status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP");
+      assert.equal(row.testedBy.file, "scripts/qa/tenant-enterprise-admin-http.mjs");
+    } else assert.equal(row.status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP");
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
