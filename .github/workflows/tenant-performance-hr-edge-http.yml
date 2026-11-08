@@ -1,0 +1,105 @@
+name: Performance HR edge tenant isolation (fictional PG16 HTTP)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-performance-hr-edge-http.yml'
+      - 'scripts/qa/tenant-performance-hr-edge-*.mjs'
+      - 'tests/tenant-performance-hr-edge.test.mjs'
+      - 'docs/qa/tenant-performance-hr-edge.md'
+      - 'src/app/api/performance/continuous/**'
+      - 'src/app/api/performance/development-plans/**'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-hr-edge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  performance-hr-edge:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Strict fictional-only disposable test environment
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo 'TENANT_PERFORMANCE_HR_EDGE_MODE=fictional-disposable-only' >> "$GITHUB_ENV"
+          echo 'XENDIT_BILLING_ENABLED=false' >> "$GITHUB_ENV"
+          echo 'WORKER_ENABLED=false' >> "$GITHUB_ENV"
+          echo 'CENTRAL_SCHEDULER_ENABLED=false' >> "$GITHUB_ENV"
+      - name: Test negative contracts without database, HTTP or secrets
+        run: |
+          node --check scripts/qa/tenant-performance-hr-edge-contract.mjs
+          node --check scripts/qa/tenant-performance-hr-edge-http.mjs
+          node --test tests/tenant-performance-hr-edge.test.mjs
+      - name: Ephemeral secrets for fictional database and session encryption only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start production-mode Next.js on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/performance-hr-edge-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/performance-hr-edge-server.log
+          exit 1
+      - name: Real authenticated two-manager, same-unit and cross-employer proof
+        shell: bash
+        run: env -u NODE_ENV node --import tsx scripts/qa/tenant-performance-hr-edge-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: performance-hr-edge-fictional-pg16
+          path: outputs/tenant-performance-hr-edge.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Display isolated server log only on failure
+        if: failure()
+        run: cat /tmp/performance-hr-edge-server.log || true

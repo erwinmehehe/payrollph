@@ -350,13 +350,18 @@ try {
   summary.checks.push("cross-employer-register-and-journal-denied");
   summary.result = "PASS_SYNTHETIC_APP_PATH_ONLY";
   summary.stage = "complete";
-} catch (error) {
+} catch {
   summary.result = "BLOCKED_SYNTHETIC_APP_PATH";
-  summary.failureCode = String(error instanceof Error ? error.message : "UNKNOWN")
-    .replace(/[^A-Z0-9_-]/gi, "").slice(0, 160);
+  // An HTTP/server exception may include uncontrolled response text. Never
+  // serialize even regex-stripped error messages into downloadable artifacts.
+  // The stage below identifies the fixed test phase for follow-up debugging.
+  summary.failureCode = "SYNTHETIC_CHECK_FAILED";
 } finally {
   mkdirSync("outputs", { recursive: true });
-  writeFileSync("outputs/579-synthetic-no-money-summary.json", JSON.stringify(summary, null, 2));
+  // Fixed internal output path, synthetic aggregate values and hashes only.
+  // No response body, employee row, bank preview or server error is persisted.
+  writeFileSync("outputs/579-synthetic-no-money-summary.json",
+    JSON.stringify(summary, null, 2), { mode: 0o600 });
   await pool.end();
 }
 if (summary.result !== "PASS_SYNTHETIC_APP_PATH_ONLY") {
