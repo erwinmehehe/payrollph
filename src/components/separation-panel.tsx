@@ -236,6 +236,12 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         separationPay: Number(form.separationPay),
         taxableSeparationPay: form.taxableSeparationPay.trim() === ""
           ? undefined : Number(form.taxableSeparationPay),
+        separationExemptionReason: form.taxableSeparationPay.trim() !== "" &&
+          Number(form.taxableSeparationPay) < Number(form.separationPay)
+          ? form.separationExemptionReason : undefined,
+        separationTaxEvidenceReference: form.taxableSeparationPay.trim() !== "" &&
+          Number(form.taxableSeparationPay) < Number(form.separationPay)
+          ? form.separationTaxEvidenceReference : undefined,
         retirementPay: Number(form.retirementPay),
         otherBenefits: Number(form.otherBenefits),
       }),
