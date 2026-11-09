@@ -8,7 +8,7 @@
  * parameter is genuinely absent, not when it is present but malformed.
  */
 export function canonicalPeoplePageOrganizationId(value: unknown): number | null {
-  if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) return null;
+  if (typeof value !== "string" || value !== value.trim() || !/^[1-9][0-9]*$/.test(value)) return null;
   const id = Number(value);
   return Number.isSafeInteger(id) ? id : null;
 }
