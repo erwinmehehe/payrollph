@@ -144,9 +144,12 @@ test("notification API supports assignment, acknowledgement, dismiss, and bounde
 
 test("manager visibility is limited to assigned lifecycle notification tasks", () => {
   const route = read("src/app/api/hcm/lifecycle-notifications/route.ts");
+  const reader = read("src/lib/hcm-lifecycle-notification-tenant.ts");
   assert.ok(route.includes("WORKFORCE_MANAGER_ROLES"));
   assert.ok(route.includes("companyPeopleAdmin"));
-  assert.ok(route.includes("eq(hcmLifecycleNotificationTasks.ownerUserId, user.id)"));
+  assert.ok(route.includes("readScopedLifecycleNotificationTasks"));
+  assert.ok(reader.includes("eq(hcmLifecycleNotificationTasks.ownerUserId, input.userId)"));
+  assert.ok(reader.includes("eq(hcmLifecycleNotificationTasks.organizationId, employees.organizationId)"));
 });
 
 test("scheduler runs lifecycle notifications hourly rather than on every worker tick", () => {

@@ -6,7 +6,7 @@ test('executed caller renewal rejects input, receipt and provenance mutations',(
  const r=verifyDocumentCallerReproof(ref);
  assert.equal(r.credits,0);
  assert.throws(()=>verifyDocumentCallerReproof({...ref,job:1}));
- for(const path of ['scripts/qa/tenant-document-caller-reproof-receipt.json','src/lib/auth.ts','src/app/api/benefits/hmo/route.ts','scripts/qa/hcm-work-queue-http.mjs'])
+ for(const path of ['scripts/qa/tenant-document-caller-reproof-receipt.json','scripts/qa/tenant-hcm-lifecycle-caller-source-refresh.json','src/lib/auth.ts','src/app/api/benefits/hmo/route.ts','src/app/api/hcm/lifecycle-notifications/route.ts','scripts/qa/hcm-work-queue-http.mjs'])
   assert.throws(()=>verifyDocumentCallerReproof(ref,(file,encoding)=>file===path?readFileSync(file,encoding)+'\n':readFileSync(file,encoding)),path);
 });
 test('reproof refuses a local/non-CI target before importing DB modules',()=>{
