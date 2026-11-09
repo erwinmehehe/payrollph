@@ -188,7 +188,8 @@ export async function verifyPeoplePagesTenantIsolation() {
     for (const page of [goals, engagement]) {
       assertDeniedPage(await readLocal(page(a.org.id), a.cookie), subjects,
         "same authenticated session, revoked employer");
-      assertDeniedPage(await readLocal(page(), a.cookie), subjects,
+      assertDeniedPage(await readLocal(
+        page === goals ? "/app/goals-reviews" : "/app/engagement", a.cookie), subjects,
         "same authenticated session, removed primary employer");
     }
     assertDeniedApi(await readLocal(surveys(a.org.id), a.cookie),
