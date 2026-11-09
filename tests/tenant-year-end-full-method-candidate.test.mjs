@@ -48,7 +48,7 @@ test("source-pinned current year-end GET+POST proof receives only provisional #1
   }
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign +
-    manifest.metrics.gap, manifest.metrics.methods);
+    manifest.metrics.privilegedOperationsTokenOnly + manifest.metrics.gap, manifest.metrics.methods);
 });
 
 test("year-end routes require active employer authority and employee-employer matching", () => {
