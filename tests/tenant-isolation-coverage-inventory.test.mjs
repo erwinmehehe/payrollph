@@ -1,5 +1,6 @@
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
+import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits, RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
@@ -307,66 +308,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       }
     }
   }
-  // POST account/email is an account-wide identity action, not an employer ID
-  // selector. Require the current password BEFORE any global email-existence
-  // lookup. The dedicated two-attacker/four-account PG16 proof is a candidate,
-  // not accepted evidence. Keep the method GAP and source-pin this exception
-  // until an independent security review and fresh main-line reconciliation.
-  if (isNewOrChanged && key === "src/app/api/account/email/route.ts POST") {
-    assert.equal(method.status, "GAP", "unreviewed email request must remain GAP");
-    assert.equal(method.testedBy, null, "candidate SMTP/PG16 proof is not yet a coverage credit");
-    const oldSha = "0bb833a3219e5f4b136276b6327b2b1a69563bb9";
-    const hardenedSha = "b9c759114b8082b3493ef3c4671134dabbf7e72e";
-    assert.equal(currentBlob, hardenedSha, "email request source drift requires new proof");
-    assert.equal(manifest.allApiRouteFiles["src/app/api/account/email/route.ts"].gitBlobSha, hardenedSha);
-    assert.match(method.reason, /^Still GAP:/, "new evidence is not accepted automatically");
-    const review = method.reviewedUncertified;
-    assert.deepEqual(review, {
-      kind: "account-email-request-reauth-before-global-uniqueness-zero-credit",
-      originalRouteBlobSha: oldSha,
-      routeBlobSha: hardenedSha,
-      runnerFile: "scripts/qa/tenant-account-email-request-http.mjs",
-      runnerBlobSha: "2fb082e2369960d5a0b39551ffec5b8b13498387",
-      contractFile: "scripts/qa/tenant-account-email-request-contract.mjs",
-      contractBlobSha: "ba1dfef040197adb94e5b2deda14d3520360925f",
-      testFile: "tests/tenant-account-email-request-contract.test.mjs",
-      testBlobSha: "4842269e62ddc6bd591e71c09e1247962bce57fb",
-      workflowFile: ".github/workflows/tenant-account-email-request-http.yml",
-      workflowBlobSha: "9a2af396fa9ea70adca8ebf7035bd41a83b8829f",
-      coverageCredits: 0,
-      independentSecurityReview: "PENDING",
-      productionTested: false,
-      exactHeadPg16Http: "PENDING",
-    }, "Only the exact reviewed, still-uncredited route/SMTP proof is permitted");
-    for (const [file, sha] of [
-      [review.runnerFile, review.runnerBlobSha],
-      [review.contractFile, review.contractBlobSha],
-      [review.testFile, review.testBlobSha],
-      [review.workflowFile, review.workflowBlobSha],
-    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
-      "Email request PG16 evidence source changed; renew independent review: " + file);
-
-    const route = readFileSync("src/app/api/account/email/route.ts", "utf8");
-    const authentication = route.indexOf("if (!verifyPassword(password, account.passwordHash))");
-    const uniqueness = route.indexOf("eq(users.email, email)");
-    assert.ok(authentication > 0 && uniqueness > authentication,
-      "wrong password must not reveal whether a foreign user's email is taken");
-    assert.match(route, /eq\(users.id, user.id\)/);
-    assert.match(route, /eq\(emailChangeTokens.userId, account.id\)/);
-    assert.match(route, /userId: account.id/);
-    assert.match(route, /primaryOrganizationId\(account.id\)/);
-    const runner = readFileSync(review.runnerFile, "utf8");
-    for (const evidence of [
-      'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
-      "assertOwnEmailRequest(response, email, forbidden)",
-      "assertEmailRequestDenied(response, status, forbidden)",
-      "assertPersistedUnchanged(victimBefore",
-      "assertPersistedUnchanged(peerBefore",
-      "victimEmailHiddenWithoutCurrentPassword: true",
-      "ownTokenSupersession: true",
-      "coverageCredits: 0",
-    ]) assert.ok(runner.includes(evidence), "Email request proof is incomplete: " + evidence);
-    return; // No tenant method credit and no bypass of other GAP handlers.
+  // Distinct provisional account-email REQUEST credit from source-identical passing PG16 HTTP/local SMTP job.
+  if (key === "src/app/api/account/email/route.ts POST") {
+    assert.equal(currentBlob, "b9c759114b8082b3493ef3c4671134dabbf7e72e",
+      "changed account-email handler needs new real-HTTP proof");
+    assert.equal(verifyAccountEmailRequestCredit(manifest), 1);
+    return true;
   }
 
   // POST-only immutable-timeline SQL fix: exact-source, review-only and zero credit.
@@ -4187,6 +4134,12 @@ test("all credited proof links point to the claimed route and every recertified 
            "src/app/api/billing/subscription/cancel/route.ts"].includes(path) && method.name === "POST") {
         assert.equal(verifyBillingSubscriptionCredits(manifest), 2,
           "Both billing POST methods need exact owned/foreign/unchanged receipts");
+        continue;
+      }
+      // Scope-locked to the separately sealed, source-pinned request-initiation proof.
+      // Do not broaden the general evidence-source allowlist.
+      if (path === "src/app/api/account/email/route.ts" && method.name === "POST") {
+        assert.equal(verifyAccountEmailRequestCredit(manifest), 1);
         continue;
       }
       if (path === "src/app/api/account/email/verify/route.ts" && method.name === "POST") {

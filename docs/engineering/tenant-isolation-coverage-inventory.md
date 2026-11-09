@@ -1,4 +1,6 @@
-> **Invitation acceptance GET + POST provisional source-pinned recovery — NOT ACCEPTED:** 498 methods = 449 COVERED + 11 PUBLIC-BY-DESIGN + 38 GAP. Two separate passing fictional PG16 HTTP receipts, no production or global isolation acceptance. Exact-head CI and identity/security/privacy review PENDING.
+> **Combined main account-email + invitation acceptance GET/POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = 450 COVERED + 11 PUBLIC-BY-DESIGN + 37 GAP. Distinct source-pinned fictional PG16 proof receipts; independent identity/security/privacy review and final-head CI PENDING. No production or tenant-wide acceptance.
+
+> **Combined enterprise POST + account-email-request POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 39 GAP. Both distinct source-pinned methods are provisional. Independent identity/security review PENDING; NOT ACCEPTED for production.
 
 > **Current enterprise-admin POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = 447 COVERED + 11 PUBLIC-BY-DESIGN + 40 GAP. Includes the merged multi-entity transfer POST/PATCH proofs (446 baseline COVERED) and one distinct enterprise-admin POST method; independent security review PENDING; NOT ACCEPTED for production.
 
@@ -125,9 +127,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 38 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 37 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 40 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 37 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -236,9 +238,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 449 |
+| coveredAfter | 450 |
 | publicByDesign | 11 |
-| gap | 38 |
+| gap | 37 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -354,7 +356,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 
 | Route + method (source) | Employer source signal | Auth helper (file:line) | Client ID reference | Evidence | Status |
 |---|---|---|---|---|---|
-| [`account/email` POST](../../src/app/api/account/email/route.ts#L22) | SESSION, BODY_CANDIDATE | getSessionUser L5, getSessionUser L29 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`account/email` POST](../../src/app/api/account/email/route.ts#L22) | SESSION, BODY_CANDIDATE | getSessionUser L5, getSessionUser L29 | none found | [source-pinned PG16 own/foreign email request](../../scripts/qa/tenant-account-email-request-http.mjs#L262) ([passing job](https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810)) | **COVERED** |
 | [`account/email/verify` POST](../../src/app/api/account/email/verify/route.ts#L13) | BODY_CANDIDATE | NONE FOUND | none found | [token-scoped PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/42316473226/job/128230185900) | **COVERED** |
 | [`account/password` POST](../../src/app/api/account/password/route.ts#L29) | SESSION, BODY_CANDIDATE | getSessionUser L9, getSessionUser L39 | none found | [account/password dedicated proof](../../scripts/qa/tenant-account-password-http.mjs#L108) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531)) | **COVERED** |
 | [`account/profile` POST](../../src/app/api/account/profile/route.ts#L13) | SESSION, BODY_CANDIDATE | getSessionUser L6, getSessionUser L17 | none found | [three-org HTTP L660](../../scripts/qa/tenant-second-pass-http.mjs#L660) | **COVERED** |
