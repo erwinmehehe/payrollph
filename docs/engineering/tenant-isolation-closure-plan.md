@@ -1,4 +1,4 @@
-> **Combined main + invitation acceptance GET/POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = **450 COVERED + 11 PUBLIC-BY-DESIGN + 37 GAP**; frozen 406 = 366 COVERED / 3 PUBLIC / 37 GAP. One main account-email credit and two separate invitation credits remain subject to final-head CI and independent identity/security review. No production authorization.
+> **Combined main + invitation acceptance GET/POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = 450 COVERED + 11 PUBLIC-BY-DESIGN + 37 GAP; frozen 406 = 366 COVERED / 3 PUBLIC / 37 GAP. One main account-email credit and two separate invitation credits remain subject to final-head CI and independent identity/security review. No production authorization.
 
 > **Combined #1846 enterprise + #1862 account-email request proposals — PROVISIONAL / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 39 GAP; frozen subtotal 364 COVERED / 3 PUBLIC / 39 GAP. Two separate exact-source provisional POST method credits; independent security/identity review and final-head CI PENDING. No production activation.
 
