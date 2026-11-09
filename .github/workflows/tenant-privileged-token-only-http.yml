@@ -1,0 +1,85 @@
+name: Tenant token-only operations denial (fictional PG16 HTTP)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'scripts/qa/tenant-privileged-token-only-http.mjs'
+      - 'tests/tenant-privileged-token-only.test.mjs'
+      - '.github/workflows/tenant-privileged-token-only-http.yml'
+permissions:
+  contents: read
+jobs:
+  token-only-denials:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TENANT_PRIVILEGED_MODE: fictional-pg16-negative-only
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_URL: ''
+      STRIPE_SECRET_KEY: ''
+      CRON_SECRET: fictional-cron-authority-aaaaaaaaaaaaaaaaaaaa
+      WORKER_TOKEN: fictional-worker-authority-bbbbbbbbbbbbbbbbbbbb
+      SCHEDULER_MONITOR_TOKEN: fictional-monitor-authority-cccccccccccccccccc
+      READINESS_TOKEN: fictional-readiness-authority-dddddddddddddddddd
+      HEALTH_TOKEN: fictional-health-authority-eeeeeeeeeeeeeeeeeeee
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install disposable PG16 environment
+        run: node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+      - name: Static token classification and syntax guard
+        run: |
+          node --check scripts/qa/tenant-privileged-token-only-http.mjs
+          node --test tests/tenant-privileged-token-only.test.mjs
+      - name: Build production-mode application for loopback HTTP
+        run: npm run build
+      - name: Start loopback Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/tenant-token-only-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then exit 1; fi
+            sleep 2
+          done
+          exit 1
+      - name: Execute only denied credentials over real HTTP (never valid ticks)
+        run: node --import tsx --test scripts/qa/tenant-privileged-token-only-http.mjs
