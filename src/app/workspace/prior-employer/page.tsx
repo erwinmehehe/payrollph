@@ -31,7 +31,7 @@ export default async function PriorPage({ searchParams }: {
       (taxYear !== undefined && typeof taxYear !== "string")) notFound();
 
   return <>
-    <p className="mx-auto max-w-5xl px-6 pt-5 text-sm text-slate-600">
+    <p data-organization-id={organizationId} className="mx-auto max-w-5xl px-6 pt-5 text-sm text-slate-600">
       Authorized payroll employer: #{organizationId}
     </p>
     <YearEndPriorReview organizationId={organizationId} userId={user.id}
