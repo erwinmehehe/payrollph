@@ -40820,140 +40820,119 @@
   "scopedPages": [
     {
       "path": "src/app/app/engagement/page.tsx",
-      "blob": "caf09023985ba92210805555c8272b2f24df3f07",
+      "blob": "8ddecfc89f1f8b23deeaefa410c00f36b072922e",
       "ids": [
         {
-          "line": 13,
+          "line": 16,
           "token": "searchParams"
-        },
-        {
-          "line": 14,
-          "token": "searchParams"
-        },
-        {
-          "line": 14,
-          "token": "organizationId"
-        },
-        {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 19,
-          "token": "searchParams"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 25,
-          "token": "organizationId"
-        },
-        {
-          "line": 25,
-          "token": "organizationId"
-        },
-        {
-          "line": 26,
-          "token": "organizationId"
-        },
-        {
-          "line": 27,
-          "token": "organizationId"
-        },
-        {
-          "line": 27,
-          "token": "organizationId"
-        }
-      ],
-      "actions": [],
-      "guards": [
-        {
-          "line": 7,
-          "token": "getSessionUser"
         },
         {
           "line": 17,
-          "token": "getSessionUser"
-        }
-      ],
-      "business": [
-        {
-          "line": 14,
-          "token": "organizationId"
-        },
-        {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 25,
-          "token": "organizationId"
-        },
-        {
-          "line": 25,
-          "token": "organizationId"
-        },
-        {
-          "line": 26,
-          "token": "organizationId"
-        },
-        {
-          "line": 27,
-          "token": "organizationId"
-        },
-        {
-          "line": 27,
-          "token": "organizationId"
-        }
-      ],
-      "hasAction": false,
-      "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
-    },
-    {
-      "path": "src/app/app/goals-reviews/page.tsx",
-      "blob": "0792de4c8cbcb4efdf40ecfb986cb140561d5749",
-      "ids": [
-        {
-          "line": 15,
           "token": "searchParams"
         },
         {
-          "line": 16,
-          "token": "searchParams"
-        },
-        {
-          "line": 16,
+          "line": 17,
           "token": "organizationId"
-        },
-        {
-          "line": 21,
-          "token": "organizationId"
-        },
-        {
-          "line": 21,
-          "token": "searchParams"
         },
         {
           "line": 22,
           "token": "organizationId"
         },
         {
-          "line": 23,
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 25,
           "token": "organizationId"
         },
         {
-          "line": 23,
+          "line": 30,
           "token": "organizationId"
         },
         {
-          "line": 24,
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "employeeId"
+        },
+        {
+          "line": 39,
+          "token": "employeeId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        }
+      ],
+      "actions": [],
+      "guards": [
+        {
+          "line": 5,
+          "token": "assertMembership"
+        },
+        {
+          "line": 5,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 5,
+          "token": "getAccess"
+        },
+        {
+          "line": 8,
+          "token": "singleLegalEntityForTenant"
+        },
+        {
+          "line": 10,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 20,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 31,
+          "token": "assertMembership"
+        },
+        {
+          "line": 36,
+          "token": "getAccess"
+        },
+        {
+          "line": 37,
+          "token": "singleLegalEntityForTenant"
+        },
+        {
+          "line": 42,
+          "token": "assertOrganizationRole"
+        }
+      ],
+      "business": [
+        {
+          "line": 17,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
           "token": "organizationId"
         },
         {
@@ -40961,15 +40940,102 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
+          "line": 30,
           "token": "organizationId"
         },
         {
-          "line": 35,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 35,
+          "line": 36,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        }
+      ],
+      "hasAction": false,
+      "status": "GAP",
+      "reason": "Still GAP: #1876 exact-source People/HR feature-ON SSR GET and survey GET use fictional PG16 own/foreign/forged/revoked proof. Unaccepted for interaction, POST and employee privacy acceptance; 0 credits.",
+      "reviewedUncertified": {
+        "kind": "people-engagement-goals-SSR-GET-PG16-unaccepted",
+        "originalPageBlobSha": "caf09023985ba92210805555c8272b2f24df3f07",
+        "pageBlobSha": "8ddecfc89f1f8b23deeaefa410c00f36b072922e",
+        "selectorFile": "src/lib/tenant-people-page-employer.ts",
+        "selectorBlobSha": "0f34a6276889c396c6287e0a830c02d7b05acdc9",
+        "proofFile": "scripts/qa/tenant-people-pages-http.mjs",
+        "proofBlobSha": "fad1f0ad45d41d158cee968e7b9de0188ed9030e",
+        "contractFile": "scripts/qa/tenant-people-pages-contract.mjs",
+        "contractBlobSha": "29bedeb0bfa584a184ea89a9e6ca51c099e2dcb4",
+        "contractTestFile": "tests/tenant-people-pages-contract.test.mjs",
+        "contractTestBlobSha": "49bad9e706940e096b755f553d98609b7f909dfa",
+        "selectorTestFile": "tests/tenant-people-page-employer.test.ts",
+        "selectorTestBlobSha": "c2183b9b046c968a752a7ad3e750ecd8d89fb18c",
+        "workflowFile": ".github/workflows/tenant-people-pages-qa.yml",
+        "workflowBlobSha": "78cf181743c1e612e22c6f2eec66f2f3ed1a2342",
+        "priorPassedHead": "6c5f7030af63af236b0cc176873ca3fe91afd9ea",
+        "priorPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/42590838431/job/129071762836",
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
+    },
+    {
+      "path": "src/app/app/goals-reviews/page.tsx",
+      "blob": "4989da5727ea5a55d0565fec6eb0af71cbb6046c",
+      "ids": [
+        {
+          "line": 16,
+          "token": "searchParams"
+        },
+        {
+          "line": 17,
+          "token": "searchParams"
+        },
+        {
+          "line": 17,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "searchParams"
+        },
+        {
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
           "token": "organizationId"
         },
         {
@@ -40986,6 +41052,14 @@
         },
         {
           "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
           "token": "organizationId"
         }
       ],
@@ -41004,25 +41078,29 @@
           "token": "getSessionUser"
         },
         {
-          "line": 19,
+          "line": 10,
+          "token": "singleLegalEntityForTenant"
+        },
+        {
+          "line": 20,
           "token": "getSessionUser"
         },
         {
-          "line": 24,
+          "line": 27,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 25,
+          "line": 28,
           "token": "getAccess"
+        },
+        {
+          "line": 32,
+          "token": "singleLegalEntityForTenant"
         }
       ],
       "business": [
         {
-          "line": 16,
-          "token": "organizationId"
-        },
-        {
-          "line": 21,
+          "line": 17,
           "token": "organizationId"
         },
         {
@@ -41034,27 +41112,19 @@
           "token": "organizationId"
         },
         {
-          "line": 23,
+          "line": 26,
           "token": "organizationId"
         },
         {
-          "line": 24,
+          "line": 27,
           "token": "organizationId"
         },
         {
-          "line": 25,
+          "line": 28,
           "token": "organizationId"
         },
         {
-          "line": 29,
-          "token": "organizationId"
-        },
-        {
-          "line": 35,
-          "token": "organizationId"
-        },
-        {
-          "line": 35,
+          "line": 32,
           "token": "organizationId"
         },
         {
@@ -41071,12 +41141,42 @@
         },
         {
           "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: #1876 exact-source People/HR feature-ON SSR GET and survey GET use fictional PG16 own/foreign/forged/revoked proof. Unaccepted for interaction, POST and employee privacy acceptance; 0 credits.",
+      "reviewedUncertified": {
+        "kind": "people-engagement-goals-SSR-GET-PG16-unaccepted",
+        "originalPageBlobSha": "0792de4c8cbcb4efdf40ecfb986cb140561d5749",
+        "pageBlobSha": "4989da5727ea5a55d0565fec6eb0af71cbb6046c",
+        "selectorFile": "src/lib/tenant-people-page-employer.ts",
+        "selectorBlobSha": "0f34a6276889c396c6287e0a830c02d7b05acdc9",
+        "proofFile": "scripts/qa/tenant-people-pages-http.mjs",
+        "proofBlobSha": "fad1f0ad45d41d158cee968e7b9de0188ed9030e",
+        "contractFile": "scripts/qa/tenant-people-pages-contract.mjs",
+        "contractBlobSha": "29bedeb0bfa584a184ea89a9e6ca51c099e2dcb4",
+        "contractTestFile": "tests/tenant-people-pages-contract.test.mjs",
+        "contractTestBlobSha": "49bad9e706940e096b755f553d98609b7f909dfa",
+        "selectorTestFile": "tests/tenant-people-page-employer.test.ts",
+        "selectorTestBlobSha": "c2183b9b046c968a752a7ad3e750ecd8d89fb18c",
+        "workflowFile": ".github/workflows/tenant-people-pages-qa.yml",
+        "workflowBlobSha": "78cf181743c1e612e22c6f2eec66f2f3ed1a2342",
+        "priorPassedHead": "6c5f7030af63af236b0cc176873ca3fe91afd9ea",
+        "priorPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/42590838431/job/129071762836",
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/app/page.tsx",
