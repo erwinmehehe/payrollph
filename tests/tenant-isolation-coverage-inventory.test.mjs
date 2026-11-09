@@ -19,7 +19,8 @@ import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
-import { verifyReconciledFamilyCredits } from "../scripts/qa/tenant-family-reconciliation.mjs";
+import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
+import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 /**
@@ -245,6 +246,13 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   if (SECURITY_TARGETS.some(t=>key===t.path+' '+t.method) && method.status==='COVERED') {
     assert.equal(verifySecurityCredits(manifest),3);
     assert.equal(currentBlob,readSecurityEvidence().pins[key.slice(0,key.lastIndexOf(' '))]);return true;
+  }
+  if (["src/app/api/enterprise/route.ts GET", "src/app/api/enterprise/route.ts POST"].includes(key)) {
+    assert.equal(currentBlob, "be3e320df828d681ad34c034b6469cf4940846cc");
+    verifyEnterprisePostAuditSource(readFileSync("src/app/api/enterprise/route.ts", "utf8"), "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
+    assert.equal(method.status, "COVERED");
+    if (method.name === "POST") assert.equal(verifyEnterprisePostCredit(manifest), 1);
+    return true;
   }
   if(method.status === 'COVERED' && spendManagedTargets.some(t=>{const [verb,route]=t.split(' ');return key==='src/app/api/'+route+'/route.ts '+verb;})){
     assert.equal(verifySpendManaged(manifest),3);return true;
@@ -4113,6 +4121,10 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if (path === "src/app/api/migrations/route.ts" && method.name === "POST") {
         assert.equal(verifyMigrationPostCredit(manifest), 1);
+        continue;
+      }
+      if (path === "src/app/api/enterprise/route.ts" && method.name === "POST") {
+        assert.equal(verifyEnterprisePostCredit(manifest), 1);
         continue;
       }
       if (path === "src/app/api/workforce-planning/route.ts" && ["POST","PATCH"].includes(method.name)) {
