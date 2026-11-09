@@ -9137,7 +9137,7 @@
               "notes",
               "sourcePath",
               "attribution",
-              "consent",
+              "privacyConsent",
               "intakeProof",
               "website"
             ],
@@ -22074,7 +22074,7 @@
               "entities",
               "notes",
               "attribution",
-              "consent",
+              "privacyConsent",
               "intakeProof",
               "website"
             ],
