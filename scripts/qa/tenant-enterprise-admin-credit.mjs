@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
+import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
 export const ENTERPRISE_POST_PATH='src/app/api/enterprise/route.ts';
 const RECEIPT='scripts/qa/tenant-enterprise-admin-credit-receipt.json';
 const RECEIPT_DIGEST='769e27deb13047cd65cfe055f6bf2e8678f41866082d5bb94a931e62abf137b2';
@@ -25,7 +26,10 @@ function evidence(read=readFileSync){const raw=read(RECEIPT,'utf8').toString().r
  assert.equal(r.method.independentSecurityReview,'PENDING');
  assert.equal(r.method.productionTested,false);
 
- for(const [file,sha] of Object.entries(r.pins))assert.equal(blob(read(file)),sha,'Enterprise proof/runtime drift: '+file);
+ for(const [file,sha] of Object.entries(r.pins)){
+   if(file==='next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha);
+   else assert.equal(blob(read(file)),sha,'Enterprise proof/runtime drift: '+file);
+ }
  assert.equal(r.result.routeBlobSha,r.pins[ENTERPRISE_POST_PATH]);assert.equal(r.result.proofBlobSha,r.pins[r.method.file]);assert.equal(r.result.stateBlobSha,r.pins['scripts/qa/tenant-enterprise-admin-state.mjs']);
  for(const [field,fragment] of Object.entries({ownPositiveLine:'const response=await post(actor.cookie,payload)',foreignDenialLine:'organizationId:victim.org.id}),403',unchangedDbLine:"'final victim unchanged'",forgedSelectorLine:"404,'forged '",writeDiscriminationLine:"write validator accepts another employer",persistedStateLine:'assertEnterpriseMutation(before,after,payload,value,actor.owner.id)',victimIdOrderingLine:'victim.org.id>Math.max(a.org.id,b.org.id,6)'}))assert.ok(read(r.method.file,'utf8').split('\n')[r.method[field]-1]?.includes(fragment),'Lost enterprise proof anchor: '+field);
  return r;

@@ -137,6 +137,42 @@ export async function verifyInvitationAcceptUnitBoundary() {
     assert.equal(invalid.status, 400, "unknown token must fail");
     noLeak(invalid);
 
+
+    // Force a real PostgreSQL audit INSERT failure after the token claim and
+    // user/membership inserts. These must all roll back as one transaction.
+    const beforeVeto = await snapshot(a);
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION qa_invite_audit_veto() RETURNS trigger
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.action = 'Invitation accepted'
+          AND NEW.resource LIKE 'invite-a-own-%@example.invalid' THEN
+          RAISE EXCEPTION 'fictional invitation audit veto';
+        END IF;
+        RETURN NEW;
+      END;
+      $$
+    `);
+    await pool.query(`
+      CREATE TRIGGER qa_invite_audit_veto BEFORE INSERT ON audit_events
+      FOR EACH ROW EXECUTE FUNCTION qa_invite_audit_veto()
+    `);
+    try {
+      const auditDenied = await post(own.a.token);
+      assert.equal(auditDenied.status, 409,
+        "audit-veto failure must deny acceptance, not commit an unaudited account");
+      assert.equal(auditDenied.headers.get("set-cookie"), null,
+        "audit-veto rollback must not issue an authenticated session");
+      noLeak(auditDenied);
+      assert.deepEqual(await snapshot(a), beforeVeto,
+        "audit-veto rollback must restore invitation, identity, membership and audit");
+      assert.deepEqual(await snapshot(victim), victimBefore,
+        "audit-veto rollback must never mutate the real higher-ID victim");
+    } finally {
+      await pool.query("DROP TRIGGER IF EXISTS qa_invite_audit_veto ON audit_events");
+      await pool.query("DROP FUNCTION IF EXISTS qa_invite_audit_veto()");
+    }
+
     const createdAccounts = [];
     for (const [employer, key, other] of [[a, "a", b], [b, "b", a]]) {
       const otherBefore = await snapshot(other);
@@ -181,7 +217,7 @@ export async function verifyInvitationAcceptUnitBoundary() {
       kind: "tenant-invitations-accept-unit-boundary", method: "POST invitations/accept",
       independentOwnSuccesses: 2, higherIdVictim: true, deniedForeignUnits: 2,
       deniedInactiveUnit: true, forgedSelectorsIgnored: true, singleUse: true,
-      crossSiteDenied: true, victimUnchanged: true, coverageCredits: 0,
+      crossSiteDenied: true, victimUnchanged: true, auditVetoRolledBack: true, coverageCredits: 0,
       independentlyAccepted: false,
     }));
   } finally {

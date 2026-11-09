@@ -746,19 +746,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
       "origin/main must not contain a partial five-method proof recovery");
     const baselineHasRecovery = mainRecoveryCredits[0];
-    // Both dedicated transfer methods must be credited together, or held together.
-    const baselineTransferCredits = ['POST', 'PATCH'].filter(name =>
-      baseline.allApiRouteFiles['src/app/api/multi-entity/transfers/route.ts']
-        .methods.find(method => method.name === name)?.status === 'COVERED').length;
+    // Transfer POST/PATCH must be reconciled as a pair even when the three
+    // separate historical recovery receipts are absent from the base branch.
+    const baselineTransferCredits = ["POST", "PATCH"].filter(verb =>
+      baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+        .methods.find(method => method.name === verb)?.status === "COVERED").length;
     assert.ok([0, 2].includes(baselineTransferCredits),
-      'Transfer POST/PATCH proof must not be partially merged');
+      "The two transfer credits must be either both held or both independently evidenced");
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
-        "Both source-pinned transfer receipts must be present or both held");
+        "Historical five-method holds must reflect only the dedicated validated transfer promotion");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
@@ -825,20 +826,6 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for(const t of baselineSecurity)expectedOriginalMain[t.path][t.method]='COVERED';
-    // The enterprise POST credit was merged independently into main as #1846.
-    // Validate its complete source-pinned receipt before recognizing this
-    // baseline promotion; an unproved status is never silently accepted.
-    const baselineEnterprise = baseline.allApiRouteFiles["src/app/api/enterprise/route.ts"]
-      ?.methods.find(row => row.name === "POST");
-    const baselineEnterpriseCredits = baselineEnterprise?.status === "COVERED" ? 1 : 0;
-    if (baselineEnterpriseCredits) {
-      assert.equal(verifyEnterprisePostCredit(baseline), 1);
-      expectedOriginalMain["src/app/api/enterprise/route.ts"].POST = "COVERED";
-    } else {
-      assert.equal(baselineEnterprise?.status, "GAP");
-      assert.equal(baselineEnterprise?.testedBy, null);
-    }
-
     const baselineRecovery=RECOVERY_TARGETS.filter(t=>baseline.allApiRouteFiles[t.path].methods.find(x=>x.name===t.method).status==='COVERED');
     if(baselineRecovery.length){assert.equal(baselineRecovery.length,3);verifyRecoveryCredits(baseline);}
     for(const t of baselineRecovery)expectedOriginalMain[t.path][t.method]='COVERED';
@@ -948,6 +935,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }).length;
     assert.ok([0, 2].includes(baselineBillingCredits), "Billing credits must merge as a complete two-method PR");
     if (baselineBillingCredits) for (const path of billingPaths) expectedOriginalMain[path].POST = "COVERED";
+    // Source-verified enterprise POST was merged independently after the immutable snapshot.
+    const baselineEnterprise = baseline.allApiRouteFiles["src/app/api/enterprise/route.ts"]?.methods.find(row => row.name === "POST");
+    const baselineEnterpriseCredits = baselineEnterprise?.status === "COVERED" ? verifyEnterprisePostCredit(baseline) : 0;
+    if (baselineEnterpriseCredits) expectedOriginalMain["src/app/api/enterprise/route.ts"].POST = "COVERED";
+    else {
+      assert.equal(baselineEnterprise?.status, "GAP", "Uncredited enterprise POST must remain a GAP");
+      assert.equal(baselineEnterprise?.testedBy, null, "Uncredited enterprise POST must not borrow proof");
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
