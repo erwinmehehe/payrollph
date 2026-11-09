@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   // Authentication and full-employer authorization always precede any data read.
-  // Never call buildReadinessPayload(): it includes cross-employer operational data.
+  // Never call the platform-wide operational loader; it includes cross-employer data.
   try {
     return await buildTenantWorkspaceReadiness(organizationId);
   } catch {
