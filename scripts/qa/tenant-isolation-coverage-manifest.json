@@ -17628,26 +17628,33 @@
       ]
     },
     "src/app/api/invitations/accept/route.ts": {
-      "gitBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+      "gitBlobSha": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
       "route": "invitations/accept",
       "methods": [
         {
           "name": "GET",
-          "line": 15,
+          "line": 22,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null,
           "reviewedUncertified": {
-            "kind": "invitation-accept-active-unit-source-boundary-zero-credit",
+            "kind": "invitation-accept-atomic-audit-and-preview-privacy-source-only-zero-credit",
             "method": "GET",
-            "originalRouteBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
-            "routeBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+            "originalRouteBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+            "previousUnitFixOriginalRouteBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
+            "routeBlobSha": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
             "proofFile": "scripts/qa/tenant-invitations-accept-http.mjs",
-            "proofBlobSha": "08df4e136510665fa4d332e4aa736d4a57d806e9",
+            "proofBlobSha": "275139790f149e6b435a189f779b915d62c0af8e",
             "contractFile": "tests/tenant-invitations-accept-contract.test.mjs",
-            "contractBlobSha": "14c880c73049cec6e8edd791e6795ca2187f286f",
+            "contractBlobSha": "eb0c49c5cb641d3fcaebd888928f0e6e9e853580",
             "workflowFile": ".github/workflows/tenant-invitations-accept-http.yml",
             "workflowBlobSha": "2349218797c58ab17d9abebe938461f0cabc817a",
+            "previewProofFile": "scripts/qa/tenant-invitation-preview-get-http.mjs",
+            "previewProofBlobSha": "4186267e9a163d9b6f49b0ce7dd6330fb19c1848",
+            "previewContractFile": "tests/tenant-invitation-preview-get-contract.test.mjs",
+            "previewContractBlobSha": "db954694b11a5421d7bb69cbfeeb1d0711e69173",
+            "previewWorkflowFile": ".github/workflows/tenant-invitation-preview-get-http.yml",
+            "previewWorkflowBlobSha": "6d8e5e919ed91ca2eadc490c058405c1a1e5bf5e",
             "methodCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -17656,21 +17663,28 @@
         },
         {
           "name": "POST",
-          "line": 23,
+          "line": 33,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null,
           "reviewedUncertified": {
-            "kind": "invitation-accept-active-unit-source-boundary-zero-credit",
+            "kind": "invitation-accept-atomic-audit-and-preview-privacy-source-only-zero-credit",
             "method": "POST",
-            "originalRouteBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
-            "routeBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+            "originalRouteBlobSha": "1ce20257f7f3efa9ca380712d4dd485397a06814",
+            "previousUnitFixOriginalRouteBlobSha": "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
+            "routeBlobSha": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
             "proofFile": "scripts/qa/tenant-invitations-accept-http.mjs",
-            "proofBlobSha": "08df4e136510665fa4d332e4aa736d4a57d806e9",
+            "proofBlobSha": "275139790f149e6b435a189f779b915d62c0af8e",
             "contractFile": "tests/tenant-invitations-accept-contract.test.mjs",
-            "contractBlobSha": "14c880c73049cec6e8edd791e6795ca2187f286f",
+            "contractBlobSha": "eb0c49c5cb641d3fcaebd888928f0e6e9e853580",
             "workflowFile": ".github/workflows/tenant-invitations-accept-http.yml",
             "workflowBlobSha": "2349218797c58ab17d9abebe938461f0cabc817a",
+            "previewProofFile": "scripts/qa/tenant-invitation-preview-get-http.mjs",
+            "previewProofBlobSha": "4186267e9a163d9b6f49b0ce7dd6330fb19c1848",
+            "previewContractFile": "tests/tenant-invitation-preview-get-contract.test.mjs",
+            "previewContractBlobSha": "db954694b11a5421d7bb69cbfeeb1d0711e69173",
+            "previewWorkflowFile": ".github/workflows/tenant-invitation-preview-get-http.yml",
+            "previewWorkflowBlobSha": "6d8e5e919ed91ca2eadc490c058405c1a1e5bf5e",
             "methodCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -17691,66 +17705,66 @@
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 24,
+          "line": 34,
           "token": "enforceSameOriginMutation"
         }
       ],
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 67,
+          "line": 77,
           "token": "orgUnitId"
         },
         {
-          "line": 67,
+          "line": 77,
           "token": "orgUnitId"
         },
         {
-          "line": 68,
+          "line": 78,
           "token": "organizationId"
         },
         {
-          "line": 68,
+          "line": 78,
           "token": "organizationId"
         },
         {
-          "line": 101,
+          "line": 111,
           "token": "organizationId"
         },
         {
-          "line": 101,
+          "line": 111,
           "token": "organizationId"
         },
         {
-          "line": 103,
+          "line": 113,
           "token": "orgUnitId"
         },
         {
-          "line": 103,
+          "line": 113,
           "token": "orgUnitId"
         },
         {
-          "line": 120,
+          "line": 119,
           "token": "organizationId"
         },
         {
-          "line": 120,
+          "line": 119,
           "token": "organizationId"
         },
         {
-          "line": 124,
+          "line": 123,
           "token": "orgUnitId"
         },
         {
-          "line": 124,
+          "line": 123,
           "token": "orgUnitId"
         },
         {
-          "line": 131,
+          "line": 144,
           "token": "organizationId"
         },
         {
-          "line": 131,
+          "line": 144,
           "token": "organizationId"
         }
       ]

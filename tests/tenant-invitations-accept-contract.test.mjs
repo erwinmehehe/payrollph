@@ -62,6 +62,22 @@ test("the invite unit must be active and belong to the invited employer before c
   assert.match(post, /gt\(invitations\.expiresAt,\s*new Date\(\)\)/);
 });
 
+test("audit acceptance is transactional with token claim, new account and membership", () => {
+  const post = route().split("export async function POST(request: Request)")[1];
+  const txAt = post.indexOf("db.transaction(async (tx) => {");
+  const grantAt = post.indexOf("tx.insert(userOrganizations)", txAt);
+  const auditAt = post.indexOf("await recordAuditEvent(", grantAt);
+  const resultAt = post.indexOf("return { userId: created.id };", auditAt);
+  const txEnd = post.indexOf("    });", resultAt);
+  assert.ok(txAt >= 0 && grantAt > txAt && auditAt > grantAt &&
+    resultAt > auditAt && txEnd > resultAt,
+  "a successful invite claim must record the audit in the same transaction");
+  assert.match(post.slice(auditAt, resultAt), /}, tx\);/,
+    "audit must use the transaction writer, not the global database");
+  assert.equal((post.match(/await recordAuditEvent\(/g) ?? []).length, 1,
+    "never write a second after-commit audit");
+});
+
 test("the real HTTP harness proves both independent acceptances and untouched higher-ID victim", () => {
   const source = harness();
   assert.ok(source.indexOf("requireDisposableApprovalTask();") <
@@ -74,6 +90,8 @@ test("the real HTTP harness proves both independent acceptances and untouched hi
     "forged organizationId was ignored", "forged foreign org unit was ignored",
     "exactly one own audit event", "single-use token created exactly one account",
     "A and B prove independent own successes", "entire higher-ID victim remains byte-identical",
+    "qa_invite_audit_veto", "auditVetoRolledBack: true",
+    "audit-veto rollback must restore invitation, identity, membership and audit",
     "coverageCredits: 0", "independentlyAccepted: false",
   ]) assert.ok(source.includes(required), "missing essential proof: " + required);
   assert.doesNotMatch(source, /coverageCredits:\s*[1-9]/);

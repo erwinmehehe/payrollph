@@ -751,7 +751,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      assert.equal(receipt.methodsHeld, 0, "merged #1853 transfer POST/PATCH proofs supersede the two historical holds");
+      // The historical two transfer GAPs may now be covered by the independently
+      // merged #1853 proof. verifyFiveMethodCredits above validates each
+      // exact source, run, job, method and production/acceptance hold.
+      const acceptedTransfers = ["POST", "PATCH"].filter(verb =>
+        baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+          .methods.find(method => method.name === verb)?.status === "COVERED").length;
+      assert.ok(acceptedTransfers === 0 || acceptedTransfers === 2,
+        "The two transfer credits must be either both held or both independently evidenced");
+      assert.equal(receipt.methodsHeld, 2 - acceptedTransfers,
+        "Historical five-method holds must reflect only the dedicated validated transfer promotion");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
@@ -823,13 +832,6 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     for(const t of baselineRecovery)expectedOriginalMain[t.path][t.method]='COVERED';
     for (const [path] of mainProviderCredits) expectedOriginalMain[path].POST = "COVERED";
     for (const [path, , verb = "POST"] of mainDedicatedCredits) expectedOriginalMain[path][verb] = "COVERED";
-    // #1846 credited enterprise POST from its own dedicated proof; accept it on main only with that exact proof file.
-    const baselineEnterprisePost = baseline.allApiRouteFiles["src/app/api/enterprise/route.ts"]?.methods.find(row => row.name === "POST");
-    const baselineEnterpriseCredits = baselineEnterprisePost?.status === "COVERED" ? 1 : 0;
-    if (baselineEnterprisePost?.status === "COVERED") {
-      assert.equal(baselineEnterprisePost.testedBy?.file, "scripts/qa/tenant-enterprise-admin-http.mjs");
-      expectedOriginalMain["src/app/api/enterprise/route.ts"].POST = "COVERED";
-    }
     if (baselineHasRecovery) {
       for (const e of EVIDENCE) {
         expectedOriginalMain["src/app/api/" + e.route + "/route.ts"][e.method] = "COVERED";
@@ -934,6 +936,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }).length;
     assert.ok([0, 2].includes(baselineBillingCredits), "Billing credits must merge as a complete two-method PR");
     if (baselineBillingCredits) for (const path of billingPaths) expectedOriginalMain[path].POST = "COVERED";
+    // Source-verified enterprise POST was merged independently after the immutable snapshot.
+    const baselineEnterprise = baseline.allApiRouteFiles["src/app/api/enterprise/route.ts"]?.methods.find(row => row.name === "POST");
+    const baselineEnterpriseCredits = baselineEnterprise?.status === "COVERED" ? verifyEnterprisePostCredit(baseline) : 0;
+    if (baselineEnterpriseCredits) expectedOriginalMain["src/app/api/enterprise/route.ts"].POST = "COVERED";
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -946,18 +952,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineRecovery.length + baselineSecurity.length + baselineEnterpriseCredits,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineRecovery.length - baselineSecurity.length - baselineEnterpriseCredits - 1,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - 1,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineRecovery.length + baselineSecurity.length + baselineEnterpriseCredits;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length;
     // Compute the descriptive batch line from the immutable source-linked
     // frozen method queue and current main manifest, not an old blanket
     // "all twelve incomplete" assumption. Never count a zero-GAP batch as

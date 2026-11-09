@@ -21,7 +21,9 @@ const safe = {
 const blob = (bytes) => createHash("sha1")
   .update(Buffer.from("blob " + bytes.length + "\0")).update(bytes).digest("hex");
 const fake = (status, json, headers = {}) => ({
-  status, json, text: JSON.stringify(json), headers: new Headers(headers),
+  status, json, text: JSON.stringify(json), headers: new Headers({
+    "cache-control": "no-store, max-age=0", "referrer-policy": "no-referrer", ...headers,
+  }),
 });
 const invitation = {
   token: "fictional-bearer-secret",
@@ -58,6 +60,8 @@ test("positive preview requires the exact token-owned email, role, expiry and mi
     fake(200, { ...good.json, organizationId: 99 }),
     fake(200, { ...good.json, expiresAt: "2031-01-01T00:00:00Z" }),
     fake(200, good.json, { "cache-control": "public, max-age=3600" }),
+    fake(200, good.json, { "cache-control": "private, max-age=3600" }),
+    fake(200, good.json, { "referrer-policy": "unsafe-url" }),
     fake(200, { ...good.json, tokenHash: invitation.row.tokenHash }),
   ]) assert.throws(() => assertOwnInvitationPreview(bad, invitation));
 });
@@ -71,6 +75,8 @@ test("all invalid, consumed and foreign-ID-only previews must be uniform and lea
     fake(404, { valid: false, reason: "expired" }),
     fake(403, { valid: false }),
     fake(404, { valid: false }, { "x-debug": "secret-victim-marker" }),
+    fake(404, { valid: false }, { "cache-control": "" }),
+    fake(404, { valid: false }, { "referrer-policy": "origin" }),
   ]) assert.throws(() => assertInvitationPreviewDenied(bad,
     ["victim@example.invalid", "secret-victim-marker"]));
 });
@@ -89,12 +95,16 @@ test("runtime GET still derives the employer solely from the bearer token", () =
   const helper = readFileSync("src/lib/tokens.ts", "utf8");
   // A future route/helper change requires a new exact-source CI receipt,
   // not a borrowed positive from an earlier implementation.
-  assert.equal(blob(readFileSync(routePath)), "1ce20257f7f3efa9ca380712d4dd485397a06814");
+  assert.equal(blob(readFileSync(routePath)), "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e");
   assert.equal(blob(readFileSync("src/lib/tokens.ts")), "a13f719b62cfb34f82f496e984987d82168bc262");
   const get = source.split("export async function GET(request: Request) {")[1]
     ?.split("export async function POST(request: Request) {")[0];
   assert.ok(get);
   assert.match(get, /findUsableInvitation\(token\)/);
+  assert.match(source, /"Cache-Control": "no-store, max-age=0"/);
+  assert.match(source, /"Referrer-Policy": "no-referrer"/);
+  assert.equal((get.match(/headers: invitationPreviewHeaders/g) ?? []).length, 2,
+    "both success and denial must use the no-store/no-referrer headers");
   assert.match(get, /searchParams\.get\("token"\)/);
   assert.doesNotMatch(get, /searchParams\.get\("(?:organizationId|invitationId|userId|role|email)"\)/);
   assert.match(helper, /eq\(invitations\.tokenHash, sha256\(token\)\)/);
