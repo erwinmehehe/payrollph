@@ -6,6 +6,7 @@ import {
   verifyCurrentHcmCallerReproof,
 } from "./tenant-hcm-lifecycle-caller-source-refresh-verify.mjs";
 import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
+import { HCM_QUEUE_PAGE, verifyHcmQueuePageSourceCompatibility } from "./tenant-work-queue-page-source-compat.mjs";
 
 const RECEIPT = "scripts/qa/tenant-document-caller-reproof-receipt.json";
 const DIGEST = "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e";
@@ -35,6 +36,7 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   assert.equal(receipt.credits, 0);
 
   let changedRouteCount = 0;
+  let reviewedUncreditedPageCount = 0;
   for (const [file, pinned] of Object.entries(receipt.pins)) {
     if (file === "next.config.ts") {
       assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file, "utf8"), pinned);
@@ -46,10 +48,19 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
       assert.equal(current, HCM_NEW_SHA, "Unreviewed new HCM route has no source-current proof");
       verifyCurrentHcmCallerReproof(read);
       changedRouteCount++;
+    } else if (file === HCM_QUEUE_PAGE && current !== pinned) {
+      // The old receipt stays historical. A source-exact, uncredited exception
+      // must not be interpreted as prior execution of the new server wrapper.
+      const reviewed = verifyHcmQueuePageSourceCompatibility(pinned, current, read);
+      assert.deepEqual(reviewed, {
+        credits: 0, independentlyAccepted: false, productionCertified: false,
+      });
+      reviewedUncreditedPageCount++;
     } else {
       assert.equal(current, pinned, "Executed caller input changed: " + file);
     }
   }
   assert.ok(changedRouteCount <= 1, "Only one HCM route source is eligible for replacement");
+  assert.ok(reviewedUncreditedPageCount <= 1, "Only the explicitly pinned uncredited HR queue page may differ");
   return receipt;
 }
