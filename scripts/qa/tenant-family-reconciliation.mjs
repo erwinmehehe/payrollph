@@ -6,9 +6,25 @@ import { METHODS as developmentMethods, verifyCredit as verifyDevelopmentCredit 
 import { METHODS as coreMethods } from "./tenant-performance-core-contract.mjs";
 import { verifyCredit as verifyCoreCredit } from "./tenant-performance-core-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS} from './tenant-security-write-credit.mjs';
+import { verifyEnterprisePostCredit } from "./tenant-enterprise-admin-credit.mjs";
 
 export const RECONCILIATION_FILE = "scripts/qa/tenant-merged-family-reconciliation.json";
 export const RECONCILED_METHODS = Object.freeze(["POST performance/calibration", "GET enterprise", "PUT organizations"]);
+
+/** Historical receipt stays immutable. Only the reviewed POST audit rewrite
+ * may differ: the entire current file and the untouched GET are pinned. This
+ * does not borrow the GET receipt to certify POST or any new action. */
+export function verifyEnterprisePostAuditSource(source, historicalDigest) {
+  const normalized = source.replaceAll("\r\n", "\n");
+  assert.equal(historicalDigest, "3f282ea06dbf33e087b650a7adfdf4b70f91724e4bcdbb496bbe0cdcd937d9b3");
+  assert.equal(createHash("sha256").update(normalized).digest("hex"),
+    "50440efe29bf6f9fd0cc86a83ed1a74cbb1ba07c48548e8833f6de7c7350008f",
+    "Enterprise current POST route changed: renew source review and exact-head proof");
+  const get = normalized.slice(normalized.indexOf("export async function GET("), normalized.indexOf("export async function POST(")).trim();
+  assert.equal(createHash("sha256").update(get).digest("hex"),
+    "14041996a56ebf3fd95fba2b03a9e4557ba811fb656781041e71c65967f6e760",
+    "Historical GET must remain byte-identical");
+}
 
 /** Reviewed receipts reference actual CI, not an executor or global certification. */
 export function reviewedFamilySelection(receipt = JSON.parse(readFileSync(RECONCILIATION_FILE, "utf8")), read = file => readFileSync(file, "utf8")) {
@@ -21,6 +37,11 @@ export function reviewedFamilySelection(receipt = JSON.parse(readFileSync(RECONC
     writePairs: 70, writeDiscriminating: 35, forgedReferenceProofs: 42, victimDatabaseUnchanged: true, productionTested: false, certified: false });
   assert.equal(Object.keys(receipt.sources).length, 6);
   for (const [file, digest] of Object.entries(receipt.sources)) {
+    if (file === "src/app/api/enterprise/route.ts" &&
+        createHash("sha256").update(read(file).replaceAll("\r\n", "\n")).digest("hex") !== digest) {
+      verifyEnterprisePostAuditSource(read(file), digest);
+      continue;
+    }
     assert.equal(createHash("sha256").update(read(file).replaceAll("\r\n", "\n")).digest("hex"), digest,
       file + ": changed proof/route requires renewed review and evidence");
   }
@@ -56,6 +77,7 @@ export function verifyReconciledFamilyCredits(manifest, read) {
     if (method.status === 'COVERED' && SECURITY_TARGETS.some(t=>t.path==='src/app/api/'+route+'/route.ts'&&t.method===verb)) verifySecurityCredits(manifest);
     else if (method.status === "COVERED" && coreMethods.includes(key)) verifyCoreCredit(key, method);
     else if (method.status === "COVERED" && developmentMethods.includes(key)) verifyDevelopmentCredit(key, method, read);
+    else if (method.status === "COVERED" && key === "POST enterprise") verifyEnterprisePostCredit(manifest, read);
     else assert.equal(method.status, "GAP", key + ": partial action is not full method credit");
   }
   return methods.size;

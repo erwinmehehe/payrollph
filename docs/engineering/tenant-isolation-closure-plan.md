@@ -1,4 +1,6 @@
-> **2026-11-09 approved privileged operations token-only — SOLO_VERIFIED_DEV_RECOVERY / DRAFT / NOT ACCEPTED:** 498 methods = 446 COVERED + 11 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 30 GAP. This is authentication-mode classification only, not eleven newly proven employer isolation methods; negative-only disposable PG16 HTTP workflow pending exact-head CI. `GET readiness` admits alternative x-worker-token request header with readiness secret (source discrepancy); `GET readiness/workspace` remains GAP (normal authorized tenant 503, anonymous 401, foreign 403). No release flags, jobs, ticks, drains, provider calls, live SQL, deployment or independent acceptance.
+> **Token-only operational classifications with merged enterprise POST — DRAFT / NOT ACCEPTED:** 498 methods = 447 COVERED + 11 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 29 GAP. Eleven authentication-only classifications earn zero new tenant-method coverage credits. Exact-head CI and independent security review PENDING. No production authorization.
+
+> **PR #1846 proposed enterprise-admin POST credit on top of merged transfer proofs — PROVISIONAL / NOT ACCEPTED:** 498 methods = 447 COVERED + 11 PUBLIC-BY-DESIGN + 40 GAP; frozen subtotal 363 COVERED / 3 PUBLIC / 40 GAP. One source-pinned enterprise POST method, independent security/privacy review PENDING; do not infer tenant-wide acceptance or production activation.
 
 > **PR #1853 multi-entity transfers credit on main with the security-write credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 446 COVERED + 11 PUBLIC-BY-DESIGN + 41 GAP; frozen 362 COVERED / 3 PUBLIC / 41 GAP. `POST` and `PATCH multi-entity/transfers` (WRK-03) are provisionally credited from the dedicated two-attacker real-HTTP PG16 proof (maker-checker, no provider, no money), merged proof #1853 (merge commit `073e23f01`, passing head `538c70b05`, [run 42480658953](https://github.com/erwinmehehe/payrollph/actions/runs/42480658953/job/128731654457)); it supersedes, and does not weaken, the earlier uncredited Playwright candidate hold. Independent security/payroll review PENDING. Production not authorized.
 
@@ -220,9 +222,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 6 | **EDG-01** | 33 | 9 | 0 | 6 | 18 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 25 | 1 | 5 | 2 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **362 COVERED + 3 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 30 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 8 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **363 COVERED + 3 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 29 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 8 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
