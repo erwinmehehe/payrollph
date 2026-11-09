@@ -669,6 +669,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only distinct previously GAP methods may be credited");
     expectedStatuses[target.path][target.method] = "COVERED";
   }
+  // Approved 2026-11-09 non-session classifications are NOT tenant proof credits.
+  // Pin each route and method explicitly; all other original credits remain immutable.
+  const ownerClassifications = [["src/app/api/careers/route.ts","GET"],["src/app/api/careers/route.ts","POST"],["src/app/api/demo-requests/route.ts","POST"],["src/app/api/payroll-outsourcing/quote/route.ts","POST"]];
+  for (const [path, verb] of ownerClassifications) {
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP can be owner-reclassified");
+    const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+    assert.equal(row.status, "PUBLIC-BY-DESIGN");
+    assert.equal(row.testedBy, null, "Authentication classification cannot invent method proof");
+    assert.equal(row.publicBoundary?.approvedOn, "2026-11-09");
+    assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
+    expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
+  }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
@@ -676,6 +688,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - 1,
   };
+  expectedCounts.GAP -= ownerClassifications.length;
+  expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
