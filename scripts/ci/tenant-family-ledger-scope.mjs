@@ -60,7 +60,14 @@ export async function priorProofPassed({repo,workflow,event,entry,currentRunId,t
  if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo??'')||!token||!reusableEvent(event))return false;
  const head=event.pull_request.head.sha,base=event.pull_request.base.sha,number=event.pull_request.number;
  if(!Number.isSafeInteger(number)||number<=0)return false;
- const get=async path=>{const r=await fetcher('https://api.github.com/repos/'+repo+path,{headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Actions receipt unavailable');return r.json();};
+ const get=async path=>{
+  const url=new URL('https://api.github.com/repos/'+repo+path);
+  // Validate the actual destination after parsing, and never follow a redirect
+  // with the Actions token. Event/policy/response data may only select API paths.
+  if(url.protocol!=='https:'||url.hostname!=='api.github.com'||url.port!==''||url.username!==''||url.password!==''||!url.pathname.startsWith('/repos/'+repo+'/actions/'))throw Error('Invalid Actions receipt destination');
+  const r=await fetcher(url.href,{redirect:'error',headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},signal:AbortSignal.timeout(5000)});
+  if(!r.ok)throw Error('Actions receipt unavailable');return r.json();
+ };
  try{
   const result=await get('/actions/workflows/'+encodeURIComponent(workflow)+'/runs?event=pull_request&status=success&head_sha='+head+'&per_page=30');
   if(!Array.isArray(result.workflow_runs))return false;

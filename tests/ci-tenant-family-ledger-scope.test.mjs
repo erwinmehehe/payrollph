@@ -54,7 +54,7 @@ test('metadata reuse needs every real matrix job on the exact head AND base, nev
  const run={id:51,event:'pull_request',head_sha:head,conclusion:'success',pull_requests:[{number:123,head:{sha:head},base:{sha:base}}]};
  const jobs=entry.proofJobs.map(name=>({name,head_sha:head,status:'completed',conclusion:'success'}));
  const check=async(r=run,j=jobs,patch={})=>{
-  let calls=0;const fetcher=async(url,options)=>{calls++;assert.ok(url.startsWith('https://api.github.com/repos/fictional/repo/actions/'));assert.equal(options.headers.Authorization,'Bearer fictional-token');return {ok:true,json:async()=>calls===1?{workflow_runs:[r]}:{total_count:j.length,jobs:j}};};
+  let calls=0;const fetcher=async(url,options)=>{calls++;const destination=new URL(url);assert.equal(destination.origin,'https://api.github.com');assert.ok(destination.pathname.startsWith('/repos/fictional/repo/actions/'));assert.equal(options.redirect,'error');assert.equal(options.headers.Authorization,'Bearer fictional-token');return {ok:true,json:async()=>calls===1?{workflow_runs:[r]}:{total_count:j.length,jobs:j}};};
   return priorProofPassed({repo:'fictional/repo',workflow:'tenant-table-proof.yml',event:e,entry,currentRunId:'99',token:'fictional-token',fetcher,...patch});
  };
  assert.equal(await check(),true);
@@ -62,6 +62,8 @@ test('metadata reuse needs every real matrix job on the exact head AND base, nev
  for(const patch of [{conclusion:'skipped'},{conclusion:'failure'},{status:'in_progress'},{head_sha:'c'.repeat(40)}])assert.equal(await check(run,[{...jobs[0],...patch},jobs[1]]),false);
  assert.equal(await check(run,[jobs[0]]),false);assert.equal(await check(run,[...jobs,jobs[0]]),false);
  assert.equal(await check(run,jobs,{token:''}),false);
+ for(const repo of ['evil.example/path?x=', '//evil.example', 'fictional/repo/../../outside', 'fictional/repo#fragment'])assert.equal(await check(run,jobs,{repo,fetcher:async()=>{assert.fail('invalid repository must not receive a token');}}),false);
+ assert.equal(await check(run,jobs,{workflow:'https://evil.example/../receipt?x=#fragment'}),true,'workflow data stays encoded in the fixed GitHub API path');
  assert.equal(await check(run,jobs,{fetcher:async()=>{throw Error('unavailable');}}),false);
  assert.equal(await check(run,jobs,{fetcher:async()=>({ok:false})}),false);
  assert.equal(await check(run,jobs,{fetcher:async()=>({ok:true,json:async()=>({workflow_runs:[run],total_count:101,jobs})})}),false);
