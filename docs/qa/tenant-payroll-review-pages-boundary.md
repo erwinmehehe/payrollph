@@ -32,8 +32,18 @@ workers, provider credentials, multi-entity activation, or flag-OFF positives.
 The test itself does not submit tax evidence, change payroll, call providers,
 issue forms, move money, deploy, merge, or contact any real employee.
 
-**Status: PROPOSED / NOT ACCEPTED.** A green exact-final-head job is required
-before counting this as executed candidate evidence. Independent privacy,
-security and payroll/tax review, separate browser/action tests and release
-approval remain outstanding. Do not edit the shared 498-method manifest or
-21-page ledger, or claim tenant-wide certification from this patch.
+**Status: PROVISIONAL / NOT ACCEPTED.** The dedicated two-attacker, feature-ON
+PostgreSQL 16 job passed on prior PR head
+[`13e7728` (run 42622354364, job 129177441243)](https://github.com/erwinmehehe/payrollph/actions/runs/42622354364/job/129177441243).
+The subsequent inventory reconciliation has its own changed PR SHA and must
+pass again as part of full security HTTP acceptance on that exact final head.
+Independent privacy, security and payroll/tax review, separate browser/action
+tests and release approval remain outstanding.
+
+The 498-method/21-page ledger keeps both annual tax-review pages at **GAP**
+with `testedBy` unset and zero new coverage credits. Their old and current
+page source SHAs, proof/contract/source hashes, exact proof lines and prior
+green run are pinned under `reviewedUncertified`. The inventory CI asserts
+these values, the actual feature-ON own/foreign/unchanged-DB assertions, and
+the access-check ordering; an unreviewed changed page must fail, not be
+reclassified as covered. No tenant-wide certification is claimed.
