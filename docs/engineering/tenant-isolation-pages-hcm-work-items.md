@@ -14,14 +14,14 @@ This patch changes only the page boundary and its presentation:
 
 ## Scope boundaries
 
-Only these files belong to this PR: `src/app/hcm/work-items/page.tsx`, `src/components/hcm-work-queue.tsx`, `src/lib/hcm-work-items-page-tenancy.ts`, `tests/hcm-work-items-page-isolation.test.ts`, and this document. No shared tenant method manifest, proof ledger, count, migrations, background jobs, transfer/payout controls, release flags, external service or production configuration change.
+This PR changes the five page/client/helper/test/doc files **plus** the existing synthetic browser fixture/runner, a strict zero-credit source-compatibility guard and verifier, and the tenant coverage manifest/inventory test (11 files total). Shared manifest edits may conflict with #1869 and #1872; reconcile their distinct credits/statuses and run final-head proofs after either merges. The historical caller receipt remains untouched and no coverage credit is assigned. No method count, migrations, background jobs, transfer/payout controls, release flags, external service or production configuration change.
 
 ## Verification and acceptance gate
 
-- Run `npx tsx --test tests/hcm-work-items-page-isolation.test.ts`, `npm run typecheck`, lint, affected contract tests and exact-head CI. New tests cover canonical selectors, the server authorization sequence, the single-employer client binding and the API's preserved tenant SQL checks.
+- Run `npx tsx --test tests/hcm-work-items-page-isolation.test.ts`, `node --test tests/tenant-isolation-coverage-inventory.test.mjs`, `npm run typecheck`, lint, browser lifecycle QA and exact-head CI. New tests cover canonical selectors, the server authorization sequence, single-employer client binding and the API's preserved tenant SQL checks. The browser fixture mounts the isolated authorized client instead of bundling the server route into browser code.
 - **Not yet proved:** an end-to-end browser/real-HTTP run against disposable PostgreSQL 16 with two independently signed-in own organizations, a third real higher-ID foreign employer, forged/duplicate selectors, revoked and unit-scoped membership, custom permission denies, and unchanged victim case/audit rows after rejected PATCHes. This needs a separate exact-head, independently reviewed proof before a page/action gap can be credited.
 - Validate navigation to the page always supplies `?organizationId=<authorized employer>`; calls without it now return 404 instead of the former empty client shell. Confirm cross-employer transitions remount the client and do not carry over an editor or cached queue.
-- This PR is a **bounded source hardening candidate**, not a claimed page/action proof credit or tenant-wide security certification. Do not change the 17 page/action GAP statuses just because these source tests pass.
+- The historic caller receipt still describes its original source; the new exact-source, zero-credit exception does **not** re-credit or attest a new runtime result. This PR is a **bounded source hardening candidate**, not a claimed page/action proof credit or tenant-wide security certification. Do not change the 17 page/action GAP statuses just because these source tests pass.
 
 ## Rollback
 
