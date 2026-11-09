@@ -779,18 +779,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
       "origin/main must not contain a partial five-method proof recovery");
     const baselineHasRecovery = mainRecoveryCredits[0];
+    // Transfer POST/PATCH must be reconciled as a pair even when the three
+    // separate historical recovery receipts are absent from the base branch.
+    const baselineTransferCredits = ["POST", "PATCH"].filter(verb =>
+      baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+        .methods.find(method => method.name === verb)?.status === "COVERED").length;
+    assert.ok([0, 2].includes(baselineTransferCredits),
+      "The two transfer credits must be either both held or both independently evidenced");
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      const mainTransferStates = baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
-        .methods.filter(row => ["POST","PATCH"].includes(row.name)).map(row => row.status);
-      assert.equal(mainTransferStates.length, 2);
-      assert.ok(mainTransferStates.every(status => status === mainTransferStates[0]),
-        "Partial transfer promotion must never pass historical receipt reconciliation");
-      assert.ok(["GAP","COVERED"].includes(mainTransferStates[0]));
-      assert.equal(receipt.methodsHeld, mainTransferStates[0] === "COVERED" ? 0 : 2,
+      assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
         "Historical five-method holds must reflect only the dedicated validated transfer promotion");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
