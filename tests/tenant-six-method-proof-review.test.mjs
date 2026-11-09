@@ -676,8 +676,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   }
   // Approved 2026-11-09 non-session classifications are NOT tenant proof credits.
   // Pin each route and method explicitly; all other original credits remain immutable.
-  const ownerClassifications = [["src/app/api/jobs/cron/route.ts","GET"],["src/app/api/jobs/dispatch-readiness/route.ts","GET"],["src/app/api/jobs/status/route.ts","GET"],["src/app/api/jobs/tick/route.ts","POST"],["src/app/api/webhooks/drain/route.ts","POST"],["src/app/api/capabilities/route.ts","GET"],["src/app/api/readiness/route.ts","GET"],["src/app/api/readiness/billing/route.ts","GET"],["src/app/api/readiness/database-target/route.ts","GET"],["src/app/api/readiness/deployment/route.ts","GET"],["src/app/api/readiness/pilot-status/route.ts","GET"]];
-  for (const [path, verb] of ownerClassifications) {
+  const ownerTokenClassifications = [["src/app/api/jobs/cron/route.ts","GET"],["src/app/api/jobs/dispatch-readiness/route.ts","GET"],["src/app/api/jobs/status/route.ts","GET"],["src/app/api/jobs/tick/route.ts","POST"],["src/app/api/webhooks/drain/route.ts","POST"],["src/app/api/capabilities/route.ts","GET"],["src/app/api/readiness/route.ts","GET"],["src/app/api/readiness/billing/route.ts","GET"],["src/app/api/readiness/database-target/route.ts","GET"],["src/app/api/readiness/deployment/route.ts","GET"],["src/app/api/readiness/pilot-status/route.ts","GET"]];
+  for (const [path, verb] of ownerTokenClassifications) {
     assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP can be owner-reclassified");
     const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
     assert.equal(row.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY");
@@ -690,6 +690,17 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const accountEmailRequestCredits = verifyAccountEmailRequestCredit(m);
   assert.equal(expectedStatuses["src/app/api/account/email/route.ts"].POST, "GAP", "Only an uncredited account-email method may be promoted");
   expectedStatuses["src/app/api/account/email/route.ts"].POST = "COVERED";
+  // Owner-approved 2026-11-09 public classifications are NOT tenant-private method credits.
+  const ownerClassifications = [["src/app/api/careers/route.ts","GET"],["src/app/api/careers/route.ts","POST"],["src/app/api/demo-requests/route.ts","POST"],["src/app/api/payroll-outsourcing/quote/route.ts","POST"]];
+  for (const [path, verb] of ownerClassifications) {
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP may be reclassified");
+    const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+    assert.equal(row.status, "PUBLIC-BY-DESIGN");
+    assert.equal(row.testedBy, null, "Public status may not borrow tenant-method proof");
+    assert.equal(row.publicBoundary?.approvedOn, "2026-11-09");
+    assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
+    expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
+  }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
@@ -698,7 +709,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - 1,
   };
   expectedCounts.GAP -= ownerClassifications.length;
-  expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] = ownerClassifications.length;
+  expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
+  expectedCounts.GAP -= ownerTokenClassifications.length;
+  expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] = ownerTokenClassifications.length;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
@@ -710,7 +723,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **364 COVERED + 3 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 28 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **364 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -982,9 +995,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         expectedOriginalMain[target.path][target.method] = "COVERED";
       }
     }
-    // Accept the independently merged account-email request only with its
-    // exact source-pinned PG16/localhost-SMTP evidence; do not borrow an
-    // operations-token-only classification as a coverage proof.
+    // A merged account-email request credit is allowed in main only when
+    // its separate source-pinned two-attacker PG16/SMTP receipt verifies.
     const baselineAccountEmailRow = baseline.allApiRouteFiles["src/app/api/account/email/route.ts"]
       ?.methods.find(row => row.name === "POST");
     const baselineAccountEmailRequestCredits = baselineAccountEmailRow?.status === "COVERED"

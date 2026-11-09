@@ -1,4 +1,4 @@
-> **Token-only operations classifications and merged account-email POST — DRAFT / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 28 GAP; frozen 406 = 364 COVERED / 3 PUBLIC / 11 TOKEN-ONLY / 28 GAP. Eleven operator-token classification changes add zero tenant-private COVERED credits; independent security review and final-head CI PENDING.
+> **Combined public and operator-token-only classifications — DRAFT / NOT ACCEPTED:** 498 methods = 448 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP. Four public methods and eleven token-only operations add zero tenant-private COVERED credits. Independent security review and final-head CI PENDING; no production authorization.
 
 > **Combined #1846 enterprise + #1862 account-email request proposals — PROVISIONAL / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 39 GAP; frozen subtotal 364 COVERED / 3 PUBLIC / 39 GAP. Two separate exact-source provisional POST method credits; independent security/identity review and final-head CI PENDING. No production activation.
 
@@ -216,17 +216,17 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-01** | 26 | 23 | 2 | 0 | 1 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 0 | 1 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 30 | 0 | 0 | 3 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 30 | 1 | 0 | 2 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 0 | 1 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 36 | 0 | 0 | 2 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 10 | 0 | 6 | 17 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 10 | 1 | 6 | 16 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **364 COVERED + 3 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 28 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 8 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **364 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 7 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

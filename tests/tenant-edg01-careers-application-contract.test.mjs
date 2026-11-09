@@ -87,7 +87,9 @@ test("new family is standalone, source-guarded and remains zero-credit", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const current = manifest.allApiRouteFiles["src/app/api/careers/route.ts"].methods
     .find(method => method.name === "POST");
-  assert.equal(current?.status, "GAP", "no applicant POST credit without independent execution and review");
+  assert.equal(current?.status, "PUBLIC-BY-DESIGN", "owner-approved public intake is not tenant-private COVERED");
+  assert.equal(current?.publicBoundary?.fourPartMethodCredit, false);
+  assert.equal(current?.publicBoundary?.approvedOn, "2026-11-09");
   assert.equal(current?.testedBy, null);
   assert.ok(runner.indexOf("requireDisposableApplicationEnv();") <
     runner.indexOf('import("../../src/db/index.ts")'),
