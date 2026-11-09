@@ -3582,6 +3582,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
   let count = 0;
   let covered = 0;
   let publicByDesign = 0;
+  let tokenOnly = 0;
   let gaps = 0;
   for (const path of files) {
     const sourceBytes = readFileSync(path);
@@ -3599,6 +3600,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
       reviewedStatus(method, path + " " + method.name, changed, currentBlob);
       covered += method.status === "COVERED" ? 1 : 0;
       publicByDesign += method.status === "PUBLIC-BY-DESIGN" ? 1 : 0;
+      tokenOnly += method.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY" ? 1 : 0;
       gaps += method.status === "GAP" ? 1 : 0;
       count++;
     }
@@ -3608,7 +3610,8 @@ test("whole API manifest inventories exactly every route, exported method, and o
   assert.equal(covered, manifest.metrics.coveredAfter);
   assert.equal(publicByDesign, manifest.metrics.publicByDesign);
   assert.equal(gaps, manifest.metrics.gap);
-  assert.equal(covered + publicByDesign + gaps, count);
+  assert.equal(tokenOnly, manifest.metrics.privilegedOperationsTokenOnly);
+  assert.equal(covered + publicByDesign + tokenOnly + gaps, count);
   assert.equal(manifest.acceptanceStatus.startsWith("NOT ACCEPTED"), true,
     "existing uncovered methods must not be described as accepted");
 });
