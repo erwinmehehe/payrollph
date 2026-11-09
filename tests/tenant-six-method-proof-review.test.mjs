@@ -1060,13 +1060,45 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         assert.equal(row?.testedBy, null, "Uncovered invitation cannot claim executed receipt");
       }
     }
+    // The eleven owner-approved operator-token classifications can already
+    // be merged into main. They are NOT tenant-private method coverage credits.
+    // Reconcile exactly this fixed set (all or none), verifying every source
+    // hash and complete zero-credit review record without adding new statuses.
+    const mainTokenOnly = ownerTokenClassifications.filter(([path, verb]) =>
+      baseline.allApiRouteFiles[path]?.methods.find(row => row.name === verb)
+        ?.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY");
+    assert.ok([0, ownerTokenClassifications.length].includes(mainTokenOnly.length),
+      "No partial or unreviewed operator-token classification on main");
+    const baselinePrivilegedRows = Object.entries(baseline.allApiRouteFiles)
+      .flatMap(([path, data]) => data.methods.filter(row =>
+        row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").map(row => [path, row.name]));
+    assert.deepEqual(
+      baselinePrivilegedRows.map(pair => pair.join(" ")).sort(),
+      mainTokenOnly.map(pair => pair.join(" ")).sort(),
+      "No unknown privileged operations may escape the GAP ledger");
+    for (const [path, verb] of mainTokenOnly) {
+      assert.equal(expectedOriginalMain[path][verb], "GAP",
+        path + ": only an original GAP can be classified as privileged");
+      const row = baseline.allApiRouteFiles[path].methods.find(value => value.name === verb);
+      const pinned = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+      assert.deepEqual(row, pinned,
+        path + ": credential classification and zero-credit receipt must match reviewed head");
+      assert.equal(row.testedBy, null);
+      assert.equal(row.privilegedOperation?.approvedOn, "2026-11-09");
+      assert.equal(row.privilegedOperation?.routeBlobSha, blobSha(path));
+      assert.equal(row.privilegedOperation?.methodCoverageCredits, 0);
+      assert.equal(row.privilegedOperation?.exactHeadPg16Http, "PENDING");
+      assert.equal(row.privilegedOperation?.productionCertified, false);
+      expectedOriginalMain[path][verb] = "PRIVILEGED-OPERATIONS-TOKEN-ONLY";
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main may contain only independently pinned credits; unknown methods remain GAP");
+      "origin/main may contain only source-pinned credits and approved zero-credit token classifications");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0);
     assert.deepEqual({
       COVERED: baseline.metrics.coveredAfter,
       "PUBLIC-BY-DESIGN": baseline.metrics.publicByDesign,
+      "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
@@ -1074,7 +1106,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
-      GAP: snapshot.counts.GAP - compliancePostCredits.length -
+      "PRIVILEGED-OPERATIONS-TOKEN-ONLY": mainTokenOnly.length,
+      GAP: snapshot.counts.GAP - mainTokenOnly.length - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications,
@@ -1104,7 +1137,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         const path = line.split(" — [source](../../")[1]?.split("#L")[0];
         const status = baseline.allApiRouteFiles[path]?.methods
           .find(row => row.name === method)?.status;
-        assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(status),
+        assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP",
+          "PRIVILEGED-OPERATIONS-TOKEN-ONLY"].includes(status),
           "Every frozen source link must map to a known method status");
         statuses.push(status);
         return status;
@@ -1115,7 +1149,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
       "the frozen queue must match current main source-credited methods");
     assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + baselinePublicReclassifications);
-    assert.equal(statuses.filter(status => status === "GAP").length, 403 - frozenCovered - baselinePublicReclassifications);
+    assert.equal(statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length,
+      mainTokenOnly.length, "Only eleven reviewed operator routes may leave GAP");
+    assert.equal(statuses.filter(status => status === "GAP").length,
+      403 - frozenCovered - baselinePublicReclassifications - mainTokenOnly.length);
     const incomplete = 12 - provisionalBatches.length;
     const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
       provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
@@ -1130,8 +1167,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicReclassifications) + " PUBLIC-BY-DESIGN")
-      .replace("91 GAP", (403 - frozenCovered - baselinePublicReclassifications) + " GAP")
+      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicReclassifications) +
+         " PUBLIC-BY-DESIGN" + (mainTokenOnly.length
+           ? " + " + mainTokenOnly.length + " PRIVILEGED-OPERATIONS-TOKEN-ONLY" : ""))
+      .replace("91 GAP", (403 - frozenCovered - baselinePublicReclassifications -
+         mainTokenOnly.length) + " GAP")
 .replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
