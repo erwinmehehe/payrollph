@@ -3457,6 +3457,78 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   }
 
 
+  // A subsequent exact-source GET privacy + POST audit-atomicity hardening
+  // remains a GAP with zero new credits. Both isolated PG16 HTTP paths and
+  // independent review must be completed before any coverage promotion.
+  if (isNewOrChanged &&
+      (key === "src/app/api/invitations/accept/route.ts GET" ||
+       key === "src/app/api/invitations/accept/route.ts POST") &&
+      currentBlob === "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e") {
+    const routeFile = "src/app/api/invitations/accept/route.ts";
+    assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, currentBlob);
+    assert.equal(gitBlobSha(readFileSync("scripts/qa/tenant-invitation-header-source-compat.mjs")),
+      "329c50621b5ce5dad4a356a4cac66414300f0d10",
+      "Historic proof compatibility guard changed without renewed review");
+    assert.equal(method.status, "GAP", "Invitation privacy and audit source review earns no method credit");
+    assert.equal(method.testedBy, null, "Only independent executed method proof may earn coverage");
+    assert.match(method.reason, /No valid own-object/);
+    const review = method.reviewedUncertified;
+    assert.deepEqual(review, {
+      kind: "invitation-accept-atomic-audit-and-preview-privacy-source-only-zero-credit",
+      method: method.name,
+      originalRouteBlobSha: "1ce20257f7f3efa9ca380712d4dd485397a06814",
+      previousUnitFixOriginalRouteBlobSha: "d4b43c5e474a9e57e7b2d70317e372a43969a4c8",
+      routeBlobSha: "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
+      proofFile: "scripts/qa/tenant-invitations-accept-http.mjs",
+      proofBlobSha: "275139790f149e6b435a189f779b915d62c0af8e",
+      contractFile: "tests/tenant-invitations-accept-contract.test.mjs",
+      contractBlobSha: "eb0c49c5cb641d3fcaebd888928f0e6e9e853580",
+      workflowFile: ".github/workflows/tenant-invitations-accept-http.yml",
+      workflowBlobSha: "2349218797c58ab17d9abebe938461f0cabc817a",
+      previewProofFile: "scripts/qa/tenant-invitation-preview-get-http.mjs",
+      previewProofBlobSha: "4186267e9a163d9b6f49b0ce7dd6330fb19c1848",
+      previewContractFile: "tests/tenant-invitation-preview-get-contract.test.mjs",
+      previewContractBlobSha: "db954694b11a5421d7bb69cbfeeb1d0711e69173",
+      previewWorkflowFile: ".github/workflows/tenant-invitation-preview-get-http.yml",
+      previewWorkflowBlobSha: "6d8e5e919ed91ca2eadc490c058405c1a1e5bf5e",
+      methodCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    }, "Only the exact uncredited source review and immutable proof inputs are permitted");
+    for (const [file, sha] of [
+      [review.proofFile, review.proofBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+      [review.previewProofFile, review.previewProofBlobSha],
+      [review.previewContractFile, review.previewContractBlobSha],
+      [review.previewWorkflowFile, review.previewWorkflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Invitation acceptance/preview proof changed without source review: " + file);
+
+    const source = readFileSync(routeFile, "utf8");
+    assert.match(source, /"Cache-Control": "no-store, max-age=0"/);
+    assert.match(source, /"Referrer-Policy": "no-referrer"/);
+    const get = source.split("export async function GET(request: Request) {")[1]
+      ?.split("export async function POST(request: Request) {")[0];
+    assert.ok(get && get.includes("findUsableInvitation(token)"));
+    assert.equal((get.match(/headers: invitationPreviewHeaders/g) ?? []).length, 2,
+      "Successful and denied bearer-token previews must share safe response headers");
+    const post = source.split("export async function POST(request: Request) {")[1];
+    const txAt = post?.indexOf("db.transaction(async (tx) => {") ?? -1;
+    const scoped = post?.indexOf("eq(orgUnits.organizationId, invitation.organizationId)", txAt) ?? -1;
+    const claimed = post?.indexOf("tx.update(invitations)", scoped) ?? -1;
+    const membership = post?.indexOf("tx.insert(userOrganizations)", claimed) ?? -1;
+    const audited = post?.indexOf("await recordAuditEvent(", membership) ?? -1;
+    const finish = post?.indexOf("return { userId: created.id };", audited) ?? -1;
+    assert.ok(txAt >= 0 && scoped > txAt && claimed > scoped &&
+      membership > claimed && audited > membership && finish > audited,
+      "Unit scope, single-use claim, membership and audit must share one transaction");
+    assert.match(post.slice(audited, finish), /}, tx\);/,
+      "Acceptance audit must use the same transactional writer");
+    assert.equal((post.match(/await recordAuditEvent\(/g) ?? []).length, 1,
+      "No detached post-commit audit is permitted");
+    return;
+  }
+
   // One source-scoped invitation-acceptance hardening, deliberately zero credit.
   // A previously issued/legacy invitation may carry a foreign or inactive unit.
   // The added pre-claim check refuses it atomically without granting coverage

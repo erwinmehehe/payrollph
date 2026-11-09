@@ -5,6 +5,7 @@ import {
   OLD_HCM_SHA as HCM_OLD_SHA, CURRENT_HCM_SHA as HCM_NEW_SHA, HCM_ROUTE,
   verifyCurrentHcmCallerReproof,
 } from "./tenant-hcm-lifecycle-caller-source-refresh-verify.mjs";
+import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
 
 const RECEIPT = "scripts/qa/tenant-document-caller-reproof-receipt.json";
 const DIGEST = "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e";
@@ -35,6 +36,10 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
 
   let changedRouteCount = 0;
   for (const [file, pinned] of Object.entries(receipt.pins)) {
+    if (file === "next.config.ts") {
+      assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file, "utf8"), pinned);
+      continue;
+    }
     const current = blob(read(file, "utf8"));
     if (file === HCM_ROUTE && current !== pinned) {
       assert.equal(pinned, HCM_OLD_SHA, "Historical HCM route original blob changed");
