@@ -1,4 +1,4 @@
-> **Security write recovery — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = 445 COVERED + 11 PUBLIC-BY-DESIGN + 42 GAP. Three prior security-write credits plus one enterprise POST credit (PR #1846), all provisional and source-pinned; independent review PENDING; NOT ACCEPTED for production.
+> **Current enterprise-admin POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = 447 COVERED + 11 PUBLIC-BY-DESIGN + 40 GAP. Includes the merged multi-entity transfer POST/PATCH proofs (446 baseline COVERED) and one distinct enterprise-admin POST method; independent security review PENDING; NOT ACCEPTED for production.
 
 > **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP. Three distinct recovered methods; CI and independent identity/WFM/security/billing review PENDING. No production authorization.
 
