@@ -1,0 +1,120 @@
+name: Tenant HCM Worker 360 SSR and GET (Fictional PG16, Read Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-hcm-worker360-qa.yml"
+      - "docs/qa/tenant-hcm-worker360-batch.md"
+      - "scripts/qa/tenant-hcm-worker360-contract.mjs"
+      - "scripts/qa/tenant-hcm-worker360-http.mjs"
+      - "tests/tenant-hcm-worker360-contract.test.mjs"
+      - "src/app/hcm/worker-360/page.tsx"
+      - "src/app/api/hcm/worker-360/route.ts"
+      - "src/lib/hcm-worker-360-server.ts"
+      - "src/lib/hcm-worker-360-contract.ts"
+      - "src/lib/hcm-worker-360-projection.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tenant-hcm-worker360:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_HCM_WORKER360_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      HCM_WORKER_360_ENABLED: "true"
+      HCM_ENTERPRISE_PLAN_GATE_ENABLED: "false"
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      CRON_SECRET: ""
+      WORKER_TOKEN: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out branch head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Check strict local environment and negative controls
+        run: |
+          node --check scripts/qa/tenant-hcm-worker360-contract.mjs
+          node --check scripts/qa/tenant-hcm-worker360-http.mjs
+          node --test tests/tenant-hcm-worker360-contract.test.mjs
+      - name: Generate disposable fictional encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Install isolated PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated seed baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build localhost-only production-mode app
+        run: npm run build
+      - name: Start local Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-hcm-worker360.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-hcm-worker360.log
+          exit 1
+      - name: Prove authorized worker and cross-employer history isolation
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-hcm-worker360-http.mjs
+      - name: Show bounded application log on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-hcm-worker360.log || true
