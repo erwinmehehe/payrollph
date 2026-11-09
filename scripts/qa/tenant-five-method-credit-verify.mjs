@@ -155,8 +155,36 @@ export function verifyFiveMethodCredits(
   const transferPath = ROOT + "multi-entity/transfers/route.ts";
   const transfers = manifest.allApiRouteFiles[transferPath];
   assert.equal(transfers?.gitBlobSha, "a4ac9ec92df17492c4c0918f08114660bc4c6ebe");
+  let transfersHeld = 0;
   for (const method of ["POST", "PATCH"]) {
     const m = transfers.methods.find(m => m.name === method);
+    if (m?.status === "COVERED") {
+      // The later dedicated two-attacker proof (#1853) supersedes the uncredited Playwright candidate. Any other
+      // COVERED claim, including the old candidate file, must still fail closed.
+      const t = m.testedBy;
+      assert.equal(t?.file, "scripts/qa/tenant-transfers-http.mjs", method + " transfer credit must come from the dedicated proof");
+      assert.equal(t.proofPullRequest, 1853, method + " transfer credit proof owner");
+      assert.equal(t.workflowRunId, 42480658953, method + " transfer credit executed run");
+      assert.equal(t.workflowJobId, 128731654457, method + " transfer credit executed job");
+      assert.equal(t.verifiedPrHeadSha, "538c70b05588d1aae223e32d11230cb5a715afdf");
+      assert.equal(t.mergedProofCommit, "073e23f019c00fc6638e2c2854a22a7fda4281b0");
+      assert.equal(t.routeBlobSha, transfers.gitBlobSha, method + " transfer proof was written against this exact route");
+      assert.equal(t.independentSecurityReview, "PENDING");
+      assert.equal(t.independentlyAccepted, false, method + " transfer credit is not independent acceptance");
+      assert.equal(t.productionTested, false);
+      assert.equal(t.line, t.ownPositiveLine);
+      assert.equal(m.reviewedUncertified, undefined, method + " the superseded candidate hold is removed, not kept beside a credit");
+      for (const [field, file] of [["proofBlobSha", "scripts/qa/tenant-transfers-http.mjs"], ["contractBlobSha", "scripts/qa/tenant-transfers-contract.mjs"],
+        ["testBlobSha", "tests/tenant-transfers-contract.test.mjs"], ["workflowBlobSha", ".github/workflows/tenant-transfers-http.yml"]]) {
+        assert.equal(t[field], gitBlobSha(read(file)), method + " transfer proof source drift requires fresh PG16 evidence: " + file);
+      }
+      const proofLines = read("scripts/qa/tenant-transfers-http.mjs").toString().split("\n");
+      for (const field of ["ownPositiveLine", "foreignDenialLine", "unchangedDbLine"]) {
+        assert.ok(Number.isSafeInteger(t[field]) && t[field] > 0 && t[field] <= proofLines.length, method + " " + field);
+      }
+      continue;
+    }
+    transfersHeld++;
     assert.equal(m?.status, "GAP", "incomplete " + method + " transfer proof cannot be counted");
     assert.equal(m?.testedBy, null);
     assert.equal(m?.reviewedUncertified?.coverageCredits, 0);
@@ -186,7 +214,7 @@ export function verifyFiveMethodCredits(
     assert.match(m.reason, /higher-ID victim transfer/);
   }
   return { status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
-    methodsHeld: 2, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap, pageActionGaps: 17,
+    methodsHeld: transfersHeld, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap, pageActionGaps: 17,
     productionTested: false, independentlyAccepted: false };
 }
 
