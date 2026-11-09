@@ -72,6 +72,10 @@ jobs:
         run: |
           node --check scripts/qa/tenant-privileged-token-only-http.mjs
           node --test tests/tenant-privileged-token-only.test.mjs
+      - name: Initialize only disposable PostgreSQL 16 schema
+        run: |
+          npm run db:push
+          node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode application for loopback HTTP
         run: npm run build
       - name: Start loopback Next server
