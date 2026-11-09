@@ -11,7 +11,7 @@ test("source-current dual-mode PG16 proves one provisional staffing GET method o
   assert.equal(verifyStaffingPolicyGetCredit(m), 1);
   const liveMethodCount = Object.values(m.allApiRouteFiles)
     .reduce((sum, route) => sum + route.methods.length, 0);
-  assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.gap,
+  assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + (m.metrics.privilegedOperationsTokenOnly ?? 0) + m.metrics.gap,
     liveMethodCount);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 17);
