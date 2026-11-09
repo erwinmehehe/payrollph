@@ -1,0 +1,134 @@
+{
+  "version": "phase9-annualization-2026-11-09",
+  "toleranceCentavos": 0,
+  "description": "Cross-period certification. Phases 1-8 each certify one cutoff. The engine withholds every semi-monthly cutoff independently from a table, so the only mechanism that corrects a whole year (mid-year hire, mid-year raise, 13th-month pool, bracket boundaries) is the year-end annualization. Phase 4 takes its output as an approved input and never recomputes it. Part A runs the real annualize() on hand-derived cases. Part B runs the real payroll engine for all 24 cutoffs of 2026 for four employees, then the real runYearEndAnnualization over the released year. Every expected value is hand-derived below from the published rules, never copied from engine output.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN, annual table effective 2023 onward: taxable income <= 250,000 exempt; 250,000-400,000 at 15% over 250,000; 400,000-800,000 at 22,500 + 20% over 400,000; 800,000-2,000,000 at 102,500 + 25% over 800,000; 2,000,000-8,000,000 at 402,500 + 30% over 2,000,000; above 8,000,000 at 2,202,500 + 35% over 8,000,000. Semi-monthly withholding table: <= 10,417 exempt; 10,417-16,667 at 15% over 10,417; 16,667-33,333 at 937.50 + 20% over 16,667; 33,333-83,333 at 4,270.70 + 25% over 33,333.",
+    "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e) as amended by TRAIN: 13th-month pay and other benefits are exempt up to a combined 90,000; the excess is taxable compensation. PD 851 / DOLE: 13th-month pay is one twelfth of the basic salary actually earned in the calendar year.",
+    "contributions": "SSS employee 5% of the monthly salary credit (cap 35,000, so at most 1,750 per month); PhilHealth employee 2.5% of monthly basic salary (floor 10,000, cap 100,000); Pag-IBIG employee 2% of a fund salary capped at 10,000 (200 per month). With 'split' timing each cutoff carries half the monthly amount."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs (1-15 and 16-end of month), each paid on its last day. The employer uses 'split' statutory deduction timing, so every cutoff collects half the monthly contribution.",
+    "Monthly salaried employees with no attendance deductions, supplementary pay, loans, allowances or leave. Regular payroll runs do not pay 13th-month, so the entitlement is accrued by the annualization as unpaid 13th month and added to gross, exactly as year-end processing treats it.",
+    "Year-end annualization reads Released runs, so each calculated run is set to Released directly in the fixture. The release approval workflow itself is not exercised here.",
+    "Expected values for annualize() use tax = bracket base + rate x (taxable - floor), rounded to the centavo, then adjustment = tax due - tax withheld (positive = collect, negative = refund)."
+  ],
+  "annualize": {
+    "taxableAtExemptionLimit": {
+      "description": "Gross 300,000 less contributions 50,000 = taxable exactly 250,000, the top of the exempt bracket: tax 0.00, nothing withheld, balanced.",
+      "input": { "grossCompensation": 300000, "thirteenthMonth": 0, "statutoryContributions": 50000, "taxWithheld": 0, "mwe": false },
+      "expected": { "taxableIncome": 250000, "taxDue": 0, "adjustment": 0, "outcome": "balanced" }
+    },
+    "oneHundredPesosIntoFifteenPercentBracket": {
+      "description": "Taxable 250,100: 15% x 100 = 15.00. Nothing was withheld, so 15.00 is collected.",
+      "input": { "grossCompensation": 300100, "thirteenthMonth": 0, "statutoryContributions": 50000, "taxWithheld": 0, "mwe": false },
+      "expected": { "taxableIncome": 250100, "taxDue": 15, "adjustment": 15, "outcome": "collect" }
+    },
+    "taxableAtFourHundredThousand": {
+      "description": "Taxable exactly 400,000: 15% x 150,000 = 22,500.00, which equals the next bracket's base, so the table is continuous. Withheld 22,500.00: balanced.",
+      "input": { "grossCompensation": 450000, "thirteenthMonth": 0, "statutoryContributions": 50000, "taxWithheld": 22500, "mwe": false },
+      "expected": { "taxableIncome": 400000, "taxDue": 22500, "adjustment": 0, "outcome": "balanced" }
+    },
+    "taxableAtEightHundredThousand": {
+      "description": "Taxable exactly 800,000: 22,500 + 20% x 400,000 = 102,500.00, equal to the next base. Withheld 100,000.00: collect 2,500.00.",
+      "input": { "grossCompensation": 900000, "thirteenthMonth": 0, "statutoryContributions": 100000, "taxWithheld": 100000, "mwe": false },
+      "expected": { "taxableIncome": 800000, "taxDue": 102500, "adjustment": 2500, "outcome": "collect" }
+    },
+    "taxableAboveTwoMillion": {
+      "description": "Taxable 2,500,000: 402,500 + 30% x 500,000 = 552,500.00. Withheld 560,000.00: refund 7,500.00.",
+      "input": { "grossCompensation": 2700000, "thirteenthMonth": 0, "statutoryContributions": 200000, "taxWithheld": 560000, "mwe": false },
+      "expected": { "taxableIncome": 2500000, "taxDue": 552500, "adjustment": -7500, "outcome": "refund" }
+    },
+    "thirteenthMonthAtNinetyThousandCap": {
+      "description": "Gross 600,000 includes a 90,000 13th month, fully exempt. Non-taxable 90,000 + contributions 30,000 = 120,000; taxable 480,000; tax 22,500 + 20% x 80,000 = 38,500.00.",
+      "input": { "grossCompensation": 600000, "thirteenthMonth": 90000, "statutoryContributions": 30000, "taxWithheld": 38500, "mwe": false },
+      "expected": { "exemptBenefitPool": 90000, "taxableBenefitPool": 0, "nonTaxable": 120000, "taxableIncome": 480000, "taxDue": 38500, "adjustment": 0, "outcome": "balanced" }
+    },
+    "thirteenthMonthAboveCapTaxedOnce": {
+      "description": "Gross 630,000 includes a 120,000 13th month (30,000 more than the previous case). Only 90,000 is exempt; the 30,000 excess stays in gross and is taxed once: non-taxable 120,000; taxable 510,000; tax 22,500 + 20% x 110,000 = 44,500.00, which is 6,000.00 (20% of 30,000) above the previous case.",
+      "input": { "grossCompensation": 630000, "thirteenthMonth": 120000, "statutoryContributions": 30000, "taxWithheld": 38500, "mwe": false },
+      "expected": { "exemptBenefitPool": 90000, "taxableBenefitPool": 30000, "exemptThirteenthMonth": 90000, "taxableThirteenthMonth": 30000, "nonTaxable": 120000, "taxableIncome": 510000, "taxDue": 44500, "adjustment": 6000, "outcome": "collect" }
+    },
+    "thirteenthMonthSharesPoolWithOtherBenefits": {
+      "description": "13th month 60,000 + other benefits 40,000 share ONE 90,000 pool: pool 100,000, exempt 90,000, taxable excess 10,000. Gross 610,000; non-taxable 90,000 + 30,000 = 120,000; taxable 490,000; tax 22,500 + 20% x 90,000 = 40,500.00.",
+      "input": { "grossCompensation": 610000, "thirteenthMonth": 60000, "otherBenefits": 40000, "statutoryContributions": 30000, "taxWithheld": 40500, "mwe": false },
+      "expected": { "benefitPool": 100000, "exemptBenefitPool": 90000, "taxableBenefitPool": 10000, "nonTaxable": 120000, "taxableIncome": 490000, "taxDue": 40500, "adjustment": 0, "outcome": "balanced" }
+    },
+    "deMinimisExcessJoinsPool": {
+      "description": "13th month 85,000 + de minimis excess 10,000 = pool 95,000: exempt 90,000, taxable 5,000. De minimis within ceilings 20,000 is fully exempt. Gross 700,000; non-taxable 90,000 + 20,000 + contributions 40,000 = 150,000; taxable 550,000; tax 22,500 + 20% x 150,000 = 52,500.00.",
+      "input": { "grossCompensation": 700000, "thirteenthMonth": 85000, "deMinimis": 20000, "deMinimisExcess": 10000, "statutoryContributions": 40000, "taxWithheld": 52500, "mwe": false },
+      "expected": { "benefitPool": 95000, "exemptBenefitPool": 90000, "taxableBenefitPool": 5000, "nonTaxable": 150000, "taxableIncome": 550000, "taxDue": 52500, "adjustment": 0, "outcome": "balanced" }
+    },
+    "overWithheldEmployeeIsRefunded": {
+      "description": "Gross 360,000 incl. 30,000 13th month, contributions 29,400: non-taxable 59,400; taxable 300,600; tax 15% x 50,600 = 7,590.00. Withheld 12,088.80: refund 4,498.80.",
+      "input": { "grossCompensation": 360000, "thirteenthMonth": 30000, "statutoryContributions": 29400, "taxWithheld": 12088.8, "mwe": false },
+      "expected": { "taxableIncome": 300600, "taxDue": 7590, "adjustment": -4498.8, "outcome": "refund" }
+    },
+    "contributionsLargerThanGrossFloorAtZero": {
+      "description": "Contributions exceed gross: taxable income floors at 0.00 and tax is 0.00; the 1,000.00 withheld is refunded.",
+      "input": { "grossCompensation": 100000, "thirteenthMonth": 0, "statutoryContributions": 150000, "taxWithheld": 1000, "mwe": false },
+      "expected": { "taxableIncome": 0, "taxDue": 0, "adjustment": -1000, "outcome": "refund" }
+    },
+    "minimumWageEarnerOnlyTaxedOnSupplementary": {
+      "description": "MWE: statutory wage is exempt, so taxable = taxable supplementary pay 20,000 + taxable benefit-pool excess 0 - contributions 10,000 = 10,000: tax 0.00.",
+      "input": { "grossCompensation": 300000, "thirteenthMonth": 25000, "statutoryContributions": 10000, "taxWithheld": 0, "mwe": true, "mweTaxableSupplementaryCompensation": 20000 },
+      "expected": { "taxableBenefitPool": 0, "taxableIncome": 10000, "taxDue": 0, "adjustment": 0, "outcome": "balanced" }
+    },
+    "minimumWageEarnerBenefitPoolExcessIsTaxable": {
+      "description": "MWE with a 100,000 13th month: 10,000 above the 90,000 pool is taxable. Taxable = supplementary 300,000 + pool excess 10,000 - contributions 20,000 = 290,000; tax 15% x 40,000 = 6,000.00; nothing was withheld from an MWE: collect 6,000.00.",
+      "input": { "grossCompensation": 500000, "thirteenthMonth": 100000, "statutoryContributions": 20000, "taxWithheld": 0, "mwe": true, "mweTaxableSupplementaryCompensation": 300000 },
+      "expected": { "taxableBenefitPool": 10000, "taxableIncome": 290000, "taxDue": 6000, "adjustment": 6000, "outcome": "collect" }
+    }
+  },
+  "fullYear": {
+    "description": "One organization, 24 cutoffs of 2026, four monthly employees. Every cutoff of an employee must match its segment exactly; the year-end row must match the annual literals.",
+    "employees": {
+      "steadyThirty": {
+        "description": "PHP 30,000/month all year. Cutoff gross 15,000; SSS 750.00, PhilHealth 375.00, Pag-IBIG 100.00; taxable 13,775.00; withholding 15% x (13,775 - 10,417) = 503.70 (matches Phase 2A EMP-006). Year: contributions (1,500 + 750 + 200) x 12 = 29,400; withheld 503.70 x 24 = 12,088.80. Annualization: gross 360,000 + unpaid 13th month 30,000 = 390,000; non-taxable 30,000 + 29,400 = 59,400; taxable 330,600; tax 15% x 80,600 = 12,090.00; collect 1.20 (the per-cutoff table differs from the annual table by rounding).",
+        "monthlySalary": 30000,
+        "startCutoff": 1,
+        "segments": [
+          { "fromCutoff": 1, "toCutoff": 24, "expected": { "grossPay": 15000, "sss": 750, "philHealth": 375, "pagIbig": 100, "taxableCompensation": 13775, "withholdingTax": 503.7 } }
+        ],
+        "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 59400, "statutoryContributions": 29400, "taxableIncome": 330600, "taxDue": 12090, "taxWithheld": 12088.8, "adjustment": 1.2, "outcome": "collect" }
+      },
+      "highEarner": {
+        "description": "PHP 80,000/month all year. Cutoff gross 40,000; SSS MSC capped at 35,000: 5% = 1,750/month -> 875.00; PhilHealth 2.5% x 80,000 = 2,000/month -> 1,000.00; Pag-IBIG 100.00; taxable 40,000 - 1,975 = 38,025.00; withholding 4,270.70 + 25% x (38,025 - 33,333) = 5,443.70. Year: contributions (1,750 + 2,000 + 200) x 12 = 47,400; withheld 5,443.70 x 24 = 130,648.80. Annualization: gross 960,000 + 80,000 = 1,040,000; non-taxable 80,000 + 47,400 = 127,400; taxable 912,600; tax 102,500 + 25% x 112,600 = 130,650.00; collect 1.20.",
+        "monthlySalary": 80000,
+        "startCutoff": 1,
+        "segments": [
+          { "fromCutoff": 1, "toCutoff": 24, "expected": { "grossPay": 40000, "sss": 875, "philHealth": 1000, "pagIbig": 100, "taxableCompensation": 38025, "withholdingTax": 5443.7 } }
+        ],
+        "yearEnd": { "grossCompensation": 1040000, "thirteenthMonth": 80000, "nonTaxable": 127400, "statutoryContributions": 47400, "taxableIncome": 912600, "taxDue": 130650, "taxWithheld": 130648.8, "adjustment": 1.2, "outcome": "collect" }
+      },
+      "midYearHire": {
+        "description": "Hired 2026-07-01 at PHP 30,000/month: cutoffs 13-24 only, each identical to steadyThirty (503.70 withheld). Year: contributions 1,225 x 12 = 14,700; withheld 503.70 x 12 = 6,044.40. Annualization: gross 180,000 + unpaid 13th month (basic earned 180,000 / 12 = 15,000) = 195,000; non-taxable 15,000 + 14,700 = 29,700; taxable 165,300, below 250,000, so tax due 0.00 and the whole 6,044.40 withheld is refunded.",
+        "monthlySalary": 30000,
+        "startCutoff": 13,
+        "segments": [
+          { "fromCutoff": 13, "toCutoff": 24, "expected": { "grossPay": 15000, "sss": 750, "philHealth": 375, "pagIbig": 100, "taxableCompensation": 13775, "withholdingTax": 503.7 } }
+        ],
+        "yearEnd": { "grossCompensation": 195000, "thirteenthMonth": 15000, "nonTaxable": 29700, "statutoryContributions": 14700, "taxableIncome": 165300, "taxDue": 0, "taxWithheld": 6044.4, "adjustment": -6044.4, "outcome": "refund" }
+      },
+      "midYearRaise": {
+        "description": "PHP 20,000/month for cutoffs 1-12, PHP 40,000/month for cutoffs 13-24. First half: gross 10,000; SSS 500.00, PhilHealth 250.00, Pag-IBIG 100.00; taxable 9,150.00 (below 10,417): withholding 0.00 (Phase 2A EMP-001). Second half: gross 20,000; SSS MSC 35,000 cap -> 875.00; PhilHealth 2.5% x 40,000 = 1,000/month -> 500.00; Pag-IBIG 100.00; taxable 20,000 - 1,475 = 18,525.00; withholding 937.50 + 20% x (18,525 - 16,667) = 1,309.10. Year: contributions (850 x 12) + (1,475 x 12) = 10,200 + 17,700 = 27,900; withheld 1,309.10 x 12 = 15,709.20. The 13th month uses basic ACTUALLY earned, 120,000 + 240,000 = 360,000 / 12 = 30,000, not 12 x the final salary. Annualization: gross 360,000 + 30,000 = 390,000; non-taxable 30,000 + 27,900 = 57,900; taxable 332,100; tax 15% x 82,100 = 12,315.00; refund 3,394.20 because the semi-monthly table over-withholds on the higher half-year pay.",
+        "monthlySalary": 20000,
+        "raiseToMonthlySalary": 40000,
+        "raiseAtCutoff": 13,
+        "startCutoff": 1,
+        "segments": [
+          { "fromCutoff": 1, "toCutoff": 12, "expected": { "grossPay": 10000, "sss": 500, "philHealth": 250, "pagIbig": 100, "taxableCompensation": 9150, "withholdingTax": 0 } },
+          { "fromCutoff": 13, "toCutoff": 24, "expected": { "grossPay": 20000, "sss": 875, "philHealth": 500, "pagIbig": 100, "taxableCompensation": 18525, "withholdingTax": 1309.1 } }
+        ],
+        "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 57900, "statutoryContributions": 27900, "taxableIncome": 332100, "taxDue": 12315, "taxWithheld": 15709.2, "adjustment": -3394.2, "outcome": "refund" }
+      }
+    }
+  },
+  "limitations": [
+    "Regular payroll runs do not pay 13th month, so the year-end 13th month is the accrued entitlement added at annualization; a 13th month actually paid inside a cutoff (and the December cutoff binding of the adjustment) is not exercised here.",
+    "All four employees are monthly salaried with no attendance, supplementary pay, loans or allowances; daily/hourly workers (Phase 8) and attendance pay (Phase 5) are not run across a year.",
+    "Imported prior-provider history, prior-employer evidence and numbered-2316 reconciliation are separate flows and are not covered.",
+    "Release approval is bypassed: runs are set to Released in the fixture, so approval gating is not exercised.",
+    "No practitioner has reviewed the expected values; they are derived from the cited rules and need a qualified Philippine payroll/tax review before being relied on for filing."
+  ]
+}
