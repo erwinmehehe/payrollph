@@ -118,6 +118,14 @@ export function baseTenantManifest(env = process.env) {
 export function assertLiveTenantCounts(assert, manifest, env = process.env, injectedBase = undefined) {
   const live = tallyTenantManifest(manifest);
   for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "privilegedOperationsTokenOnly", "gap"]) {
+    // Historical main inventories predate the explicit token-only classification.
+    // They are valid only if *no* API method has that status. A manifest opting
+    // into the new class must always publish and match its exact count.
+    if (key === "privilegedOperationsTokenOnly" && !Object.hasOwn(manifest.metrics, key)) {
+      assert.equal(live.privilegedOperationsTokenOnly, 0,
+        "Legacy manifest cannot silently contain token-only methods");
+      continue;
+    }
     assert.equal(manifest.metrics[key], live[key], "manifest metrics." + key + " must equal the actual per-method tally");
   }
   assert.equal(live.coveredAfter + live.publicByDesign + live.privilegedOperationsTokenOnly + live.gap, live.methods, "every method has exactly one status");
