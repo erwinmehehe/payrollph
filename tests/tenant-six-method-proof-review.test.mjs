@@ -742,12 +742,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
       "origin/main must not contain a partial five-method proof recovery");
     const baselineHasRecovery = mainRecoveryCredits[0];
+    const baselineTransferCredits=['POST','PATCH'].filter(name=>baseline.allApiRouteFiles['src/app/api/multi-entity/transfers/route.ts'].methods.find(m=>m.name===name).status==='COVERED').length;
+    assert.ok([0,2].includes(baselineTransferCredits),'A transfer pair may not silently merge only one method');
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      assert.equal(receipt.methodsHeld, 2);
+      assert.equal(receipt.methodsHeld, 2-baselineTransferCredits,'The strict source verifier has already checked each credited transfer receipt');
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
