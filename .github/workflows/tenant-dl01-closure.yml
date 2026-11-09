@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/ci/tenant-family-ledger-scope.mjs'
+      - '.github/tenant-family-ledger-scope.json'
+      - 'tests/ci-tenant-family-ledger-scope.test.mjs'
       - '.github/workflows/tenant-dl01-closure.yml'
       - 'scripts/qa/tenant-dl01-closure-http.mjs'
       - 'scripts/qa/tenant-dl01-closure-shared.mjs'
@@ -19,13 +22,39 @@ permissions:
   contents: read
 
 concurrency:
-  group: dl01-batch-${{ github.event.pull_request.number || github.sha }}
+  group: family-ledger-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}-${{ (github.event.action == 'ready_for_review' || github.event.action == 'edited' && !github.event.changes.base) && 'metadata' || 'proof' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  family-scope:
+    name: Tenant family ledger scope (fast)
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Fetch exact PR base (failure runs proof)
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+      - name: Classify exact event and ledger family
+        id: scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TENANT_FAMILY_WORKFLOW: tenant-dl01-closure.yml
+        run: node scripts/ci/tenant-family-ledger-scope.mjs
+
   whole-batch:
+    needs: family-scope
     # Forked PRs cannot inherit a trusted local-only proof environment.
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ !cancelled() && (needs.family-scope.result != 'success' || needs.family-scope.outputs.run != 'false') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
