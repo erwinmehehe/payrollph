@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {
   ORIGIN, AS_OF, SOURCE_PINS, gitBlobSha, verifyWorker360SourcePins,
   requireDisposableWorker360Env, assertOwnPage, assertOwnWorkerApi,
@@ -264,4 +265,35 @@ test("Worker 360 page closure proposal is source-pinned, scoped and review-gated
   assert.match(workflow, /image: postgres:16/);
   assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
   assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-worker360-http\.mjs/);
+});
+
+test("historical page-GAP verifier only permits the exact current source-pinned Worker 360 promotion", () => {
+  const m = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.equal(verifyWorker360PageCredit(m), 16);
+  const stale = structuredClone(m);
+  const page = stale.scopedPages.find(row => row.path ===
+    "src/app/hcm/worker-360/page.tsx");
+  page.testedBy.proofBlobSha = "0000000000000000000000000000000000000000";
+  assert.throws(() => verifyWorker360PageCredit(stale),
+    /Worker 360 PG16 proof|strictly equal/);
+  const unearned = structuredClone(m);
+  const unrelated = unearned.scopedPages.find(row =>
+    row.path === "src/app/hcm/org-explorer/page.tsx");
+  assert.equal(unrelated.status, "GAP");
+  unrelated.status = "COVERED";
+  assert.throws(() => verifyWorker360PageCredit(unearned),
+    /Only the exact Worker 360 page GAP may close/);
+  const forged = structuredClone(m);
+  const receipt = forged.scopedPages.find(row =>
+    row.path === "src/app/hcm/worker-360/page.tsx");
+  receipt.testedBy.independentSecurityReview = "APPROVED";
+  assert.throws(() => verifyWorker360PageCredit(forged));
+  // Old main remains a 17-GAP baseline, not an accidental source credit.
+  const historical = structuredClone(m);
+  const old = historical.scopedPages.find(row =>
+    row.path === "src/app/hcm/worker-360/page.tsx");
+  old.status = "GAP";
+  delete old.testedBy;
+  assert.equal(verifyWorker360PageCredit(historical), 17);
 });
