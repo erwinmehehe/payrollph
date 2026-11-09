@@ -1,6 +1,6 @@
 /**
  * Standalone, source-pinned Worker 360 tenant/worker boundary proof.
- * No runtime changes or centralized tenant-coverage credit.
+ * Pins the strengthened server-side page; API and unrelated families are unchanged.
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -13,7 +13,7 @@ export const API = "/api/hcm/worker-360";
 export const AS_OF = "2026-11-09";
 
 export const SOURCE_PINS = Object.freeze({
-  "src/app/hcm/worker-360/page.tsx": "cb47f8fb0f515d22596ef6db9de44ed606b9ee27",
+  "src/app/hcm/worker-360/page.tsx": "337034f839c17a30077e2cfe5991c640e0c6a5e9",
   "src/app/api/hcm/worker-360/route.ts": "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62",
   "src/lib/hcm-worker-360-server.ts": "7bc310dd03d89bd3cc29cd2a73f95d9e3959bece",
   "src/lib/hcm-worker-360-contract.ts": "ed4741dab306ed2b4081bb4319f96d04f6462690",
@@ -46,7 +46,18 @@ export function verifyWorker360SourcePins(root = process.cwd()) {
   for (const required of [
     "getSessionUser()", "assertOrganizationRole(", "access?.companyWide",
     "HCM_WORKER_360_ENABLED", "denyOptInEnterpriseHcmPlan(",
+    "eq(employees.organizationId, organizationId)",
+    "eq(employees.id, employeeId)",
+    "if (!verifiedWorker) notFound();",
   ]) assert.ok(page.includes(required), "WORKER360_REFUSED: page guard missing: " + required);
+  const authIndex = page.indexOf("await assertOrganizationRole(");
+  const planIndex = page.indexOf("await denyOptInEnterpriseHcmPlan(organizationId)");
+  const workerIndex = page.indexOf("const [verifiedWorker] = await db.select(");
+  const renderIndex = page.indexOf("<Worker360Client");
+  assert.ok(0 < authIndex && authIndex < planIndex &&
+    planIndex < workerIndex && workerIndex < renderIndex,
+    "WORKER360_REFUSED: employer, role and plan checks must precede the worker SQL existence probe, which must precede mounting the private client");
+
   for (const required of [
     "getSessionUser()", "assertOrganizationRole(", "access?.companyWide",
     "HCM_WORKER_360_ENABLED", "denyOptInEnterpriseHcmPlan(",

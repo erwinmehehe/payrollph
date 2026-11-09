@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   ORIGIN, AS_OF, SOURCE_PINS, gitBlobSha, verifyWorker360SourcePins,
@@ -186,4 +186,82 @@ test("exact source pins gate runtime authorization and worker-scoped SQL project
   assert.notEqual(gitBlobSha("tenant"), gitBlobSha("tenant!"));
   if (process.env.CI === "true" || existsSync("src/app/hcm/worker-360/page.tsx"))
     assert.equal(verifyWorker360SourcePins(), true);
+});
+
+test("SSR foreign-worker denial is independently exercised for BOTH legitimate employers", () => {
+  const runner = readFileSync("scripts/qa/tenant-hcm-worker360-http.mjs", "utf8");
+  const page = readFileSync("src/app/hcm/worker-360/page.tsx", "utf8");
+  for (const clause of [
+    "const [verifiedWorker] = await db.select({ id: employees.id })",
+    "eq(employees.organizationId, organizationId)",
+    "eq(employees.id, employeeId)",
+    "if (!verifiedWorker) notFound();",
+  ]) assert.ok(page.includes(clause), "Page SSR worker-bound guard missing: " + clause);
+  const role = page.indexOf("await assertOrganizationRole(");
+  const plan = page.indexOf("await denyOptInEnterpriseHcmPlan(");
+  const source = page.indexOf("const [verifiedWorker] = await db.select(");
+  const shell = page.indexOf("<Worker360Client");
+  assert.ok(role < plan && plan < source && source < shell,
+    "Do not read a worker before role/plan authorization or mount an unbound shell");
+  for (const evidence of [
+    "for (const actor of [a, b])",
+    "await readPage(actor, actor.worker, actor.cookie)",
+    "await readPage(actor, actor.secondWorker, actor.cookie)",
+    'await deny(pagePath(actor.org.id, victim.worker.id)',
+    "foreign worker inside own employer SSR",
+    "other attacker's worker inside own employer SSR",
+    "duplicate employer selector must fail closed",
+    "foreign worker first with duplicated own employee selector",
+    "await unchanged(\"final readonly database snapshot\")",
+    "assert.equal(ownedPages, 5",
+    "assert.equal(foreignDenials, 12",
+    "assert.equal(deniedCases, 44",
+  ]) assert.ok(runner.includes(evidence), "Missing strict two-employer SSR evidence: " + evidence);
+  assert.ok(runner.indexOf("requireDisposableWorker360Env();") <
+    runner.indexOf('import("../../src/db/index.ts")'),
+    "No database or fixture import may precede local-only PG16 guard");
+});
+
+test("Worker 360 page closure proposal is source-pinned, scoped and review-gated", () => {
+  const m = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const path = "src/app/hcm/worker-360/page.tsx";
+  const page = m.scopedPages.find(entry => entry.path === path);
+  assert.equal(page?.status, "COVERED", "Only bounded, provisional SSR page closure is proposed");
+  assert.equal(page?.blob, SOURCE_PINS[path]);
+  assert.equal(page?.testedBy?.sourceBlobSha, SOURCE_PINS[path]);
+  assert.equal(page?.testedBy?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
+  const code = readFileSync(page.testedBy.file);
+  assert.equal(page.testedBy.proofBlobSha, gitBlobSha(code));
+  assert.equal(page.testedBy.independentSecurityReview, "PENDING",
+    "Do not fabricate independent reviewer acceptance");
+  assert.equal(page.testedBy.productionCertified, false);
+  const lines = code.toString("utf8").split("\n");
+  assert.match(lines[page.testedBy.ownPositiveLine - 1],
+    /await readPage\(actor, actor\.worker, actor\.cookie\)/);
+  assert.match(lines[page.testedBy.foreignDenialLine - 1],
+    /await deny\(pagePath\(actor\.org\.id, victim\.worker\.id\)/);
+  assert.match(lines[page.testedBy.unchangedDbLine - 1],
+    /assertUnchangedSql\(baselines\.get\(actor\.org\.id\)/);
+  const gate = readFileSync("src/app/hcm/worker-360/page.tsx", "utf8");
+  for (const field of ["ids", "business", "guards"]) {
+    assert.ok(Array.isArray(page[field]) && page[field].length > 0);
+    const sourceLines = gate.split("\n");
+    for (const pin of page[field]) {
+      assert.ok(sourceLines[pin.line - 1]?.includes(pin.token),
+        "Page source line pin drift: " + field + " " + pin.line);
+    }
+  }
+  const api = m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
+  assert.equal(api.methods.find(row => row.name === "GET")?.status, "COVERED",
+    "Prior independently proven API GET is unchanged");
+  assert.equal(m.metrics.routeFiles, 295);
+  assert.equal(m.metrics.methods, 498);
+  assert.equal(m.metrics.scopedPagesAndActions, 21);
+  assert.equal(m.scopedPages.filter(row => row.status === "GAP").length, 16);
+  const workflow = readFileSync(
+    ".github/workflows/tenant-hcm-worker360-qa.yml", "utf8");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-worker360-http\.mjs/);
 });
