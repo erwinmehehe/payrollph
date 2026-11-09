@@ -97,7 +97,7 @@ test("inventory-only SHA edits run the complete source-pinned PG16 proof", () =>
   }), true);
 });
 
-test("only the two uncredited opt-in workflows use relevance gating", () => {
+test("legacy relevance remains narrow; reviewed family gates preserve the original proof execution", () => {
   const fs = [
     "tenant-hcm-manager-attestation-recovery.yml",
     "tenant-v1-journal-http.yml",
@@ -129,7 +129,13 @@ test("only the two uncredited opt-in workflows use relevance gating", () => {
     const source = readFileSync(new URL("../.github/workflows/" + workflow,
       import.meta.url), "utf8");
     assert.ok(!source.includes("Tenant proof relevance (fast)"),
-      workflow + ": previously executed source-pinned workflow must stay unmodified");
+      workflow + ": historical proofs must not opt into the less-specific legacy classifier");
+    if(workflow==='tenant-dl01-closure.yml'){
+      assert.ok(source.includes('node scripts/ci/tenant-family-ledger-scope.mjs'));
+      assert.ok(source.includes("needs.family-scope.outputs.run != 'false'"),'Missing classification must run the original proof');
+      // ci-tenant-family-ledger-scope.test.mjs independently seals ALL original
+      // proof steps, matrix profiles, environments and database services.
+    }
     assert.ok(source.includes("scripts/qa/tenant-isolation-coverage-manifest.json"),
       workflow + ": source-pinned real-HTTP evidence must still watch the manifest");
   }

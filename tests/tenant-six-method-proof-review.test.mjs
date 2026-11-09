@@ -763,20 +763,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
       "origin/main must not contain a partial five-method proof recovery");
     const baselineHasRecovery = mainRecoveryCredits[0];
+    // Transfer POST/PATCH must be reconciled as a pair even when the three
+    // separate historical recovery receipts are absent from the base branch.
+    const baselineTransferCredits = ["POST", "PATCH"].filter(verb =>
+      baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+        .methods.find(method => method.name === verb)?.status === "COVERED").length;
+    assert.ok([0, 2].includes(baselineTransferCredits),
+      "The two transfer credits must be either both held or both independently evidenced");
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      // The historical two transfer GAPs may now be covered by the independently
-      // merged #1853 proof. verifyFiveMethodCredits above validates each
-      // exact source, run, job, method and production/acceptance hold.
-      const acceptedTransfers = ["POST", "PATCH"].filter(verb =>
-        baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
-          .methods.find(method => method.name === verb)?.status === "COVERED").length;
-      assert.ok(acceptedTransfers === 0 || acceptedTransfers === 2,
-        "The two transfer credits must be either both held or both independently evidenced");
-      assert.equal(receipt.methodsHeld, 2 - acceptedTransfers,
+      assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
         "Historical five-method holds must reflect only the dedicated validated transfer promotion");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
@@ -994,9 +993,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(baselineAccountEmailRow?.status, "GAP");
       assert.equal(baselineAccountEmailRow?.testedBy, null);
     }
-    // Reconcile only the four owner-approved 2026-11-09 public endpoints
-    // already merged on main. None counts as a tenant-private method credit.
-    // Keep the exact allowlist, status, reviewed boundary and no-proof checks.
+    // Recognize the four owner-approved non-session public classifications on
+    // origin/main only as public methods, never as tenant-private proof credits.
     const baselinePublicSpecs = [
       ["src/app/api/careers/route.ts", "GET"],
       ["src/app/api/careers/route.ts", "POST"],
@@ -1009,8 +1007,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         assert.equal(row.testedBy, null, "Unclassified public method cannot borrow proof");
         return false;
       }
-      assert.equal(row?.status, "PUBLIC-BY-DESIGN",
-        "Only four owner-approved public methods may change");
+      assert.equal(row?.status, "PUBLIC-BY-DESIGN", "Only four owner-approved public methods may change");
       assert.equal(row.testedBy, null, "Public classification cannot claim tenant method credit");
       assert.equal(row.publicBoundary?.approvedOn, "2026-11-09");
       assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
