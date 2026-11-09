@@ -1,0 +1,140 @@
+name: Filing PATCH complete-method candidate (fictional PG16, 3 legs)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-filing-patch-method-qa.yml"
+      - "scripts/qa/tenant-filing-patch-method-*.mjs"
+      - "tests/tenant-filing-patch-method-contract.test.mjs"
+      - "docs/qa/tenant-filing-patch-method-recovery.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: filing-patch-method-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  filing-method-leg:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [accepted, rejected, guards]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate head and never consume merge-ref source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exactly locked dependencies
+        run: npm ci
+      - name: Set fictional compliance profile; leave workers, money and real providers off
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_FILING_OUTCOME_MODE=fictional-pg16-filing-outcome'
+            echo 'TENANT_COMPLIANCE_ACCEPTED_BATCH=fictional-only'
+            echo 'TENANT_FILING_PATCH_RECOVERY=fictional-only'
+            echo 'MULTI_ENTITY_ENABLED=false'
+            echo 'DEMO_MODE=false'
+            echo 'REQUIRE_PRIVILEGED_MFA=true'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'PAYMONGO_WEBHOOK_SECRET='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'XENDIT_PAYOUT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+            echo 'POSTMARK_SERVER_TOKEN='
+            echo 'SMTP_URL='
+            echo 'STRIPE_SECRET_KEY='
+            echo 'OPENAI_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Reject fake receipts, unsafe targets, missing source pins and premature credits
+        run: |
+          node --check scripts/qa/tenant-filing-patch-method-contract.mjs
+          node --check scripts/qa/tenant-filing-patch-method-http.mjs
+          node --test tests/tenant-filing-patch-method-contract.test.mjs tests/tenant-filing-outcome-contract.test.mjs tests/tenant-compliance-accepted-contract.test.mjs
+      - name: Generate disposable encryption keys (never secrets from real employers)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Create one fresh isolated PG16 schema for this proof leg
+        run: npm run db:push
+      - name: Apply reviewed fictional-only database baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build exact-head Next production-mode app against localhost DB
+        run: npm run build
+      - name: Start private loopback HTTP app; never contact provider or agency
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/filing-patch-recovery.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 90 /tmp/filing-patch-recovery.log
+          exit 1
+      - name: Execute actual authenticated PATCH, real victim, SQL and audit proof
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-filing-patch-method-http.mjs "${{ matrix.case }}"
+      - name: Print bounded localhost-only logs on failure
+        if: failure()
+        run: tail -n 90 /tmp/filing-patch-recovery.log || true
+
+  filing-method-all-legs:
+    needs: [filing-method-leg]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Fail unless ALL three independent current-head PostgreSQL legs passed
+        env:
+          MATRIX_RESULT: ${{ needs.filing-method-leg.result }}
+        shell: bash
+        run: |
+          test "$MATRIX_RESULT" = "success"
+          echo "All three fictional own/victim/forged/role/MFA legs passed. ZERO credits; independent human review still required."
