@@ -28,7 +28,7 @@ export async function proveFictionalAcceptedFilingIsolation() {
     import("../../src/lib/government-id-crypto.ts"),
     import("../../src/lib/filing-evidence.ts"),
   ]);
-  const { asc, eq } = orm;
+  const { asc, eq, inArray } = orm;
   const { seedEmployer, standaloneMakeSession } = fixture;
   const { withDisposableInsertVeto } = veto;
 
@@ -51,10 +51,12 @@ export async function proveFictionalAcceptedFilingIsolation() {
       result[key] = clone(await db.select().from(table)
         .where(eq(orgField, orgId)).orderBy(asc(table.id)));
     }
-    const runs = result.payrollRuns.map(row => row.id);
-    result.payrollEntries = clone((await db.select().from(schema.payrollEntries))
-      .filter(row => runs.includes(row.payrollRunId))
-      .sort((a, b) => a.id - b.id));
+    const runIds = result.payrollRuns.map(row => row.id);
+    result.payrollEntries = runIds.length
+      ? clone(await db.select().from(schema.payrollEntries)
+          .where(inArray(schema.payrollEntries.payrollRunId, runIds))
+          .orderBy(asc(schema.payrollEntries.id)))
+      : [];
     return result;
   }
 
