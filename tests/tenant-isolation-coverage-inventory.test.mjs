@@ -1,3 +1,4 @@
+import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
@@ -3378,6 +3379,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       currentBlob === "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e") {
     const routeFile = "src/app/api/invitations/accept/route.ts";
     assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, currentBlob);
+    if (method.status === "COVERED") {
+      assert.equal(verifyInvitationAcceptCredits(manifest), 2,
+        "Both executed source-pinned invitation GET/POST receipts must verify");
+      return true;
+    }
     assert.equal(gitBlobSha(readFileSync("scripts/qa/tenant-invitation-header-source-compat.mjs")),
       "329c50621b5ce5dad4a356a4cac66414300f0d10",
       "Historic proof compatibility guard changed without renewed review");
@@ -5646,6 +5652,13 @@ test("all credited proof links point to the claimed route and every recertified 
         // never an additional general proof-file allowlist entry.
         assert.equal(proof.file, "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs");
         assert.equal(verifyYearEndCredits(manifest), 2);
+        continue;
+      }
+      // Scope-locked invitation exception: no additional generic evidence source.
+      if (path === "src/app/api/invitations/accept/route.ts" &&
+          ["GET", "POST"].includes(method.name)) {
+        assert.equal(verifyInvitationAcceptCredits(manifest), 2,
+          "Both separately executed invitation source/job receipts must verify");
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
