@@ -12,12 +12,22 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
+// Invitation previews contain bearer-authorized recipient data. Never cache or
+// forward their query-token URLs as a referrer, including on denied previews.
+const invitationPreviewHeaders = {
+  "Cache-Control": "no-store, max-age=0",
+  "Referrer-Policy": "no-referrer",
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token") ?? "";
   const invitation = token ? await findUsableInvitation(token) : null;
-  if (!invitation) return Response.json({ valid: false }, { status: 404 });
-  return Response.json({ valid: true, email: invitation.email, role: invitation.role, expiresAt: invitation.expiresAt });
+  if (!invitation) return Response.json({ valid: false }, { status: 404, headers: invitationPreviewHeaders });
+  return Response.json(
+    { valid: true, email: invitation.email, role: invitation.role, expiresAt: invitation.expiresAt },
+    { headers: invitationPreviewHeaders },
+  );
 }
 
 export async function POST(request: Request) {
@@ -103,6 +113,16 @@ export async function POST(request: Request) {
         orgUnitId: invitation.orgUnitId,
       });
 
+      // Account, membership, token consumption and audit are one atomic claim.
+      // A failed audit insert must roll back the new identity and invitation.
+      await recordAuditEvent({
+        organizationId: invitation.organizationId,
+        actor: name || invitation.email,
+        action: "Invitation accepted",
+        resource: invitation.email,
+        metadata: { role: invitation.role, orgUnitId: invitation.orgUnitId },
+      }, tx);
+
       return { userId: created.id };
     });
 
@@ -116,13 +136,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invitation could not be accepted. Request a new invitation." }, { status: 409 });
   }
 
-  await recordAuditEvent({
-    organizationId: invitation.organizationId,
-    actor: name || invitation.email,
-    action: "Invitation accepted",
-    resource: invitation.email,
-    metadata: { role: invitation.role, orgUnitId: invitation.orgUnitId },
-  });
 
   const { token: sessionToken, expiresAt } = await createSession(userId, requestMeta(request));
   const jar = await cookies();

@@ -23,13 +23,19 @@ export function assertOwnInvitationPreview(response, invitation) {
   const text = response.text + "\n" + [...response.headers].map(([k, v]) => k + ":" + v).join("\n");
   assert.ok(!text.includes(invitation.token), "bearer token must never appear in the preview");
   assert.ok(!text.includes(invitation.row.tokenHash), "token hash must never appear in the preview");
-  assert.ok(!/(?:^|,\s*)public(?:,|$)/i.test(response.headers.get("cache-control") ?? ""),
-    "private invitation previews cannot be publicly cacheable");
+  assert.match(response.headers.get("cache-control") ?? "", /(?:^|,\s*)no-store(?:,|$)/i,
+    "invitation bearer previews must be explicitly non-cacheable");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer",
+    "invitation bearer query-token URLs must not become outbound referrers");
 }
 
 export function assertInvitationPreviewDenied(response, forbidden) {
   assert.equal(response.status, 404, "invalid, expired or consumed tokens must be indistinguishable");
   assert.deepEqual(response.json, { valid: false }, "refusals must not expose invitation state");
+  assert.match(response.headers.get("cache-control") ?? "", /(?:^|,\s*)no-store(?:,|$)/i,
+    "denied invitation previews must also be non-cacheable");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer",
+    "denied preview URLs must not become outbound referrers");
   const text = response.text + "\n" + [...response.headers].map(([k, v]) => k + ":" + v).join("\n");
   for (const marker of forbidden) {
     assert.ok(marker && !text.includes(marker), "denial leaked a real employer or invitation marker");
