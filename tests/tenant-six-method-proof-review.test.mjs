@@ -751,7 +751,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      assert.equal(receipt.methodsHeld, 2);
+      assert.equal(receipt.methodsHeld, 0, "merged #1853 transfer POST/PATCH proofs supersede the two historical holds");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
