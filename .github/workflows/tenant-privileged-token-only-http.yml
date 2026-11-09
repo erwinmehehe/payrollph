@@ -41,6 +41,8 @@ jobs:
       SCHEDULER_MONITOR_TOKEN: fictional-monitor-authority-cccccccccccccccccc
       READINESS_TOKEN: fictional-readiness-authority-dddddddddddddddddd
       HEALTH_TOKEN: fictional-health-authority-eeeeeeeeeeeeeeeeeeee
+      # Disposable-only key for production-mode CI boot; never use outside fictional tests.
+      PII_ENCRYPTION_KEY: 'd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1'
     services:
       postgres:
         image: postgres:16
