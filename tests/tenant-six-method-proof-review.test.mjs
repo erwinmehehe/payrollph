@@ -841,6 +841,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for(const t of baselineSecurity)expectedOriginalMain[t.path][t.method]='COVERED';
+
+    // Recognize only the merged enterprise POST if the complete #1846
+    // source-pinned receipt validates on this branch. No independent approval.
+    const baselineEnterprise = baseline.allApiRouteFiles["src/app/api/enterprise/route.ts"]
+      ?.methods.find(row => row.name === "POST");
+    if (baselineEnterprise?.status === "COVERED") {
+      assert.equal(verifyEnterprisePostCredit(baseline), 1);
+      expectedOriginalMain["src/app/api/enterprise/route.ts"].POST = "COVERED";
+    } else {
+      assert.equal(baselineEnterprise?.status, "GAP");
+      assert.equal(baselineEnterprise?.testedBy, null);
+    }
+
     const baselineRecovery=RECOVERY_TARGETS.filter(t=>baseline.allApiRouteFiles[t.path].methods.find(x=>x.name===t.method).status==='COVERED');
     if(baselineRecovery.length){assert.equal(baselineRecovery.length,3);verifyRecoveryCredits(baseline);}
     for(const t of baselineRecovery)expectedOriginalMain[t.path][t.method]='COVERED';
