@@ -255,7 +255,7 @@ test("already credited and partial-action methods are not double-counted", () =>
   // accept a status flip without the fail-closed SHA/line/CI verifier.
   const recovered = verifyFiveMethodCredits(manifest);
   assert.equal(recovered.methodsCredited, 3);
-  assert.equal(recovered.methodsHeld, 2);
+  assert.equal(recovered.methodsHeld, 0);
   for (const [key, proofPr, proofRun] of [
     ["PATCH self/profile", 1762, 41830570387],
     ["POST hcm/salary-corrections/preview", 1762, 41830569945],

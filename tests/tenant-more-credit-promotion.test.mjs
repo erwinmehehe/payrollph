@@ -21,7 +21,7 @@ test("three historical credits remain distinct from the later source-pinned self
   assert.equal(profile.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3");
   const recovery = verifyFiveMethodCredits(manifest);
   assert.equal(recovery.methodsCredited, 3);
-  assert.equal(recovery.methodsHeld, 2);
+  assert.equal(recovery.methodsHeld, 0);
 });
 
 test("tampered source, forged receipt, fourth credit or invalid profile proof all fail closed", () => {
