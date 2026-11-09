@@ -76,7 +76,10 @@ export function leaveConversionTaxReviewAcknowledged(
     .includes(organizationId);
 }
 
-/** Monetized unused vacation leave of private employees is tax-exempt up to 12 days per YEAR (RR 11-2018), not per request. */
+/** 2026 current-year private vacation-leave ceiling: 12 annual days from 2026-01-06
+ * under BIR RR 29-2025. Earlier dates used 10 days. Final-pay review applies
+ * the effective date via final-pay-tax-classification; this separate leave
+ * conversion pilot only accepts the current Manila calendar year. */
 export const LEAVE_CONVERSION_ANNUAL_EXEMPT_DAYS = 12;
 
 export type LeaveConversionTaxPart = { daysConverted: number; cashAmount: number; taxExempt: boolean };
