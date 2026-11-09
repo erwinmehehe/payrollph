@@ -218,7 +218,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
 });
 
 test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end credits", () => {
-  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
     counts[method.status]++;
@@ -669,6 +669,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only distinct previously GAP methods may be credited");
     expectedStatuses[target.path][target.method] = "COVERED";
   }
+  // Approved 2026-11-09 non-session classifications are NOT tenant proof credits.
+  // Pin each route and method explicitly; all other original credits remain immutable.
+  const ownerClassifications = [["src/app/api/jobs/cron/route.ts","GET"],["src/app/api/jobs/dispatch-readiness/route.ts","GET"],["src/app/api/jobs/status/route.ts","GET"],["src/app/api/jobs/tick/route.ts","POST"],["src/app/api/webhooks/drain/route.ts","POST"],["src/app/api/capabilities/route.ts","GET"],["src/app/api/readiness/route.ts","GET"],["src/app/api/readiness/billing/route.ts","GET"],["src/app/api/readiness/database-target/route.ts","GET"],["src/app/api/readiness/deployment/route.ts","GET"],["src/app/api/readiness/pilot-status/route.ts","GET"]];
+  for (const [path, verb] of ownerClassifications) {
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP can be owner-reclassified");
+    const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+    assert.equal(row.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY");
+    assert.equal(row.testedBy, null, "Authentication classification cannot invent method proof");
+    assert.equal(row.privilegedOperation?.approvedOn, "2026-11-09");
+    assert.equal(row.privilegedOperation?.methodCoverageCredits, 0);
+    assert.equal(row.privilegedOperation?.productionCertified, false);
+    expectedStatuses[path][verb] = "PRIVILEGED-OPERATIONS-TOKEN-ONLY";
+  }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
@@ -676,11 +689,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - 1,
   };
+  expectedCounts.GAP -= ownerClassifications.length;
+  expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] = ownerClassifications.length;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
+  assert.equal(m.metrics.privilegedOperationsTokenOnly, counts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
   assert.equal(m.metrics.gap, counts.GAP);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
