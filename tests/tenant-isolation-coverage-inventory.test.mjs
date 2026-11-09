@@ -1733,7 +1733,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   // three-employer POST evidence and does NOT authorize public careers launch.
   // Both GET and POST share a new route blob, though GET's actual handler is
   // unchanged. A new change to the reviewed route/validator/tests fails closed.
-  if (isNewOrChanged && method.status === "GAP" &&
+  if (isNewOrChanged && method.status === "PUBLIC-BY-DESIGN" &&
       (key === "src/app/api/careers/route.ts GET" ||
        key === "src/app/api/careers/route.ts POST")) {
     const review = method.reviewedUncertified;
@@ -1761,7 +1761,9 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(review.coverageCredits, 0);
     assert.equal(review.independentPrivacyAndSecurityReview, "PENDING");
     assert.equal(method.testedBy, null, "No borrowed public applicant HTTP coverage");
-    assert.match(method.reason, /Still GAP/);
+    assert.equal(method.publicBoundary?.approvedOn, "2026-11-09");
+    assert.equal(method.publicBoundary?.fourPartMethodCredit, false);
+    assert.equal(method.testedBy, null);
     const route = readFileSync(routeFile, "utf8");
     const getAt = route.indexOf("export async function GET(request: Request) {");
     const postCommentAt = route.indexOf("/** Anonymous applicant intake:", getAt);
@@ -3292,9 +3294,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(currentBlob, reviewedSha, "Source drift requires renewed public intake review");
     assert.equal(manifest.allApiRouteFiles[routeFile]?.gitBlobSha, reviewedSha);
     assert.equal(method.name, "POST");
-    assert.equal(method.status, "GAP", "Source-only marketing review does not earn tenant evidence");
+    assert.equal(method.status, "PUBLIC-BY-DESIGN", "Owner-approved public intake classification is not tenant coverage");
+    assert.equal(method.publicBoundary?.fourPartMethodCredit, false);
     assert.equal(method.testedBy, null, "No fictional own/victim method proof may be invented");
-    assert.match(method.reason, /^Still GAP:/);
+    assert.match(method.reason, /Owner-approved anonymous/);
     assert.deepEqual(method.reviewedUncertified, {
       kind: "public-outsourcing-attribution-source-only-zero-tenant-credit",
       originalRouteBlobSha: originalSha, routeBlobSha: reviewedSha,
