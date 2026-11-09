@@ -221,7 +221,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 9 | 0 | 24 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 10 | 0 | 23 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 26 | 1 | 6 | INCOMPLETE |
 
 Frozen subtotal (2026-11-04 proposal): **364 COVERED + 3 PUBLIC-BY-DESIGN + 39 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 8 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.

@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
 
 export const BILLING_CREDIT_RECEIPT = Object.freeze({
   proofPR: 1804,
@@ -55,7 +56,8 @@ function blobHash(value) {
 
 export function verifyBillingSubscriptionCredits(manifest, read = readFileSync) {
   for (const [path, sha] of Object.entries(BILLING_SOURCE_PINS)) {
-    assert.equal(blobHash(read(path)), sha, "Source/proof input drift: " + path);
+    if (path === "next.config.ts") assertHistoricalNextConfigPreservedWithInvitationHeaders(read(path), sha);
+    else assert.equal(blobHash(read(path)), sha, "Source/proof input drift: " + path);
   }
   const routeEntries = Object.values(manifest.allApiRouteFiles);
   assert.equal(routeEntries.length, manifest.metrics.routeFiles,

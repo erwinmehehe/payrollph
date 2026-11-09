@@ -75,6 +75,16 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0" },
         ],
       },
+      // Invitation previews expose a bearer token in the URL. Next's
+      // catch-all security header would otherwise overwrite the route's
+      // stricter Referrer-Policy on the actual HTTP response.
+      {
+        source: "/api/invitations/accept",
+        headers: [
+          { key: "Cache-Control", value: "no-store, max-age=0" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
       // Protect private employee-pay explanations on the actual HTTP wire.
       // Next's global API header would otherwise override the route header.
       {

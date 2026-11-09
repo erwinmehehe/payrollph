@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
+import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
 
 export const EMAIL_RECEIPT = Object.freeze({head:'480e6d621c91564f9645563b3417a10fb2ebd5a0',merge:'9ac4795efe8c013cd7a66ba73005dc481bde6626',run:42316473226,job:128230185900});
 const route='src/app/api/account/email/verify/route.ts';
@@ -99,7 +100,8 @@ export function verifyEmailCredit(manifest, receipt, reader=read) {
     'the signed proof may not choose additional file inputs');
   for(const relativeFile of CREDIT_SOURCE_FILES){
     const raw=Buffer.from(reader(relativeFile).replaceAll('\r\n','\n'));
-    assert.equal(createHash('sha1').update(Buffer.from('blob '+raw.length+'\0')).update(raw).digest('hex'),receipt.pins[relativeFile],relativeFile+': executed input drift');
+    if (relativeFile === 'next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(raw, receipt.pins[relativeFile]);
+    else assert.equal(createHash('sha1').update(Buffer.from('blob '+raw.length+'\0')).update(raw).digest('hex'),receipt.pins[relativeFile],relativeFile+': executed input drift');
   }
   const lines=reader(harness).split('\n');
   for(const [key,fragment] of Object.entries(receipt.citations))assert.ok(lines[receipt.proof[key]-1]?.includes(fragment),'invalid '+key+' evidence citation');
