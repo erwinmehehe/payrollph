@@ -43359,15 +43359,15 @@
     },
     {
       "path": "src/app/hcm/work-items/page.tsx",
-      "blob": "5b777c882742b95829504fdb96c383b8f80ad30a",
+      "blob": "1452c03d1a89fe599dda1c8b72edcfcaf67d75ef",
       "ids": [
         {
-          "line": 13,
-          "token": "organizationId"
+          "line": 19,
+          "token": "searchParams"
         },
         {
-          "line": 13,
-          "token": "organizationId"
+          "line": 21,
+          "token": "searchParams"
         },
         {
           "line": 21,
@@ -43379,92 +43379,85 @@
         },
         {
           "line": 26,
-          "token": "organizationId"
+          "token": "searchParams"
         },
         {
           "line": 26,
           "token": "organizationId"
         },
         {
-          "line": 32,
+          "line": 27,
           "token": "organizationId"
         },
         {
-          "line": 32,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 43,
-          "token": "caseId"
-        },
-        {
-          "line": 44,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 34,
           "token": "organizationId"
         },
         {
-          "line": 50,
-          "token": "caseId"
-        },
-        {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 70,
-          "token": "organizationId"
-        },
-        {
-          "line": 78,
-          "token": "organizationId"
-        },
-        {
-          "line": 78,
-          "token": "organizationId"
-        },
-        {
-          "line": 78,
-          "token": "caseId"
-        },
-        {
-          "line": 82,
-          "token": "caseId"
-        },
-        {
-          "line": 84,
-          "token": "caseId"
-        },
-        {
-          "line": 88,
-          "token": "organizationId"
-        },
-        {
-          "line": 104,
-          "token": "organizationId"
-        },
-        {
-          "line": 104,
+          "line": 34,
           "token": "organizationId"
         }
       ],
       "actions": [],
-      "guards": [],
+      "guards": [
+        {
+          "line": 2,
+          "token": "notFound"
+        },
+        {
+          "line": 2,
+          "token": "redirect"
+        },
+        {
+          "line": 4,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 4,
+          "token": "getAccess"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 23,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 24,
+          "token": "redirect"
+        },
+        {
+          "line": 27,
+          "token": "notFound"
+        },
+        {
+          "line": 29,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 30,
+          "token": "notFound"
+        },
+        {
+          "line": 31,
+          "token": "getAccess"
+        },
+        {
+          "line": 32,
+          "token": "notFound"
+        }
+      ],
       "business": [
-        {
-          "line": 13,
-          "token": "organizationId"
-        },
-        {
-          "line": 13,
-          "token": "organizationId"
-        },
         {
           "line": 21,
           "token": "organizationId"
@@ -43478,81 +43471,29 @@
           "token": "organizationId"
         },
         {
-          "line": 26,
+          "line": 27,
           "token": "organizationId"
         },
         {
-          "line": 32,
+          "line": 29,
           "token": "organizationId"
         },
         {
-          "line": 32,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 43,
-          "token": "caseId"
-        },
-        {
-          "line": 44,
+          "line": 34,
           "token": "organizationId"
         },
         {
-          "line": 44,
-          "token": "organizationId"
-        },
-        {
-          "line": 50,
-          "token": "caseId"
-        },
-        {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 60,
-          "token": "organizationId"
-        },
-        {
-          "line": 70,
-          "token": "organizationId"
-        },
-        {
-          "line": 78,
-          "token": "organizationId"
-        },
-        {
-          "line": 78,
-          "token": "organizationId"
-        },
-        {
-          "line": 78,
-          "token": "caseId"
-        },
-        {
-          "line": 82,
-          "token": "caseId"
-        },
-        {
-          "line": 84,
-          "token": "caseId"
-        },
-        {
-          "line": 88,
-          "token": "organizationId"
-        },
-        {
-          "line": 104,
-          "token": "organizationId"
-        },
-        {
-          "line": 104,
+          "line": 34,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Still GAP: #1658 client-only HCM Work Queue has a fictional PG16 two-attacker GET candidate, but no independent end-to-end browser acceptance or page-coverage certification",
+      "reason": "Still GAP: #1658 historically client-only Work Queue now has an uncredited server-authorized page boundary candidate; current-head disposable PostgreSQL 16 HTTP/browser acceptance and independent review remain pending",
       "reviewedUncertified": {
         "kind": "hcm-work-items-client-GET-PG16-unaccepted",
         "pageBlobSha": "378bf6b6050e488fe7ebeb48b4a18710152f88c1",
@@ -43620,6 +43561,31 @@
         "run": 42434366023,
         "job": 128589939228,
         "credits": 0
+      },
+      "pendingServerGateChange": {
+        "kind": "hcm-work-items-server-authorized-boundary-uncredited",
+        "previousPageBlobSha": "5b777c882742b95829504fdb96c383b8f80ad30a",
+        "pageBlobSha": "1452c03d1a89fe599dda1c8b72edcfcaf67d75ef",
+        "clientFile": "src/components/hcm-work-queue.tsx",
+        "clientBlobSha": "dfeb1c3ba76cdd027dab18494acc99e5343a7408",
+        "selectorFile": "src/lib/hcm-work-items-page-tenancy.ts",
+        "selectorBlobSha": "a7ea8e1177a18d3227e167d2e7a060aa637f8413",
+        "testFile": "tests/hcm-work-items-page-isolation.test.ts",
+        "testBlobSha": "46799851610501ec356aecd2c7aa3b65b2457257",
+        "browserFixtureFile": "tests/fixtures/hcm-request-lifecycle.jsx",
+        "browserFixtureBlobSha": "097724cfb0eb47b763c9ec4f880bcd509afa6262",
+        "browserScript": "scripts/hcm-request-lifecycle-browser.mjs",
+        "browserScriptBlobSha": "4e76f4cb405a3c2e9b6d250b5f96518f443558ea",
+        "historicalReceiptUnmodified": true,
+        "coverageCredits": 0,
+        "independentSecurityReview": "PENDING",
+        "productionCertified": false,
+        "migratedSummaryTestFile": "tests/hcm-work-queue-summary.test.ts",
+        "migratedSummaryTestBlobSha": "ab858d6294263d0e90b2755392e4902c16dfba8c",
+        "migratedViewTestFile": "tests/hcm-work-queue-view.test.ts",
+        "migratedViewTestBlobSha": "498ffff3b6a0be6825e89c09af2ca1e463d6ab00",
+        "migratedPeopleOpsTestFile": "tests/parallel-people-ops-no-money-acceptance.test.ts",
+        "migratedPeopleOpsTestBlobSha": "db160fd853ef4b98c8692758ab23402e5a09bfef"
       }
     },
     {

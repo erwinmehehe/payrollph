@@ -63,7 +63,7 @@ test("WFM manager triage strips worker PII and never claims missing data is clea
 });
 
 test("existing UI maintains read-gated work lists and no-money manager triage", () => {
-  const hr = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  const hr = readFileSync("src/components/hcm-work-queue.tsx", "utf8");
   const first = readFileSync("src/components/workspace/first-payroll-readiness.tsx", "utf8");
   const wfm = readFileSync("src/components/workspace/workforce-operations-inbox.tsx", "utf8");
   assert.ok(hr.includes("isVerifiedHcmWorkQueueResponse(data, Number(organizationId))"));

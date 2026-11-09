@@ -1,7 +1,7 @@
 import React, { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import HcmWorkQueue from "../../src/app/hcm/work-items/page";
+import HcmWorkQueue from "../../src/components/hcm-work-queue";
 import { HcmMyTeamClient } from "../../src/components/hcm-my-team";
 import { HcmOrgExplorerClient } from "../../src/components/hcm-org-explorer";
 import { HcmTeamLeaveCalendar } from "../../src/components/hcm-team-leave-calendar";
@@ -38,6 +38,6 @@ window.completeMalformed = (index) => {
 const root = createRoot(document.getElementById("root"));
 window.renderView = (name, props = {}) => {
   const Component = components[name];
-  flushSync(() => root.render(<StrictMode><Component {...props} onOpenWorker={() => true} onPage={() => {}}
+  flushSync(() => root.render(<StrictMode><Component key={name === "queue" ? props.authorizedOrganizationId : undefined} {...props} onOpenWorker={() => true} onPage={() => {}}
     onOpenEmployee={() => {}} onOpenSeparation={() => {}}/></StrictMode>));
 };
