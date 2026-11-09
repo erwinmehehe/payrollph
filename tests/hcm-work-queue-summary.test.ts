@@ -28,7 +28,7 @@ test("verified scoped queue counts only the source rows in the current view", ()
 });
 
 test("HR Work Queue displays unknown until an active, error-free scoped response exists", () => {
-  const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  const ui = readFileSync("src/components/hcm-work-queue.tsx", "utf8");
   assert.ok(ui.includes("summarizeVerifiedWorkQueue(items, activeQueue !== null && !loadError)"));
   assert.ok(ui.includes("isVerifiedHcmWorkQueueResponse(data, Number(organizationId))"),
     "Mixed-employer, partial or malformed response must fail before rendering");
@@ -97,7 +97,7 @@ test("local HR case quick-find includes only public work metadata and does not m
 });
 
 test("responsive HR work queue preserves verified-only rows and a mobile action", () => {
-  const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  const ui = readFileSync("src/components/hcm-work-queue.tsx", "utf8");
   assert.ok(ui.includes('findLoadedHcmWorkItems(items, search)'));
   assert.ok(ui.includes('aria-label="Work items on mobile"'));
   assert.ok(ui.includes('className="hidden overflow-x-auto md:block"'));
@@ -107,7 +107,7 @@ test("responsive HR work queue preserves verified-only rows and a mobile action"
 
 
 test("HR case editor traps keyboard focus, supports Escape, and restores invoking focus", () => {
-  const ui = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  const ui = readFileSync("src/components/hcm-work-queue.tsx", "utf8");
   assert.ok(ui.includes("ref={dialogRef}"));
   assert.ok(ui.includes('event.key === "Escape"'));
   assert.ok(ui.includes('event.key !== "Tab"'));
