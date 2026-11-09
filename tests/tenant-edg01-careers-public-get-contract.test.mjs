@@ -38,7 +38,9 @@ test("public GET remains GAP until a separate executed run and owner privacy cla
   const methods = manifest.allApiRouteFiles["src/app/api/careers/route.ts"].methods;
   for (const name of ["GET", "POST"]) {
     const method = methods.find(row => row.name === name);
-    assert.equal(method?.status, "GAP", name + " must not borrow the existing PATCH credit");
+    assert.equal(method?.status, "PUBLIC-BY-DESIGN", name + " is owner-approved public recruiting, not tenant COVERED");
+    assert.equal(method?.publicBoundary?.fourPartMethodCredit, false);
+    assert.equal(method?.publicBoundary?.approvedOn, "2026-11-09");
     assert.equal(method?.testedBy, null);
   }
   const workflow = readFileSync(".github/workflows/tenant-edg01-careers-public-get-http.yml", "utf8");
