@@ -672,7 +672,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(currentBlob, "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
       "Changed employer readiness source requires fresh tenant review");
     assert.equal(proof?.routeBlobSha, currentBlob);
-    assert.equal(proof?.file, "scripts/qa/workspace-readiness-http.mjs");
+    assert.equal(proof?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
     assert.equal(proof?.loaderBlobSha,
       gitBlobSha(readFileSync("src/lib/workspace-readiness-boundary.ts")),
       "Employer-only loader changed; renew proof");
@@ -687,13 +687,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own 200");
     const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign 403");
     const lines = readableLines(proof.file);
-    const ownSpan = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
-    const foreignSpan = lines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 3).join("\n");
-    assert.match(own, /const ownReadiness = expectStatus\(await request\(/);
-    assert.match(ownSpan, /\), 200,/);
-    assert.match(foreign, /const denied = expectStatus\(await request\(/);
-    assert.match(foreignSpan, /\), 403,/);
-    assert.match(lines.join("\n"), /TENANT_SECOND_PASS_MODE/);
+    assert.match(own, /const own = await httpGet\(endpoint\(actor.org.id\), actor.cookie\)/);
+    assert.match(lines[proof.ownPositiveLine], /assertOwnedReadiness\(own, actor.org.id/);
+    assert.match(foreign, /const denied = await httpGet\(endpoint\(target.org.id\), attacker.cookie\)/);
+    assert.match(lines[proof.foreignDenialLine], /assert.equal\(denied.status, 403/);
+    assert.match(lines.join("\n"), /requireDisposableWorkspaceReadiness\(\)/);
+    assert.match(lines.join("\n"), /assert.deepEqual\(await snapshot\(\), baseline/);
     assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
       /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
     const source = readFileSync("src/app/api/readiness/workspace/route.ts", "utf8");
