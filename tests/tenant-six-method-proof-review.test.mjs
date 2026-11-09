@@ -685,6 +685,17 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const accountEmailRequestCredits = verifyAccountEmailRequestCredit(m);
   assert.equal(expectedStatuses["src/app/api/account/email/route.ts"].POST, "GAP", "Only an uncredited account-email method may be promoted");
   expectedStatuses["src/app/api/account/email/route.ts"].POST = "COVERED";
+  // Owner-approved 2026-11-09 public classifications are NOT tenant-private method credits.
+  const ownerClassifications = [["src/app/api/careers/route.ts","GET"],["src/app/api/careers/route.ts","POST"],["src/app/api/demo-requests/route.ts","POST"],["src/app/api/payroll-outsourcing/quote/route.ts","POST"]];
+  for (const [path, verb] of ownerClassifications) {
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP may be reclassified");
+    const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+    assert.equal(row.status, "PUBLIC-BY-DESIGN");
+    assert.equal(row.testedBy, null, "Public status may not borrow tenant-method proof");
+    assert.equal(row.publicBoundary?.approvedOn, "2026-11-09");
+    assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
+    expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
+  }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
@@ -692,6 +703,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
   };
+  expectedCounts.GAP -= ownerClassifications.length;
+  expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
@@ -702,7 +715,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **366 COVERED + 3 PUBLIC-BY-DESIGN + 37 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **366 COVERED + 7 PUBLIC-BY-DESIGN + 33 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
