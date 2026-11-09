@@ -71,12 +71,32 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
   const tally=state=>routes.reduce((n,r)=>n+r.methods.filter(m=>m.status===state).length,0);
   const allCount=routes.reduce((n,r)=>n+r.methods.length,0);
   const pageGaps=manifest.scopedPages.filter(page=>page.status==="GAP").length;
-  assert.equal(allCount,tally("COVERED")+tally("PUBLIC-BY-DESIGN")+tally("GAP"),
+    // Owner-approved cross-tenant operational credentials are a distinct status,
+  // never a payout credit. Fail closed if any method outside the exact 11 is recategorized.
+  const approvedTokenOnly = new Set([
+    "GET jobs/cron", "GET jobs/dispatch-readiness", "GET jobs/status",
+    "POST jobs/tick", "POST webhooks/drain", "GET capabilities",
+    "GET readiness", "GET readiness/billing", "GET readiness/database-target",
+    "GET readiness/deployment", "GET readiness/pilot-status",
+  ]);
+  const observedTokenOnly = Object.values(manifest.allApiRouteFiles).flatMap(route =>
+    route.methods.filter(row => row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY")
+      .map(row => row.name + " " + route.route));
+  assert.deepEqual(new Set(observedTokenOnly), approvedTokenOnly,
+    "Unapproved token-only classification cannot bypass payout accounting");
+  for (const route of Object.values(manifest.allApiRouteFiles))
+    for (const row of route.methods)
+      if (row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY") {
+        assert.equal(row.testedBy, null, "Token denial is not tenant method coverage");
+        assert.equal(row.privilegedOperation?.methodCoverageCredits, 0);
+      }
+  assert.equal(allCount,tally("COVERED")+tally("PUBLIC-BY-DESIGN")+tally("GAP")+tally("PRIVILEGED-OPERATIONS-TOKEN-ONLY"),
     "No method can silently use an unrecognized classification");
   assert.equal(manifest.metrics.methods,allCount);
   assert.equal(manifest.metrics.coveredAfter,tally("COVERED"));
   assert.equal(manifest.metrics.publicByDesign,tally("PUBLIC-BY-DESIGN"));
   assert.equal(manifest.metrics.gap,tally("GAP"));
+  assert.equal(manifest.metrics.privilegedOperationsTokenOnly,tally("PRIVILEGED-OPERATIONS-TOKEN-ONLY"));
   assert.ok(manifest.acceptanceStatus.startsWith(
     "NOT ACCEPTED: "+tally("GAP")+" API methods and "+pageGaps+" page/action GAPs"),
     "Never promote a provisional method into tenant-wide acceptance");
