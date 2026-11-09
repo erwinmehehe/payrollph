@@ -700,7 +700,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **362 COVERED + 3 PUBLIC-BY-DESIGN + 41 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **362 COVERED + 7 PUBLIC-BY-DESIGN + 37 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
