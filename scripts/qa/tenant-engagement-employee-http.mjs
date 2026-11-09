@@ -112,7 +112,7 @@ export async function verifyEngagementEmployeePrivacy() {
       actor.survey = survey;
       const workers = [actor.worker];
       for (let index = 1; index < 6; index++) {
-        workers.push(await fixtures.addWorker(actor, "engagement-" + index));
+        workers.push(await fixtures.addWorker(actor, "E" + index));
       }
       actor.employeeSessions = [];
       for (let i = 0; i < workers.length; i++) {
