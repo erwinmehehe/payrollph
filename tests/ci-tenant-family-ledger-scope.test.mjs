@@ -13,7 +13,7 @@ const REVIEWED_EXECUTION={
  'tenant-ess-documents-read.yml':'77c659179b1dcaa4f84c031d6107444b685480fe19a211802ba9dfe09c8b5e03',
 };
 const event={action:'synchronize',pull_request:{number:123,head:{sha:'a'.repeat(40)},base:{sha:'b'.repeat(40)}}};
-const sample=()=>({acceptanceStatus:'NOT ACCEPTED: 2 API methods remain',metrics:{methods:2,coveredAfter:0,gap:2,publicByDesign:0},allApiRouteFiles:{
+const sample=()=>({acceptanceStatus:'NOT ACCEPTED: '+2+' API methods remain',metrics:{methods:2,coveredAfter:0,gap:2,publicByDesign:0},allApiRouteFiles:{
  'src/app/api/documents/route.ts':{gitBlobSha:'d'.repeat(40),route:'documents',methods:[{name:'POST',status:'GAP',testedBy:null}]},
  'src/app/api/careers/route.ts':{gitBlobSha:'c'.repeat(40),route:'careers',methods:[{name:'POST',status:'GAP',testedBy:null}]}}});
 const recount=m=>{const methods=Object.values(m.allApiRouteFiles).flatMap(x=>x.methods);m.metrics.methods=methods.length;m.metrics.coveredAfter=methods.filter(x=>x.status==='COVERED').length;m.metrics.gap=methods.filter(x=>x.status==='GAP').length;m.acceptanceStatus='NOT ACCEPTED: '+m.metrics.gap+' API methods remain';return m;};
