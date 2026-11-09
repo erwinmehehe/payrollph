@@ -1,4 +1,4 @@
-> **Token-only operations classifications and merged account-email POST — DRAFT / NOT ACCEPTED:** 498 methods = **448 COVERED + 11 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 28 GAP**; frozen 406 = 364 COVERED / 3 PUBLIC / 11 TOKEN-ONLY / 28 GAP. Eleven operator-token classification changes add zero tenant-private COVERED credits; independent security review and final-head CI PENDING.
+> **Token-only operations classifications and merged account-email POST — DRAFT / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 28 GAP; frozen 406 = 364 COVERED / 3 PUBLIC / 11 TOKEN-ONLY / 28 GAP. Eleven operator-token classification changes add zero tenant-private COVERED credits; independent security review and final-head CI PENDING.
 
 > **Combined #1846 enterprise + #1862 account-email request proposals — PROVISIONAL / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 39 GAP; frozen subtotal 364 COVERED / 3 PUBLIC / 39 GAP. Two separate exact-source provisional POST method credits; independent security/identity review and final-head CI PENDING. No production activation.
 
