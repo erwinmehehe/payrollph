@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
 import { createRows as people } from "../scripts/qa/tenant-table-rows/write/people.mjs";
 import { createRows as platform } from "../scripts/qa/tenant-table-rows/write/platform.mjs";
 
@@ -91,8 +92,8 @@ test("executed People/platform credits stay pinned, selected refresh does not ad
     assert.match(method.testedBy.evidence, /run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c/, key);
     assert.ok(method.testedBy.rowFile.startsWith("scripts/qa/tenant-table-rows/write/"), key);
   }
-  const pending = Object.values(manifest.allApiRouteFiles).find(r => r.route === "account/email").methods.find(m => m.name === "POST");
-  assert.equal(pending.status, "GAP", "unrelated untested routes must remain GAP");
+  assert.equal(verifyAccountEmailRequestCredit(manifest), 1,
+    "account email request POST requires its separate passing, source-pinned PG16 receipt");
 });
 
 test("POST delegations seeds an MFA-ready fictional member for shared enterprise policy tests", async () => {
