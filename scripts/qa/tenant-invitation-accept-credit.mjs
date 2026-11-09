@@ -139,14 +139,21 @@ export function verifyInvitationAcceptCredits(m) {
   for (const verb of ["GET", "POST"])
     assert.equal(live.byKey.get(verb + " " + ROUTE)?.status, "COVERED");
   if (base) {
-    for (const verb of ["GET", "POST"])
-      assert.equal(base.byKey.get(verb + " " + ROUTE)?.status, "GAP",
-        "Invitation credit requires a previously unproven method");
+    // Both invitations may already be COVERED on the PR's current main.
+    // That is an unchanged inherited credit, not a new credit in this PR.
+    // Partial histories, unreviewed additions and all downgrades fail closed.
+    const oldStatuses = ["GET", "POST"].map(verb =>
+      base.byKey.get(verb + " " + ROUTE)?.status);
+    const newlyCredited = oldStatuses.every(status => status === "GAP");
+    const inherited = oldStatuses.every(status => status === "COVERED");
+    assert.ok(newlyCredited || inherited,
+      "Invitation GET/POST credits must be both new or both already sealed on main");
     const promoted = [...live.byKey].filter(([key, method]) =>
       method.status === "COVERED" && base.byKey.get(key)?.status === "GAP")
       .map(([key]) => key).sort();
-    assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
-      "Only both sealed invitation receipts may gain new credit");
+    assert.deepEqual(promoted,
+      newlyCredited ? ["GET " + ROUTE, "POST " + ROUTE].sort() : [],
+      "No unrelated method can borrow invitation acceptance credit");
   }
   return 2;
 }
