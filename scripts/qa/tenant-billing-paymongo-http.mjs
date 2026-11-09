@@ -44,7 +44,7 @@ export async function verifyTenantPaymongoCheckout() {
     ? readFileSync(RECEIPT, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse)
     : [];
 
-  const request = (actor, body, { cookie = actor?.cookie, origin = true } = {}) =>
+  const request = (actor, body, { cookie = actor?.cookie } = {}) =>
     table.standaloneRequest("/api/billing", {
       method: "POST", cookie, body,
     });
@@ -57,6 +57,11 @@ export async function verifyTenantPaymongoCheckout() {
   }
 
   try {
+    const dbIdentity = (await pool.query(
+      "SELECT current_database() AS database, current_setting('server_version_num')::int AS version"
+    )).rows[0];
+    assert.equal(dbIdentity.database, "app_db", "disposable app_db required");
+    assert.equal(Math.floor(dbIdentity.version / 10000), 16, "PostgreSQL 16 required");
     assert.equal((await db.select().from(s.organizations).limit(1)).length, 0,
       "TENANT_PAYMONGO_REFUSED: empty fictional app_db required");
     assert.equal(events().length, 0, "No stale provider receipt is permitted");
@@ -99,6 +104,17 @@ export async function verifyTenantPaymongoCheckout() {
     deny(await request(null, { organizationId: victim.org.id, plan: "Core" },
       { cookie: invalidCookie }), 401, victim, "invalid session");
     assert.equal(events().length, 0, "Anonymous requests cannot reach provider");
+    const crossSite = await fetch(process.env.SECURITY_SMOKE_URL + "/api/billing", {
+      method: "POST", redirect: "manual",
+      headers: {
+        cookie: a.cookie, origin: "https://evil.example",
+        "sec-fetch-site": "cross-site", "content-type": "application/json",
+      },
+      body: JSON.stringify({ organizationId: victim.org.id, plan: "Core" }),
+    });
+    assert.equal(crossSite.status, 403, "cross-site billing mutation must be denied");
+    assert.ok(!(await crossSite.text()).includes(victim.marker));
+    assert.equal(events().length, 0, "Cross-site request cannot reach provider");
 
     for (const actor of [a, b]) {
       const foreign = await request(actor, {
@@ -183,7 +199,7 @@ export async function verifyTenantPaymongoCheckout() {
       method: "POST /api/billing",
       postgresMajor: 16, independentOwnPositiveEmployers: 2,
       higherIdVictimPersisted: true, ownCheckout201: successCount,
-      foreign403: 2, anonymous401: 2,
+      foreign403: 2, anonymous401: 2, crossSite403: 1,
       unitScopedDenied: true, mfaDenied: true,
       forgedForeignSelectorsIgnored: true,
       victimBusinessAndAuditUnchanged: true,
