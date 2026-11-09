@@ -747,7 +747,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      assert.equal(receipt.methodsHeld, 2);
+      // The historical two transfer GAPs may now be covered by the independently
+      // merged #1853 proof. verifyFiveMethodCredits above validates each
+      // exact source, run, job, method and production/acceptance hold.
+      const acceptedTransfers = ["POST", "PATCH"].filter(verb =>
+        baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+          .methods.find(method => method.name === verb)?.status === "COVERED").length;
+      assert.ok(acceptedTransfers === 0 || acceptedTransfers === 2,
+        "The two transfer credits must be either both held or both independently evidenced");
+      assert.equal(receipt.methodsHeld, 2 - acceptedTransfers,
+        "Historical five-method holds must reflect only the dedicated validated transfer promotion");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
