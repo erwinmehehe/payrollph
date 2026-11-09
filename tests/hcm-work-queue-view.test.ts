@@ -34,7 +34,7 @@ test("title and newest views are deterministic, and owner filter is applied loca
 });
 
 test("view controls remain behind the verified queue guard, without changing case endpoints", () => {
-  const page = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  const page = readFileSync("src/components/hcm-work-queue.tsx", "utf8");
   assert.ok(page.includes("summary ? deriveLoadedWorkQueueView("));
   assert.ok(page.includes("findLoadedHcmWorkItems(items, search)"));
   assert.ok(page.includes('aria-label="Show only work items without a named owner"'));
@@ -44,7 +44,7 @@ test("view controls remain behind the verified queue guard, without changing cas
 });
 
 test("search-only empty state stays compatible while owner-only filtering offers reset", () => {
-  const page = readFileSync("src/app/hcm/work-items/page.tsx", "utf8");
+  const page = readFileSync("src/components/hcm-work-queue.tsx", "utf8");
   assert.ok(page.includes("No loaded work items match this search. Clear search to see this employer's work items."));
   assert.ok(page.includes("No loaded work items match this search or owner filter. Reset view to see this employer's loaded work items."));
 });

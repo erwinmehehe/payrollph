@@ -6,6 +6,7 @@ import {
   verifyCurrentHcmCallerReproof,
 } from "./tenant-hcm-lifecycle-caller-source-refresh-verify.mjs";
 import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
+import { HCM_QUEUE_PAGE, verifyHcmQueuePageSourceCompatibility } from "./tenant-work-queue-page-source-compat.mjs";
 
 const RECEIPT = "scripts/qa/tenant-document-caller-reproof-receipt.json";
 const DIGEST = "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e";
@@ -16,10 +17,12 @@ function blob(raw) {
 }
 
 /**
- * Preserve historical 208-input receipt byte for byte. Exactly one changed
- * route may be admitted ONLY by a separately executed, source-pinned PG16
- * two-attacker + audit-veto + original-caller proof. All other 207 transitive
- * inputs remain pinned to the original successful historical execution.
+ * Keep the historical 208-input receipt byte-for-byte intact. Its permitted
+ * HCM route refresh is tied to a separately executed source-pinned PG16 job.
+ * The newer HR Work Queue SSR/client split is an ADDITIONAL, explicitly pinned
+ * zero-credit candidate: it does not retroactively re-execute the historical
+ * caller proof or grant independent security acceptance. Every other original
+ * transitive input remains pinned, and a later source change fails closed.
  */
 export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   const raw = read(RECEIPT, "utf8");
@@ -35,6 +38,7 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   assert.equal(receipt.credits, 0);
 
   let changedRouteCount = 0;
+  let reviewedUncreditedPageCount = 0;
   for (const [file, pinned] of Object.entries(receipt.pins)) {
     if (file === "next.config.ts") {
       assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file, "utf8"), pinned);
@@ -46,10 +50,19 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
       assert.equal(current, HCM_NEW_SHA, "Unreviewed new HCM route has no source-current proof");
       verifyCurrentHcmCallerReproof(read);
       changedRouteCount++;
+    } else if (file === HCM_QUEUE_PAGE && current !== pinned) {
+      // The old receipt stays historical. A source-exact, uncredited exception
+      // must not be interpreted as prior execution of the new server wrapper.
+      const reviewed = verifyHcmQueuePageSourceCompatibility(pinned, current, read);
+      assert.deepEqual(reviewed, {
+        credits: 0, independentlyAccepted: false, productionCertified: false,
+      });
+      reviewedUncreditedPageCount++;
     } else {
       assert.equal(current, pinned, "Executed caller input changed: " + file);
     }
   }
   assert.ok(changedRouteCount <= 1, "Only one HCM route source is eligible for replacement");
+  assert.ok(reviewedUncreditedPageCount <= 1, "Only the explicitly pinned uncredited HR queue page may differ");
   return receipt;
 }
