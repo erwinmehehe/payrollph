@@ -1141,6 +1141,26 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const normalizeCaption=line=>line?.replace(/^Frozen subtotal \(2026-11-04 proposal\):/, 'Frozen subtotal:')
       .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
       .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
-    assert.equal(normalizeCaption(mainFrozenSubtotal),normalizeCaption(expectedMainFrozen), 'origin/main frozen ledger drift');
+    const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
+    const correctMainFrozen = normalizeCaption(expectedMainFrozen);
+    if (actualMainFrozen !== correctMainFrozen) {
+      // Historical main's summary accidentally omits PII-02 even though its
+      // frozen-row table explicitly marks 36 COVERED + 2 PUBLIC + 0 GAP.
+      // Only tolerate that exact *description* omission; never skip the 406
+      // source-linked method, proof, status, or count invariants above.
+      const documentedPii02 = "| 4 | **PII-02** | 38 | 36 | 2 | 0 | PROVISIONAL — NOT ACCEPTED |";
+      assert.ok(baselinePlan.includes(documentedPii02),
+        "PII-02 must retain the precise provisional frozen-batch row on main");
+      assert.deepEqual(provisionalBatches,
+        ["DL-02", "PII-02", "WRK-01", "WRK-02", "WRK-03"],
+        "Only the known PII-02 summary omission can be normalized");
+      const legacyMainFrozen = correctMainFrozen.replace(
+        "DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL",
+        "DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL");
+      assert.notEqual(legacyMainFrozen, correctMainFrozen,
+        "The exact historical omission must be present in the derived caption");
+      assert.equal(actualMainFrozen, legacyMainFrozen,
+        "origin/main frozen ledger drift beyond its documented PII-02 caption omission");
+    }
   }
 });
