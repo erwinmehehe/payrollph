@@ -26976,23 +26976,28 @@
       "businessIds": []
     },
     "src/app/api/readiness/workspace/route.ts": {
-      "gitBlobSha": "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
+      "gitBlobSha": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
       "route": "readiness/workspace",
       "methods": [
         {
           "name": "GET",
           "line": 7,
           "status": "GAP",
-          "reason": "Own authenticated GET deliberately refuses unscoped platform readiness with HTTP 503; foreign employer GET is denied 403. Containment is not a positive, tenant-safe readiness source; remains GAP until functional employer-bound verification is implemented.",
+          "reason": "Employer-scoped live GET now offers a limited own-roster/payroll-run snapshot and denies other organizations. Own HTTP 200 and foreign 403 second-pass assertions are provisional; no exact-final-head standalone PG16 acceptance or independent security review. Launch/pilot status remains explicitly blocked. GAP / zero credits.",
           "testedBy": null,
           "reviewedUncertified": {
-            "routeBlobSha": "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
+            "routeBlobSha": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
+            "loaderBlobSha": "782853dada317783100dd1ee40004fa7e6126244",
+            "proofBlobSha": "90f5dadcb775753e016491531fa267aba4599558",
             "file": "scripts/qa/workspace-readiness-http.mjs",
-            "ownPositiveLine": 26,
-            "foreignDenialLine": 31,
-            "ownStatus": 503,
+            "ownPositiveLine": 39,
+            "foreignDenialLine": 76,
+            "ownStatus": 200,
             "foreignStatus": 403,
-            "scope": "Synthetic isolated three-employer fail-closed containment only; 503 own is NOT successful readiness verification"
+            "coverageCredits": 0,
+            "independentlyAccepted": false,
+            "productionTested": false,
+            "scope": "Provisional read-only three-employer PG16 second-pass candidate. Tenant-only roster and payroll-run counts; always-blocked launch/pilot/scale status. Real HTTP workflow and independent review pending. No source-pinned credit, provider, payment, production or deployment."
           }
         }
       ],
@@ -27025,7 +27030,7 @@
           "token": "assertOrganizationRole"
         },
         {
-          "line": 24,
+          "line": 27,
           "token": "getAccess"
         }
       ],
@@ -27057,7 +27062,7 @@
           "token": "organizationId"
         },
         {
-          "line": 24,
+          "line": 27,
           "token": "organizationId"
         }
       ]
