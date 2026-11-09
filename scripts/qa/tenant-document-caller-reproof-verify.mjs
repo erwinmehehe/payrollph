@@ -17,10 +17,12 @@ function blob(raw) {
 }
 
 /**
- * Preserve historical 208-input receipt byte for byte. Exactly one changed
- * route may be admitted ONLY by a separately executed, source-pinned PG16
- * two-attacker + audit-veto + original-caller proof. All other 207 transitive
- * inputs remain pinned to the original successful historical execution.
+ * Keep the historical 208-input receipt byte-for-byte intact. Its permitted
+ * HCM route refresh is tied to a separately executed source-pinned PG16 job.
+ * The newer HR Work Queue SSR/client split is an ADDITIONAL, explicitly pinned
+ * zero-credit candidate: it does not retroactively re-execute the historical
+ * caller proof or grant independent security acceptance. Every other original
+ * transitive input remains pinned, and a later source change fails closed.
  */
 export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   const raw = read(RECEIPT, "utf8");
