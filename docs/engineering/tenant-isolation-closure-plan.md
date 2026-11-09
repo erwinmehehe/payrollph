@@ -1,4 +1,6 @@
-> **Public classifications with merged enterprise credit — DRAFT / NOT ACCEPTED:** 498 methods = 447 COVERED + 15 PUBLIC-BY-DESIGN + 36 GAP. Four owner-approved public status changes, zero additional tenant-method credits. Final-head CI and independent security/privacy review PENDING; no production activation.
+> **Combined public classifications + existing account-email credit — DRAFT / NOT ACCEPTED:** 498 methods = 448 COVERED + 15 PUBLIC-BY-DESIGN + 35 GAP. Four owner-approved classifications create zero tenant-private method credits; the separate source-pinned account-email credit remains provisional. Exact-head CI and independent security/privacy review PENDING. No production activation.
+
+> **Combined #1846 enterprise + #1862 account-email request proposals — PROVISIONAL / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 39 GAP; frozen subtotal 364 COVERED / 3 PUBLIC / 39 GAP. Two separate exact-source provisional POST method credits; independent security/identity review and final-head CI PENDING. No production activation.
 
 > **PR #1846 proposed enterprise-admin POST credit on top of merged transfer proofs — PROVISIONAL / NOT ACCEPTED:** 498 methods = 447 COVERED + 11 PUBLIC-BY-DESIGN + 40 GAP; frozen subtotal 363 COVERED / 3 PUBLIC / 40 GAP. One source-pinned enterprise POST method, independent security/privacy review PENDING; do not infer tenant-wide acceptance or production activation.
 
@@ -221,10 +223,10 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 9 | 1 | 23 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 10 | 1 | 22 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 26 | 1 | 6 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **363 COVERED + 7 PUBLIC-BY-DESIGN + 36 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 7 batches remain INCOMPLETE; DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **364 COVERED + 7 PUBLIC-BY-DESIGN + 35 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 7 batches remain INCOMPLETE; DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

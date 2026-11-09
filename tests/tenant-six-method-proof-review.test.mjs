@@ -1,5 +1,6 @@
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
+import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits,RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 import { YEAR_END_RECEIPTS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
@@ -673,14 +674,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only distinct previously GAP methods may be credited");
     expectedStatuses[target.path][target.method] = "COVERED";
   }
-  // Approved 2026-11-09 non-session classifications are NOT tenant proof credits.
-  // Pin each route and method explicitly; all other original credits remain immutable.
+  const accountEmailRequestCredits = verifyAccountEmailRequestCredit(m);
+  assert.equal(expectedStatuses["src/app/api/account/email/route.ts"].POST, "GAP", "Only an uncredited account-email method may be promoted");
+  expectedStatuses["src/app/api/account/email/route.ts"].POST = "COVERED";
+  // Owner-approved 2026-11-09 public classifications are NOT tenant-private method credits.
   const ownerClassifications = [["src/app/api/careers/route.ts","GET"],["src/app/api/careers/route.ts","POST"],["src/app/api/demo-requests/route.ts","POST"],["src/app/api/payroll-outsourcing/quote/route.ts","POST"]];
   for (const [path, verb] of ownerClassifications) {
-    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP can be owner-reclassified");
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP may be reclassified");
     const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
     assert.equal(row.status, "PUBLIC-BY-DESIGN");
-    assert.equal(row.testedBy, null, "Authentication classification cannot invent method proof");
+    assert.equal(row.testedBy, null, "Public status may not borrow tenant-method proof");
     assert.equal(row.publicBoundary?.approvedOn, "2026-11-09");
     assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
     expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
@@ -688,9 +691,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - 1,
   };
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
@@ -704,7 +707,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **363 COVERED + 7 PUBLIC-BY-DESIGN + 36 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **364 COVERED + 7 PUBLIC-BY-DESIGN + 35 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -765,16 +768,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      // Main has since merged the dedicated #1853 transfer proof. Historical
-      // zero-credit holds remain required only when BOTH methods are GAP.
-      const mainTransferStates = baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
-        .methods.filter(row => ["POST", "PATCH"].includes(row.name)).map(row => row.status);
-      assert.equal(mainTransferStates.length, 2);
-      assert.ok(mainTransferStates.every(status => status === mainTransferStates[0]),
-        "Partial transfer promotion must never pass historical receipt reconciliation");
-      assert.ok(["GAP", "COVERED"].includes(mainTransferStates[0]));
-      assert.equal(receipt.methodsHeld, mainTransferStates[0] === "COVERED" ? 0 : 2,
-        "Merged dedicated proof supersedes both historical transfer holds, not one");
+      // The historical two transfer GAPs may now be covered by the independently
+      // merged #1853 proof. verifyFiveMethodCredits above validates each
+      // exact source, run, job, method and production/acceptance hold.
+      const acceptedTransfers = ["POST", "PATCH"].filter(verb =>
+        baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+          .methods.find(method => method.name === verb)?.status === "COVERED").length;
+      assert.ok(acceptedTransfers === 0 || acceptedTransfers === 2,
+        "The two transfer credits must be either both held or both independently evidenced");
+      assert.equal(receipt.methodsHeld, 2 - acceptedTransfers,
+        "Historical five-method holds must reflect only the dedicated validated transfer promotion");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
@@ -964,8 +967,22 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }).length;
     assert.ok([0, 2].includes(baselineBillingCredits), "Billing credits must merge as a complete two-method PR");
     if (baselineBillingCredits) for (const path of billingPaths) expectedOriginalMain[path].POST = "COVERED";
+    // Current main also contains the independently source-pinned three-method
+    // TOTP/scenario reconciliation from merged #1855. This is a BASELINE
+    // reconciliation only: no part of the account-email request proof borrows it.
+    const baselineMergedCredits = RECOVERY_TARGETS.every(target =>
+      baseline.allApiRouteFiles[target.path].methods
+        .find(row => row.name === target.method)?.status === "COVERED")
+      ? verifyRecoveryCredits(baseline) : 0;
+    assert.ok([0, RECOVERY_TARGETS.length].includes(baselineMergedCredits),
+      "TOTP/scenario recovery must be complete or absent on main");
+    if (baselineMergedCredits) {
+      for (const target of RECOVERY_TARGETS) {
+        expectedOriginalMain[target.path][target.method] = "COVERED";
+      }
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
-      "origin/main may include only source-pinned payout and three #1760 recovery credits, with unproved methods held");
+      "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
       (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0);
     assert.deepEqual({
@@ -1027,7 +1044,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Eight", "Nine", "Ten", "Eleven", "Twelve"][incomplete];
     const batchSummary = provisionalBatches.length === 0
       ? "All 12 batches remain INCOMPLETE."
-      : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
+      : baselineMergedCredits
+        // Merged #1855 reformatted only this descriptive sentence, not any
+        // frozen membership, source receipt, total or security acceptance gate.
+        ? `${incomplete} batches remain INCOMPLETE; ${provisionalBatches.join(", ")} remain PROVISIONAL — NOT ACCEPTED.`
+        : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
       .replace("2 PUBLIC-BY-DESIGN", "3 PUBLIC-BY-DESIGN")
