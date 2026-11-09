@@ -10,11 +10,17 @@ replay, retry, resolution, reopening or external integrations).
 
 ## Disjoint file scope
 
-This PR adds only five uniquely named files: this runbook, one contract module,
-one negative-control unit test, one real-HTTP PG16 proof runner and one dedicated
-GitHub Actions workflow. It does **not** edit any shared tenant-isolation manifest,
-source pin inventory, credit verifier, baseline, CI workflow, existing API handler,
-plugin/provider integration, automation runtime or production configuration.
+The initial Automation Studio scope adds five uniquely named files: this runbook,
+one contract module, one negative-control unit test, one real-HTTP PG16 runner
+and one dedicated GitHub Actions workflow. During CI reconciliation with newer
+`main`, the PR also updates the **shared invitation-acceptance credit verifier**
+so already-merged, source-identical GET/POST receipts are not misidentified as
+new credits. This narrow shared correction overlaps the pending #1869 branch:
+review and deduplicate it before either merge. The verifier still requires an
+atomic GET/POST pair, identical inherited receipt objects, exact original source
+pins, no extra method promotions, and no production acceptance. No tenant
+manifest, source pin inventory, baseline, existing API handler, global CI,
+provider integration, automation runtime or production configuration changes.
 
 The route is instead **read-only source-pinned** to Git blob
 `3bfc6666644ca11b480cf2735e9563d46139ebf4`. A change to that route
