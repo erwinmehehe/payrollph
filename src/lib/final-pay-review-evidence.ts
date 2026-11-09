@@ -90,6 +90,17 @@ export function finalPayReviewCsv(record: FinalPayReviewRecord, signedReviewEnab
   const shortfall = finalPayReviewShortfall(record);
   const snapshot = record.computationSnapshot ?? {};
   const loanReview = finalPayLoanReviewSummary(record);
+  const rawTaxReview = snapshot.taxClassification;
+  const taxReview = rawTaxReview && typeof rawTaxReview === "object" && !Array.isArray(rawTaxReview)
+    ? rawTaxReview as Record<string, unknown> : null;
+  const rawLeave = taxReview?.leave;
+  const leave = rawLeave && typeof rawLeave === "object" && !Array.isArray(rawLeave)
+    ? rawLeave as Record<string, unknown> : null;
+  const rawSeparation = taxReview?.separation;
+  const separation = rawSeparation && typeof rawSeparation === "object" && !Array.isArray(rawSeparation)
+    ? rawSeparation as Record<string, unknown> : null;
+  const reviewedText = (value: unknown) => typeof value === "string" && value.trim()
+    ? value.trim() : "NOT RECORDED";
   const rows: Array<[string, string]> = [
     ["Employee number", record.employeeNo],
     ["Employee", record.employeeName],
@@ -102,6 +113,19 @@ export function finalPayReviewCsv(record: FinalPayReviewRecord, signedReviewEnab
     ["Outstanding loans excluded pending authority review (PHP)", loanReview.recorded ? money(loanReview.unrecoveredBalance!) : "NO EVIDENCE - RECOMPUTE"],
     ["Loan authorization disclaimer", "References are operator records, not independent proof of employee signature or legal authority."],
     ["Net final pay (PHP)", verifiedCsvMoney(record.netFinalPay)],
+    ...(taxReview ? [
+      ["Tax classification review status", "RECORDED - supporting evidence must be independently checked"],
+    ["Tax classification reviewed by user ID", Number.isSafeInteger(taxReview?.reviewerUserId) ? String(taxReview?.reviewerUserId) : "NOT RECORDED"],
+    ["Leave tax-recognition date", reviewedText(taxReview?.taxDate)],
+    ["Leave classification basis", reviewedText(taxReview?.leaveTaxBasis)],
+    ["Leave de minimis (PHP)", verifiedCsvMoney(leave?.deMinimisPay)],
+    ["Leave excess in combined 90k benefits pool (PHP)", verifiedCsvMoney(leave?.benefitsPoolPay)],
+    ["Leave review evidence reference", reviewedText(leave?.evidenceReference)],
+    ["Separation taxable portion (PHP)", verifiedCsvMoney(separation?.taxablePay)],
+    ["Separation exempt portion (PHP)", verifiedCsvMoney(separation?.exemptPay)],
+    ["Separation tax-exemption reason", reviewedText(separation?.exemptionReason)],
+      ["Separation exemption evidence reference", reviewedText(separation?.evidenceReference)],
+    ] as Array<[string, string]> : []),
     ["Unpaid mandatory deductions (PHP)", shortfall.total === null ? "UNVERIFIABLE" : money(shortfall.total)],
     ["Unpaid tax withholding (PHP)", shortfall.tax === null ? "NOT RECORDED - RECOMPUTE" : money(shortfall.tax)],
     ["Unpaid statutory deductions (PHP)", shortfall.statutory === null ? "NOT RECORDED - RECOMPUTE" : money(shortfall.statutory)],

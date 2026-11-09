@@ -143,6 +143,10 @@ export function computeFinalPay(input: {
   mweTaxableSupplementaryCompensationYtd?: number;
   leaveMonetizationPay: number;
   taxableLeaveMonetizationPay?: number;
+  /** Explicitly reviewed gross leave in the de minimis exemption. */
+  deMinimisLeaveMonetizationPay?: number;
+  /** Leave over the de minimis ceiling, entering the shared PHP 90k pool. */
+  benefitPoolLeaveMonetizationPay?: number;
   separationPay: number;
   retirementPay: number;
   taxableSeparationPay?: number;
@@ -162,18 +166,53 @@ export function computeFinalPay(input: {
   const thirteenthDue = round2(Math.max(0, thirteenthEntitlement - thirteenthPaidYtd));
 
   const finalStatutoryDeductions = round2(Math.max(0, input.finalStatutoryDeductions ?? 0));
+
+  // The reviewed leave allocation distinguishes the fully exempt de minimis
+  // portion, the excess entering the shared 90k pool, and directly taxable
+  // compensation. Without explicit buckets, retain the legacy calculation
+  // for existing golden cases; the Separation API never grants an unchecked
+  // exemption through that legacy path.
+  const reviewedLeaveBuckets = input.deMinimisLeaveMonetizationPay !== undefined ||
+    input.benefitPoolLeaveMonetizationPay !== undefined;
+  const checkedLeaveBucket = (value: number | undefined, label: string) => {
+    const candidate = value ?? 0;
+    if (!Number.isFinite(candidate) || candidate < 0 ||
+        !Number.isSafeInteger(Math.round(candidate * 100)) ||
+        Math.abs(candidate * 100 - Math.round(candidate * 100)) > 0.000001) {
+      throw new Error("Invalid reviewed final-pay tax bucket: " + label);
+    }
+    return round2(candidate);
+  };
+  const leaveGrossPay = round2(Math.max(0, input.leaveMonetizationPay));
+  const leaveDeMinimis = checkedLeaveBucket(input.deMinimisLeaveMonetizationPay, "de minimis leave");
+  const leaveBenefitsPool = checkedLeaveBucket(input.benefitPoolLeaveMonetizationPay, "leave other-benefits pool");
+  if (round2(leaveDeMinimis + leaveBenefitsPool) > leaveGrossPay) {
+    throw new Error("Final-pay leave tax allocations exceed gross leave monetization.");
+  }
+  const leaveDirectTaxable = round2(leaveGrossPay - leaveDeMinimis - leaveBenefitsPool);
+  if (reviewedLeaveBuckets && input.taxableLeaveMonetizationPay !== undefined &&
+      round2(input.taxableLeaveMonetizationPay) !== leaveDirectTaxable) {
+    throw new Error("Directly taxable leave conflicts with reviewed de minimis / pool allocation.");
+  }
+  const leaveForGrossTax = reviewedLeaveBuckets
+    ? leaveGrossPay
+    : Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay);
+  const leaveForMweTax = reviewedLeaveBuckets
+    ? leaveDirectTaxable
+    : Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay);
+
   const grossForAnnualization = round2(
     Math.max(0, input.grossCompensationYtd)
       + Math.max(0, input.unpaidBasicSalary)
       + thirteenthPaidYtd
       + thirteenthDue
-      + Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay)
+      + leaveForGrossTax
       + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
   const finalTaxableSupplementaryCompensation = round2(
-    Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay)
+    leaveForMweTax
       + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay),
   );
@@ -181,8 +220,8 @@ export function computeFinalPay(input: {
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
     otherBenefits: Math.max(0, input.otherBenefits),
-    deMinimis: Math.max(0, input.deMinimisYtd ?? 0),
-    deMinimisExcess: Math.max(0, input.deMinimisExcessYtd ?? 0),
+    deMinimis: Math.max(0, input.deMinimisYtd ?? 0) + leaveDeMinimis,
+    deMinimisExcess: Math.max(0, input.deMinimisExcessYtd ?? 0) + leaveBenefitsPool,
     statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
@@ -234,7 +273,10 @@ export function computeFinalPay(input: {
     taxDue: annualized.taxDue,
     taxWithheldYtd: annualized.taxWithheld,
     annualization: annualized,
-    leaveMonetizationPay: round2(Math.max(0, input.leaveMonetizationPay)),
+    leaveMonetizationPay: leaveGrossPay,
+    leaveDeMinimisPay: leaveDeMinimis,
+    leaveBenefitsPoolPay: leaveBenefitsPool,
+    leaveDirectTaxablePay: reviewedLeaveBuckets ? leaveDirectTaxable : leaveForMweTax,
     separationPay: round2(Math.max(0, input.separationPay)),
     retirementPay: round2(Math.max(0, input.retirementPay)),
     otherBenefits: round2(Math.max(0, input.otherBenefits)),
