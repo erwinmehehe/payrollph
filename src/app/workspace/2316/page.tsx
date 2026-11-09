@@ -34,7 +34,7 @@ export default async function CertificatePage({ searchParams }: {
       (separationId !== undefined && typeof separationId !== "string")) notFound();
 
   return <>
-    <p className="mx-auto max-w-5xl px-6 pt-5 text-sm text-slate-600">
+    <p data-organization-id={organizationId} className="mx-auto max-w-5xl px-6 pt-5 text-sm text-slate-600">
       Authorized payroll employer: #{organizationId}
     </p>
     <Certificate2316Review organizationId={organizationId}
