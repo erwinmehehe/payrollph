@@ -8,19 +8,22 @@ import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOr
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { singleLegalEntityForTenant } from "@/lib/hcm-single-entity-scope";
+import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Goals & Review Cycles | Linaw", robots: { index: false } };
 
 export default async function Page({ searchParams }: {
-  searchParams: Promise<{ organizationId?: string }>;
+  searchParams: Promise<{ organizationId?: string | string[] }>;
 }) {
   if (!criticalReleaseFlagEnabled("goalsReviewCycle")) notFound();
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const { organizationId: raw } = await searchParams;
-  const organizationId = raw ? Number(raw) : await primaryCompanyOrganizationId(user.id);
-  if (!organizationId || !Number.isSafeInteger(organizationId)) notFound();
+  const organizationId = raw === undefined
+    ? await primaryCompanyOrganizationId(user.id)
+    : canonicalPeoplePageOrganizationId(raw);
+  if (!organizationId) notFound();
   if (await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES)) notFound();
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
