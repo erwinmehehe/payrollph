@@ -126,5 +126,10 @@ test("CI runs only on exact PR SHA with fictional PostgreSQL 16 and no real mone
     'XENDIT_PAYOUTS_ENABLED=false',
     'XENDIT_BILLING_ENABLED=false',
   ]) assert.ok(wf.includes(marker), "Missing CI safety or proof step: " + marker);
+  // A literal backslash before a GitHub expression corrupts the checkout ref.
+  assert.doesNotMatch(wf, /\\\$\{\{/,
+    "GitHub expression must not have an escaping backslash");
+  assert.ok(wf.includes("ref: ${{ github.event.pull_request.head.sha || github.sha }}"));
+  assert.ok(wf.includes("EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}"));
   assert.doesNotMatch(wf, /vercel deploy|production migration|db:migrate:production|paymongo\.com|xendit\.co/i);
 });

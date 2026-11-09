@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tenant-compliance-accepted-\${{ github.event.pull_request.number }}
+  group: tenant-compliance-accepted-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -47,11 +47,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Assert exact final PR SHA
         shell: bash
         env:
-          EXPECTED_SHA: \${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
