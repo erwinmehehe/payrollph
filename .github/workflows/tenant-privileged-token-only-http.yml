@@ -62,7 +62,12 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install disposable PG16 environment
-        run: node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          # The shared profile contains generic CI credentials. Keep the five
+          # distinct fictional operation tokens declared above for this proof.
+          node scripts/qa/tenant-table-env.mjs compliance-posts |
+            grep -vE '^(WORKER_TOKEN|READINESS_TOKEN)=' >> "$GITHUB_ENV"
       - name: Static token classification and syntax guard
         run: |
           node --check scripts/qa/tenant-privileged-token-only-http.mjs
