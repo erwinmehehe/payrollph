@@ -1,4 +1,5 @@
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
+import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits,RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
 import { YEAR_END_RECEIPTS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
@@ -660,6 +661,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only a previously uncredited method may be promoted: " + spec.method);
     expectedStatuses[spec.path][spec.method] = "COVERED";
   }
+  const enterpriseCredits = verifyEnterprisePostCredit(m);
+  assert.equal(expectedStatuses["src/app/api/enterprise/route.ts"].POST, "GAP");
+  expectedStatuses["src/app/api/enterprise/route.ts"].POST = "COVERED";
   const securityCredits=verifySecurityCredits(m);assert.equal(securityCredits,3);
   for(const t of SECURITY_TARGETS){assert.equal(expectedStatuses[t.path][t.method],'GAP');expectedStatuses[t.path][t.method]='COVERED';}
   const mergedRecoveryCredits = verifyRecoveryCredits(m);
@@ -672,9 +676,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -686,7 +690,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **362 COVERED + 3 PUBLIC-BY-DESIGN + 41 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **363 COVERED + 3 PUBLIC-BY-DESIGN + 40 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -742,14 +746,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok(mainRecoveryCredits.every(credited => credited === mainRecoveryCredits[0]),
       "origin/main must not contain a partial five-method proof recovery");
     const baselineHasRecovery = mainRecoveryCredits[0];
-    const baselineTransferCredits=['POST','PATCH'].filter(name=>baseline.allApiRouteFiles['src/app/api/multi-entity/transfers/route.ts'].methods.find(m=>m.name===name).status==='COVERED').length;
-    assert.ok([0,2].includes(baselineTransferCredits),'A transfer pair may not silently merge only one method');
+    // Both dedicated transfer methods must be credited together, or held together.
+    const baselineTransferCredits = ['POST', 'PATCH'].filter(name =>
+      baseline.allApiRouteFiles['src/app/api/multi-entity/transfers/route.ts']
+        .methods.find(method => method.name === name)?.status === 'COVERED').length;
+    assert.ok([0, 2].includes(baselineTransferCredits),
+      'Transfer POST/PATCH proof must not be partially merged');
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      assert.equal(receipt.methodsHeld, 2-baselineTransferCredits,'The strict source verifier has already checked each credited transfer receipt');
+      assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
+        "Both source-pinned transfer receipts must be present or both held");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
