@@ -761,7 +761,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
       const receipt = verifyFiveMethodCredits(baseline, readMainFile);
       assert.equal(receipt.methodsCredited, 3);
-      assert.equal(receipt.methodsHeld, 2);
+      // Main has since merged the dedicated #1853 transfer proof. Historical
+      // zero-credit holds remain required only when BOTH methods are GAP.
+      const mainTransferStates = baseline.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
+        .methods.filter(row => ["POST", "PATCH"].includes(row.name)).map(row => row.status);
+      assert.equal(mainTransferStates.length, 2);
+      assert.ok(mainTransferStates.every(status => status === mainTransferStates[0]),
+        "Partial transfer promotion must never pass historical receipt reconciliation");
+      assert.ok(["GAP", "COVERED"].includes(mainTransferStates[0]));
+      assert.equal(receipt.methodsHeld, mainTransferStates[0] === "COVERED" ? 0 : 2,
+        "Merged dedicated proof supersedes both historical transfer holds, not one");
     }
     // Provider-callback credits merged to main after the reviewed snapshot. Each is accepted on main only when the
     // exact method carries its own receipt under proofPolicy.providerCallback with independent review still PENDING;
