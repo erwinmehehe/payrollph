@@ -32,7 +32,7 @@ test("queued, failed, different-head or incomplete receipt evidence cannot selec
 
 test("changed family/route source and promotion of partial action evidence require renewed review", () => {
   for (const file of Object.keys(receipt.sources)) {
-    assert.throws(() => reviewedFamilySelection(receipt, path => readFileSync(path, "utf8") + (path === file ? "\n// edited" : "")), /changed proof\/route/);
+    assert.throws(() => reviewedFamilySelection(receipt, path => readFileSync(path, "utf8") + (path === file ? "\n// edited" : "")), /(?:changed proof\/route|Enterprise current POST route changed)/);
   }
   const changed = structuredClone(receipt); changed.accepted.push(changed.held.shift());
   assert.throws(() => reviewedFamilySelection(changed), /only three/);
@@ -65,6 +65,12 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
     mkdirSync(dirname(join(sandbox, overview)), { recursive: true });
     cpSync(overview, join(sandbox, overview));
     for (const file of Object.keys(receipt.sources)) {
+      mkdirSync(dirname(join(sandbox, file)), { recursive: true }); cpSync(file, join(sandbox, file));
+    }
+    // The independent enterprise POST receipt requires its actual runtime and
+    // fixture inputs in this isolated writer regression as well.
+    const enterpriseReceipt = JSON.parse(readFileSync("scripts/qa/tenant-enterprise-admin-credit-receipt.json", "utf8"));
+    for (const file of Object.keys(enterpriseReceipt.pins)) {
       mkdirSync(dirname(join(sandbox, file)), { recursive: true }); cpSync(file, join(sandbox, file));
     }
     const input = structuredClone(manifest);
