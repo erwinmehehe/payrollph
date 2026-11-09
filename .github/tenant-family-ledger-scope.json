@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "comparisonBase": "8d64ff4ee04d394b82060da80e3a3580cc84743b",
+  "workflows": {
+    "tenant-dl01-closure.yml": {
+      "job": "whole-batch",
+      "methods": [
+        "GET year-end/prior-evidence",
+        "POST documents",
+        "POST employees/import",
+        "POST payroll-runs/[id]/exports",
+        "POST year-end/prior-evidence"
+      ],
+      "executionSha256": "b18c9ce9c1e55cfc6c777977e6577b400aa4821606a754e3b681eebf2401fee1",
+      "originalIf": "${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}",
+      "proofJobs": [
+        "whole-batch"
+      ]
+    },
+    "tenant-ess-documents-read.yml": {
+      "job": "ess-document-read",
+      "methods": [
+        "GET self/documents"
+      ],
+      "executionSha256": "77c659179b1dcaa4f84c031d6107444b685480fe19a211802ba9dfe09c8b5e03",
+      "originalIf": "${{ github.event.pull_request.head.repo.full_name == github.repository }}",
+      "proofJobs": [
+        "ess-document-read"
+      ]
+    }
+  }
+}
