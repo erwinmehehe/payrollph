@@ -10,6 +10,9 @@ on:
       - '.github/workflows/tenant-privileged-token-only-http.yml'
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   token-only-denials:
     if: github.event.pull_request.head.repo.full_name == github.repository
@@ -73,9 +76,9 @@ jobs:
           node --check scripts/qa/tenant-privileged-token-only-http.mjs
           node --test tests/tenant-privileged-token-only.test.mjs
       - name: Initialize only disposable PostgreSQL 16 schema
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+        run: npm run db:push
+      - name: Apply reviewed isolated source baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode application for loopback HTTP
         run: npm run build
       - name: Start loopback Next server
@@ -86,9 +89,10 @@ jobs:
           server=$!
           for attempt in $(seq 1 60); do
             if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
-            if ! kill -0 "$server" 2>/dev/null; then exit 1; fi
+            if ! kill -0 "$server" 2>/dev/null; then tail -n 90 /tmp/tenant-token-only-next.log; exit 1; fi
             sleep 2
           done
+          tail -n 90 /tmp/tenant-token-only-next.log
           exit 1
       - name: Execute only denied credentials over real HTTP (never valid ticks)
         run: node --import tsx --test scripts/qa/tenant-privileged-token-only-http.mjs
