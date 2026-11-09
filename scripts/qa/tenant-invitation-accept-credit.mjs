@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -133,12 +134,19 @@ export function verifyInvitationAcceptCredits(m) {
     assert.ok(!workflow.includes("secrets."));
   }
   assert.notEqual(RECEIPTS.GET.workflowRunId,RECEIPTS.POST.workflowRunId);
-  const all=Object.values(m.allApiRouteFiles).flatMap(x=>x.methods);
-  assert.equal(all.length,498);assert.equal(m.metrics.methods,498);
-  for(const status of ["COVERED","GAP","PUBLIC-BY-DESIGN"])
-    assert.equal(all.filter(x=>x.status===status).length,
-      status==="COVERED"?m.metrics.coveredAfter:status==="GAP"?m.metrics.gap:m.metrics.publicByDesign);
-  assert.equal(m.metrics.publicByDesign,11);
-  assert.ok(m.acceptanceStatus.startsWith("NOT ACCEPTED: 38 API methods"));
+  // Live counts follow actual verified methods, including independently merged credits.
+  const { live, base } = assertLiveTenantCounts(assert, m);
+  for (const verb of ["GET", "POST"])
+    assert.equal(live.byKey.get(verb + " " + ROUTE)?.status, "COVERED");
+  if (base) {
+    for (const verb of ["GET", "POST"])
+      assert.equal(base.byKey.get(verb + " " + ROUTE)?.status, "GAP",
+        "Invitation credit requires a previously unproven method");
+    const promoted = [...live.byKey].filter(([key, method]) =>
+      method.status === "COVERED" && base.byKey.get(key)?.status === "GAP")
+      .map(([key]) => key).sort();
+    assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
+      "Only both sealed invitation receipts may gain new credit");
+  }
   return 2;
 }

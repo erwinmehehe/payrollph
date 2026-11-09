@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyInvitationAcceptCredits, RECEIPTS, ROUTE } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 const load=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 const method=(m,verb)=>m.allApiRouteFiles[ROUTE].methods.find(x=>x.name===verb);
 test("two source-current distinct PG16 invitation acceptance methods gain provisional receipts",()=>{
  const m=load();assert.equal(verifyInvitationAcceptCredits(m),2);
- assert.equal(m.metrics.coveredAfter,449);assert.equal(m.metrics.gap,38);
- assert.equal(m.metrics.publicByDesign,11);
+ assertLiveTenantCounts(assert, m);
  assert.notEqual(RECEIPTS.GET.workflowJobId,RECEIPTS.POST.workflowJobId);
 });
 test("faked jobs, missing methods, source drift, premature security acceptance fail closed",()=>{
