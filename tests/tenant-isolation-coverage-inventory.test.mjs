@@ -6723,6 +6723,109 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(reviewed.credits, 0);
         continue; // Source-pinned, real-HTTP uncredited candidate, not blanket COVERED.
       }
+      // #1882 annual tax-review pages: exact-source fictional PG16 GET proof
+      // is evidence for a BOUNDED SSR hardening only, not an API action,
+      // PDF issuance, or tenant-wide page coverage credit.
+      if (path === "src/app/workspace/2316/page.tsx" ||
+          path === "src/app/workspace/prior-employer/page.tsx") {
+        const certificate = path === "src/app/workspace/2316/page.tsx";
+        const originalPageBlobSha = certificate
+          ? "a6c4642f9e651eb616de6e301a832ac2d471a33e"
+          : "82327e4d8580af2abe503e7a104321e854dc84f7";
+        const pageBlobSha = certificate
+          ? "39e1d703e37c637d1b321d09eaa49df0b82d4c21"
+          : "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff";
+        assert.equal(entry.status, "GAP", "Unaccepted tax-review SSR remains a GAP");
+        assert.equal(entry.testedBy, undefined, "No page/action proof may be credited");
+        assert.equal(baseline.app[path], originalPageBlobSha, "Preserve original unaudited entry SHA");
+        assert.equal(current, pageBlobSha, "Tax-review page changed: renew feature-ON PG16 proof");
+        assert.equal(entry.blob, pageBlobSha, "Manifest must pin current tax-review SSR source");
+        const reviewed = entry.reviewedUncertified;
+        assert.deepEqual(reviewed, {
+          kind: "payroll-tax-review-SSR-GET-PG16-unaccepted",
+          originalPageBlobSha, pageBlobSha,
+          selectorFile: "src/lib/tenant-payroll-review-page.ts",
+          selectorBlobSha: "37766e6f9ec0dd8d1098bc8987bbd5de899a3739",
+          proofFile: "scripts/qa/tenant-payroll-review-pages-http.mjs",
+          proofBlobSha: "9b81f55d7d49eeb4e8ae947c04081c30104a0051",
+          contractFile: "scripts/qa/tenant-payroll-review-pages-contract.mjs",
+          contractBlobSha: "0f78a4b9a5ae1c6e06036cb4a15f162b1a39ff20",
+          contractTestFile: "tests/tenant-payroll-review-pages-contract.test.mjs",
+          contractTestBlobSha: "1f5c7b17b0696e2043e415f1cd02629ad02d7754",
+          selectorTestFile: "tests/tenant-payroll-review-page.test.ts",
+          selectorTestBlobSha: "2e621c61d6b39c651b239e31504736dea474fa4a",
+          workflowFile: ".github/workflows/tenant-payroll-review-pages-qa.yml",
+          workflowBlobSha: "41f0a76e683818d018a83ea82a10537b66cc93a5",
+          ownPositiveLine: 106, foreignDenialLine: 112, unchangedDbLine: 138,
+          previouslyPassingHead: "13e77283b83597738803afa843f3feea831080e8",
+          previouslyPassingJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42622354364/job/129177441243",
+          pageActionCredits: 0, apiMethodCredits: 0,
+          independentlyAccepted: false, productionCertified: false,
+        }, "Only the executed, exact-source and uncredited tax-review GET candidate is allowed");
+        assert.match(entry.reason, /^Still GAP: #1882 /);
+        assert.equal(entry.hasAction, false, "SSR evidence does not prove client form actions");
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0,
+            "The page still needs exact source-line anchors: " + field);
+          const lines = actual.split("\n");
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              lines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": invalid source line " + pin.line);
+          }
+        }
+        for (const [file, sha] of [
+          [reviewed.selectorFile, reviewed.selectorBlobSha],
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractFile, reviewed.contractBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.selectorTestFile, reviewed.selectorTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Tax-review evidence changed without renewed independent test: " + file);
+        }
+        const session = actual.indexOf("await getSessionUser()");
+        const selector = actual.indexOf("explicitPayrollReviewEmployerId(query.organizationId)");
+        const roleGate = actual.indexOf("await assertOrganizationRole(");
+        const companyAccess = actual.indexOf("await getAccess(");
+        const mount = actual.indexOf(certificate ? "<Certificate2316Review" : "<YearEndPriorReview");
+        assert.ok(session >= 0 && selector > session && roleGate > selector &&
+          companyAccess > roleGate && mount > companyAccess,
+          "Payroll reviewer membership and company-wide scope must precede form mount");
+        assert.match(actual, /if \(denied \|\| !access\?\.companyWide\) notFound\(\)/);
+        assert.match(actual, /PAYROLL_OPERATOR_ROLES/);
+        assert.match(actual, /data-organization-id=\{organizationId\}/);
+        assert.doesNotMatch(actual, /Number\(query\.organizationId\)/);
+        const own = evidenceLine(reviewed.proofFile, reviewed.ownPositiveLine, path + " own");
+        const foreign = evidenceLine(reviewed.proofFile, reviewed.foreignDenialLine, path + " foreign");
+        const victim = evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path + " immutable");
+        assert.match(own, /const own = await readLocal\(route \+ "\?organizationId=" \+ actor\.org\.id, actor\.cookie\)/);
+        assert.match(foreign, /await readLocal\(route \+ "\?organizationId=" \+ foreign\.org\.id, actor\.cookie\)/);
+        assert.match(victim, /assert\.deepEqual\(await snapshot\(subject\.org\.id\), before\.get\(subject\.org\.id\)/);
+        const proofSource = readFileSync(reviewed.proofFile, "utf8");
+        const contractSource = readFileSync(reviewed.contractFile, "utf8");
+        const workflowSource = readFileSync(reviewed.workflowFile, "utf8");
+        for (const required of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          '"/workspace/2316"', '"/workspace/prior-employer"',
+          "assertTaxReviewOwnPage(own, route, actor, subjects)",
+          "assertTaxReviewDeniedPage(",
+          "assert.equal(stillSignedIn.status, 200)",
+          "assert.equal(revoked.length, 1)",
+          "pageCredits: 0, apiMethodCredits: 0, productionAccepted: false",
+        ]) assert.ok(proofSource.includes(required), "Missing PG16 page proof: " + required);
+        assert.ok(proofSource.indexOf("requireDisposableTaxReviewPageEnv();") <
+          proofSource.indexOf('import("../../src/db/index.ts")'),
+          "No app/database import before the disposable-only guard");
+        assert.match(contractSource, /GITHUB_ACTIONS: "true"/);
+        assert.match(contractSource, /DATABASE_URL: "postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db"/);
+        assert.match(contractSource, /WORKER_ENABLED: "false"/);
+        assert.match(workflowSource, /image: postgres:16/);
+        assert.match(workflowSource, /github\.event\.pull_request\.head\.sha/);
+        assert.match(workflowSource, /node --import tsx scripts\/qa\/tenant-payroll-review-pages-http\.mjs/);
+        continue; // Full GET evidence, zero credits. Never silently waive a changed page.
+      }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
       if (entry.status === "COVERED") {
