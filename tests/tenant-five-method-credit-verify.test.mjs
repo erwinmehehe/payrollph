@@ -34,7 +34,7 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   }
   assert.deepEqual(verifyFiveMethodCredits(manifest), {
     status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
-    methodsHeld: 2, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap,
+    methodsHeld: 0, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap,
     pageActionGaps: 17, productionTested: false, independentlyAccepted: false,
   });
 });
@@ -55,13 +55,22 @@ test("changed proof citations, source SHA, or method totals are not a valid cred
   mutation(m => m.metrics.coveredAfter++);
 });
 
-test("both transfer methods remain GAP even though #1711 source-identical job passed", () => {
+test("a transfer credit is valid only from the dedicated #1853 proof; the old candidate, a forged run or a leftover hold fail closed", () => {
+  const transfer = (m, name) => m.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"].methods.find(x => x.name === name);
   for (const name of ["POST", "PATCH"]) {
-    mutation(m => {
-      const transfer = m.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"]
-        .methods.find(x => x.name === name);
-      transfer.status = "COVERED";
-      transfer.testedBy = { file: "scripts/qa/tenant-multi-entity-transfers-write-http.mjs" };
-    });
+    // The superseded Playwright candidate can never support a credit.
+    mutation(m => { transfer(m, name).testedBy = { file: "scripts/qa/tenant-multi-entity-transfers-write-http.mjs" }; });
+    // A forged owner, run, head, review, acceptance or source claim is a hard failure.
+    mutation(m => { transfer(m, name).testedBy.proofPullRequest = 1711; });
+    mutation(m => { transfer(m, name).testedBy.workflowRunId = 42477461862; });
+    mutation(m => { transfer(m, name).testedBy.verifiedPrHeadSha = "0".repeat(40); });
+    mutation(m => { transfer(m, name).testedBy.independentlyAccepted = true; });
+    mutation(m => { transfer(m, name).testedBy.independentSecurityReview = "PASSED"; });
+    mutation(m => { transfer(m, name).testedBy.proofBlobSha = "0".repeat(40); });
+    mutation(m => { transfer(m, name).testedBy.ownPositiveLine = 1e9; });
+    // The superseded hold must be removed, not kept beside a credit.
+    mutation(m => { transfer(m, name).reviewedUncertified = { kind: "multi-entity-transfers-typed-conflict-PG16-fault-proof-uncredited", coverageCredits: 0 }; });
+    // A COVERED status with no receipt at all.
+    mutation(m => { transfer(m, name).testedBy = null; });
   }
 });
