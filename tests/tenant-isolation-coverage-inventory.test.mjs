@@ -6161,6 +6161,123 @@ test("page and server-action inventory cannot silently omit new or changed busin
     if (scopedCandidate && changed) {
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
+      // #1876 People/HR pages: exact-source, feature-ON, disposable
+      // PG16/HTTP *provisional* evidence. Preserve both page/action GAPs:
+      // this GET-only proof does not certify interactive survey writes or
+      // employer-wide People acceptance. No unpinned variant may pass.
+      if (path === "src/app/app/engagement/page.tsx" ||
+          path === "src/app/app/goals-reviews/page.tsx") {
+        const isEngagement = path === "src/app/app/engagement/page.tsx";
+        const originalPageBlobSha = isEngagement
+          ? "caf09023985ba92210805555c8272b2f24df3f07"
+          : "0792de4c8cbcb4efdf40ecfb986cb140561d5749";
+        const pageBlobSha = isEngagement
+          ? "8ddecfc89f1f8b23deeaefa410c00f36b072922e"
+          : "4989da5727ea5a55d0565fec6eb0af71cbb6046c";
+        assert.equal(entry.status, "GAP", "People page must remain an unaccepted GAP");
+        assert.equal(entry.testedBy, undefined, "Unaccepted page proof cannot claim a method/page credit");
+        assert.equal(baseline.app[path], originalPageBlobSha, "People page original SHA must remain pinned");
+        assert.equal(current, pageBlobSha, "People page changed: renew independent PG16 proof");
+        assert.equal(entry.blob, pageBlobSha, "Manifest must pin the reviewed People page source");
+        const reviewed = entry.reviewedUncertified;
+        assert.deepEqual(reviewed, {
+          kind: "people-engagement-goals-SSR-GET-PG16-unaccepted",
+          originalPageBlobSha, pageBlobSha,
+          selectorFile: "src/lib/tenant-people-page-employer.ts",
+          selectorBlobSha: "0f34a6276889c396c6287e0a830c02d7b05acdc9",
+          proofFile: "scripts/qa/tenant-people-pages-http.mjs",
+          proofBlobSha: "fad1f0ad45d41d158cee968e7b9de0188ed9030e",
+          contractFile: "scripts/qa/tenant-people-pages-contract.mjs",
+          contractBlobSha: "29bedeb0bfa584a184ea89a9e6ca51c099e2dcb4",
+          contractTestFile: "tests/tenant-people-pages-contract.test.mjs",
+          contractTestBlobSha: "49bad9e706940e096b755f553d98609b7f909dfa",
+          selectorTestFile: "tests/tenant-people-page-employer.test.ts",
+          selectorTestBlobSha: "c2183b9b046c968a752a7ad3e750ecd8d89fb18c",
+          workflowFile: ".github/workflows/tenant-people-pages-qa.yml",
+          workflowBlobSha: "78cf181743c1e612e22c6f2eec66f2f3ed1a2342",
+          priorPassedHead: "6c5f7030af63af236b0cc176873ca3fe91afd9ea",
+          priorPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42590838431/job/129071762836",
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited People/HR PG16 source evidence may be linked");
+        assert.match(entry.reason, /^Still GAP: #1876 /);
+        for (const [file, sha] of [
+          [reviewed.selectorFile, reviewed.selectorBlobSha],
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractFile, reviewed.contractBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.selectorTestFile, reviewed.selectorTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "People proof changed without renewed review: " + file);
+        }
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          const sourceLines = actual.split("\n");
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": incorrect source line " + pin.line);
+          }
+        }
+        const auth = actual.indexOf("getSessionUser()");
+        const selector = actual.indexOf("canonicalPeoplePageOrganizationId(raw)");
+        const membership = actual.indexOf("assertMembership(session.id, organizationId)");
+        const access = actual.indexOf(isEngagement
+          ? "getAccess(session.id, organizationId)" : "getAccess(user.id, organizationId)");
+        const entity = actual.indexOf("singleLegalEntityForTenant(organizationId)");
+        const render = actual.indexOf(isEngagement
+          ? "<EngagementSurveyPage organizationId={organizationId}"
+          : ".from(performanceCycles)");
+        const admin = actual.indexOf(isEngagement
+          ? "assertOrganizationRole(session.id, organizationId, PEOPLE_ADMIN_ROLES)"
+          : "assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES)");
+        assert.ok(auth > 0 && selector > auth && render > selector,
+          "People authorization must precede client mount/SQL select");
+        assert.ok(isEngagement
+          ? membership > selector && access > membership && entity > access &&
+            admin > entity && render > admin
+          : admin > selector && access > admin && entity > access &&
+            render > entity,
+          "People page must authorize active employer, role and entity before data read");
+        assert.match(actual, /raw === undefined/);
+        if (isEngagement) {
+          assert.match(actual, /!access\.companyWide/);
+          assert.match(actual, /Number\.isSafeInteger\(session\.employeeId\)/);
+        } else assert.match(actual, /eq\(performanceCycles\.organizationId, organizationId\)/);
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        assert.ok(proof.indexOf("requireDisposablePeoplePagesEnv();") > 0 &&
+          proof.indexOf("requireDisposablePeoplePagesEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "Local-only PG16 guard must execute before app/database imports");
+        for (const marker of [
+          'for (const label of ["ATTA", "ATTB", "VICTIM"])',
+          "for (const actor of [a, b])",
+          "assertOwnGoalsPage(await readLocal(goals(actor.org.id)",
+          "assertOwnEngagementPage(await readLocal(engagement(actor.org.id)",
+          "assertOwnSurveyApi(await readLocal(surveys(actor.org.id)",
+          "assertDeniedPage(await readLocal(goals(other.org.id)",
+          "assertDeniedPage(await readLocal(engagement(other.org.id)",
+          "assertDeniedApi(await readLocal(surveys(other.org.id)",
+          "assert.equal(ownPairs, 2)", "assert.equal(foreignPairs, 4)",
+          "assert.equal(malformedDenials, 40)", "assert.equal(revoked.length, 1",
+          'assert.equal((await readLocal("/api/account", a.cookie)).status, 200',
+          "assert.deepEqual(await snapshot(other.org.id), before.get(other.org.id)",
+          "pageCredits: 0, methodCredits: 0",
+        ]) assert.ok(proof.includes(marker), "People proof missing mandatory control: " + marker);
+        const contract = readFileSync(reviewed.contractFile, "utf8");
+        assert.match(contract, /assert\.equal\(response\.status, 200/);
+        assert.match(contract, /assert\.equal\(response\.status, 404/);
+        assert.match(contract, /assert\.equal\(response\.status, 403/);
+        assert.match(contract, /GITHUB_ACTIONS: "true"/);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-people-pages-http\.mjs/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.equal(reviewed.credits, 0);
+        continue; // Strict, source-pinned, zero-credit exception for exactly two pages.
+      }
+
       // #1557 report builder PAGE: exact-source, GET-only, feature-ON
       // disposable PG16 evidence. A passing synthetic job does not certify
       // interactive reporting, private POST/CSV, or whole-page tenant coverage.
