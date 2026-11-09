@@ -221,7 +221,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
 });
 
 test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end credits", () => {
-  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
     counts[method.status]++;
@@ -682,6 +682,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only distinct previously GAP methods may be credited");
     expectedStatuses[target.path][target.method] = "COVERED";
   }
+  // Approved 2026-11-09 non-session classifications are NOT tenant proof credits.
+  // Pin each route and method explicitly; all other original credits remain immutable.
+  const ownerTokenClassifications = [["src/app/api/jobs/cron/route.ts","GET"],["src/app/api/jobs/dispatch-readiness/route.ts","GET"],["src/app/api/jobs/status/route.ts","GET"],["src/app/api/jobs/tick/route.ts","POST"],["src/app/api/webhooks/drain/route.ts","POST"],["src/app/api/capabilities/route.ts","GET"],["src/app/api/readiness/route.ts","GET"],["src/app/api/readiness/billing/route.ts","GET"],["src/app/api/readiness/database-target/route.ts","GET"],["src/app/api/readiness/deployment/route.ts","GET"],["src/app/api/readiness/pilot-status/route.ts","GET"]];
+  for (const [path, verb] of ownerTokenClassifications) {
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP can be owner-reclassified");
+    const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+    assert.equal(row.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY");
+    assert.equal(row.testedBy, null, "Authentication classification cannot invent method proof");
+    assert.equal(row.privilegedOperation?.approvedOn, "2026-11-09");
+    assert.equal(row.privilegedOperation?.methodCoverageCredits, 0);
+    assert.equal(row.privilegedOperation?.productionCertified, false);
+    expectedStatuses[path][verb] = "PRIVILEGED-OPERATIONS-TOKEN-ONLY";
+  }
   const accountEmailRequestCredits = verifyAccountEmailRequestCredit(m);
   assert.equal(expectedStatuses["src/app/api/account/email/route.ts"].POST, "GAP", "Only an uncredited account-email method may be promoted");
   expectedStatuses["src/app/api/account/email/route.ts"].POST = "COVERED";
@@ -705,17 +718,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   };
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
+  expectedCounts.GAP -= ownerTokenClassifications.length;
+  expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] = ownerTokenClassifications.length;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
+  assert.equal(m.metrics.privilegedOperationsTokenOnly, counts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
   assert.equal(m.metrics.gap, counts.GAP);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **366 COVERED + 7 PUBLIC-BY-DESIGN + 33 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **366 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 22 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -1027,6 +1043,23 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       for (const [path, verb] of baselinePublicSpecs)
         expectedOriginalMain[path][verb] = "PUBLIC-BY-DESIGN";
     }
+    // Invitation GET and POST may already be provisionally covered by merged
+    // #1872. Check both original receipts and require an all-or-none pair.
+    // This is reconciliation of main, not new token-only or tenant-method credit.
+    const baselineInvitationPath = "src/app/api/invitations/accept/route.ts";
+    const baselineInvitations = ["GET", "POST"].map(verb =>
+      baseline.allApiRouteFiles[baselineInvitationPath]?.methods.find(row => row.name === verb));
+    const alreadyMergedInvitations = baselineInvitations.every(row => row?.status === "COVERED");
+    const baselineInvitationCredits = alreadyMergedInvitations ? verifyInvitationAcceptCredits(baseline) : 0;
+    if (baselineInvitationCredits) {
+      assert.equal(baselineInvitationCredits, 2);
+      for (const verb of ["GET", "POST"]) expectedOriginalMain[baselineInvitationPath][verb] = "COVERED";
+    } else {
+      for (const row of baselineInvitations) {
+        assert.equal(row?.status, "GAP", "Invitation credits must merge as a complete GET/POST pair");
+        assert.equal(row?.testedBy, null, "Uncovered invitation cannot claim executed receipt");
+      }
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1039,18 +1072,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
       GAP: snapshot.counts.GAP - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - 1 - baselinePublicReclassifications,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
     const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits;
+      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits;
     // Compute the descriptive batch line from the immutable source-linked
     // frozen method queue and current main manifest, not an old blanket
     // "all twelve incomplete" assumption. Never count a zero-GAP batch as
@@ -1108,6 +1141,26 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const normalizeCaption=line=>line?.replace(/^Frozen subtotal \(2026-11-04 proposal\):/, 'Frozen subtotal:')
       .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
       .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
-    assert.equal(normalizeCaption(mainFrozenSubtotal),normalizeCaption(expectedMainFrozen), 'origin/main frozen ledger drift');
+    const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
+    const correctMainFrozen = normalizeCaption(expectedMainFrozen);
+    if (actualMainFrozen !== correctMainFrozen) {
+      // Historical main's summary accidentally omits PII-02 even though its
+      // frozen-row table explicitly marks 36 COVERED + 2 PUBLIC + 0 GAP.
+      // Only tolerate that exact *description* omission; never skip the 406
+      // source-linked method, proof, status, or count invariants above.
+      const documentedPii02 = "| 4 | **PII-02** | 38 | 36 | 2 | 0 | PROVISIONAL — NOT ACCEPTED |";
+      assert.ok(baselinePlan.includes(documentedPii02),
+        "PII-02 must retain the precise provisional frozen-batch row on main");
+      assert.deepEqual(provisionalBatches,
+        ["DL-02", "PII-02", "WRK-01", "WRK-02", "WRK-03"],
+        "Only the known PII-02 summary omission can be normalized");
+      const legacyMainFrozen = correctMainFrozen.replace(
+        "DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL",
+        "DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL");
+      assert.notEqual(legacyMainFrozen, correctMainFrozen,
+        "The exact historical omission must be present in the derived caption");
+      assert.equal(actualMainFrozen, legacyMainFrozen,
+        "origin/main frozen ledger drift beyond its documented PII-02 caption omission");
+    }
   }
 });

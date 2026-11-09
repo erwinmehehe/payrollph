@@ -42,10 +42,12 @@ function checkLedger(data) {
   const covered = entries.filter(({ method }) => method.status === "COVERED").length;
   const isPublic = entries.filter(({ method }) => method.status === "PUBLIC-BY-DESIGN").length;
   const gap = entries.filter(({ method }) => method.status === "GAP").length;
-  assert.equal(total, covered + isPublic + gap, "unknown tenant coverage status");
+  const tokenOnly = entries.filter(({ method }) => method.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length;
+  assert.equal(total, covered + isPublic + tokenOnly + gap, "unknown tenant coverage status");
   assert.equal(data.metrics.methods, total, "total API method inventory drift");
   assert.equal(data.metrics.coveredAfter, covered, "COVERED metric drift");
   assert.equal(data.metrics.publicByDesign, isPublic, "PUBLIC-BY-DESIGN metric drift");
+  assert.equal(data.metrics.privilegedOperationsTokenOnly, tokenOnly, "token-only status metric drift");
   assert.equal(data.metrics.gap, gap, "GAP metric drift");
 }
 

@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 
 export const DEFAULT_BATCH_SIZE = 16;
-const STATUSES = new Set(["COVERED", "GAP", "PUBLIC-BY-DESIGN"]);
+const STATUSES = new Set(["COVERED", "GAP", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
 const KINDS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
 
 const PEOPLE = new Set(["hcm", "self", "employees", "performance", "recruitment",
@@ -67,7 +67,15 @@ export function readMethodInventory(manifest) {
     covered: methods.filter(x => x.status === "COVERED").length,
     gap: methods.filter(x => x.status === "GAP").length,
     publicByDesign: methods.filter(x => x.status === "PUBLIC-BY-DESIGN").length,
+
   };
+  // Preserve older synthetic three-class fixture shape; live approved inventories
+  // explicitly declare the fourth class and may never silently omit it.
+  if (Object.hasOwn(manifest.metrics ?? {}, "privilegedOperationsTokenOnly") ||
+      methods.some(row => row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY")) {
+    totals.privilegedOperationsTokenOnly = methods.filter(row =>
+      row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length;
+  }
   assert.equal(manifest.metrics?.methods, totals.methods,
     "live metrics total and enumerated route methods disagree");
   assert.equal(manifest.metrics?.coveredAfter, totals.covered,
@@ -76,6 +84,10 @@ export function readMethodInventory(manifest) {
     "live GAP metric and enumerated methods disagree");
   assert.equal(manifest.metrics?.publicByDesign, totals.publicByDesign,
     "live PUBLIC-BY-DESIGN metric and enumerated methods disagree");
+  assert.equal(manifest.metrics?.privilegedOperationsTokenOnly ?? 0, totals.privilegedOperationsTokenOnly ?? 0,
+    "live token-only operations must reconcile separately from GAP and COVERED");
+  assert.equal(totals.covered + totals.publicByDesign + (totals.privilegedOperationsTokenOnly ?? 0) + totals.gap,
+    totals.methods, "no method may disappear from the inventory");
   return { methods: methods.sort((a, b) => a.key.localeCompare(b.key)), totals };
 }
 
