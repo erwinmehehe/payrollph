@@ -26988,16 +26988,16 @@
           "reviewedUncertified": {
             "routeBlobSha": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
             "loaderBlobSha": "782853dada317783100dd1ee40004fa7e6126244",
-            "proofBlobSha": "90f5dadcb775753e016491531fa267aba4599558",
-            "file": "scripts/qa/workspace-readiness-http.mjs",
-            "ownPositiveLine": 39,
-            "foreignDenialLine": 76,
+            "proofBlobSha": "a2b24c5f79d483645da59902bfbde80c13f9c497",
+            "file": "scripts/qa/tenant-workspace-readiness-http.mjs",
+            "ownPositiveLine": 128,
+            "foreignDenialLine": 139,
             "ownStatus": 200,
             "foreignStatus": 403,
             "coverageCredits": 0,
             "independentlyAccepted": false,
             "productionTested": false,
-            "scope": "Provisional read-only three-employer PG16 second-pass candidate. Tenant-only roster and payroll-run counts; always-blocked launch/pilot/scale status. Real HTTP workflow and independent review pending. No source-pinned credit, provider, payment, production or deployment."
+            "scope": "Standalone signed-in three-employer PG16 HTTP source candidate with owned 200, genuine higher-ID foreign 403, SQL snapshots and unsafe-env refusal. Historical second-pass integration remains tested separately. Zero credits, exact-head CI and security/privacy review pending."
           }
         }
       ],
