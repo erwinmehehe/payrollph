@@ -283,8 +283,45 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(verifyRootCredits(manifest),2);
     return true;
   }
-  assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "GAP"].includes(method.status),
+  assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY", "GAP"].includes(method.status),
     key + ": invalid coverage status");
+  if (method.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY") {
+    const approved = new Map([
+      ["GET jobs/cron", ["authorization", "CRON_SECRET", 401]],
+      ["GET jobs/dispatch-readiness", ["x-worker-token", "WORKER_TOKEN", 401]],
+      ["GET jobs/status", ["x-scheduler-monitor-token", "SCHEDULER_MONITOR_TOKEN", 401]],
+      ["POST jobs/tick", ["x-worker-token", "WORKER_TOKEN", 401]],
+      ["POST webhooks/drain", ["x-worker-token", "WORKER_TOKEN", 401]],
+      ["GET capabilities", ["x-readiness-token", "READINESS_TOKEN", 404]],
+      ["GET readiness", ["x-readiness-token", "READINESS_TOKEN", 401]],
+      ["GET readiness/billing", ["x-health-token", "HEALTH_TOKEN", 404]],
+      ["GET readiness/database-target", ["x-readiness-token", "READINESS_TOKEN", 404]],
+      ["GET readiness/deployment", ["x-readiness-token", "READINESS_TOKEN", 404]],
+      ["GET readiness/pilot-status", ["x-readiness-token", "READINESS_TOKEN", 404]],
+    ]);
+    const label = method.name + " " + manifest.allApiRouteFiles[key.slice(0, key.lastIndexOf(" "))].route;
+    const expected = approved.get(label);
+    assert.ok(expected, label + ": unapproved operations classification");
+    assert.equal(currentBlob, method.privilegedOperation?.routeBlobSha);
+    assert.equal(method.privilegedOperation?.approvedOn, "2026-11-09");
+    assert.equal(method.privilegedOperation?.requiredHeader, expected[0]);
+    assert.equal(method.privilegedOperation?.credentialEnvironment, expected[1]);
+    assert.equal(method.privilegedOperation?.denialStatus, expected[2]);
+    assert.equal(method.privilegedOperation?.denialHarness, "scripts/qa/tenant-privileged-token-only-http.mjs");
+    assert.equal(method.privilegedOperation?.methodCoverageCredits, 0);
+    assert.equal(method.privilegedOperation?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(method.privilegedOperation?.productionCertified, false);
+    assert.equal(method.testedBy, null, "token-only denial cannot become employer-scoped COVERED proof");
+    const src = readFileSync(key.slice(0, key.lastIndexOf(" ")), "utf8");
+    assert.ok(src.includes(expected[0]) || (label === "GET jobs/cron" && src.includes("cronAuthorization(request)")) ||
+      (["POST jobs/tick", "POST webhooks/drain"].includes(label) && src.includes("requireGlobalWorkerToken(")),
+      label + ": token auth disappeared from source");
+    if (label === "GET readiness") {
+      assert.equal(method.privilegedOperation.documentedAlternateHeader, "x-worker-token");
+      assert.match(src, /request\.headers\.get\("x-readiness-token"\) \?\? request\.headers\.get\("x-worker-token"\)/);
+    }
+  }
+
   if (method.status === "PUBLIC-BY-DESIGN") {
     assert.ok(typeof method.reason === "string" && method.reason.trim().length >= 20,
       key + ": public endpoint needs a concrete reviewed reason");
@@ -2585,7 +2622,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       productionCertified: false,
     };
     assert.equal(method.name, "POST");
-    assert.equal(method.status, "GAP", key + ": worker-only triggers are not certified tenant methods");
+    assert.equal(method.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY", key + ": worker-only triggers must remain token-only, never COVERED");
     assert.equal(method.testedBy, null, key + ": source proof alone is never coverage");
     assert.match(method.reason, /worker[- ]token/i);
     assert.equal(currentBlob, globalWorkerReview.current,
@@ -3580,6 +3617,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
   let count = 0;
   let covered = 0;
   let publicByDesign = 0;
+  let tokenOnly = 0;
   let gaps = 0;
   for (const path of files) {
     const sourceBytes = readFileSync(path);
@@ -3597,6 +3635,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
       reviewedStatus(method, path + " " + method.name, changed, currentBlob);
       covered += method.status === "COVERED" ? 1 : 0;
       publicByDesign += method.status === "PUBLIC-BY-DESIGN" ? 1 : 0;
+      tokenOnly += method.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY" ? 1 : 0;
       gaps += method.status === "GAP" ? 1 : 0;
       count++;
     }
@@ -3605,8 +3644,9 @@ test("whole API manifest inventories exactly every route, exported method, and o
   assert.equal(count, manifest.metrics.methods);
   assert.equal(covered, manifest.metrics.coveredAfter);
   assert.equal(publicByDesign, manifest.metrics.publicByDesign);
+  assert.equal(tokenOnly, manifest.metrics.privilegedOperationsTokenOnly);
   assert.equal(gaps, manifest.metrics.gap);
-  assert.equal(covered + publicByDesign + gaps, count);
+  assert.equal(covered + publicByDesign + tokenOnly + gaps, count);
   assert.equal(manifest.acceptanceStatus.startsWith("NOT ACCEPTED"), true,
     "existing uncovered methods must not be described as accepted");
 });
@@ -5654,7 +5694,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(verifyYearEndCredits(manifest), 2);
         continue;
       }
-      // Scope-locked invitation exception: no additional generic evidence source.
+      // Scope-locked invitation GET/POST retains two executed PG16 receipts.
       if (path === "src/app/api/invitations/accept/route.ts" &&
           ["GET", "POST"].includes(method.name)) {
         assert.equal(verifyInvitationAcceptCredits(manifest), 2,

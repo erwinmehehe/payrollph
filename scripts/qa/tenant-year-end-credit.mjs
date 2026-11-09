@@ -123,7 +123,7 @@ export function verifyYearEndCredits(manifest, read = readFileSync) {
   const actualMethodCount = Object.values(manifest.allApiRouteFiles)
     .reduce((sum, route) => sum + route.methods.length, 0);
   assert.equal(manifest.metrics.methods, actualMethodCount);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign +
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + (manifest.metrics.privilegedOperationsTokenOnly ?? 0) +
     manifest.metrics.gap, manifest.metrics.methods);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.equal(manifest.metrics.scopedPagesAndActions, 21);

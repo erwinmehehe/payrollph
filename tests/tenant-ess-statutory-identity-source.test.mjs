@@ -159,6 +159,7 @@ test("changed contribution route is source-pinned with two provisional proofs an
   assert.equal(manifest.metrics.coveredAfter, tallies.COVERED);
   assert.equal(manifest.metrics.gap, tallies.GAP);
   assert.equal(manifest.metrics.publicByDesign, tallies["PUBLIC-BY-DESIGN"]);
-  assert.equal(tallies.COVERED + tallies.GAP + tallies["PUBLIC-BY-DESIGN"], manifest.metrics.methods);
+  assert.equal(manifest.metrics.privilegedOperationsTokenOnly, tallies["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
+  assert.equal(tallies.COVERED + tallies.GAP + tallies["PUBLIC-BY-DESIGN"] + tallies["PRIVILEGED-OPERATIONS-TOKEN-ONLY"], manifest.metrics.methods);
   assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: " + tallies.GAP + " API methods"));
 });

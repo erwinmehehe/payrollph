@@ -13,7 +13,7 @@ import { inspectRouteHandler, traceFlaggedSource } from "../scripts/qa/tenant-de
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const inventory = manifest.allApiRouteFiles;
-const acceptable = new Set(["GAP", "COVERED", "PUBLIC-BY-DESIGN"]);
+const acceptable = new Set(["GAP", "COVERED", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
 function blobSha(bytes) {
   return createHash("sha1").update(Buffer.from("blob " + bytes.length + "\0"))
     .update(bytes).digest("hex");
@@ -58,7 +58,7 @@ test("exported GET/POST aliases are resolved to the same scoped handler, not exe
 
 test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
   let methods = 0, hitsDb = 0, guarded = 0;
-  const legacyGaps = [], explicitPublic = [], evidenced = [], noDbFound = [];
+  const legacyGaps = [], explicitPublic = [], privilegedOnly = [], evidenced = [], noDbFound = [];
   for (const [file, data] of Object.entries(inventory)) {
     const source = readFileSync(file);
     assert.equal(blobSha(source), data.gitBlobSha,
@@ -84,6 +84,12 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
         assert.match(method.reason, /public|anonymous|static|status|health|webhook|token/i,
           id + ": public/signed protocol boundary needs explicit concrete justification");
         explicitPublic.push(id);
+      } else if (method.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY") {
+        assert.equal(method.privilegedOperation?.routeBlobSha, data.gitBlobSha, id + ": credential boundary is no longer source-pinned");
+        assert.equal(method.privilegedOperation?.methodCoverageCredits, 0, id + ": operational denial cannot grant employer-method proof");
+        assert.equal(method.testedBy, null, id + ": never borrow tenant-private proof");
+        assert.equal(method.privilegedOperation?.approvedOn, "2026-11-09", id + ": unknown owner classification");
+        privilegedOnly.push(id);
       } else if (method.status === "COVERED") {
         assert.ok(method.testedBy?.file && method.testedBy?.ownPositiveLine &&
           method.testedBy?.foreignDenialLine,
@@ -100,12 +106,13 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
     assert.ok(finding.accessesDatabase && finding.structuralAccessGuards.length > 0, "New corrections require real delegated access gates, not an exception");
   }
   assert.equal(methods, 498, "Whole-route scope regression, including three new correction methods and verified manager direct-report GET");
-  assert.equal(hitsDb, guarded + legacyGaps.length + explicitPublic.length + evidenced.length);
+  assert.equal(hitsDb, guarded + legacyGaps.length + explicitPublic.length + privilegedOnly.length + evidenced.length);
   // No route is silently omitted or certified because DB code lives in a helper.
   console.log(JSON.stringify({ kind: "source-structural-guard-NOT-security-certification",
     exportedMethods: methods, discoveredDbCallPaths: hitsDb,
     gatePathsDiscovered: guarded, currentSourcePinnedLegacyGaps: legacyGaps.length,
     publicBoundaryExemptions: explicitPublic.length,
+    sourcePinnedTokenOnlyOperations: privilegedOnly.length,
     previouslyHttpEvidencedLegacyMethods: evidenced.length,
     noDbPathsProvenByStaticSearch: noDbFound.length,
     sourcePinnedExceptions: legacyGaps,

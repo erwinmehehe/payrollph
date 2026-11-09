@@ -32,7 +32,7 @@ test("Spend write proof cannot borrow the historical GET credit or claim unrevie
   for (const method of entry.methods.filter(method => method.name !== "GET")) {
     assert.equal(method.testedBy.file,HARNESS,"writes require the dedicated executed proof, never GET evidence");
   }
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap,
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.privilegedOperationsTokenOnly + manifest.metrics.gap,
     manifest.metrics.methods);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
 });

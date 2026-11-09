@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
+import { assertLiveTenantCounts, baseTenantManifest } from "../../tests/helpers/tenant-counts.mjs";
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -139,14 +139,32 @@ export function verifyInvitationAcceptCredits(m) {
   for (const verb of ["GET", "POST"])
     assert.equal(live.byKey.get(verb + " " + ROUTE)?.status, "COVERED");
   if (base) {
-    for (const verb of ["GET", "POST"])
-      assert.equal(base.byKey.get(verb + " " + ROUTE)?.status, "GAP",
-        "Invitation credit requires a previously unproven method");
+    const inheritedStatuses = ["GET", "POST"].map(verb =>
+      base.byKey.get(verb + " " + ROUTE)?.status);
+    const newlyCredited = inheritedStatuses.every(status => status === "GAP");
+    const previouslyCredited = inheritedStatuses.every(status => status === "COVERED");
+    assert.ok(newlyCredited || previouslyCredited,
+      "Invitation proof must be an atomic GET/POST pair, never a partially inherited credit");
     const promoted = [...live.byKey].filter(([key, method]) =>
       method.status === "COVERED" && base.byKey.get(key)?.status === "GAP")
       .map(([key]) => key).sort();
-    assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
-      "Only both sealed invitation receipts may gain new credit");
+    if (newlyCredited) {
+      assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
+        "Only both sealed invitation receipts may gain new credit");
+    } else {
+      assert.deepEqual(promoted, [],
+        "Already merged invitation receipts cannot authorize new method credits");
+      // The base already earned these two provisional source-pinned credits.
+      // Their route and complete receipt objects must be unchanged by this PR.
+      const source = baseTenantManifest();
+      assert.ok(source?.manifest,
+        "Merged invitation credits require an inspectable exact base manifest");
+      const inherited = source.manifest.allApiRouteFiles?.[ROUTE];
+      assert.equal(inherited?.gitBlobSha, target.gitBlobSha,
+        "Already credited invitation route source changed");
+      assert.deepEqual(inherited?.methods, target.methods,
+        "Already credited invitation methods must retain exact merged proof receipts");
+    }
   }
   return 2;
 }
