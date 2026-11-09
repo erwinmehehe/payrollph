@@ -82,7 +82,10 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
   const observedTokenOnly = Object.values(manifest.allApiRouteFiles).flatMap(route =>
     route.methods.filter(row => row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY")
       .map(row => row.name + " " + route.route));
-  assert.deepEqual(new Set(observedTokenOnly), approvedTokenOnly,
+  // Historical main has no token-only class. The proposal must carry the exact
+  // reviewed 11-method class, but must not retroactively rewrite main.
+  const hasTokenOnlyClass = Object.hasOwn(manifest.metrics, "privilegedOperationsTokenOnly");
+  assert.deepEqual(new Set(observedTokenOnly), hasTokenOnlyClass ? approvedTokenOnly : new Set(),
     "Unapproved token-only classification cannot bypass payout accounting");
   for (const route of Object.values(manifest.allApiRouteFiles))
     for (const row of route.methods)
@@ -96,7 +99,7 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
   assert.equal(manifest.metrics.coveredAfter,tally("COVERED"));
   assert.equal(manifest.metrics.publicByDesign,tally("PUBLIC-BY-DESIGN"));
   assert.equal(manifest.metrics.gap,tally("GAP"));
-  assert.equal(manifest.metrics.privilegedOperationsTokenOnly,tally("PRIVILEGED-OPERATIONS-TOKEN-ONLY"));
+  if (hasTokenOnlyClass) assert.equal(manifest.metrics.privilegedOperationsTokenOnly,tally("PRIVILEGED-OPERATIONS-TOKEN-ONLY"));
   assert.ok(manifest.acceptanceStatus.startsWith(
     "NOT ACCEPTED: "+tally("GAP")+" API methods and "+pageGaps+" page/action GAPs"),
     "Never promote a provisional method into tenant-wide acceptance");
