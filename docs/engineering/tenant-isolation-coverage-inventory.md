@@ -1,3 +1,5 @@
+> **Invitation acceptance GET + POST provisional source-pinned recovery — NOT ACCEPTED:** 498 methods = 449 COVERED + 11 PUBLIC-BY-DESIGN + 38 GAP. Two separate passing fictional PG16 HTTP receipts, no production or global isolation acceptance. Exact-head CI and identity/security/privacy review PENDING.
+
 > **Current enterprise-admin POST proposal — PROVISIONAL / NOT ACCEPTED:** 498 methods = 447 COVERED + 11 PUBLIC-BY-DESIGN + 40 GAP. Includes the merged multi-entity transfer POST/PATCH proofs (446 baseline COVERED) and one distinct enterprise-admin POST method; independent security review PENDING; NOT ACCEPTED for production.
 
 > **PR #1855 recovery + main billing credits — PROVISIONAL / NOT ACCEPTED:** 498 methods = 441 COVERED + 11 PUBLIC-BY-DESIGN + 46 GAP. Three distinct recovered methods; CI and independent identity/WFM/security/billing review PENDING. No production authorization.
@@ -123,7 +125,7 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 40 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 38 API methods and 17 business-ID page entries still lack valid cross-employer positive/negative proof. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **NOT ACCEPTED**: 40 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
@@ -234,9 +236,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 447 |
+| coveredAfter | 449 |
 | publicByDesign | 11 |
-| gap | 40 |
+| gap | 38 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -573,8 +575,8 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`intake-challenge` POST](../../src/app/api/intake-challenge/route.ts#L8) | body | enforceSameOriginMutation L4, enforceSameOriginMutation L9 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`integration-connectors` GET](../../src/app/api/integration-connectors/route.ts#L41) | session, query, body | assertOrganizationRole L4, getAccess L4, getSessionUser L6, enforceSameOriginMutation L19 | searchParams.get("organizationId") L45, body.organizationId L74 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L46) | **COVERED** |
 | [`integration-connectors` POST](../../src/app/api/integration-connectors/route.ts#L63) | session, query, body | assertOrganizationRole L4, getAccess L4, getSessionUser L6, enforceSameOriginMutation L19 | searchParams.get("organizationId") L45, body.organizationId L74 | [Tenant write-table own-write/victim PG16 proof](../../scripts/qa/tenant-write-table-http.mjs#L112) — [family row](../../scripts/qa/tenant-table-rows/write/platform.mjs#L114) | **COVERED** |
-| [`invitations/accept` GET](../../src/app/api/invitations/accept/route.ts#L15) | query, body | enforceSameOriginMutation L1, enforceSameOriginMutation L24 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`invitations/accept` POST](../../src/app/api/invitations/accept/route.ts#L23) | query, body | enforceSameOriginMutation L1, enforceSameOriginMutation L24 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`invitations/accept` GET](../../src/app/api/invitations/accept/route.ts#L15) | query, body | enforceSameOriginMutation L1, enforceSameOriginMutation L24 | none found | [Executed GET PG16 HTTP receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42569443256/job/129003172669) | **COVERED** |
+| [`invitations/accept` POST](../../src/app/api/invitations/accept/route.ts#L23) | query, body | enforceSameOriginMutation L1, enforceSameOriginMutation L24 | none found | [Executed POST PG16 HTTP receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42569443187/job/129003172379) | **COVERED** |
 | [`invitations` GET](../../src/app/api/invitations/route.ts#L17) | session, query, body | getSessionUser L5, assertOrganizationRole L8, getAccess L8, enforceSameOriginMutation L10 | searchParams.get("organizationId") L22, body.organizationId L70 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L31) | **COVERED** |
 | [`invitations` POST](../../src/app/api/invitations/route.ts#L60) | session, query, body | getSessionUser L5, assertOrganizationRole L8, getAccess L8, enforceSameOriginMutation L10 | searchParams.get("organizationId") L22, body.organizationId L70 | [own L298 / foreign L256 / forged L272 / unchanged DB L263](../../scripts/qa/tenant-invitations-post-boundary.mjs#L298) — [updated #1762 exact-final-head PG16 HTTP run 41830569741](https://github.com/erwinmehehe/payrollph/actions/runs/41830569741/job/126576388593) (SOLO_VERIFIED_DEV_RECOVERY; review pending) | **COVERED (provisional)** |
 | [`it-operations` GET](../../src/app/api/it-operations/route.ts#L26) | session, query, body | assertOrganizationRole L5, assertScope L5, getAccess L5, getSessionUser L6 | searchParams.get("organizationId") L29, body.organizationId L58, body.employeeId L73 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/platform.mjs#L11) | **COVERED** |

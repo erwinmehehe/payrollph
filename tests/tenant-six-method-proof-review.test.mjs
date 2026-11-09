@@ -1,3 +1,4 @@
+import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
@@ -661,6 +662,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only a previously uncredited method may be promoted: " + spec.method);
     expectedStatuses[spec.path][spec.method] = "COVERED";
   }
+  const invitationAcceptCredits = verifyInvitationAcceptCredits(m);
+  assert.equal(invitationAcceptCredits, 2);
+  for (const verb of ["GET", "POST"]) {
+    const p = "src/app/api/invitations/accept/route.ts";
+    assert.equal(expectedStatuses[p]?.[verb], "GAP", "Frozen invitation method starts GAP");
+    expectedStatuses[p][verb] = "COVERED";
+  }
   const enterpriseCredits = verifyEnterprisePostCredit(m);
   assert.equal(expectedStatuses["src/app/api/enterprise/route.ts"].POST, "GAP");
   expectedStatuses["src/app/api/enterprise/route.ts"].POST = "COVERED";
@@ -676,9 +684,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + invitationAcceptCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - invitationAcceptCredits - 1,
   };
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
@@ -690,7 +698,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **363 COVERED + 3 PUBLIC-BY-DESIGN + 40 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **365 COVERED + 3 PUBLIC-BY-DESIGN + 38 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
