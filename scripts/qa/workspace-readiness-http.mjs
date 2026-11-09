@@ -15,7 +15,7 @@ export async function verifyWorkspaceReadinessIsolation(f, { request, expectStat
   }
   // Validate before importing database modules. These are the existing real
   // signed-in, persisted three-employer second-pass fixture identities.
-  const [{ db }, s, { and, count, eq }] = await Promise.all([
+  const [{ db }, s, { and, count, eq, isNull }] = await Promise.all([
     import("../../src/db/index.ts"), import("../../src/db/schema.ts"), import("drizzle-orm"),
   ]);
   const tableNames = ["employees", "payrollRuns", "auditEvents", "invoices", "outbox"];
@@ -56,7 +56,7 @@ export async function verifyWorkspaceReadinessIsolation(f, { request, expectStat
       db.select({ value: count() }).from(s.employees)
         .where(and(eq(s.employees.organizationId, org.id),
           // Match the server's exact per-employer null-rest-day predicate.
-          (await import("drizzle-orm")).isNull(s.employees.restDay))),
+          isNull(s.employees.restDay))),
     ]);
     assert.ok(Number(roster.value) > 0, "Own employer must have genuine populated worker data");
     assert.equal(ownReadiness.json.evidence.employeeRecords, Number(roster.value));
