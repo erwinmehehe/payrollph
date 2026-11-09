@@ -333,6 +333,15 @@ jobs:
           name: payrollph-golden-payroll-phase8
           path: qa-artifacts/golden-payroll-phase8-reconciliation.json
           retention-days: 14
+      - name: Run cross-period annualization golden reconciliation (Phase 9)
+        run: npx tsx scripts/golden-payroll-phase9.ts
+      - name: Upload Phase 9 annualization reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase9
+          path: qa-artifacts/golden-payroll-phase9-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
