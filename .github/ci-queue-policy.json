@@ -80,6 +80,7 @@
   ],
   "protectedExceptions": {
     "dev-demo-legal-employer-seed.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior.",
+    "tenant-hcm-lifecycle-boundary-http.yml": "Security-sensitive HCM tenant proof must preserve independent exact-head evidence runs; do not automatically cancel earlier pending or running proof executions.",
     "hcm-staging-isolation.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior.",
     "live-fictional-development-site.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior.",
     "live-rbac-sandbox-smoke.yml": "Privileged, live/staging, deployment or environment-dependent workflow; retain its existing concurrency and activation behavior.",
