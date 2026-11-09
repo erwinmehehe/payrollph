@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
-const RANK = { GAP: 0, "PUBLIC-BY-DESIGN": 1, COVERED: 1 };
+const RANK = { GAP: 0, "PUBLIC-BY-DESIGN": 1, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 1, COVERED: 1 };
 
 export function tallyTenantManifest(manifest) {
   const methods = Object.entries(manifest.allApiRouteFiles).flatMap(([path, file]) =>
@@ -25,6 +25,7 @@ export function tallyTenantManifest(manifest) {
     methods: methods.length,
     coveredAfter: count("COVERED"),
     publicByDesign: count("PUBLIC-BY-DESIGN"),
+    privilegedOperationsTokenOnly: count("PRIVILEGED-OPERATIONS-TOKEN-ONLY"),
     gap: count("GAP"),
     byKey: new Map(methods.map((m) => [m.key, m])),
   };
@@ -116,10 +117,18 @@ export function baseTenantManifest(env = process.env) {
 
 export function assertLiveTenantCounts(assert, manifest, env = process.env, injectedBase = undefined) {
   const live = tallyTenantManifest(manifest);
-  for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "gap"]) {
+  for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "privilegedOperationsTokenOnly", "gap"]) {
+    // Historical main inventories predate the explicit token-only classification.
+    // They are valid only if *no* API method has that status. A manifest opting
+    // into the new class must always publish and match its exact count.
+    if (key === "privilegedOperationsTokenOnly" && !Object.hasOwn(manifest.metrics, key)) {
+      assert.equal(live.privilegedOperationsTokenOnly, 0,
+        "Legacy manifest cannot silently contain token-only methods");
+      continue;
+    }
     assert.equal(manifest.metrics[key], live[key], "manifest metrics." + key + " must equal the actual per-method tally");
   }
-  assert.equal(live.coveredAfter + live.publicByDesign + live.gap, live.methods, "every method has exactly one status");
+  assert.equal(live.coveredAfter + live.publicByDesign + live.privilegedOperationsTokenOnly + live.gap, live.methods, "every method has exactly one status");
   assert.ok(String(manifest.acceptanceStatus).startsWith("NOT ACCEPTED: " + live.gap + " API methods"),
     "the acceptance headline must quote the live GAP count");
 

@@ -31,12 +31,13 @@ test("current overview headline equals complete live method manifest (frozen bas
   assert.equal(tally("COVERED"), stats.coveredAfter);
   assert.equal(tally("PUBLIC-BY-DESIGN"), stats.publicByDesign);
   assert.equal(tally("GAP"), stats.gap);
+  assert.equal(tally("PRIVILEGED-OPERATIONS-TOKEN-ONLY"), stats.privilegedOperationsTokenOnly);
   assert.equal(methods.length, tally("COVERED") + tally("PUBLIC-BY-DESIGN") +
-    tally("GAP") + tally("NEEDS OWNER"));
+    tally("PRIVILEGED-OPERATIONS-TOKEN-ONLY") + tally("GAP") + tally("NEEDS OWNER"));
   assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED"),
     "Only the owner can accept the security manifest");
   for (const key of ["routeFiles", "methods", "coveredBefore", "coveredAfter",
-    "publicByDesign", "gap", "scopedPagesAndActions",
+    "publicByDesign", "privilegedOperationsTokenOnly", "gap", "scopedPagesAndActions",
     "confirmedLeaksFound", "confirmedLeaksFixed"]) {
     assert.equal(countInOverview(key), stats[key], key + " overview/manifest mismatch");
   }

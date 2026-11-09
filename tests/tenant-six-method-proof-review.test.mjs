@@ -221,7 +221,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
 });
 
 test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end credits", () => {
-  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+  const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));
     counts[method.status]++;
@@ -682,6 +682,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "Only distinct previously GAP methods may be credited");
     expectedStatuses[target.path][target.method] = "COVERED";
   }
+  // Approved 2026-11-09 non-session classifications are NOT tenant proof credits.
+  // Pin each route and method explicitly; all other original credits remain immutable.
+  const ownerTokenClassifications = [["src/app/api/jobs/cron/route.ts","GET"],["src/app/api/jobs/dispatch-readiness/route.ts","GET"],["src/app/api/jobs/status/route.ts","GET"],["src/app/api/jobs/tick/route.ts","POST"],["src/app/api/webhooks/drain/route.ts","POST"],["src/app/api/capabilities/route.ts","GET"],["src/app/api/readiness/route.ts","GET"],["src/app/api/readiness/billing/route.ts","GET"],["src/app/api/readiness/database-target/route.ts","GET"],["src/app/api/readiness/deployment/route.ts","GET"],["src/app/api/readiness/pilot-status/route.ts","GET"]];
+  for (const [path, verb] of ownerTokenClassifications) {
+    assert.equal(expectedStatuses[path][verb], "GAP", "Only a GAP can be owner-reclassified");
+    const row = m.allApiRouteFiles[path].methods.find(value => value.name === verb);
+    assert.equal(row.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY");
+    assert.equal(row.testedBy, null, "Authentication classification cannot invent method proof");
+    assert.equal(row.privilegedOperation?.approvedOn, "2026-11-09");
+    assert.equal(row.privilegedOperation?.methodCoverageCredits, 0);
+    assert.equal(row.privilegedOperation?.productionCertified, false);
+    expectedStatuses[path][verb] = "PRIVILEGED-OPERATIONS-TOKEN-ONLY";
+  }
   const accountEmailRequestCredits = verifyAccountEmailRequestCredit(m);
   assert.equal(expectedStatuses["src/app/api/account/email/route.ts"].POST, "GAP", "Only an uncredited account-email method may be promoted");
   expectedStatuses["src/app/api/account/email/route.ts"].POST = "COVERED";
@@ -705,17 +718,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   };
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
+  expectedCounts.GAP -= ownerTokenClassifications.length;
+  expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] = ownerTokenClassifications.length;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
   assert.equal(m.metrics.coveredAfter, counts.COVERED);
   assert.equal(m.metrics.publicByDesign, counts["PUBLIC-BY-DESIGN"]);
+  assert.equal(m.metrics.privilegedOperationsTokenOnly, counts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
   assert.equal(m.metrics.gap, counts.GAP);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **366 COVERED + 7 PUBLIC-BY-DESIGN + 33 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **366 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 22 GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -1001,28 +1017,6 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(baselineAccountEmailRow?.status, "GAP");
       assert.equal(baselineAccountEmailRow?.testedBy, null);
     }
-    // Invitation acceptance GET/POST are an independent, already-merged
-    // provisional pair. Reuse their exact-source PG16 receipts on main rather
-    // than treating these inherited statuses as new work-queue method credits.
-    const invitationPath = "src/app/api/invitations/accept/route.ts";
-    const invitationRows = ["GET", "POST"].map(verb =>
-      baseline.allApiRouteFiles[invitationPath]?.methods.find(row => row.name === verb));
-    const invitationStatuses = invitationRows.map(row => row?.status);
-    const invitationAlreadyCovered = invitationStatuses.every(status => status === "COVERED");
-    assert.ok(invitationAlreadyCovered || invitationStatuses.every(status => status === "GAP"),
-      "Invitation GET/POST may never be a partial or unreviewed baseline credit");
-    const baselineInvitationCredits = invitationAlreadyCovered
-      ? verifyInvitationAcceptCredits(baseline) : 0;
-    if (baselineInvitationCredits) {
-      assert.equal(baselineInvitationCredits, 2);
-      for (const verb of ["GET", "POST"])
-        expectedOriginalMain[invitationPath][verb] = "COVERED";
-    } else {
-      for (const row of invitationRows) {
-        assert.equal(row.status, "GAP");
-        assert.equal(row.testedBy, null);
-      }
-    }
     // Recognize the four owner-approved non-session public classifications on
     // origin/main only as public methods, never as tenant-private proof credits.
     const baselinePublicSpecs = [
@@ -1048,6 +1042,23 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     if (baselinePublicReclassifications) {
       for (const [path, verb] of baselinePublicSpecs)
         expectedOriginalMain[path][verb] = "PUBLIC-BY-DESIGN";
+    }
+    // Invitation GET and POST may already be provisionally covered by merged
+    // #1872. Check both original receipts and require an all-or-none pair.
+    // This is reconciliation of main, not new token-only or tenant-method credit.
+    const baselineInvitationPath = "src/app/api/invitations/accept/route.ts";
+    const baselineInvitations = ["GET", "POST"].map(verb =>
+      baseline.allApiRouteFiles[baselineInvitationPath]?.methods.find(row => row.name === verb));
+    const alreadyMergedInvitations = baselineInvitations.every(row => row?.status === "COVERED");
+    const baselineInvitationCredits = alreadyMergedInvitations ? verifyInvitationAcceptCredits(baseline) : 0;
+    if (baselineInvitationCredits) {
+      assert.equal(baselineInvitationCredits, 2);
+      for (const verb of ["GET", "POST"]) expectedOriginalMain[baselineInvitationPath][verb] = "COVERED";
+    } else {
+      for (const row of baselineInvitations) {
+        assert.equal(row?.status, "GAP", "Invitation credits must merge as a complete GET/POST pair");
+        assert.equal(row?.testedBy, null, "Uncovered invitation cannot claim executed receipt");
+      }
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
@@ -1130,23 +1141,26 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const normalizeCaption=line=>line?.replace(/^Frozen subtotal \(2026-11-04 proposal\):/, 'Frozen subtotal:')
       .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
       .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
-    const actualCaption = normalizeCaption(mainFrozenSubtotal);
-    const expectedCaption = normalizeCaption(expectedMainFrozen);
-    if (actualCaption !== expectedCaption) {
-      // Main already records PII-02 as a zero-GAP provisional batch in
-      // its source-linked table, but omits it from the historical prose list.
-      // Allow only that exact descriptive omission (not altered totals,
-      // statuses, receipts, method membership or a false acceptance claim).
-      const legacyCaption = expectedCaption.replace(
-        "DL-02, PII-02, WRK-01", "DL-02, WRK-01");
-      assert.equal(actualCaption, legacyCaption,
-        "No unreviewed origin/main frozen ledger drift may be hidden");
-      const pii02 = frozenSections.find(section => section.startsWith("PII-02 "));
-      assert.ok(pii02 && provisionalBatches.includes("PII-02"),
-        "Only source-backed zero-GAP PII-02 may be omitted from the prose list");
-      assert.match(baselinePlan,
-        /\| 4 \| \*\*PII-02\*\* \| 38 \| 36 \| 2 \| 0 \| PROVISIONAL — NOT ACCEPTED \|/,
-        "PII-02 must remain explicitly provisional in the main ledger");
+    const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
+    const correctMainFrozen = normalizeCaption(expectedMainFrozen);
+    if (actualMainFrozen !== correctMainFrozen) {
+      // Historical main's summary accidentally omits PII-02 even though its
+      // frozen-row table explicitly marks 36 COVERED + 2 PUBLIC + 0 GAP.
+      // Only tolerate that exact *description* omission; never skip the 406
+      // source-linked method, proof, status, or count invariants above.
+      const documentedPii02 = "| 4 | **PII-02** | 38 | 36 | 2 | 0 | PROVISIONAL — NOT ACCEPTED |";
+      assert.ok(baselinePlan.includes(documentedPii02),
+        "PII-02 must retain the precise provisional frozen-batch row on main");
+      assert.deepEqual(provisionalBatches,
+        ["DL-02", "PII-02", "WRK-01", "WRK-02", "WRK-03"],
+        "Only the known PII-02 summary omission can be normalized");
+      const legacyMainFrozen = correctMainFrozen.replace(
+        "DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL",
+        "DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL");
+      assert.notEqual(legacyMainFrozen, correctMainFrozen,
+        "The exact historical omission must be present in the derived caption");
+      assert.equal(actualMainFrozen, legacyMainFrozen,
+        "origin/main frozen ledger drift beyond its documented PII-02 caption omission");
     }
   }
 });

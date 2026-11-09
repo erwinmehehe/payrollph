@@ -322,7 +322,7 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   assert.match(doc, /tenant-isolation acceptance/i);
   assert.match(doc, /NOT ACCEPTED/);
   // Current figures must come from the method manifest, never a previously merged PR.
-  const live = `${manifest.metrics.methods} methods = ${manifest.metrics.coveredAfter} COVERED + ${manifest.metrics.publicByDesign} PUBLIC-BY-DESIGN + ${manifest.metrics.gap} GAP`;
+  const live = `${manifest.metrics.methods} methods = ${manifest.metrics.coveredAfter} COVERED + ${manifest.metrics.publicByDesign} PUBLIC-BY-DESIGN + ${manifest.metrics.privilegedOperationsTokenOnly} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${manifest.metrics.gap} GAP`;
   assert.ok(doc.includes(live), "Current closure plan totals must match live method counts");
   // Freeze original batch names and sizes, but derive changing statuses from the actual method records.
   const baselineBatches = new Map([
@@ -340,14 +340,14 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   const sections = ("### Batch DL-01 —" + frozen).split("### Batch ").slice(1);
   assert.deepEqual(sections.map(section => section.split(" ")[0]), [...baselineBatches.keys()]);
   const seen = new Set();
-  const total = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+  const total = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0, GAP: 0 };
   for (const section of sections) {
     const [header, ...body] = section.split("\n");
     const id = header.split(" ")[0];
     const expectedSize = baselineBatches.get(id);
     const links = body.filter(line => line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"));
     assert.equal(links.length, expectedSize, id + ": frozen source-link count changed");
-    const count = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0 };
+    const count = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0, GAP: 0 };
     for (const link of links) {
       const identity = link.split("`")[1];
       const [verb, url] = identity.split(" ");
@@ -366,19 +366,19 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
     const matching = rows.filter(line => line.includes("**" + id + "**"));
     assert.equal(matching.length, 1, id + ": exactly one batch summary row required");
     const columns = matching[0].split("|").map(value => value.trim());
-    assert.deepEqual([Number(columns[3]), Number(columns[4]), Number(columns[5]), Number(columns[6])],
-      [expectedSize, count.COVERED, count["PUBLIC-BY-DESIGN"], count.GAP],
+    assert.deepEqual([Number(columns[3]), Number(columns[4]), Number(columns[5]), Number(columns[6]), Number(columns[7])],
+      [expectedSize, count.COVERED, count["PUBLIC-BY-DESIGN"], count["PRIVILEGED-OPERATIONS-TOKEN-ONLY"], count.GAP],
       id + ": documented batch status must match source-linked live method records");
-    assert.equal(columns[7], count.GAP > 0 ? "INCOMPLETE" : "PROVISIONAL — NOT ACCEPTED",
+    assert.equal(columns[8], count.GAP > 0 ? "INCOMPLETE" : "PROVISIONAL — NOT ACCEPTED",
       id + ": zero method gaps do not confer batch acceptance");
   }
   assert.equal(seen.size, 406, "The historic 406-method queue cannot shrink or grow");
-  assert.equal(total.COVERED + total["PUBLIC-BY-DESIGN"] + total.GAP, seen.size);
+  assert.equal(total.COVERED + total["PUBLIC-BY-DESIGN"] + total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] + total.GAP, seen.size);
   // The proposal may date-stamp its single live subtotal, but the entire
   // 406-method count is still derived from the original source-linked rows.
   const subtotalLines = current.split("\n").filter(line => line.startsWith("Frozen subtotal"));
   assert.equal(subtotalLines.length, 1, "Exactly one live frozen-batch subtotal must be documented");
-  assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406**`),
+  assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${total.GAP} GAP = 406**`),
     "The frozen queue subtotal must reflect the actual source-linked statuses");
   assert.equal(total.GAP, manifest.metrics.gap, "Every live method GAP must remain in the frozen closure queue");
 });

@@ -11,7 +11,7 @@ function manifestOf(routes) {
   const t = tallyTenantManifest({ allApiRouteFiles });
   return {
     allApiRouteFiles,
-    metrics: { routeFiles: t.routeFiles, methods: t.methods, coveredAfter: t.coveredAfter, publicByDesign: t.publicByDesign, gap: t.gap },
+    metrics: { routeFiles: t.routeFiles, methods: t.methods, coveredAfter: t.coveredAfter, publicByDesign: t.publicByDesign, privilegedOperationsTokenOnly: t.privilegedOperationsTokenOnly, gap: t.gap },
     acceptanceStatus: "NOT ACCEPTED: " + t.gap + " API methods remain.",
   };
 }
