@@ -68,7 +68,10 @@ test("fictional provider only permits validated PayMongo checkout and no live re
   };
   const events = [];
   const url = "https://api.paymongo.com/v1/checkout_sessions";
-  const options = { method: "POST", body: JSON.stringify(body) };
+  const options = {
+    method: "POST", body: JSON.stringify(body),
+    headers: { Authorization: "Basic " + Buffer.from(FIXTURE_KEY + ":").toString("base64") },
+  };
   const response = await simulatedPaymongoFetch(url, options, e => events.push(e));
   assert.equal(response.status, 201);
   const data = await response.json();
@@ -133,6 +136,8 @@ test("PG16 proof rejects denial-only success and pins victim audit invariants", 
   for (const phrase of [
     'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
     "victim.org.id > a.org.id", "subVictim.id > subA.id",
+    'dbIdentity.database, "app_db"', "dbIdentity.version / 10000",
+    "crossSite.status, 403",
     "await snapshot(victim.org.id)", "victimBefore",
     "assert.equal(own.status, 201", "assert.equal(after.subscriptions.length, 1)",
     'after.subscriptions[0].status, "pending_payment"',
