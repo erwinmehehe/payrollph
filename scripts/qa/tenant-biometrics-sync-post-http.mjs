@@ -27,7 +27,7 @@ function requireDisposable() {
 async function run() {
   // This must precede all database/fixture imports.
   requireDisposable();
-  const [{ db, pool }, schema, { eq, and }, fixtures, auth] = await Promise.all([
+  const [{ db, pool }, schema, { eq, and, inArray }, fixtures, auth] = await Promise.all([
     import("../../src/db/index.ts"),
     import("../../src/db/schema.ts"),
     import("drizzle-orm"),
@@ -43,7 +43,12 @@ async function run() {
     punches: await orgRows(timePunches, e.org.id),
     audits: await orgRows(auditEvents, e.org.id),
     runs: await orgRows(payrollRuns, e.org.id),
-    entries: await orgRows(payrollEntries, e.org.id),
+    // Payroll entries carry payrollRunId, not organizationId. Scope through real owned runs.
+    entries: await db.select().from(payrollEntries).where(inArray(
+      payrollEntries.payrollRunId,
+      db.select({ id: payrollRuns.id }).from(payrollRuns)
+        .where(eq(payrollRuns.organizationId, e.org.id)),
+    )).orderBy(payrollEntries.id),
   });
   const snapshotAll = async (es) => Promise.all(es.map(snapshot));
   async function post(body, { cookie, bearer } = {}) {
