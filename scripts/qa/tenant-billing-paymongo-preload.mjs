@@ -42,6 +42,9 @@ export async function simulatedPaymongoFetch(input, init = {}, emit = () => {}) 
   const url = typeof input === "string" ? input : input?.url?.toString() ?? String(input);
   assert.equal(url, PROVIDER_URL, "Only the exact fictional checkout endpoint is permitted");
   assert.equal(init.method, "POST", "Only a fictional checkout POST is permitted");
+  assert.equal(new Headers(init.headers).get("authorization"),
+    "Basic " + Buffer.from(FIXTURE_KEY + ":").toString("base64"),
+    "Only the designated fictional key is permitted");
   const payload = JSON.parse(init.body ?? "{}");
   const attributes = payload?.data?.attributes;
   const metadata = attributes?.metadata;
