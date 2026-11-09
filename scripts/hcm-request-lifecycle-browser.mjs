@@ -93,7 +93,7 @@ function scopedCalendar(organizationId, employeeName = "SYNTHETIC_LEAVE_WORKER")
 
 try {
   await page.goto(base + "/?organizationId=1");
-  await page.evaluate(() => window.renderView("queue"));
+  await page.evaluate(() => window.renderView("queue", {authorizedOrganizationId:1}));
   // The synthetic API fixture must carry the employer ID that the real GET
   // explicitly selects. Omitting it tests a malformed response, not an owned read.
   await complete(await requestId("work-items?organizationId=1"), {items:[{...item(11,"Employer A case",1),detail:"PRIVATE_A_DETAIL"},item(12,"Second A case",1)],owners:[{id:1,name:"Synthetic owner"}]});
@@ -148,7 +148,7 @@ try {
   await visible("No history recorded.");
   await page.getByRole("button", {name:"Save changes"}).click();
   const oldSave = await requestId("/api/hcm/work-items", "PATCH");
-  await page.getByRole("spinbutton", {name:"Organization ID"}).fill("2");
+  await page.evaluate(() => window.renderView("queue", {authorizedOrganizationId:2}));
   await absent("Employer A case");
   assert.equal(await page.getByRole("dialog").count(), 0);
   const tenantBRead = await requestId("work-items?organizationId=2");
@@ -158,12 +158,12 @@ try {
   assert.equal(await page.evaluate(() => window.pending.filter(r=>r.url.includes("work-items?organizationId=2")).length), 2, "StrictMode creates two reads; old save must not add another");
 
   // Returning A -> B -> A must not reuse the retired editor, search or case list.
-  await page.getByRole("spinbutton", { name: "Organization ID" }).fill("1");
+  await page.evaluate(() => window.renderView("queue", {authorizedOrganizationId:1}));
   await absent("Employer B case");
   await complete(await requestId("work-items?organizationId=1"), {items:[item(31,"Employer A returned",1)],owners:[]});
   await visible("Employer A returned");
   assert.equal(await page.getByRole("searchbox", { name: "Find a loaded work item" }).inputValue(), "");
-  await page.getByRole("spinbutton", { name: "Organization ID" }).fill("2");
+  await page.evaluate(() => window.renderView("queue", {authorizedOrganizationId:2}));
   await absent("Employer A returned");
   await complete(await requestId("work-items?organizationId=2"), {items:[item(21,"Employer B case",2)],owners:[]});
   await visible("Employer B case");
@@ -177,8 +177,8 @@ try {
   await absent("Synthetic queue outage");
   await complete(await requestId("status=resolved"), {items:[],owners:[]});
   await visible("No work items found for this filter.");
-  await page.getByRole("spinbutton", {name:"Organization ID"}).fill("");
-  await visible("Choose a valid organization to load its queue.");
+  assert.equal(await page.getByRole("spinbutton", {name:"Organization ID"}).count(), 0, "Employer selector must not be client-editable");
+  await visible("No work items found for this filter.");
 
   // My Team already masks by full query scope; verify loading is render-derived.
   await page.evaluate(() => window.renderView("team", {organizationId:1}));

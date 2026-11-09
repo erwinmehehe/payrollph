@@ -6554,12 +6554,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(reviewed.credits, 0);
         continue; // Narrow exact-source, zero-credit GAP evidence exception.
       }
-      // #1658 HR Work Queue is a client-only shell: it contains no server
-      // employer data. All rows flow through a separately authorized GET.
-      // This exact, uncredited PG16 candidate is not a COVERED promotion.
+      // #1658 HCM Work Queue: historical client-only page evidence is retained
+      // without promotion; current server authorization remains a separate
+      // exact-source, zero-credit proposal pending current-head HTTP evidence.
       if (path === "src/app/hcm/work-items/page.tsx") {
         const reviewed = entry.reviewedUncertified;
-        const pageSha = "5b777c882742b95829504fdb96c383b8f80ad30a";
+        const historicalClientPageSha = "5b777c882742b95829504fdb96c383b8f80ad30a";
+        const pageSha = "1452c03d1a89fe599dda1c8b72edcfcaf67d75ef";
         const previousUiPageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
         const historicalPageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
         const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
@@ -6621,7 +6622,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.deepEqual(pendingViewChange, {
           kind: "hcm-work-items-client-local-sla-sort-and-unassigned-filter-review-only",
           previousPageBlobSha: previousUiPageSha,
-          pageBlobSha: pageSha,
+          pageBlobSha: historicalClientPageSha,
           helperFile: "src/lib/hcm-work-queue-view.ts",
           helperBlobSha: "97a455fa7c2eeda0fb91ca681922665b91909434",
           unitTestFile: "tests/hcm-work-queue-view.test.ts",
@@ -6630,13 +6631,51 @@ test("page and server-action inventory cannot silently omit new or changed busin
           browserScriptBlobSha: "793ef20c5f75e55b8162054087a8ab0388fafda3",
           coverageCredits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Sort and owner filter require their own exact-source zero-credit record");
+        const serverGate = entry.pendingServerGateChange;
+        assert.deepEqual(serverGate, {
+          kind: "hcm-work-items-server-authorized-boundary-uncredited",
+          previousPageBlobSha: historicalClientPageSha,
+          pageBlobSha: pageSha,
+          clientFile: "src/components/hcm-work-queue.tsx",
+          clientBlobSha: "dfeb1c3ba76cdd027dab18494acc99e5343a7408",
+          selectorFile: "src/lib/hcm-work-items-page-tenancy.ts",
+          selectorBlobSha: "a7ea8e1177a18d3227e167d2e7a060aa637f8413",
+          testFile: "tests/hcm-work-items-page-isolation.test.ts",
+          testBlobSha: "46799851610501ec356aecd2c7aa3b65b2457257",
+          browserFixtureFile: "tests/fixtures/hcm-request-lifecycle.jsx",
+          browserFixtureBlobSha: "097724cfb0eb47b763c9ec4f880bcd509afa6262",
+          browserScript: "scripts/hcm-request-lifecycle-browser.mjs",
+          browserScriptBlobSha: "4e76f4cb405a3c2e9b6d250b5f96518f443558ea",
+          migratedSummaryTestFile: "tests/hcm-work-queue-summary.test.ts",
+          migratedSummaryTestBlobSha: "ab858d6294263d0e90b2755392e4902c16dfba8c",
+          migratedViewTestFile: "tests/hcm-work-queue-view.test.ts",
+          migratedViewTestBlobSha: "498ffff3b6a0be6825e89c09af2ca1e463d6ab00",
+          migratedPeopleOpsTestFile: "tests/parallel-people-ops-no-money-acceptance.test.ts",
+          migratedPeopleOpsTestBlobSha: "db160fd853ef4b98c8692758ab23402e5a09bfef",
+          historicalReceiptUnmodified: true,
+          coverageCredits: 0, independentSecurityReview: "PENDING", productionCertified: false,
+        }, "New server page cannot inherit historical client-only proof credits");
+        for (const [file, sha] of [
+          [serverGate.clientFile, serverGate.clientBlobSha],
+          [serverGate.selectorFile, serverGate.selectorBlobSha],
+          [serverGate.testFile, serverGate.testBlobSha],
+          [serverGate.browserFixtureFile, serverGate.browserFixtureBlobSha],
+          [serverGate.browserScript, serverGate.browserScriptBlobSha],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "HCM server boundary source review drifted: " + file);
+        }
         assert.equal(gitBlobSha(readFileSync(pendingViewChange.helperFile)), pendingViewChange.helperBlobSha,
           "HR view helper changed without source review");
-        assert.equal(gitBlobSha(readFileSync(pendingViewChange.unitTestFile)), pendingViewChange.unitTestBlobSha,
-          "HR view unit test changed without source review");
-        assert.equal(gitBlobSha(readFileSync(pendingUiChange.browserScript)),
-          pendingUiChange.browserScriptBlobSha,
-          "Browser tenant-retirement proof changed without renewed review");
+        for (const [file, sha] of [
+          [serverGate.migratedSummaryTestFile, serverGate.migratedSummaryTestBlobSha],
+          [serverGate.migratedViewTestFile, serverGate.migratedViewTestBlobSha],
+          [serverGate.migratedPeopleOpsTestFile, serverGate.migratedPeopleOpsTestBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "Relocated HR queue UI test must remain source-pinned: " + file);
+        assert.equal(gitBlobSha(readFileSync(serverGate.browserScript)),
+          serverGate.browserScriptBlobSha,
+          "Server-driven browser tenant-retirement proof changed without renewed review");
         for (const [file, sha] of [
           [reviewed.helperFile, reviewed.helperBlobSha],
           [reviewed.unitTestFile, reviewed.unitTestBlobSha],
@@ -6644,7 +6683,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
-            file === reviewed.unitTestFile ? pendingUiChange.unitTestBlobSha :
+            file === reviewed.unitTestFile ? serverGate.migratedSummaryTestBlobSha :
             file === reviewed.workflowFile ? workflowAddition.workflowBlobSha : sha;
           assert.equal(gitBlobSha(readFileSync(file)), expected,
             "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
@@ -6670,15 +6709,22 @@ test("page and server-action inventory cannot silently omit new or changed busin
           "assert.deepEqual(await victimPayrollSnapshot()", "assert.deepEqual(await victimAuditSnapshot()",
         ]) assert.ok(proof.includes(claim), "Missing HR work-queue negative control: " + claim);
         const page = readFileSync(path, "utf8");
-        assert.match(page, /"use client"/);
-        assert.match(page, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
-        assert.match(page, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
-        assert.match(page, /const visibleItems = summary \? deriveLoadedWorkQueueView\(findLoadedHcmWorkItems\(items, search\), sort, unassignedOnly\) : \[\]/,
+        assert.doesNotMatch(page, /"use client"/, "Server page must not be a client-only shell");
+        assert.match(page, /await assertOrganizationRole\(user\.id, organizationId, PEOPLE_ADMIN_ROLES\)/);
+        assert.match(page, /if \(!access\?\.companyWide\) notFound\(\)/);
+        assert.match(page, /authorizedOrganizationId=\{organizationId\}/);
+        const client = readFileSync(serverGate.clientFile, "utf8");
+        assert.match(client, /"use client"/);
+        assert.match(client, /isVerifiedHcmWorkQueueResponse\(data, Number\(organizationId\)\)/);
+        assert.match(client, /const summary = summarizeVerifiedWorkQueue\(items, activeQueue !== null && !loadError\)/);
+        assert.match(client, /const visibleItems = summary \? deriveLoadedWorkQueueView\(findLoadedHcmWorkItems\(items, search\), sort, unassignedOnly\) : \[\]/,
           "Search must operate only after verified employer rows load");
-        assert.match(page, /aria-label="Show only work items without a named owner"/,
+        assert.match(client, /aria-label="Show only work items without a named owner"/,
           "Unassigned local filter must be explicit");
-        assert.match(page, /aria-label="Work items on mobile"/,
+        assert.match(client, /aria-label="Work items on mobile"/,
           "Responsive cards must only show verified, employer-scoped work items");
+        assert.doesNotMatch(client, /setOrganizationId|window\.location/,
+          "Client may not select a different employer after server authorization");
         const route = readFileSync("src/app/api/hcm/work-items/route.ts", "utf8");
         assert.match(route, /const auth = await authorize\(organizationId\)/);
         assert.match(route, /WHERE c\.organization_id = \$1/);
