@@ -88,6 +88,6 @@ test("no unreviewed credit or relaxation of previously tested GET/PATCH", () => 
   assert.equal(verifyRecoveryCredits(manifest),3,'Only the dedicated reached-veto HTTP receipt permits this credit');
   assert.equal(post.testedBy.independentSecurityReview,'PENDING');
   assert.equal(post.testedBy.productionTested,false);
-  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.gap,
+  assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.privilegedOperationsTokenOnly + manifest.metrics.gap,
     manifest.metrics.methods);
 });
