@@ -212,17 +212,17 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-01** | 26 | 23 | 2 | 1 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 1 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 30 | 0 | 3 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 30 | 1 | 2 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 25 | 0 | 2 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | INCOMPLETE |
-| 4 | **PII-02** | 38 | 36 | 0 | 2 | INCOMPLETE |
+| 4 | **PII-02** | 38 | 36 | 2 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 9 | 0 | 24 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 9 | 1 | 23 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 25 | 1 | 7 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **362 COVERED + 3 PUBLIC-BY-DESIGN + 41 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 8 batches remain INCOMPLETE; DL-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **362 COVERED + 7 PUBLIC-BY-DESIGN + 37 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 7 batches remain INCOMPLETE; DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
