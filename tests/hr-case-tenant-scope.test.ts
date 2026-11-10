@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { activeHrCaseStaffMembership, linkedEmployeeHrCaseScope } from "../src/lib/hr-case-tenant-scope";
+import { activeHrCaseStaffMembership, explicitHrCaseEmployerId, hrCaseStaffRosterScope, linkedEmployeeHrCaseScope } from "../src/lib/hr-case-tenant-scope";
 
 const dialect = new PgDialect();
 
@@ -38,4 +38,46 @@ test("PATCH does not fetch unscoped case IDs or distinguish inaccessible case ro
   assert.doesNotMatch(patch, /\.where\(eq\(employeeHrCases\.id, caseId\)\)\.returning\(\)/);
   const beforeDecision = patch.split('const action = String(body.action ?? "");')[0];
   assert.doesNotMatch(beforeDecision, /return Response\.json\(\{ error: scope\.error \}/);
+});
+
+
+test("HR-case reads reject duplicate, coerced, missing and unsafe employer selectors", () => {
+  assert.equal(explicitHrCaseEmployerId(["1"]), 1);
+  assert.equal(explicitHrCaseEmployerId(["999"]), 999);
+  for (const values of [
+    [], ["1", "2"], ["1", "1"], ["0"], ["01"], ["-1"],
+    [" 1"], ["1 "], ["+1"], ["1.0"], ["1e3"], ["Infinity"],
+    [String(Number.MAX_SAFE_INTEGER + 1)], ["abc"],
+  ]) {
+    assert.equal(explicitHrCaseEmployerId(values), null, JSON.stringify(values));
+  }
+});
+
+test("HR-case staff roster SQL scopes employer and authorized unit before selecting employee data", () => {
+  const unit = dialect.sqlToQuery(hrCaseStaffRosterScope(11, 37)!);
+  assert.deepEqual(unit.params, [11, 37]);
+  assert.match(unit.sql, /"employees"."organization_id"/);
+  assert.match(unit.sql, /"employees"."org_unit_id"/);
+  const company = dialect.sqlToQuery(hrCaseStaffRosterScope(11, null)!);
+  assert.deepEqual(company.params, [11]);
+  assert.doesNotMatch(company.sql, /"employees"."org_unit_id"/);
+});
+
+test("HR-case GET and SSR gate share canonical selection and authorize before reading staff rows", () => {
+  const api = readFileSync("src/app/api/hr-cases/route.ts", "utf8");
+  const get = api.split("export async function GET(request: Request) {")[1]
+    ?.split("export async function POST(request: Request) {")[0];
+  assert.ok(get, "HR-case GET must exist");
+  assert.match(get, /searchParams.getAll\("organizationId"\)/);
+  assert.match(get, /explicitHrCaseEmployerId\(selectors\)/);
+  assert.match(get, /selectedOrganizationId !== worker!\.organizationId\) return hrCaseNotFound\(\)/);
+  assert.match(get, /assertOrganizationRole\(user\.id, organizationId, PEOPLE_PAYROLL_ROLES\)/);
+  assert.match(get, /where\(hrCaseStaffRosterScope\(/);
+  assert.doesNotMatch(get, /staff\.filter\(row =>/);
+  assert.ok(get.indexOf("assertOrganizationRole(") < get.indexOf("hrCaseStaffRosterScope("),
+    "Authorize selected employer before loading staff data");
+  const page = readFileSync("src/app/hcm/hr-cases/page.tsx", "utf8");
+  assert.match(page, /explicitHrCaseEmployerId\(typeof raw === "string" \? \[raw\] : \[\]\)/);
+  assert.ok(page.indexOf("assertOrganizationRole(") < page.indexOf("<EmployeeHrCaseStaffQueue"),
+    "SSR must authorize before mounting the HR case queue");
 });
