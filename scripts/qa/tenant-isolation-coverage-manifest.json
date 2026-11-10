@@ -27015,16 +27015,16 @@
           "reviewedUncertified": {
             "routeBlobSha": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
             "loaderBlobSha": "782853dada317783100dd1ee40004fa7e6126244",
-            "proofBlobSha": "a2b24c5f79d483645da59902bfbde80c13f9c497",
+            "proofBlobSha": "79360f7641ba80794ed90863104910cad5cdfd9c",
             "file": "scripts/qa/tenant-workspace-readiness-http.mjs",
-            "ownPositiveLine": 128,
-            "foreignDenialLine": 139,
+            "ownPositiveLine": 138,
+            "foreignDenialLine": 149,
             "ownStatus": 200,
             "foreignStatus": 403,
             "coverageCredits": 0,
             "independentlyAccepted": false,
             "productionTested": false,
-            "scope": "Standalone signed-in three-employer PG16 HTTP source candidate with owned 200, genuine higher-ID foreign 403, SQL snapshots and unsafe-env refusal. Historical second-pass integration remains tested separately. Zero credits, exact-head CI and security/privacy review pending."
+            "scope": "Standalone signed-in three-employer PG16 HTTP source candidate with owned 200, genuine higher-ID foreign 403, SQL snapshots and unsafe-env refusal. Historical second-pass integration remains tested separately. Zero credits, exact-head CI and security/privacy review pending. PR #1901 increases fictional high-ID employer/entity/worker fixture strength and protects membership-revocation SQL snapshots; exact-final-head and independent security/privacy review remain required; no credit."
           }
         }
       ],
@@ -42194,51 +42194,31 @@
     },
     {
       "path": "src/app/hcm/hire-payroll-review/page.tsx",
-      "blob": "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a",
+      "blob": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
       "ids": [
         {
-          "line": 48,
-          "token": "searchParams"
-        },
-        {
-          "line": 50,
-          "token": "searchParams"
-        },
-        {
           "line": 51,
-          "token": "organizationId"
+          "token": "searchParams"
         },
         {
-          "line": 52,
-          "token": "employeeId"
+          "line": 53,
+          "token": "searchParams"
+        },
+        {
+          "line": 54,
+          "token": "organizationId"
         },
         {
           "line": 55,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
           "token": "searchParams"
         },
         {
-          "line": 56,
+          "line": 59,
           "token": "organizationId"
-        },
-        {
-          "line": 56,
-          "token": "organizationId"
-        },
-        {
-          "line": 57,
-          "token": "employeeId"
-        },
-        {
-          "line": 57,
-          "token": "employeeId"
-        },
-        {
-          "line": 58,
-          "token": "organizationId"
-        },
-        {
-          "line": 58,
-          "token": "employeeId"
         },
         {
           "line": 59,
@@ -42246,10 +42226,26 @@
         },
         {
           "line": 60,
+          "token": "employeeId"
+        },
+        {
+          "line": 60,
+          "token": "employeeId"
+        },
+        {
+          "line": 61,
           "token": "organizationId"
         },
         {
-          "line": 66,
+          "line": 61,
+          "token": "employeeId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
           "token": "organizationId"
         },
         {
@@ -42257,108 +42253,100 @@
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 72,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 83,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
           "token": "employeeId"
         },
         {
-          "line": 83,
+          "line": 92,
           "token": "organizationId"
         },
         {
-          "line": 83,
+          "line": 92,
+          "token": "employeeId"
+        },
+        {
+          "line": 99,
           "token": "organizationId"
         },
         {
-          "line": 84,
+          "line": 99,
           "token": "organizationId"
         },
         {
-          "line": 84,
+          "line": 100,
           "token": "organizationId"
         },
         {
-          "line": 85,
+          "line": 100,
           "token": "organizationId"
         },
         {
-          "line": 85,
+          "line": 101,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 101,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 107,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 107,
+          "token": "organizationId"
+        },
+        {
+          "line": 107,
           "token": "employeeId"
         }
       ],
       "actions": [],
       "guards": [
         {
-          "line": 4,
+          "line": 7,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 4,
+          "line": 7,
           "token": "getAccess"
         },
         {
-          "line": 5,
-          "token": "getSessionUser"
-        },
-        {
-          "line": 62,
+          "line": 8,
           "token": "getSessionUser"
         },
         {
           "line": 65,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 68,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 69,
+          "line": 72,
           "token": "getAccess"
+        },
+        {
+          "line": 87,
+          "token": "notFound"
         }
       ],
       "business": [
         {
-          "line": 51,
+          "line": 54,
           "token": "organizationId"
         },
         {
-          "line": 52,
-          "token": "employeeId"
-        },
-        {
-          "line": 56,
-          "token": "organizationId"
-        },
-        {
-          "line": 56,
-          "token": "organizationId"
-        },
-        {
-          "line": 57,
-          "token": "employeeId"
-        },
-        {
-          "line": 57,
-          "token": "employeeId"
-        },
-        {
-          "line": 58,
-          "token": "organizationId"
-        },
-        {
-          "line": 58,
+          "line": 55,
           "token": "employeeId"
         },
         {
@@ -42366,11 +42354,31 @@
           "token": "organizationId"
         },
         {
-          "line": 60,
+          "line": 59,
           "token": "organizationId"
         },
         {
-          "line": 66,
+          "line": 60,
+          "token": "employeeId"
+        },
+        {
+          "line": 60,
+          "token": "employeeId"
+        },
+        {
+          "line": 61,
+          "token": "organizationId"
+        },
+        {
+          "line": 61,
+          "token": "employeeId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 63,
           "token": "organizationId"
         },
         {
@@ -42378,53 +42386,91 @@
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 72,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 83,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
           "token": "employeeId"
         },
         {
-          "line": 83,
+          "line": 92,
           "token": "organizationId"
         },
         {
-          "line": 83,
+          "line": 92,
+          "token": "employeeId"
+        },
+        {
+          "line": 99,
           "token": "organizationId"
         },
         {
-          "line": 84,
+          "line": 99,
           "token": "organizationId"
         },
         {
-          "line": 84,
+          "line": 100,
           "token": "organizationId"
         },
         {
-          "line": 85,
+          "line": 100,
           "token": "organizationId"
         },
         {
-          "line": 85,
+          "line": 101,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 101,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 107,
           "token": "organizationId"
         },
         {
-          "line": 91,
+          "line": 107,
+          "token": "organizationId"
+        },
+        {
+          "line": 107,
           "token": "employeeId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: #1888 fail-closed hire-to-payroll employer/worker SSR binding has source-linked fictional PG16 candidate tests; independent security/HR review and exact-head HTTP proof required before acceptance. Zero credits.",
+      "reviewedUncertified": {
+        "kind": "hire-payroll-employer-worker-SSR-PG16-candidate-unaccepted",
+        "originalPageBlobSha": "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a",
+        "pageBlobSha": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+        "proofFile": "scripts/qa/tenant-hire-payroll-review-http.mjs",
+        "proofBlobSha": "38b87f3f71fd15e93ac096bcc9c16899fb76b0b2",
+        "contractFile": "scripts/qa/tenant-hire-payroll-review-contract.mjs",
+        "contractBlobSha": "06f0370a196fc283dee7aa33597aa802841b9993",
+        "contractTestFile": "tests/tenant-hire-payroll-review-contract.test.mjs",
+        "contractTestBlobSha": "0a437d35f600280aeb29ca89b503bc0052fa9f07",
+        "workflowFile": ".github/workflows/tenant-hire-payroll-review-qa.yml",
+        "workflowBlobSha": "b4e4a045108bb3e2b0d451d8b8e2aba6e6fbfe9b",
+        "ownPositiveLine": 135,
+        "secondOwnWorkerLine": 136,
+        "foreignWorkerDenialLine": 138,
+        "unchangedDbLine": 113,
+        "sourceOutageLine": 203,
+        "gateFailureLine": 211,
+        "revokedLine": 187,
+        "executedExactHead": null,
+        "executedJob": null,
+        "pageActionCredits": 0,
+        "apiMethodCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/hcm/hr-cases/page.tsx",
