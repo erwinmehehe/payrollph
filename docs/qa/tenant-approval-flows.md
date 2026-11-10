@@ -1,5 +1,13 @@
 # Approval flows tenant boundary proof
 
+**Current draft extension:** the original four-flow proof below is retained as
+historical evidence, while this PR now also adds a transactional reverse-source
+employer guard and nine typed source flows. See
+[typed approval boundaries and current local evidence](tenant-approval-types-20261110.md).
+The original unchanged-route run is not a claim that the newly changed approval
+source has passed CI; both workflows must execute on the final PR head. Zero
+new method credits and no production acceptance.
+
 `PATCH approvals/[id]` decides many kinds of approval through one handler. Three proofs already cover part of it:
 
 | Proof | Families |

@@ -3096,7 +3096,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const expected = {
       kind: "approval-PATCH-final-SQL-employer-scope-PG16-uncredited",
       previousRouteBlobSha: "4dacb9acf4d49030f0bfe9c89700769d0dbb42a1",
-      routeBlobSha: "024e0736da4097b2ee4b2e010c014bcd2e36d196",
+      routeBlobSha: "7a93ce87ea453be87631a18086c3f93636d538c2",
       proofFile: "scripts/qa/tenant-approval-task-http.mjs",
       proofBlobSha: "849fcb15f0c2b9770269b372f81c6837d2422e07",
       existingContractFile: "tests/tenant-approval-task-contract.test.mjs",
@@ -3109,6 +3109,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       foreignDenialLine: 128, unchangedVictimLine: 209,
       credits: 0, independentlyAccepted: false, productionCertified: false,
     };
+    expected.sourceBoundary = {"kind":"typed-approval-reverse-source-boundary-pg16-candidate","previousRouteBlobSha":"024e0736da4097b2ee4b2e010c014bcd2e36d196","inputBlobs":{"src/lib/approval-source-tenant-boundary.ts":"84b2c56b2741659cb569ef7e74a61f163cb74a17","scripts/qa/tenant-approval-types-http.mjs":"24008ff017d836d4d9affcaa04123fa27dd435e4","scripts/qa/tenant-approval-types-contract.mjs":"acb26fa3ef9017df7b2bf50c35e600e6ca6e66b6","tests/tenant-approval-types-contract.test.mjs":"b84ec2043fc38168f133949d44fdc60de25d5874","tests/approval-source-tenant-boundary.test.ts":"a2cebf815468bd392bb31fb848e74cdbcad7ad80",".github/workflows/tenant-approval-types-http.yml":"484f70c633ed4c155bf8be6e5ad570417ad55359"},"evidenceLabel":"SOLO_VERIFIED_DEV_RECOVERY","exactHeadCi":"PENDING","credits":0,"productionCertified":false};
+    for (const [file, sha] of Object.entries(expected.sourceBoundary.inputBlobs)) {
+      assert.equal(gitBlobSha(readFileSync(file)), sha, "Typed approval source drift requires renewed PG16: " + file);
+    }
     assert.equal(method.status, "GAP", "Approval PATCH remains uncertified");
     assert.equal(method.testedBy, null,
       "A generic task proof cannot certify payroll/leave/HCM source decision branches");
