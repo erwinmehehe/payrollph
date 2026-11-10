@@ -60,7 +60,7 @@ const plan = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "
 // The independently source-pinned method verifiers construct the expected main
 // ledger below. Use that ledger when counting the frozen source links rather
 // than maintaining a second, hand-summed allowance of merged PR credits.
-function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus) {
+function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus, snapshotStatuses = {}) {
   const route = manifest.allApiRouteFiles[path];
   const row = route?.methods.find(method => method.name === verb);
   const label = verb + " " + path;
@@ -92,7 +92,7 @@ function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus) {
     // Historical snapshot credits are already immutable in the 2026-11-03
     // fixture. Only later GAP-to-COVERED promotions require these newer
     // merge/receipt citation shapes; older proof metadata is not retrofitted.
-    if (snapshot.methodStatuses[path]?.[verb] !== "COVERED") {
+    if (snapshotStatuses[path]?.[verb] !== "COVERED") {
       assert.ok(hasCitation, label + ": credited method lacks a merged-proof citation");
     }
   }
@@ -1251,7 +1251,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         const method = line.split("`")[1]?.split(" ")[0];
         const path = line.split(" — [source](../../")[1]?.split("#L")[0];
         const verifiedStatus = expectedOriginalMain[path]?.[method];
-        const status = verifiedFrozenMethodStatus(baseline, path, method, verifiedStatus);
+        const status = verifiedFrozenMethodStatus(baseline, path, method, verifiedStatus, snapshot.methodStatuses);
         reviewedStatuses.push(verifiedStatus);
         statuses.push(status);
         return status;
