@@ -15,7 +15,7 @@ test('only the merged real-PG16 two-employer checkout receipt earns one method',
 });
 
 test('every sealed runtime, fixture, workflow and receipt byte refuses drift', () => {
-  for (const file of [...Object.keys(CHECKOUT_INPUT_BLOBS), CHECKOUT_RECEIPT]) {
+  for (const file of [...Object.keys(CHECKOUT_INPUT_BLOBS), CHECKOUT_RECEIPT, 'scripts/qa/tenant-billing-post-credit-receipt.json']) {
     assert.throws(() => checkoutEvidence(path => {
       const bytes = readFileSync(path);
       return path === file ? Buffer.concat([bytes, Buffer.from(' ')]) : bytes;

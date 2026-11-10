@@ -72,7 +72,13 @@ not counted by this proposal.
 - Generic table-credit check was preview-only; its unrelated Automation Studio
   suggestion was not applied.
 
-Final integrated-head CI is pending. If another manifest PR merges first,
+The concurrently prepared `tenant-billing-post-credit-receipt.json` was merged
+into this canonical proposal and sealed as the same executed result, rather
+than opening another billing promotion PR. Main's approvals and SSO changes
+are preserved. After the approvals merge, the full selection was rerun:
+1,656 tests, 1,639 passed, the same eight Windows failures and nine skips.
+After the SSO merge, all 69 focused integration checks passed. Final
+integrated-head CI is pending. If another manifest PR merges first,
 sync and rerun reconciliation/repin before review. Rollback is a source revert
 of this evidence proposal; no database migration, live flags or provider
 configuration changes are part of it.

@@ -32,6 +32,13 @@ export function checkoutEvidence(read = readFileSync) {
   assert.equal(r.result.coverageCredits, 0, 'The executed proof itself never awarded credit');
   assert.equal(r.result.independentlyAccepted, false);
   assert.equal(r.productionCertified, false);
+  // Preserve the concurrently prepared raw receipt in the same canonical PR.
+  const originalRaw = read('scripts/qa/tenant-billing-post-credit-receipt.json');
+  assert.equal(blob(originalRaw), '6c9f9e16cbd9d7c3955e9ff431ec4fd1e2bfb473', 'Concurrent checkout receipt drift');
+  const original = JSON.parse(originalRaw);
+  assert.deepEqual(original.executedResult, r.result, 'Checkout receipts must describe the same actual run');
+  assert.equal(original.sourceHead, r.sourceHead);
+  assert.equal(original.workflowJobId, r.workflowJobId);
   for (const [file, sha] of Object.entries(CHECKOUT_INPUT_BLOBS)) {
     assert.equal(blob(read(file)), sha, 'Fresh HTTP/PG16 proof required after input drift: ' + file);
   }
