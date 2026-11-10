@@ -170,11 +170,11 @@ test("hire-to-payroll SSR gates the worker identity before rendering even on a s
     "Foreign/missing worker must be rejected before the catchable source loader");
   assert.ok(navigation > reject,
     "Worker-specific navigation must not mount before ownership is proved");
-  assert.match(page, /db\\.select\\(\\{ id: employees\\.id \\}\\)/,
+  assert.match(page, /db\.select\(\{ id: employees\.id \}\)/,
     "Gate must select only the employee ID, never PII or pay data");
-  assert.match(page, /eq\\(employees\\.organizationId, organizationId\\)/);
-  assert.match(page, /eq\\(employees\\.id, employeeId\\)/);
-  assert.match(page, /if \\(!boundWorker\\) notFound\\(\\);/);
+  assert.match(page, /eq\(employees\.organizationId, organizationId\)/);
+  assert.match(page, /eq\(employees\.id, employeeId\)/);
+  assert.match(page, /if \(!boundWorker\) notFound\(\);/);
   assert.ok(!page.slice(gate, reject).includes("catch"),
     "A database failure in the worker gate must not render the fallback shell");
 });
