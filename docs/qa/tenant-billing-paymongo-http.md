@@ -25,9 +25,12 @@ positives, not merely a successful 403 response.
 The dedicated `.github/workflows/tenant-billing-paymongo-http.yml`
 runs with an empty localhost PostgreSQL 16 `app_db`, reviewed isolated
 schema baseline, `NODE_ENV=production`, and two independent fictional
-owners A and B plus a third **real higher-id fictional victim**. Every
-identity has a separate signed-in cookie and nonempty employee and
-membership rows.
+owners A and B plus a third named **real higher-ID fictional victim**.
+Seven additional seeded filler employers and their billing records establish
+a persisted victim-ID floor **strictly above six** for the organization,
+identity, employee, membership, pay-profile, invoice and subscription rows.
+The HTTP test uses distinct A, B and victim sessions; the fillers never grant
+a bypass or supply a fabricated victim identifier.
 
 - A, with an existing pending subscription, obtains an owned **201**
   checkout; B, without a subscription, obtains a distinct owned **201**.
@@ -44,6 +47,9 @@ membership rows.
   fail-closed fictional in-process response. All non-local outbound
   requests are blocked. No real checkout, payment, charge, payout, email,
   webhook, or external bank/government action occurs.
+- Contract tests now refuse removal of the seven-filler seed and the hard
+  greater-than-six assertions for each victim business table. The result
+  reports `victimBusinessIdsOverSix: true` only after SQL verifies the floor.
 - The receipt reports **zero earned method credits**. An exact-head
   successful CI run plus source/runner/contract/workflow pin review is
   required before changing the ledger, and any credit would remain
@@ -64,6 +70,16 @@ Core test:
 
 Dedicated end-to-end CI:
 `Tenant legacy PayMongo checkout POST (fictional PG16 real HTTP)`
+
+## Why this follow-up is needed
+
+The merged proof in #1874 already exercised two real owned 201 checkouts
+and denied genuine foreign selectors, but its victim was seeded third and
+never satisfied the closure plan's strict `victim ID > 6` condition. This
+follow-up fixes only the fictional fixture and its contract guards. It does
+not change the billing route, simulated provider, schema, flags or manifest.
+A new exact-final-head PostgreSQL HTTP job and independent security/billing
+review are still required before proposing the one-method coverage credit.
 
 ## Required post-CI evaluation
 
