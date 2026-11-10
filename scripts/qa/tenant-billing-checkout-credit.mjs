@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { CHECKOUT_INPUT_BLOBS, CHECKOUT_RECEIPT_BLOB } from './tenant-billing-checkout-credit-pins.mjs';
+import { expectedBillingPostProof } from './tenant-billing-post-credit.mjs';
 
 export const CHECKOUT_PATH = 'src/app/api/billing/route.ts';
 export const CHECKOUT_RECEIPT = 'scripts/qa/tenant-billing-checkout-credit-receipt.json';
@@ -52,21 +53,9 @@ export function checkoutEvidence(read = readFileSync) {
 }
 
 export function expectedCheckoutReceipt(read = readFileSync) {
-  const r = checkoutEvidence(read);
-  return {
-    file: 'scripts/qa/tenant-billing-paymongo-http.mjs', line: 188,
-    ownPositiveLine: 188, foreignDenialLine: 149, forgedSelectorLine: 185, unchangedDbLine: 208,
-    routeBlobSha: CHECKOUT_INPUT_BLOBS[CHECKOUT_PATH],
-    proofBlobSha: CHECKOUT_INPUT_BLOBS['scripts/qa/tenant-billing-paymongo-http.mjs'],
-    receiptFile: CHECKOUT_RECEIPT, receiptBlobSha: CHECKOUT_RECEIPT_BLOB,
-    proofPullRequest: r.proofPullRequest, verifiedPrHeadSha: r.sourceHead,
-    mergedProofCommit: r.mergedProofCommit, workflowRunId: r.workflowRunId,
-    workflowJobId: r.workflowJobId, evidence: r.evidence,
-    evidenceLabel: r.label, postgresMajor: 16, actualProviderCalled: false,
-    independentlyAccepted: false, productionTested: false, independentSecurityReview: 'PENDING',
-    methodActions: ['existing subscription checkout', 'new subscription checkout'],
-    scope: 'Two real own 201s, two victim 403s, forged secondary selectors cannot redirect the owned checkout, persisted victim business IDs >6 and unchanged victim SQL/audit. Synthetic in-process provider only; a checkout is not a payment or plan activation.',
-  };
+  checkoutEvidence(read);
+  // One canonical manifest receipt, with the additional transitive source seal.
+  return expectedBillingPostProof(read);
 }
 
 export function verifyCheckoutCredit(manifest, read = readFileSync) {
