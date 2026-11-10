@@ -68,6 +68,8 @@ test("unsafe runtime, live provider settings and external databases fail closed"
 test("fake 200 and empty page shells are not evidence of own HCM records", () => {
   const monitor = "Business Process Monitor Employer #8 Recorded workflows Step timeline Hire #25 Step 1";
   const hire = "Hire-to-payroll input evidence Employer #8 Worker #4 Current employment record Payroll basis and standard hours Payroll approval, filing and payout";
+  const complete = "Recognized pay basis and positive rate, work-day and hour fields are recorded; approval is not verified.";
+  const missing = "An explicit pay profile is missing or its required fields need review.";
   assert.throws(() => assertOwnMonitor(result(200, "Business Process Monitor"), actor,
     actor.processes[0], [actor, victim]));
   assert.throws(() => assertOwnMonitor(result(200,
@@ -79,8 +81,14 @@ test("fake 200 and empty page shells are not evidence of own HCM records", () =>
   assert.throws(() => assertOwnHireReview(result(200,
     hire + " The input sources are temporarily unavailable"),
     actor, { id: 4 }, [actor, victim]));
-  assert.doesNotThrow(() => assertOwnHireReview(result(200, hire),
+  assert.throws(() => assertOwnHireReview(result(200, hire),
+    actor, { id: 4 }, [actor, victim]), /pay profile/);
+  assert.doesNotThrow(() => assertOwnHireReview(result(200, hire + " " + complete),
     actor, { id: 4 }, [actor, victim]));
+  assert.doesNotThrow(() => assertOwnHireReview(result(200, hire + " " + missing),
+    actor, { id: 4 }, [actor, victim], { payProfilePresent: false }));
+  assert.throws(() => assertOwnHireReview(result(200, hire + " " + complete),
+    actor, { id: 4 }, [actor, victim], { payProfilePresent: false }), /pay profile/);
 });
 
 test("foreign body, source note, successful denial and foreign process are refused", () => {
