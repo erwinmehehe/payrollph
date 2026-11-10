@@ -272,6 +272,44 @@ try {
       assertions += 2;
     }
   }
+  // Protocol-level refusals on the SAME method. Each is answered before any employer data is read or written, so none may
+  // change a row, add an audit receipt or mention the victim. They run for every action the route accepts.
+  let refusals = 0;
+  const anonymous = await request.newContext({
+    baseURL: base, ignoreHTTPSErrors: true,
+    extraHTTPHeaders: { origin: base, "sec-fetch-site": "same-origin" },
+  });
+  contexts.push(anonymous);
+  for (const attacker of [a, b]) {
+    for (const mode of ["template", "check", "download"]) {
+      expect(await anonymous.post("/api/bir/annual-employer/candidate", {
+        data: bodyFor(attacker, mode),
+      }), 401, "Anonymous caller cannot " + mode + " an employer's BIR source");
+      expect(await attacker.context.post("/api/bir/annual-employer/candidate", {
+        data: bodyFor(attacker, mode),
+        headers: { "sec-fetch-site": "cross-site", origin: "https://attacker.example" },
+      }), 403, "A cross-site mutation cannot " + mode + " even with a genuine session");
+      const malformed = expect(await attacker.context.post("/api/bir/annual-employer/candidate", {
+        data: { ...scope(attacker), mode, sourceDigest: digests.get(attacker.org.id), records: "not-an-array" },
+      }), 400, "A malformed " + mode + " body is rejected before any source is read");
+      check((await malformed.json()).code === "INVALID_REVIEW", "Malformed body must fail the request contract");
+      refusals += 3;
+    }
+    const stale = expect(await attacker.context.post("/api/bir/annual-employer/candidate", {
+      data: { ...scope(attacker), sourceDigest: "0".repeat(64) },
+    }), 409, "A stale source digest cannot produce a review template");
+    check((await stale.json()).code === "STALE_SOURCE", "Stale digest must be named, not silently accepted");
+    const unknownMode = expect(await attacker.context.post("/api/bir/annual-employer/candidate", {
+      data: { ...scope(attacker), mode: "export", sourceDigest: digests.get(attacker.org.id) },
+    }), 400, "An unknown action is rejected");
+    check((await unknownMode.json()).code === "INVALID_REVIEW", "Unknown action must fail the request contract");
+    refusals += 2;
+    assert.deepEqual(await snapshot(attacker), before.get(attacker.org.id),
+      "Protocol refusals must not change the attacker's own source, annual rows or audit");
+    assert.deepEqual(await snapshot(victim), before.get(victim.org.id),
+      "Protocol refusals must not touch the victim");
+    assertions += 2;
+  }
   for (const e of employers) {
     assert.deepEqual(await snapshot(e), before.get(e.org.id),
       "Denied foreign requests must not change victim/attacker source, audit or filings");
@@ -279,10 +317,11 @@ try {
   }
   check(owned === 3 && ownedChecks === 3 && ownedDownloads === 3 &&
     denied === 16, "Two independently authenticated attackers and victim must pass all three own modes, with sixteen denials");
+  check(refusals === 22, "Anonymous, cross-site, malformed, stale-digest and unknown-action refusals must all be exercised");
   console.log(JSON.stringify({
     kind: "bir1604c-candidate-POST-actual-HTTPS-PG16-cross-employer",
     realOwnTemplates: owned, realOwnChecks: ownedChecks,
-    realOwnDraftDownloads: ownedDownloads, realForeignDenials: denied,
+    realOwnDraftDownloads: ownedDownloads, realForeignDenials: denied, protocolRefusals: refusals,
     twoIndependentAttackers: true, higherIdVictim: true,
     persistedVictimIdAboveSix: victim.org.id > 6 && victim.entity.id > 6 &&
       victim.worker.id > 6, allThreeModesExercised: true,
