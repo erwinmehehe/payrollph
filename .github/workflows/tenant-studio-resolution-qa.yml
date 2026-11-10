@@ -1,0 +1,146 @@
+name: Tenant Studio Resolve Reopen (fictional PG16 HTTP; zero credits)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-studio-resolution-qa.yml'
+      - 'scripts/qa/tenant-studio-resolution-*.mjs'
+      - 'tests/tenant-studio-resolution-contract.test.mjs'
+      - 'docs/qa/tenant-studio-resolution-proof.md'
+      - 'src/app/api/automation-studio/route.ts'
+      - 'src/lib/automation-operational-cases.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/security-request.ts'
+      - 'src/lib/rate-limit*.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  resolve-reopen:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_RESOLUTION_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      DEMO_MODE: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      NEON_DATABASE_URL: ''
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_URL: ''
+      SMTP_PASSWORD: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U postgres -d app_db'
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Confirm exact source revision
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Refuse unsafe environment and source drift before any DB setup
+        run: node scripts/qa/tenant-studio-resolution-contract.mjs --check-env --check-sources
+      - run: npm ci --include=dev
+      - name: Syntax and adversarial proof-oracle tests
+        run: |
+          node --check scripts/qa/tenant-studio-resolution-http.mjs
+          node --check scripts/qa/tenant-studio-resolution-contract.mjs
+          node --test tests/tenant-studio-resolution-contract.test.mjs
+      - name: Generate disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated audit baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile production-mode localhost application
+        run: npm run build
+      - name: Start localhost-only application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-resolution.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prove own transitions, foreign denials and reached audit rollback
+        run: node --import tsx scripts/qa/tenant-studio-resolution-http.mjs
+      - name: Retain sanitized source-bound receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: tenant-studio-resolution-receipt
+          path: qa-artifacts/tenant-studio-resolution-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Bounded localhost failure diagnostics
+        if: failure()
+        run: |
+          if test -f /tmp/studio-resolution.log; then
+            grep -E 'Error:|FICTIONAL_STUDIO_RESOLUTION_AUDIT_VETO|code:' /tmp/studio-resolution.log | tail -n 20 | cut -c 1-200 || true
+          fi
