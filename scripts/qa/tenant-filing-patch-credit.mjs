@@ -74,7 +74,7 @@ export function reconcileFilingCredit({write=false}={}){
  }
  plan=plan.replace(/^Frozen subtotal[^\n]+/m,line=>line.replace(/\*\*\d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP = 406\*\*/,'**'+total.COVERED+' COVERED + '+total['PUBLIC-BY-DESIGN']+' PUBLIC-BY-DESIGN + '+total['PRIVILEGED-OPERATIONS-TOKEN-ONLY']+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+total.GAP+' GAP = 406**'));
  if(write){writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');writeFileSync(INVENTORY,overview);writeFileSync(PLAN,plan);}
- else {assert.equal(row.status,'COVERED');assert.deepEqual(JSON.parse(readFileSync(MANIFEST,'utf8')),m,'Run this reviewed credit writer with --write first');}
+ else {assert.equal(row.status,'COVERED');assert.deepEqual(JSON.parse(readFileSync(MANIFEST,'utf8')),m,'Run this reviewed credit writer with --write first');assert.equal(readFileSync(INVENTORY,'utf8'),overview,'Inventory must be generated from the same credit');assert.equal(readFileSync(PLAN,'utf8'),plan,'Frozen queue must reconcile with the credited method');}
  return {methodsCredited:before.gap-m.metrics.gap,before,after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap},write};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

@@ -1,6 +1,11 @@
 # Merged-proof credit pass — SOLO_VERIFIED_DEV_RECOVERY
 
 Based on `origin/main@75becb095ee209c88145c237a53afcb5b1e570e3`.
+Synced by ordinary merge with `main@fcd688d60728532767f58f0ce1f002d2d5bdb4f5`
+after readiness/golden Phase 10 landed. All nine route blobs still match their
+merged proof sources; filing runtime/proof inputs are byte-identical. The
+executed HTTP receipt remains honestly labelled with its actual `75becb095`
+source; a fresh final-PR-head CI result is not claimed in this document.
 Before: **450 COVERED / 22 GAP**. Proposed after this one-method pass:
 **451 COVERED / 21 GAP**, among 498 methods (15 public, 11 operator-token-only).
 No route, identity method, page/action, existing credit or classification changed.
@@ -48,3 +53,28 @@ routes and receipts must remain identical.
 
 Requires normal rebase/sync, source review and repin if another manifest PR
 merges first. Draft only; owner decides merge. No production acceptance.
+
+## Verification on the synced branch
+
+- Focused filing/credit, inventory, high-risk, gap-promotion and six-method
+  review guards: **72 passed, zero failed**.
+- Full tenant guard selection: **1,597 tests; 1,580 passed, 8 failed, 9 skipped**.
+  Seven failures are unchanged DL-02 private-file POSIX permission/symlink
+  fixtures; the eighth is the unchanged private-0600 allowlist preseed fixture.
+  These fail on this Windows host. They are reported, not skipped or weakened.
+- Manifest repin: **2,391 unchanged, 7 new citations, zero repinned, zero
+  requiring review**.
+- Dedicated filing credit reconciliation `--check`: PASS, idempotent, no new
+  credits on repeat. Generic table-credit check: PASS in preview only; its one
+  unrelated suggested promotion was **not applied**.
+- TypeScript: PASS after main sync. Full lint: **0 errors, 10 existing warnings,
+  zero warning-baseline violations**. No application source is changed by this PR.
+- Exact diff audit: only the filing PATCH method record changes; every other
+  method, existing proof/classification, route blob and scoped page is identical
+  to current main. New open BIR refusal work #1891 is not duplicated here.
+- NOT_RUN: new HTTP proofs for the eight HELD methods, real provider/agency
+  operations, production/staging acceptance and final draft-PR-head CI.
+
+The three-leg PG16 HTTP execution is real GitHub Actions, not a fabricated
+local `GITHUB_ACTIONS` environment. The full local tenant suite is not claimed
+green; Linux CI still needs to validate its filesystem security fixtures.
