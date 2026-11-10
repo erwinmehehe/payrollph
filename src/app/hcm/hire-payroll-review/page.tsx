@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { employees } from "@/db/schema";
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { notFound, redirect } from "next/navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
@@ -69,6 +72,19 @@ export default async function HirePayrollInputReviewPage({
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !access?.companyWide ||
       !["owner", "admin", "hr"].includes(access.role)) notFound();
+
+  // Employer authorization does not by itself authorize an arbitrary worker ID.
+  // Prove the exact employer/worker pair with an existence-only query before
+  // rendering worker-specific navigation or even an "unavailable" shell.
+  // Query failures must fail closed instead of entering the source fallback.
+  const [boundWorker] = await db.select({ id: employees.id })
+    .from(employees)
+    .where(and(
+      eq(employees.organizationId, organizationId),
+      eq(employees.id, employeeId),
+    ))
+    .limit(1);
+  if (!boundWorker) notFound();
 
   let review: HirePayrollInputReview | null = null;
   let unavailable = false;
