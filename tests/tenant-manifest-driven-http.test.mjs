@@ -8,6 +8,7 @@ import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-cred
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -132,10 +133,10 @@ test("workspace readiness own employer HTTP 200 remains uncredited, with real vi
   assert.equal(method?.status, "GAP", "A functional own GET is not a security-accepted whole-method credit");
   assert.equal(method?.testedBy, null, "Pending independent review; no automatic promotion");
   const reviewed = method?.reviewedUncertified;
-  assert.equal(reviewed?.routeBlobSha, "5fdf10244467ddee8e5ccd1e98f07930b2ce7086");
+  assert.equal(reviewed?.routeBlobSha, "26378409dcfddc6bb0b726433e6896b3487a4cf7");
   assert.equal(reviewed?.routeBlobSha, manifest.allApiRouteFiles[key].gitBlobSha);
   assert.equal(reviewed?.loaderBlobSha, "782853dada317783100dd1ee40004fa7e6126244");
-  assert.equal(reviewed?.proofBlobSha, "a2b24c5f79d483645da59902bfbde80c13f9c497");
+  assert.equal(reviewed?.proofBlobSha, "228db712a89f66ef775116b62e909f06cb1e6bb9");
   assert.equal(reviewed?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
   assert.equal(reviewed?.ownStatus, 200);
   assert.equal(reviewed?.foreignStatus, 403);
@@ -151,13 +152,25 @@ test("workspace readiness own employer HTTP 200 remains uncredited, with real vi
   assert.match(secondPass, /const denied = expectStatus\(await request\(/);
   assert.match(secondPass, /victim\.id, \{ cookie \}\), 403,/);
   assert.match(secondPass, /assert\.deepEqual\(await snapshots\(\), initialSql/);
+  assert.match(secondPass, /RDY-01 rejects duplicated\/noncanonical selectors/);
 
-  const dedicated = readFileSync(reviewed.file, "utf8");
+  // Keep the reviewed proof receipt bound to the exact source bytes.
+  // A manifest-only repin without the corresponding proof must fail closed.
+  const dedicatedBytes = readFileSync(reviewed.file);
+  const actualBlobSha = createHash("sha1")
+    .update(Buffer.from("blob " + dedicatedBytes.length + "\0"))
+    .update(dedicatedBytes).digest("hex");
+  assert.equal(actualBlobSha, reviewed.proofBlobSha,
+    "Workspace readiness proof source drift requires a fresh PG16 HTTP review");
+  const dedicated = dedicatedBytes.toString("utf8");
   assert.match(dedicated, /requireDisposableWorkspaceReadiness\(\)/);
   assert.match(dedicated, /const own = await httpGet\(endpoint\(actor\.org\.id\), actor\.cookie\)/);
   assert.match(dedicated, /assertOwnedReadiness\(own, actor\.org\.id, await counts\(actor\.org\.id\)\)/);
   assert.match(dedicated, /const denied = await httpGet\(endpoint\(target\.org\.id\), attacker\.cookie\)/);
   assert.match(dedicated, /assert\.equal\(denied\.status, 403,/);
+  assert.match(dedicated, /ownFirstDuplicate\.status, 400/);
+  assert.match(dedicated, /allBusinessVictimIdsOverSix: true/);
+  assert.match(dedicated, /negativeChecks, 15/);
   assert.match(dedicated, /assert\.deepEqual\(await snapshot\(\), baseline/);
 
   const route = readFileSync(key, "utf8");

@@ -41,19 +41,28 @@ export async function proveWorkspaceReadiness() {
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
     const a = await fixture.seedEmployer("ATTA", nonce, fixture.standaloneMakeSession);
     const b = await fixture.seedEmployer("ATTB", nonce, fixture.standaloneMakeSession);
-    // Unowned placeholder organizations make the victim a *real* high-ID
-    // record (not a hardcoded ID such as 1..6) without adding tenant logins.
+    // The closure plan requires persisted victim business IDs >6, not only
+    // a higher organization ID. Seed actual fictional filler identities
+    // before the third named (and only tested) victim employer.
     for (let i = 0; i < 7; i++) {
-      await db.insert(s.organizations).values({
-        name: "Unused Synthetic Org " + i + "-" + nonce,
-        legalName: "Unused Synthetic Company " + i + "-" + nonce,
-      });
+      await fixture.seedEmployer("FILL" + i, nonce, fixture.standaloneMakeSession);
     }
     const victim = await fixture.seedEmployer("VICTIM", nonce, fixture.standaloneMakeSession);
     const actors = [a, b, victim];
-    assert.ok(victim.org.id > 6 && victim.org.id > b.org.id &&
-      b.org.id > a.org.id, "A real higher-ID third employer is required");
-    assert.ok(victim.worker.id > b.worker.id && b.worker.id > a.worker.id);
+    for (const field of ["org", "entity", "unit", "worker", "owner"]) {
+      assert.ok(victim[field].id > Math.max(6, a[field].id, b[field].id),
+        "Persisted victim " + field + " ID must exceed both attackers and six");
+    }
+    const victimMembership = await db.select().from(s.userOrganizations)
+      .where(and(eq(s.userOrganizations.organizationId, victim.org.id),
+        eq(s.userOrganizations.userId, victim.owner.id)));
+    const victimPayProfile = await db.select().from(s.employeePayProfiles)
+      .where(and(eq(s.employeePayProfiles.organizationId, victim.org.id),
+        eq(s.employeePayProfiles.employeeId, victim.worker.id)));
+    for (const [kind, rows] of [["membership", victimMembership], ["pay-profile", victimPayProfile]]) {
+      assert.ok(rows.length > 0 && rows.every(row => Number.isSafeInteger(row.id) && row.id > 6),
+        "Persisted victim " + kind + " ID must exceed six");
+    }
     assert.equal(new Set(actors.map(x => x.cookie)).size, 3);
 
     // Distinct nonzero counts prove real owner-specific SQL results, not an
@@ -106,8 +115,9 @@ export async function proveWorkspaceReadiness() {
         payrollRunRecords: Number(runs.value),
         employeesWithoutRestDay: Number(missing.value) };
     }
-    const monitored = ["organizations", "userOrganizations", "employees",
-      "employeePayProfiles", "payrollRuns", "auditEvents", "invoices", "outbox"];
+    const monitored = ["organizations", "userOrganizations", "orgUnits",
+      "legalEntities", "employees", "employeePayProfiles", "payrollRuns",
+      "auditEvents", "invoices", "outbox"];
     async function snapshot() {
       const out = {};
       for (const actor of actors) {
@@ -146,8 +156,15 @@ export async function proveWorkspaceReadiness() {
       }
       const forged = await httpGet(endpoint(victim.org.id) +
         "&organizationId=" + attacker.org.id, attacker.cookie);
-      assert.equal(forged.status, 403,
-        "Victim-first duplicated selector must never resolve to own tenant");
+      assert.equal(forged.status, 400,
+        "Victim-first duplicated selector must be rejected before authorization");
+      assert.equal(Object.hasOwn(forged.json ?? {}, "evidence"), false);
+      negativeChecks++;
+      const ownFirstDuplicate = await httpGet(endpoint(attacker.org.id) +
+        "&organizationId=" + victim.org.id, attacker.cookie);
+      assert.equal(ownFirstDuplicate.status, 400,
+        "Own-first duplicated selector must not be silently accepted");
+      assert.equal(Object.hasOwn(ownFirstDuplicate.json ?? {}, "evidence"), false);
       negativeChecks++;
     }
     for (const [path, cookie, expected] of [
@@ -155,6 +172,11 @@ export async function proveWorkspaceReadiness() {
       [endpoint(a.org.id), limited.cookie, 403],
       [endpoint(0), a.cookie, 400],
       [endpoint("abc"), b.cookie, 400],
+      [endpoint("01"), a.cookie, 400],
+      [endpoint("1e0"), a.cookie, 400],
+      [endpoint("1.0"), a.cookie, 400],
+      [endpoint("%2B1"), a.cookie, 400],
+      [endpoint("9007199254740992"), a.cookie, 400],
       [endpoint(victim.org.id + 1000), a.cookie, 403],
     ]) {
       const denial = await httpGet(path, cookie);
@@ -165,8 +187,11 @@ export async function proveWorkspaceReadiness() {
     await db.update(s.userOrganizations).set({ active: false })
       .where(and(eq(s.userOrganizations.userId, a.owner.id),
         eq(s.userOrganizations.organizationId, a.org.id)));
+    const revokedBefore = await snapshot();
     const revoked = await httpGet(endpoint(a.org.id), a.cookie);
     assert.equal(revoked.status, 403, "Revoked owner must lose own workspace access");
+    assert.deepEqual(await snapshot(), revokedBefore,
+      "Revoked-session GET must not write even to the attacker or victim");
     await db.update(s.userOrganizations).set({ active: true })
       .where(and(eq(s.userOrganizations.userId, a.owner.id),
         eq(s.userOrganizations.organizationId, a.org.id)));
@@ -175,11 +200,12 @@ export async function proveWorkspaceReadiness() {
       "Own, foreign, malformed and revoked reads must preserve all tenant SQL rows");
     assert.equal(ownSuccesses, 3);
     assert.equal(foreignDenials, 4);
-    assert.equal(negativeChecks, 8);
+    assert.equal(negativeChecks, 15);
     console.log(JSON.stringify({
       family: "tenant-workspace-readiness-api-get",
       fictionalPostgresMajor: 16, independentAuthenticatedOwners: 2,
-      distinctHigherIdVictim: true, ownSuccesses, foreignDenials,
+      distinctHigherIdVictim: true, allBusinessVictimIdsOverSix: true,
+      ownSuccesses, foreignDenials,
       negativeChecks, sqlStateUnchanged: true, launchApproved: false,
       payoutOrProviderCalls: 0, newMethodCredits: 0,
       independentlyAccepted: false, productionTested: false,

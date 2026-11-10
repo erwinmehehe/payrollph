@@ -670,7 +670,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     // This source now provides employer-only counts but is still a GAP.
     // Never promote from a passing source-only or unreviewed HTTP candidate.
     const proof = method.reviewedUncertified;
-    assert.equal(currentBlob, "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
+    assert.equal(currentBlob, "26378409dcfddc6bb0b726433e6896b3487a4cf7",
       "Changed employer readiness source requires fresh tenant review");
     assert.equal(proof?.routeBlobSha, currentBlob);
     assert.equal(proof?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
@@ -698,6 +698,10 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
     const source = readFileSync("src/app/api/readiness/workspace/route.ts", "utf8");
     const loader = readFileSync("src/lib/workspace-readiness-boundary.ts", "utf8");
+    assert.ok(source.includes('searchParams.getAll("organizationId").length === 1'),
+      "RDY-01: repeated organizationId selectors must be rejected");
+    assert.ok(source.includes(String.raw`/^[1-9]\d*$/.test(rawOrganizationId)`),
+      "RDY-01: noncanonical organizationId selectors must be rejected");
     assert.match(source, /return await buildTenantWorkspaceReadiness\(organizationId\)/);
     assert.doesNotMatch(source, /return await buildReadinessPayload\(/);
     assert.match(loader, /eq\(employees.organizationId, organizationId\)/);
