@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const path = "scripts/qa/tenant-dl01-batch2-http.mjs";
 const src = readFileSync(path, "utf8");
@@ -162,13 +163,22 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.equal(preRun?.status, "COVERED");
   assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
-  assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, 17);
+  assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, 16);
+  assert.equal(verifyWorker360PageCredit(manifest), 16,
+    "Only the exact-source Worker 360 PG16 SSR page proof may reduce the page GAP count");
   const coveredPages = manifest.scopedPages.filter(x => x.status === "COVERED");
-  assert.deepEqual(coveredPages.map(x => x.path), ["src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx", "src/app/hcm/manager-decision-inbox/page.tsx", "src/app/hcm/manager-direct-reports/page.tsx"]);
+  assert.deepEqual(coveredPages.map(x => x.path), [
+    "src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx",
+    "src/app/hcm/manager-decision-inbox/page.tsx",
+    "src/app/hcm/manager-direct-reports/page.tsx",
+    "src/app/hcm/worker-360/page.tsx",
+  ]);
   assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
   assert.equal(coveredPages[1].testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
   assert.equal(coveredPages[2].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
   assert.equal(coveredPages[3].testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
+  assert.equal(coveredPages[4].testedBy?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
+  assert.equal(coveredPages[4].testedBy?.independentSecurityReview, "PENDING");
 });
 test("existing employee CSV export retains prior independent proof, not double-credited", () => {
   const record = manifest.allApiRouteFiles["src/app/api/exports/route.ts"].methods.find(x => x.name === "GET");

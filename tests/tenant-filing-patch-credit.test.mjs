@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
+import {baseTenantManifest} from './helpers/tenant-counts.mjs';
 import {filingEvidence,verifyFilingPatchCredit,FILING_PATH,RECEIPT_FILE} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
 test('only the complete three-leg current-main PG16 receipt authorizes one PATCH',()=>{
@@ -20,9 +21,13 @@ test('changed source or fabricated receipt must be re-executed, never blindly re
   assert.throws(()=>verifyFilingPatchCredit(manifest(),reader),undefined,path);
  }
 });
-test('this pass never changes the eight held candidates or any inherited classified method',()=>{
+test('this pass preserves the seven remaining holds and the BIR credit inherited from main',()=>{
  const m=manifest();
- for(const [route,verb]of [['approvals/[id]','PATCH'],['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST'],['billing','POST'],['bir/annual-employer/candidate','POST']]){
+ for(const [route,verb]of [['approvals/[id]','PATCH'],['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST'],['billing','POST']]){
   const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
  }
+ const base=baseTenantManifest();assert.ok(base?.manifest,'inspectable base required');
+ const path='src/app/api/bir/annual-employer/candidate/route.ts';
+ assert.equal(base.manifest.allApiRouteFiles[path].methods[0].status,'COVERED');
+ assert.deepEqual(m.allApiRouteFiles[path],base.manifest.allApiRouteFiles[path],'preserve exact inherited BIR route and receipt, never count it as this pass');
 });

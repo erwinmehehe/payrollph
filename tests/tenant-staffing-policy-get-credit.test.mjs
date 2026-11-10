@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_ROUTE, STAFFING_GET_HELPER_BLOBS } from
   "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 const load = () => JSON.parse(readFileSync(
@@ -14,7 +15,9 @@ test("source-current dual-mode PG16 proves one provisional staffing GET method o
   assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + (m.metrics.privilegedOperationsTokenOnly ?? 0) + m.metrics.gap,
     liveMethodCount);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
-  assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 17);
+  // Historical 17-page GAP baseline is still valid; the ONLY permissible
+  // 16-page candidate is the source-pinned Worker 360 SSR worker-binding proof.
+  assert.equal(verifyWorker360PageCredit(m), 16);
 });
 test("no invented review, stale source, empty modes, duplicated or borrowed receipts", () => {
   const m = load();
