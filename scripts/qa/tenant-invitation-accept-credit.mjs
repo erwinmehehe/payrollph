@@ -152,8 +152,20 @@ export function verifyInvitationAcceptCredits(m) {
       assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
         "Only both sealed invitation receipts may gain new credit");
     } else {
-      assert.deepEqual(promoted, [],
-        "Already merged invitation receipts cannot authorize new method credits");
+      // The one other promotion allowed on top of the merged invitation credits is the separately sealed BIR candidate POST, and
+      // only with its own provisional, unaccepted receipt (its exact pins are verified by the inventory test's dedicated test).
+      const birPath = "src/app/api/bir/annual-employer/candidate/route.ts";
+      const birPromotions = promoted.filter(key => key === "POST " + birPath);
+      if (birPromotions.length) {
+        const bir = m.allApiRouteFiles[birPath].methods.find(row => row.name === "POST");
+        assert.equal(bir?.testedBy?.file, "scripts/qa/tenant-bir1604c-candidate-post-http.mjs");
+        assert.equal(bir.testedBy.proofPullRequest, 1891);
+        assert.equal(bir.testedBy.independentSecurityReview, "PENDING");
+        assert.equal(bir.testedBy.independentlyAccepted, false);
+        assert.equal(bir.reviewedUncertified, undefined);
+      }
+      assert.deepEqual(promoted, birPromotions,
+        "Already merged invitation receipts cannot authorize unrelated method credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
       const source = baseTenantManifest();

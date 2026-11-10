@@ -34,9 +34,9 @@ test("tampering with exercised tenant route, runner, auth, SQL fixture or workfl
   }
 });
 test("neighboring unproved careers mutations do not receive an implicit credit",()=>{
+  // bir/annual-employer/candidate POST was credited later by its own dedicated proof (#1891) and is guarded there.
   for(const [p,v] of [["src/app/api/documents/route.ts","POST"],
-    ["src/app/api/approvals/[id]/route.ts","PATCH"],
-    ["src/app/api/bir/annual-employer/candidate/route.ts","POST"]])
+    ["src/app/api/approvals/[id]/route.ts","PATCH"]])
       if(p==='src/app/api/documents/route.ts')assert.equal(verifySecurityCredits(manifest),3);
       else assert.equal(manifest.allApiRouteFiles[p].methods.find(x=>x.name===v).status,'GAP');
 });
