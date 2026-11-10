@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { verifyWorkspaceReadinessCredit } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 /**
  * Method-adapter integrity: any "covered" assertion must be based on a
  * current manifest method (GAP or previously covered regression) plus real own success,
@@ -127,20 +128,22 @@ test("real-HTTP and disposable DB proof requirements cannot be weakened", () => 
   assert.match(src, /assert\.equal\(account\.json\?\.profile\?\.id, f\.owners\[idx\]\.id\)/);
 });
 
-test("workspace readiness own employer HTTP 200 remains uncredited, with real victim 403", () => {
+test("workspace readiness GET receives exactly one source-sealed PG16 method credit, not production acceptance", () => {
   const key = "src/app/api/readiness/workspace/route.ts";
   const method = manifest.allApiRouteFiles[key]?.methods.find((m) => m.name === "GET");
-  assert.equal(method?.status, "GAP", "A functional own GET is not a security-accepted whole-method credit");
-  assert.equal(method?.testedBy, null, "Pending independent review; no automatic promotion");
-  const reviewed = method?.reviewedUncertified;
+  assert.equal(verifyWorkspaceReadinessCredit(manifest), 1);
+  assert.equal(method?.status, "COVERED", "Only a complete reviewed method receipt grants one ledger credit");
+  assert.equal(method?.testedBy?.independentlyAccepted, false, "Method ledger credit is not security acceptance");
+  const reviewed = method?.testedBy;
   assert.equal(reviewed?.routeBlobSha, "26378409dcfddc6bb0b726433e6896b3487a4cf7");
   assert.equal(reviewed?.routeBlobSha, manifest.allApiRouteFiles[key].gitBlobSha);
   assert.equal(reviewed?.loaderBlobSha, "782853dada317783100dd1ee40004fa7e6126244");
   assert.equal(reviewed?.proofBlobSha, "228db712a89f66ef775116b62e909f06cb1e6bb9");
   assert.equal(reviewed?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
-  assert.equal(reviewed?.ownStatus, 200);
-  assert.equal(reviewed?.foreignStatus, 403);
-  assert.equal(reviewed?.coverageCredits, 0);
+  assert.equal(reviewed?.ownSuccesses, 3);
+  assert.equal(reviewed?.foreignDenials, 4);
+  assert.equal(reviewed?.negativeChecks, 15);
+  assert.equal(reviewed?.coverageCredits, 1);
   assert.equal(reviewed?.independentlyAccepted, false);
   assert.equal(reviewed?.productionTested, false);
   assert.match(harness, /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
