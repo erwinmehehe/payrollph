@@ -5031,6 +5031,21 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.workflowJobId, 128731654457);
         continue;
       }
+      // POST bir/annual-employer/candidate: dedicated two-attacker receipt (#1891, no provider, draft candidate only); pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-bir1604c-candidate-post-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/bir/annual-employer/candidate/route.ts POST", "No unrelated method may reuse the BIR candidate evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.externalProviderCalled, false);
+        assert.equal(proof.birFilingMade, false);
+        assert.equal(proof.proofPullRequest, 1891);
+        assert.equal(proof.mergedProofCommit, "e6dcc76783ed5346574d21489c66dd64184fd7c6");
+        assert.equal(proof.verifiedPrHeadSha, "697b8b5cb8c991c4450aadabe461b41ae3fb7697");
+        assert.equal(proof.workflowRunId, 42738761756);
+        assert.equal(proof.workflowJobId, 129574359597);
+        continue;
+      }
       // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt (test-only exact-host provider preload); pins are checked by the dedicated test at the end of this file.
       if (proof?.file === "scripts/qa/tenant-pos-demand-http.mjs") {
         assert.ok(["src/app/api/workforce/demand-observations/loyverse/route.ts", "src/app/api/workforce/demand-observations/square-sandbox/route.ts"].includes(path),
@@ -7380,8 +7395,8 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
       route + " " + field + ": changed proof citation; repin only after re-running exact-head PG16");
     assert.equal(proof.line, proof.ownPositiveLine);
   }
+  // The separately source-pinned BIR candidate POST is covered; never a held GAP.
   const held = [
-    ["bir/annual-employer/candidate", "POST"],
     ["workforce-planning", "POST"],
     ["workforce-planning", "PATCH"], ["workforce-planning/scenarios", "POST"],
   ];
@@ -8031,4 +8046,58 @@ test("multi-entity transfers credit (POST and PATCH) requires the exact passing 
   for (const token of ["getSessionUser(", "enforceSameOriginMutation(", "requireSensitiveActionMfa(", "resolveMultiEntityContext(", "canActOnEntityTransfer(", "pg_advisory_xact_lock"]) {
     assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
   }
+});
+
+test("BIR annual employer candidate POST credit requires the exact passing run, byte-pinned inputs, no filing and every cited proof line", () => {
+  const harnessFile = "scripts/qa/tenant-bir1604c-candidate-post-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflowFile = ".github/workflows/bir-1604c-candidate-qa.yml";
+  const workflow = readFileSync(workflowFile, "utf8");
+  for (const token of ["image: postgres:16", "BIR_1604C_DAT_CANDIDATE_ENABLED=true", "node --import tsx scripts/qa/tenant-bir1604c-candidate-post-http.mjs",
+    "node --import tsx scripts/bir-1604c-synthetic-browser.mjs"]) assert.ok(workflow.includes(token), "workflow lacks " + token);
+  assert.ok(!workflow.includes("secrets."), "the proof workflow must hold no secret");
+  for (const token of ['["BIR_SYNTHETIC_BROWSER_QA", "true"]', "credits: 0", "allThreeModesExercised: true", "acceptedByBIR: false", "check(refusals === 22,"])
+    assert.ok(harness.includes(token), "proof lost " + token);
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  const routePath = "src/app/api/bir/annual-employer/candidate/route.ts";
+  const route = readFileSync(routePath, "utf8");
+  const api = manifest.allApiRouteFiles[routePath];
+  assert.equal(api.gitBlobSha, "431fcc6375fb6d1a8a318bd70fb77ef47f40941a", "the proof was written against this exact route");
+  assert.equal(gitBlobSha(Buffer.from(route)), api.gitBlobSha);
+  const method = api.methods.find(entry => entry.name === "POST");
+  assert.equal(method.status, "COVERED");
+  assert.equal(method.reviewedUncertified, undefined, "the superseded template-only hold must be gone");
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.providerMode, "none-configured");
+  assert.equal(proof.externalProviderCalled, false);
+  assert.equal(proof.birFilingMade, false);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 bir-annual-employer-candidate-post PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the proof changed; re-run the workflow and re-credit");
+  assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-bir1604c-candidate-post-contract.test.mjs")));
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  assert.equal(proof.routeBlobSha, api.gitBlobSha);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  assert.equal(proof.ownPositiveLine, proof.ownDownloadLine);
+  cites(proof.ownTemplateLine, "Owned reviewer gets a real reviewed-source template", "own template anchor");
+  cites(proof.ownCheckLine, "Real own reviewed-source candidate check", "own check anchor");
+  cites(proof.ownDownloadLine, "Real own reviewed-source draft DAT download", "own download anchor");
+  cites(proof.foreignDenialLine, 'Authenticated foreign employer cannot " + mode + " victim source', "foreign organization denial anchor");
+  cites(proof.forgedSelectorLine, 'Real victim legal-employer selector rejected for " + mode', "forged legal-employer anchor");
+  cites(proof.forgedEmployeeLine, "Foreign worker ID cannot pass an own", "forged employee anchor");
+  cites(proof.unchangedDbLine, "Real victim source, annual rows and audit immutable after denied", "unchanged-snapshot anchor");
+  cites(proof.victimIdOrderingLine, "victim.org.id > 6 && victim.worker.id > 6 && victim.entity.id > 6 &&", "persisted victim ID above six anchor");
+  cites(proof.anonymousLine, 'Anonymous caller cannot "', "anonymous refusal anchor");
+  cites(proof.crossSiteLine, 'A cross-site mutation cannot "', "cross-site refusal anchor");
+  cites(proof.malformedBodyLine, 'A malformed "', "malformed body anchor");
+  cites(proof.staleDigestLine, "A stale source digest cannot produce a review template", "stale digest anchor");
+  cites(proof.protocolRefusalCountLine, "check(refusals === 22,", "protocol refusal count anchor");
+  cites(proof.twoAttackersLine, 'for (const name of ["ATTA", "ATTB", "VICTIM"])', "two independent attackers anchor");
+  // The route must keep the bounds the proof exercises.
+  for (const token of ["enforceSameOriginMutation(request)", "getSessionUser()", "requireSensitiveActionMfa(user)", "assertOrganizationRole(", "access?.companyWide",
+    "assertBirAnnualEntityAccess(", "loadBirAnnualEmployerSource("]) assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
 });
