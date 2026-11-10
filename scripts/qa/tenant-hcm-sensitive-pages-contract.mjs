@@ -116,16 +116,93 @@ export function assertNoTenantLeak(result, employers, label, actor = null) {
     assert.ok(!decoded.includes(secret), label + ": own confidential source projected");
 }
 
-// Next SSR inserts React comments between literal and dynamic text. Verify
-// visible HTML text, excluding scripts/styles so an RSC payload cannot stand
-// in for an actually rendered workflow or worker.
+// Extract visible text nodes with a scanner, not an HTML-stripping regexp.
+// This is a fail-closed QA proof helper; extracted text is never rendered as HTML.
+const NON_VISIBLE_ELEMENTS = new Set(["head", "script", "style", "title", "template", "noscript", "svg", "textarea"]);
+const RAW_TEXT_ELEMENTS = new Set(["script", "style", "title", "textarea"]);
+const invalidHtml = () => { throw new Error("HCM_SSR_REFUSED: malformed HTML in SSR proof"); };
+const isNameChar = char => {
+  const code = char.charCodeAt(0);
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122) ||
+    (code >= 48 && code <= 57) || char === "-" || char === ":";
+};
+
+function readHtmlToken(html, at) {
+  if (html.startsWith("<!--", at)) {
+    const end = html.indexOf("-->", at + 4);
+    if (end === -1) invalidHtml();
+    return { end: end + 3, name: null, closing: false };
+  }
+  let cursor = at + 1;
+  const special = html[cursor] === "!" || html[cursor] === "?";
+  const closing = html[cursor] === "/";
+  if (closing) cursor++;
+  const nameStart = cursor;
+  if (!special) {
+    while (cursor < html.length && isNameChar(html[cursor])) cursor++;
+    if (cursor === nameStart) invalidHtml();
+  }
+  const name = special ? null : html.slice(nameStart, cursor).toLowerCase();
+  let quote = null;
+  let lastBare = "";
+  for (; cursor < html.length; cursor++) {
+    const char = html[cursor];
+    if (quote) {
+      if (char === quote) quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === ">") {
+      return { end: cursor + 1, name, closing, selfClosing: lastBare === "/" };
+    } else if (!/\s/.test(char)) {
+      lastBare = char;
+    }
+  }
+  invalidHtml();
+}
+
 function renderedText(html) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;|&#160;/g, " ")
-    .replace(/\s+/g, " ").trim();
+  if (typeof html !== "string") invalidHtml();
+  const parts = [];
+  const hidden = [];
+  let cursor = 0;
+  let rawElement = null;
+  while (cursor < html.length) {
+    if (rawElement) {
+      // React/Next SSR may split text with comments; script payloads, CSS,
+      // titles and textarea values cannot stand in for visible workflow data.
+      // Inside raw text, '<' is not a nested HTML element.
+      const nextClose = html.indexOf("</", cursor);
+      if (nextClose === -1) invalidHtml();
+      const tag = readHtmlToken(html, nextClose);
+      if (tag.closing && tag.name === rawElement) {
+        if (hidden.at(-1) !== rawElement) invalidHtml();
+        hidden.pop();
+        rawElement = null;
+        cursor = tag.end;
+      } else {
+        cursor = nextClose + 2;
+      }
+      continue;
+    }
+    const nextTag = html.indexOf("<", cursor);
+    if (nextTag === -1) {
+      if (hidden.length === 0) parts.push(html.slice(cursor));
+      break;
+    }
+    if (hidden.length === 0) parts.push(html.slice(cursor, nextTag));
+    const tag = readHtmlToken(html, nextTag);
+    cursor = tag.end;
+    if (tag.closing) {
+      if (hidden.at(-1) === tag.name) hidden.pop();
+    } else if (NON_VISIBLE_ELEMENTS.has(tag.name) &&
+               (!tag.selfClosing || RAW_TEXT_ELEMENTS.has(tag.name))) {
+      hidden.push(tag.name);
+      if (RAW_TEXT_ELEMENTS.has(tag.name)) rawElement = tag.name;
+    }
+  }
+  if (hidden.length > 0 || rawElement) invalidHtml();
+  return parts.join("").replaceAll("&nbsp;", " ").replaceAll("&#160;", " ")
+    .replaceAll("&#xa0;", " ").replace(/\s+/g, " ").trim();
 }
 
 export function assertOwnMonitor(result, actor, process, employers) {
