@@ -6810,7 +6810,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           : "82327e4d8580af2abe503e7a104321e854dc84f7";
         const pageBlobSha = certificate
           ? "39e1d703e37c637d1b321d09eaa49df0b82d4c21"
-          : "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff";
+          : "e55809f26075c142240675826a0c353d403a20e6";
         assert.equal(entry.status, "GAP", "Unaccepted tax-review SSR remains a GAP");
         assert.equal(entry.testedBy, undefined, "No page/action proof may be credited");
         assert.equal(baseline.app[path], originalPageBlobSha, "Preserve original unaudited entry SHA");
@@ -6835,9 +6835,29 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 106, foreignDenialLine: 112, unchangedDbLine: 138,
           previouslyPassingHead: "13e77283b83597738803afa843f3feea831080e8",
           previouslyPassingJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42622354364/job/129177441243",
+          ...(certificate ? {} : { workerBinding: {
+            kind: "prior-employer-selected-worker-legal-entity-SSR-PG16-uncredited",
+            originalPageBlobSha: "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff",
+            pageBlobSha: "e55809f26075c142240675826a0c353d403a20e6",
+            helperFile: "src/lib/tenant-prior-review-worker.ts",
+            helperBlobSha: "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
+            proofFile: "scripts/qa/tenant-prior-review-worker-http.mjs",
+            proofBlobSha: "b4c55c0d9dceb77364a330ebc5222d0c49c1158d",
+            contractFile: "scripts/qa/tenant-prior-review-worker-contract.mjs",
+            contractBlobSha: "428b115e1814942fdfbb43f799010745af55f3de",
+            testFile: "tests/tenant-prior-review-worker.test.ts",
+            testBlobSha: "4869a764339591315eab51d217f577f25930b2d3",
+            contractTestFile: "tests/tenant-prior-review-worker-contract.test.mjs",
+            contractTestBlobSha: "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
+            workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
+            workflowBlobSha: "beda36c25495f84d0cbc85030f9cce47f9faa32a",
+            proofStatus: "EXACT_PR_HEAD_PG16_PENDING",
+            pageActionCredits: 0, apiMethodCredits: 0,
+            independentlyAccepted: false, productionCertified: false,
+          }}),
           pageActionCredits: 0, apiMethodCredits: 0,
           independentlyAccepted: false, productionCertified: false,
-        }, "Only the executed, exact-source and uncredited tax-review GET candidate is allowed");
+        }, "Only uncredited, pinned tax-review source and pending worker-binding proof allowed");
         assert.match(entry.reason, /^Still GAP: #1882 /);
         assert.equal(entry.hasAction, false, "SSR evidence does not prove client form actions");
         for (const field of ["ids", "business", "guards"]) {
@@ -6860,6 +6880,39 @@ test("page and server-action inventory cannot silently omit new or changed busin
         ]) {
           assert.equal(gitBlobSha(readFileSync(file)), sha,
             "Tax-review evidence changed without renewed independent test: " + file);
+        }
+        if (!certificate) {
+          const binding = reviewed.workerBinding;
+          assert.equal(binding.pageBlobSha, current);
+          assert.equal(binding.proofStatus, "EXACT_PR_HEAD_PG16_PENDING");
+          assert.equal(binding.pageActionCredits, 0);
+          assert.equal(binding.apiMethodCredits, 0);
+          assert.equal(binding.independentlyAccepted, false);
+          for (const [file, sha] of [
+            [binding.helperFile, binding.helperBlobSha],
+            [binding.proofFile, binding.proofBlobSha],
+            [binding.contractFile, binding.contractBlobSha],
+            [binding.testFile, binding.testBlobSha],
+            [binding.contractTestFile, binding.contractTestBlobSha],
+            [binding.workflowFile, binding.workflowBlobSha],
+          ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Uncredited prior-employer worker proof changed; re-pin and rerun: " + file);
+          const entityGate = actual.indexOf("await resolveMultiEntityContext(");
+          const workerGate = actual.indexOf("const [worker] = await db.select(");
+          const employeeCheck = actual.indexOf("eq(employees.organizationId, organizationId)");
+          const legalGrant = actual.indexOf("assertEntityResource(entityScope.context, worker.legalEntityId)");
+          const mountGate = actual.indexOf("<YearEndPriorReview");
+          assert.ok(entityGate > 0 && workerGate > entityGate && employeeCheck > workerGate &&
+            legalGrant > employeeCheck && mountGate > legalGrant,
+            "Selected worker and legal-employer grant must be proved before SSR client");
+          const newProof = readFileSync(binding.proofFile, "utf8");
+          for (const required of [
+            'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+            "pathFor(a.org.id, otherWorker.id)",
+            "pathFor(actor.org.id, other.worker.id)",
+            "pageActionCredits: 0, apiMethodCredits: 0",
+          ]) assert.ok(newProof.includes(required),
+            "Pending PG16 proof must include own, victim and legal-employer denial");
         }
         const session = actual.indexOf("await getSessionUser()");
         const selector = actual.indexOf("explicitPayrollReviewEmployerId(query.organizationId)");
