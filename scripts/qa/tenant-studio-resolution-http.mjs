@@ -128,7 +128,7 @@ export async function proveStudioResolution() {
           RAISE EXCEPTION 'FICTIONAL_STUDIO_RESOLUTION_AUDIT_VETO';
         END IF;
         RETURN NEW;
-      END $$`);
+      END; $$`);
     async function veto(actor, transition) {
       const hits = async () => {
         const row = (await pool.query("SELECT last_value, is_called FROM qa_studio_resolution_veto_hits")).rows[0];
