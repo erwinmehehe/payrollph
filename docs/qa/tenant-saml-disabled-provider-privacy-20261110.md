@@ -1,34 +1,36 @@
-# SAML-01: Disabled-provider privacy boundary (2026-11-10)
+# SAML-01: Disabled SAML login provider-enumeration boundary (2026-11-10)
 
-**Status:** DRAFT / SECURITY REVIEW PENDING / ZERO NEW TENANT-COVERAGE CREDITS.
+**Status:** DRAFT / ZERO NEW TENANT-COVERAGE CREDITS / INDEPENDENT SECURITY REVIEW PENDING.
 
 ## Source-identified issue
 
-SAML assertion verification is not installed (`samlRuntimeReady()` is false). Nevertheless, three anonymous SAML endpoints on the reviewed `main` source used caller-supplied provider IDs to read employer identity-provider rows:
+The SAML assertion verifier is not installed (`samlRuntimeReady()` returns false), but two unauthenticated login endpoints on the audited `main` path use caller-selected provider IDs to read employer identity-provider rows:
 
-- `GET /api/auth/saml/start/[providerId]` returned 404 for unknown providers but 503 plus `configured` and `enabled` for configured providers.
-- `POST /api/auth/saml/acs/[providerId]` returned 404 or 503 depending on configuration.
-- `GET /api/auth/saml/metadata/[providerId]` returned 404 for unknown providers or 200 XML for configured providers.
+- `GET /api/auth/saml/start/[providerId]`: a known SAML provider returned 503 with `configured` and `enabled`, while an unknown provider returned 404.
+- `POST /api/auth/saml/acs/[providerId]`: a known SAML provider returned 503 while an unknown provider returned 404.
 
-Those distinctions disclosed whether a configured SAML provider ID existed without proving employer authorization. This is **source-identified tenant configuration enumeration**, **not a demonstrated exploitable production incident**.
+A caller could therefore distinguish configured from missing providers without having employer authorization. This is a **source-identified configuration-enumeration boundary**, not proof of an exploited production incident.
 
-## Bounded fix
+## Bounded change: start + ACS only
 
-While the SAML verifier remains disabled, all three routes now return the identical 503 JSON `SAML_RUNTIME_NOT_READY` refusal, with `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. No provider row, employer ID, enablement state or XML metadata is queried or returned. A shared, deliberately non-database helper produces the refusal. No OIDC discovery, OIDC authentication, provider credential, SQL migration or live feature flag is changed.
+Both disabled login endpoints now return an identical, non-cacheable `503 SAML_RUNTIME_NOT_READY` response for all provider IDs, without querying the employer/provider database. The shared response adds `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. No provider configuration, enabled state or credentials are returned.
 
-**Compatibility caveat:** The former GET metadata endpoint could have been used to obtain XML during preconfiguration, even though SAML sign-in was disabled. This change intentionally blocks that anonymous path. An identity/security owner must decide whether preconfiguration requires a separately authenticated metadata export before merging.
+**Preserved deliberately:** `GET /api/auth/saml/metadata/[providerId]` remains untouched. The repository already contains a dedicated fictional-PG16 real-HTTP proof and source contract from merged PR #1771 for its anonymous XML metadata behavior. That separate **PUBLIC-BY-DESIGN candidate is unaccepted** and carries an explicit `PENDING_IDENTITY_SECURITY_OWNER_DECISION` policy hold; this PR does **not** reinterpret or silently break that proof. The public metadata existence/disclosure policy requires a separate identity/security decision, not this login-response repair.
 
-## Evidence and acceptance
+No active OIDC discovery, OIDC login, SQL schema, feature flag, SAML verifier, credentials, money or production routes are enabled or modified.
 
-- Source + tests: `tests/tenant-saml-disabled-boundary.test.ts` requires identical responses across IDs and across start/metadata/ACS; no provider lookup; no XML; no caching; exact route blob pins and **all three methods remain GAP** in the tenant ledger.
-- Manifest entries are source-reconciled with a narrow zero-credit exception in the inventory drift guard, preventing unrelated changed GAPs from being silently admitted.
-- `498` methods, `450 COVERED`, `22 GAP`, `15 PUBLIC-BY-DESIGN`, `11 PRIVILEGED-OPERATIONS-TOKEN-ONLY` and `17` scoped page/action GAPs remain **unchanged on this proposal**.
-- New complete-method credits: **0**. Deliberately disabled SAML cannot supply legitimate own-employer SAML success or real foreign-employer rejection. Do not mark the three methods COVERED from refusal-only tests.
-- Pending: exact final-head typecheck, tests, lint/security CI; independent identity/security review; maintainer confirmation of SAML metadata preconfiguration compatibility.
-- If SAML is later enabled, require its **own** independently reviewed fixture with two legitimate employers, a higher-ID foreign victim, forged/missing-provider denials, replay/tamper checks, and unchanged private DB state. No reuse of an OIDC or disabled-state receipt.
+## Checks and review gates
 
-## Separation and merge order
+- `tests/tenant-saml-disabled-boundary.test.ts`: identical start/ACS responses over varied IDs, no provider disclosure, no caching and no DB/metadata lookup, with exact route SHA pins.
+- Existing `tests/tenant-saml-metadata-public.test.mjs` and `.github/workflows/tenant-saml-metadata-public-http.yml`: preserved without modification; their existing anonymous XML proof and policy hold remain operative.
+- `scripts/qa/tenant-isolation-coverage-manifest.json`: only two SAML login handler source SHA records updated. Both remain `GAP`, with `testedBy: null` and a separate exact-source zero-credit review hold.
+- `tests/tenant-isolation-coverage-inventory.test.mjs`: narrowly permits this source-pinned, two-route-only change without weakening the unchanged-GAP policy for any other route.
+- Ledger on this draft remains **498 methods: 450 COVERED / 22 GAP / 15 PUBLIC-BY-DESIGN / 11 TOKEN-ONLY**, plus **17 page/action GAPs**. **New method credits: 0.**
+- **Pending:** exact final-head tests, typecheck, lint/security CI, independent identity and security review, current-main reconciliation retaining disjoint coverage credits and approved metadata policy.
+- If SAML login is later enabled, require independent real own-employer success, foreign higher-ID victim and forged selector denial, immutable cross-tenant database state, and a separately reviewed acceptance decision. A disabled refusal cannot be credited as tenant-wide method proof.
 
-This family starts at `main@e6dcc76783ed5346574d21489c66dd64184fd7c6`, not at any open PR head. It does not modify Worker 360, hire-to-payroll, BIR, filing validations, or the active OIDC discovery code in PR #1894. Shared `scripts/qa/tenant-isolation-coverage-manifest.json` and `tests/tenant-isolation-coverage-inventory.test.mjs` **also change in other open PRs**; synchronize and retain every independently evidenced entry before integration. Re-run exact integrated-head CI and source pins after the last merge.
+## Branch separation
 
-**Not authorized:** independent security acceptance, SAML sign-in, deployment, production operation, credentials, provider activation, payroll/payment/payout/filing, or any tenant-wide security certification.
+This work began at `main@e6dcc76783ed5346574d21489c66dd64184fd7c6`, with no open PR head as a parent. It does not modify OIDC #1894, Worker 360 #1887, hire-to-payroll #1888, filing validations #1893 or BIR #1895. The manifest and global inventory test are shared change hotspots; reconcile them before merge and rerun exact integrated-head CI.
+
+**No tenant-isolation certification, production release, SAML enablement, payroll/payout/provider action, or security acceptance is granted.**
