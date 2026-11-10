@@ -99,11 +99,17 @@ export function verifyMonitorSource() {
 export function normalizeSsrText(html) {
   return html.replace(/<!--\s*-->/g, "").replaceAll("&amp;", "&");
 }
-export function noForeignProcess(html, subjects, label) {
+export function noForeignProcess(html, subjects, label, { allowRequestIdReflection = false } = {}) {
   const visible = normalizeSsrText(html);
   for (const subject of subjects) {
-    for (const value of [subject.marker, subject.org.name,
-      subject.process?.sourceKey, subject.process?.id && "processId=" + subject.process.id]) {
+    // A caller knows the numeric process ID they put in the requested URL.
+    // Next.js may serialize that URL into its generic 404 response; numeric
+    // selector reflection alone does not imply a private process disclosure.
+    // On successful own-employer pages, however, foreign process links are forbidden.
+    const confidential = [subject.marker, subject.org.name, subject.process?.sourceKey];
+    if (!allowRequestIdReflection && subject.process?.id)
+      confidential.push("processId=" + subject.process.id);
+    for (const value of confidential) {
       if (value) assert.ok(!visible.includes(String(value)),
         label + ": foreign process/employer marker disclosed: " + String(value));
     }
@@ -131,5 +137,9 @@ export function assertDeniedMonitorPage(response, subjects, label) {
     label + ": private monitor shell mounted on denial");
   assert.ok(!response.text.includes("Recorded workflows"),
     label + ": private workflow list mounted on denial");
-  noForeignProcess(response.text, subjects, label);
+  // Never render any linked private workflow on a denied page. The rejected
+  // request's own processId query string can appear in Next router metadata.
+  assert.doesNotMatch(normalizeSsrText(response.text), /<a\\b[^>]*\\bhref=["'][^"']*processId=/i,
+    label + ": denied response rendered a process link");
+  noForeignProcess(response.text, subjects, label, { allowRequestIdReflection: true });
 }
