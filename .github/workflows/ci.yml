@@ -351,6 +351,15 @@ jobs:
           name: payrollph-golden-payroll-phase10
           path: qa-artifacts/golden-payroll-phase10-reconciliation.json
           retention-days: 14
+      - name: Run loan and deduction golden reconciliation (Phase 11)
+        run: npx tsx scripts/golden-payroll-phase11.ts
+      - name: Upload Phase 11 loan and deduction reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase11
+          path: qa-artifacts/golden-payroll-phase11-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
