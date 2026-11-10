@@ -5,8 +5,9 @@ import { SAML_RUNTIME_BLOCK_REASON } from "@/lib/saml";
  * runtime is installed, anonymous requests must not be able to determine
  * whether a particular tenant has an SAML provider configured or enabled.
  *
- * All provider IDs and all three public SAML entrypoints intentionally share
- * the same non-cacheable refusal; there are no database reads here.
+ * Start and ACS intentionally share the same non-cacheable refusal for every
+ * provider ID; neither endpoint performs a database read. Public service-provider
+ * metadata remains governed by a separate, unaccepted policy review.
  */
 export function samlDisabledBoundaryResponse(): Response {
   return Response.json({
