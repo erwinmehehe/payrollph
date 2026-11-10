@@ -100,14 +100,22 @@ export function noPrivateMarkers(html, employers, context) {
   }
 }
 
+// React SSR can split adjacent text interpolations with empty HTML comments,
+// e.g. "Employer #<!-- -->1". Compare visible text without weakening
+// the required headings, employer/worker IDs, or secret-marker exclusions.
+function visibleSsrText(html) {
+  return html.replace(/<!--\s*-->/g, "");
+}
+
 export function assertOwnedHirePage(response, actor, worker, employers) {
   assert.equal(response.status, 200, "HIRE_REVIEW: real own worker SSR 200 required");
   assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+  const visible = visibleSsrText(response.text);
   for (const value of [
     "Hire-to-payroll input evidence", "Recorded source evidence",
     "Current employment record", "Payroll approval, filing and payout",
     "Employer #" + actor.org.id, "Worker #" + worker.id,
-  ]) assert.ok(response.text.includes(value), "HIRE_REVIEW: incomplete own SSR " + value);
+  ]) assert.ok(visible.includes(value), "HIRE_REVIEW: incomplete own SSR " + value);
   assert.ok(!response.text.includes("input sources are temporarily unavailable"),
     "HIRE_REVIEW: own HTTP 200 cannot be the loader-failure fallback");
   noPrivateMarkers(response.text, employers, "own SSR");
@@ -115,8 +123,9 @@ export function assertOwnedHirePage(response, actor, worker, employers) {
 
 export function assertDeniedHirePage(response, employers, label) {
   assert.equal(response.status, 404, label + ": hard 404 required");
+  const visible = visibleSsrText(response.text);
   for (const subject of employers) {
-    assert.ok(!response.text.includes("Employer #" + subject.org.id + " · Worker #"),
+    assert.ok(!visible.includes("Employer #" + subject.org.id + " · Worker #"),
       label + ": worker binding leaked");
   }
   assert.ok(!response.text.includes("Hire-to-payroll input evidence"),
