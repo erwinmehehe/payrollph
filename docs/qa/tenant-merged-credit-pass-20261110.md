@@ -1,13 +1,14 @@
 # Merged-proof credit pass — SOLO_VERIFIED_DEV_RECOVERY
 
-Based on `origin/main@75becb095ee209c88145c237a53afcb5b1e570e3`.
-Synced by ordinary merge with `main@fcd688d60728532767f58f0ce1f002d2d5bdb4f5`
-after readiness/golden Phase 10 landed. All nine route blobs still match their
-merged proof sources; filing runtime/proof inputs are byte-identical. The
-executed HTTP receipt remains honestly labelled with its actual `75becb095`
-source; a fresh final-PR-head CI result is not claimed in this document.
-Before: **450 COVERED / 22 GAP**. Proposed after this one-method pass:
-**451 COVERED / 21 GAP**, among 498 methods (15 public, 11 operator-token-only).
+The filing three-leg HTTP receipt ran on `main@75becb095ee209c88145c237a53afcb5b1e570e3`.
+The PR branch has since synced with newer `main`, including the separately merged
+#1891 BIR candidate proof and #1895 provisional BIR method credit. All nine
+candidate route blobs match their merged proof sources; filing runtime/proof
+inputs are byte-identical. The historical filing receipt retains its actual
+`75becb095` source SHA; it is not misrepresented as a final-PR-head execution.
+Before this one-method proposal on current main: **451 COVERED / 21 GAP**.
+After the one filing PATCH credit: **452 COVERED / 20 GAP**, among 498 methods
+(15 public and 11 operator-token-only).
 No route, identity method, page/action, existing credit or classification changed.
 
 | Candidate | Manifest says missing | Decision and exact closure requirement |
@@ -20,7 +21,7 @@ No route, identity method, page/action, existing credit or classification change
 | GET marketing/leads | Exact-current-head credit reconciliation absent | **HELD.** #1848 is an allowlisted recent-MFA global aggregate report, not an employer-private read. It proves privacy/role refusals, not two tenant owners denied a genuine victim-only report. Needs an approved operator classification or separately scoped contract; do not fabricate tenant-denial credit from global aggregate success. |
 | POST automation-studio | No whole-method own/victim proof linked | **HELD.** #1878 tests only triage-operational-case / acknowledge. Needs all remaining accepted action/transition positives and matching victim, forged-resource and unchanged-state proof with required flags OFF. |
 | POST billing | No whole-method own/victim proof linked | **HELD.** #1874 supplies real two-owner 201s, forged/victim 403 and unchanged SQL using exact-host fake PayMongo transport with no real provider. Its fixture creates victim third, asserts only relative ordering, and never proves persisted victim IDs above six as the closure plan requires. No fresh main HTTP receipt; workflow is PR-only. Strengthen fixture ordering without weakening the contract, then execute exact-head PG16 with all required release flags OFF. |
-| POST bir/annual-employer/candidate | Reason still says check/download and >6 floor missing | **HELD; reason is stale, not evidence of absent source cases.** Merged `90325afde` adds actual template/check/download, foreign organization/entity/worker denials and >6 assertions. But this pass has no exact-current-head OFF-only execution receipt. The existing browser workflow also starts a separate final-pay/centavos flag-ON server. Needs an isolated OFF-only three-mode PG16 HTTPS reproof; do not run that mixed-flag workflow or borrow its template-only historic receipt. |
+| POST bir/annual-employer/candidate | Already provisionally credited on main by #1895 after #1891 proof | **INHERITED — NO NEW CREDIT.** The dedicated fictional PG16 three-action (template/check/download) proof and source-pinned provisional method credit were merged before this filing PATCH proposal. Keep the BIR receipt and pending independent security/tax review unchanged; neither double-count it nor revert to the earlier template-only GAP hold. |
 
 ## Receipt, flags and source protection
 
@@ -71,8 +72,8 @@ merges first. Draft only; owner decides merge. No production acceptance.
   zero warning-baseline violations**. No application source is changed by this PR.
 - Exact diff audit: only the filing PATCH method record changes; every other
   method, existing proof/classification, route blob and scoped page is identical
-  to current main. New open BIR refusal work #1891 is not duplicated here.
-- NOT_RUN: new HTTP proofs for the eight HELD methods, real provider/agency
+  to current main. The separately merged #1891 BIR proof and #1895 credit remain inherited unchanged and are not double-counted.
+- NOT_RUN: new HTTP proofs for the seven still-HELD methods, real provider/agency
   operations, production/staging acceptance and final draft-PR-head CI.
 
 The three-leg PG16 HTTP execution is real GitHub Actions, not a fabricated
