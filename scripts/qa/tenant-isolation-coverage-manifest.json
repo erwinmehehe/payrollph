@@ -1652,15 +1652,36 @@
       ]
     },
     "src/app/api/auth/sso/resolve/route.ts": {
-      "gitBlobSha": "ecf9eb2ff759a4b39300abea5193356038aaad71",
+      "gitBlobSha": "740e3dbb4325a55f5556ea14e04b6ec1f3c99137",
       "route": "auth/sso/resolve",
       "methods": [
         {
           "name": "POST",
-          "line": 9,
+          "line": 12,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "reason": "Still GAP: anonymous SSO discovery now binds each verified email domain to an enabled OIDC provider in the same employer and refuses malformed selectors or non-distributed throttling. A dedicated fictional PG16 production-mode HTTP candidate is required on the exact final head; public-discovery policy, independent identity/security review and complete method acceptance remain pending; zero credits.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "sso-discovery-domain-provider-org-match-PG16-HTTP-uncredited",
+            "originalRouteBlobSha": "ecf9eb2ff759a4b39300abea5193356038aaad71",
+            "routeBlobSha": "740e3dbb4325a55f5556ea14e04b6ec1f3c99137",
+            "helperFile": "src/lib/tenant-sso-discovery.ts",
+            "helperBlobSha": "713b25dd4afad7a58afc5a01b69e55012d1b7613",
+            "proofFile": "scripts/qa/tenant-sso-discovery-http.mjs",
+            "proofBlobSha": "0024c4376c0dc771ff71eea697b91ec8c74aad3a",
+            "proofContractFile": "scripts/qa/tenant-sso-discovery-proof.mjs",
+            "proofContractBlobSha": "b4df7d81271f143172214d43daf6440b478ef0c9",
+            "contractTestFile": "tests/tenant-sso-discovery-contract.test.mjs",
+            "contractTestBlobSha": "bcbb051e1d3d680d646729dd01f1ddbbacc35085",
+            "unitTestFile": "tests/tenant-sso-discovery.test.ts",
+            "unitTestBlobSha": "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
+            "workflowFile": ".github/workflows/tenant-sso-discovery-http.yml",
+            "workflowBlobSha": "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
