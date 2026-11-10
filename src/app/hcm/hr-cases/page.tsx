@@ -5,7 +5,6 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import { hrCaseRoleCanWork } from "@/lib/hr-case-policy";
-import { explicitHrCaseEmployerId } from "@/lib/hr-case-tenant-scope";
 import { EmployeeHrCaseStaffQueue } from "@/components/employee-hr-case-staff-queue";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +22,9 @@ export default async function HrCasesPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const { organizationId: raw } = await searchParams;
-  const organizationId = explicitHrCaseEmployerId(typeof raw === "string" ? [raw] : []);
-  if (!organizationId) notFound();
+  if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) notFound();
+  const organizationId = Number(raw);
+  if (!Number.isSafeInteger(organizationId)) notFound();
 
   const access = await getAccess(user.id, organizationId);
   if (!access || (
