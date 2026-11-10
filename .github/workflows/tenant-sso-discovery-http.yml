@@ -1,0 +1,112 @@
+name: Tenant SSO discovery domain boundary (fictional PG16 HTTP, zero credits)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'src/app/api/auth/sso/resolve/route.ts'
+      - 'src/lib/tenant-sso-discovery.ts'
+      - 'scripts/qa/tenant-sso-discovery-*.mjs'
+      - 'tests/tenant-sso-discovery*'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'tests/tenant-isolation-coverage-inventory.test.mjs'
+      - '.github/workflows/tenant-sso-discovery-http.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-sso-discovery-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  sso-discovery-tenant-boundary:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_SSO_DISCOVERY_MODE: isolated-ci-only
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      OPENAI_API_KEY: ''
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export exact localhost-only production Next and PostgreSQL fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          echo 'TENANT_SSO_DISCOVERY_MODE=isolated-ci-only' >> "$GITHUB_ENV"
+      - name: Proof contract, parser tests and source-pinned GAP checks
+        run: |
+          node --check scripts/qa/tenant-sso-discovery-proof.mjs
+          node --check scripts/qa/tenant-sso-discovery-http.mjs
+          node --test tests/tenant-sso-discovery-contract.test.mjs
+          node --import tsx --test tests/tenant-sso-discovery.test.ts
+      - name: Ephemeral test-only keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next for localhost
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-sso-discovery.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$SECURITY_SMOKE_URL/login" >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 40 /tmp/tenant-sso-discovery.log || true
+          exit 1
+      - name: Own domain positives, cross-employer FK denial, forged selector and immutable SQL
+        run: node --import tsx scripts/qa/tenant-sso-discovery-http.mjs
+      - name: Print bounded localhost-only failures
+        if: failure()
+        run: |
+          if test -f /tmp/tenant-sso-discovery.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/tenant-sso-discovery.log | tail -n 20 | cut -c 1-160 || true
+          fi

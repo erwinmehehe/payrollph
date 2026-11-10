@@ -3627,6 +3627,80 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       "MNY-02 must expect a non-disclosing 404 for a foreign DELETE");
   }
 
+  // SSO-01 is a NEW, strictly source-pinned zero-credit GAP review. Unlike
+  // authenticated tenant-private methods, discovery is intentionally anonymous.
+  // No status is promoted and no HTTP run or independent review is presumed
+  // from this candidate. A changed source, test, or workflow fails closed.
+  if (isNewOrChanged && key === "src/app/api/auth/sso/resolve/route.ts POST") {
+    const routePath = "src/app/api/auth/sso/resolve/route.ts";
+    const originalRouteBlobSha = "ecf9eb2ff759a4b39300abea5193356038aaad71";
+    const routeBlobSha = "740e3dbb4325a55f5556ea14e04b6ec1f3c99137";
+    assert.equal(baseline.api[routePath], originalRouteBlobSha,
+      "SSO discovery baseline was redefined");
+    assert.equal(currentBlob, routeBlobSha,
+      "SSO discovery changed: rerun three-employer PG16 real HTTP and owner security review");
+    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, routeBlobSha);
+    assert.equal(method.status, "GAP", "SSO public discovery is NOT certified as a tenant-private method");
+    assert.equal(method.testedBy, null, "unaccepted GAP must not have credited evidence");
+    const reviewed = method.reviewedUncertified;
+    assert.deepEqual(reviewed, {
+      kind: "sso-discovery-domain-provider-org-match-PG16-HTTP-uncredited",
+      originalRouteBlobSha, routeBlobSha,
+      helperFile: "src/lib/tenant-sso-discovery.ts",
+      helperBlobSha: "713b25dd4afad7a58afc5a01b69e55012d1b7613",
+      proofFile: "scripts/qa/tenant-sso-discovery-http.mjs",
+      proofBlobSha: "0024c4376c0dc771ff71eea697b91ec8c74aad3a",
+      proofContractFile: "scripts/qa/tenant-sso-discovery-proof.mjs",
+      proofContractBlobSha: "b4df7d81271f143172214d43daf6440b478ef0c9",
+      contractTestFile: "tests/tenant-sso-discovery-contract.test.mjs",
+      contractTestBlobSha: "bcbb051e1d3d680d646729dd01f1ddbbacc35085",
+      unitTestFile: "tests/tenant-sso-discovery.test.ts",
+      unitTestBlobSha: "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
+      workflowFile: ".github/workflows/tenant-sso-discovery-http.yml",
+      workflowBlobSha: "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
+      coverageCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    }, "SSO review remains zero-credit and exact-source-pinned");
+    for (const [file, hash] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.proofContractFile, reviewed.proofContractBlobSha],
+      [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+      [reviewed.unitTestFile, reviewed.unitTestBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
+      file + ": SSO evidence changed; rerun the exact-head proof");
+    const route = readFileSync(routePath, "utf8");
+    for (const marker of [
+      "enforceSameOriginMutation(request)",
+      'limited.mode !== "distributed-postgres"',
+      "ssoDiscoveryEmail(input)",
+      "eq(identityDomains.providerId, identityProviders.id)",
+      "eq(identityDomains.organizationId, identityProviders.organizationId)",
+      "eq(identityDomains.verified, true)",
+      'eq(identityProviders.protocol, "oidc")',
+      "eq(identityProviders.enabled, true)",
+      '"Cache-Control": "no-store"',
+    ]) assert.ok(route.includes(marker), "SSO provider boundary is missing: " + marker);
+    assert.ok(route.indexOf("enforceSameOriginMutation(request)") <
+      route.indexOf("rateLimitDistributed(") &&
+      route.indexOf('limited.mode !== "distributed-postgres"') <
+      route.indexOf("ssoDiscoveryEmail(input)"),
+      "SSO discovery must fail origin/rate-limit checks before provider SQL");
+    const proof = readFileSync(reviewed.proofFile, "utf8");
+    assert.ok(proof.indexOf("requireDisposableSsoDiscovery();") <
+      proof.indexOf('import("../../src/db/index.ts")'));
+    for (const marker of [
+      'seedEmployer("SSOA"', 'seedEmployer("SSOB"', 'seedEmployer("SSO_VICTIM"',
+      "providerId: providerV.id", "assertUnavailable(await post(",
+      "assert.deepEqual(await snapshot(), mismatched", "completeMethodCredits: 0",
+    ]) assert.ok(proof.includes(marker), "SSO proof missing: " + marker);
+    const workflow = readFileSync(reviewed.workflowFile, "utf8");
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-sso-discovery-http\.mjs/);
+    return true; // explicit unaccepted GAP; NOT blanket reclassification
+  }
+
   // Deliberately disabled SAML login endpoints must not enumerate provider IDs.
   // This is an exact-source, zero-credit privacy repair, not an exception for
   // arbitrary changed GAPs or a claim of completed SAML authentication proof.
