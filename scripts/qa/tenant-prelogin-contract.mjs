@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 
 export const PRELOGIN_TITLE = "tenant-prelogin-isolation";
 export const PRELOGIN_METHODS = Object.freeze([
@@ -13,7 +12,8 @@ export const PRELOGIN_SMTP_URL = "smtp://127.0.0.1:2525";
  * activate ONLY the workspace its own request describes, and nothing it sends may read, change or activate any existing
  * employer. This contract fails closed unless the target is a fresh fictional PG16 behind production-mode localhost
  * HTTP, with the pilot signup mode and intake proof ON (otherwise signup answers 503 or skips the proof, and every
- * refusal would be meaningless), mail going only to the loopback sink, and every money provider and worker OFF.
+ * refusal would be meaningless), mail going only to the loopback sink the proof itself hosts, and every money provider and
+ * worker OFF.
  */
 export function requireDisposablePrelogin(env = process.env) {
   let app, database;
@@ -36,7 +36,6 @@ export function requireDisposablePrelogin(env = process.env) {
   if (!safe) throw new Error("PRELOGIN_PROOF_REFUSED: fresh fictional PG16/localhost CI with provider and worker gates OFF required");
   // Mail may only reach the loopback sink; any other transport could deliver a real message.
   if (env.SMTP_URL !== PRELOGIN_SMTP_URL) throw new Error("PRELOGIN_PROOF_REFUSED: SMTP_URL must be the loopback sink " + PRELOGIN_SMTP_URL);
-  if (!env.TENANT_PRELOGIN_MAIL_FILE) throw new Error("PRELOGIN_PROOF_REFUSED: TENANT_PRELOGIN_MAIL_FILE is required");
   if (env.PUBLIC_SIGNUP_MODE !== "pilot") throw new Error("PRELOGIN_PROOF_REFUSED: PUBLIC_SIGNUP_MODE must be pilot; paid enrollment is never exercised");
   if (env.PUBLIC_INTAKE_PROOF_ENABLED !== "true" || !(env.PUBLIC_INTAKE_PROOF_SECRET ?? "").trim() || env.PUBLIC_INTAKE_PROOF_SECRET.trim().length < 32) {
     throw new Error("PRELOGIN_PROOF_REFUSED: the intake proof must be ON with a throwaway secret");
@@ -58,15 +57,13 @@ export function solveIntakeProof(token, limit = 0xffffffff) {
   throw new Error("no intake proof nonce found");
 }
 
-/** Every message the loopback sink stored, oldest first. */
-export function readMailbox(mailFile) {
-  return readFileSync(mailFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
-}
-
-/** All verification tokens mailed to one recipient, oldest first. A token is only ever read from that recipient's mail. */
-export function mailedTokens(mailFile, email) {
+/**
+ * All verification tokens mailed to one recipient, oldest first, from the sink's in-memory inbox. A token is only ever read
+ * from a message addressed to that single recipient.
+ */
+export function mailedTokens(inbox, email) {
   const wanted = String(email).toLowerCase();
-  return readMailbox(mailFile)
+  return inbox
     .filter((mail) => mail.recipients.length === 1 && mail.recipients[0] === wanted)
     // Quoted-printable bodies wrap long lines with "=\r\n" and encode "=" as "=3D"; undo both before matching.
     .map((mail) => /verify-signup\?token=([a-f0-9]{48})/.exec(mail.data.replace(/=\r\n/g, "").replace(/=3D/gi, "="))?.[1])

@@ -80,7 +80,7 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Export disposable localhost targets, loopback mail and throwaway secrets; disable all providers and workers
+      - name: Export disposable localhost targets, loopback mail address and throwaway secrets; disable all providers and workers
         shell: bash
         run: |
           set -euo pipefail
@@ -99,7 +99,6 @@ jobs:
             echo 'XENDIT_SECRET_KEY='
             echo 'RESEND_API_KEY='
             echo 'SMTP_URL=smtp://127.0.0.1:2525'
-            echo 'TENANT_PRELOGIN_MAIL_FILE=/tmp/tenant-prelogin-mailbox.jsonl'
             echo 'PUBLIC_SIGNUP_MODE=pilot'
             echo 'PUBLIC_INTAKE_PROOF_ENABLED=true'
             echo "PUBLIC_INTAKE_PROOF_SECRET=$proof_secret"
@@ -129,17 +128,6 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode app against the disposable database
         run: npm run build
-      - name: Start the loopback-only mail sink
-        shell: bash
-        run: |
-          set -euo pipefail
-          nohup node scripts/qa/tenant-prelogin-smtp-sink.mjs > /tmp/tenant-prelogin-sink.log 2>&1 &
-          for attempt in $(seq 1 30); do
-            if grep -q listening /tmp/tenant-prelogin-sink.log; then exit 0; fi
-            sleep 1
-          done
-          cat /tmp/tenant-prelogin-sink.log
-          exit 1
       - name: Start production-mode Next on localhost only
         shell: bash
         run: |
@@ -158,10 +146,9 @@ jobs:
           done
           cat /tmp/tenant-prelogin-next.log
           exit 1
-      - name: Verify first-run setup, registration, resend and verification as two independent applicants beside a higher-ID victim
+      - name: Verify first-run setup, registration, resend and verification as two independent applicants beside a higher-ID victim (the proof hosts the loopback mail sink)
         run: node --import tsx scripts/qa/tenant-prelogin-http.mjs
-      - name: Show localhost-only diagnostic logs on failure
+      - name: Show localhost-only diagnostic log on failure
         if: failure()
         run: |
           cat /tmp/tenant-prelogin-next.log || true
-          cat /tmp/tenant-prelogin-sink.log || true

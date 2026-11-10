@@ -8,7 +8,7 @@
  * Production-mode localhost HTTP on disposable PG16. First-run setup creates the bootstrap employer; six fillers and a
  * populated victim are then seeded; two independent applicants A and B register through the real routes. A registers
  * before the victim exists (so the victim's IDs exceed A's and six), B after. Verification links are read from the
- * loopback mailbox of the address they were sent to, never from the database.
+ * loopback mail this process hosts for the address they were sent to, never from the database and never through a file.
  *
  * Every existing employer (bootstrap, victim, and the other applicant) is compared table by table before and after each
  * group of refused or foreign-aimed requests. Fictional data only; no provider, worker or payment is enabled.
@@ -18,8 +18,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import {
   PRELOGIN_METHODS, PRELOGIN_TITLE, assertNoSession, assertRefusal, assertRowsUnchanged, clientAddresses, mailedTokens,
-  readMailbox, requireDisposablePrelogin, sessionCookieOf, solveIntakeProof,
+  requireDisposablePrelogin, sessionCookieOf, solveIntakeProof,
 } from "./tenant-prelogin-contract.mjs";
+import { startPreloginSmtpSink } from "./tenant-prelogin-smtp-sink.mjs";
 
 export async function verifyPreloginTenantIsolation() {
   // No database or application import may run before this guard.
@@ -33,7 +34,9 @@ export async function verifyPreloginTenantIsolation() {
   const { organizations, subscriptions, userOrganizations, users } = schema;
   const { seedEmployer, standaloneMakeSession } = fixture;
   const BASE = process.env.SECURITY_SMOKE_URL;
-  const MAIL = process.env.TENANT_PRELOGIN_MAIL_FILE;
+  // The loopback sink lives in this process, so a verification link reaches the proof in memory, as a mail client would see it.
+  const MAIL = [];
+  const sink = await startPreloginSmtpSink(MAIL);
   const nextAddress = clientAddresses();
 
   /** Real HTTP. Every request names its own verified client address unless one is given, so rate limits never collide. */
@@ -60,7 +63,7 @@ export async function verifyPreloginTenantIsolation() {
   try {
     assert.equal(await count("users"), 0, "PRELOGIN_PROOF_REFUSED: genuinely empty disposable users required");
     assert.equal(await count("organizations"), 0, "PRELOGIN_PROOF_REFUSED: genuinely empty disposable organizations required");
-    assert.equal(readMailbox(MAIL).length, 0, "PRELOGIN_PROOF_REFUSED: the loopback mailbox must start empty");
+    assert.equal(MAIL.length, 0, "PRELOGIN_PROOF_REFUSED: the loopback mailbox must start empty");
     const nonce = randomUUID().replaceAll("-", "").slice(0, 8);
     const PASSWORD = "Fictional-" + nonce + "-Pass9";
     const SETUP = "/api/setup";
@@ -176,7 +179,7 @@ export async function verifyPreloginTenantIsolation() {
     assertRefusal(await crossSite(SIGNUP, signupBody(a, { intakeProof: await proofFor(a.email) })), 403);
     assertRefusal(await req(SIGNUP, { method: "POST", body: signupBody(a, { intakeProof: await proofFor(a.email), acceptTerms: false }) }), 422);
     assert.deepEqual(await totals(), before, "refused registrations must create nothing");
-    assert.equal(readMailbox(MAIL).length, 0, "refused registrations must send no mail");
+    assert.equal(MAIL.length, 0, "refused registrations must send no mail");
 
     /** The real registration, carrying every forged field an applicant could add. */
     async function register(who, forged) {
@@ -235,26 +238,26 @@ export async function verifyPreloginTenantIsolation() {
 
     // A registered address cannot be re-registered: an existing employer's owner keeps their password, and gets no mail.
     for (const taken of [victim.owner.email, boot.owner.email]) {
-      const mailBefore = readMailbox(MAIL).length, at = await totals();
+      const mailBefore = MAIL.length, at = await totals();
       const response = await req(SIGNUP, { method: "POST", body: { ...signupBody(a), email: taken, intakeProof: await proofFor(taken) } });
       assert.equal(response.status, 202, "a registered address gets the generic answer");
       assertNoSession(response, "signup with a registered address");
       for (const marker of forbidden) assert.ok(!response.text.includes(marker));
       assert.deepEqual(await totals(), at, "a registered address creates nothing");
-      assert.equal(readMailbox(MAIL).length, mailBefore, "a registered address is sent nothing");
+      assert.equal(MAIL.length, mailBefore, "a registered address is sent nothing");
     }
     await mustStayUnchanged("signups naming registered addresses");
     // An address whose verification is still PENDING is protected too: a second registration cannot take over the account,
     // change its password or company, or mail a new link. (The unverified registration itself is never replaced or expired;
     // that is the recorded address-squatting finding, not something this proof closes.)
     {
-      const pending = await workspaceOf(b), mailBefore = readMailbox(MAIL).length, at = await totals();
+      const pending = await workspaceOf(b), mailBefore = MAIL.length, at = await totals();
       const takeover = await req(SIGNUP, { method: "POST", body: { ...signupBody(b), company: "PRE-TAKEOVER-" + nonce, password: "Takeover-" + nonce + "-Pass9",
         intakeProof: await proofFor(b.email) } });
       assert.equal(takeover.status, 202);
       assertNoSession(takeover, "re-registration of a pending address");
       assert.deepEqual(await totals(), at, "re-registering a pending address creates nothing");
-      assert.equal(readMailbox(MAIL).length, mailBefore, "re-registering a pending address sends nothing");
+      assert.equal(MAIL.length, mailBefore, "re-registering a pending address sends nothing");
       const still = await workspaceOf(b);
       assert.equal(still.owner.passwordHash, pending.owner.passwordHash, "the pending owner's password is unchanged");
       assert.equal(still.org.name, pending.org.name, "the pending employer's name is unchanged");
@@ -274,11 +277,11 @@ export async function verifyPreloginTenantIsolation() {
     assert.equal(generic.status, 200);
     // Verified, foreign and unknown addresses all get the same answer and no mail; nothing changes for anyone.
     for (const address of [victim.owner.email, boot.owner.email, "not-an-address"]) {
-      const mailBefore = readMailbox(MAIL).length;
+      const mailBefore = MAIL.length;
       const response = await req(RESEND, { method: "POST", body: { email: address, organizationId: victim.org.id, userId: victim.owner.id } });
       assert.equal(response.status, 200);
       assert.equal(response.text, generic.text, "resend must answer identically for an unknown, a verified and a foreign address");
-      assert.equal(readMailbox(MAIL).length, mailBefore, "resend sends nothing for an address with no pending verification");
+      assert.equal(MAIL.length, mailBefore, "resend sends nothing for an address with no pending verification");
     }
     assertRefusal(await crossSite(RESEND, { email: a.email }), 403);
     await mustStayUnchanged("resend refusals", [["applicant A", aBefore, registeredA], ["applicant B", bBefore, registeredB]]);
@@ -334,12 +337,12 @@ export async function verifyPreloginTenantIsolation() {
     const aAfter = await snapshot(activeA);
     const activeB = await activate(b, bTokens[1], [["applicant A", aAfter, activeA]]);
     // An activated address has no pending verification left to resend.
-    const mailBefore = readMailbox(MAIL).length;
+    const mailBefore = MAIL.length;
     assert.equal((await req(RESEND, { method: "POST", body: { email: a.email } })).text, generic.text);
-    assert.equal(readMailbox(MAIL).length, mailBefore, "a verified address is sent no further link");
+    assert.equal(MAIL.length, mailBefore, "a verified address is sent no further link");
     await mustStayUnchanged("the complete run");
     assert.equal((await db.select().from(userOrganizations).where(eq(userOrganizations.organizationId, victim.org.id))).length, 1);
-    assert.ok(readMailbox(MAIL).every((mail) => mail.recipients.length === 1 && [a.email, b.email].includes(mail.recipients[0])),
+    assert.ok(MAIL.every((mail) => mail.recipients.length === 1 && [a.email, b.email].includes(mail.recipients[0])),
       "mail went only to the two applicants' own addresses");
 
     console.log(JSON.stringify({
@@ -355,6 +358,7 @@ export async function verifyPreloginTenantIsolation() {
       coverageCredits: 0, independentlyAccepted: false, independentSecurityReview: "PENDING",
     }));
   } finally {
+    await new Promise((resolve) => sink.close(resolve));
     await pool.end();
   }
 }
