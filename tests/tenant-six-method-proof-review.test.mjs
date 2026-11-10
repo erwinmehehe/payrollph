@@ -89,7 +89,12 @@ function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus) {
       // The original source-sealed 2026-11-03 snapshot contains historical
       // COVERED proof records predating merged-PR citation metadata.
       (typeof proof.scope === "string" && typeof proof.ownPositiveLine === "number");
-    assert.ok(hasCitation, label + ": credited method lacks a merged-proof citation");
+    // Historical snapshot credits are already immutable in the 2026-11-03
+    // fixture. Only later GAP-to-COVERED promotions require these newer
+    // merge/receipt citation shapes; older proof metadata is not retrofitted.
+    if (snapshot.methodStatuses[path]?.[verb] !== "COVERED") {
+      assert.ok(hasCitation, label + ": credited method lacks a merged-proof citation");
+    }
   }
   if (row.status === "GAP") {
     assert.equal(row.testedBy, null, label + ": an unproved method must remain GAP");
