@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { notFound, redirect } from "next/navigation";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { hcmBusinessProcessInstances } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
@@ -116,6 +119,9 @@ export default async function HcmProcessMonitorPage({
   searchParams,
 }: { searchParams: Promise<Search> }) {
   const query = await searchParams;
+  // Next exposes repeated query keys as arrays. Never convert a duplicated
+  // requested scope/filter into an unfiltered or default employer view.
+  if (Object.values(query).some(Array.isArray)) notFound();
   const organizationId = canonicalHcmId(one(query.organizationId));
   if (!organizationId || !monitorEnabledForEmployer(organizationId)) notFound();
 
@@ -134,6 +140,20 @@ export default async function HcmProcessMonitorPage({
   const enterpriseDenied = await denyOptInEnterpriseHcmPlan(organizationId);
   if (enterpriseDenied) notFound();
 
+  if (selectedProcessId !== null) {
+    // The selected process ID is client-controlled, independent of the
+    // employer selector. Authorize its persisted employer before any monitor
+    // timeline is rendered. Do not reflect foreign/missing process IDs into
+    // an otherwise successful employer-scoped page.
+    const [ownedProcess] = await db.select({ id: hcmBusinessProcessInstances.id })
+      .from(hcmBusinessProcessInstances)
+      .where(and(
+        eq(hcmBusinessProcessInstances.organizationId, organizationId),
+        eq(hcmBusinessProcessInstances.id, selectedProcessId),
+      )).limit(1);
+    if (!ownedProcess) notFound();
+  }
+
   let source: Awaited<ReturnType<typeof loadHcmProcessMonitor>> | null = null;
   try {
     source = await loadHcmProcessMonitor({
@@ -142,6 +162,10 @@ export default async function HcmProcessMonitorPage({
   } catch {
     // A timed-out or failed source must never render "zero workflows".
   }
+
+  // A process may be removed between the existence check and monitor query.
+  // A recorded NOT_FOUND must not downgrade a selected process into HTTP 200.
+  if (selectedProcessId !== null && source?.detail.state === "not_found") notFound();
 
   const view = source;
   const originHref = "/app?organizationId=" + organizationId;
