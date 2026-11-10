@@ -3687,6 +3687,54 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return true; // explicit unaccepted GAP; NOT blanket reclassification
   }
 
+  // Deliberately disabled SAML login endpoints must not enumerate provider IDs.
+  // This is an exact-source, zero-credit privacy repair, not an exception for
+  // arbitrary changed GAPs or a claim of completed SAML authentication proof.
+  if (isNewOrChanged && [
+    "src/app/api/auth/saml/start/[providerId]/route.ts GET",
+    "src/app/api/auth/saml/acs/[providerId]/route.ts POST",
+  ].includes(key)) {
+    const sourcePath = key.slice(0, key.lastIndexOf(" "));
+    const expectedRoutes = {
+      "src/app/api/auth/saml/start/[providerId]/route.ts": {
+        before: "0ce21833809e0a4ebfdf3703e87a716f6bb76788",
+        after: "555a332edad9c046fee8f62ed84a3868d5c63e9f",
+      },
+      "src/app/api/auth/saml/acs/[providerId]/route.ts": {
+        before: "dfdae777505e7baa82754444d477635f12ad283c",
+        after: "3f15a00c32587b18597bf8043f67d21a1fe980b8",
+      },
+    };
+    const pins = expectedRoutes[sourcePath];
+    assert.ok(pins, "Only start and ACS may use this hold");
+    assert.equal(currentBlob, pins.after, "SAML handler changed; re-review before release");
+    assert.equal(manifest.allApiRouteFiles[sourcePath].gitBlobSha, pins.after);
+    assert.equal(method.status, "GAP", "A disabled SAML refusal never becomes COVERED");
+    assert.equal(method.testedBy, null, "No own-tenant SAML authentication proof was executed");
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "saml-disabled-provider-enumeration-zero-credit",
+      originalRouteBlobSha: pins.before,
+      routeBlobSha: pins.after,
+      contractFile: "tests/tenant-saml-disabled-boundary.test.ts",
+      contractBlobSha: "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
+      methodCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    });
+    const route = readFileSync(sourcePath, "utf8");
+    assert.match(route, /samlDisabledBoundaryResponse\(\)/);
+    assert.doesNotMatch(route,
+      /identityProviders|buildSamlServiceProviderMetadata|from ["']@\/db|db\.select/,
+      "Disabled SAML entrypoint may not load employer provider data");
+    assert.equal(gitBlobSha(readFileSync("src/lib/saml-disabled-boundary.ts")),
+      "ad19ba4fb718fddd9826df15f7740f482b795ad7", "Common refusal changed without review");
+    assert.equal(gitBlobSha(readFileSync("tests/tenant-saml-disabled-boundary.test.ts")),
+      "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
+      "SAML privacy test changed without renewed pin");
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");

@@ -135,7 +135,12 @@ test("PG16 proof rejects denial-only success and pins victim audit invariants", 
   const proof = read(proofPath), mock = read(preloadPath), wf = read(workflowPath);
   for (const phrase of [
     'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
-    "victim.org.id > a.org.id", "subVictim.id > subA.id",
+    'seedEmployer("FILL" + i', "i < 7",
+    'Math.max(6, a[field].id, b[field].id)',
+    "subVictim.id > Math.max(6, subA.id)",
+    "victim.baseInvoice.id > Math.max(6, a.baseInvoice.id, b.baseInvoice.id)",
+    "victimBefore[key].every(row => Number.isSafeInteger(row.id) && row.id > 6)",
+    "victimBusinessIdsOverSix: true",
     'dbIdentity.database, "app_db"', "dbIdentity.version / 10000",
     "crossSite.status, 403",
     "await snapshot(victim.org.id)", "victimBefore",

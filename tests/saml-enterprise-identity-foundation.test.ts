@@ -41,11 +41,16 @@ test("SAML helpers validate X509 certificates and emit signed-assertion-required
 test("SAML ACS and start routes fail closed until XML signature verification is installed", () => {
   const acs = read("src/app/api/auth/saml/acs/[providerId]/route.ts");
   const start = read("src/app/api/auth/saml/start/[providerId]/route.ts");
+  const disabled = read("src/lib/saml-disabled-boundary.ts");
   for (const source of [acs, start]) {
-    assert.ok(source.includes("SAML_RUNTIME_BLOCK_REASON"));
-    assert.ok(source.includes("SAML_RUNTIME_NOT_READY"));
-    assert.ok(source.includes("status: 503"));
+    assert.ok(source.includes('from "@/lib/saml-disabled-boundary"'));
+    assert.ok(source.includes("return samlDisabledBoundaryResponse();"));
+    assert.doesNotMatch(source, /identityProviders|db\.select|createSession\(|Response\.redirect\(/);
   }
+  assert.ok(disabled.includes("SAML_RUNTIME_BLOCK_REASON"));
+  assert.ok(disabled.includes("SAML_RUNTIME_NOT_READY"));
+  assert.ok(disabled.includes("status: 503"));
+  assert.ok(disabled.includes('"Cache-Control": "no-store"'));
   assert.equal(acs.includes("createSession("), false);
   assert.equal(start.includes("Response.redirect("), false);
 });
