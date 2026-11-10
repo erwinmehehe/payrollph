@@ -1,3 +1,4 @@
+import { verifyApprovalsCredit, APPROVALS_PATH } from '../scripts/qa/tenant-approvals-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
@@ -746,6 +747,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(filingPatchCredits, 1);
   assert.equal(expectedStatuses[FILING_PATH].PATCH, "GAP");
   expectedStatuses[FILING_PATH].PATCH = "COVERED";
+  const approvalCredits=verifyApprovalsCredit(m);assert.equal(expectedStatuses[APPROVALS_PATH].PATCH,"GAP");expectedStatuses[APPROVALS_PATH].PATCH="COVERED";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited BIR candidate and separate filing PATCH credits, plus all existing receipts");
   const expectedCounts = {
@@ -753,8 +755,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - birCandidateCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
   };
-  expectedCounts.COVERED += filingPatchCredits;
-  expectedCounts.GAP -= filingPatchCredits;
+  expectedCounts.COVERED += approvalCredits + filingPatchCredits;
+  expectedCounts.GAP -= approvalCredits + filingPatchCredits;
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   expectedCounts.GAP -= ownerTokenClassifications.length;
@@ -770,7 +772,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **" + (367 + filingPatchCredits) + " COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + (21 - filingPatchCredits) + " GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **" + (367 + approvalCredits + filingPatchCredits) + " COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + (21 - approvalCredits - filingPatchCredits) + " GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -1150,6 +1152,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineFiling = baseline.allApiRouteFiles[FILING_PATH].methods.find(row => row.name === "PATCH");
     const baselineFilingCredits = baselineFiling?.status === "COVERED" ? verifyFilingPatchCredit(baseline) : 0;
     if (baselineFilingCredits) expectedOriginalMain[FILING_PATH].PATCH = "COVERED";
+    const baselineApprovalCredits=baseline.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='COVERED'?verifyApprovalsCredit(baseline):0;if(baselineApprovalCredits)expectedOriginalMain[APPROVALS_PATH].PATCH='COVERED';
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1160,13 +1163,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
+      COVERED: baselineApprovalCredits + baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications,
-      GAP: snapshot.counts.GAP - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP - baselineApprovalCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,

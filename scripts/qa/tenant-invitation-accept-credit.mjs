@@ -1,3 +1,4 @@
+import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -170,7 +171,8 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(verifyFilingPatchCredit(m), 1,
           "Only the sealed filing PATCH three-leg proof can authorize its own credit");
       }
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions].sort(),
+      const approvalPromotions=promoted.filter(key=>key==='PATCH '+APPROVALS_PATH);if(approvalPromotions.length)assert.equal(verifyApprovalsCredit(m),1);
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions,...approvalPromotions].sort(),
         "Merged invitation receipts permit only separately verified BIR and filing PATCH credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
