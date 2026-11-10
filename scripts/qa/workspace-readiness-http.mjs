@@ -83,5 +83,13 @@ export async function verifyWorkspaceReadinessIsolation(f, { request, expectStat
     f.orgs[0].id), 401, "Anonymous readiness read denied");
   expectStatus(await request("/api/readiness/workspace?organizationId=invalid",
     { cookie: f.ownerSessions[1].cookie }), 400, "Malformed selector denied");
+  for (const url of [
+    "/api/readiness/workspace?organizationId=" + f.orgs[0].id +
+      "&organizationId=" + f.orgs[1].id,
+    "/api/readiness/workspace?organizationId=" + f.orgs[1].id +
+      "&organizationId=" + f.orgs[0].id,
+    "/api/readiness/workspace?organizationId=1e0",
+  ]) expectStatus(await request(url, { cookie: f.ownerSessions[1].cookie }),
+    400, "RDY-01 rejects duplicated/noncanonical selectors");
   assert.deepEqual(await snapshots(), initialSql, "Readiness HTTP cannot mutate tenant rows");
 }

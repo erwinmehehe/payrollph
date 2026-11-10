@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 export const ORIGIN = "http://127.0.0.1:3000";
 export const API_PATH = "/api/readiness/workspace";
 export const SOURCE_SHA = Object.freeze({
-  "src/app/api/readiness/workspace/route.ts": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
+  "src/app/api/readiness/workspace/route.ts": "26378409dcfddc6bb0b726433e6896b3487a4cf7",
   "src/lib/workspace-readiness-boundary.ts": "782853dada317783100dd1ee40004fa7e6126244",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
 });
@@ -50,6 +50,10 @@ export function verifyReadinessSources(root = process.cwd()) {
   }
   const route = readFileSync(root + "/src/app/api/readiness/workspace/route.ts", "utf8");
   const loader = readFileSync(root + "/src/lib/workspace-readiness-boundary.ts", "utf8");
+  assert.ok(route.includes('searchParams.getAll("organizationId").length === 1'),
+    "RDY-01: repeated employer selectors must fail closed");
+  assert.ok(route.includes(String.raw`/^[1-9]\d*$/.test(rawOrganizationId)`),
+    "RDY-01: noncanonical employer selectors must fail closed");
   assert.ok(route.indexOf("assertOrganizationRole(") <
     route.indexOf("buildTenantWorkspaceReadiness(organizationId)"),
     "Authorization must occur before employer queries");

@@ -15,7 +15,7 @@ The authorized response is deliberately **not** a production-readiness attestati
 - `assertOrganizationRole` with `ORG_ADMIN_ROLES` and `getAccess(...).companyWide` must succeed before any employer data is queried. Unit-scoped admins and revoked users fail closed.
 - Only queries explicitly scoped by `organizationId` may supply the response. The platform-wide `buildReadinessPayload()` remains available only behind its separate operational-token gate.
 - Authorized owned GET: HTTP **200**, private **no-store** response with `organizationId` binding and `status: not-launch-ready`.
-- Authenticated foreign GET: **403**; anonymous: **401**; malformed selector: **400**.
+- Authenticated foreign GET: **403**; anonymous: **401**; missing, duplicate or noncanonical employer selector: **400**. A single canonical decimal positive integer is required (no repeated `organizationId`, zero-padded IDs, exponent notation or signed IDs).
 - Database/schema errors return **503** without SQL details, counts or false launch status.
 - The UI's `readVerifiedLaunchReadiness` validates the employer selector and gate/blocker consistency before displaying the result.
 
@@ -33,6 +33,14 @@ The authorized response is deliberately **not** a production-readiness attestati
 The dedicated CI uses an empty, disposable **PostgreSQL 16** database, `npm run build`, real localhost Next.js HTTP, independently authenticated attacker employers A and B and a genuine **higher-ID** victim employer. It requires populated own reads, exact tenant-filtered SQL counts, foreign/forged denials, immutable employer, payroll, invoice, outbox and audit snapshots, revocation and unit-scope refusal, and absence of secrets or other-employer markers.
 
 The proof refuses deployment environments, real provider credentials, enabled workers or schedulers, and all money/payout pathways. It never calls a real payroll provider. Synthetic payroll-run rows are **Draft** only. No external service, real employee data, production/Neon database or money action may be used as a substitute.
+
+## RDY-01 separate batch: strict employer selector (2026-11-10)
+
+This independent batch is limited to the workspace-readiness API and its existing dedicated QA workflow. It is not dependent on HCM Process Monitor #1899, hire-to-payroll #1888, SSO #1894, SAML #1896 or the credit reconciliation #1893. The previously permissive URL parser used the first `organizationId` when a request repeated that key. It also accepted alternate numeric forms such as `01`, `1.0` or `1e0`. The new canonical parser rejects all of these with HTTP 400 **before role checking or SQL reads**, preventing an ambiguous, caller-controlled tenant selector from being silently normalized.
+
+The existing three-employer PG16 HTTP proof now tests **both** duplicate orders (victim-first and own-first) and noncanonical values, with no readiness response body or data disclosure and unchanged real PostgreSQL snapshots. The historical second-pass test adds the same selector denials. The unchanged per-employer SQL loader, operational-token endpoint, provider/worker flags and feature activation remain out of scope.
+
+The route and proof blobs have to be re-pinned on the final PR head. Its tenant-inventory entry **remains GAP / 0 method credits** pending actual exact-head CI and independent security/launch review. The shared inventory/manifest edits only record the newly reviewed source; they do not grant acceptance or replace other PRs' evidence.
 
 ## Verification and promotion gate
 

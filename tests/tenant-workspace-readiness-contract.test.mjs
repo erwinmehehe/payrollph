@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   ORIGIN, SOURCE_SHA, gitBlobSha,
   requireDisposableWorkspaceReadiness, verifyReadinessSources,
@@ -70,4 +71,12 @@ test("reviewed runtime gate, helper and access boundaries are exact-blob pinned"
   for (const sha of Object.values(SOURCE_SHA)) assert.match(sha, /^[a-f0-9]{40}$/);
   assert.notEqual(gitBlobSha("tenant"), gitBlobSha("tenant changed"));
   assert.equal(verifyReadinessSources(), true);
+});
+
+test("RDY-01: one canonical employer selector; no duplicate-key fallback", () => {
+  const route = readFileSync("src/app/api/readiness/workspace/route.ts", "utf8");
+  assert.ok(route.includes('searchParams.getAll("organizationId").length === 1'));
+  assert.ok(route.includes(String.raw`/^[1-9]\d*$/.test(rawOrganizationId)`));
+  assert.ok(route.indexOf('searchParams.getAll("organizationId")') <
+    route.indexOf('await assertOrganizationRole('));
 });
