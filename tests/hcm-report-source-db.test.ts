@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
@@ -8,6 +9,20 @@ import {
 } from "../src/db/schema";
 import { loadAuthorizedReportRows, overtimeCostFromPayLines } from "../src/lib/hcm-report-source";
 import { validateReportDates } from "../src/lib/hcm-report-builder";
+
+test("payroll entry worker join is employer-scoped before loading pay-line data", () => {
+  const source = readFileSync(new URL("../src/lib/hcm-report-source.ts", import.meta.url), "utf8");
+  const joinStart = source.indexOf(".leftJoin(employees, and(");
+  const whereStart = source.indexOf(".where(inArray(payrollEntries.payrollRunId", joinStart);
+  assert.ok(joinStart >= 0 && whereStart > joinStart,
+    "Payroll employee LEFT JOIN must use an explicit conjunction before the run filter");
+  const join = source.slice(joinStart, whereStart);
+  assert.match(join, /eq\(payrollEntries\.employeeId, employees\.id\)/);
+  assert.match(join, /eq\(employees\.organizationId, organizationId\)/,
+    "Foreign employee rows must not be read even when a payroll entry points to them");
+  assert.match(source, /entry\.employeeOrganizationId !== organizationId/,
+    "Missing or corrupted employee links must still reject the entire report");
+});
 
 test("report date windows reject invalid calendar dates and excessive periods", () => {
   assert.doesNotThrow(() => validateReportDates("2026-10-01", "2026-10-31"));
