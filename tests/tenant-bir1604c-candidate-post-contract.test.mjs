@@ -53,6 +53,29 @@ test("Extended actual PG16 BIR test is additive, two-attacker and zero-credit", 
   assert.ok(workflow.includes("image: postgres:16"));
 });
 
+test("Protocol refusals on the same method are exercised for every accepted action and write nothing", () => {
+  const post = route.split("export async function POST")[1];
+  // The route must actually contain each refusal the proof claims to exercise.
+  for (const token of ['"Authentication required."', 'code: "INVALID_REVIEW"', 'code: "STALE_SOURCE"', "enforceSameOriginMutation(request)"])
+    assert.ok(post.includes(token), "Route lost a refusal the proof relies on: " + token);
+  for (const token of [
+    'let refusals = 0;',
+    'const anonymous = await request.newContext({',
+    '"sec-fetch-site": "cross-site", origin: "https://attacker.example"',
+    'records: "not-an-array"',
+    'sourceDigest: "0".repeat(64)',
+    'mode: "export"',
+    '401, "Anonymous caller cannot "',
+    '403, "A cross-site mutation cannot "',
+    '400, "A malformed "',
+    '409, "A stale source digest cannot produce a review template"',
+    'check(refusals === 22,',
+    'protocolRefusals: refusals',
+    'Protocol refusals must not change the attacker\'s own source, annual rows or audit',
+    'Protocol refusals must not touch the victim',
+  ]) assert.ok(runner.includes(token), "Missing protocol-refusal control: " + token);
+});
+
 test("All candidate POST modes require the real accepted path, not only template denial", () => {
   for (const mode of ['"template"', '"check"', '"download"'])
     assert.ok(route.includes(mode), "Missing accepted BIR action " + mode);
