@@ -3,6 +3,7 @@ import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-cr
 import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import assert from "node:assert/strict";
+import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
@@ -246,6 +247,7 @@ test("already credited and partial-action methods are not double-counted", () =>
       assert.notEqual(methods.get(key).testedBy.verifiedMainCommit, base, "new complete proof is not borrowed historical promotion evidence");
       continue;
     }
+    if(key==='PATCH compliance/filing-validations/[id]'){assert.equal(verifyFilingPatchCredit(manifest),1);continue;}
     assert.equal(methods.get(key)?.status, "GAP", key);
     assert.equal(methods.get(key)?.testedBy, null,
       "do not borrow partial or still-open proof evidence: " + key);

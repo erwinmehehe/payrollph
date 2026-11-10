@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
@@ -290,8 +291,8 @@ test("manifest is still GAP; fictional accepted status is NOT an external agency
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles)
     .find(row => row.route === "compliance/filing-validations/[id]");
-  assert.equal(record?.methods?.find(method => method.name === "PATCH")?.status,
-    "GAP", "pending proofs grant no coverage credits");
+  if(record?.methods?.find(method=>method.name==='PATCH')?.status==='COVERED')assert.equal(verifyFilingPatchCredit(manifest),1);
+  else assert.equal(record?.methods?.find(method => method.name === "PATCH")?.status,'GAP','pending proofs grant no coverage credits');
   assert.equal(FILING_METHOD, "PATCH compliance/filing-validations/[id]");
   assert.equal(filingRejectionBody(first).outcome, "rejected");
   assert.equal(filingRejectionBody(first).submissionMethod, "manual_entry");

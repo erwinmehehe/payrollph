@@ -1,4 +1,5 @@
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
+import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
@@ -62,6 +63,13 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
     assert.ok(entry, path);
     const method = entry.methods.find(row => row.name === verb);
     const label = verb + " " + route;
+    if (label === "PATCH compliance/filing-validations/[id]") {
+      assert.equal(verifyFilingPatchCredit(m), 1,
+        "Filing PATCH requires the sealed accepted/rejected/role-guard three-leg PG16 proof");
+      assert.equal(method?.status, "COVERED");
+      assert.equal(method.reviewedUncertified, undefined);
+      continue;
+    }
     if (skipOpenCredit.has(label)) {
       // #1727 has now merged these two source-matched provisional credits to
       // main. This review must leave their existing proof and credit untouched.
@@ -231,7 +239,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
   }
   const cited = allMethods.filter(({ method }) => method.reviewedUncertified?.reconciliationReview);
   assert.deepEqual(cited.map(({ path, method }) => method.name + " " + path.slice("src/app/api/".length, -"/route.ts".length)).sort(),
-    cases.filter(c => !skipOpenCredit.has(c[0] + " " + c[1]) && !dedicatedTransferCredit.has(c[0] + " " + c[1]) && !dedicatedBirCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
+    cases.filter(c => c[1] !== "compliance/filing-validations/[id]" && !skipOpenCredit.has(c[0] + " " + c[1]) && !dedicatedTransferCredit.has(c[0] + " " + c[1]) && !dedicatedBirCredit.has(c[0] + " " + c[1])).map(c => c[0] + " " + c[1]).sort(), "no unreviewed method or open-PR credit may borrow this hold");
 });
 
 test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end credits", () => {
@@ -734,13 +742,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
     expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
   }
+  const filingPatchCredits = verifyFilingPatchCredit(m);
+  assert.equal(filingPatchCredits, 1);
+  assert.equal(expectedStatuses[FILING_PATH].PATCH, "GAP");
+  expectedStatuses[FILING_PATH].PATCH = "COVERED";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves payout PATCH, year-end and billing credits while adding three distinct recovered methods");
+    "Preserves inherited BIR candidate and separate filing PATCH credits, plus all existing receipts");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + birCandidateCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits + invitationAcceptCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - birCandidateCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
   };
+  expectedCounts.COVERED += filingPatchCredits;
+  expectedCounts.GAP -= filingPatchCredits;
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   expectedCounts.GAP -= ownerTokenClassifications.length;
@@ -756,7 +770,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **367 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 21 GAP = 406**"),
+    "Frozen subtotal (2026-11-04 proposal): **" + (367 + filingPatchCredits) + " COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + (21 - filingPatchCredits) + " GAP = 406**"),
     "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
@@ -1118,6 +1132,24 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         assert.equal(row?.testedBy, null, "Uncovered invitation cannot claim executed receipt");
       }
     }
+    const baselineBirPath = "src/app/api/bir/annual-employer/candidate/route.ts";
+    const baselineBir = baseline.allApiRouteFiles[baselineBirPath].methods.find(row => row.name === "POST");
+    const baselineBirCredits = baselineBir?.status === "COVERED" ? 1 : 0;
+    // The BIR POST is already counted by mainDedicatedCredits. Verify its exact
+    // dedicated proof below, but do not add the same method to counts twice.
+    assert.equal(mainDedicatedCredits.filter(([path, , verb = "POST"]) =>
+      path === baselineBirPath && verb === "POST").length, baselineBirCredits,
+      "The BIR candidate must be counted exactly once through mainDedicatedCredits");
+    if (baselineBirCredits) {
+      assert.equal(baselineBir.testedBy?.file, "scripts/qa/tenant-bir1604c-candidate-post-http.mjs");
+      assert.equal(baselineBir.testedBy?.proofPullRequest, 1891);
+      assert.equal(baselineBir.testedBy?.independentlyAccepted, false);
+      assert.equal(baselineBir.testedBy?.independentSecurityReview, "PENDING");
+      expectedOriginalMain[baselineBirPath].POST = "COVERED";
+    }
+    const baselineFiling = baseline.allApiRouteFiles[FILING_PATH].methods.find(row => row.name === "PATCH");
+    const baselineFilingCredits = baselineFiling?.status === "COVERED" ? verifyFilingPatchCredit(baseline) : 0;
+    if (baselineFilingCredits) expectedOriginalMain[FILING_PATH].PATCH = "COVERED";
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1128,13 +1160,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: snapshot.counts.COVERED + compliancePostCredits.length +
+      COVERED: baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications,
-      GAP: snapshot.counts.GAP - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
@@ -1142,7 +1174,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
-    const frozenCovered = 320 + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
+    const frozenCovered = 320 + baselineFilingCredits + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
       (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits;
     // Compute the descriptive batch line from the immutable source-linked
     // frozen method queue and current main manifest, not an old blanket
