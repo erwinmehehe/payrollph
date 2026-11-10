@@ -7029,6 +7029,100 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(workflowSource, /node --import tsx scripts\/qa\/tenant-payroll-review-pages-http\.mjs/);
         continue; // Full GET evidence, zero credits. Never silently waive a changed page.
       }
+      // #1888 hire-to-payroll read-only SSR: an exact-source, ZERO-CREDIT
+      // fictional PG16 candidate for the employer/employee existence gate.
+      // A changed page is NOT promoted by source-only tests; exact-head real
+      // HTTP, independent security/HR review and a distinct acceptance
+      // decision are still required. Never borrow Worker 360 API evidence.
+      if (path === "src/app/hcm/hire-payroll-review/page.tsx") {
+        assert.equal(entry.status, "GAP");
+        assert.equal(entry.testedBy, undefined, "An unaccepted SSR page has no tenant coverage credit");
+        assert.equal(baseline.app[path], "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a");
+        assert.equal(current, "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+          "Changed hire-to-payroll page requires renewed source-pinned proof");
+        assert.equal(entry.blob, current, "Manifest must pin new exact SSR page SHA");
+        assert.match(entry.reason, /^Still GAP: #1888 /);
+        const reviewed = entry.reviewedUncertified;
+        assert.deepEqual(reviewed, {
+          "kind": "hire-payroll-employer-worker-SSR-PG16-candidate-unaccepted",
+          "originalPageBlobSha": "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a",
+          "pageBlobSha": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+          "proofFile": "scripts/qa/tenant-hire-payroll-review-http.mjs",
+          "proofBlobSha": "38b87f3f71fd15e93ac096bcc9c16899fb76b0b2",
+          "contractFile": "scripts/qa/tenant-hire-payroll-review-contract.mjs",
+          "contractBlobSha": "06f0370a196fc283dee7aa33597aa802841b9993",
+          "contractTestFile": "tests/tenant-hire-payroll-review-contract.test.mjs",
+          "contractTestBlobSha": "0a437d35f600280aeb29ca89b503bc0052fa9f07",
+          "workflowFile": ".github/workflows/tenant-hire-payroll-review-qa.yml",
+          "workflowBlobSha": "b4e4a045108bb3e2b0d451d8b8e2aba6e6fbfe9b",
+          "ownPositiveLine": 135,
+          "secondOwnWorkerLine": 136,
+          "foreignWorkerDenialLine": 138,
+          "unchangedDbLine": 113,
+          "sourceOutageLine": 203,
+          "gateFailureLine": 211,
+          "revokedLine": 187,
+          "executedExactHead": null,
+          "executedJob": null,
+          "pageActionCredits": 0,
+          "apiMethodCredits": 0,
+          "independentlyAccepted": false,
+          "productionCertified": false
+},
+          "Only the isolated uncredited hire-to-payroll PG16 candidate may be linked");
+        for (const [file, sha] of [
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.contractFile, reviewed.contractBlobSha],
+          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "Hire-to-payroll proof source changed without renewed review: " + file);
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              actual.split("\n")[pin.line - 1]?.includes(pin.token),
+              path + " " + field + " invalid source line/token");
+          }
+        }
+        const contract = readFileSync(reviewed.contractFile, "utf8");
+        const fixture = readFileSync(reviewed.proofFile, "utf8");
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        for (const required of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          "for (const actor of [a, b])",
+          "await own(actor, actor.worker);", "await own(actor, actor.secondWorker);",
+          "pathFor(actor.org.id, outsider.worker.id)",
+          "pathFor(outsider.org.id, outsider.worker.id)",
+          "assertDeniedHirePage(response, employers, label)",
+          "assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)",
+          "ALTER TABLE provisioning_tasks RENAME",
+          "ALTER TABLE employees RENAME",
+          "pageActionCredits: 0", "apiMethodCredits: 0",
+          "independentlyAccepted: false", "productionCertified: false",
+        ]) assert.ok(fixture.includes(required), "Missing real HTTP boundary assertion: " + required);
+        assert.ok(fixture.indexOf("requireDisposableHireReviewEnv();") <
+          fixture.indexOf('import("../../src/db/index.ts")'),
+          "Disposable-only preflight must run before any app/DB import");
+        for (const [line, pattern] of [
+          [reviewed.ownPositiveLine, /await own\(actor, actor\.worker\)/],
+          [reviewed.secondOwnWorkerLine, /await own\(actor, actor\.secondWorker\)/],
+          [reviewed.foreignWorkerDenialLine, /await deny\(pathFor\(actor\.org\.id, outsider\.worker\.id\)/],
+          [reviewed.unchangedDbLine, /assert\.deepEqual\(await snapshot\(subject\.org\.id\)/],
+          [reviewed.sourceOutageLine, /const unavailable = await readLocal/],
+          [reviewed.gateFailureLine, /const gateError = await readLocal/],
+          [reviewed.revokedLine, /assert\.equal\(revoked\.length, 1\)/],
+        ]) assert.match(fixture.split("\n")[line - 1] ?? "", pattern,
+          "Proof line anchor not backed by the required assertion");
+        assert.match(contract, /HCM_HIRE_PAYROLL_REVIEW_ORG_IDS: "1,2,3"/);
+        assert.match(contract, /DATABASE_URL: "postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db"/);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hire-payroll-review-http\.mjs/);
+        assert.equal(reviewed.pageActionCredits, 0);
+        assert.equal(reviewed.apiMethodCredits, 0);
+        continue; // Source-pinned uncredited candidate, NEVER blanket tenant-isolation acceptance.
+      }
       // Dedicated PII-02 employee SSR GET has exact-source, disposable two-attacker
       // PG16 evidence. This remains GAP with zero page/action/method credits.
       if (path === "src/app/self/schedule-receipts/page.tsx") {
