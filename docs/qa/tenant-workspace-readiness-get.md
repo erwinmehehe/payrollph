@@ -30,9 +30,19 @@ The authorized response is deliberately **not** a production-readiness attestati
 - Historical three-employer second-pass integration: `scripts/qa/workspace-readiness-http.mjs`
 - Source drift and uncredited status: `tests/tenant-isolation-coverage-inventory.test.mjs` and `scripts/qa/tenant-isolation-coverage-manifest.json`
 
-The dedicated CI uses an empty, disposable **PostgreSQL 16** database, `npm run build`, real localhost Next.js HTTP, independently authenticated attacker employers A and B and a genuine **higher-ID** victim employer. It requires populated own reads, exact tenant-filtered SQL counts, foreign/forged denials, immutable employer, payroll, invoice, outbox and audit snapshots, revocation and unit-scope refusal, and absence of secrets or other-employer markers.
+The dedicated CI uses an empty, disposable **PostgreSQL 16** database, `npm run build`, real localhost Next.js HTTP, independently authenticated attacker employers A and B and a genuine **higher-ID** victim employer. Seven additional real fictional filler employers make the persisted victim organization, entity, unit, employee, owner, membership and pay-profile IDs strictly greater than both attackers' IDs **and six** (not just a higher organization selector). The HTTP proof requires populated own reads, exact tenant-filtered SQL counts, foreign/forged denials, immutable organization, entity, unit, payroll, invoice, outbox and audit snapshots, revocation and unit-scope refusal, and absence of secrets or other-employer markers. Revoked-session requests must leave SQL unchanged even before the membership fixture is restored.
 
 The proof refuses deployment environments, real provider credentials, enabled workers or schedulers, and all money/payout pathways. It never calls a real payroll provider. Synthetic payroll-run rows are **Draft** only. No external service, real employee data, production/Neon database or money action may be used as a substitute.
+
+## Why this follow-up is needed
+
+The original merged #1886 PG16 HTTP job passed on its reviewed head, but the
+proof established the strict >6 floor only for organization IDs. The updated
+recovery proof enforces the same persisted-ID floor for dependent employer
+business objects, broadens the protected SQL snapshot, and checks revocation
+immutability before restoring the fixture. This is deliberately **proof-only**:
+no app route, tenant manifest, ledger counts, release flag or runtime behavior
+is changed. A fresh exact-head PG16 HTTP run is required for this changed proof.
 
 ## Verification and promotion gate
 
