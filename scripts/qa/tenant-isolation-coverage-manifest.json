@@ -27003,19 +27003,19 @@
       "businessIds": []
     },
     "src/app/api/readiness/workspace/route.ts": {
-      "gitBlobSha": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
+      "gitBlobSha": "26378409dcfddc6bb0b726433e6896b3487a4cf7",
       "route": "readiness/workspace",
       "methods": [
         {
           "name": "GET",
           "line": 7,
           "status": "GAP",
-          "reason": "Employer-scoped live GET now offers a limited own-roster/payroll-run snapshot and denies other organizations. Own HTTP 200 and foreign 403 second-pass assertions are provisional; no exact-final-head standalone PG16 acceptance or independent security review. Launch/pilot status remains explicitly blocked. GAP / zero credits.",
+          "reason": "Still GAP / zero credits: RDY-01 adds canonical singleton employer selector validation (duplicate, exponent, zero-padded and signed IDs refused with 400) to the existing authorized own-read/foreign-403 boundary. Dedicated fictional PostgreSQL 16 HTTP proof, current exact-head CI and independent tenant-security/launch review are required before evidence promotion. No launch, pilot or production acceptance.",
           "testedBy": null,
           "reviewedUncertified": {
-            "routeBlobSha": "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
+            "routeBlobSha": "26378409dcfddc6bb0b726433e6896b3487a4cf7",
             "loaderBlobSha": "782853dada317783100dd1ee40004fa7e6126244",
-            "proofBlobSha": "79360f7641ba80794ed90863104910cad5cdfd9c",
+            "proofBlobSha": "228db712a89f66ef775116b62e909f06cb1e6bb9",
             "file": "scripts/qa/tenant-workspace-readiness-http.mjs",
             "ownPositiveLine": 138,
             "foreignDenialLine": 149,
@@ -27024,7 +27024,7 @@
             "coverageCredits": 0,
             "independentlyAccepted": false,
             "productionTested": false,
-            "scope": "Standalone signed-in three-employer PG16 HTTP source candidate with owned 200, genuine higher-ID foreign 403, SQL snapshots and unsafe-env refusal. Historical second-pass integration remains tested separately. Zero credits, exact-head CI and security/privacy review pending. PR #1901 increases fictional high-ID employer/entity/worker fixture strength and protects membership-revocation SQL snapshots; exact-final-head and independent security/privacy review remain required; no credit."
+            "scope": "Standalone signed-in fictional PG16 HTTP source candidate: three authenticated employers, seven real fictional filler employers, persisted victim business/member/pay-profile IDs >6, owned 200, foreign 403, canonical singleton organizationId enforcement (duplicate/noncanonical 400), extended immutable SQL snapshots including revocation-before-restore, and unsafe-env refusal. Historical second-pass integration tested separately. RDY-01 and high-ID evidence combined on PR #1901 after PR #1902 source reconciliation. GAP / testedBy null / 0 credits; exact-final-head CI and independent tenant-security/privacy review required; no production/launch acceptance."
           }
         }
       ],
@@ -27053,29 +27053,21 @@
           "token": "getSessionUser"
         },
         {
-          "line": 16,
+          "line": 20,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 27,
+          "line": 31,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 11,
+          "line": 12,
           "token": "searchParams.get(\"organizationId\")"
         }
       ],
       "businessIds": [
-        {
-          "line": 11,
-          "token": "organizationId"
-        },
-        {
-          "line": 11,
-          "token": "organizationId"
-        },
         {
           "line": 12,
           "token": "organizationId"
@@ -27085,11 +27077,19 @@
           "token": "organizationId"
         },
         {
-          "line": 18,
+          "line": 16,
           "token": "organizationId"
         },
         {
-          "line": 27,
+          "line": 17,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
           "token": "organizationId"
         }
       ]
