@@ -24,7 +24,7 @@ test("merged #1804 PG16 source proof gives only year-end GET and POST credits", 
   }
   assert.equal(m.metrics.privilegedOperationsTokenOnly, 11, "exactly eleven approved operations remain token-only, not method credits");
   assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.privilegedOperationsTokenOnly + m.metrics.gap, m.metrics.methods);
-  assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and 17 page\/action GAPs/);
+  assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and 16 page\/action GAPs/);
 });
 
 test("forged receipt, altered financial source, and fake approval fail closed", () => {
