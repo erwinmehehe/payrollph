@@ -6925,7 +6925,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
           for (const pin of entry[field]) {
             assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
-              actual.split("\\n")[pin.line - 1]?.includes(pin.token),
+              actual.split("\n")[pin.line - 1]?.includes(pin.token),
               path + " " + field + " invalid source line/token");
           }
         }
@@ -6949,20 +6949,20 @@ test("page and server-action inventory cannot silently omit new or changed busin
           fixture.indexOf('import("../../src/db/index.ts")'),
           "Disposable-only preflight must run before any app/DB import");
         for (const [line, pattern] of [
-          [reviewed.ownPositiveLine, /await own\\(actor, actor\\.worker\\)/],
-          [reviewed.secondOwnWorkerLine, /await own\\(actor, actor\\.secondWorker\\)/],
-          [reviewed.foreignWorkerDenialLine, /await deny\\(pathFor\\(actor\\.org\\.id, outsider\\.worker\\.id\\)/],
-          [reviewed.unchangedDbLine, /assert\\.deepEqual\\(await snapshot\\(subject\\.org\\.id\\)/],
+          [reviewed.ownPositiveLine, /await own\(actor, actor\.worker\)/],
+          [reviewed.secondOwnWorkerLine, /await own\(actor, actor\.secondWorker\)/],
+          [reviewed.foreignWorkerDenialLine, /await deny\(pathFor\(actor\.org\.id, outsider\.worker\.id\)/],
+          [reviewed.unchangedDbLine, /assert\.deepEqual\(await snapshot\(subject\.org\.id\)/],
           [reviewed.sourceOutageLine, /const unavailable = await readLocal/],
           [reviewed.gateFailureLine, /const gateError = await readLocal/],
-          [reviewed.revokedLine, /assert\\.equal\\(revoked\\.length, 1\\)/],
-        ]) assert.match(fixture.split("\\n")[line - 1] ?? "", pattern,
+          [reviewed.revokedLine, /assert\.equal\(revoked\.length, 1\)/],
+        ]) assert.match(fixture.split("\n")[line - 1] ?? "", pattern,
           "Proof line anchor not backed by the required assertion");
         assert.match(contract, /HCM_HIRE_PAYROLL_REVIEW_ORG_IDS: "1,2,3"/);
-        assert.match(contract, /DATABASE_URL: "postgresql:\/\/postgres:postgres@127\\.0\\.0\\.1:5432\/app_db"/);
+        assert.match(contract, /DATABASE_URL: "postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db"/);
         assert.match(workflow, /image: postgres:16/);
-        assert.match(workflow, /github\\.event\\.pull_request\\.head\\.sha/);
-        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hire-payroll-review-http\\.mjs/);
+        assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hire-payroll-review-http\.mjs/);
         assert.equal(reviewed.pageActionCredits, 0);
         assert.equal(reviewed.apiMethodCredits, 0);
         continue; // Source-pinned uncredited candidate, NEVER blanket tenant-isolation acceptance.
