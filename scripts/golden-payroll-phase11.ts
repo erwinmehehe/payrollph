@@ -156,8 +156,9 @@ async function runPayrollCase(id: string, spec: CaseSpec): Promise<Result> {
       assert.ok(permitted.has(String(printed.code)), id + ": unexpected loan source in payslip");
     }
     if (spec.expectedStatus) assert.equal(entry.status, spec.expectedStatus, id + ": unexpected exception status");
-    if (spec.expectedFlag) assert.ok(flags(entry).some((value) => value.includes(spec.expectedFlag)),
-      id + ": missing fail-closed warning: " + spec.expectedFlag);
+    const expectedFlag = spec.expectedFlag;
+    if (expectedFlag) assert.ok(flags(entry).some((value) => value.includes(expectedFlag)),
+      id + ": missing fail-closed warning: " + expectedFlag);
     const afterLoans = await db.select().from(employeeLoans).where(eq(employeeLoans.organizationId, org.id));
     assert.equal(afterLoans.length, seededLoans.length, id + ": calculation changed loan records");
     for (const original of seededLoans) {
