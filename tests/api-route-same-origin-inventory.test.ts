@@ -12,7 +12,7 @@ const API = "src/app/api";
  * test and authorization evidence, not a broad directory wildcard.
  */
 const AUTHORIZED_NO_COOKIE_MUTATIONS: Record<string, string> = {
-  "src/app/api/auth/saml/acs/[providerId]/route.ts": "SAML_RUNTIME_NOT_READY",
+  "src/app/api/auth/saml/acs/[providerId]/route.ts": "samlDisabledBoundaryResponse()",
   "src/app/api/hcm/work-items/escalate/route.ts": "timingSafeEqual",
   // Worker-to-worker only: these global jobs have no browser-session fallback.
   "src/app/api/jobs/tick/route.ts": "requireGlobalWorkerToken",
@@ -66,5 +66,17 @@ test("exemption register points only to actually existing mutation routes", () =
     const source = readFileSync(path, "utf8");
     assert.match(source, /export\s+(?:async\s+)?(?:function|const)\s+(?:POST|PUT|PATCH|DELETE)\b/, path);
     assert.ok(source.includes(proof), path);
+    if (path === "src/app/api/auth/saml/acs/[providerId]/route.ts") {
+      // The SAML assertion-consumer callback may be cross-origin by design.
+      // It must remain unauthenticated but disabled until signed-XML handling
+      // exists; never substitute a browser CSRF gate for this provider proof.
+      const boundary = readFileSync("src/lib/saml-disabled-boundary.ts", "utf8");
+      assert.match(source, /return samlDisabledBoundaryResponse\(\);/);
+      assert.doesNotMatch(source, /getSessionUser\(|identityProviders|db\.select/);
+      assert.match(boundary, /SAML_RUNTIME_BLOCK_REASON/);
+      assert.match(boundary, /SAML_RUNTIME_NOT_READY/);
+      assert.match(boundary, /status: 503/);
+      assert.doesNotMatch(boundary, /identityProviders|db\.select|createSession\(/);
+    }
   }
 });
