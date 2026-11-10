@@ -8,7 +8,7 @@ import {
   assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { activeHrCaseStaffMembership, linkedEmployeeHrCaseScope } from "@/lib/hr-case-tenant-scope";
+import { activeHrCaseStaffMembership, explicitHrCaseEmployerId, hrCaseStaffRosterScope, linkedEmployeeHrCaseScope } from "@/lib/hr-case-tenant-scope";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import {
@@ -42,24 +42,38 @@ export async function GET(request: Request) {
   const isEmployee = user.role === "employee";
   const worker = isEmployee ? await employeeForSession(user) : null;
   if (isEmployee && !worker) return Response.json({ error: "Employee access denied." }, { status: 403 });
-  const organizationId = worker?.organizationId ?? Number(new URL(request.url).searchParams.get("organizationId"));
-  if (!caseIdValid(organizationId)) return Response.json({ error: "Valid organizationId required." }, { status: 400 });
+  const selectors = new URL(request.url).searchParams.getAll("organizationId");
+  const selectedOrganizationId = explicitHrCaseEmployerId(selectors);
+  if (selectors.length > 0 && selectedOrganizationId === null) {
+    return Response.json({ error: "One canonical organizationId is required." }, { status: 400, headers: noStore });
+  }
+  // Self-service is bound to the linked employee's employer. Do not silently
+  // ignore a forged employer selector or use it for another tenant's lookup.
+  if (isEmployee && selectedOrganizationId !== null &&
+      selectedOrganizationId !== worker!.organizationId) return hrCaseNotFound();
+  const organizationId = isEmployee ? worker!.organizationId : selectedOrganizationId;
+  if (!organizationId) {
+    return Response.json({ error: "Valid organizationId required." }, { status: 400, headers: noStore });
+  }
 
   const access = isEmployee ? null : await getAccess(user.id, organizationId);
   if (!isEmployee) {
     const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES);
     if (denied) return denied;
-    if (!access || restrictedStaff(access.role)) {
-      return Response.json({ error: "HR case inbox access denied." }, { status: 403 });
+    if (!access || restrictedStaff(access.role) ||
+        (!access.companyWide && (!Number.isSafeInteger(access.orgUnitId) ||
+          (access.orgUnitId ?? 0) <= 0))) {
+      return Response.json({ error: "HR case inbox access denied." }, { status: 403, headers: noStore });
     }
   }
   const staff = isEmployee ? [] : await db.select({
     id: employees.id, orgUnitId: employees.orgUnitId,
     firstName: employees.firstName, lastName: employees.lastName,
     title: employees.title, startDate: employees.startDate,
-  }).from(employees).where(eq(employees.organizationId, organizationId));
-  const visibleIds = isEmployee ? [worker!.id] :
-    staff.filter(row => access!.companyWide || row.orgUnitId === access!.orgUnitId).map(row => row.id);
+  }).from(employees).where(hrCaseStaffRosterScope(
+    organizationId, access!.companyWide ? null : access!.orgUnitId,
+  ));
+  const visibleIds = isEmployee ? [worker!.id] : staff.map(row => row.id);
   const cases = visibleIds.length ? await db.select().from(employeeHrCases).where(and(
     eq(employeeHrCases.organizationId, organizationId),
     inArray(employeeHrCases.employeeId, visibleIds),
