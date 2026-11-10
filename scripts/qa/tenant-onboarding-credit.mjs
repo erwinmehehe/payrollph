@@ -5,6 +5,9 @@ import {METHODS} from './tenant-onboarding-contract.mjs';
 export const PROOF='scripts/qa/tenant-onboarding-http.mjs',RECEIPT='docs/qa/tenant-onboarding-receipt.json';
 export const SOURCES=[PROOF,'scripts/qa/tenant-onboarding-contract.mjs','scripts/qa/tenant-onboarding-env.mjs','scripts/qa/tenant-onboarding-credit.mjs','.github/workflows/tenant-onboarding-http.yml','src/app/api/employees/route.ts','src/app/api/employees/import/route.ts','src/app/api/recruitment/hire/route.ts','src/app/api/approvals/[id]/route.ts','src/lib/payroll-period-validation.ts','src/lib/hcm-hire-business-process.ts','src/lib/hcm-business-process.ts','src/lib/employee-import-preview.ts','src/lib/employee-import-request.ts','src/lib/employee-import-batch-server.ts','src/lib/csv-import.ts','src/lib/first-payroll-preview.ts','src/lib/first-payroll-canonical-preview.ts','scripts/qa/tenant-table-http.mjs','scripts/qa/tenant-table-invariants.mjs'];
 export const digest=file=>createHash('sha256').update(readFileSync(file,'utf8').replaceAll('\r\n','\n')).digest('hex');
+// Hire approvals now execute this transactional reverse-source boundary too.
+// Keep it sealed by the fresh legacy/preview reproof, never waive source drift.
+SOURCES.push('src/lib/approval-source-tenant-boundary.ts');
 const anchors={ownPositiveLine:'const r=await call(e,path,method,body,expected),after=',foreignDenialLine:'if(foreign)await denied(e,path,method,foreign)',forgedSelectorLine:"for(const f of forged)await denied(e,path,method,f.body,f.status,'forged')",unchangedDbLine:"'victim business/payroll/audit unchanged'"};
 const pin=fragment=>{const hits=readFileSync(PROOF,'utf8').split('\n').flatMap((line,i)=>line.includes(fragment)?[i+1]:[]);assert.equal(hits.length,1,'unique proof anchor '+fragment);return hits[0];};
 export function verifyReceipt(receipt=JSON.parse(readFileSync(RECEIPT,'utf8'))){

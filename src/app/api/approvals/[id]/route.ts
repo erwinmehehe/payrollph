@@ -5,6 +5,7 @@ import { approvalChainInstances, approvalTasks, auditEvents, automationExecution
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { payrollMakerCheckerDecision } from "@/lib/approval-human-separation";
+import { approvalSourceTenantBoundary } from "@/lib/approval-source-tenant-boundary";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import {
   frozenGovernedHandoffEvidence,
@@ -424,6 +425,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   };
   try {
     const decisionResult = await db.transaction(async (tx) => {
+      if (!await approvalSourceTenantBoundary(tx, taskId, task.organizationId)) {
+        throw new Error("APPROVAL_SOURCE_EMPLOYER_MISMATCH");
+      }
       if (dynamicGroupScope) {
         // Prevent concurrent group-definition or membership-link updates during
         // this decision, then re-evaluate live membership before the task write.
@@ -718,6 +722,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
       error.message === "APPROVAL_TASK_CONFLICT" ||
+      error.message === "APPROVAL_SOURCE_EMPLOYER_MISMATCH" ||
       error.message === "LEAVE_APPROVAL_STALE" ||
       error.message === "LEAVE_APPROVAL_SOURCE_AMBIGUOUS" ||
       error.message === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE" ||
