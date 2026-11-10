@@ -3627,7 +3627,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       "SSO discovery changed: rerun three-employer PG16 real HTTP and owner security review");
     assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, routeBlobSha);
     assert.equal(method.status, "GAP", "SSO public discovery is NOT certified as a tenant-private method");
-    assert.equal(method.testedBy, undefined, "unaccepted GAP must not have credited evidence");
+    assert.equal(method.testedBy, null, "unaccepted GAP must not have credited evidence");
     const reviewed = method.reviewedUncertified;
     assert.deepEqual(reviewed, {
       kind: "sso-discovery-domain-provider-org-match-PG16-HTTP-uncredited",
