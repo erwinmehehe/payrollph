@@ -43107,54 +43107,50 @@
     },
     {
       "path": "src/app/hcm/process-monitor/page.tsx",
-      "blob": "0a146018a98b2e401b9ee07dc3f22760bfe97fd8",
+      "blob": "977ae3415144cfa509e709c9a9422d93b6a9f97a",
       "ids": [
         {
-          "line": 21,
+          "line": 24,
           "token": "organizationId"
         },
         {
-          "line": 34,
-          "token": "organizationId"
-        },
-        {
-          "line": 116,
-          "token": "searchParams"
-        },
-        {
-          "line": 117,
-          "token": "searchParams"
-        },
-        {
-          "line": 118,
-          "token": "searchParams"
-        },
-        {
-          "line": 119,
+          "line": 37,
           "token": "organizationId"
         },
         {
           "line": 119,
-          "token": "organizationId"
+          "token": "searchParams"
         },
         {
           "line": 120,
+          "token": "searchParams"
+        },
+        {
+          "line": 121,
+          "token": "searchParams"
+        },
+        {
+          "line": 125,
           "token": "organizationId"
         },
         {
-          "line": 120,
+          "line": 125,
           "token": "organizationId"
         },
         {
-          "line": 131,
+          "line": 126,
           "token": "organizationId"
         },
         {
-          "line": 132,
+          "line": 126,
           "token": "organizationId"
         },
         {
-          "line": 134,
+          "line": 137,
+          "token": "organizationId"
+        },
+        {
+          "line": 138,
           "token": "organizationId"
         },
         {
@@ -43162,35 +43158,35 @@
           "token": "organizationId"
         },
         {
-          "line": 147,
+          "line": 160,
           "token": "organizationId"
         },
         {
-          "line": 147,
+          "line": 171,
           "token": "organizationId"
         },
         {
-          "line": 173,
+          "line": 171,
           "token": "organizationId"
         },
         {
-          "line": 173,
+          "line": 197,
           "token": "organizationId"
         },
         {
-          "line": 177,
+          "line": 197,
           "token": "organizationId"
         },
         {
-          "line": 181,
+          "line": 201,
           "token": "organizationId"
         },
         {
-          "line": 181,
+          "line": 205,
           "token": "organizationId"
         },
         {
-          "line": 206,
+          "line": 205,
           "token": "organizationId"
         },
         {
@@ -43198,76 +43194,76 @@
           "token": "organizationId"
         },
         {
-          "line": 242,
+          "line": 254,
           "token": "organizationId"
         },
         {
-          "line": 248,
+          "line": 266,
+          "token": "organizationId"
+        },
+        {
+          "line": 272,
           "token": "organizationId"
         }
       ],
       "actions": [],
       "guards": [
         {
-          "line": 4,
+          "line": 7,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 4,
+          "line": 7,
           "token": "getAccess"
         },
         {
-          "line": 5,
+          "line": 8,
           "token": "getSessionUser"
         },
         {
-          "line": 122,
+          "line": 128,
           "token": "getSessionUser"
         },
         {
-          "line": 131,
+          "line": 137,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 132,
+          "line": 138,
           "token": "getAccess"
         }
       ],
       "business": [
         {
-          "line": 21,
+          "line": 24,
           "token": "organizationId"
         },
         {
-          "line": 34,
+          "line": 37,
           "token": "organizationId"
         },
         {
-          "line": 119,
+          "line": 125,
           "token": "organizationId"
         },
         {
-          "line": 119,
+          "line": 125,
           "token": "organizationId"
         },
         {
-          "line": 120,
+          "line": 126,
           "token": "organizationId"
         },
         {
-          "line": 120,
+          "line": 126,
           "token": "organizationId"
         },
         {
-          "line": 131,
+          "line": 137,
           "token": "organizationId"
         },
         {
-          "line": 132,
-          "token": "organizationId"
-        },
-        {
-          "line": 134,
+          "line": 138,
           "token": "organizationId"
         },
         {
@@ -43275,35 +43271,35 @@
           "token": "organizationId"
         },
         {
-          "line": 147,
+          "line": 160,
           "token": "organizationId"
         },
         {
-          "line": 147,
+          "line": 171,
           "token": "organizationId"
         },
         {
-          "line": 173,
+          "line": 171,
           "token": "organizationId"
         },
         {
-          "line": 173,
+          "line": 197,
           "token": "organizationId"
         },
         {
-          "line": 177,
+          "line": 197,
           "token": "organizationId"
         },
         {
-          "line": 181,
+          "line": 201,
           "token": "organizationId"
         },
         {
-          "line": 181,
+          "line": 205,
           "token": "organizationId"
         },
         {
-          "line": 206,
+          "line": 205,
           "token": "organizationId"
         },
         {
@@ -43311,17 +43307,47 @@
           "token": "organizationId"
         },
         {
-          "line": 242,
+          "line": 254,
           "token": "organizationId"
         },
         {
-          "line": 248,
+          "line": 266,
+          "token": "organizationId"
+        },
+        {
+          "line": 272,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: HCM Process Monitor page requires exact-final-head feature-ON own/foreign process-ID SSR PG16 proof and independent security/privacy review. The employer-qualified loader/API remain unchanged; this page candidate hard-denies foreign/missing process selectors and duplicated query keys. ZERO page/API credits; no multi-entity legal-employer or workflow-action acceptance.",
+      "reviewedUncertified": {
+        "kind": "hcm-process-monitor-selected-id-ssr-pg16-unaccepted",
+        "originalPageBlobSha": "0a146018a98b2e401b9ee07dc3f22760bfe97fd8",
+        "pageBlobSha": "977ae3415144cfa509e709c9a9422d93b6a9f97a",
+        "loaderFile": "src/lib/hcm-process-monitor-server.ts",
+        "loaderBlobSha": "0d2d001e36fa40379f554d376a9ebd8a98221dcd",
+        "modelFile": "src/lib/hcm-process-monitor.ts",
+        "modelBlobSha": "fe16b35e185eeea946770c7187ae1f66ca51cc6e",
+        "apiFile": "src/app/api/hcm/process-monitor/route.ts",
+        "apiBlobSha": "743f4950560e755e4fcc4e7fb1b5b7f6b100c761",
+        "contractFile": "scripts/qa/tenant-hcm-process-monitor-contract.mjs",
+        "contractBlobSha": "bb65472687e93dd80706e7aa8f52187e545f0b29",
+        "proofFile": "scripts/qa/tenant-hcm-process-monitor-http.mjs",
+        "proofBlobSha": "a49f666887b87a9b95de6e73b7d1190ab5e03fe1",
+        "unitTestFile": "tests/tenant-hcm-process-monitor-page.test.ts",
+        "unitTestBlobSha": "d6ad80cd7e2355db9f793b78371332a9c5e7578f",
+        "contractTestFile": "tests/tenant-hcm-process-monitor-contract.test.mjs",
+        "contractTestBlobSha": "86f568807cb53914a0134713369081cc5a135684",
+        "workflowFile": ".github/workflows/tenant-hcm-process-monitor-ssr-qa.yml",
+        "workflowBlobSha": "d4beabe2d1914ce826585d59b0303c299190cb9c",
+        "proofStatus": "EXACT_PR_HEAD_FICTIONAL_PG16_PENDING",
+        "pageActionCredits": 0,
+        "apiMethodCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/hcm/team-leave-calendar/page.tsx",

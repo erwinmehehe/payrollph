@@ -153,9 +153,13 @@ export async function loadAuthorizedReportRows(input: {
       eq(payrollRuns.status, "Released"),
     ))
     // The entry has no organization_id of its own. A payroll run belonging to
-    // employer A must never pull employee B's salary into A's analytics.
-    // LEFT JOIN preserves missing/corrupt employee links for explicit rejection.
-    .leftJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    // employer A must never even read employee B's private payroll identity.
+    // LEFT JOIN remains necessary: a missing/foreign worker yields NULL and
+    // the attribution guard below rejects the entire report, not a zero row.
+    .leftJoin(employees, and(
+      eq(payrollEntries.employeeId, employees.id),
+      eq(employees.organizationId, organizationId),
+    ))
     .where(inArray(payrollEntries.payrollRunId, runs.map(run => run.id)))
     .limit(MAX_SOURCE_ROWS + 1);
   checkedRows(entries);
