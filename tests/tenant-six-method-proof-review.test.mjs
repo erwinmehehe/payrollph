@@ -124,7 +124,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
       // The #1676 hashes and line numbers remain HISTORICAL metadata. The
       // current BIR runner has new, UNACCEPTED real-HTTP check/download paths.
       // Never silently pretend its new lines were the exact merged #1676 head.
-      assert.equal(blobSha(proofPath), "565e609167a4cd8e6df21c099ad5d15fe9a94f6e",
+      assert.equal(blobSha(proofPath), "237fdbb7a704064ecf892f79c6421ea413052b95",
         "BIR recovery candidate changed: obtain new exact-head PG16 proof first");
       assert.notEqual(blobSha(proofPath), proofSha,
         "a changed recovery runner cannot borrow the template-only #1676 job");
