@@ -1474,14 +1474,14 @@
           "name": "POST",
           "line": 6,
           "status": "GAP",
-          "reason": "Unaccepted SAML-disabled provider privacy hardening: identical non-cacheable 503 refusal before any provider lookup. Zero whole-method tenant credit: SAML verifier is disabled, so no valid own-tenant SAML authentication success or real victim denial exists. Security/identity review and exact-head CI pending.",
+          "reason": "Unaccepted disabled SAML login provider privacy hardening: identical non-cacheable 503 refusal before lookup in start/ACS. Zero tenant method credit; public SAML metadata retains its separate zero-credit policy review and proof. Identity/security review and exact-head CI pending.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "saml-disabled-provider-enumeration-zero-credit",
             "originalRouteBlobSha": "dfdae777505e7baa82754444d477635f12ad283c",
             "routeBlobSha": "3f15a00c32587b18597bf8043f67d21a1fe980b8",
             "contractFile": "tests/tenant-saml-disabled-boundary.test.ts",
-            "contractBlobSha": "258a87e9739f373db339381a0a3a06e5b1c65c2b",
+            "contractBlobSha": "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
             "methodCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -1501,26 +1501,15 @@
       "businessIds": []
     },
     "src/app/api/auth/saml/metadata/[providerId]/route.ts": {
-      "gitBlobSha": "555a332edad9c046fee8f62ed84a3868d5c63e9f",
+      "gitBlobSha": "589fb64376d807f03245a12c6aca1de7c3bfa08f",
       "route": "auth/saml/metadata/[providerId]",
       "methods": [
         {
           "name": "GET",
-          "line": 6,
+          "line": 9,
           "status": "GAP",
-          "reason": "Unaccepted SAML-disabled provider privacy hardening: identical non-cacheable 503 refusal before any provider lookup. Zero whole-method tenant credit: SAML verifier is disabled, so no valid own-tenant SAML authentication success or real victim denial exists. Security/identity review and exact-head CI pending.",
-          "testedBy": null,
-          "reviewedUncertified": {
-            "kind": "saml-disabled-provider-enumeration-zero-credit",
-            "originalRouteBlobSha": "589fb64376d807f03245a12c6aca1de7c3bfa08f",
-            "routeBlobSha": "555a332edad9c046fee8f62ed84a3868d5c63e9f",
-            "contractFile": "tests/tenant-saml-disabled-boundary.test.ts",
-            "contractBlobSha": "258a87e9739f373db339381a0a3a06e5b1c65c2b",
-            "methodCredits": 0,
-            "exactHeadPg16Http": "PENDING",
-            "independentSecurityReview": "PENDING",
-            "productionCertified": false
-          }
+          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "testedBy": null
         }
       ],
       "employerSources": {
@@ -1542,14 +1531,14 @@
           "name": "GET",
           "line": 6,
           "status": "GAP",
-          "reason": "Unaccepted SAML-disabled provider privacy hardening: identical non-cacheable 503 refusal before any provider lookup. Zero whole-method tenant credit: SAML verifier is disabled, so no valid own-tenant SAML authentication success or real victim denial exists. Security/identity review and exact-head CI pending.",
+          "reason": "Unaccepted disabled SAML login provider privacy hardening: identical non-cacheable 503 refusal before lookup in start/ACS. Zero tenant method credit; public SAML metadata retains its separate zero-credit policy review and proof. Identity/security review and exact-head CI pending.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "saml-disabled-provider-enumeration-zero-credit",
             "originalRouteBlobSha": "0ce21833809e0a4ebfdf3703e87a716f6bb76788",
             "routeBlobSha": "555a332edad9c046fee8f62ed84a3868d5c63e9f",
             "contractFile": "tests/tenant-saml-disabled-boundary.test.ts",
-            "contractBlobSha": "258a87e9739f373db339381a0a3a06e5b1c65c2b",
+            "contractBlobSha": "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
             "methodCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
