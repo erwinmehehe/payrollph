@@ -4,8 +4,13 @@ Evidence label: **SOLO_VERIFIED_DEV_RECOVERY**. This is a separate main-based
 batch for the previously unproved `draft-from-language` and
 `save-language-draft` actions of `POST /api/automation-studio`.
 It does not duplicate the merged manual-draft, publication, operational-case
-or execution-recovery proofs. Runtime routes, existing proofs, manifests,
-coverage counts and production flags are unchanged.
+or execution-recovery proofs. Runtime routes, manifests, coverage counts and
+production flags are unchanged. The draft-versioning service now maps only
+the exact employer/name uniqueness conflict through Drizzle's wrapped cause
+to its existing 409 domain error, after transaction rollback. All unrelated
+failures still propagate. The merged draft proof's source seal is renewed for
+that narrow helper change; its executable assertions remain unchanged and
+its own CI job must rerun.
 
 ## Bounded execution
 
@@ -17,7 +22,7 @@ fallback. Saving creates an inactive, unpublished definition; it does not run
 the checklist, send its email, publish a workflow or create an outbox event.
 
 The runner refuses external targets, nonempty employer/identity databases,
-unexpected source blobs and provider credentials before seeding. Fourteen
+unexpected source blobs and provider credentials before seeding. Fifteen
 runtime input files are byte-sealed. Only PG16 is accepted. It uses two real
 authenticated fictional owners, seven populated filler employers with inert
 definitions, and a populated third victim whose employer, owner, worker,
@@ -57,9 +62,28 @@ Pure checks: `node --test tests/tenant-studio-language-contract.test.mjs`.
 Actual runner: `node --import tsx scripts/qa/tenant-studio-language-http.mjs`.
 Do not run the existing CI-only baseline helper outside real CI.
 
-At initial authoring: seven contract/negative-control tests passed; local real
-PG16/HTTP run is in progress. Exact final-head GitHub CI is **NOT_RUN** until
-its actual HTTP step completes. A local test or a build is not a CI receipt.
+Executed local proof on source head
+`8e54202baf032d1fb994c49a1380ff9040206787`: production Next build and a new private
+PG16 cluster passed all **3 proposals /3 persisted saves /44 refusals /12
+cross-employer oracle checks**, with zero published rules or provider calls.
+The first run exposed a real duplicate-save 500; the corrected version keeps
+the 409 refusal assertion intact. The sanitized
+[local receipt](../../scripts/qa/tenant-studio-language-local-receipt.json)
+seals the executed runtime and runner inputs. Nineteen focused language,
+conflict, manual-draft and lifecycle contract checks passed.
+
+Exact final-head GitHub CI is **NOT_RUN** until its actual HTTP step completes.
+The locally owned 55439/3319 processes were stopped after execution. No existing
+developer database was reused, and no GitHub Actions identity was fabricated.
+A local execution is not a CI receipt or independent security acceptance.
+
+The full private-PG16 tenant selection executed **1,707 tests: 1,690 passed,
+8 existing Windows POSIX-permission failures, 9 skipped**. The eight failures
+are the seven DL-02 private-file/symlink cases and the preseed 0600-file case;
+they were neither skipped nor loosened. Linux CI remains required. Repin found
+2,425 unchanged citations and zero repinned/review-needed entries. The generic
+table credit check still proposes an unrelated existing catalog credit; this
+PR does not apply it or edit any shared counts.
 
 ## Credits and limits
 
