@@ -42,4 +42,11 @@ government/journal/bank branches, provider preflights, or money-moving POST
 methods. **Zero new method credits.** Wait for exact-PR-head CI and
 independent security review before considering broader acceptance.
 
-The common coverage manifest is intentionally unchanged.
+The manifest's export route SHA and handler positions are re-inventoried without
+changing any status or count. GET retains its prior provisional credit, with
+fresh-head revalidation explicitly pending; POST remains GAP. Its entire body
+is pinned byte-for-byte after normalizing only the stricter ID parser. The
+separately credited Xendit route and the shared export ownership helper are
+unchanged; payslip validation lives in a new module so unrelated historical
+receipts are not silently repinned. Updated negative-only fixture pins remain
+unaccepted until the default and multi-entity PG16 jobs actually pass.

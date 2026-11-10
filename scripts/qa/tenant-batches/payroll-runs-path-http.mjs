@@ -286,7 +286,7 @@ export async function verifyPayrollPathBoundary() {
   ), 400, "duplicate own/foreign payslip selectors");
   assert.ok(!duplicate.text.includes(victim.marker));
   for (const badId of ["0", "01", "1e2"]) {
-    for (const route of ["exports?kind=payslip", "xendit-payout"]) {
+    for (const route of ["exports?kind=payslip"]) {
       const denied = standaloneExpectStatus(await standaloneRequest(
         "/api/payroll-runs/" + badId + "/" + route, { cookie: own.cookie },
       ), 400, "noncanonical run resource " + badId + "/" + route);

@@ -7,13 +7,13 @@ const xenditRoute = readFileSync("src/app/api/payroll-runs/[id]/xendit-payout/ro
 const proof = readFileSync("scripts/qa/tenant-batches/payroll-runs-path-http.mjs", "utf8");
 const workflow = readFileSync(".github/workflows/tenant-payroll-run-path-boundaries.yml", "utf8");
 
-test("payroll export GET/POST and payout GET/POST use canonical resource IDs", () => {
+test("payroll exports use canonical IDs while the separately sealed payout route is preserved", () => {
   assert.equal((exportsRoute.match(/canonicalTenantResourceId\(id\)/g) ?? []).length, 2);
-  assert.equal((xenditRoute.match(/canonicalTenantResourceId\(id\)/g) ?? []).length, 1);
+  assert.match(xenditRoute, /!Number.isSafeInteger\(runId\) \|\| runId <= 0/);
   assert.match(exportsRoute, /if \(runId === null\)/);
-  assert.match(xenditRoute, /if \(runId === null\)/);
+
   assert.doesNotMatch(exportsRoute, /const runId = Number\(id\)/);
-  assert.doesNotMatch(xenditRoute, /const runId = Number\(id\)/);
+
 });
 
 test("ambiguous and malformed explicit payslip selectors cannot widen an export", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertPayrollPayslipTenantOwnership } from "../src/lib/payroll-export-tenant-ownership";
+import { assertPayrollPayslipTenantOwnership } from "../src/lib/payroll-payslip-tenant-ownership";
 
 const own = 101, victim = 202;
 const denial = "Payroll export unavailable: employee ownership could not be verified.";

@@ -36,7 +36,7 @@ import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasur
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { canonicalTenantResourceId } from "@/lib/canonical-tenant-resource-id";
-import { assertPayrollPayslipTenantOwnership } from "@/lib/payroll-export-tenant-ownership";
+import { assertPayrollPayslipTenantOwnership } from "@/lib/payroll-payslip-tenant-ownership";
 
 // An initiation receipt is durable before the external PayMongo HTTP request.
 // A provider timeout or process crash is UNKNOWN, not proof that no salaries were sent.
