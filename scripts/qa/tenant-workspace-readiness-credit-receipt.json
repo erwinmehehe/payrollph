@@ -1,0 +1,61 @@
+{
+  "schema": "payrollph-tenant-method-credit-receipt-v1",
+  "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+  "method": "GET /api/readiness/workspace",
+  "proofPullRequest": 1901,
+  "proofHeadSha": "7b46658a7ea9f5eee86662cf35d7ca1730b7b5f4",
+  "proofMergeCommit": "dda898b05ba5dc14444ecb57b5c67d567bb3ea02",
+  "workflowRunId": 42814903331,
+  "workflowJobId": 129825397604,
+  "workflowUrl": "https://github.com/erwinmehehe/payrollph/actions/runs/42814903331/job/129825397604",
+  "workflowConclusion": "success",
+  "passedSteps": [
+    "Confirm exact reviewed head",
+    "Refuse unsafe targets, stale sources and fabricated readiness positives",
+    "Initialize empty disposable PostgreSQL 16",
+    "Build production-mode localhost app",
+    "Verify real own 200, foreign 403, high-ID victim and unchanged SQL"
+  ],
+  "logResult": {
+    "family": "tenant-workspace-readiness-api-get",
+    "fictionalPostgresMajor": 16,
+    "independentAuthenticatedOwners": 2,
+    "distinctHigherIdVictim": true,
+    "allBusinessVictimIdsOverSix": true,
+    "ownSuccesses": 3,
+    "foreignDenials": 4,
+    "negativeChecks": 15,
+    "sqlStateUnchanged": true,
+    "launchApproved": false,
+    "payoutOrProviderCalls": 0,
+    "newMethodCredits": 0,
+    "independentlyAccepted": false,
+    "productionTested": false
+  },
+  "sourceBlobs": {
+    "src/app/api/readiness/workspace/route.ts": "26378409dcfddc6bb0b726433e6896b3487a4cf7",
+    "src/lib/workspace-readiness-boundary.ts": "782853dada317783100dd1ee40004fa7e6126244",
+    "scripts/qa/tenant-workspace-readiness-http.mjs": "228db712a89f66ef775116b62e909f06cb1e6bb9",
+    "scripts/qa/tenant-workspace-readiness-contract.mjs": "6ab9dbe2723f2f4f9bda92fc8baff5db0eb6de92",
+    "scripts/qa/workspace-readiness-http.mjs": "6347d0527b4bea7aee49c548413a4a79452cf48a",
+    ".github/workflows/tenant-workspace-readiness-http.yml": "74c8ce0ba396e14b36b27f03c2d3966c82e217bd"
+  },
+  "proofLines": {
+    "ownPositiveLine": 138,
+    "foreignDenialLine": 149,
+    "forgedSelectorLine": 157,
+    "unchangedDbLine": 144,
+    "revokedDenialLine": 191,
+    "revokedImmutabilityLine": 193,
+    "ownCountLine": 201,
+    "foreignCountLine": 202,
+    "negativeCountLine": 203
+  },
+  "securityReview": "PENDING_INDEPENDENT_REVIEW",
+  "productionCertified": false,
+  "liveEmployerDataUsed": false,
+  "providerCalled": false,
+  "moneyMoved": false,
+  "intendedCreditCount": 1,
+  "notes": "This receipt records the exact successful final-head PR job, not an additional execution on the proposed credit PR. Credit becomes recorded on main only after this separate method-credit change is reviewed and merged. Production and tenant-wide security acceptance remain separate."
+}

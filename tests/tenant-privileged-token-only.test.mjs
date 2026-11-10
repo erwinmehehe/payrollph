@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {verifyWorkspaceReadinessCredit} from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 const manifest=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 const expected=[
 "GET jobs/cron","GET jobs/dispatch-readiness","GET jobs/status",
@@ -20,8 +21,12 @@ test("only eleven approved methods use the token-only class; zero tenant proof c
     assert.equal(m.privilegedOperation.productionCertified,false);
   }
   const workspace=manifest.allApiRouteFiles["src/app/api/readiness/workspace/route.ts"].methods.find(x=>x.name==="GET");
-  assert.equal(workspace.status,"GAP","tenant-scoped 503 is not operator-only proof");
-  assert.equal(workspace.testedBy,null);
+  // This tenant-scoped readiness GET has its own real own/foreign/unchanged
+  // PostgreSQL receipt; it must never borrow any token-only classification.
+  assert.equal(workspace.status,"COVERED","readiness GET earns only a separate method-specific receipt");
+  assert.equal(verifyWorkspaceReadinessCredit(manifest),1);
+  assert.equal(workspace.testedBy?.independentSecurityReview,"PENDING");
+  assert.equal(workspace.testedBy?.productionTested,false);
   const source=readFileSync("src/app/api/readiness/workspace/route.ts","utf8");
   assert.match(source,/getSessionUser/);
   assert.match(source,/assertOrganizationRole/);
