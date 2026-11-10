@@ -6,10 +6,11 @@ const route = (name) => read("src/app/api/payroll-runs/[id]/" + name + "/route.t
 const runner = read("scripts/qa/tenant-batches/payroll-runs-path-http.mjs");
 const workflow = read(".github/workflows/tenant-payroll-run-path-boundaries.yml");
 
-test("seven exact method keys, actual higher-ID victim, and explicit zero-credit classification", () => {
+test("eight exact method keys, actual higher-ID victim, and explicit zero-credit classification", () => {
   const keys = [
     "POST payroll-runs/[id]/submit-review",
     "POST payroll-runs/[id]/exports",
+    "GET payroll-runs/[id]/exports",
     "POST payroll-runs/[id]/pilot-signoff",
     "POST payroll-runs/[id]/release",
     "GET payroll-runs/[id]/xendit-payout",
@@ -26,6 +27,8 @@ test("seven exact method keys, actual higher-ID victim, and explicit zero-credit
   assert.match(runner, /own\.json\.ledger\.rows\[0\]\.employeeNo/);
   assert.match(runner, /businessState\(victim\.org\.id\)/);
   assert.match(runner, /uncreditedDenials, 12/);
+  assert.match(runner, /blockedForeignPayslipAssociations: 2/);
+  assert.match(runner, /rejectedMalformedPayslipSelectors: 7/);
   assert.match(runner, /newMethodCredits: 0, productionCertified: false/);
   assert.doesNotMatch(runner, /submitXenditPayroll|createPaymongoPayrollRetry|preflightPaymongoPayrollDisbursement/);
 });
@@ -71,7 +74,7 @@ test("submit-review checks a currently active employer membership AND enabled us
   assert.match(runner, /checkerDenials, 4/);
 });
 
-test("all seven addressed methods deny unauthorized legal-employer resources before sensitive operations", () => {
+test("all eight addressed methods deny unauthorized legal-employer resources before sensitive operations", () => {
   for (const name of ["submit-review", "exports", "pilot-signoff", "release", "xendit-payout", "payout-reconciliation"]) {
     const source = route(name);
     assert.ok(source.includes("requireRunEmployer"), name + " must bind the run's actual legal entity");
