@@ -105,3 +105,17 @@ export function assertOwnRecovery(response, actor, action) {
   assert.ok(Array.isArray(e.result) && e.result.at(-1)?.status === "completed");
   return e;
 }
+
+export function assertPersistedStudioResult(response, snapshot) {
+  for (const [field, table, keys] of [
+    ['operationalCase', 'automationOperationalCases', ['organizationId','caseType','sourceId','executionId','stepIndex','status','acknowledgedByUserId']],
+    ['execution', 'automationExecutions', ['organizationId','ruleId','employeeId','status','result']],
+  ]) {
+    const returned = response?.json?.[field];
+    if (!returned) continue;
+    const persisted = snapshot[table]?.find(row => row.id === returned.id);
+    assert.ok(persisted, 'HTTP success must name a persisted ' + field);
+    for (const key of keys) assert.deepEqual(persisted[key], returned[key],
+      'HTTP ' + field + ' differs from actual PostgreSQL ' + key);
+  }
+}

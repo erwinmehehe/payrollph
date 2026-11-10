@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import {
   ORIGIN, ROUTE, requireDisposableStudioExecutionEnv,
   verifyStudioExecutionSources, assertDeniedExecution,
-  assertOwnedCase, assertOwnRecovery,
+  assertOwnedCase, assertOwnRecovery, assertPersistedStudioResult,
 } from "./tenant-studio-execution-contract.mjs";
 
 const plain = x => JSON.parse(JSON.stringify(x));
@@ -95,6 +95,7 @@ export async function proveStudioExecutionIsolation() {
     assert.equal(result.status, status, label + " HTTP status");
     assertSuccess(result);
     const after = await snapshot(actor.org.id);
+    assertPersistedStudioResult(result, after);
     for (const key of tracked) {
       if (!allowed.has(key)) assert.deepEqual(after[key], before[key],
         label + ": own action changed forbidden table " + key);

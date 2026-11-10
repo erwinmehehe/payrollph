@@ -4,8 +4,17 @@ import test from "node:test";
 import {
   ORIGIN, ROUTE, SOURCE_BLOBS,
   requireDisposableStudioExecutionEnv, verifyStudioExecutionSources,
-  assertDeniedExecution, assertOwnedCase, assertOwnRecovery,
+  assertDeniedExecution, assertOwnedCase, assertOwnRecovery, assertPersistedStudioResult,
 } from "../scripts/qa/tenant-studio-execution-contract.mjs";
+
+test('a successful HTTP response cannot substitute for a persisted recovery', () => {
+  const row = {id:9,organizationId:7,ruleId:4,employeeId:8,status:'completed',result:[{status:'completed'}]};
+  const response = {json:{execution:row}};
+  assert.doesNotThrow(()=>assertPersistedStudioResult(response,{automationExecutions:[row]}));
+  for(const rows of [[],[{...row,status:'failed'}],[{...row,organizationId:99}],[{...row,result:[]}]])
+    assert.throws(()=>assertPersistedStudioResult(response,{automationExecutions:rows}));
+  assert.ok(readFileSync('scripts/qa/tenant-studio-execution-http.mjs','utf8').includes('assertPersistedStudioResult(result, after)'));
+});
 
 const safe = {
   CI: "true", GITHUB_ACTIONS: "true", NODE_ENV: "production",
