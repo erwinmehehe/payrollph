@@ -44170,34 +44170,26 @@
     },
     {
       "path": "src/app/workspace/prior-employer/page.tsx",
-      "blob": "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff",
+      "blob": "e55809f26075c142240675826a0c353d403a20e6",
       "ids": [
         {
-          "line": 11,
+          "line": 16,
           "token": "searchParams"
         },
         {
-          "line": 12,
+          "line": 17,
           "token": "searchParams"
         },
         {
-          "line": 18,
+          "line": 23,
           "token": "searchParams"
         },
         {
-          "line": 19,
+          "line": 24,
           "token": "organizationId"
         },
         {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 21,
+          "line": 25,
           "token": "organizationId"
         },
         {
@@ -44209,84 +44201,84 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
-          "token": "employeeId"
+          "line": 30,
+          "token": "organizationId"
         },
         {
-          "line": 30,
-          "token": "employeeId"
-        },
-        {
-          "line": 30,
-          "token": "employeeId"
+          "line": 31,
+          "token": "organizationId"
         },
         {
           "line": 34,
-          "token": "organizationId"
-        },
-        {
-          "line": 35,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 38,
           "token": "employeeId"
         },
         {
-          "line": 38,
+          "line": 35,
+          "token": "employeeId"
+        },
+        {
+          "line": 35,
+          "token": "employeeId"
+        },
+        {
+          "line": 61,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
+          "token": "employeeId"
+        },
+        {
+          "line": 65,
           "token": "employeeId"
         }
       ],
       "actions": [],
       "guards": [
         {
-          "line": 2,
+          "line": 5,
           "token": "getSessionUser"
         },
         {
-          "line": 4,
+          "line": 7,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 4,
+          "line": 7,
           "token": "getAccess"
         },
         {
-          "line": 15,
+          "line": 20,
           "token": "getSessionUser"
         },
         {
-          "line": 25,
+          "line": 30,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 26,
+          "line": 31,
           "token": "getAccess"
         }
       ],
       "business": [
         {
-          "line": 19,
+          "line": 24,
           "token": "organizationId"
         },
         {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 21,
+          "line": 25,
           "token": "organizationId"
         },
         {
@@ -44298,49 +44290,57 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
-          "token": "employeeId"
+          "line": 30,
+          "token": "organizationId"
         },
         {
-          "line": 30,
-          "token": "employeeId"
-        },
-        {
-          "line": 30,
-          "token": "employeeId"
+          "line": 31,
+          "token": "organizationId"
         },
         {
           "line": 34,
-          "token": "organizationId"
-        },
-        {
-          "line": 35,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
-          "token": "organizationId"
-        },
-        {
-          "line": 38,
           "token": "employeeId"
         },
         {
-          "line": 38,
+          "line": 35,
+          "token": "employeeId"
+        },
+        {
+          "line": 35,
+          "token": "employeeId"
+        },
+        {
+          "line": 61,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
+          "token": "employeeId"
+        },
+        {
+          "line": 65,
           "token": "employeeId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Still GAP: #1882 feature-ON fictional PG16 GET-only page boundary is provisionally evidenced. No form action acceptance, independent security/privacy/payroll-tax review or release authorization.",
+      "reason": "Still GAP: #1882 earlier feature-ON PG16 page proof was for the original unselected worker shell. Follow-on prior-employer selected-worker and legal-entity binding requires new exact-PR-head real-HTTP acceptance and independent security/payroll-tax review; 0 new credits and no API/form-action acceptance.",
       "reviewedUncertified": {
         "kind": "payroll-tax-review-SSR-GET-PG16-unaccepted",
         "originalPageBlobSha": "82327e4d8580af2abe503e7a104321e854dc84f7",
-        "pageBlobSha": "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff",
+        "pageBlobSha": "e55809f26075c142240675826a0c353d403a20e6",
         "selectorFile": "src/lib/tenant-payroll-review-page.ts",
         "selectorBlobSha": "37766e6f9ec0dd8d1098bc8987bbd5de899a3739",
         "proofFile": "scripts/qa/tenant-payroll-review-pages-http.mjs",
@@ -44361,7 +44361,29 @@
         "pageActionCredits": 0,
         "apiMethodCredits": 0,
         "independentlyAccepted": false,
-        "productionCertified": false
+        "productionCertified": false,
+        "workerBinding": {
+          "kind": "prior-employer-selected-worker-legal-entity-SSR-PG16-uncredited",
+          "originalPageBlobSha": "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff",
+          "pageBlobSha": "e55809f26075c142240675826a0c353d403a20e6",
+          "helperFile": "src/lib/tenant-prior-review-worker.ts",
+          "helperBlobSha": "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
+          "proofFile": "scripts/qa/tenant-prior-review-worker-http.mjs",
+          "proofBlobSha": "b4c55c0d9dceb77364a330ebc5222d0c49c1158d",
+          "contractFile": "scripts/qa/tenant-prior-review-worker-contract.mjs",
+          "contractBlobSha": "428b115e1814942fdfbb43f799010745af55f3de",
+          "testFile": "tests/tenant-prior-review-worker.test.ts",
+          "testBlobSha": "4869a764339591315eab51d217f577f25930b2d3",
+          "contractTestFile": "tests/tenant-prior-review-worker-contract.test.mjs",
+          "contractTestBlobSha": "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
+          "workflowFile": ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
+          "workflowBlobSha": "beda36c25495f84d0cbc85030f9cce47f9faa32a",
+          "proofStatus": "EXACT_PR_HEAD_PG16_PENDING",
+          "pageActionCredits": 0,
+          "apiMethodCredits": 0,
+          "independentlyAccepted": false,
+          "productionCertified": false
+        }
       }
     },
     {
