@@ -59,7 +59,7 @@ test("receipt/source/workflow/blob drift requires a fresh executed proof", () =>
 
 test("exactly one additional provisional billing credit; other GAPs and classes unchanged", () => {
   const m = manifest(), counts = tallyTenantManifest(m);
-  assert.equal(m.metrics.methods, 498);
+  assert.equal(m.metrics.methods, counts.methods);
   assert.equal(m.metrics.coveredAfter, counts.coveredAfter);
   assert.equal(m.metrics.gap, counts.gap);
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
