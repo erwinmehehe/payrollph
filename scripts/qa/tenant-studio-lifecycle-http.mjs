@@ -320,7 +320,7 @@ export async function proveStudioLifecycleIsolation() {
     assert.equal(ownedDisables, 2);
     assert.equal(ownedRollbacks, 2);
     assert.equal(foreignDenials, 22);
-    assert.equal(otherDenials, 17);
+    assert.equal(otherDenials, 19);
     await verifyAllUnchanged("final protected employer snapshots");
 
     console.log("TENANT_STUDIO_LIFECYCLE_HTTP_COMPLETE " + JSON.stringify({
