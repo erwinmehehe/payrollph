@@ -3613,12 +3613,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       "MNY-02 must expect a non-disclosing 404 for a foreign DELETE");
   }
 
-  // Deliberately disabled SAML endpoints must not enumerate tenant provider IDs.
+  // Deliberately disabled SAML login endpoints must not enumerate provider IDs.
   // This is an exact-source, zero-credit privacy repair, not an exception for
   // arbitrary changed GAPs or a claim of completed SAML authentication proof.
   if (isNewOrChanged && [
     "src/app/api/auth/saml/start/[providerId]/route.ts GET",
-    "src/app/api/auth/saml/metadata/[providerId]/route.ts GET",
     "src/app/api/auth/saml/acs/[providerId]/route.ts POST",
   ].includes(key)) {
     const sourcePath = key.slice(0, key.lastIndexOf(" "));
@@ -3627,17 +3626,13 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
         before: "0ce21833809e0a4ebfdf3703e87a716f6bb76788",
         after: "555a332edad9c046fee8f62ed84a3868d5c63e9f",
       },
-      "src/app/api/auth/saml/metadata/[providerId]/route.ts": {
-        before: "589fb64376d807f03245a12c6aca1de7c3bfa08f",
-        after: "555a332edad9c046fee8f62ed84a3868d5c63e9f",
-      },
       "src/app/api/auth/saml/acs/[providerId]/route.ts": {
         before: "dfdae777505e7baa82754444d477635f12ad283c",
         after: "3f15a00c32587b18597bf8043f67d21a1fe980b8",
       },
     };
     const pins = expectedRoutes[sourcePath];
-    assert.ok(pins, "Only three disabled SAML entrypoints may use this hold");
+    assert.ok(pins, "Only start and ACS may use this hold");
     assert.equal(currentBlob, pins.after, "SAML handler changed; re-review before release");
     assert.equal(manifest.allApiRouteFiles[sourcePath].gitBlobSha, pins.after);
     assert.equal(method.status, "GAP", "A disabled SAML refusal never becomes COVERED");
@@ -3647,7 +3642,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       originalRouteBlobSha: pins.before,
       routeBlobSha: pins.after,
       contractFile: "tests/tenant-saml-disabled-boundary.test.ts",
-      contractBlobSha: "258a87e9739f373db339381a0a3a06e5b1c65c2b",
+      contractBlobSha: "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
       methodCredits: 0,
       exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING",
@@ -3661,7 +3656,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(gitBlobSha(readFileSync("src/lib/saml-disabled-boundary.ts")),
       "03b1ee3b4eba99d58c2fabc7e47d43dd38206cc9", "Common refusal changed without review");
     assert.equal(gitBlobSha(readFileSync("tests/tenant-saml-disabled-boundary.test.ts")),
-      "258a87e9739f373db339381a0a3a06e5b1c65c2b",
+      "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
       "SAML privacy test changed without renewed pin");
     return;
   }
