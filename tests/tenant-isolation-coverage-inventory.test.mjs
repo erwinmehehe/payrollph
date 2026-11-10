@@ -1,5 +1,6 @@
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
+import {verifyBillingPostCredit,BILLING_POST_PATH} from "../scripts/qa/tenant-billing-post-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
@@ -274,6 +275,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(currentBlob, manifest.allApiRouteFiles[path].gitBlobSha,
       "Changed billing route needs new source-current PG16 evidence");
     assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
+    return true;
+  }
+  if (key === BILLING_POST_PATH + " POST") {
+    assert.equal(method.status, "COVERED", "Only sealed exact-head legacy billing POST can recover");
+    assert.equal(verifyBillingPostCredit(manifest), 1);
+    assert.equal(currentBlob, method.testedBy.routeBlobSha);
     return true;
   }
   if (key === FILING_PATH + " PATCH" && method.status === "COVERED") {
@@ -4244,6 +4251,10 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if (path === BILLING_POST_PATH && method.name === "POST") {
+        assert.equal(verifyBillingPostCredit(manifest), 1);
+        continue; // Strict source-sealed fictional PayMongo checkout; no borrowed billing subscription receipt.
+      }
       if (path === FILING_PATH && method.name === "PATCH") {
         assert.equal(verifyFilingPatchCredit(manifest), 1);
         continue;
