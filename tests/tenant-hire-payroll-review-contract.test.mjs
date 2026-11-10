@@ -98,6 +98,17 @@ test("empty success or foreign/worker-specific denial body is never accepted as 
   assert.doesNotThrow(() => assertOwnedHirePage({
     status: 200, text: validOwnText, headers,
   }, employers[0], { id: 2 }, employers));
+  // Next.js/React SSR emits empty comment separators between adjacent JSX text
+  // and numeric interpolations. They must not invalidate real authorized HTML.
+  const reactOwnText = validOwnText
+    .replace("Employer #1", "Employer #<!-- -->1")
+    .replace("Worker #2", "Worker #<!-- -->2");
+  assert.doesNotThrow(() => assertOwnedHirePage({
+    status: 200, text: reactOwnText, headers,
+  }, employers[0], { id: 2 }, employers));
+  assert.throws(() => assertOwnedHirePage({
+    status: 200, text: reactOwnText.replace("Employer #<!-- -->1", "Employer #<!-- -->3"), headers,
+  }, employers[0], { id: 2 }, employers), "Wrong employer must still fail");
   assert.throws(() => assertOwnedHirePage({
     status: 200, text: "", headers,
   }, employers[0], { id: 2 }, employers));
@@ -110,4 +121,7 @@ test("empty success or foreign/worker-specific denial body is never accepted as 
   assert.throws(() => assertDeniedHirePage({
     status: 404, text: "Hire-to-payroll input evidence Employer #3 · Worker #7", headers,
   }, employers, "leaked 404"));
+  assert.throws(() => assertDeniedHirePage({
+    status: 404, text: "Employer #<!-- -->3 · Worker #<!-- -->7", headers,
+  }, employers, "react-comment worker binding leaked 404"));
 });
