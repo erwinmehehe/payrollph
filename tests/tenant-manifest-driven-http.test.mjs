@@ -132,10 +132,10 @@ test("workspace readiness own employer HTTP 200 remains uncredited, with real vi
   assert.equal(method?.status, "GAP", "A functional own GET is not a security-accepted whole-method credit");
   assert.equal(method?.testedBy, null, "Pending independent review; no automatic promotion");
   const reviewed = method?.reviewedUncertified;
-  assert.equal(reviewed?.routeBlobSha, "5fdf10244467ddee8e5ccd1e98f07930b2ce7086");
+  assert.equal(reviewed?.routeBlobSha, "26378409dcfddc6bb0b726433e6896b3487a4cf7");
   assert.equal(reviewed?.routeBlobSha, manifest.allApiRouteFiles[key].gitBlobSha);
   assert.equal(reviewed?.loaderBlobSha, "782853dada317783100dd1ee40004fa7e6126244");
-  assert.equal(reviewed?.proofBlobSha, "a2b24c5f79d483645da59902bfbde80c13f9c497");
+  assert.equal(reviewed?.proofBlobSha, "a5daf90f2608914f41a6445a6cc29ef261fe3216");
   assert.equal(reviewed?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
   assert.equal(reviewed?.ownStatus, 200);
   assert.equal(reviewed?.foreignStatus, 403);
