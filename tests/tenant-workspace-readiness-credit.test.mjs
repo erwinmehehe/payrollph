@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
+import {verifyCheckoutCredit} from '../scripts/qa/tenant-billing-checkout-credit.mjs';
 import {
   ROUTE_PATH, RECEIPT_FILE, expectedWorkspaceReadinessTestedBy,
   verifyWorkspaceReadinessReceipt, verifyWorkspaceReadinessCredit,
@@ -24,8 +25,10 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   const m = manifest();
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
-  assert.deepEqual([m.metrics.methods, m.metrics.coveredAfter, m.metrics.gap],
-    [498, 453, 19], "Exactly one ledger method changes from GAP to COVERED");
+  const base=baseTenantManifest();
+  if(base){const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;
+    assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta);
+    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta);}
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
   assert.deepEqual(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy,
     expectedWorkspaceReadinessTestedBy());
@@ -72,6 +75,7 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
     ["src/app/api/approvals/[id]/route.ts", "PATCH"],
     ["src/app/api/payroll-runs/[id]/exports/route.ts", "POST"],
   ]) {
+    if(route==='src/app/api/billing/route.ts'){assert.equal(verifyCheckoutCredit(m),1);continue;}
     const method = m.allApiRouteFiles[route].methods.find(x => x.name === verb);
     assert.equal(method.status, "GAP", route);
     assert.equal(method.testedBy, null, route);

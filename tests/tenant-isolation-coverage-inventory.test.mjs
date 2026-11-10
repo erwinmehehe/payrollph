@@ -1,4 +1,5 @@
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
+import { verifyCheckoutCredit, CHECKOUT_PATH } from "../scripts/qa/tenant-billing-checkout-credit.mjs";
 import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
 import { ROUTE_PATH as READINESS_GET_PATH, verifyWorkspaceReadinessCredit } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
@@ -275,6 +276,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(currentBlob, manifest.allApiRouteFiles[path].gitBlobSha,
       "Changed billing route needs new source-current PG16 evidence");
     assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
+    return true;
+  }
+  if (key === CHECKOUT_PATH + " POST" && method.status === "COVERED") {
+    assert.equal(verifyCheckoutCredit(manifest), 1);
+    assert.equal(currentBlob, method.testedBy.routeBlobSha);
     return true;
   }
   if (key === FILING_PATH + " PATCH" && method.status === "COVERED") {
@@ -4325,6 +4331,10 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if (path === CHECKOUT_PATH && method.name === "POST") {
+        assert.equal(verifyCheckoutCredit(manifest), 1);
+        continue;
+      }
       if (path === FILING_PATH && method.name === "PATCH") {
         assert.equal(verifyFilingPatchCredit(manifest), 1);
         continue;

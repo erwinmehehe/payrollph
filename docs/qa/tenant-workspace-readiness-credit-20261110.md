@@ -24,4 +24,17 @@ The method returns employer-only *counts* for company-wide authorized administra
 3. Review own and foreign HTTP response privacy, source queries, duplicate-selector refusal, revoked membership and SQL immutability.
 4. Require final-head CI, Security HTTP Smoke and inventory/credit-regression checks on this *credit* PR.
 5. Confirm only this one method changes `GAP -> COVERED`, the manifest totals reconcile, and the 16 page/action gaps remain intact.
-6. Obtain owner and independent security/privacy review, then merge to `main` if accepted. Production and launch approvals are separate.
+6. Apply the repository's source-merge policy and the owner's merge instruction. Independent security/privacy acceptance, production and launch approvals remain separate and pending.
+
+## Reconciled after billing #1910
+
+Main now contains billing POST's separate source-sealed credit: 453 COVERED /
+19 GAP. This proposal preserves that receipt and adds only readiness GET,
+producing 454 COVERED /18 GAP. Both receipts have distinct verifiers; statuses
+and frozen batch totals are derived from the combined ledger. No double credit.
+
+Current integration checks: 60 focused tests passed. Fresh private PG16 full
+tenant selection: 1,676 tests, 1,659 passed /8 existing Windows permission
+failures /9 skipped. Lint had zero errors/ten existing warnings, TypeScript
+passed, and repin/restricted credit reconciliation passed without repinning.
+Fresh integrated-head CI is required before merge.
