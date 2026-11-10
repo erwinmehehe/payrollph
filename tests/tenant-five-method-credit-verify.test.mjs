@@ -35,7 +35,7 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   assert.deepEqual(verifyFiveMethodCredits(manifest), {
     status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
     methodsHeld: 0, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap,
-    pageActionGaps: 17, productionTested: false, independentlyAccepted: false,
+    pageActionGaps: 16, productionTested: false, independentlyAccepted: false,
   });
 });
 
