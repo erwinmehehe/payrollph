@@ -116,13 +116,26 @@ export function assertNoTenantLeak(result, employers, label, actor = null) {
     assert.ok(!decoded.includes(secret), label + ": own confidential source projected");
 }
 
+// Next SSR inserts React comments between literal and dynamic text. Verify
+// visible HTML text, excluding scripts/styles so an RSC payload cannot stand
+// in for an actually rendered workflow or worker.
+function renderedText(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
 export function assertOwnMonitor(result, actor, process, employers) {
   assert.equal(result.status, 200, "Owned monitor must render HTTP 200");
+  const text = renderedText(result.text);
   for (const needle of [
     "Business Process Monitor", "Employer #" + actor.org.id,
     "Recorded workflows", "Step timeline",
     "Hire #" + process.id, "Step 1",
-  ]) assert.ok(result.text.includes(needle),
+  ]) assert.ok(text.includes(needle),
     "Owned monitor must show populated persisted workflow: " + needle);
   assert.ok(!result.text.includes("Workflow source unavailable"),
     "A source-unavailable shell is not own-positive evidence");
@@ -131,16 +144,17 @@ export function assertOwnMonitor(result, actor, process, employers) {
 
 export function assertOwnHireReview(result, actor, worker, employers, { payProfilePresent = true } = {}) {
   assert.equal(result.status, 200, "Owned hire evidence must render HTTP 200");
+  const text = renderedText(result.text);
   for (const needle of [
     "Hire-to-payroll input evidence", "Employer #" + actor.org.id,
     "Worker #" + worker.id, "Current employment record",
     "Payroll basis and standard hours", "Payroll approval, filing and payout",
-  ]) assert.ok(result.text.includes(needle),
+  ]) assert.ok(text.includes(needle),
     "Owned hire page must reflect a real persisted worker: " + needle);
   const expectedSourceEvidence = payProfilePresent
     ? "Recognized pay basis and positive rate, work-day and hour fields are recorded; approval is not verified."
     : "An explicit pay profile is missing or its required fields need review.";
-  assert.ok(result.text.includes(expectedSourceEvidence),
+  assert.ok(text.includes(expectedSourceEvidence),
     "Owned hire review must distinguish a persisted complete pay profile from a different worker without one");
   assert.ok(!result.text.includes("The input sources are temporarily unavailable"),
     "An unavailable fallback is not an owned data success");

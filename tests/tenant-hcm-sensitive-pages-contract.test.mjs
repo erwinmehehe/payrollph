@@ -76,6 +76,12 @@ test("fake 200 and empty page shells are not evidence of own HCM records", () =>
     monitor + " Workflow source unavailable"), actor, actor.processes[0], [actor, victim]));
   assert.doesNotThrow(() => assertOwnMonitor(result(200, monitor),
     actor, actor.processes[0], [actor, victim]));
+  assert.doesNotThrow(() => assertOwnMonitor(result(200,
+    '<p>Business Process Monitor</p><p>Employer #<!-- -->8</p><p>Recorded workflows</p><p>Step timeline</p><p>Hire #<!-- -->25</p><p>Step <!-- -->1</p>'),
+    actor, actor.processes[0], [actor, victim]));
+  assert.throws(() => assertOwnMonitor(result(200,
+    '<p>Business Process Monitor</p><script>' + monitor + '</script>'),
+    actor, actor.processes[0], [actor, victim]));
   assert.throws(() => assertOwnHireReview(result(200, "Hire-to-payroll input evidence"),
     actor, { id: 4 }, [actor, victim]));
   assert.throws(() => assertOwnHireReview(result(200,
