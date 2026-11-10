@@ -233,6 +233,67 @@ export async function verifyPayrollPathBoundary() {
     // Checker probes only generate fictional checker users, never payroll writes.
     assert.deepEqual(await businessState(attacker.org.id), before);
   }
+  // Disposable FK-corruption negative control: two ways an own-employer
+  // payslip could point to a real, higher-ID foreign worker.
+  const own = attackers[0];
+  const ownBefore = await businessState(own.org.id);
+  for (const variant of ["mismatched-slip-worker", "foreign-entry-worker"]) {
+    let insertedSlipId = null;
+    let insertedEntryId = null;
+    try {
+      if (variant === "foreign-entry-worker") {
+        const [entry] = await db.insert(payrollEntries).values({
+          payrollRunId: own.runs.released.id, employeeId: victim.worker.id,
+          grossPay: "1000.00", deductions: "0.00", netPay: "1000.00",
+        }).returning({ id: payrollEntries.id });
+        insertedEntryId = entry.id;
+      }
+      const [slip] = await db.insert(payslips).values({
+        payrollEntryId: insertedEntryId ?? own.releasedEntry.id,
+        organizationId: own.org.id, employeeId: victim.worker.id,
+        periodLabel: own.runs.released.periodLabel,
+        content: "PRIVATE-VICTIM-PAYSLIP-" + victim.marker,
+      }).returning({ id: payslips.id });
+      insertedSlipId = slip.id;
+      const denied = standaloneExpectStatus(await standaloneRequest(
+        "/api/payroll-runs/" + own.runs.released.id + "/exports?kind=payslip",
+        { cookie: own.cookie },
+      ), 409, variant + " blocks contaminated payroll export");
+      assert.ok(!denied.text.includes(victim.marker) && !denied.text.includes(victim.worker.employeeNo),
+        variant + ": foreign payslip may not leave the server");
+      assert.deepEqual(await businessState(victim.org.id), victimBefore,
+        variant + ": victim payroll and audit unchanged");
+    } finally {
+      if (insertedSlipId !== null) await db.delete(payslips).where(eq(payslips.id, insertedSlipId));
+      if (insertedEntryId !== null) await db.delete(payrollEntries).where(eq(payrollEntries.id, insertedEntryId));
+    }
+    assert.deepEqual(await businessState(own.org.id), ownBefore,
+      variant + ": clean up synthetic corruption");
+  }
+  // Explicit malformed selectors must never become a whole-list read.
+  for (const bad of ["NaN", "0", "1e2", "-1", "01", ""]) {
+    const denied = standaloneExpectStatus(await standaloneRequest(
+      "/api/payroll-runs/" + own.runs.released.id + "/exports?kind=payslip&payslipId=" + bad,
+      { cookie: own.cookie },
+    ), 400, "malformed payslip selector " + bad);
+    assert.ok(!denied.text.includes(own.marker), "malformed selector exposed a payslip list");
+  }
+  const duplicate = standaloneExpectStatus(await standaloneRequest(
+    "/api/payroll-runs/" + own.runs.released.id +
+      "/exports?kind=payslip&payslipId=" + own.releasedPayslip.id +
+      "&payslipId=" + victim.releasedPayslip.id,
+    { cookie: own.cookie },
+  ), 400, "duplicate own/foreign payslip selectors");
+  assert.ok(!duplicate.text.includes(victim.marker));
+  for (const badId of ["0", "01", "1e2"]) {
+    for (const route of ["exports?kind=payslip", "xendit-payout"]) {
+      const denied = standaloneExpectStatus(await standaloneRequest(
+        "/api/payroll-runs/" + badId + "/" + route, { cookie: own.cookie },
+      ), 400, "noncanonical run resource " + badId + "/" + route);
+      assert.ok(!denied.text.includes(victim.marker));
+    }
+  }
+  assert.deepEqual(await businessState(own.org.id), ownBefore);
   assert.deepEqual(await businessState(victim.org.id), victimBefore);
   assert.equal(verifiedPairs, PAYROLL_PATH_METHODS.length * 2);
   assert.equal(uncreditedDenials, 12);
@@ -243,7 +304,8 @@ export async function verifyPayrollPathBoundary() {
     profile: multiEntity ? "multi-entity" : "default",
     fictionalEmployerCount: 3, attackerEmployers: 2,
     methodKeys: PAYROLL_PATH_METHODS,
-    ownForeignPairs: verifiedPairs, populatedOwnXenditGet: 2,
+    ownForeignPairs: verifiedPairs, populatedOwnXenditGet: 2, populatedOwnPayslipListGet: 2,
+    blockedForeignPayslipAssociations: 2, rejectedMalformedPayslipSelectors: 7,
     blockedPreconditionOnlyMutations: uncreditedDenials,
     ungrantedSameWorkspaceLegalEmployerDenials: legalEmployerDenials,
     inactiveAndDisabledCheckerDenials: checkerDenials,
