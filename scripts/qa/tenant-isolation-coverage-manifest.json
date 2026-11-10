@@ -584,7 +584,7 @@
                 "scripts/qa/tenant-approval-types-contract.mjs": "acb26fa3ef9017df7b2bf50c35e600e6ca6e66b6",
                 "tests/tenant-approval-types-contract.test.mjs": "b84ec2043fc38168f133949d44fdc60de25d5874",
                 "tests/approval-source-tenant-boundary.test.ts": "a2cebf815468bd392bb31fb848e74cdbcad7ad80",
-                ".github/workflows/tenant-approval-types-http.yml": "09c8e0c463934bce986bb6c8cbcedc6a5b581a0d",
+                ".github/workflows/tenant-approval-types-http.yml": "359fc3ff6781ab3858e75fbe29d44686b5beabeb",
                 "scripts/qa/tenant-approval-delegated-proof.mjs": "140f500e6619da489b97fb1322e770b6a3aa7077",
                 "tests/tenant-approval-delegated-proof.test.mjs": "9f25ec226f939a367a716be37d0390e8f82f6aee",
                 "scripts/qa/tenant-approval-payroll-decline-proof.mjs": "408dce1a31d45dddb5530728c9b21187f44a0019",

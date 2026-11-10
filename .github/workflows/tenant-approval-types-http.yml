@@ -92,10 +92,10 @@ jobs:
           echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Target and negative-oracle contracts
         run: node --import tsx --test tests/tenant-approval-types-contract.test.mjs tests/approval-source-tenant-boundary.test.ts tests/tenant-approval-delegated-proof.test.mjs tests/tenant-approval-payroll-decline-proof.test.mjs
-      - name: Fresh disposable schema and reviewed test baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Fresh disposable schema
+        run: npm run db:push
+      - name: Reviewed isolated test baseline after schema creation
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - run: npm run build
       - name: Start production Next on loopback only
         shell: bash
