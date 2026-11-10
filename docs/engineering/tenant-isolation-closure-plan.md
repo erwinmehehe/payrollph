@@ -1,4 +1,6 @@
-> **SOLO_VERIFIED_DEV_RECOVERY — filing PATCH proposal, NOT production acceptance:** 498 methods = 452 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 20 GAP. [Fresh main three-leg receipt](../../scripts/qa/tenant-filing-patch-credit-receipt.json). Both the filing PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/tax review and production acceptance are pending.
+> **SOLO_VERIFIED_DEV_RECOVERY — filing PATCH proposal, NOT production acceptance:** 498 methods = 453 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 19 GAP. [Fresh main three-leg receipt](../../scripts/qa/tenant-filing-patch-credit-receipt.json). Both the filing PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/tax review and production acceptance are pending.
+
+> **EDG-01 one-method recovery proposal — workspace readiness GET:** Already-merged #1901 provided exact final-head [PG16 own/foreign/immutable-SQL proof](https://github.com/erwinmehehe/payrollph/actions/runs/42814903331/job/129825397604). This separate change carries the [source-sealed receipt](../../scripts/qa/tenant-workspace-readiness-credit-receipt.json), fail-closed tests and one proposed `GAP → COVERED` ledger promotion. **Recovery takes effect on `main` only if this credit PR is reviewed and merged**; it does not authorize production, launch or tenant-wide acceptance.
 
 > **PR #1891 BIR annual employer candidate credit — PROVISIONAL / NOT ACCEPTED:** 498 methods = 451 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 21 GAP; frozen subtotal 367 COVERED / 7 PUBLIC / 11 TOKEN-ONLY / 21 GAP. `POST bir/annual-employer/candidate` (STA-01) is provisionally credited from the dedicated two-attacker real-HTTPS PG16 proof covering all three actions (template, check, download), per-action foreign, forged-selector, anonymous, cross-site and malformed-body refusals and byte-identical snapshots; merged proof #1891 (merge commit `e6dcc7678`, passing head `697b8b5cb`, [run 42738761756](https://github.com/erwinmehehe/payrollph/actions/runs/42738761756/job/129574359597)). It supersedes the template-only #1676 review hold. A draft candidate only: no BIR submission or official validation. Independent security and tax review PENDING. Production not authorized.
 
@@ -227,10 +229,10 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 12 | 1 | 6 | 14 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 13 | 1 | 6 | 13 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **368 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 20 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 6 batches remain INCOMPLETE; DL-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal, current ledger reconciled): **369 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 19 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 6 batches remain INCOMPLETE; DL-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
