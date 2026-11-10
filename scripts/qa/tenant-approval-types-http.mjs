@@ -352,7 +352,9 @@ export async function proveApprovalTypes() {
     assert.equal(sourceGuardDenials, 20);assert.equal(auditRollbacks, 18);
     assert.equal(discriminations, 9);
     await unchanged(victim, 'final victim snapshot');
-    const receipt = { label: 'SOLO_VERIFIED_DEV_RECOVERY', ownWrites, victimControlWrites, victimDenials, forgedLinkDenials, sourceGuardDenials, auditRollbacks, discriminations,
+    const { proveDelegatedApprovals } = await import('./tenant-approval-delegated-proof.mjs');
+    const delegated = await proveDelegatedApprovals({ db, s, eq, employers, patch, snapshot });
+    const receipt = { label: 'SOLO_VERIFIED_DEV_RECOVERY', delegated, ownWrites, victimControlWrites, victimDenials, forgedLinkDenials, sourceGuardDenials, auditRollbacks, discriminations,
       families: ['hcm-effective-change', 'hcm-position-create', 'hcm-position-close', 'hcm-compensation-recommendation',
         'workforce-scenario', 'separation-handoff', 'roster-handoff', 'dynamic-group', 'automation-gate'],
       realHttpPostgres16: true, forgedBodySelectorsIgnored: true, unchangedVictimSql: true,

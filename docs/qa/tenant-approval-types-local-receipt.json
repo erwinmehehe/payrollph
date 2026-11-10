@@ -1,11 +1,19 @@
 {
   "schema": "typed-approval-local-pg16-receipt-v1",
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
-  "executedAt": "2026-11-10T11:04:54.742Z",
+  "executedAt": "2026-11-10T11:40:33.609Z",
   "database": "new private embedded PostgreSQL 16.14 on 127.0.0.1:55436/app_db",
   "app": "production Next on 127.0.0.1:3310",
   "result": {
     "label": "SOLO_VERIFIED_DEV_RECOVERY",
+    "delegated": {
+      "ownWrites": 2,
+      "refusals": 12,
+      "discriminationChecks": 1,
+      "unchangedVictimSql": true,
+      "providerCalled": false,
+      "coverageCredits": 0
+    },
     "ownWrites": 19,
     "victimControlWrites": 10,
     "victimDenials": 18,
@@ -46,8 +54,10 @@
     "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
     "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
     "src/lib/audit.ts": "3aa8f2c627884072c0c294dbf7861980b302927c",
-    "scripts/qa/tenant-approval-types-http.mjs": "24008ff017d836d4d9affcaa04123fa27dd435e4",
-    "scripts/qa/tenant-approval-types-contract.mjs": "acb26fa3ef9017df7b2bf50c35e600e6ca6e66b6"
+    "scripts/qa/tenant-approval-types-http.mjs": "11021f9096b25dc111446643d49629272aaf7bb1",
+    "scripts/qa/tenant-approval-types-contract.mjs": "acb26fa3ef9017df7b2bf50c35e600e6ca6e66b6",
+    "scripts/qa/tenant-approval-delegated-proof.mjs": "140f500e6619da489b97fb1322e770b6a3aa7077",
+    "src/lib/delegation.ts": "4e01ca02ce83cdf42610b1e87a40a72bf2360abf"
   },
   "mutation": {
     "mode": "noop",
@@ -56,5 +66,10 @@
   },
   "ci": "NOT_RUN",
   "coverageCredits": 0,
-  "productionTested": false
+  "productionTested": false,
+  "delegationMutation": {
+    "mode": "delegation-noop",
+    "rejected": true,
+    "message": "Missing expected exception: proof accepts another employer's data"
+  }
 }

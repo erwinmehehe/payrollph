@@ -53,6 +53,14 @@ digests; raw private keys/session data are not printed. Victim IDs exceed both
 attackers and six. Foreign task errors must be exactly the generic JSON object,
 without victim markers in body or headers.
 
+An additional named-delegation HTTP sub-proof uses both attackers' real delegated
+decisions, verifies the persisted original approver and authenticated audit actor,
+and rejects a role-only success. It refuses expired, future, inactive and
+foreign-employer delegation edges, genuine victim tasks and replay, comparing
+all three employers' SQL/audit state after each refusal. Forged body selectors
+cannot redirect either successful decision. It adds two own writes and twelve
+refusals without changing any runtime permission or feature flag.
+
 A separate fresh-db run with the owned-result oracle replaced by a no-op fails
 with `Missing expected exception: proof accepts another employer's data`.
 The same pre-fix forged-HCM case now returns 409 without task/source/audit changes.
@@ -65,13 +73,17 @@ the new helper is included in the receipt's strict source seal.
 
 ## Verification and remaining acceptance
 
-- Focused approval/onboarding/inventory selection: 70 passed. TypeScript passed;
+- Initial focused approval/onboarding/inventory selection: 70 passed. The
+  delegation extension's focused approval/inventory selection: 38 passed.
+  TypeScript passed;
   lint returned 0 errors, 10 existing warnings and no warning-baseline violations.
-- Full tenant selection against another fresh private PG16: 1,628 tests,
-  **1,611 passed / 8 failed / 9 skipped**. The eight failures are seven existing
+- Final full tenant selection against another fresh private PG16: 1,629 tests,
+  **1,612 passed / 8 failed / 9 skipped**. The eight failures are seven existing
   DL-02 POSIX-permission/symlink fixture checks and the existing private-0600
   allowlist fixture check on Windows; those tests and guards were not changed.
   This is not a full local green claim. Linux CI must pass before source acceptance.
+- The full fresh-PG16 delegation-noop mutation run also failed as required with
+  `Missing expected exception: proof accepts another employer's data`.
 - Manifest repin: 2,407 unchanged, 0 repinned, 0 needing review. Generic table
   credit check ran in preview mode only; its two unrelated suggestions were not
   applied. Both approval workflows parse as YAML; new scripts pass syntax checks.
@@ -83,8 +95,8 @@ the new helper is included in the receipt's strict source seal.
   `testedBy: null`; global counts remain **451 COVERED / 21 GAP** at the
   `2a6878aa4` main baseline. A separate whole-method credit review must reconcile
   all of these proofs after current-head acceptance.
-- Delegated approvers and multi-entity/group-HR activation are not newly certified
-  by this legacy-profile typed proof. No production acceptance is claimed.
+- Named delegation is exercised in the legacy profile. Multi-entity/group-HR
+  activation is not newly certified. No production acceptance is claimed.
 - Final-pay signed review, exact-centavos, calculation-history, CSP, payouts,
   provider billing, workers and scheduler stayed OFF. No real provider, employer,
   payroll release, bank operation, production SQL or Neon operation was used.
