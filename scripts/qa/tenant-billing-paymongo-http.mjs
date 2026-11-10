@@ -68,14 +68,23 @@ export async function verifyTenantPaymongoCheckout() {
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
     const a = await table.seedEmployer("ATTA", nonce, table.standaloneMakeSession);
     const b = await table.seedEmployer("ATTB", nonce, table.standaloneMakeSession);
+    // Establish the closure plan's strictly >6 floor with persisted records
+    // in every relevant identity table, not a fabricated ID or mocked victim.
+    // Only A, B and VICTIM participate in the HTTP proof.
+    const fillers = [];
+    for (let i = 0; i < 7; i++) {
+      fillers.push(await table.seedEmployer("FILL" + i, nonce, table.standaloneMakeSession));
+    }
     const victim = await table.seedEmployer("VICTIM", nonce, table.standaloneMakeSession);
     assert.equal(new Set([a.cookie, b.cookie, victim.cookie]).size, 3);
-    assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id);
-    assert.ok(victim.worker.id > a.worker.id && victim.worker.id > b.worker.id);
+    for (const field of ["org", "entity", "unit", "worker", "owner"]) {
+      assert.ok(victim[field].id > Math.max(6, a[field].id, b[field].id),
+        "Real victim " + field + " ID must exceed both attackers and six");
+    }
 
     // Different nonempty financial baselines; victim invoices and subscriptions
     // must remain byte-for-byte unchanged after both attacks and own writes.
-    for (const actor of [a, b, victim]) {
+    for (const actor of [a, b, ...fillers, victim]) {
       const [invoice] = await db.insert(s.invoices).values({
         organizationId: actor.org.id, number: "CI-BASE-" + actor.org.id + "-" + nonce,
         amountCents: 75000, currency: "PHP", status: "open",
@@ -86,17 +95,32 @@ export async function verifyTenantPaymongoCheckout() {
       organizationId: a.org.id, plan: "Core", status: "pending_payment",
       seatLimit: 10, amountCents: 150000, billingCycle: "monthly",
     }).returning();
+    // Filler subscription rows establish the same floor for the victim
+    // subscription without giving attacker B an existing subscription.
+    for (const filler of fillers) {
+      await db.insert(s.subscriptions).values({
+        organizationId: filler.org.id, plan: "Core", status: "pending_payment",
+        seatLimit: 10, amountCents: 150000, billingCycle: "monthly",
+      });
+    }
     const [subVictim] = await db.insert(s.subscriptions).values({
       organizationId: victim.org.id, plan: "Enterprise", status: "active",
       provider: "paymongo", providerRef: "ci-existing-victim-" + nonce,
       seatLimit: 100, amountCents: 1299900, billingCycle: "monthly",
     }).returning();
-    assert.ok(subVictim.id > subA.id, "Higher-id victim subscription required");
+    assert.ok(subVictim.id > Math.max(6, subA.id),
+      "Victim subscription must exceed attacker subscription and six");
+    assert.ok(victim.baseInvoice.id > Math.max(6, a.baseInvoice.id, b.baseInvoice.id),
+      "Victim invoice must exceed both attacker invoices and six");
     const victimBefore = await snapshot(victim.org.id);
     const ownBefore = [await snapshot(a.org.id), await snapshot(b.org.id)];
     assert.ok(victimBefore.memberships.length && victimBefore.employees.length &&
       victimBefore.payProfiles.length && victimBefore.subscriptions.length &&
       victimBefore.invoices.length, "Nonempty victim records are mandatory");
+    for (const key of ["memberships", "employees", "payProfiles", "subscriptions", "invoices"]) {
+      assert.ok(victimBefore[key].every(row => Number.isSafeInteger(row.id) && row.id > 6),
+        "Real victim " + key + " records must have persisted IDs >6");
+    }
 
     const invalidCookie = "__Host-linaw_session=fictional-invalid-cookie";
     deny(await request(null, { organizationId: victim.org.id, plan: "Core" }),
@@ -198,7 +222,8 @@ export async function verifyTenantPaymongoCheckout() {
     const result = {
       method: "POST /api/billing",
       postgresMajor: 16, independentOwnPositiveEmployers: 2,
-      higherIdVictimPersisted: true, ownCheckout201: successCount,
+      higherIdVictimPersisted: true, victimBusinessIdsOverSix: true,
+      ownCheckout201: successCount,
       foreign403: 2, anonymous401: 2, crossSite403: 1,
       unitScopedDenied: true, mfaDenied: true,
       forgedForeignSelectorsIgnored: true,
