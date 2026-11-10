@@ -100,22 +100,32 @@ export function noPrivateMarkers(html, employers, context) {
   }
 }
 
-// React SSR can split adjacent text interpolations with empty HTML comments,
-// e.g. "Employer #<!-- -->1". Compare visible text without weakening
-// the required headings, employer/worker IDs, or secret-marker exclusions.
-function visibleSsrText(html) {
-  return html.replace(/<!--\s*-->/g, "");
+// React SSR may insert a literal empty comment before numeric interpolation.
+// Recognize only the expected text variants; never rewrite untrusted HTML.
+const REACT_EMPTY_SEPARATOR = "<!-- -->";
+function containsSsrId(html, prefix, id) {
+  const value = String(id);
+  return html.includes(prefix + value) ||
+    html.includes(prefix + REACT_EMPTY_SEPARATOR + value);
+}
+function containsEmployerWorkerBinding(html, employerId) {
+  const value = String(employerId);
+  return ["", REACT_EMPTY_SEPARATOR].some(beforeId =>
+    ["", REACT_EMPTY_SEPARATOR].some(afterId =>
+      html.includes("Employer #" + beforeId + value + afterId + " · Worker #")));
 }
 
 export function assertOwnedHirePage(response, actor, worker, employers) {
   assert.equal(response.status, 200, "HIRE_REVIEW: real own worker SSR 200 required");
   assert.match(response.headers.get("content-type") ?? "", /text\/html/);
-  const visible = visibleSsrText(response.text);
   for (const value of [
     "Hire-to-payroll input evidence", "Recorded source evidence",
     "Current employment record", "Payroll approval, filing and payout",
-    "Employer #" + actor.org.id, "Worker #" + worker.id,
-  ]) assert.ok(visible.includes(value), "HIRE_REVIEW: incomplete own SSR " + value);
+  ]) assert.ok(response.text.includes(value), "HIRE_REVIEW: incomplete own SSR " + value);
+  assert.ok(containsSsrId(response.text, "Employer #", actor.org.id),
+    "HIRE_REVIEW: missing bound employer in own SSR");
+  assert.ok(containsSsrId(response.text, "Worker #", worker.id),
+    "HIRE_REVIEW: missing bound worker in own SSR");
   assert.ok(!response.text.includes("input sources are temporarily unavailable"),
     "HIRE_REVIEW: own HTTP 200 cannot be the loader-failure fallback");
   noPrivateMarkers(response.text, employers, "own SSR");
@@ -123,9 +133,8 @@ export function assertOwnedHirePage(response, actor, worker, employers) {
 
 export function assertDeniedHirePage(response, employers, label) {
   assert.equal(response.status, 404, label + ": hard 404 required");
-  const visible = visibleSsrText(response.text);
   for (const subject of employers) {
-    assert.ok(!visible.includes("Employer #" + subject.org.id + " · Worker #"),
+    assert.ok(!containsEmployerWorkerBinding(response.text, subject.org.id),
       label + ": worker binding leaked");
   }
   assert.ok(!response.text.includes("Hire-to-payroll input evidence"),

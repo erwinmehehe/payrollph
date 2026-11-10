@@ -124,4 +124,7 @@ test("empty success or foreign/worker-specific denial body is never accepted as 
   assert.throws(() => assertDeniedHirePage({
     status: 404, text: "Employer #<!-- -->3 · Worker #<!-- -->7", headers,
   }, employers, "react-comment worker binding leaked 404"));
+  assert.throws(() => assertDeniedHirePage({
+    status: 404, text: "Employer #<!-- -->3<!-- --> · Worker #<!-- -->7", headers,
+  }, employers, "additional React separator must not hide a foreign worker binding"));
 });
