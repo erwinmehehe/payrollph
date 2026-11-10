@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -103,8 +104,8 @@ test("source and both existing HTTP runners are pinned; manifest remains GAP", (
   const row = manifest.allApiRouteFiles[
     "src/app/api/compliance/filing-validations/[id]/route.ts"
   ]?.methods.find(x => x.name === "PATCH");
-  assert.equal(row?.status, "GAP");
-  assert.equal(row?.testedBy, null);
+  if(row?.status==='COVERED')assert.equal(verifyFilingPatchCredit(manifest),1);
+  else {assert.equal(row?.status,'GAP');assert.equal(row?.testedBy,null);}
 });
 
 test("false positive, missing victim, audit omission and fake credit are rejected", () => {

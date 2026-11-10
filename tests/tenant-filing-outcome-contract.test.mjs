@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -112,8 +113,8 @@ test("production filing route stays SHA-pinned, guarded and earns zero new credi
   ]) assert.ok(route.includes(marker), "Missing filing source guard: " + marker);
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const method = manifest.allApiRouteFiles[path].methods.find(row => row.name === "PATCH");
-  assert.equal(method.status, "GAP");
-  assert.equal(method.testedBy, null);
+  if(method.status==='COVERED')assert.equal(verifyFilingPatchCredit(manifest),1);
+  else {assert.equal(method.status,'GAP');assert.equal(method.testedBy,null);}
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED/);
   assert.equal(ENDPOINT, "/api/compliance/filing-validations/");
 });

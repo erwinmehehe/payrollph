@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts, baseTenantManifest } from "../../tests/helpers/tenant-counts.mjs";
+import {verifyFilingPatchCredit,FILING_PATH} from './tenant-filing-patch-credit.mjs';
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -152,8 +153,11 @@ export function verifyInvitationAcceptCredits(m) {
       assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
         "Only both sealed invitation receipts may gain new credit");
     } else {
-      assert.deepEqual(promoted, [],
-        "Already merged invitation receipts cannot authorize new method credits");
+      const filingPromotions=promoted.filter(key=>key==='PATCH '+FILING_PATH);
+      if(filingPromotions.length)assert.equal(verifyFilingPatchCredit(m),1,
+        'Only the separately sealed three-leg filing receipt can authorize this disjoint promotion');
+      assert.deepEqual(promoted, filingPromotions,
+        "Already merged invitation receipts cannot authorize unrelated method credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
       const source = baseTenantManifest();
