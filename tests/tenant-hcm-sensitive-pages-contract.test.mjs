@@ -120,6 +120,8 @@ test("workflow runner cannot be mistaken for method or production acceptance", (
   assert.match(runner, /requireFictionalHcmEnv\(\);[\s\S]*verifyHcmPageSources\(\);[\s\S]*import\("\.\.\/\.\.\/src\/db\/index\.ts"\)/);
   assert.match(runner, /SHOW server_version_num/);
   assert.match(runner, /fixture\.seedEmployer/);
+  assert.ok(runner.includes('(orgUnitId ?? "company")'),
+    "Company HR and unit HR must have separate user identities; duplicate role emails prevent the HTTP proof from running");
   assert.match(runner, /assertOwnMonitor\(/);
   assert.match(runner, /assertOwnHireReview\(/);
   assert.match(runner, /await snapshot\(actor\.org\.id\)/);

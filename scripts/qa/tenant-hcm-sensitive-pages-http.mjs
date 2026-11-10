@@ -132,7 +132,7 @@ export async function proveSensitiveHcmSsrIsolation() {
 
     async function roleUser(role, orgUnitId) {
       const [user] = await db.insert(s.users).values({
-        email: "hcm-sensitive-" + role + "-" + nonce + "@example.invalid",
+        email: "hcm-sensitive-" + role + "-" + (orgUnitId ?? "company") + "-" + nonce + "@example.invalid",
         name: "Fictional " + role + " SSR reader",
         passwordHash: "fictional-only", role: "owner", totpEnabled: true,
       }).returning();
