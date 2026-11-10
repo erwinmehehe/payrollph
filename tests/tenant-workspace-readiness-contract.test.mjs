@@ -87,3 +87,17 @@ test("whole-method readiness proof uses persisted high-ID victim and complete im
     "foreignDenials, 4", "newMethodCredits: 0",
   ]) assert.ok(proof.includes(required), "Missing readiness recovery guard: " + required);
 });
+
+test("RDY-01: one canonical employer selector; no duplicate-key fallback", () => {
+  const route = readFileSync("src/app/api/readiness/workspace/route.ts", "utf8");
+  assert.ok(route.includes('searchParams.getAll("organizationId").length === 1'));
+  assert.ok(route.includes(String.raw`/^[1-9]\\d*$/.test(rawOrganizationId)`));
+  assert.ok(route.indexOf('searchParams.getAll("organizationId")') <
+    route.indexOf('await assertOrganizationRole('));
+  const proof = readFileSync("scripts/qa/tenant-workspace-readiness-http.mjs", "utf8");
+  for (const guard of ['ownFirstDuplicate.status, 400', 'forged.status, 400',
+    'endpoint("01")', 'endpoint("1e0")', 'endpoint("1.0")',
+    'endpoint("%2B1")', 'endpoint("9007199254740992")']) {
+    assert.ok(proof.includes(guard), "Missing RDY-01 proof assertion: " + guard);
+  }
+});
