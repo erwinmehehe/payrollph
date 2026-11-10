@@ -129,7 +129,7 @@ export function assertOwnMonitor(result, actor, process, employers) {
   assertNoTenantLeak(result, employers, "owned monitor", actor);
 }
 
-export function assertOwnHireReview(result, actor, worker, employers) {
+export function assertOwnHireReview(result, actor, worker, employers, { payProfilePresent = true } = {}) {
   assert.equal(result.status, 200, "Owned hire evidence must render HTTP 200");
   for (const needle of [
     "Hire-to-payroll input evidence", "Employer #" + actor.org.id,
@@ -137,6 +137,11 @@ export function assertOwnHireReview(result, actor, worker, employers) {
     "Payroll basis and standard hours", "Payroll approval, filing and payout",
   ]) assert.ok(result.text.includes(needle),
     "Owned hire page must reflect a real persisted worker: " + needle);
+  const expectedSourceEvidence = payProfilePresent
+    ? "Recognized pay basis and positive rate, work-day and hour fields are recorded; approval is not verified."
+    : "An explicit pay profile is missing or its required fields need review.";
+  assert.ok(result.text.includes(expectedSourceEvidence),
+    "Owned hire review must distinguish a persisted complete pay profile from a different worker without one");
   assert.ok(!result.text.includes("The input sources are temporarily unavailable"),
     "An unavailable fallback is not an owned data success");
   assertNoTenantLeak(result, employers, "owned hire review", actor);
