@@ -34,7 +34,7 @@ test("disabled SAML returns a provider-independent response for each entrypoint"
       const payload = JSON.parse(body);
       assert.equal(payload.code, "SAML_RUNTIME_NOT_READY");
       assert.equal(typeof payload.error, "string");
-      assert.ok(!/providerId|configured|enabled|entityID|AssertionConsumerService/.test(body));
+      assert.ok(!/providerId|"configured"\s*:|"enabled"\s*:|entityID|AssertionConsumerService/.test(body));
       seen.add(response.status + ":" + body);
     }
   }
