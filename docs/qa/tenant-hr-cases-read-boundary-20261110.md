@@ -1,17 +1,21 @@
-# HR case queue read boundary — distinct tenant family (2026-11-10)
+# HR case queue GET tenant isolation — independent family (2026-11-10)
 
-This branch is independent of open Worker 360 SSR PR #1887 and workspace readiness PR #1886. It touches only the HR-case GET/SSR selection and staff roster SQL, the tenant helper, focused tests, and this note. It does **not** change payroll, approvals, document issuance, COE/PATCH writes, migrations, provider communication, runtime flags or live data.
+This draft PR is separate from #1886 (workspace readiness) and #1887 (Worker 360 SSR). Scope is the HR-case **GET** handler, its tenant selector/SQL helper, focused regression tests, this note and a source-hash reconciliation in the existing tenant manifest. The **HR-case SSR page is unchanged**: it remains a GAP pending independent authenticated page proof.
 
-## Scope
-- Staff GET requires exactly one canonical positive `organizationId`. Duplicate query keys, coercible numeric forms and unsafe IDs fail before staff/case queries.
-- Employee self-service GET still succeeds without a selector, scoped to the session-linked employee. A foreign employer selector returns generic 404; malformed/duplicate selectors return 400.
-- After active employer membership, People/payroll role, session policy and custom-deny gates, the staff roster is selected with **employer + authorized org unit SQL predicates** instead of loading the entire employer and filtering in JavaScript. Authorized company-wide staff retain company-wide scope. Invalid scoped-unit values fail closed.
-- The SSR staff inbox shares the strict employer selector parser and still authorizes the role before client mount.
-- Protected GET responses and the new rejections remain private/no-store.
+## Change
 
-## Tests, proof and acceptance hold
-`tests/hr-case-tenant-scope.test.ts` adds canonical/duplicate parser cases, Postgres SQL predicate checks and page/GET source contract assertions. These are **unit/source tests**, not actual PostgreSQL + real HTTP tenant isolation proof.
+- Staff GET requires exactly one canonical positive `organizationId`. Duplicates, missing employer, coercible numeric strings and unsafe IDs are refused before the staff/case read.
+- Employee self-service GET preserves the no-selector behavior, bound to the employee linked to the authenticated session. Malformed/duplicated selectors fail with 400; an explicit foreign employer selector returns generic 404.
+- After the existing employer membership, People/payroll role, session policy and custom-deny gates, the staff roster is loaded with **employer and authorized org-unit restrictions in SQL**. It no longer reads all employer employees before filtering in JavaScript. Company-wide HR/admin users retain company-wide access to their own employer; invalid unit scope fails closed.
+- Protected GET and new refusals use private/no-store. POST, PATCH, approval, COE issuance and payroll behavior are unchanged.
+- The manifest pins the revised route SHA and source method lines. All three existing HR-case API methods retain their **previous provisional COVERED classification**; this work grants **zero additional methods or page credits**. The unchanged SSR page retains GAP status.
 
-Before any coverage credit, run a dedicated isolated, fictional PostgreSQL 16 + real production-mode Next.js HTTP test for two independently authenticated employers and a populated higher-ID victim. Require nonempty owned staff/case positives, foreign-employer and forged/duplicate selector denials, unit-scope and revoked/custom-deny negatives, employee no-selector success with foreign-selector refusal, and unchanged victim employee/HR-case/message/audit SQL snapshots. Obtain independent HR privacy/security review of the exact final head, fresh CI and an explicit maintainer merge decision.
+## Acceptance and evidence
 
-The canonical tenant-isolation manifest is unchanged; there are **zero new credits** in this PR. No production database, deployment or live company data were touched. **DRAFT — do not merge or deploy without review.**
+Focused `tests/hr-case-tenant-scope.test.ts` checks canonical selectors, SQL predicates, gate ordering and that the unchanged SSR page continues to reject invalid selectors. Source and unit assertions alone are not HTTP security acceptance.
+
+Before merging or interpreting the route's latest source as independently accepted, review **the exact final branch head** in a dedicated fictional PostgreSQL 16 + actual production-mode HTTP run. Exercise two independently authenticated employer accounts, an existing higher-ID populated victim employer, nonempty own records, foreign employer/forged/duplicate selector denial, assigned-unit and unassigned/revoked permission denials, employee no-selector positive and foreign-selector refusal, and SQL snapshots preserving the victim's employee, case, message and audit rows. The repository's existing second-pass own/foreign checks are useful regression gates, but do not by themselves demonstrate every newly added selector/unit case.
+
+Independent HR privacy/security review and maintainer merge approval remain mandatory. No production database, feature flag, provider, payment, employee data or deployment is changed by this draft.
+
+**DRAFT / NO NEW TENANT COVERAGE CREDITS / NO MERGE OR DEPLOY UNTIL REVIEW.**
