@@ -8,7 +8,11 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
+  const searchParams = new URL(request.url).searchParams;
+  const rawOrganizationId = searchParams.get("organizationId");
+  const organizationId = searchParams.getAll("organizationId").length === 1 &&
+    rawOrganizationId !== null && /^[1-9]\d*$/.test(rawOrganizationId)
+    ? Number(rawOrganizationId) : NaN;
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
