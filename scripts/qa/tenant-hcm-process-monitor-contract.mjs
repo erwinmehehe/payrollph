@@ -139,7 +139,7 @@ export function assertDeniedMonitorPage(response, subjects, label) {
     label + ": private workflow list mounted on denial");
   // Never render any linked private workflow on a denied page. The rejected
   // request's own processId query string can appear in Next router metadata.
-  assert.doesNotMatch(normalizeSsrText(response.text), /<a\\b[^>]*\\bhref=["'][^"']*processId=/i,
+  assert.doesNotMatch(normalizeSsrText(response.text), /<a\b[^>]*\bhref=["'][^"']*processId=/i,
     label + ": denied response rendered a process link");
   noForeignProcess(response.text, subjects, label, { allowRequestIdReflection: true });
 }
