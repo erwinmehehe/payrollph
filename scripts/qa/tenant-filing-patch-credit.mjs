@@ -10,6 +10,16 @@ const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 const INVENTORY='docs/engineering/tenant-isolation-coverage-inventory.md';
 const PLAN='docs/engineering/tenant-isolation-closure-plan.md';
 export const RECEIPT_FILE='scripts/qa/tenant-filing-patch-credit-receipt.json';
+const FILING_BANNER_PREFIX='> **SOLO_VERIFIED_DEV_RECOVERY — filing PATCH proposal, NOT production acceptance:** ';
+export function withFilingStatusBanner(text,metrics,pageGaps){
+ // Replace only this writer's leading checkpoint(s); retain other proof history.
+ // A wording/count update must not prepend another copy on each reconciliation.
+ let rest=text;
+ while(rest.startsWith(FILING_BANNER_PREFIX)){
+  const end=rest.indexOf('\n');rest=end<0?'':rest.slice(end+1).replace(/^\n+/,'');
+ }
+ return FILING_BANNER_PREFIX+metrics.methods+' methods = '+metrics.coveredAfter+' COVERED + '+metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+metrics.gap+' GAP. [Fresh main three-leg receipt](../../scripts/qa/tenant-filing-patch-credit-receipt.json). Both the filing PATCH and the separately merged BIR candidate POST have distinct provisional evidence; '+pageGaps+' page/action gaps remain. Independent security/tax review and production acceptance are pending.\n\n'+rest;
+}
 const RECEIPT_BLOB='419d98c290b205a1722d2356fa279f4b7b78a45b';
 const blob=b=>{const bytes=Buffer.from(b);return createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');};
 export function filingEvidence(read=readFileSync){
@@ -61,9 +71,8 @@ export function reconcileFilingCredit({write=false}={}){
  for(const key of ['coveredAfter','gap'])overview=overview.replace(new RegExp('^\\| '+key+' \\| \\d+ \\|$','m'),'| '+key+' | '+m.metrics[key]+' |');
  const lines=overview.split('\n'),i=lines.findIndex(x=>x.startsWith('| [`compliance/filing-validations/[id]` PATCH]('));assert.ok(i>=0);
  const cells=lines[i].split(' | ');cells[cells.length-2]='[filing PATCH complete-method PG16 receipt](../../scripts/qa/tenant-filing-patch-credit-receipt.json) — accepted + rejected + guards';cells[cells.length-1]='**COVERED** |';lines[i]=cells.join(' | ');overview=lines.join('\n');
- const banner='> **SOLO_VERIFIED_DEV_RECOVERY — filing PATCH proposal, NOT production acceptance:** '+m.metrics.methods+' methods = '+m.metrics.coveredAfter+' COVERED + '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+m.metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+m.metrics.gap+' GAP. [Fresh main three-leg receipt](../../scripts/qa/tenant-filing-patch-credit-receipt.json). Other holds and page/action gaps unchanged.\n\n';
- if(!overview.startsWith(banner))overview=banner+overview;
- let plan=readFileSync(PLAN,'utf8');if(!plan.startsWith(banner))plan=banner+plan;
+ overview=withFilingStatusBanner(overview,m.metrics,pageGaps);
+ let plan=withFilingStatusBanner(readFileSync(PLAN,'utf8'),m.metrics,pageGaps);
  // Derive the live frozen-batch table from its immutable method/source links.
  const frozen=plan.split('### Batch DL-01 —')[1]?.split('## Page and server-action closure')[0];assert.ok(frozen);
  const total={COVERED:0,'PUBLIC-BY-DESIGN':0,'PRIVILEGED-OPERATIONS-TOKEN-ONLY':0,GAP:0};

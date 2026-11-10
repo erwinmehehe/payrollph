@@ -2,8 +2,19 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {baseTenantManifest} from './helpers/tenant-counts.mjs';
-import {filingEvidence,verifyFilingPatchCredit,FILING_PATH,RECEIPT_FILE} from '../scripts/qa/tenant-filing-patch-credit.mjs';
+import {filingEvidence,verifyFilingPatchCredit,FILING_PATH,RECEIPT_FILE,withFilingStatusBanner} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+test('credit checkpoint replaces stale or duplicate banners without losing other proof history',()=>{
+ const m=manifest().metrics,history='> **PR #1891 BIR receipt — retain unchanged**\n\n# Frozen queue\n';
+ const stale='> **SOLO_VERIFIED_DEV_RECOVERY — filing PATCH proposal, NOT production acceptance:** old wording and counts\n\n';
+ const expected=withFilingStatusBanner(history,m,16);
+ for(const text of [history,stale+history,stale+stale+history,expected]){
+  const result=withFilingStatusBanner(text,m,16);
+  assert.equal(result,expected);assert.equal(withFilingStatusBanner(result,m,16),result);
+  assert.ok(result.endsWith(history));assert.ok(result.includes('16 page/action gaps remain'));
+ }
+ assert.ok(withFilingStatusBanner(expected,m,15).includes('15 page/action gaps remain'));
+});
 test('only the complete three-leg current-main PG16 receipt authorizes one PATCH',()=>{
  assert.equal(verifyFilingPatchCredit(manifest()),1);
  const r=filingEvidence();assert.equal(r.accepted.realOwnAccepted200,2);assert.equal(r.rejectedLeg.actualOwnWrites,2);assert.equal(r.guards.boundedDenials,20);
