@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts, baseTenantManifest } from "../../tests/helpers/tenant-counts.mjs";
-import {verifyFilingPatchCredit,FILING_PATH} from './tenant-filing-patch-credit.mjs';
+import {verifyFilingPatchCredit,FILING_PATH} from "./tenant-filing-patch-credit.mjs";
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -153,11 +153,25 @@ export function verifyInvitationAcceptCredits(m) {
       assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
         "Only both sealed invitation receipts may gain new credit");
     } else {
-      const filingPromotions=promoted.filter(key=>key==='PATCH '+FILING_PATH);
-      if(filingPromotions.length)assert.equal(verifyFilingPatchCredit(m),1,
-        'Only the separately sealed three-leg filing receipt can authorize this disjoint promotion');
-      assert.deepEqual(promoted, filingPromotions,
-        "Already merged invitation receipts cannot authorize unrelated method credits");
+      // The one other promotion allowed on top of the merged invitation credits is the separately sealed BIR candidate POST, and
+      // only with its own provisional, unaccepted receipt (its exact pins are verified by the inventory test's dedicated test).
+      const birPath = "src/app/api/bir/annual-employer/candidate/route.ts";
+      const birPromotions = promoted.filter(key => key === "POST " + birPath);
+      if (birPromotions.length) {
+        const bir = m.allApiRouteFiles[birPath].methods.find(row => row.name === "POST");
+        assert.equal(bir?.testedBy?.file, "scripts/qa/tenant-bir1604c-candidate-post-http.mjs");
+        assert.equal(bir.testedBy.proofPullRequest, 1891);
+        assert.equal(bir.testedBy.independentSecurityReview, "PENDING");
+        assert.equal(bir.testedBy.independentlyAccepted, false);
+        assert.equal(bir.reviewedUncertified, undefined);
+      }
+      const filingPromotions = promoted.filter(key => key === "PATCH " + FILING_PATH);
+      if (filingPromotions.length) {
+        assert.equal(verifyFilingPatchCredit(m), 1,
+          "Only the sealed filing PATCH three-leg proof can authorize its own credit");
+      }
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions].sort(),
+        "Merged invitation receipts permit only separately verified BIR and filing PATCH credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
       const source = baseTenantManifest();

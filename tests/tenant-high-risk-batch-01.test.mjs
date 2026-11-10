@@ -1,4 +1,5 @@
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
+import {verifyFilingPatchCredit,FILING_PATH} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
@@ -29,7 +30,6 @@ import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/ten
  * HTTP Smoke workflow using disposable PG16 and localhost production server.
  */
 import assert from "node:assert/strict";
-import {verifyFilingPatchCredit,FILING_PATH} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -623,6 +623,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const transfersCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-transfers-http.mjs").length;
   assert.equal(transfersCredits, 2, "exactly POST and PATCH multi-entity/transfers are credited by the dedicated receipt");
+  // POST bir/annual-employer/candidate: dedicated two-attacker receipt (#1891), guarded by its own inventory test.
+  const birCandidateCredits = [...methodsByKey.values()].filter(method =>
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-bir1604c-candidate-post-http.mjs").length;
+  assert.equal(birCandidateCredits, 1, "exactly POST bir/annual-employer/candidate is credited by the dedicated receipt");
   const worksitesPostCredits = [...methodsByKey.values()].filter(method =>
     method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-worksites-actions-http.mjs").length;
   assert.equal(worksitesPostCredits, 1, "exactly the worksites POST is credited by the ten-action receipt");
@@ -782,17 +786,17 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const careersPatchCredits = verifyCareersPatchCredit(manifest);
   const migrationCredits = verifyMigrationPostCredit(manifest);
   const billingCredits = verifyBillingSubscriptionCredits(manifest);
-  const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==='PATCH').status==='COVERED'?verifyFilingPatchCredit(manifest):0;
+  const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==="PATCH").status==="COVERED" ? verifyFilingPatchCredit(manifest) : 0;
   assert.equal(manifest.metrics.coveredAfter - filingPatchCredits - verifySecurityCredits(manifest) - verifyEnterprisePostCredit(manifest) - verifyRecoveryCredits(manifest) - emailCredits - accountEmailRequestCredits - invitationAcceptCredits - careersPatchCredits - billingCredits - migrationCredits - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
     moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - accountPasswordCredits - authLogoutCredits - verifyReceiptCredits(manifest) - payoutReconciliationCredits - payrollRunActionsCredits - posDemandCredits - transfersCredits - verifySpendManaged(manifest) - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits - yearEndCredits, 124,
+    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - accountPasswordCredits - authLogoutCredits - verifyReceiptCredits(manifest) - payoutReconciliationCredits - payrollRunActionsCredits - posDemandCredits - transfersCredits - birCandidateCredits - verifySpendManaged(manifest) - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits - yearEndCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   const publicV1 = methodsByKey.get("GET v1");
   assert.equal(publicV1?.status, "PUBLIC-BY-DESIGN", "Only static v1 catalog consumes historical GAP");
   assert.equal(publicV1?.testedBy, null, "Public catalog cannot claim tenant-scoped evidence");
   assert.equal(manifest.metrics.gap + filingPatchCredits + (manifest.metrics.publicByDesign - 11) + manifest.metrics.privilegedOperationsTokenOnly + verifySecurityCredits(manifest) + verifyEnterprisePostCredit(manifest) + verifyRecoveryCredits(manifest) + emailCredits + accountEmailRequestCredits + invitationAcceptCredits + careersPatchCredits + billingCredits + migrationCredits + 1 + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
     vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + accountPasswordCredits + authLogoutCredits + verifyReceiptCredits(manifest) + payoutReconciliationCredits + payrollRunActionsCredits + posDemandCredits + transfersCredits + verifySpendManaged(manifest) + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits + yearEndCredits - newCorrectionMethods.length, 359,
+    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + accountPasswordCredits + authLogoutCredits + verifyReceiptCredits(manifest) + payoutReconciliationCredits + payrollRunActionsCredits + posDemandCredits + transfersCredits + birCandidateCredits + verifySpendManaged(manifest) + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits + yearEndCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);
