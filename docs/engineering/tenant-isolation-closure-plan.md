@@ -1,3 +1,5 @@
+> **PR #1891 BIR annual employer candidate credit — PROVISIONAL / NOT ACCEPTED:** 498 methods = 451 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 21 GAP; frozen subtotal 367 COVERED / 7 PUBLIC / 11 TOKEN-ONLY / 21 GAP. `POST bir/annual-employer/candidate` (STA-01) is provisionally credited from the dedicated two-attacker real-HTTPS PG16 proof covering all three actions (template, check, download), per-action foreign, forged-selector, anonymous, cross-site and malformed-body refusals and byte-identical snapshots; merged proof #1891 (merge commit `e6dcc7678`, passing head `697b8b5cb`, [run 42738761756](https://github.com/erwinmehehe/payrollph/actions/runs/42738761756/job/129574359597)). It supersedes the template-only #1676 review hold. A draft candidate only: no BIR submission or official validation. Independent security and tax review PENDING. Production not authorized.
+
 > **Merged provisional invitation credits + token-only classifications — DRAFT / NOT ACCEPTED:** 498 methods = 450 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 22 GAP. Two source-pinned invitation GET/POST method credits from main remain provisional; four public and eleven token-only classifications add zero tenant-private COVERED credits. Independent security review and final-head CI PENDING; no production authorization.
 
 > **Combined #1846 enterprise + #1862 account-email request proposals — PROVISIONAL / NOT ACCEPTED:** 498 methods = 448 COVERED + 11 PUBLIC-BY-DESIGN + 39 GAP; frozen subtotal 364 COVERED / 3 PUBLIC / 39 GAP. Two separate exact-source provisional POST method credits; independent security/identity review and final-head CI PENDING. No production activation.
@@ -122,7 +124,7 @@ The original review used `main@11b6d544cf6bd30c84fc524a088f90627dec09e6`; this d
 
 | Method | Merged evidence | State | Missing part of the contract |
 |---|---|---|---|
-| `POST bir/annual-employer/candidate` | [#1676 final head](https://github.com/erwinmehehe/payrollph/commit/abe1600a2df31f513cda152bed828fd5567fd72e) | **GAP** | Only `mode=template` is proven. Complete `check` and `download` own-success, victim denial, forged selector and unchanged-victim-DB branches absent. Numeric victim ID **>6** also unproven. |
+| `POST bir/annual-employer/candidate` | [#1891 final head](https://github.com/erwinmehehe/payrollph/actions/runs/42738761756/job/129574359597) | **YES (provisional), superseded by the dedicated #1891 proof** | The earlier #1676 review was template-only. The dedicated proof now covers template, check and download own successes, per-action foreign, forged-selector and anonymous/cross-site/malformed refusals, byte-identical victim snapshots and a persisted victim ID above 6. Independent review PENDING. |
 | `POST leave/conversion` | [#1675 final head](https://github.com/erwinmehehe/payrollph/commit/b16f4adfdf6c6dc14813360045bb8f0efaf10892) | **SKIPPED (baseline GAP; #1727 claims credit)** | Do not change this method here: concurrent draft [#1727](https://github.com/erwinmehehe/payrollph/pull/1727) already proposes its provisional credit. Independent ID >6 contract issue belongs to that review. |
 | `POST payroll/overpayment-preflight` | [#1674 final head](https://github.com/erwinmehehe/payrollph/commit/ec0e8b081c52bb8b22b7911c886c2005e45312f2) | **SKIPPED (baseline GAP; #1727 claims credit)** | Do not change this method here: concurrent draft [#1727](https://github.com/erwinmehehe/payrollph/pull/1727) already proposes its provisional credit. Independent ID >6 contract issue belongs to that review. |
 | `POST multi-entity/transfers` | [#1662 final head](https://github.com/erwinmehehe/payrollph/commit/c7001c59b9f60b55192bfb1d1876a18e0f18f482) | **GAP** | No two independently successful own-employer POSTs; real victim transfer ID ordering not proven. |
@@ -217,7 +219,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 30 | 1 | 0 | 2 | INCOMPLETE |
-| 3 | **STA-01** | 27 | 25 | 0 | 0 | 2 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 26 | 0 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -226,7 +228,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 12 | 1 | 6 | 14 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **366 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 22 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 7 batches remain INCOMPLETE; DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **367 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 21 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 7 batches remain INCOMPLETE; DL-02, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
