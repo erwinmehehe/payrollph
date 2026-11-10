@@ -2,7 +2,7 @@
  * Exploratory three-employer HTML navigation probe over every business-ID page
  * in the full manifest. This is NOT page authorization certification: many
  * feature-disabled 403/404/redirects cannot serve as valid own-page positives.
- * Record the outstanding 17 GAPs and require proper browser/action adapters.
+ * Track outstanding page/action GAPs; proof-based reclassification requires dedicated acceptance.
  * No production traffic or real accounts.
  */
 import assert from "node:assert/strict";
@@ -26,7 +26,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   const pages = manifest.scopedPages;
   assert.equal(pages.length, 21);
   const pageGaps = pages.filter((page) => page.status === "GAP");
-  assert.equal(pageGaps.length, 17, "Four pages have independently pinned own/foreign HTTP/browser evidence");
+  assert.equal(pageGaps.length, (await import("./tenant-five-method-credit-verify.mjs")).verifyWorker360PageCredit(manifest), "Worker 360 SSR gap reduction requires source-pinned PG16 and review proof");
   const runSnapshot = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   const employeeSnapshot = await db.select().from(employees)
