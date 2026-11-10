@@ -106,8 +106,14 @@ test("denied SSR cannot include a workflow shell or foreign process marker", () 
   assert.doesNotThrow(() => assertDeniedMonitorPage({
     status: 404, headers, text: "Not found",
   }, [subject], "safe 404"));
+  // Next may reflect a denied request's own URL in router metadata; an
+  // attacker-supplied numeric selector is not a private data disclosure.
+  assert.doesNotThrow(() => assertDeniedMonitorPage({
+    status: 404, headers, text: "Not found processId=8",
+  }, [subject], "safe reflected selector"));
   for (const html of ["Business Process Monitor", "Recorded workflows",
-    "processId=8", subject.marker]) {
+    '<a href="/hcm/process-monitor?processId=8">Private workflow</a>',
+    "private-key", subject.org.name, subject.marker]) {
     assert.throws(() => assertDeniedMonitorPage({
       status: 404, headers, text: "Not found " + html,
     }, [subject], "leaking 404"), "Must reject denied response with " + html);
