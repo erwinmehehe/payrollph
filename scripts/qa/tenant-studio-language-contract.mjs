@@ -18,6 +18,7 @@ export const FORBIDDEN_ENV=Object.freeze(['OPENAI_API_KEY','OPENAI_AUTOMATION_AP
   'RESEND_API_KEY','SMTP_URL','SMTP_PASSWORD','POSTMARK_SERVER_TOKEN','STRIPE_SECRET_KEY',
   'CRON_SECRET','WORKER_TOKEN','VERCEL','VERCEL_ENV','MALWARE_SCAN_URL']);
 export const SOURCE_PINS=Object.freeze({
+  "src/lib/automation-draft-conflict.ts": "077126c704fe62e83907c1e6c8f2c39828efb585",
   "src/app/api/automation-studio/route.ts": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
   "src/lib/automation-language-release.ts": "1a1e12c39ecdf671810219e1f168c0c3d2b80c77",
   "src/lib/automation-language-draft.ts": "30240aeccaccf5b08ac062206bbae15b51629ffd",
@@ -26,7 +27,7 @@ export const SOURCE_PINS=Object.freeze({
   "src/lib/automation-model-consent.ts": "63755a418bc55a634f1d28d202757b699bc09746",
   "src/lib/automation-preview-approval.ts": "1182c52c04200c1b0cb79fde840390f81919a65f",
   "src/lib/automation-templates.ts": "f6cd21b7a09fc575345c92f49edcf8b80767952d",
-  "src/lib/automation-versioning.ts": "f4279ac6daa7f303c1cdbd7a3a075d0c57cd2c78",
+  "src/lib/automation-versioning.ts": "02de9020858887818b70bd940d6b287d1c73e9bf",
   "src/lib/automation.ts": "288d27789e062803d68ea38fd41fa78ee155a1ee",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",

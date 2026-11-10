@@ -101,6 +101,7 @@ jobs:
         run: |-
           node scripts/qa/tenant-studio-language-http.mjs --preflight
           node --test tests/tenant-studio-language-contract.test.mjs
+          node --import tsx --test tests/tenant-studio-draft-conflict.test.ts
       - name: Generate synthetic temporary encryption keys
         shell: bash
         run: |
