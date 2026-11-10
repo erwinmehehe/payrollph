@@ -11,7 +11,6 @@ import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import { employees, payrollRuns, userOrganizations, users } from "../../src/db/schema";
-import { verifyWorker360PageCredit } from "./tenant-five-method-credit-verify.mjs";
 const manifest = JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 function pageUrl(file, id) {
@@ -27,8 +26,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   const pages = manifest.scopedPages;
   assert.equal(pages.length, 21);
   const pageGaps = pages.filter((page) => page.status === "GAP");
-  assert.equal(pageGaps.length, verifyWorker360PageCredit(manifest),
-    "Any page GAP reduction requires exact Worker 360 SSR source, PG16 proof and review pins");
+  assert.equal(pageGaps.length, (await import("./tenant-five-method-credit-verify.mjs")).verifyWorker360PageCredit(manifest), "Worker 360 SSR gap reduction requires source-pinned PG16 and review proof");
   const runSnapshot = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   const employeeSnapshot = await db.select().from(employees)
