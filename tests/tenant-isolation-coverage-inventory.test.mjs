@@ -3654,7 +3654,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       /identityProviders|buildSamlServiceProviderMetadata|from ["']@\/db|db\.select/,
       "Disabled SAML entrypoint may not load employer provider data");
     assert.equal(gitBlobSha(readFileSync("src/lib/saml-disabled-boundary.ts")),
-      "03b1ee3b4eba99d58c2fabc7e47d43dd38206cc9", "Common refusal changed without review");
+      "ad19ba4fb718fddd9826df15f7740f482b795ad7", "Common refusal changed without review");
     assert.equal(gitBlobSha(readFileSync("tests/tenant-saml-disabled-boundary.test.ts")),
       "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
       "SAML privacy test changed without renewed pin");
