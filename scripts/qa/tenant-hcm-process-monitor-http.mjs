@@ -212,7 +212,8 @@ export async function proveMonitorPageTenantBoundary() {
       "Anonymous monitor must redirect to login");
     assert.ok(anonymous.headers.get("location")?.includes("/login"),
       "Anonymous monitor redirect must target login");
-    noForeignProcess(anonymous.text, subjects, "anonymous");
+    // A login redirect may echo the caller-supplied ID in router metadata, not private SQL.
+    noForeignProcess(anonymous.text, subjects, "anonymous", { allowRequestIdReflection: true });
     await unchanged("anonymous");
 
     const revoked = await db.update(s.userOrganizations).set({ active: false })
@@ -237,7 +238,8 @@ export async function proveMonitorPageTenantBoundary() {
       "Missing selected-process source must fail closed");
     assert.ok(!fault.text.includes("Recorded workflows"),
       "SQL error cannot render private process list");
-    noForeignProcess(fault.text, subjects, "selected source outage");
+    // The error shell can similarly serialize the request URL; private markers remain forbidden.
+    noForeignProcess(fault.text, subjects, "selected source outage", { allowRequestIdReflection: true });
 
     const unavailable = await requestLocal(pagePath(b.org.id), b.cookie);
     assert.equal(unavailable.status, 200, "Authorized outage shows explicit failure");
