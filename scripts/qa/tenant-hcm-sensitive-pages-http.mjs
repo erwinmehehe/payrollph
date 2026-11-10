@@ -78,7 +78,7 @@ export async function proveSensitiveHcmSsrIsolation() {
         ...(await fixture.seedEmployer(label, nonce, fixture.standaloneMakeSession)),
         label, processes: [],
       };
-      actor.secondWorker = await fixture.addWorker(actor, "SECOND");
+      actor.secondWorker = await fixture.addWorker(actor, "SECOND", { payProfile: false });
       actor.secrets = [
         "PRIVATE-BANK-" + label + "-" + nonce,
         "PRIVATE-TAX-" + label + "-" + nonce,
@@ -173,7 +173,8 @@ export async function proveSensitiveHcmSsrIsolation() {
     }
     async function ownHire(actor, cookie, worker) {
       const response = await httpGet(hireUrl(actor.org.id, worker.id), cookie);
-      assertOwnHireReview(response, actor, worker, everyone);
+      assertOwnHireReview(response, actor, worker, everyone,
+        { payProfilePresent: worker.id === actor.worker.id });
       hirePositives++;
     }
 
