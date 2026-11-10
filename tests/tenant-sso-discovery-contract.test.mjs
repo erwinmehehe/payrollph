@@ -51,7 +51,7 @@ test("positive discovery contains only the intended provider; wrong provider or 
     startUrl: "/api/auth/sso/start?providerId=8&loginHint=worker%2Bci%40own.example.invalid",
   });
   assert.doesNotThrow(() => assertFound(success, expected, email, ["Foreign OIDC"]));
-  assert.throws(() => assertFound(success, { ...expected, id: 9 }, email), /providerId/);
+  assert.throws(() => assertFound(success, { ...expected, id: 9 }, email), /8 !== 9/);
   assert.throws(() => assertFound({ ...success, text: success.text + "Foreign OIDC" },
     expected, email, ["Foreign OIDC"]), /foreign organization/);
   assert.throws(() => assertNoStore(new Map([["cache-control", "public, max-age=30"]])),
