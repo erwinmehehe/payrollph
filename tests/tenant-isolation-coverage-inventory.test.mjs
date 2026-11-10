@@ -1,6 +1,8 @@
-import { verifyApprovalsCredit, APPROVALS_PATH } from '../scripts/qa/tenant-approvals-credit.mjs';
+import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
+import { verifyCheckoutCredit, CHECKOUT_PATH } from "../scripts/qa/tenant-billing-checkout-credit.mjs";
 import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
+import { ROUTE_PATH as READINESS_GET_PATH, verifyWorkspaceReadinessCredit } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
 import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
@@ -277,9 +279,20 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(verifyBillingSubscriptionCredits(manifest), 2);
     return true;
   }
+  if (key === CHECKOUT_PATH + " POST" && method.status === "COVERED") {
+    assert.equal(verifyCheckoutCredit(manifest), 1);
+    assert.equal(currentBlob, method.testedBy.routeBlobSha);
+    return true;
+  }
   if (key === APPROVALS_PATH + ' PATCH' && method.status === 'COVERED') { assert.equal(verifyApprovalsCredit(manifest),1); assert.equal(currentBlob,method.testedBy.routeBlobSha); return true; }
   if (key === FILING_PATH + " PATCH" && method.status === "COVERED") {
     assert.equal(verifyFilingPatchCredit(manifest), 1);
+    assert.equal(currentBlob, method.testedBy.routeBlobSha);
+    return true;
+  }
+  if (key === READINESS_GET_PATH + " GET" && method.status === "COVERED") {
+    assert.equal(verifyWorkspaceReadinessCredit(manifest), 1,
+      "A verified, method-specific, actual PG16 HTTP receipt is required for readiness GET");
     assert.equal(currentBlob, method.testedBy.routeBlobSha);
     return true;
   }
@@ -4320,9 +4333,17 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if (path === CHECKOUT_PATH && method.name === "POST") {
+        assert.equal(verifyCheckoutCredit(manifest), 1);
+        continue;
+      }
       if (path === APPROVALS_PATH && method.name === 'PATCH') { assert.equal(verifyApprovalsCredit(manifest),1); continue; }
       if (path === FILING_PATH && method.name === "PATCH") {
         assert.equal(verifyFilingPatchCredit(manifest), 1);
+        continue;
+      }
+      if (path === READINESS_GET_PATH && method.name === "GET") {
+        assert.equal(verifyWorkspaceReadinessCredit(manifest), 1);
         continue;
       }
       if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }

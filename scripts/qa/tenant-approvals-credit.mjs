@@ -163,13 +163,15 @@ export function reconcileApprovalsCredit({write=false}={}){
  let plan=withApprovalsStatusBanner(readFileSync(PLAN,'utf8'),m.metrics,pageGaps);
  // Derive the live frozen-batch table from its immutable method/source links.
  const frozen=plan.split('### Batch DL-01 —')[1]?.split('## Page and server-action closure')[0];assert.ok(frozen);
- const total={COVERED:0,'PUBLIC-BY-DESIGN':0,'PRIVILEGED-OPERATIONS-TOKEN-ONLY':0,GAP:0};
+ const total={COVERED:0,'PUBLIC-BY-DESIGN':0,'PRIVILEGED-OPERATIONS-TOKEN-ONLY':0,GAP:0},provisional=[];
  for(const section of ('### Batch DL-01 —'+frozen).split('### Batch ').slice(1)){
   const id=section.split(' ')[0],counts={COVERED:0,'PUBLIC-BY-DESIGN':0,'PRIVILEGED-OPERATIONS-TOKEN-ONLY':0,GAP:0};
   for(const line of section.split('\n').filter(x=>x.startsWith('- `')&&x.includes(' — [source](../../src/app/api/'))){const [verb]=line.split('`')[1].split(' '),path=line.split(' — [source](../../')[1].split('#L')[0],status=m.allApiRouteFiles[path].methods.find(x=>x.name===verb).status;counts[status]++;total[status]++;}
-  plan=plan.split('\n').map(line=>{const cells=line.split('|');if(cells.length!==10||cells[2].trim()!=='**'+id+'**')return line;cells[4]=' '+counts.COVERED+' ';cells[5]=' '+counts['PUBLIC-BY-DESIGN']+' ';cells[6]=' '+counts['PRIVILEGED-OPERATIONS-TOKEN-ONLY']+' ';cells[7]=' '+counts.GAP+' ';return cells.join('|');}).join('\n');
+  if(counts.GAP===0)provisional.push(id);
+  plan=plan.split('\n').map(line=>{const cells=line.split('|');if(cells.length!==10||cells[2].trim()!=='**'+id+'**')return line;cells[4]=' '+counts.COVERED+' ';cells[5]=' '+counts['PUBLIC-BY-DESIGN']+' ';cells[6]=' '+counts['PRIVILEGED-OPERATIONS-TOKEN-ONLY']+' ';cells[7]=' '+counts.GAP+' ';cells[8]=counts.GAP?' INCOMPLETE ':' PROVISIONAL — NOT ACCEPTED ';return cells.join('|');}).join('\n');
  }
  plan=plan.replace(/^Frozen subtotal[^\n]+/m,line=>line.replace(/\*\*\d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP = 406\*\*/,'**'+total.COVERED+' COVERED + '+total['PUBLIC-BY-DESIGN']+' PUBLIC-BY-DESIGN + '+total['PRIVILEGED-OPERATIONS-TOKEN-ONLY']+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+total.GAP+' GAP = 406**'));
+ plan=plan.replace(/^Frozen subtotal[^\n]+/m,line=>line.replace(/\d+ batches remain INCOMPLETE; [^.]+ remain PROVISIONAL — NOT ACCEPTED\./,(12-provisional.length)+' batches remain INCOMPLETE; '+provisional.join(', ')+' remain PROVISIONAL — NOT ACCEPTED.'));
  if(write){writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');writeFileSync(INVENTORY,overview);writeFileSync(PLAN,plan);}
  else {assert.equal(row.status,'COVERED');assert.deepEqual(JSON.parse(readFileSync(MANIFEST,'utf8')),m,'Run this reviewed credit writer with --write first');assert.equal(readFileSync(INVENTORY,'utf8'),overview,'Inventory must be generated from the same credit');assert.equal(readFileSync(PLAN,'utf8'),plan,'Frozen queue must reconcile with the credited method');}
  return {methodsCredited:before.gap-m.metrics.gap,before,after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap},write};
