@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts, baseTenantManifest } from "../../tests/helpers/tenant-counts.mjs";
 import {verifyFilingPatchCredit,FILING_PATH} from "./tenant-filing-patch-credit.mjs";
+import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from "./tenant-workspace-readiness-credit.mjs";
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -170,8 +171,15 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(verifyFilingPatchCredit(m), 1,
           "Only the sealed filing PATCH three-leg proof can authorize its own credit");
       }
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions].sort(),
-        "Merged invitation receipts permit only separately verified BIR and filing PATCH credits");
+      // A readiness GET promotion is separate from invitation acceptance; it
+      // requires its own final-head PG16 run and exact, unborrowable receipt.
+      const readinessPromotions = promoted.filter(key => key === "GET " + READINESS_GET_PATH);
+      if (readinessPromotions.length) {
+        assert.equal(verifyWorkspaceReadinessCredit(m), 1,
+          "Only the source-sealed readiness PG16 method receipt can authorize GET credit");
+      }
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...readinessPromotions].sort(),
+        "Merged invitation credits allow only independently source-sealed BIR, filing PATCH and readiness GET promotions");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
       const source = baseTenantManifest();
