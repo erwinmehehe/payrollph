@@ -667,30 +667,44 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   }
   if (isNewOrChanged && method.status === "GAP" &&
       key === "src/app/api/readiness/workspace/route.ts GET") {
-    // A 503 own read is NOT a successful readiness read. The sole approved
-    // exception is a SHA-pinned deny-by-default endpoint and executable,
-    // independent foreign-denial proof; the method stays GAP.
+    // This source now provides employer-only counts but is still a GAP.
+    // Never promote from a passing source-only or unreviewed HTTP candidate.
     const proof = method.reviewedUncertified;
-    assert.equal(currentBlob, "10121c3378f2e4ee983ab9b9551498a6f8dccdfd",
-      "Changes to the readiness route must renew containment review");
+    assert.equal(currentBlob, "5fdf10244467ddee8e5ccd1e98f07930b2ce7086",
+      "Changed employer readiness source requires fresh tenant review");
     assert.equal(proof?.routeBlobSha, currentBlob);
-    assert.equal(proof?.file, "scripts/qa/workspace-readiness-http.mjs");
-    assert.equal(proof?.ownStatus, 503);
+    assert.equal(proof?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
+    assert.equal(proof?.loaderBlobSha,
+      gitBlobSha(readFileSync("src/lib/workspace-readiness-boundary.ts")),
+      "Employer-only loader changed; renew proof");
+    assert.equal(proof?.proofBlobSha,
+      gitBlobSha(readFileSync(proof.file)),
+      "Tenant readiness HTTP proof changed; renew review");
+    assert.equal(proof?.ownStatus, 200);
     assert.equal(proof?.foreignStatus, 403);
-    const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own 503");
+    assert.equal(proof?.coverageCredits, 0);
+    assert.equal(proof?.independentlyAccepted, false);
+    assert.equal(proof?.productionTested, false);
+    const own = evidenceLine(proof.file, proof.ownPositiveLine, key + " own 200");
     const foreign = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign 403");
     const lines = readableLines(proof.file);
-    const ownSpan = lines.slice(proof.ownPositiveLine - 1, proof.ownPositiveLine + 3).join("\n");
-    assert.match(own, /const ownReadinessUnavailable = expectStatus\(await request\(/);
-    assert.match(ownSpan, /\), 503,/);
-    assert.match(foreign, /expectStatus\(await request\(/);
-    assert.match(foreign, /\), 403,/);
-    assert.match(lines.join("\n"), /TENANT_SECOND_PASS_MODE/);
+    assert.match(own, /const own = await httpGet\(endpoint\(actor.org.id\), actor.cookie\)/);
+    assert.match(lines[proof.ownPositiveLine], /assertOwnedReadiness\(own, actor.org.id/);
+    assert.match(foreign, /const denied = await httpGet\(endpoint\(target.org.id\), attacker.cookie\)/);
+    assert.match(lines[proof.foreignDenialLine], /assert.equal\(denied.status, 403/);
+    assert.match(lines.join("\n"), /requireDisposableWorkspaceReadiness\(\)/);
+    assert.match(lines.join("\n"), /assert.deepEqual\(await snapshot\(\), baseline/);
     assert.match(readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8"),
       /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
-    assert.match(readFileSync("src/app/api/readiness/workspace/route.ts", "utf8"),
-      /return tenantReadinessUnavailable\(organizationId\)/);
-    assert.equal(method.testedBy, null, "No successful owned readiness read: keep GAP");
+    const source = readFileSync("src/app/api/readiness/workspace/route.ts", "utf8");
+    const loader = readFileSync("src/lib/workspace-readiness-boundary.ts", "utf8");
+    assert.match(source, /return await buildTenantWorkspaceReadiness\(organizationId\)/);
+    assert.doesNotMatch(source, /return await buildReadinessPayload\(/);
+    assert.match(loader, /eq\(employees.organizationId, organizationId\)/);
+    assert.match(loader, /eq\(payrollRuns.organizationId, organizationId\)/);
+    assert.match(loader, /status: "not-launch-ready"/);
+    assert.equal(method.testedBy, null,
+      "Unaccepted exact-head readiness evidence must remain GAP / zero credits");
     return;
   }
   // GET-only labor-costing hardening must not silently certify the untouched
