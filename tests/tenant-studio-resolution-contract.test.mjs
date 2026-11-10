@@ -160,6 +160,8 @@ test("runner cannot skip safety, real HTTP, either transition, rollback reach or
 });
 test("dedicated workflow pins head, preflights before DB, runs HTTP and requires a receipt", () => {
   const workflow = readFileSync(".github/workflows/tenant-studio-resolution-qa.yml", "utf8");
+  assert.ok(workflow.includes('--health-cmd "pg_isready -U postgres -d app_db"'),
+    'Docker service options require double quotes around the health command');
   for (const part of ["image: postgres:16", "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
     "--check-env --check-sources", "npm ci --include=dev", "npm run db:push",
     "node scripts/qa/apply-isolated-baseline.mjs", "npm run build",
