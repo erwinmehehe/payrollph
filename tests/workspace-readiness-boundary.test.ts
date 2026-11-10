@@ -11,7 +11,7 @@ test("employer workspace fails closed without readiness metrics, gates or a succ
     const body = await response.json();
     assert.deepEqual(body, {
       code: "WORKSPACE_READINESS_UNAVAILABLE",
-      error: "Readiness evidence is unavailable for this employer. No launch or pilot status has been verified.",
+      error: "Employer readiness evidence is unavailable. No launch or pilot status has been verified.",
     });
     for (const field of ["status", "gates", "counts", "manualLaunch", "launchBlockersRemaining", "scaleGapsRemaining"]) {
       assert.equal(Object.hasOwn(body, field), false, field);

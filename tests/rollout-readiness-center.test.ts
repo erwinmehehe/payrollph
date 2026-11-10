@@ -9,6 +9,7 @@ test("workspace readiness is authenticated and rejects unscoped platform diagnos
   assert.ok(route.includes("getSessionUser"));
   assert.ok(route.includes("ORG_ADMIN_ROLES"));
   assert.ok(route.includes("company-wide access"));
+  assert.ok(route.includes("buildTenantWorkspaceReadiness(organizationId)"));
   assert.ok(route.includes("tenantReadinessUnavailable(organizationId)"));
   assert.equal(route.includes("buildReadinessPayload"), false);
   assert.equal(route.includes("manualWorkaround"), false);
