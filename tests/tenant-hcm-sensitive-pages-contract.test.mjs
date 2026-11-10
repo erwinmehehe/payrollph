@@ -97,6 +97,59 @@ test("fake 200 and empty page shells are not evidence of own HCM records", () =>
     actor, { id: 4 }, [actor, victim], { payProfilePresent: false }), /pay profile/);
 });
 
+test("SSR own-positive proof ignores scripts, styles, hidden templates, comments and attributes", () => {
+  const monitor = "Business Process Monitor Employer #8 Recorded workflows Step timeline Hire #25 Step 1";
+  const emptyShell = "<h1>Business Process Monitor</h1>";
+  for (const fake of [
+    "<script>" + monitor + "</script>",
+    '<script type="application/json">' + monitor + "</script >",
+    '<ScRiPt data-attr=">">' + monitor + "</ScRiPt\n>",
+    "<style>" + monitor + "</style >",
+    "<!-- " + monitor + " -->",
+    "<template><p>" + monitor + "</p></template>",
+    "<noscript>" + monitor + "</noscript>",
+    "<svg><title>" + monitor + "</title></svg>",
+    "<head><title>" + monitor + "</title></head>",
+    "<div data-fake='" + monitor + "'>No workflows here</div>",
+  ]) assert.throws(() => assertOwnMonitor(result(200, emptyShell + fake),
+    actor, actor.processes[0], [actor, victim]), /Owned monitor must show populated persisted workflow/);
+  const visible = "<p>Business Process Monitor</p><p>Employer #<!-- -->8</p>" +
+    "<p>Recorded workflows</p><p>Step timeline</p><p>Hire #<!-- -->25</p><p>Step <!-- -->1</p>";
+  assert.doesNotThrow(() => assertOwnMonitor(result(200,
+    '<head><script>const x="</head>";</script></head>' + visible),
+    actor, actor.processes[0], [actor, victim]));
+  assert.throws(() => assertOwnMonitor(result(200,
+    '<template><script>const x="</template>";</script><p>' + monitor +
+    "</p></template>" + emptyShell), actor, actor.processes[0], [actor, victim]));
+});
+
+test("SSR own-positive evidence fails closed on malformed markup or fake RSC-only hire text", () => {
+  const monitor = "Business Process Monitor Employer #8 Recorded workflows Step timeline Hire #25 Step 1";
+  for (const malformed of [
+    "<script>" + monitor,
+    "<!-- " + monitor,
+    '<div title="unterminated>Visible</div>',
+    '<style type="text/css">.x{color:red}',
+  ]) assert.throws(() => assertOwnMonitor(result(200, malformed),
+    actor, actor.processes[0], [actor, victim]), /HCM_SSR_REFUSED/);
+  const hire = "Hire-to-payroll input evidence Employer #8 Worker #4 Current employment record " +
+    "Payroll basis and standard hours Payroll approval, filing and payout " +
+    "Recognized pay basis and positive rate, work-day and hour fields are recorded; approval is not verified.";
+  for (const hidden of [
+    "<script>" + hire + "</script >",
+    "<template><p>" + hire + "</p></template>",
+    "<!-- " + hire + " -->",
+  ]) assert.throws(() => assertOwnHireReview(result(200,
+    "<p>Hire-to-payroll input evidence</p>" + hidden),
+    actor, { id: 4 }, [actor, victim]), /Owned hire page must reflect a real persisted worker/);
+  assert.doesNotThrow(() => assertOwnHireReview(result(200,
+    "<p>Hire-to-payroll input evidence Employer #<!-- -->8 Worker #<!-- -->4</p>" +
+    "<p>Current employment record</p><p>Payroll basis and standard hours</p>" +
+    "<p>Payroll approval, filing and payout</p>" +
+    "<p>Recognized pay basis and positive rate, work-day and hour fields are recorded; approval is not verified.</p>"),
+    actor, { id: 4 }, [actor, victim]));
+});
+
 test("foreign body, source note, successful denial and foreign process are refused", () => {
   assert.throws(() => assertNoTenantLeak(result(404, victim.marker),
     [actor, victim], "foreign marker", actor));
