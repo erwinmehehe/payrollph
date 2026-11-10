@@ -2,7 +2,7 @@
   "schema": "onboarding-pg16-receipt-v1",
   "productionTested": false,
   "ci": "NOT_RUN",
-  "runLabel": "Executed local disposable PG16.14 localhost3014 legacy+preview: 38 owned / 38 victim / 30 forged / 64 negative / 19 discrimination; outputs/proof-legacy.log and outputs/proof-preview.log",
+  "runLabel": "SOLO_VERIFIED_DEV_RECOVERY local disposable PG16.14 localhost3310 legacy+preview approval-boundary reproof 2026-11-10: 38 own / 38 victim / 30 forged / 64 negative / 19 discrimination; outputs/onboarding-legacy.json and outputs/onboarding-preview.json",
   "mutation": {
     "rejected": true,
     "message": "Missing expected exception: proof accepts another employer's data"
@@ -22,7 +22,7 @@
     },
     {
       "file": "scripts/qa/tenant-onboarding-credit.mjs",
-      "sha256": "8c5b99d00aec95f5fc707cfb92746d48c08e8516b5cadeb70f2e3f12aef22a34"
+      "sha256": "676b6cc29063616b075daef8eba7014d58ec4bb1c2e270fe6a78eb52025d17de"
     },
     {
       "file": ".github/workflows/tenant-onboarding-http.yml",
@@ -42,7 +42,7 @@
     },
     {
       "file": "src/app/api/approvals/[id]/route.ts",
-      "sha256": "65a90405a34e6103d2ae119d903a68f57f4b39a3f829165197f475a39479e5b7"
+      "sha256": "be1175719e09ea1bc24fd72b29d14a7ec4318244db916250c2c2a4b9d6137418"
     },
     {
       "file": "src/lib/payroll-period-validation.ts",
@@ -87,6 +87,10 @@
     {
       "file": "scripts/qa/tenant-table-invariants.mjs",
       "sha256": "bd1f5471386ba4a443fedb7b2cf4445eaef343f05ba50a204baedd20e9226d1e"
+    },
+    {
+      "file": "src/lib/approval-source-tenant-boundary.ts",
+      "sha256": "5231db12076bd28f505f6fa8d8bc407068e7e596059c11f0a5ab5fc13f69199e"
     }
   ],
   "runs": [
@@ -443,5 +447,9 @@
       "productionTested": false,
       "priorHistoricalProofPreserved": true
     }
+  },
+  "previousReceipt": {
+    "runLabel": "Executed local disposable PG16.14 localhost3014 legacy+preview: 38 owned / 38 victim / 30 forged / 64 negative / 19 discrimination; outputs/proof-legacy.log and outputs/proof-preview.log",
+    "approvalRouteSha256": "65a90405a34e6103d2ae119d903a68f57f4b39a3f829165197f475a39479e5b7"
   }
 }
