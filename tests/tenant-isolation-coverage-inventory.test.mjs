@@ -6980,7 +6980,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           contractFile: "scripts/qa/tenant-hcm-process-monitor-contract.mjs",
           contractBlobSha: "6c9d2556ea865593a243125027812c814a79c498",
           proofFile: "scripts/qa/tenant-hcm-process-monitor-http.mjs",
-          proofBlobSha: "b32d41d492fea86959747d2a6e5812bff0836e96",
+          proofBlobSha: "eeec71d4e1ea855f20764eff8259e0914803181c",
           unitTestFile: "tests/tenant-hcm-process-monitor-page.test.ts",
           unitTestBlobSha: "d6ad80cd7e2355db9f793b78371332a9c5e7578f",
           contractTestFile: "tests/tenant-hcm-process-monitor-contract.test.mjs",
