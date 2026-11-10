@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { generateTotp } from "../../src/lib/totp.ts";
 import { isExpectedDenied } from "./nav-sweep.expected-denied.mjs";
+import { checkReadinessNavigationContract } from "./nav-sweep-readiness-contract.mjs";
 import { mobileNavOpenerSelector, mobileNavVisualFindings } from "./nav-sweep-visual-contract.mjs";
 import { compareNavSweepCaseCoverage, startNavSweepRoleBrowser, startNavSweepViewportBrowser } from "./nav-sweep-startup.mjs";
 
@@ -69,6 +70,7 @@ async function checkRole(browser, role, width, authState, pages) {
   let current = "initial load";
   let blocked = 0;
   let readiness503 = false;
+  let readinessResponses = [];
   // Guard both fetch/XHR and form submissions. Any accidental POST/PATCH/PUT/
   // DELETE is aborted, not merely ignored after it reaches the server.
   await context.route("**/*", async route => {
@@ -104,8 +106,9 @@ async function checkRole(browser, role, width, authState, pages) {
     if (url.origin !== BASE || !url.pathname.startsWith("/api/")) return;
     const status = response.status();
     if (current === "Readiness" && response.request().method() === "GET" &&
-        url.pathname === "/api/readiness/workspace" && status === 503) {
-      readiness503 = true;
+        url.pathname === "/api/readiness/workspace" && (status === 200 || status === 503)) {
+      if (status === 503) readiness503 = true;
+      readinessResponses.push(response);
       return;
     }
     if (status < 200 || status >= 300) {
@@ -118,6 +121,7 @@ async function checkRole(browser, role, width, authState, pages) {
       current = name;
       blocked = 0;
       readiness503 = false;
+      readinessResponses = [];
       const started = Date.now();
       const before = errors.length;
       const findings = [];
@@ -261,18 +265,30 @@ async function checkRole(browser, role, width, authState, pages) {
         // Observe all actual error-toast families rather than keyword-matching
         // the benign body copy of a payroll screen.
         const alerts = await page.locator(ERROR_SELECTOR).allTextContents();
-        const readinessFallback = alerts.some(message =>
-          message.includes("Workspace readiness unavailable.") &&
-          message.includes("Readiness evidence is unavailable for this employer.") &&
-          message.includes("No launch or pilot status has been verified."));
+        const readinessContract = name === "Readiness"
+          ? checkReadinessNavigationContract({
+              employerId: fixture.organizationId,
+              responses: await Promise.all(readinessResponses.map(async response => ({
+                status: response.status(),
+                url: response.url(),
+                cacheControl: response.headers()["cache-control"] ?? "",
+                body: await response.json().catch(() => null),
+              }))),
+              pageText: await page.locator("[data-workspace-page='Readiness']")
+                .innerText().catch(() => ""),
+              alerts,
+            })
+          : null;
+        if (readinessContract && !readinessContract.ok) {
+          findings.push({ kind: "readiness fail-closed contract",
+            detail: readinessContract.detail });
+        }
         for (const message of alerts.map(safeText).filter(Boolean)) {
-          if (name === "Readiness" && readiness503 && readinessFallback &&
+          if (name === "Readiness" && readinessContract?.ok &&
+              readinessContract.mode === "evidence-unavailable" &&
               message.includes("Workspace readiness unavailable.")) continue;
           findings.push({ kind: "visible error", detail: message });
         }
-        if (name === "Readiness" && (!readiness503 || !readinessFallback))
-          findings.push({ kind: "readiness fail-closed contract",
-            detail: "Expected employer-scoped HTTP 503 and explicit no-launch-evidence fallback" });
 
         const loadTimeBlockedWrites = blocked;
         // Click only unambiguously non-destructive controls. A label not on the
