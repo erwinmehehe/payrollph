@@ -63,7 +63,7 @@ test("HR-case staff roster SQL scopes employer and authorized unit before select
   assert.doesNotMatch(company.sql, /"employees"."org_unit_id"/);
 });
 
-test("HR-case GET and SSR gate share canonical selection and authorize before reading staff rows", () => {
+test("HR-case GET canonicalizes tenant IDs and the unchanged SSR gate still rejects invalid selectors", () => {
   const api = readFileSync("src/app/api/hr-cases/route.ts", "utf8");
   const get = api.split("export async function GET(request: Request) {")[1]
     ?.split("export async function POST(request: Request) {")[0];
@@ -77,7 +77,8 @@ test("HR-case GET and SSR gate share canonical selection and authorize before re
   assert.ok(get.indexOf("assertOrganizationRole(") < get.indexOf("hrCaseStaffRosterScope("),
     "Authorize selected employer before loading staff data");
   const page = readFileSync("src/app/hcm/hr-cases/page.tsx", "utf8");
-  assert.match(page, /explicitHrCaseEmployerId\(typeof raw === "string" \? \[raw\] : \[\]\)/);
+  assert.match(page, /typeof raw !== "string"/);
+  assert.match(page, /Number.isSafeInteger\(organizationId\)/);
   assert.ok(page.indexOf("assertOrganizationRole(") < page.indexOf("<EmployeeHrCaseStaffQueue"),
     "SSR must authorize before mounting the HR case queue");
 });
