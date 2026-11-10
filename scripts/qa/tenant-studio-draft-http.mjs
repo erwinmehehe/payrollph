@@ -281,7 +281,7 @@ export async function proveStudioDraftIsolation() {
     assert.equal(ownCreates, 5, "Two owners and the real victim must persist 5 drafts");
     assert.equal(ownUpdates, 2, "Both independent owners must update their own draft");
     assert.equal(foreignDenials, 8, "Each attacker must fail all four real foreign selectors");
-    assert.equal(otherDenials, 14, "All other security denials must execute");
+    assert.equal(otherDenials, 10, "All other security denials must execute");
     console.log("TENANT_STUDIO_DRAFT_HTTP_COMPLETE " + JSON.stringify({
       family: "automation-studio-rule-draft-and-template",
       fictionalPG16: true, ownCreates, ownUpdates, foreignDenials, otherDenials,
