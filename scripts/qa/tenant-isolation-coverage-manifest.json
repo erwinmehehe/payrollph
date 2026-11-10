@@ -17314,7 +17314,7 @@
       ]
     },
     "src/app/api/hr-cases/route.ts": {
-      "gitBlobSha": "a7af734c9b67c1935f2656360f836e16ccb15cc0",
+      "gitBlobSha": "995420a26af9766d89216ee0ccec93a9d63b1846",
       "route": "hr-cases",
       "methods": [
         {
@@ -17333,7 +17333,7 @@
         },
         {
           "name": "POST",
-          "line": 96,
+          "line": 110,
           "status": "COVERED",
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
@@ -17347,7 +17347,7 @@
         },
         {
           "name": "PATCH",
-          "line": 252,
+          "line": 266,
           "status": "COVERED",
           "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
           "testedBy": {
