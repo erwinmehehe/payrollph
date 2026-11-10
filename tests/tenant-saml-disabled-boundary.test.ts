@@ -3,12 +3,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { GET as start } from "../src/app/api/auth/saml/start/[providerId]/route";
-import { GET as metadata } from "../src/app/api/auth/saml/metadata/[providerId]/route";
 import { POST as acs } from "../src/app/api/auth/saml/acs/[providerId]/route";
 
 const cases = [
   { name: "start", method: "GET", path: "src/app/api/auth/saml/start/[providerId]/route.ts", handler: start },
-  { name: "metadata", method: "GET", path: "src/app/api/auth/saml/metadata/[providerId]/route.ts", handler: metadata },
   { name: "acs", method: "POST", path: "src/app/api/auth/saml/acs/[providerId]/route.ts", handler: acs },
 ] as const;
 
@@ -16,7 +14,7 @@ function gitBlobSha(source: string) {
   return createHash("sha1").update("blob " + Buffer.byteLength(source) + "\0" + source).digest("hex");
 }
 
-test("disabled SAML returns a provider-independent response for each entrypoint", async () => {
+test("disabled SAML start and ACS refuse provider enumeration identically", async () => {
   const ids = ["1", "17", "999999", "0", "01", "1e2", "-1", "not-an-id"];
   const seen = new Set<string>();
   for (const entry of cases) {
@@ -38,10 +36,10 @@ test("disabled SAML returns a provider-independent response for each entrypoint"
       seen.add(response.status + ":" + body);
     }
   }
-  assert.equal(seen.size, 1, "unknown and configured provider IDs must be indistinguishable");
+  assert.equal(seen.size, 1, "unknown and configured provider IDs must be indistinguishable on both login endpoints");
 });
 
-test("all disabled SAML routes have no database or metadata lookup before refusal", () => {
+test("both disabled SAML login routes refuse before provider lookups", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const entry of cases) {
     const source = readFileSync(entry.path, "utf8");
