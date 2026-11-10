@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   // A company-wide payroll lock includes reasons, operator identities and
   // cutoff context. It is not a unit-scoped read, even for HR/payroll roles.
   // Reject duplicate/noncanonical selectors rather than silently picking one.
-  if (selectors.length !== 1 || !/^[1-9]\\d*$/.test(selectors[0])) {
+  if (selectors.length !== 1 || !/^[1-9]\d*$/.test(selectors[0])) {
     return Response.json({ error: "A single positive organizationId is required." }, { status: 400 });
   }
   const organizationId = Number(selectors[0]);
