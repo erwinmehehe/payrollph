@@ -43797,34 +43797,62 @@
     },
     {
       "path": "src/app/self/schedule-receipts/page.tsx",
-      "blob": "77f085f1b0f20aa7786e893a825e453259429ac0",
+      "blob": "cf5947bea1bc5aa8a8b87f54d53bc4ffceb2575e",
       "ids": [
         {
-          "line": 18,
-          "token": "employeeId"
-        },
-        {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "employeeId"
-        },
-        {
-          "line": 21,
-          "token": "organizationId"
-        },
-        {
           "line": 22,
+          "token": "employeeId"
+        },
+        {
+          "line": 27,
           "token": "organizationId"
         },
         {
           "line": 27,
+          "token": "employeeId"
+        },
+        {
+          "line": 27,
+          "token": "userId"
+        },
+        {
+          "line": 27,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 27,
+          "token": "workDate"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "employeeId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
           "token": "organizationId"
         }
       ],
@@ -43835,43 +43863,122 @@
           "token": "getSessionUser"
         },
         {
-          "line": 16,
+          "line": 8,
+          "token": "assertMembership"
+        },
+        {
+          "line": 8,
+          "token": "getAccess"
+        },
+        {
+          "line": 9,
+          "token": "receiptPilotAllowed"
+        },
+        {
+          "line": 9,
+          "token": "validReceiptId"
+        },
+        {
+          "line": 20,
           "token": "getSessionUser"
+        },
+        {
+          "line": 22,
+          "token": "validReceiptId"
+        },
+        {
+          "line": 37,
+          "token": "getAccess"
+        },
+        {
+          "line": 39,
+          "token": "assertMembership"
+        },
+        {
+          "line": 40,
+          "token": "receiptPilotAllowed"
         }
       ],
       "business": [
         {
-          "line": 18,
-          "token": "employeeId"
-        },
-        {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "employeeId"
-        },
-        {
-          "line": 21,
-          "token": "organizationId"
-        },
-        {
           "line": 22,
+          "token": "employeeId"
+        },
+        {
+          "line": 27,
           "token": "organizationId"
         },
         {
           "line": 27,
+          "token": "employeeId"
+        },
+        {
+          "line": 27,
+          "token": "userId"
+        },
+        {
+          "line": 27,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 27,
+          "token": "workDate"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "employeeId"
+        },
+        {
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 46,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: PII-02 #new-ESS-page candidate uses feature-ON two-attacker fictional PostgreSQL 16 SSR own, forged selector, role/active-status, revoked, and immutable DB checks; independent review and browser action acceptance pending. No page or method coverage credit.",
+      "reviewedUncertified": {
+        "kind": "pii02-ess-self-schedule-SSR-GET-PG16-unaccepted",
+        "originalPageBlobSha": "77f085f1b0f20aa7786e893a825e453259429ac0",
+        "pageBlobSha": "cf5947bea1bc5aa8a8b87f54d53bc4ffceb2575e",
+        "proofFile": "scripts/qa/tenant-self-schedule-page-http.mjs",
+        "proofBlobSha": "9b1fd190a2b2833b5ca6c4cf0bcab8a13feea050",
+        "contractFile": "tests/tenant-self-schedule-page-contract.test.mjs",
+        "contractBlobSha": "1260712b620ce35063d2c64b77369309cb3d4cfe",
+        "workflowFile": ".github/workflows/tenant-self-schedule-page-http.yml",
+        "workflowBlobSha": "244f44c4bc6c320341eaf20377d97c08aba9c94c",
+        "ownPositiveLine": 98,
+        "forgedSelectorDenialLine": 112,
+        "unchangedDbLine": 120,
+        "wrongRoleDenialLine": 132,
+        "pageActionCredits": 0,
+        "apiMethodCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/workspace/2316/page.tsx",

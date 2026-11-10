@@ -42,6 +42,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyUnacceptedSelfSchedulePage } from "../scripts/qa/tenant-self-schedule-page-verify.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 import { validateTenantPathBinding } from "../scripts/qa/tenant-table-path.mjs";
 import { TENANT_TABLE_PROFILES } from "../scripts/qa/tenant-table-env.mjs";
@@ -6885,6 +6886,14 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(workflowSource, /github\.event\.pull_request\.head\.sha/);
         assert.match(workflowSource, /node --import tsx scripts\/qa\/tenant-payroll-review-pages-http\.mjs/);
         continue; // Full GET evidence, zero credits. Never silently waive a changed page.
+      }
+      // Dedicated PII-02 employee SSR GET has exact-source, disposable two-attacker
+      // PG16 evidence. This remains GAP with zero page/action/method credits.
+      if (path === "src/app/self/schedule-receipts/page.tsx") {
+        assert.equal(verifyUnacceptedSelfSchedulePage({
+          entry, currentBlob: current, originalBlob: baseline.app[path], manifest,
+        }), true);
+        continue;
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
         path + ": changed scoped entry still lacks valid same-employer + foreign-employer proof");
