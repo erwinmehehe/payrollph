@@ -91,6 +91,80 @@ function gitBlobSha(bytes) {
 function findMethod(manifest, route, verb) {
   return manifest.allApiRouteFiles[ROOT + route + "/route.ts"]?.methods.find(m => m.name === verb);
 }
+
+/**
+ * Fail closed on page-credit drift without blocking the original 17-GAP
+ * baseline. Only the exact Worker 360 SSR worker-bound proof can propose a
+ * single 17 -> 16 page-gap reduction; API method credits are unaffected.
+ * A provisional ledger status is NOT independent human security acceptance.
+ */
+export function verifyWorker360PageCredit(
+  manifest = JSON.parse(readFileSync(MANIFEST, "utf8")),
+  read = path => readFileSync(path),
+) {
+  const name = "src/app/hcm/worker-360/page.tsx";
+  const row = manifest.scopedPages.find(entry => entry.path === name);
+  const gaps = manifest.scopedPages.filter(entry => entry.status === "GAP").length;
+  assert.ok(row, "Worker 360 scoped page must stay in the inventory");
+  if (row.status === "GAP") {
+    assert.equal(gaps, 17, "Historical page GAP baseline changed unexpectedly");
+    return gaps;
+  }
+  assert.equal(row.status, "COVERED", "No unreviewed alternate page classification");
+  assert.equal(gaps, 16, "Only the exact Worker 360 page GAP may close");
+  const pageSha = "337034f839c17a30077e2cfe5991c640e0c6a5e9";
+  const proofSha = "7a342f1499399f0209a98e845ca3fe21b8db39b3";
+  const proofFile = "scripts/qa/tenant-hcm-worker360-http.mjs";
+  const pageSource = read(name).toString("utf8");
+  const proofSource = read(proofFile).toString("utf8");
+  assert.equal(row.blob, pageSha);
+  assert.equal(gitBlobSha(Buffer.from(pageSource)), pageSha, "Worker 360 SSR source changed");
+  assert.equal(row.testedBy?.sourceBlobSha, pageSha);
+  assert.equal(row.testedBy?.file, proofFile);
+  assert.equal(row.testedBy?.proofBlobSha, proofSha);
+  assert.equal(gitBlobSha(Buffer.from(proofSource)), proofSha,
+    "Worker 360 PG16 proof changed; renew exact-head run");
+  assert.equal(row.testedBy?.independentSecurityReview, "PENDING");
+  assert.equal(row.testedBy?.productionCertified, false);
+  assert.match(row.reason, /^PROVISIONAL exact-employee-bound Worker 360 SSR shell:/);
+  assert.match(pageSource, /eq\(employees\.organizationId, organizationId\)/);
+  assert.match(pageSource, /eq\(employees\.id, employeeId\)/);
+  assert.match(pageSource, /if \(!verifiedWorker\) notFound\(\)/);
+  const auth = pageSource.indexOf("await assertOrganizationRole(");
+  const plan = pageSource.indexOf("await denyOptInEnterpriseHcmPlan(");
+  const employee = pageSource.indexOf("const [verifiedWorker] = await db.select(");
+  const mount = pageSource.indexOf("<Worker360Client");
+  assert.ok(auth > 0 && auth < plan && plan < employee && employee < mount,
+    "Page must authorize employer, role and plan before querying own employee");
+  const lines = proofSource.split("\n");
+  for (const [field, marker, number] of [
+    ["ownPositiveLine", "await readPage(actor, actor.worker, actor.cookie)", 176],
+    ["foreignDenialLine", "await deny(pagePath(actor.org.id, victim.worker.id)", 209],
+    ["unchangedDbLine", "assertUnchangedSql(baselines.get(actor.org.id)", 147],
+  ]) {
+    assert.equal(row.testedBy[field], number, field + " page closure source pin");
+    assert.ok(lines[number - 1]?.includes(marker), field + " real HTTP evidence missing");
+  }
+  for (const evidence of [
+    "for (const actor of [a, b])",
+    "await readPage(actor, actor.secondWorker, actor.cookie)",
+    "foreign worker inside own employer SSR",
+    "other attacker's worker inside own employer SSR",
+    "assert.equal(ownedPages, 5",
+    "assert.equal(foreignDenials, 12",
+    "assert.equal(deniedCases, 44",
+  ]) assert.ok(proofSource.includes(evidence),
+    "Missing required two-employer employee-bound SSR control: " + evidence);
+  const workflow = read(".github/workflows/tenant-hcm-worker360-qa.yml").toString("utf8");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-worker360-http\.mjs/);
+  const api = manifest.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
+  assert.equal(api?.gitBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
+  assert.equal(api.methods.find(method => method.name === "GET")?.status, "COVERED");
+  return gaps;
+}
+
 export function verifyFiveMethodCredits(
   manifest = JSON.parse(readFileSync(MANIFEST, "utf8")),
   read = path => readFileSync(path),
@@ -99,7 +173,7 @@ export function verifyFiveMethodCredits(
   // to the counts of this historical proof batch. Compare to the base when
   // the CI checkout provides origin/main.
   const { live } = assertLiveTenantCounts(assert, manifest);
-  assert.equal(manifest.scopedPages.filter(p => p.status === "GAP").length, 17);
+  const pageActionGaps = verifyWorker360PageCredit(manifest, read);
 
   for (const e of EVIDENCE) {
     const path = ROOT + e.route + "/route.ts";
@@ -214,7 +288,7 @@ export function verifyFiveMethodCredits(
     assert.match(m.reason, /higher-ID victim transfer/);
   }
   return { status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
-    methodsHeld: transfersHeld, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap, pageActionGaps: 17,
+    methodsHeld: transfersHeld, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap, pageActionGaps,
     productionTested: false, independentlyAccepted: false };
 }
 

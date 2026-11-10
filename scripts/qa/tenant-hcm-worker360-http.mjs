@@ -174,6 +174,7 @@ export async function proveWorker360Isolation() {
 
     for (const actor of [a, b]) {
       await readPage(actor, actor.worker, actor.cookie);
+      await readPage(actor, actor.secondWorker, actor.cookie);
       await readApi(actor, actor.worker, actor.cookie, actor.assignment,
         [actor.events.later, actor.events.earlier],
         "&asOfDate=" + AS_OF);
@@ -205,7 +206,17 @@ export async function proveWorker360Isolation() {
         actor.cookie, 403, actor.label + ": victim employer API");
       await deny(pagePath(victim.org.id, victim.worker.id),
         actor.cookie, 404, actor.label + ": victim employer SSR");
-      foreignDenials += 4;
+      await deny(pagePath(actor.org.id, victim.worker.id),
+        actor.cookie, 404, actor.label + ": foreign worker inside own employer SSR");
+      await deny(pagePath(actor.org.id, b === actor ? a.worker.id : b.worker.id),
+        actor.cookie, 404, actor.label + ": other attacker's worker inside own employer SSR");
+      foreignDenials += 6;
+      await deny(pagePath(actor.org.id, victim.worker.id,
+        "&employeeId=" + actor.worker.id), actor.cookie, 404,
+        actor.label + ": foreign worker first with duplicated own employee selector");
+      await deny(pagePath(actor.org.id, actor.worker.id,
+        "&organizationId=" + victim.org.id), actor.cookie, 404,
+        actor.label + ": duplicate employer selector must fail closed");
       await deny(apiPath(victim.org.id, victim.worker.id,
         "&organizationId=" + actor.org.id + "&asOfDate=" + AS_OF),
         actor.cookie, 403, actor.label + ": victim-first duplicate employer");
@@ -265,10 +276,12 @@ export async function proveWorker360Isolation() {
     await deny(apiPath(a.org.id, a.worker.id, "&asOfDate=" + AS_OF),
       a.cookie, 403, "revoked owner API");
     await unchanged("final readonly database snapshot");
-    assert.equal(ownedPages, 3);
+    assert.equal(ownedPages, 5,
+      "Two owners must render both actual same-employer employees, plus authorized HR");
     assert.equal(ownedApi, 11);
-    assert.equal(foreignDenials, 8);
-    assert.ok(deniedCases >= 30, "Required negative cases must actually execute");
+    assert.equal(foreignDenials, 12,
+      "Two owners must each deny two actual foreign employee SSRs and two foreign API/SSR selectors");
+    assert.equal(deniedCases, 44, "Every independent page and API negative control must execute");
 
     console.log(JSON.stringify({
       family: "hcm-worker360-page-and-get", pg16: true,
@@ -277,6 +290,7 @@ export async function proveWorker360Isolation() {
       realEmploymentEvents: 9, ownedPages, ownedApi,
       foreignDenials, deniedCases, protectedTables: sqlTables.length,
       businessSqlUnchanged: true, pageShellNotDataProof: true,
+      serverWorkerBindingEnforced: true, reviewerSignoff: "PENDING",
       enterprisePlanGateProven: false, methodCredits: 0, pageCredits: 0,
       externalProviderCalls: 0, accepted: false, productionCertified: false,
     }));

@@ -1,4 +1,7 @@
 import { notFound, redirect } from "next/navigation";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { employees } from "@/db/schema";
 import { Worker360Client } from "@/components/hcm-worker-360";
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
@@ -45,6 +48,18 @@ export default async function Worker360Page({
 
   const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
   if (planDenied) notFound();
+
+  // The page must bind BOTH caller-supplied selectors to one persisted worker.
+  // Employer/role authorization must happen before even this existence read.
+  // Never render a Worker 360 shell or linked document panel for a foreign ID.
+  const [verifiedWorker] = await db.select({ id: employees.id })
+    .from(employees)
+    .where(and(
+      eq(employees.organizationId, organizationId),
+      eq(employees.id, employeeId),
+    ))
+    .limit(1);
+  if (!verifiedWorker) notFound();
 
   return (
     <>

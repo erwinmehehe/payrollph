@@ -128,10 +128,10 @@ test("all scoped pages stay source-pinned; only four exact independently probed 
   const directPath = "src/app/hcm/manager-direct-reports/page.tsx";
   const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath],
+  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath, "src/app/hcm/worker-360/page.tsx"],
     "Static route analysis cannot silently certify any additional page");
-  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 17,
-    "Other 17 employer-scoped page/action entries remain uncertified");
+  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 16,
+    "Other 16 employer-scoped page/action entries remain uncertified");
   for (const page of manifest.scopedPages) {
     const bytes = readFileSync(page.path);
     assert.equal(blobSha(bytes), page.blob,
@@ -211,6 +211,12 @@ test("all scoped pages stay source-pinned; only four exact independently probed 
       assert.match(suite, /makeSession\(manager\.id, \{ privileged: true \}\)/);
       const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
       assert.match(runner, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
+      continue;
+    }
+    if (page.path === "src/app/hcm/worker-360/page.tsx") {
+      assert.equal(page.testedBy?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
+      assert.equal(page.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(page.testedBy?.productionCertified, false);
       continue;
     }
     assert.equal(page.path, approvedPath, "No blanket exception for changed pages");
