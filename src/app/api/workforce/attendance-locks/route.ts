@@ -56,22 +56,22 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
-    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const selectors = new URL(request.url).searchParams.getAll("organizationId");
+  // A company-wide payroll lock includes reasons, operator identities and
+  // cutoff context. It is not a unit-scoped read, even for HR/payroll roles.
+  // Reject duplicate/noncanonical selectors rather than silently picking one.
+  if (selectors.length !== 1 || !/^[1-9]\\d*$/.test(selectors[0])) {
+    return Response.json({ error: "A single positive organizationId is required." }, { status: 400 });
+  }
+  const organizationId = Number(selectors[0]);
+  if (!Number.isSafeInteger(organizationId)) {
+    return Response.json({ error: "A single positive organizationId is required." }, { status: 400 });
   }
 
-  const denied = await assertOrganizationRole(
-    user.id,
-    organizationId,
-    PEOPLE_PAYROLL_ROLES,
-    "Only People or Payroll roles can review attendance locks.",
-  );
+  // Apply the identical company-wide role, custom permission and membership
+  // boundary already required for writes BEFORE any policy, lock or schema read.
+  const denied = await authorizeCompanyWide(user.id, organizationId);
   if (denied) return denied;
-  const access = await getAccess(user.id, organizationId);
-  if (!access) {
-    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-  }
   await ensureWorkforceAttendanceControlSchema();
 
   const [policyRows, locks] = await Promise.all([
@@ -85,12 +85,12 @@ export async function GET(request: Request) {
 
   return Response.json({
     organizationId,
-    canManage: access.companyWide,
+    canManage: true,
     policy: {
       requirePayrollCutoffLock: Boolean(policyRows[0]?.requirePayrollCutoffLock),
     },
     locks,
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
