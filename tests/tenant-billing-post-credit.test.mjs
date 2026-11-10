@@ -5,7 +5,7 @@ import {
   BILLING_POST_PATH, BILLING_POST_RECEIPT, BILLING_POST_RECEIPT_SHA,
   expectedBillingPostProof, readBillingPostReceipt, verifyBillingPostCredit,
 } from "../scripts/qa/tenant-billing-post-credit.mjs";
-import { tallyTenantManifest } from "./helpers/tenant-counts.mjs";
+import { tallyTenantManifest, assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
 
 const manifest = () => JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -64,8 +64,15 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
   assert.equal(m.metrics.gap, counts.gap);
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
   assert.equal(m.metrics.privilegedOperationsTokenOnly, counts.privilegedOperationsTokenOnly);
-  assert.equal(counts.coveredAfter, 453);
-  assert.equal(counts.gap, 19);
+  assertLiveTenantCounts(assert, m);
+  const base = baseTenantManifest();
+  if (base) {
+    const before = tallyTenantManifest(base.manifest);
+    const old = base.manifest.allApiRouteFiles[BILLING_POST_PATH].methods.find(x => x.name === 'POST');
+    const delta = old.status === 'GAP' ? 1 : 0;
+    assert.equal(counts.coveredAfter - before.coveredAfter, delta, 'Exactly the billing method may gain credit');
+    assert.equal(before.gap - counts.gap, delta, 'No unrelated GAP may disappear');
+  }
   for (const [verb, route] of [
     ["PATCH", "approvals/[id]"],
     ["POST", "payroll-runs/[id]/exports"],
@@ -84,5 +91,5 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     .methods[0].status, "COVERED", "BIR evidence is not this credit");
   assert.equal(m.allApiRouteFiles["src/app/api/compliance/filing-validations/[id]/route.ts"]
     .methods[0].status, "COVERED", "Filing evidence is not this credit");
-  assert.equal(m.acceptanceStatus.startsWith("NOT ACCEPTED: 19 API methods"), true);
+  assert.equal(m.acceptanceStatus.startsWith('NOT ACCEPTED: ' + counts.gap + ' API methods'), true);
 });
