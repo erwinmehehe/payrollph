@@ -39,8 +39,8 @@ test('proposal success permits exactly one attributed metadata-only audit and no
 });
 test('a signed save must equal persisted own SQL, preserve historical audit and remain unpublished',()=>{
  const {b,a,r,proposal}=saved();assert.doesNotThrow(()=>assertSavedDelta(b,a,actor,r,proposal));
- assert.throws(()=>assertSavedDelta(b,b,actor,r,proposal),undefined,'no-op SQL success must fail');
  assert.throws(()=>assertSavedDelta(b,a,victim,r,proposal),undefined,'accepts another employer data');
+ assert.throws(()=>assertSavedDelta(b,b,actor,r,proposal),undefined,'no-op SQL success must fail');
  for(const mutate of [a=>a.automationRules[0].active=true,a=>a.automationRuleVersions[0].organizationId=19,a=>a.automationRules[0].createdByUserId=29,a=>a.outbox.push({id:1}),a=>a.auditEvents[0].action='rewritten',a=>a.auditEvents.at(-1).metadata.source='model']){
   const bad=structuredClone(a);mutate(bad);assert.throws(()=>assertSavedDelta(b,bad,actor,r,proposal));
  }
