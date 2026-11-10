@@ -3639,7 +3639,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       proofContractFile: "scripts/qa/tenant-sso-discovery-proof.mjs",
       proofContractBlobSha: "b4df7d81271f143172214d43daf6440b478ef0c9",
       contractTestFile: "tests/tenant-sso-discovery-contract.test.mjs",
-      contractTestBlobSha: "32cb8d94280364805216c2420ef388061be4e014",
+      contractTestBlobSha: "bcbb051e1d3d680d646729dd01f1ddbbacc35085",
       unitTestFile: "tests/tenant-sso-discovery.test.ts",
       unitTestBlobSha: "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
       workflowFile: ".github/workflows/tenant-sso-discovery-http.yml",
