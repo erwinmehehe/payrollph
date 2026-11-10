@@ -61,6 +61,17 @@ all three employers' SQL/audit state after each refusal. Forged body selectors
 cannot redirect either successful decision. It adds two own writes and twelve
 refusals without changing any runtime permission or feature flag.
 
+The payroll-rejection extension adds two real checker rejections and a separate
+victim-owned positive control. Both owned runs become `Needs review`, both tasks
+become `Declined`, and the audit identifies the authenticated checker. Twelve
+refusals cover real higher-ID victim tasks, foreign run links, stale payroll
+fingerprints, self-submitted reviews, injected audit failures and replay. Audit
+failures roll back both the run and task. The maker-negative fixture inserts its
+own append-only submission evidence; it never rewrites or disables audit history.
+Forged body run/employer/approver selectors cannot redirect the owned rejection.
+The source uses a real managed-payroll entry fingerprint rather than bypassing
+the approval snapshot guard. No payroll calculation or release is executed.
+
 A separate fresh-db run with the owned-result oracle replaced by a no-op fails
 with `Missing expected exception: proof accepts another employer's data`.
 The same pre-fix forged-HCM case now returns 409 without task/source/audit changes.
@@ -73,17 +84,35 @@ the new helper is included in the receipt's strict source seal.
 
 ## Verification and remaining acceptance
 
+Whole-method reconciliation must review the following separate executed proof
+families on the final source. A green generic-task job alone is insufficient.
+
+| Branch | Proof input | Final-head acceptance |
+| --- | --- | --- |
+| Generic approve/decline, CSRF, revoked membership | `tenant-approval-task-http.mjs` | Exact-head CI required |
+| Leave approve/decline and approval-chain steps | `tenant-approval-sources-http.mjs` | Exact-head CI required |
+| HCM, workforce, handoff and automation flows | `tenant-approval-flows-http.mjs`, `tenant-approval-types-http.mjs` | Exact-head CI required |
+| Named delegation | `tenant-approval-delegated-proof.mjs` through typed runner | Local PG16 passed; new-head CI required |
+| Payroll checker approval | `tenant-money-lifecycle-http.mjs` | Exact-head real-HTTP payroll jobs required |
+| Payroll checker rejection | `tenant-approval-payroll-decline-proof.mjs` through typed runner | Local PG16 passed; new-head CI required |
+
+Credit requires the combined positive, genuine victim denial, unchanged-victim
+SQL and forged-selector evidence, not a sum of HTTP 200 responses. All referenced
+runtime/proof source pins must still match. This table grants no method credit.
+
 - Initial focused approval/onboarding/inventory selection: 70 passed. The
-  delegation extension's focused approval/inventory selection: 38 passed.
+  payroll/delegation extension's focused approval/inventory selection: 41 passed.
   TypeScript passed;
   lint returned 0 errors, 10 existing warnings and no warning-baseline violations.
-- Final full tenant selection against another fresh private PG16: 1,629 tests,
-  **1,612 passed / 8 failed / 9 skipped**. The eight failures are seven existing
+- Final full tenant selection after current-main sync against another fresh
+  private PG16: 1,638 tests, **1,621 passed / 8 failed / 9 skipped**. The eight failures are seven existing
   DL-02 POSIX-permission/symlink fixture checks and the existing private-0600
   allowlist fixture check on Windows; those tests and guards were not changed.
   This is not a full local green claim. Linux CI must pass before source acceptance.
 - The full fresh-PG16 delegation-noop mutation run also failed as required with
   `Missing expected exception: proof accepts another employer's data`.
+- The full fresh-PG16 payroll-decline-noop mutation run failed with the same
+  expected discrimination error. The unmodified payroll-rejection proof passed.
 - Manifest repin: 2,407 unchanged, 0 repinned, 0 needing review. Generic table
   credit check ran in preview mode only; its two unrelated suggestions were not
   applied. Both approval workflows parse as YAML; new scripts pass syntax checks.

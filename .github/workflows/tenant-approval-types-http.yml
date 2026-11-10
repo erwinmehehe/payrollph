@@ -9,6 +9,8 @@ on:
       - 'scripts/qa/tenant-approval-types-*.mjs'
       - 'scripts/qa/tenant-approval-delegated-proof.mjs'
       - 'tests/tenant-approval-delegated-proof.test.mjs'
+      - 'scripts/qa/tenant-approval-payroll-decline-proof.mjs'
+      - 'tests/tenant-approval-payroll-decline-proof.test.mjs'
       - 'tests/tenant-approval-types-contract.test.mjs'
       - 'tests/approval-source-tenant-boundary.test.ts'
       - 'src/app/api/approvals/**'
@@ -89,7 +91,7 @@ jobs:
           echo "::add-mask::$secret"
           echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Target and negative-oracle contracts
-        run: node --import tsx --test tests/tenant-approval-types-contract.test.mjs tests/approval-source-tenant-boundary.test.ts tests/tenant-approval-delegated-proof.test.mjs
+        run: node --import tsx --test tests/tenant-approval-types-contract.test.mjs tests/approval-source-tenant-boundary.test.ts tests/tenant-approval-delegated-proof.test.mjs tests/tenant-approval-payroll-decline-proof.test.mjs
       - name: Fresh disposable schema and reviewed test baseline
         run: |
           npm run db:push

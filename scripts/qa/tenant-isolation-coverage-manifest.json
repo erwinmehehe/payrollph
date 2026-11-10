@@ -580,13 +580,17 @@
               "previousRouteBlobSha": "024e0736da4097b2ee4b2e010c014bcd2e36d196",
               "inputBlobs": {
                 "src/lib/approval-source-tenant-boundary.ts": "84b2c56b2741659cb569ef7e74a61f163cb74a17",
-                "scripts/qa/tenant-approval-types-http.mjs": "11021f9096b25dc111446643d49629272aaf7bb1",
+                "scripts/qa/tenant-approval-types-http.mjs": "d77891b26aeddba8700a1fc9f1a7385cc5752a7b",
                 "scripts/qa/tenant-approval-types-contract.mjs": "acb26fa3ef9017df7b2bf50c35e600e6ca6e66b6",
                 "tests/tenant-approval-types-contract.test.mjs": "b84ec2043fc38168f133949d44fdc60de25d5874",
                 "tests/approval-source-tenant-boundary.test.ts": "a2cebf815468bd392bb31fb848e74cdbcad7ad80",
-                ".github/workflows/tenant-approval-types-http.yml": "f4294e6c96547e6b392f3f7e872cae2e2be76b68",
+                ".github/workflows/tenant-approval-types-http.yml": "09c8e0c463934bce986bb6c8cbcedc6a5b581a0d",
                 "scripts/qa/tenant-approval-delegated-proof.mjs": "140f500e6619da489b97fb1322e770b6a3aa7077",
-                "tests/tenant-approval-delegated-proof.test.mjs": "9f25ec226f939a367a716be37d0390e8f82f6aee"
+                "tests/tenant-approval-delegated-proof.test.mjs": "9f25ec226f939a367a716be37d0390e8f82f6aee",
+                "scripts/qa/tenant-approval-payroll-decline-proof.mjs": "408dce1a31d45dddb5530728c9b21187f44a0019",
+                "tests/tenant-approval-payroll-decline-proof.test.mjs": "4bb594c05f6eb2ad3e86587e0a3236db9931d138",
+                "src/lib/managed-payroll.ts": "830124977fdbbb15428f18b3ab5c5c3bb40fbc87",
+                "src/lib/payroll-approval-integrity.ts": "222dfa661657ceae7ebf081ea34aeb92e23ddf10"
               },
               "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
               "exactHeadCi": "PENDING",

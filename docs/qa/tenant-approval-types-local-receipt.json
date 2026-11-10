@@ -1,11 +1,21 @@
 {
   "schema": "typed-approval-local-pg16-receipt-v1",
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
-  "executedAt": "2026-11-10T11:40:33.609Z",
+  "executedAt": "2026-11-10T11:56:49.001Z",
   "database": "new private embedded PostgreSQL 16.14 on 127.0.0.1:55436/app_db",
   "app": "production Next on 127.0.0.1:3310",
   "result": {
     "label": "SOLO_VERIFIED_DEV_RECOVERY",
+    "payrollDecline": {
+      "ownWrites": 2,
+      "victimControlWrites": 1,
+      "refusals": 12,
+      "auditRollbacks": 2,
+      "discriminationChecks": 1,
+      "unchangedVictimSql": true,
+      "coverageCredits": 0,
+      "providerCalled": false
+    },
     "delegated": {
       "ownWrites": 2,
       "refusals": 12,
@@ -54,10 +64,13 @@
     "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
     "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
     "src/lib/audit.ts": "3aa8f2c627884072c0c294dbf7861980b302927c",
-    "scripts/qa/tenant-approval-types-http.mjs": "11021f9096b25dc111446643d49629272aaf7bb1",
+    "scripts/qa/tenant-approval-types-http.mjs": "d77891b26aeddba8700a1fc9f1a7385cc5752a7b",
     "scripts/qa/tenant-approval-types-contract.mjs": "acb26fa3ef9017df7b2bf50c35e600e6ca6e66b6",
     "scripts/qa/tenant-approval-delegated-proof.mjs": "140f500e6619da489b97fb1322e770b6a3aa7077",
-    "src/lib/delegation.ts": "4e01ca02ce83cdf42610b1e87a40a72bf2360abf"
+    "src/lib/delegation.ts": "4e01ca02ce83cdf42610b1e87a40a72bf2360abf",
+    "scripts/qa/tenant-approval-payroll-decline-proof.mjs": "408dce1a31d45dddb5530728c9b21187f44a0019",
+    "src/lib/managed-payroll.ts": "830124977fdbbb15428f18b3ab5c5c3bb40fbc87",
+    "src/lib/payroll-approval-integrity.ts": "222dfa661657ceae7ebf081ea34aeb92e23ddf10"
   },
   "mutation": {
     "mode": "noop",
@@ -69,6 +82,11 @@
   "productionTested": false,
   "delegationMutation": {
     "mode": "delegation-noop",
+    "rejected": true,
+    "message": "Missing expected exception: proof accepts another employer's data"
+  },
+  "payrollDeclineMutation": {
+    "mode": "payroll-decline-noop",
     "rejected": true,
     "message": "Missing expected exception: proof accepts another employer's data"
   }

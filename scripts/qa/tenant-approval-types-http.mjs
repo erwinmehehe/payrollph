@@ -354,7 +354,9 @@ export async function proveApprovalTypes() {
     await unchanged(victim, 'final victim snapshot');
     const { proveDelegatedApprovals } = await import('./tenant-approval-delegated-proof.mjs');
     const delegated = await proveDelegatedApprovals({ db, s, eq, employers, patch, snapshot });
-    const receipt = { label: 'SOLO_VERIFIED_DEV_RECOVERY', delegated, ownWrites, victimControlWrites, victimDenials, forgedLinkDenials, sourceGuardDenials, auditRollbacks, discriminations,
+    const { provePayrollDeclines } = await import('./tenant-approval-payroll-decline-proof.mjs');
+    const payrollDecline = await provePayrollDeclines({ db, pool, s, eq, employers, patch, snapshot });
+    const receipt = { label: 'SOLO_VERIFIED_DEV_RECOVERY', payrollDecline, delegated, ownWrites, victimControlWrites, victimDenials, forgedLinkDenials, sourceGuardDenials, auditRollbacks, discriminations,
       families: ['hcm-effective-change', 'hcm-position-create', 'hcm-position-close', 'hcm-compensation-recommendation',
         'workforce-scenario', 'separation-handoff', 'roster-handoff', 'dynamic-group', 'automation-gate'],
       realHttpPostgres16: true, forgedBodySelectorsIgnored: true, unchangedVictimSql: true,
