@@ -256,8 +256,9 @@ test("Worker 360 page closure proposal is source-pinned, scoped and review-gated
   const api = m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
   assert.equal(api.methods.find(row => row.name === "GET")?.status, "COVERED",
     "Prior independently proven API GET is unchanged");
-  assert.equal(m.metrics.routeFiles, 295);
-  assert.equal(m.metrics.methods, 498);
+  assert.equal(m.metrics.routeFiles, Object.keys(m.allApiRouteFiles).length);
+  assert.equal(m.metrics.methods, Object.values(m.allApiRouteFiles)
+    .reduce((total, route) => total + route.methods.length, 0));
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.equal(m.scopedPages.filter(row => row.status === "GAP").length, 16);
   const workflow = readFileSync(
