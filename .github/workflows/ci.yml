@@ -342,6 +342,15 @@ jobs:
           name: payrollph-golden-payroll-phase9
           path: qa-artifacts/golden-payroll-phase9-reconciliation.json
           retention-days: 14
+      - name: Run paid 13th-month and December-binding golden reconciliation (Phase 10)
+        run: npx tsx scripts/golden-payroll-phase10.ts
+      - name: Upload Phase 10 paid 13th-month reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase10
+          path: qa-artifacts/golden-payroll-phase10-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links

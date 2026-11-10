@@ -126,18 +126,49 @@ test("real-HTTP and disposable DB proof requirements cannot be weakened", () => 
   assert.match(src, /assert\.equal\(account\.json\?\.profile\?\.id, f\.owners\[idx\]\.id\)/);
 });
 
-test("workspace readiness 503 containment remains a GAP until a positive tenant-bound read exists", () => {
-  const method = manifest.allApiRouteFiles["src/app/api/readiness/workspace/route.ts"]?.methods.find((m) => m.name === "GET");
-  assert.equal(method?.status, "GAP", "503 own is not successful readiness evidence");
-  assert.equal(method?.testedBy, null, "Foreign denial alone must not certify a method");
-  assert.equal(method?.reviewedUncertified?.routeBlobSha, "10121c3378f2e4ee983ab9b9551498a6f8dccdfd");
-  assert.equal(method?.reviewedUncertified?.ownStatus, 503);
+test("workspace readiness own employer HTTP 200 remains uncredited, with real victim 403", () => {
+  const key = "src/app/api/readiness/workspace/route.ts";
+  const method = manifest.allApiRouteFiles[key]?.methods.find((m) => m.name === "GET");
+  assert.equal(method?.status, "GAP", "A functional own GET is not a security-accepted whole-method credit");
+  assert.equal(method?.testedBy, null, "Pending independent review; no automatic promotion");
+  const reviewed = method?.reviewedUncertified;
+  assert.equal(reviewed?.routeBlobSha, "5fdf10244467ddee8e5ccd1e98f07930b2ce7086");
+  assert.equal(reviewed?.routeBlobSha, manifest.allApiRouteFiles[key].gitBlobSha);
+  assert.equal(reviewed?.loaderBlobSha, "782853dada317783100dd1ee40004fa7e6126244");
+  assert.equal(reviewed?.proofBlobSha, "a2b24c5f79d483645da59902bfbde80c13f9c497");
+  assert.equal(reviewed?.file, "scripts/qa/tenant-workspace-readiness-http.mjs");
+  assert.equal(reviewed?.ownStatus, 200);
+  assert.equal(reviewed?.foreignStatus, 403);
+  assert.equal(reviewed?.coverageCredits, 0);
+  assert.equal(reviewed?.independentlyAccepted, false);
+  assert.equal(reviewed?.productionTested, false);
   assert.match(harness, /verifyWorkspaceReadinessIsolation\(f, \{ request, expectStatus \}\)/);
-  const proof = readFileSync("scripts/qa/workspace-readiness-http.mjs", "utf8");
-  assert.match(proof, /process\.env\.TENANT_SECOND_PASS_MODE/);
-  assert.match(proof, /WORKSPACE_READINESS_UNAVAILABLE/);
-  assert.match(proof, /\), 503,/);
-  assert.match(proof, /\), 403,/);
+
+  const secondPass = readFileSync("scripts/qa/workspace-readiness-http.mjs", "utf8");
+  assert.match(secondPass, /process\.env\.TENANT_SECOND_PASS_MODE/);
+  assert.match(secondPass, /const ownReadiness = expectStatus\(await request\(/);
+  assert.match(secondPass, /org\.id, \{ cookie \}\), 200,/);
+  assert.match(secondPass, /const denied = expectStatus\(await request\(/);
+  assert.match(secondPass, /victim\.id, \{ cookie \}\), 403,/);
+  assert.match(secondPass, /assert\.deepEqual\(await snapshots\(\), initialSql/);
+
+  const dedicated = readFileSync(reviewed.file, "utf8");
+  assert.match(dedicated, /requireDisposableWorkspaceReadiness\(\)/);
+  assert.match(dedicated, /const own = await httpGet\(endpoint\(actor\.org\.id\), actor\.cookie\)/);
+  assert.match(dedicated, /assertOwnedReadiness\(own, actor\.org\.id, await counts\(actor\.org\.id\)\)/);
+  assert.match(dedicated, /const denied = await httpGet\(endpoint\(target\.org\.id\), attacker\.cookie\)/);
+  assert.match(dedicated, /assert\.equal\(denied\.status, 403,/);
+  assert.match(dedicated, /assert\.deepEqual\(await snapshot\(\), baseline/);
+
+  const route = readFileSync(key, "utf8");
+  const loader = readFileSync("src/lib/workspace-readiness-boundary.ts", "utf8");
+  assert.match(route, /assertOrganizationRole\(/);
+  assert.match(route, /return await buildTenantWorkspaceReadiness\(organizationId\)/);
+  assert.doesNotMatch(route, /buildReadinessPayload\(/);
+  assert.match(loader, /eq\(employees\.organizationId, organizationId\)/);
+  assert.match(loader, /eq\(payrollRuns\.organizationId, organizationId\)/);
+  assert.match(loader, /status: "not-launch-ready"/);
+  assert.match(loader, /ready: false/);
 });
 
 test("HCM business-process and lifecycle own/foreign proof is source-pinned", () => {
