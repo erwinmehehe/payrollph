@@ -6,6 +6,7 @@ import {
   auditEvents,
   bankFileValidations,
   bankTemplates,
+  employees,
   payslips,
   payrollEntries,
   payrollRuns,
@@ -34,6 +35,8 @@ import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
+import { canonicalTenantResourceId } from "@/lib/canonical-tenant-resource-id";
+import { assertPayrollPayslipTenantOwnership } from "@/lib/payroll-export-tenant-ownership";
 
 // An initiation receipt is durable before the external PayMongo HTTP request.
 // A provider timeout or process crash is UNKNOWN, not proof that no salaries were sent.
@@ -56,17 +59,31 @@ async function readPayrollExport(
   request: Request, params: Promise<{ id: string }>, payoutLockHeld: boolean,
 ): Promise<Response> {
   const { id } = await params;
-  const runId = Number(id);
-  if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
+  const runId = canonicalTenantResourceId(id);
+  if (runId === null) return Response.json({ error: "Invalid run id" }, { status: 400 });
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
+  // Invalid or duplicate selectors must not widen a single-payslip request.
+  if (["kind", "template", "dryRun", "payslipId"]
+    .some((key) => searchParams.getAll(key).length > 1)) {
+    return Response.json({ error: "Ambiguous export selector." }, { status: 400 });
+  }
   const kind = searchParams.get("kind") ?? "bank";
+  if (!["bank", "government", "payslip", "journal"].includes(kind)) {
+    return Response.json({ error: "Unsupported export kind." }, { status: 400 });
+  }
   const template = searchParams.get("template") ?? "BDO DAT";
   const dryRun = searchParams.get("dryRun") !== "false";
-  const payslipId = Number(searchParams.get("payslipId") ?? "0");
+  const rawPayslipId = searchParams.get("payslipId");
+  const payslipId = rawPayslipId === null ? null : canonicalTenantResourceId(rawPayslipId);
+  if ((rawPayslipId !== null && (payslipId === null || kind !== "payslip")) ||
+      (searchParams.has("dryRun") &&
+        !["true", "false"].includes(searchParams.get("dryRun") ?? ""))) {
+    return Response.json({ error: "Invalid export selector." }, { status: 400 });
+  }
   if (kind === "bank" || kind === "government" || kind === "payslip") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
@@ -195,30 +212,37 @@ async function readPayrollExport(
   }
 
   if (kind === "payslip") {
-    if (!payslipId) {
-      const rows = await db
-        .select({ slip: payslips })
-        .from(payslips)
-        .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
-        .where(and(
-          eq(payslips.organizationId, run.organizationId),
-          eq(payrollEntries.payrollRunId, run.id),
-        ));
-      return Response.json({ payslips: rows.map((row) => row.slip) });
-    }
-
-    const [row] = await db
-      .select({ slip: payslips })
-      .from(payslips)
+    const rows = await db.select({
+      slip: payslips,
+      entryEmployeeId: payrollEntries.employeeId,
+      employee: { organizationId: employees.organizationId },
+    }).from(payslips)
       .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
+      .leftJoin(employees, eq(payrollEntries.employeeId, employees.id))
       .where(and(
-        eq(payslips.id, payslipId),
         eq(payslips.organizationId, run.organizationId),
         eq(payrollEntries.payrollRunId, run.id),
-      ))
-      .limit(1);
-    const slip = row?.slip;
-    if (!slip) return Response.json({ error: "Payslip not found for this payroll run" }, { status: 404 });
+        payslipId === null ? undefined : eq(payslips.id, payslipId),
+      ));
+
+    if (payslipId !== null && rows.length === 0) {
+      return Response.json({ error: "Payslip not found for this payroll run" }, { status: 404 });
+    }
+    try {
+      // A contaminated worker or slip blocks the whole export, not just one row.
+      assertPayrollPayslipTenantOwnership(run.organizationId, rows);
+    } catch {
+      return Response.json({
+        error: "Payroll export unavailable: employee ownership could not be verified.",
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
+
+    if (payslipId === null) {
+      return Response.json({ payslips: rows.map((row) => row.slip) }, {
+        headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
+      });
+    }
+    const slip = rows[0].slip;
     await recordAuditEvent({
       organizationId: run.organizationId,
       actor,
@@ -230,6 +254,8 @@ async function readPayrollExport(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename=payslip-${slip.id}.pdf`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   }
@@ -318,8 +344,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (originDenied) return originDenied;
 
   const { id } = await params;
-  const runId = Number(id);
-  if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
+  const runId = canonicalTenantResourceId(id);
+  if (runId === null) return Response.json({ error: "Invalid run id" }, { status: 400 });
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });

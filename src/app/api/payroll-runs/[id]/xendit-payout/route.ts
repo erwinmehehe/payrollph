@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { payoutBatches, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
+import { canonicalTenantResourceId } from "@/lib/canonical-tenant-resource-id";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationUnitAccess } from "@/lib/access";
 import { configuredPayrollPayoutProvider, xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
@@ -25,8 +26,8 @@ async function context(request: Request, params: Promise<{ id: string }>, mutati
     if (originDenied) return { response: originDenied } as const;
   }
   const { id } = await params;
-  const runId = Number(id);
-  if (!Number.isSafeInteger(runId) || runId <= 0) {
+  const runId = canonicalTenantResourceId(id);
+  if (runId === null) {
     return { response: Response.json({ error: "Invalid payroll run." }, { status: 400 }) } as const;
   }
   const user = await getSessionUser();
