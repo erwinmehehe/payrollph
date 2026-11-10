@@ -32,9 +32,9 @@ test('changed source or fabricated receipt must be re-executed, never blindly re
   assert.throws(()=>verifyFilingPatchCredit(manifest(),reader),undefined,path);
  }
 });
-test('this pass preserves the seven remaining holds and the BIR credit inherited from main',()=>{
+test('filing and checkout credits preserve six other holds and the inherited BIR receipt',()=>{
  const m=manifest();
- for(const [route,verb]of [['approvals/[id]','PATCH'],['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST'],['billing','POST']]){
+ for(const [route,verb]of [['approvals/[id]','PATCH'],['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST']]){
   const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
  }
  const base=baseTenantManifest();assert.ok(base?.manifest,'inspectable base required');
