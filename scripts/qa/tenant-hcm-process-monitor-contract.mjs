@@ -96,11 +96,13 @@ export function verifyMonitorSource() {
   return true;
 }
 
-export function normalizeSsrText(html) {
-  return html.replace(/<!--\s*-->/g, "").replaceAll("&amp;", "&");
+export function containsSsrId(html, prefix, id) {
+  // Recognize React's exact interpolation separator; never sanitize or rewrite
+  // HTML received from the application (including nested comment delimiters).
+  return html.includes(prefix+String(id)) || html.includes(prefix+'<!-- -->'+String(id));
 }
 export function noForeignProcess(html, subjects, label, { allowRequestIdReflection = false } = {}) {
-  const visible = normalizeSsrText(html);
+  const visible = html;
   for (const subject of subjects) {
     // A caller knows the numeric process ID they put in the requested URL.
     // Next.js may serialize that URL into its generic 404 response; numeric
@@ -118,15 +120,15 @@ export function noForeignProcess(html, subjects, label, { allowRequestIdReflecti
 export function assertOwnMonitorPage(response, actor, subjects, { selected = true } = {}) {
   assert.equal(response.status, 200, "Owned monitor page must return HTTP 200");
   assert.match(response.headers.get("content-type") || "", /text\/html/i);
-  const text = normalizeSsrText(response.text);
+  const text = response.text;
   assert.ok(text.includes("Business Process Monitor"), "Not the real monitor page");
   assert.ok(text.includes("Recorded workflows"), "Not the populated list");
-  assert.ok(text.includes("Employer #" + actor.org.id), "Employer ID not bound");
+  assert.ok(containsSsrId(text,"Employer #",actor.org.id), "Employer ID not bound");
   assert.ok(text.includes("processId=" + actor.process.id), "Own process missing from real list");
   assert.ok(!text.includes("Workflow source unavailable"), "Source outage cannot pass as own success");
   if (selected) {
     assert.ok(text.includes("Step timeline"), "Selected timeline not rendered");
-    assert.ok(text.includes("Step 1"), "Real seeded step not visible");
+    assert.ok(containsSsrId(text,"Step ",1), "Real seeded step not visible");
     assert.ok(text.includes("Approval"), "Real step type not visible");
   }
   noForeignProcess(text, subjects.filter(s => s.org.id !== actor.org.id), "own");
@@ -139,7 +141,7 @@ export function assertDeniedMonitorPage(response, subjects, label) {
     label + ": private workflow list mounted on denial");
   // Never render any linked private workflow on a denied page. The rejected
   // request's own processId query string can appear in Next router metadata.
-  assert.doesNotMatch(normalizeSsrText(response.text), /<a\b[^>]*\bhref=["'][^"']*processId=/i,
+  assert.doesNotMatch(response.text, /<a\b[^>]*\bhref=["'][^"']*processId=/i,
     label + ": denied response rendered a process link");
   noForeignProcess(response.text, subjects, label, { allowRequestIdReflection: true });
 }

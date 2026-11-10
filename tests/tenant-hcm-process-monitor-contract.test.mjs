@@ -3,11 +3,16 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   ORIGIN, PAGE, SOURCE_PINS, requireDisposableMonitorEnv,
-  verifyMonitorSource, gitBlobSha, assertOwnMonitorPage, assertDeniedMonitorPage,
+  verifyMonitorSource, gitBlobSha, assertOwnMonitorPage, assertDeniedMonitorPage, containsSsrId,
 } from "../scripts/qa/tenant-hcm-process-monitor-contract.mjs";
 
 const runner = readFileSync("scripts/qa/tenant-hcm-process-monitor-http.mjs", "utf8");
 const workflow = readFileSync(".github/workflows/tenant-hcm-process-monitor-ssr-qa.yml", "utf8");
+
+test('SSR ID matching recognizes exact React separators without rewriting HTML',()=>{
+  for(const html of ['Employer #2','Employer #<!-- -->2'])assert.equal(containsSsrId(html,'Employer #',2),true);
+  for(const html of ['Employer #<!--<!-- --> -->2','Employer #<!-- \n -->2','Employer #<!-- -->8'])assert.equal(containsSsrId(html,'Employer #',2),false);
+});
 
 const safeEnv = () => ({
   GITHUB_ACTIONS: "true", CI: "true", NODE_ENV: "production",

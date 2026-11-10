@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import {
   ORIGIN, PAGE, requireDisposableMonitorEnv, verifyMonitorSource,
-  normalizeSsrText, noForeignProcess, assertOwnMonitorPage, assertDeniedMonitorPage,
+  noForeignProcess, assertOwnMonitorPage, assertDeniedMonitorPage,
 } from "./tenant-hcm-process-monitor-contract.mjs";
 
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -158,9 +158,9 @@ export async function proveMonitorPageTenantBoundary() {
 
       const statusFiltered = await requestLocal(pagePath(actor.org.id, null, "&status=approved"), actor.cookie);
       assert.equal(statusFiltered.status, 200);
-      assert.ok(normalizeSsrText(statusFiltered.text).includes("Approved · source application not verified"),
+      assert.ok(statusFiltered.text.includes("Approved · source application not verified"),
         "Real stored approved workflow must appear in filtered SSR list");
-      assert.ok(normalizeSsrText(statusFiltered.text).includes("processId=" + actor.secondProcess.id),
+      assert.ok(statusFiltered.text.includes("processId=" + actor.secondProcess.id),
         "Filtered list must reflect seeded own approved workflow");
       noForeignProcess(statusFiltered.text, subjects.filter(s => s.org.id !== actor.org.id), "filtered page");
       await unchanged("status filter");
