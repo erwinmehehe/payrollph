@@ -9525,7 +9525,7 @@
       ]
     },
     "src/app/api/discipline/route.ts": {
-      "gitBlobSha": "0f16e4f802608c8b56ab321486c3b08d709dfd2a",
+      "gitBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
       "route": "discipline",
       "methods": [
         {
@@ -9543,6 +9543,23 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
             "rowLine": 80
+          },
+          "reviewedUncertified": {
+            "kind": "discipline-same-organization-legal-employer-PG16-review-only",
+            "originalRouteBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+            "routeBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
+            "historicalOrganizationOnlyProof": "scripts/qa/tenant-table-http.mjs",
+            "historicalProofIsNotLegalEmployerAcceptance": true,
+            "proofFile": "scripts/qa/tenant-discipline-entity-http.mjs",
+            "proofBlobSha": "696dad856c6cf3be0ef34e7705748661e407bc7b",
+            "contractFile": "tests/tenant-discipline-case-boundary.test.mjs",
+            "contractBlobSha": "af49b5497d3066dd6535d1393691155eeb79eabd",
+            "workflowFile": ".github/workflows/tenant-discipline-entity-qa.yml",
+            "workflowBlobSha": "1743cef8216d930f22e592193def0f99eb9303fb",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "legalEmployerMethodCredits": 0,
+            "productionCertified": false
           }
         },
         {
@@ -9560,6 +9577,23 @@
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/write/people.mjs",
             "rowLine": 23
+          },
+          "reviewedUncertified": {
+            "kind": "discipline-same-organization-legal-employer-PG16-review-only",
+            "originalRouteBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+            "routeBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
+            "historicalOrganizationOnlyProof": "scripts/qa/tenant-write-table-http.mjs",
+            "historicalProofIsNotLegalEmployerAcceptance": true,
+            "proofFile": "scripts/qa/tenant-discipline-entity-http.mjs",
+            "proofBlobSha": "696dad856c6cf3be0ef34e7705748661e407bc7b",
+            "contractFile": "tests/tenant-discipline-case-boundary.test.mjs",
+            "contractBlobSha": "af49b5497d3066dd6535d1393691155eeb79eabd",
+            "workflowFile": ".github/workflows/tenant-discipline-entity-qa.yml",
+            "workflowBlobSha": "1743cef8216d930f22e592193def0f99eb9303fb",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "legalEmployerMethodCredits": 0,
+            "productionCertified": false
           }
         },
         {
@@ -9577,6 +9611,23 @@
             "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)"
+          },
+          "reviewedUncertified": {
+            "kind": "discipline-same-organization-legal-employer-PG16-review-only",
+            "originalRouteBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+            "routeBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
+            "historicalOrganizationOnlyProof": "scripts/qa/tenant-write-table-http.mjs",
+            "historicalProofIsNotLegalEmployerAcceptance": true,
+            "proofFile": "scripts/qa/tenant-discipline-entity-http.mjs",
+            "proofBlobSha": "696dad856c6cf3be0ef34e7705748661e407bc7b",
+            "contractFile": "tests/tenant-discipline-case-boundary.test.mjs",
+            "contractBlobSha": "af49b5497d3066dd6535d1393691155eeb79eabd",
+            "workflowFile": ".github/workflows/tenant-discipline-entity-qa.yml",
+            "workflowBlobSha": "1743cef8216d930f22e592193def0f99eb9303fb",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "legalEmployerMethodCredits": 0,
+            "productionCertified": false
           }
         }
       ],
