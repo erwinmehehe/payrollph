@@ -8,8 +8,8 @@ on:
       - 'src/app/api/auth/saml/metadata/**'
       - 'src/lib/saml.ts'
       - 'src/lib/security-request.ts'
-      - 'scripts/qa/tenant-saml-metadata-public-*.mjs'
-      - 'tests/tenant-saml-metadata-public.test.mjs'
+      - 'scripts/qa/tenant-saml-metadata-*.mjs'
+      - 'tests/tenant-saml-metadata-*.test.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
       - '.github/workflows/tenant-saml-metadata-public-http.yml'
 
@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
+      SAML_PROOF_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      SAML_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       TENANT_SAML_METADATA_MODE: isolated-ci-only
       PAYMONGO_SECRET_KEY: ''
       XENDIT_SECRET_KEY: ''
@@ -36,6 +38,10 @@ jobs:
       XENDIT_BILLING_ENABLED: 'false'
       XENDIT_PAYOUTS_ENABLED: 'false'
       PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
     services:
       postgres:
         image: postgres:16
@@ -52,7 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -64,11 +72,19 @@ jobs:
           set -euo pipefail
           node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
           echo 'TENANT_SAML_METADATA_MODE=isolated-ci-only' >> "$GITHUB_ENV"
-      - name: Source pin, negative controls, and proof syntax
+          for flag in FINAL_PAY_SIGNED_REVIEW_ENABLED EXACT_THIRTEENTH_CENTAVOS_ENABLED PAYROLL_CALCULATION_HISTORY_ENABLED NEXT_CSP_ENABLED; do
+            echo "$flag=false" >> "$GITHUB_ENV"
+          done
+      - name: Exact head, source pins, handler regressions and zero-credit inventory
+        shell: bash
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SAML_PROOF_HEAD_SHA"
           node --check scripts/qa/tenant-saml-metadata-public-contract.mjs
           node --check scripts/qa/tenant-saml-metadata-public-http.mjs
-          node --test tests/tenant-saml-metadata-public.test.mjs
+          node --test tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+          git cat-file -e "${SAML_PROOF_BASE_SHA}^{commit}"
+          npm run tenant:repin:check -- --base "$SAML_PROOF_BASE_SHA"
       - name: Ephemeral encryption keys only
         shell: bash
         run: |
@@ -100,7 +116,7 @@ jobs:
           done
           tail -n 40 /tmp/tenant-saml-public.log || true
           exit 1
-      - name: Three-employer SAML XML, forged selectors, unchanged SQL
+      - name: Enabled XML, disabled/missing privacy, forged selectors and unchanged SQL
         run: node --import tsx scripts/qa/tenant-saml-metadata-public-http.mjs
       - name: Print bounded localhost failures only
         if: failure()

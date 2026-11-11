@@ -49,7 +49,7 @@ test("both disabled SAML login routes refuse before provider lookups", () => {
     assert.match(source, /samlDisabledBoundaryResponse\(\)/);
     assert.doesNotMatch(source, /identityProviders|buildSamlServiceProviderMetadata|from ["']@\/db|db\.select/);
     assert.equal(record?.gitBlobSha, sha, entry.path + ": manifest source must be exact");
-    assert.equal(method?.status, "GAP", "runtime refusal is not a tenant-private coverage credit");
+    assert.equal(method?.status, "PUBLIC-BY-DESIGN", "disabled SAML refusal is a public non-data entrypoint, not a tenant-private COVERED credit");
     assert.equal(method?.testedBy, null, "no successful own-tenant proof has run");
     assert.equal(method?.reviewedUncertified?.routeBlobSha, sha);
     assert.equal(method?.reviewedUncertified?.methodCredits, 0);

@@ -1,114 +1,74 @@
-# SAML metadata public-surface gap: exact-source proof candidate
+# SAML metadata privacy recovery: exact-source, zero-credit proof
 
-**PROOF-ONLY SOURCE CHANGE / POLICY DECISION PENDING / ZERO COVERAGE CREDITS**
+**PR #1934: disabled providers are concealed. GAP / testedBy:null remains unchanged.**
 
-Target: GET /api/auth/saml/metadata/[providerId] only. The application
-handler remains unchanged at Git blob
-589fb64376d807f03245a12c6aca1de7c3bfa08f.
+## Runtime contract
 
-## Scope and security question
+`GET /api/auth/saml/metadata/[providerId]` selects the path ID, SAML protocol
+and `enabled=true` in the same database predicate. Disabled, wrong-protocol
+and missing providers return the same generic JSON 404 with `Cache-Control:
+no-store`. Enabled SAML providers return canonical public SP XML with no-store.
+Malformed IDs retain the existing 400 behavior. Query parameters and headers
+cannot substitute a different provider or disclose private tenant/provider fields.
 
-Public service-provider SAML metadata is needed to configure an enterprise
-identity-provider trust relationship. The handler selects only provider ID and
-protocol. It emits fixed-origin SP metadata XML. It does not load employer
-payroll rows, IdP signing certificates, client secrets, or account data.
+The repaired handler blob is `4f8d12b9867de0c18aea8e447208e8470773350b`.
+The owner's privacy-first decision supersedes the old pre-activation disclosure
+question. It does not activate SAML login or accept this method as COVERED.
+An authenticated employer-scoped metadata preview, if required for onboarding,
+is a separate change. No preview or new login flow is introduced here.
 
-This does disclose that an ID is configured as a SAML provider, even when
-the provider is disabled. An independent identity/security reviewer must
-decide whether that visibility is acceptable before the method can be
-classified PUBLIC-BY-DESIGN. Do not assume the metadata is tenant-private.
+## Historical evidence is not proof of the repair
 
-The SAML login runtime remains disabled. This proof does not enable SSO,
-configure any provider, or authorize a payroll action.
+PR #1771 and run 42181922549, on head
+`fc901d453ea525df309d3d93ebf56a86e5469499`, demonstrated the OLD route blob
+`589fb64376d807f03245a12c6aca1de7c3bfa08f`, including anonymous 200 responses
+for disabled providers. That result documents the original exposure only.
+It must never be cited as a passing receipt for the repaired behavior.
 
-## Security decision record (unresolved, no implicit approval)
+## Current executable proof
 
-The HTTP fixture deliberately seeds three SAML providers with **enabled=false**
-and verifies that an unauthenticated caller can fetch each provider's metadata
-by its sequential numeric ID. An enabled OIDC record and unknown IDs return
-no SAML metadata. The XML includes public SP URLs, not employer secrets, but
-the 200-versus-404 distinction reveals that a disabled SAML record exists.
-The proof now reports this exposure explicitly as
-`PENDING_IDENTITY_SECURITY_OWNER_DECISION`; it does not endorse it.
+The dedicated read-only workflow checks out the exact pull-request head, verifies
+source identities and runs the actual production-mode Next server on localhost
+against a fresh disposable PostgreSQL 16 database. Only fictional identities,
+provider records and ephemeral test credentials are permitted.
 
-**Privacy-first option:** Return an indistinguishable 404 for disabled SAML
-providers on the public endpoint; permit public metadata only for enabled
-providers. If identity-provider setup requires metadata before enablement,
-provide an authenticated, employer-scoped preview as a separately reviewed
-change. This changes runtime behavior and requires new exact-source proof.
+The runner seeds two attacker employers and one populated higher-ID victim,
+with three real owner sessions. Each employer has one enabled SAML positive
+control and one disabled SAML negative control. An enabled OIDC provider and
+nonexistent IDs are additional negative controls. It checks:
 
-**Pre-activation setup option:** Keep disabled SAML metadata public to allow
-external IdP registration before activation. An identity/security owner must
-explicitly accept the existence-disclosure tradeoff and document why a public
-pre-activation URL is required. No reviewer decision is recorded in this PR.
+- Canonical XML 200 for each enabled provider, anonymously and with all three
+  sessions, despite forged organization, tenant, employee, legal-entity and
+  provider selectors in query parameters and headers.
+- Identical generic no-store 404 for disabled, OIDC and missing providers,
+  including forged requests that name a different enabled provider.
+- The SAME production process conceals a previously visible provider after one
+  explicit fixture-only disable update; an unrelated enabled provider still works.
+- Complete provider, organization, user, membership, session, employee, payroll-run
+  and audit snapshots are unchanged by every HTTP request. The fixture toggle is
+  explicitly accounted for separately and is not mislabeled as an HTTP write.
+- No private marker or XML appears in error bodies; malformed IDs return 400.
+- Workers, scheduler, payouts and protected payroll/CSP flags stay disabled.
 
-**Recommended decision rule:** Prefer the privacy-first option unless the
-onboarding requirement for anonymous pre-activation metadata is demonstrated.
-Do not change application policy within this zero-credit proof PR by assumption.
-In either case, keep SAML authentication disabled, do not promote this method
-from GAP, and do not interpret passing CI as independent acceptance.
+The handler unit tests execute the actual TypeScript handler with dependency
+doubles. They are not PostgreSQL/HTTP receipts. The contract tests include
+negative controls against wrong status codes, cacheable responses, altered
+bodies, wrong provider IDs and missing privacy checks.
 
-## Required execution
+## Source reconciliation and remaining acceptance gates
 
-The dedicated CI workflow uses a fresh disposable PostgreSQL 16 app_db
-and production-mode Next on 127.0.0.1 with fictional identities only.
-It must verify all of these properties:
+The manifest retains GAP / testedBy:null and zero method credits. The inventory
+uses its existing exact-source uncredited-review pattern for this one GET only.
+A dedicated verifier pins the handler, proof, contract, tests and workflow,
+reconstructs the historical handler byte-for-byte, and rejects changed source,
+removed holds or attempted coverage promotion. All other inventory rules remain.
 
-- Real owner sessions for two fictional attacker employers and one
-  populated, higher-ID victim employer.
-- Three distinct persisted SAML providers, plus an unrelated OIDC provider.
-- Anonymous and signed-in requests receive actual 200 XML for each
-  SAML provider, with identical bytes under forged organization, employee,
-  legal-employer and provider selector parameters/headers.
-- The response contains the canonical configured HTTPS origin, only the
-  intended provider ID, and never seeded provider/tenant private markers.
-- OIDC, nonexistent and invalid provider IDs return no SP metadata.
-- Provider, user, membership, session, employee, payroll and audit SQL
-  remain unchanged after all requests.
-- Environment guard refuses remote database/server, real secrets and
-  provider/payout/worker activation. No real provider interaction.
+The presence of this proof code or a passing source guard is NOT an execution
+receipt. Consult PR #1934 for the exact-head workflow/job result and unresolved
+failures. No passing current PG16 execution is asserted by this document.
+Independent security acceptance and production certification remain unclaimed.
 
-## Executed evidence
-
-The production Next/disposable PG16 proof passed on
-`fc901d453ea525df309d3d93ebf56a86e5469499` in
-[run 42181922549](https://github.com/erwinmehehe/payrollph/actions/runs/42181922549/job/127773260581).
-Its receipt records two attackers, three authenticated sessions, a populated
-higher-ID victim, anonymous XML 200, identical forged-selector responses,
-unchanged SQL and no private provider/tenant markers. It explicitly reports
-disabled-provider existence disclosure, pending owner decision, GAP, zero
-credits, no independent acceptance and no production certification.
-
-This is evidence of existing behavior, including its unresolved exposure. It
-is not an endorsement of public access for disabled providers. Main sync and
-documentation edits create a new head; applicable checks must pass again.
-
-## Source merge gate
-
-This PR adds a guarded regression proof and decision record, with no runtime,
-ledger classification, provider configuration, SSO activation or default-flag
-change. Under `docs/engineering/change-risk-policy.md`, a maintainer may merge
-that proof-only source change after reviewing the incremental diff and passing
-all applicable exact-head CI/security/PG16 HTTP checks. No independent human
-review is claimed or fabricated. Rollback is a source revert; no migration or
-live provider operation is involved.
-
-Merging this proof does **not** resolve the decision record above, accept the
-existence disclosure, remove a feature gate, or promote the method. Keeping a
-regression test for the current behavior must not be interpreted as a permanent
-product requirement: the privacy-first follow-up would deliberately change the
-handler pin and expectations after its policy is chosen.
-
-## Classification and activation gates (still unresolved)
-
-1. Exact-source standalone PG16 HTTP and applicable CI remain necessary evidence.
-2. Identity/security owner reviews public disclosure of disabled SAML
-   provider existence and the XML contract.
-3. A **separate reviewed ledger update** may then consider switching this
-   one method from GAP to PUBLIC-BY-DESIGN (not COVERED).
-4. Until those gates complete, the method stays GAP, testedBy:null.
-   There is no change to current 498-method counts, remaining page/action
-   gaps, production release status, or independent tenant acceptance.
-
-No production data, live banking, statutory filing, payroll money,
-deployment, or SAML sign-in activation is allowed by this test.
+Keep SAML start/ACS deferred. Do not activate real providers, query production,
+run migrations against a remote database, deploy, enable protected flags or
+merge this draft without the applicable checks and review. Rollback is a source
+revert; no production data repair is needed.

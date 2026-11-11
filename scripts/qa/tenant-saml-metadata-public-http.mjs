@@ -1,16 +1,22 @@
 /**
- * Zero-credit SAML metadata proof against disposable PG16 and production Next.
- * This is not a tenant-private COVERED receipt or independent security review.
+ * Zero-credit SAML metadata privacy proof: disposable PG16 + production Next.
+ * Fictional enabled records are metadata controls, not SAML sign-in activation.
  */
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
-  requireIsolatedSamlProof, assertMetadata, assertSameMetadata, assertMissingMetadata,
+  ROUTE, ROUTE_BLOB, requireIsolatedSamlProof, assertMetadata,
+  assertSameMetadata, assertMissingMetadata, assertHiddenMetadata,
 } from "./tenant-saml-metadata-public-contract.mjs";
 
 export async function verifySamlPublicHttp() {
   requireIsolatedSamlProof(); // MUST precede all application and database imports.
-  const [{ db, pool }, s, { asc }, fixture] = await Promise.all([
+  assert.match(process.env.SAML_PROOF_HEAD_SHA || "", /^[a-f0-9]{40}$/, "Exact proof head is required");
+  const source = readFileSync(ROUTE);
+  assert.equal(createHash("sha1").update("blob " + source.length + "\0")
+    .update(source).digest("hex"), ROUTE_BLOB, "HTTP proof requires the repaired source");
+  const [{ db, pool }, s, { asc, eq }, fixture] = await Promise.all([
     import("../../src/db/index.ts"), import("../../src/db/schema.ts"),
     import("drizzle-orm"), import("./tenant-table-http.mjs"),
   ]);
@@ -30,11 +36,11 @@ export async function verifySamlPublicHttp() {
     assert.ok(victim.org.id > Math.max(a.org.id, b.org.id));
     assert.ok(victim.worker.id > Math.max(a.worker.id, b.worker.id));
 
-    async function addProvider(actor, protocol) {
+    async function addProvider(actor, protocol, enabled) {
       const [provider] = await db.insert(s.identityProviders).values({
         organizationId: actor.org.id,
-        name: actor.marker + " PRIVATE PROVIDER " + protocol,
-        protocol, enabled: protocol === "oidc",
+        name: actor.marker + " PRIVATE PROVIDER " + protocol + " " + enabled,
+        protocol, enabled,
         clientId: "PRIVATE_CLIENT_" + actor.marker,
         clientSecretEncrypted: "PRIVATE_SECRET_" + actor.marker,
         samlEntityId: "PRIVATE_IDP_ENTITY_" + actor.marker,
@@ -43,11 +49,16 @@ export async function verifySamlPublicHttp() {
       return provider;
     }
     const providers = [];
-    for (const actor of actors) providers.push(await addProvider(actor, "saml"));
-    const oidc = await addProvider(victim, "oidc");
+    const disabledProviders = [];
+    for (const actor of actors) {
+      providers.push(await addProvider(actor, "saml", true));
+      disabledProviders.push(await addProvider(actor, "saml", false));
+    }
+    const oidc = await addProvider(victim, "oidc", true);
     assert.ok(providers[2].id > Math.max(providers[0].id, providers[1].id));
-    assert.ok(providers.every(p => p.enabled === false),
-      "Fictional SAML providers must be disabled to expose the pending public-policy decision");
+    assert.ok(disabledProviders[2].id > Math.max(disabledProviders[0].id, disabledProviders[1].id));
+    assert.ok(providers.every(p => p.enabled === true), "Enabled SAML positive controls required");
+    assert.ok(disabledProviders.every(p => p.enabled === false), "Disabled SAML privacy controls required");
     assert.equal(oidc.enabled, true, "OIDC negative control remains enabled");
     const forbidden = actors.flatMap(actor => [
       actor.marker, actor.owner.email, actor.org.name,
@@ -65,61 +76,94 @@ export async function verifySamlPublicHttp() {
       return values;
     }
     const before = await snapshot();
+    let expectedState = before;
+    let requests = 0;
     async function get(path, headers = {}) {
       const result = await fetch(new URL(path, process.env.SECURITY_SMOKE_URL), {
         headers, redirect: "manual", cache: "no-store",
       });
-      return {
-        status: result.status, text: await result.text(), headers: result.headers,
-      };
+      const response = { status: result.status, text: await result.text(), headers: result.headers };
+      requests++;
+      assert.deepEqual(await snapshot(), expectedState,
+        "Every metadata request must leave provider, tenant, session, payroll and audit SQL unchanged");
+      return response;
     }
-
-    for (const provider of providers) {
+    const missingPath = "/api/auth/saml/metadata/" + (oidc.id + 10000);
+    const missing = await get(missingPath);
+    assertHiddenMetadata(missing, null, forbidden);
+    const callers = [
+      ["anonymous", null], ["employer A", a.cookie],
+      ["employer B", b.cookie], ["higher-ID victim", victim.cookie],
+    ];
+    function forgedRequest(otherProviderId, cookie) {
+      const params = new URLSearchParams({
+        organizationId: String(victim.org.id), tenantId: String(victim.org.id),
+        employeeId: String(victim.worker.id), legalEntityId: String(victim.entity.id),
+        providerId: String(otherProviderId), enabled: "true",
+      });
+      const headers = {
+        "x-organization-id": String(victim.org.id), "x-tenant-id": String(victim.org.id),
+        "x-provider-id": String(otherProviderId), authorization: "Bearer fake-not-a-real-provider-token",
+      };
+      if (cookie) headers.cookie = cookie;
+      return { suffix: "?" + params.toString(), headers };
+    }
+    for (const [index, provider] of providers.entries()) {
       const path = "/api/auth/saml/metadata/" + provider.id;
       const anonymous = await get(path);
       assertMetadata(anonymous, provider.id, forbidden);
-      for (const [label, cookie] of [
-        ["anonymous", null], ["employer A", a.cookie],
-        ["employer B", b.cookie], ["higher-ID victim", victim.cookie],
-      ]) {
-        const params = new URLSearchParams({
-          organizationId: String(victim.org.id),
-          employeeId: String(victim.worker.id),
-          legalEntityId: String(victim.entity.id),
-          providerId: String(oidc.id),
-        });
-        const headers = {
-          "x-organization-id": String(victim.org.id),
-          "x-tenant-id": String(victim.org.id),
-          authorization: "Bearer fake-not-a-real-provider-token",
-        };
-        if (cookie) headers.cookie = cookie;
-        const actual = await get(path + "?" + params.toString(), headers);
+      for (const [, cookie] of callers) {
+        const forged = forgedRequest(providers[(index + 1) % providers.length].id, cookie);
+        const actual = await get(path + forged.suffix, forged.headers);
         assertMetadata(actual, provider.id, forbidden);
         assertSameMetadata(anonymous, actual);
-        assert.deepEqual(await snapshot(), before,
-          label + ": SAML metadata cannot mutate tenant, session, payroll or audit SQL");
       }
     }
-    for (const path of [
-      "/api/auth/saml/metadata/" + oidc.id,
-      "/api/auth/saml/metadata/" + (oidc.id + 10000),
-      "/api/auth/saml/metadata/not-an-id",
-    ]) {
-      assertMissingMetadata(await get(path), forbidden);
-      assert.deepEqual(await snapshot(), before,
-        "non-SAML, missing or malformed provider cannot change tenant SQL");
+    for (const provider of [...disabledProviders, oidc]) {
+      const path = "/api/auth/saml/metadata/" + provider.id;
+      assertHiddenMetadata(await get(path), missing, forbidden);
+      for (const [, cookie] of callers) {
+        const forged = forgedRequest(providers[2].id, cookie);
+        assertHiddenMetadata(await get(path + forged.suffix, forged.headers), missing, forbidden);
+      }
     }
+    for (const [, cookie] of callers) {
+      const forged = forgedRequest(providers[0].id, cookie);
+      assertHiddenMetadata(await get(missingPath + forged.suffix, forged.headers), missing, forbidden);
+    }
+    for (const id of ["not-an-id", "1.5"]) {
+      assertMissingMetadata(await get("/api/auth/saml/metadata/" + id), forbidden, 400);
+    }
+    assert.deepEqual(await snapshot(), before, "All pre-transition HTTP requests leave SQL unchanged");
+
+    // An intentional fixture-only toggle is separated from HTTP read-only assertions.
+    // The same production process must stop serving a previously visible provider.
+    const retiring = providers[2];
+    await db.update(s.identityProviders).set({ enabled: false }).where(eq(s.identityProviders.id, retiring.id));
+    expectedState = await snapshot();
+    const expectedAfterToggle = structuredClone(before);
+    expectedAfterToggle.providers.find(p => p.id === retiring.id).enabled = false;
+    assert.deepEqual(expectedState, expectedAfterToggle, "Only the fictional provider enablement bit may change");
+    const retiringPath = "/api/auth/saml/metadata/" + retiring.id;
+    assertHiddenMetadata(await get(retiringPath), missing, forbidden);
+    for (const [, cookie] of callers) {
+      const forged = forgedRequest(providers[0].id, cookie);
+      assertHiddenMetadata(await get(retiringPath + forged.suffix, forged.headers), missing, forbidden);
+    }
+    // An unrelated enabled provider must still succeed after the fixture toggle.
+    assertMetadata(await get("/api/auth/saml/metadata/" + providers[0].id), providers[0].id, forbidden);
+    assert.deepEqual(await snapshot(), expectedState, "All post-transition HTTP requests leave SQL unchanged");
     console.log(JSON.stringify({
       target: "GET /api/auth/saml/metadata/[providerId]",
       test: "disposable-postgresql16-production-next-real-http",
-      attackers: 2, higherIdRealVictim: true, signedInSessions: 3,
-      anonymousXml200: true, forgedSelectorsIdentical: true,
-      disabledSamlProviderMetadataIsAnonymous200: true,
-      disabledProviderPublicPolicy: "PENDING_IDENTITY_SECURITY_OWNER_DECISION",
-      noTenantOrProviderSecrets: true, unchangedDb: true,
-      classificationCandidate: "PUBLIC-BY-DESIGN",
-      currentStatus: "GAP", coverageCredits: 0,
+      proofHeadSha: process.env.SAML_PROOF_HEAD_SHA, routeBlobSha: ROUTE_BLOB,
+      attackers: 2, higherIdRealVictim: true, signedInSessions: 3, requests,
+      anonymousXml200: true, enabledProviderPositiveControls: 3, disabledProviderControls: 3,
+      forgedSelectorsIdentical: true, disabledAndMissingIdentical404: true,
+      disabledProviderPublicPolicy: "CONCEAL_DISABLED_PROVIDERS",
+      enabledThenDisabledConcealed: true, fixtureProviderDisableWrites: 1,
+      noTenantOrProviderSecrets: true, unchangedDbDuringHttp: true,
+      classificationCandidate: "PUBLIC-BY-DESIGN", currentStatus: "GAP", coverageCredits: 0,
       independentlyAccepted: false, productionCertified: false,
     }));
   } finally {
@@ -127,8 +171,5 @@ export async function verifySamlPublicHttp() {
   }
 }
 if (process.argv[1]?.replaceAll("\\", "/").endsWith("/tenant-saml-metadata-public-http.mjs")) {
-  verifySamlPublicHttp().catch(error => {
-    console.error(error);
-    process.exitCode = 1;
-  });
+  verifySamlPublicHttp().catch(error => { console.error(error); process.exitCode = 1; });
 }

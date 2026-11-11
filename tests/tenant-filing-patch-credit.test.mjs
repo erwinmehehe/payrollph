@@ -38,7 +38,13 @@ test('filing pass preserves six independent holds and the distinct BIR and billi
  const m=manifest();assert.equal(verifyApprovalsCredit(m),1);
  for(const [route,verb]of [['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST']]){
   if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
-  const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
+  const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);
+   if(route==='hcm/work-items/escalate') {
+     assert.equal(row.status,'PRIVILEGED-OPERATIONS-TOKEN-ONLY');
+     assert.equal(row.privilegedOperation?.methodCoverageCredits,0);
+     assert.equal(row.privilegedOperation?.credentialEnvironment,'HCM_SLA_CRON_SECRET');
+   } else assert.equal(row.status,'GAP');
+   assert.equal(row.testedBy,null);
  }
  const billing=m.allApiRouteFiles['src/app/api/billing/route.ts'].methods.find(x=>x.name==='POST');
  assert.equal(billing.status,'COVERED');

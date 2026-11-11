@@ -5,14 +5,17 @@ import {verifyWorkspaceReadinessCredit} from "../scripts/qa/tenant-workspace-rea
 const manifest=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 const expected=[
 "GET jobs/cron","GET jobs/dispatch-readiness","GET jobs/status",
-"POST jobs/tick","POST webhooks/drain","GET capabilities","GET readiness",
+"POST jobs/tick","POST webhooks/drain","POST hcm/work-items/escalate","GET capabilities","GET readiness",
 "GET readiness/billing","GET readiness/database-target","GET readiness/deployment",
 "GET readiness/pilot-status"
 ];
-test("only eleven approved methods use the token-only class; zero tenant proof credits",()=>{
+test("twelve owner-approved operations use token-only labels; zero tenant proof credits",()=>{
   const seen=Object.values(manifest.allApiRouteFiles).flatMap(x=>x.methods.map(m=>({key:m.name+" "+x.route,m})))
     .filter(x=>x.m.status==="PRIVILEGED-OPERATIONS-TOKEN-ONLY");
   assert.deepEqual(seen.map(x=>x.key).sort(),expected.sort());
+  assert.equal(seen.filter(x=>x.m.privilegedOperation.approvedOn==="2026-11-09").length,11,"Preserve the eleven recorded approvals");
+  const ownerApproved=seen.filter(x=>x.m.privilegedOperation.classificationApproval==="OWNER_APPROVED");
+  assert.deepEqual(ownerApproved.map(x=>x.key),["POST hcm/work-items/escalate"]);
   for(const {key,m} of seen){
     assert.equal(m.testedBy,null,key);
     assert.equal(m.privilegedOperation.methodCoverageCredits,0,key);

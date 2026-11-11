@@ -1,0 +1,120 @@
+name: Payroll exports POST tenant boundary (synthetic loopback PayMongo; fictional PG16 HTTP; no money)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-payroll-exports-post-http.yml'
+      - 'scripts/qa/tenant-payroll-exports-post-*.mjs'
+      - 'scripts/qa/paymongo-http-proof-preload.mjs'
+      - 'scripts/qa/paymongo-http-proof-target.mjs'
+      - 'scripts/qa/money-proof-target.mjs'
+      - 'scripts/qa/apply-isolated-baseline.mjs'
+      - 'tests/tenant-payroll-exports-post-contract.test.mjs'
+      - 'src/app/api/payroll-runs/**'
+      - 'src/lib/paymongo-*.ts'
+      - 'src/lib/treasury-controls.ts'
+      - 'src/lib/payout-*.ts'
+      - 'src/lib/payroll-payout-*.ts'
+      - 'src/lib/exporters.ts'
+      - 'src/lib/multi-entity-run-guard.ts'
+      - 'src/lib/access.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-*.ts'
+      - 'src/db/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-payroll-exports-post-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fictional-payroll-exports-post-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3011
+      MONEY_PROOF_URL: http://127.0.0.1:3011
+      MONEY_PROOF_MODE: disposable-only
+      MONEY_PROOF_TRANSPORT: http
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'true'
+      PAYMONGO_HTTP_PROOF: loopback-only
+      PAYMONGO_SECRET_KEY: sk_test_synthetic_no_network
+      PAYMONGO_WALLET_ID: wallet_synthetic
+      PAYMONGO_WEBHOOK_SECRET: whsk_synthetic_no_network
+      PAYROLL_PAYOUT_PROVIDER: paymongo
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed PR head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-payroll-exports-post-contract.mjs
+          node --check scripts/qa/tenant-payroll-exports-post-http.mjs
+          node --test tests/tenant-payroll-exports-post-contract.test.mjs
+      - run: npm run db:push
+      - name: Apply reviewed baseline to disposable app_db before clone (payouts disabled for this step)
+        env:
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Clone empty disposable schema into the dedicated money-proof database
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_mny01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_mny01_test' >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Verify own preflight, disbursement and manual completion, higher-ID victim denial and immutable victim SQL against the loopback synthetic provider
+        run: |
+          set -euo pipefail
+          NODE_OPTIONS="--import=$(pwd)/scripts/qa/paymongo-http-proof-preload.mjs" npm start -- -H 127.0.0.1 -p 3011 > /tmp/exports-post-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011/login >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/tenant-payroll-exports-post-http.mjs
+      - name: Server diagnostics
+        if: failure()
+        run: cat /tmp/exports-post-server.log || true
