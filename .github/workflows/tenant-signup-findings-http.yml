@@ -51,8 +51,11 @@ jobs:
       fail-fast: false
       matrix:
         mode: [normal, invited]
+        revision: [baseline, current]
     env:
       SIGNUP_FINDINGS_MODE: ${{ matrix.mode }}
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      GITHUB_HEAD_REVISION: ${{ matrix.revision }}
       FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
       EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
       PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
@@ -90,9 +93,20 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Run RED phase against the exact original origin/main using the same new proof
+        if: matrix.revision == 'baseline'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_HEAD_SHA"
+          cp scripts/qa/tenant-signup-findings-http.mjs /tmp/signup-finding-pr-proof.mjs
+          git checkout --detach 50187b5067a3542155cb3d61798fbbb23a2e1dd5
+          cp /tmp/signup-finding-pr-proof.mjs scripts/qa/tenant-signup-findings-http.mjs
+          echo 'RED baseline: exact origin/main SHA 50187b5067a3542155cb3d61798fbbb23a2e1dd5'
       - name: Install locked dependencies
         run: npm ci
       - name: Focused signup / rate-fallback regression and source guard
+        if: matrix.revision == 'current'
         run: |
           npx tsx --test tests/signup-pending-recovery.test.ts tests/registration-entry.test.ts
           npm run tenant:repin:check
@@ -173,8 +187,21 @@ jobs:
           done
           cat /tmp/tenant-prelogin-next.log
           exit 1
-      - name: Reproduce and verify #1898 enumeration, squatting, concurrency and invited-pilot flows
-        run: node --import tsx scripts/qa/tenant-signup-findings-http.mjs
+      - name: Prove RED on main and GREEN on this pull request against localhost PG16
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_HEAD_REVISION" = 'baseline' ]; then
+            if node --import tsx scripts/qa/tenant-signup-findings-http.mjs; then
+              echo 'ERROR: pre-fix main unexpectedly passed both #1898 findings'
+              exit 1
+            else
+              echo 'EXPECTED RED: main failed the synthetic #1898 findings assertions'
+            fi
+          else
+            node --import tsx scripts/qa/tenant-signup-findings-http.mjs
+            echo 'GREEN: current PR head passed the synthetic #1898 findings assertions'
+          fi
       - name: Show localhost-only diagnostic log on failure
         if: failure()
         run: |
