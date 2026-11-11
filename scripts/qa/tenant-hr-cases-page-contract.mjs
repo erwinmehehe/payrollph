@@ -2,6 +2,8 @@
  * HR Cases staff-page and read-only inbox tenant proof contract.
  * Fictional exact-head PostgreSQL 16 only; no page/API method credit or
  * production/security acceptance follows from this evidence.
+ * Current multi-entity route/policy hashes are source-pinned for drift detection;
+ * feature-off HTTP runs do not establish multi-entity-on acceptance.
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -13,10 +15,11 @@ export const PAGE_PATH = "/hcm/hr-cases";
 export const API_PATH = "/api/hr-cases";
 export const SOURCE_PINS = Object.freeze({
   "src/app/hcm/hr-cases/page.tsx": "93ef058a785606fd00921b23b47c73436e308fbb",
-  "src/app/api/hr-cases/route.ts": "995420a26af9766d89216ee0ccec93a9d63b1846",
+  "src/app/api/hr-cases/route.ts": "2cd3e59558d6a6ae6946b3a7f0f3685b5ddf7cd1",
   "src/lib/hr-case-activation.ts": "005c1edfada672f79deecb6f6d9370ea3ccbdee2",
   "src/lib/hr-case-policy.ts": "f54464dd7a001cf8a38be65a8ac1289d61dc2693",
-  "src/lib/hr-case-tenant-scope.ts": "1add6e489f0cb3e4c88ffce3aba265f1b38ba374",
+  "src/lib/hr-case-tenant-scope.ts": "253666f693f7328a9cd99d1fea593f7d1a73962d",
+  "src/lib/multi-entity-server.ts": "f38a8bb77a5026d581d4a92b22533fc879ea7e00",
   "src/lib/hr-case-queue-read.ts": "791fdf4ff241b288ce8c155748083aa918a770be",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",

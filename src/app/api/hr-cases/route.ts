@@ -10,6 +10,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { activeHrCaseStaffMembership, explicitHrCaseEmployerId, hrCaseStaffRosterScope, linkedEmployeeHrCaseScope } from "@/lib/hr-case-tenant-scope";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import {
   approvedCoeText, HR_CASE_TYPES, hrCaseDueAt, hrCaseSlaStatus,
@@ -66,12 +67,27 @@ export async function GET(request: Request) {
       return Response.json({ error: "HR case inbox access denied." }, { status: 403, headers: noStore });
     }
   }
+  // Employer-wide HR access is not a grant to all legal employers in a
+  // multi-entity organization. Resolve the active selected legal employer
+  // before reading any worker or HR-case data; employee self-service remains
+  // bound to the linked employee rather than a staff legal-entity preference.
+  const entityScope = isEmployee ? null : await resolveMultiEntityContext({
+    userId: user.id, organizationId, request,
+  });
+  if (entityScope && (!entityScope.ok || (entityScope.context.enabled &&
+      (entityScope.context.group || entityScope.context.legalEntityId === null)))) {
+    return Response.json({ error: "HR case legal employer access denied." },
+      { status: 403, headers: noStore });
+  }
+  const authorizedLegalEntityId = entityScope?.ok && entityScope.context.enabled
+    ? entityScope.context.legalEntityId : null;
   const staff = isEmployee ? [] : await db.select({
     id: employees.id, orgUnitId: employees.orgUnitId,
     firstName: employees.firstName, lastName: employees.lastName,
     title: employees.title, startDate: employees.startDate,
   }).from(employees).where(hrCaseStaffRosterScope(
     organizationId, access!.companyWide ? null : access!.orgUnitId,
+    authorizedLegalEntityId,
   ));
   const visibleIds = isEmployee ? [worker!.id] : staff.map(row => row.id);
   const cases = visibleIds.length ? await db.select().from(employeeHrCases).where(and(
@@ -296,10 +312,25 @@ export async function PATCH(request: Request) {
     if (denied) return hrCaseNotFound();
     const access = await getAccess(user.id, existing.organizationId);
     if (!access || !hrCaseRoleCanWork(access.role, existing.assignedRole)) return hrCaseNotFound();
-    const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+    // PATCH must repeat the legal-employer guard independently of the inbox.
+    // A forged case ID (including COE approval) cannot cross a legal employer
+    // boundary merely because the actor belongs to the parent organization.
+    const entityScope = await resolveMultiEntityContext({
+      userId: user.id, organizationId: existing.organizationId, request,
+    });
+    if (!entityScope.ok || (entityScope.context.enabled &&
+        (entityScope.context.group || entityScope.context.legalEntityId === null))) {
+      return hrCaseNotFound();
+    }
+    const [worker] = await db.select({
+      orgUnitId: employees.orgUnitId, legalEntityId: employees.legalEntityId,
+    }).from(employees).where(and(
       eq(employees.id, existing.employeeId), eq(employees.organizationId, existing.organizationId),
     )).limit(1);
-    const scope = assertScope(access, worker?.orgUnitId ?? null);
+    if (!worker || assertEntityResource(entityScope.context, worker.legalEntityId)) {
+      return hrCaseNotFound();
+    }
+    const scope = assertScope(access, worker.orgUnitId);
     if (!scope.ok) return hrCaseNotFound();
   }
   const action = String(body.action ?? "");
