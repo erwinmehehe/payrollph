@@ -395,9 +395,9 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`auth/saml/acs/[providerId]` POST](../../src/app/api/auth/saml/acs/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/saml/metadata/[providerId]` GET](../../src/app/api/auth/saml/metadata/[providerId]/route.ts#L9) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/saml/start/[providerId]` GET](../../src/app/api/auth/saml/start/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
-| [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L23) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L27) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/sso/resolve` POST](../../src/app/api/auth/sso/resolve/route.ts#L9) | body | enforceSameOriginMutation L4, enforceSameOriginMutation L10 | none found | NO VALID METHOD PROOF | **GAP** |
-| [`auth/sso/start` GET](../../src/app/api/auth/sso/start/route.ts#L11) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`auth/sso/start` GET](../../src/app/api/auth/sso/start/route.ts#L16) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/totp/setup` GET](../../src/app/api/auth/totp/setup/route.ts#L18) | session, body | getSessionUser L4, enforceSameOriginMutation L8, getSessionUser L19, enforceSameOriginMutation L33 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/totp/setup` POST](../../src/app/api/auth/totp/setup/route.ts#L32) | session, body | getSessionUser L4, enforceSameOriginMutation L8, getSessionUser L19, enforceSameOriginMutation L33 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`automation-studio` GET](../../src/app/api/automation-studio/route.ts#L211) | session, query, body | getSessionUser L14, assertOrganizationRole L15, getAccess L15, enforceSameOriginMutation L64 | searchParams.get("organizationId") L215, body.organizationId L574 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L78) | **COVERED** |

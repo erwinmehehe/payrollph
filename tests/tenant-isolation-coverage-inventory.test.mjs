@@ -3716,6 +3716,86 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return true; // explicit unaccepted GAP; NOT blanket reclassification
   }
 
+  // OIDC login-CSRF hardening is a two-route, exact-source, ZERO-CREDIT
+  // review. An initiating-browser cookie probe cannot certify complete SSO
+  // account linking or satisfy the two-owned-login whole-method standard.
+  // Keep BOTH methods GAP until full IdP success and tenant checks are proven.
+  if (isNewOrChanged && [
+    "src/app/api/auth/sso/start/route.ts GET",
+    "src/app/api/auth/sso/callback/route.ts GET",
+  ].includes(key)) {
+    const routePath = key.slice(0, key.lastIndexOf(" "));
+    const seals = {
+      "src/app/api/auth/sso/start/route.ts": {
+        before: "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
+        after: "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+      },
+      "src/app/api/auth/sso/callback/route.ts": {
+        before: "b18ac853e93155478474d02466617298d6773275",
+        after: "25116ab157ede52128a1ccbe189773104361f2d3",
+      },
+    };
+    const seal = seals[routePath];
+    assert.ok(seal, "Unrecognized OIDC route is not exempt from GAP review");
+    assert.equal(currentBlob, seal.after,
+      "OIDC browser binding changed: renewed identity security review required");
+    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, seal.after);
+    assert.equal(method.status, "GAP", "Browser binding is not complete SSO login coverage");
+    assert.equal(method.testedBy, null, "No unproven OIDC method credit");
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "oidc-initiating-browser-state-binding-zero-credit",
+      originalRouteBlobSha: seal.before,
+      routeBlobSha: seal.after,
+      cookieHelperFile: "src/lib/oidc-browser-state.ts",
+      cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
+      contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
+      contractBlobSha: "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+      proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+      proofBlobSha: "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+      unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
+      unitTestBlobSha: "926d45d242bbfe9672a95f02c3eef7dc27366815",
+      negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
+      negativeTestBlobSha: "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+      workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
+      workflowBlobSha: "b7479504956c98e08932241b71f16b49bfc9891b",
+      credits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    }, "OIDC cookie review must preserve all source pins and zero-credit gates");
+    const review = method.reviewedUncertified;
+    for (const [file, sha] of [
+      [review.cookieHelperFile, review.cookieHelperBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.proofFile, review.proofBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.negativeTestFile, review.negativeTestBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "OIDC review source drift: " + file);
+    const start = readFileSync("src/app/api/auth/sso/start/route.ts", "utf8");
+    const callback = readFileSync("src/app/api/auth/sso/callback/route.ts", "utf8");
+    const workflow = readFileSync(review.workflowFile, "utf8");
+    assert.ok(start.indexOf("await db.insert(oidcLoginStates)") >= 0 &&
+      start.indexOf("await db.insert(oidcLoginStates)") <
+        start.indexOf("response.cookies.set(OIDC_BROWSER_STATE_COOKIE"),
+      "OIDC state must be durably stored before returning browser cookie");
+    for (const marker of [
+      'httpOnly: true', 'sameSite: "lax"',
+      'secure: process.env.NODE_ENV === "production"',
+      "path: OIDC_BROWSER_STATE_PATH",
+    ]) assert.ok(start.includes(marker), "Missing browser-cookie policy: " + marker);
+    const match = callback.indexOf("if (!oidcBrowserStateMatches(state");
+    const dbRead = callback.indexOf("db.select().from(oidcLoginStates)");
+    const claim = callback.indexOf("db.update(oidcLoginStates)");
+    assert.ok(match > 0 && match < dbRead && dbRead < claim,
+      "Refuse a foreign browser before even reading or consuming login state");
+    assert.match(callback, /browserCookies\.set\(OIDC_BROWSER_STATE_COOKIE, "",/);
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow,
+      /for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-oidc-browser-state-http\.mjs/);
+    return true; // Source-repaired GAP, NOT whole-method COVERED.
+  }
+
   // Deliberately disabled SAML login endpoints must not enumerate provider IDs.
   // This is an exact-source, zero-credit privacy repair, not an exception for
   // arbitrary changed GAPs or a claim of completed SAML authentication proof.
