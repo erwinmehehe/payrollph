@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyStudioPostCredit} from './tenant-studio-post-credit.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
@@ -78,6 +79,7 @@ export function verifyReconciledFamilyCredits(manifest, read) {
     else if (method.status === "COVERED" && coreMethods.includes(key)) verifyCoreCredit(key, method);
     else if (method.status === "COVERED" && developmentMethods.includes(key)) verifyDevelopmentCredit(key, method, read);
     else if (method.status === "COVERED" && key === "POST enterprise") verifyEnterprisePostCredit(manifest, read);
+    else if (method.status === "COVERED" && key === "POST automation-studio") verifyStudioPostCredit(manifest, read);
     else assert.equal(method.status, "GAP", key + ": partial action is not full method credit");
   }
   return methods.size;

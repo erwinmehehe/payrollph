@@ -26,6 +26,7 @@ import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
 import { loadWorkerAttributeContext } from "@/lib/worker-attribute-context";
 import { resolveWorkerDynamicGroups } from "@/lib/dynamic-worker-groups";
 import { persistAutomationRetryResult, withAutomationRetryTransaction } from "@/lib/automation-execution-recovery";
+import { lockAutomationRecoveryScope } from "@/lib/automation-recovery-scope";
 import { tenantLinkedEmployeeAccounts, noOtherActiveEmployerMembership } from "@/lib/automation-employee-account-boundary";
 import {
   operationalReviewPolicyBlocks,
@@ -1642,11 +1643,7 @@ export async function retryAutomationExecutionFailedStep(input: {
   // retries before the result array is read. Never execute a failed action
   // twice simply because two admins pressed Retry at the same time.
   return withAutomationRetryTransaction(input.organizationId, input.executionId, async (tx) => {
-    const [execution] = await tx.select().from(automationExecutions).where(and(
-      eq(automationExecutions.id, input.executionId),
-      eq(automationExecutions.organizationId, input.organizationId),
-    )).limit(1);
-    if (!execution) throw new Error("Automation execution not found.");
+    const execution = await lockAutomationRecoveryScope(tx, input.organizationId, input.executionId);
     if (!["failed", "partial"].includes(execution.status)) {
       throw new Error("Only failed or partial executions can retry a failed step.");
     }
@@ -1738,11 +1735,8 @@ export async function replayAutomationExecutionSnapshot(input: {
   organizationId: number;
   executionId: number;
 }) {
-  const [execution] = await db.select().from(automationExecutions).where(and(
-    eq(automationExecutions.id, input.executionId),
-    eq(automationExecutions.organizationId, input.organizationId),
-  )).limit(1);
-  if (!execution) throw new Error("Automation execution not found.");
+  return withAutomationRetryTransaction(input.organizationId, input.executionId, async (tx) => {
+  const execution = await lockAutomationRecoveryScope(tx, input.organizationId, input.executionId);
   if (!["failed", "partial"].includes(execution.status)) {
     throw new Error("Only failed or partial executions can be replayed.");
   }
@@ -1795,6 +1789,7 @@ export async function replayAutomationExecutionSnapshot(input: {
   }).returning();
   if (!replay) throw new Error("Automation execution replay could not be created.");
   return advanceAutomationExecution(replay.id);
+  });
 }
 
 export async function advanceAutomationExecution(executionId: number) {

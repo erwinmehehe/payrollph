@@ -49,11 +49,13 @@ export function verifyStudioExecutionSources(root = process.cwd()) {
     "!automationLanguageStudioEnabled()",
   ]) assert.ok(route.includes(item), "STUDIO_EXECUTION_REFUSED: missing route gate " + item);
   for (const item of [
-    "eq(automationExecutions.organizationId, input.organizationId)",
+    "await lockAutomationRecoveryScope(tx, input.organizationId, input.executionId)",
     "SAFE_FAILED_STEP_RETRY_ACTIONS",
     "SAFE_REPLAY_EXECUTION_ACTIONS",
     "quarantines.some((letter) => letter.status !== \"acknowledged\")",
   ]) assert.ok(automation.includes(item), "STUDIO_EXECUTION_REFUSED: missing recovery guard " + item);
+  assert.equal(automation.split("await lockAutomationRecoveryScope(tx, input.organizationId, input.executionId)").length, 3,
+    "STUDIO_EXECUTION_REFUSED: both retry and replay must validate locked employer bindings");
   return true;
 }
 
