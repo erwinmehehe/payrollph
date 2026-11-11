@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs"; import { verifyStudioPostCredit } from "../scripts/qa/tenant-studio-post-credit.mjs";
 import {
   ORIGIN, AS_OF, SOURCE_PINS, gitBlobSha, verifyWorker360SourcePins,
@@ -244,10 +245,12 @@ test("new Worker 360 source demotes stale historic page/API credits without eras
   assert.equal(get?.reviewedUncertified?.oldSourceBlobSha,
     "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
   assert.equal(get?.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(m.metrics.scopedPagesAndActions, 21);
-  assert.equal(m.scopedPages.filter(entry => entry.status === "GAP").length, 17);
-  assert.equal(m.metrics.gap, 18 - verifyStudioPostCredit(m));
-  assert.equal(verifyWorker360PageCredit(m), 17);
+  assertLiveTenantCounts(assert, m);
+  assert.equal(m.scopedPages.length, m.metrics.scopedPagesAndActions);
+  assert.equal(verifyStudioPostCredit(m), 1,
+    "Studio POST must retain only its separately sourced credit");
+  assert.equal(verifyWorker360PageCredit(m),
+    m.scopedPages.filter(entry => entry.status === "GAP").length);
 });
 
 test("changed Worker 360 cannot borrow historical page or API proof", () => {

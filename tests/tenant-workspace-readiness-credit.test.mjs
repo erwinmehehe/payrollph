@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
 import {verifyCheckoutCredit} from '../scripts/qa/tenant-billing-checkout-credit.mjs';
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {
   ROUTE_PATH, RECEIPT_FILE, expectedWorkspaceReadinessTestedBy,
   verifyWorkspaceReadinessReceipt, verifyWorkspaceReadinessCredit,
@@ -28,9 +29,25 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
   const base=baseTenantManifest();
-  if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;
-    assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta+approvalDelta+studioDelta);
-    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+studioDelta);}
+  if (base) {
+    const studioDelta = base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x => x.name === "POST").status === "GAP"
+      ? verifyStudioPostCredit(m) : 0;
+    const approvalDelta = base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x => x.name === "PATCH").status === "GAP"
+      ? verifyApprovalsCredit(m) : 0;
+    const delta = base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status === "GAP" ? 1 : 0;
+    // Count the exact reviewed Worker 360 source-credit revocation separately
+    // from successful readiness/approvals/Studio proof promotions.
+    const workerPath = "src/app/api/hcm/worker-360/route.ts";
+    const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
+    const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
+    assert.equal(currentWorker.status, "GAP", "Revised Worker 360 source remains uncredited");
+    assert.equal(currentWorker.testedBy, null);
+    verifyWorker360PageCredit(m);
+    const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
+    const expectedNetCredits = delta + approvalDelta + studioDelta - revokedWorkerCredit;
+    assert.equal(m.metrics.coveredAfter - base.manifest.metrics.coveredAfter, expectedNetCredits);
+    assert.equal(base.manifest.metrics.gap - m.metrics.gap, expectedNetCredits);
+  }
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
   assert.deepEqual(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy,
     expectedWorkspaceReadinessTestedBy());

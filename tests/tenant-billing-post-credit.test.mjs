@@ -9,6 +9,7 @@ import {
   expectedBillingPostProof, readBillingPostReceipt, verifyBillingPostCredit,
 } from "../scripts/qa/tenant-billing-post-credit.mjs";
 import { tallyTenantManifest, assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const manifest = () => JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -76,8 +77,21 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
     const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
-    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta+studioDelta, 'Only separately sealed method credits may change totals');
-    assert.equal(before.gap - counts.gap, delta+readyDelta+approvalsDelta+studioDelta, 'No unrelated GAP may disappear');
+    // The revised Worker 360 GET invalidates its historic parent-employer proof.
+    // A separate exact-blob verifier and assertLiveTenantCounts() restrict this
+    // to the reviewed zero-credit legal-employer source supersession.
+    const workerPath = "src/app/api/hcm/worker-360/route.ts";
+    const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
+    const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
+    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must stay uncredited");
+    assert.equal(currentWorker.testedBy, null);
+    verifyWorker360PageCredit(m);
+    const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
+    const expectedNetCredits = delta + readyDelta + approvalsDelta + studioDelta - revokedWorkerCredit;
+    assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits,
+      "Only sealed credits and the exact Worker 360 source supersession may change totals");
+    assert.equal(before.gap - counts.gap, expectedNetCredits,
+      "No unrelated GAP may disappear or be introduced");
   }
   for (const [verb, route] of [
     ["PATCH", "approvals/[id]"],
