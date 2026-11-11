@@ -3928,6 +3928,79 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return;
   }
 
+  // This reviewed fix separates legal employers WITHIN one organization.
+  // Previously accepted organization-only PG16 GET/PATCH rows remain historical
+  // provisional receipts and never become new same-company legal-entity credit.
+  if (isNewOrChanged && [
+    "src/app/api/provisioning/route.ts GET",
+    "src/app/api/provisioning/route.ts PATCH",
+  ].includes(key)) {
+    const routePath = "src/app/api/provisioning/route.ts";
+    const original = "beddf30861cdb810c5f4ee2ca5631fb29e768ed9";
+    const fixed = "dbda44075260d0b0ca0aaba07223e02e3c035240";
+    assert.equal(baseline.api[routePath], original,
+      "Prior audited provisioning source baseline must remain unmodified");
+    assert.equal(currentBlob, fixed,
+      "Provisioning route source drift requires renewed exact-head PG16 entity proof");
+    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, fixed);
+    assert.equal(method.status, "COVERED",
+      "Do not downgrade previously provisional organization-only methods without review");
+    assert.equal(method.testedBy?.file, method.name === "GET"
+      ? "scripts/qa/tenant-table-http.mjs" : "scripts/qa/tenant-write-table-http.mjs",
+      "Do not misrepresent an old organization proof as a legal-entity HTTP proof");
+    const reviewed = method.reviewedUncertified;
+    assert.deepEqual(reviewed, {
+      kind: "provisioning-same-org-legal-employer-PG16-HTTP-review-only",
+      originalRouteBlobSha: original, routeBlobSha: fixed,
+      helperFile: "src/lib/provisioning.ts",
+      helperBlobSha: "d5bc5d806276c061500061732fb7c4bc16755940",
+      proofFile: "scripts/qa/tenant-provisioning-entity-http.mjs",
+      proofBlobSha: "94bbc904da9fe9477b7aec0d1f5e54426466b964",
+      contractFile: "tests/tenant-provisioning-entity-boundary.test.mjs",
+      contractBlobSha: "aa2f1832aac3bafc36bc1c366a47da03794a83bf",
+      workflowFile: ".github/workflows/tenant-provisioning-entity-qa.yml",
+      workflowBlobSha: "399f3f0faddb1ccebdc331b27b319eb0e4898125",
+      historicalOrganizationProofFile: method.testedBy.file,
+      historicalOnly: true,
+      newLegalEmployerMethodCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "Same-organization legal employer evidence must stay source-pinned and uncredited");
+    for (const [file, sha] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Provisioning legal-employer source/proof/contract/workflow changed: " + file);
+    const route = readFileSync(routePath, "utf8");
+    const get = route.slice(route.indexOf("export async function GET("),
+      route.indexOf("export async function PATCH("));
+    const patch = route.slice(route.indexOf("export async function PATCH("));
+    assert.ok(get.indexOf("resolveMultiEntityContext(") <
+      get.indexOf("ensureLifecycleProvisioning(organizationId, legalEntityId, scopedUnitId)") &&
+      get.indexOf("ensureLifecycleProvisioning(organizationId, legalEntityId, scopedUnitId)") <
+      get.indexOf("const [tasks, staff] = await Promise.all("),
+      "An unauthorized GET must not seed cross-employer onboarding or IT offboarding tasks");
+    assert.match(get, /eq\(employees\.legalEntityId, legalEntityId\)/);
+    assert.match(get, /inArray\([\s\S]*provisioningTasks\.employeeId/);
+    assert.ok(patch.indexOf("resolveMultiEntityContext(") <
+      patch.indexOf("const [target] = await db.select("),
+      "Entity authorization must precede private task-ID lookup");
+    assert.match(patch, /requested: body\.legalEntityId/);
+    assert.match(patch, /inArray\([\s\S]*eq\(employees\.legalEntityId, legalEntityId\)/);
+    assert.ok(patch.includes("and legal_entity_id = ") &&
+      patch.indexOf("and legal_entity_id = ") <
+      patch.indexOf("const [freshEmployee]") &&
+      patch.indexOf("const [freshEmployee]") <
+      patch.indexOf("tx.update(provisioningTasks)"),
+      "A concurrent legal-employer transfer cannot bypass locked write-time authorization");
+    assert.match(patch, /eq\(provisioningTasks\.organizationId, organizationId\)/);
+    assert.match(patch, /eq\(provisioningTasks\.employeeId, employeeId\)/);
+    return true;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
