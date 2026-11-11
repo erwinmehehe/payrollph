@@ -17,6 +17,31 @@ test("HR discipline list joins case and worker by the same employer and employee
   assert.match(post, /assertScope\(access, employee\.orgUnitId\)/);
 });
 
+test("disciplinary GET, POST and PATCH bind authorized legal-employer scope before private data or actions", () => {
+  for (const [method, handler] of [["GET", get], ["POST", post], ["PATCH", patch]]) {
+    const resolve = handler.indexOf("resolveMultiEntityContext(");
+    const workerEntity = handler.indexOf("legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId)");
+    assert.ok(resolve >= 0 && workerEntity > resolve, method + ": legal-employer policy must precede worker SQL");
+    assert.match(handler, /entityAccess\.context\.group \|\| entityAccess\.context\.legalEntityId === null/,
+      method + ": group and ambiguous context must fail closed");
+  }
+  assert.ok(get.indexOf("resolveMultiEntityContext(") < get.indexOf("const cases = await db.select("),
+    "GET must resolve legal employer before selecting disciplinary cases");
+  assert.ok(post.indexOf("resolveMultiEntityContext(") < post.indexOf("db.select().from(employees)"),
+    "POST must resolve legal employer before selecting target worker");
+  assert.match(post, /requested: body\.legalEntityId/,
+    "POST must reconcile body with header and query selectors");
+  assert.match(patch, /requested: body\.legalEntityId/,
+    "PATCH must reconcile body with header and query selectors");
+  assert.ok(patch.indexOf("resolveMultiEntityContext(") < patch.indexOf("const [employee]"),
+    "PATCH must authorize case worker legal employer before mutations");
+  assert.match(patch, /inArray\(\s*disciplinaryCases\.employeeId,[\s\S]*eq\(employees\.legalEntityId, legalEntityId\)/,
+    "PATCH must recheck current legal-employer association in update SQL");
+  assert.equal((patch.match(/db\.update\(disciplinaryCases\)/g) ?? []).length, 4);
+  assert.equal((patch.match(/currentLegalEmployerScope,\s*\)\)\.returning\(\)/g) ?? []).length, 4,
+    "all four disciplinary actions must retain the write-time legal employer check");
+});
+
 test("ID-only PATCH resolves a case inside the current active employer memberships first", () => {
   assert.match(patch, /enforceSameOriginMutation\(request\)/);
   assert.match(patch, /getSessionUser\(\)/);
@@ -43,7 +68,7 @@ test("all four decisions bind the final update to case, employer and employee, a
   assert.deepEqual(codeBlocks.map((entry) => entry[1]), actions);
 
   for (const [, action, block] of codeBlocks) {
-    assert.match(block, /\.where\(and\(\s*eq\(disciplinaryCases\.id, id\),\s*eq\(disciplinaryCases\.organizationId, discCase\.organizationId\),\s*eq\(disciplinaryCases\.employeeId, discCase\.employeeId\),\s*\)\)\.returning\(\)/,
+    assert.match(block, /\.where\(and\(\s*eq\(disciplinaryCases\.id, id\),\s*eq\(disciplinaryCases\.organizationId, discCase\.organizationId\),\s*eq\(disciplinaryCases\.employeeId, discCase\.employeeId\),\s*currentLegalEmployerScope,\s*\)\)\.returning\(\)/,
       action + ": final write must be bound to employer and original employee");
     assert.match(block, /if \(!updated\) return Response\.json\(\{ error: "Disciplinary case changed\. Refresh\." \}, \{ status: 409 \}\)/,
       action + ": changed target must fail closed");
