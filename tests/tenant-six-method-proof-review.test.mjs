@@ -29,6 +29,7 @@ import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-s
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { reconcileArchitecturalMainStatuses } from "./helpers/tenant-architectural-classification-delta.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -1009,7 +1010,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     }
     const baselineSecurity=SECURITY_TARGETS.filter(t=>baseline.allApiRouteFiles[t.path].methods.find(x=>x.name===t.method).status==='COVERED');
     if(baselineSecurity.length){assert.equal(baselineSecurity.length,3);verifySecurityCredits(baseline);}
-    const expectedOriginalMain = JSON.parse(JSON.stringify(
+    let expectedOriginalMain = JSON.parse(JSON.stringify(
       baselineHasPayout ? expectedAfterPayout : expectedBeforePayout));
     for(const t of baselineSecurity)expectedOriginalMain[t.path][t.method]='COVERED';
 
@@ -1261,6 +1262,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineReadinessCredits=baseline.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='COVERED'?verifyWorkspaceReadinessCredit(baseline):0;if(baselineReadinessCredits)expectedOriginalMain[READINESS_GET_PATH].GET='COVERED';
     const baselineApprovalCredits=baseline.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='COVERED'?verifyApprovalsCredit(baseline):0;if(baselineApprovalCredits)expectedOriginalMain[APPROVALS_PATH].PATCH='COVERED';
     const baselineStudioCredits=baseline.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='COVERED'?verifyStudioPostCredit(baseline):0;if(baselineStudioCredits)expectedOriginalMain[STUDIO_POST_PATH].POST='COVERED';
+    // #1921 labels are not credits. Validate main's own approval, route and
+    // proof bytes before allowing only the named nine classifications.
+    const baselineArchitecture = reconcileArchitecturalMainStatuses(assert,
+      baseline, expectedOriginalMain, path => execFileSync("git",
+        ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 }));
+    expectedOriginalMain = baselineArchitecture.statuses;
+    const baselinePublicClassifications = baselinePublicReclassifications + baselineArchitecture.publicByDesign;
+    const baselineAllTokenClassifications = baselineTokenClassifications + baselineArchitecture.privilegedTokenOnly;
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1275,12 +1284,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
-      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
-      "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications,
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicClassifications,
+      "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineAllTokenClassifications,
       GAP: snapshot.counts.GAP - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicClassifications - baselineAllTokenClassifications,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
@@ -1318,11 +1327,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const frozenCovered = reviewedStatuses.filter(status => status === "COVERED").length;
     assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
       "the frozen queue must match current main source-credited methods");
-    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + baselinePublicReclassifications);
-    assert.equal(statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length, baselineTokenClassifications,
+    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + baselinePublicClassifications);
+    assert.equal(statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length, baselineAllTokenClassifications,
       "Every approved token-only operation must remain inside the frozen 406-method queue");
     assert.equal(statuses.filter(status => status === "GAP").length,
-      403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications);
+      403 - frozenCovered - baselinePublicClassifications - baselineAllTokenClassifications);
     const incomplete = 12 - provisionalBatches.length;
     const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
       provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
@@ -1337,19 +1346,22 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicReclassifications) + " PUBLIC-BY-DESIGN")
+      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicClassifications) + " PUBLIC-BY-DESIGN")
       .replace("91 GAP",
-        (baselineTokenClassifications
-          ? baselineTokenClassifications + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + "
+        (baselineAllTokenClassifications
+          ? baselineAllTokenClassifications + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + "
           : "") +
-        (403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications) + " GAP")
+        (403 - frozenCovered - baselinePublicClassifications - baselineAllTokenClassifications) + " GAP")
 .replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
+    const hasArchitectureLabels = baselineArchitecture.publicByDesign + baselineArchitecture.privilegedTokenOnly > 0;
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
       line.startsWith("Frozen subtotal: **") ||
-      line.startsWith("Frozen subtotal (2026-11-04 proposal): **"));
+      line.startsWith("Frozen subtotal (2026-11-04 proposal): **") ||
+      (hasArchitectureLabels && line.startsWith("Frozen subtotal (2026-11-11 classification proposal): **")));
     const normalizeCaption=line=>line?.replace(/^Frozen subtotal \(2026-11-04 proposal\):/, 'Frozen subtotal:')
+      .replace(/^Frozen subtotal \(2026-11-11 classification proposal\):/, 'Frozen subtotal:')
       .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
       .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
     const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
