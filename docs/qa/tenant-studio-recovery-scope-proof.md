@@ -34,15 +34,32 @@ foreign worker or rule FKs. Cross-employer oracle mutations must be rejected.
 The first local fixed-source run passed 16 persisted own recoveries, 64 refusals,
 16 oracle discriminations and one actual concurrent-transfer lock-timeout check.
 Its executed source was `c4be91cc140ef3a6afd32da763a045e9644ba749`.
-The sanitized receipt will be renewed if proof bytes change.
+After adding an explicit mutation-failure diagnostic, a fresh database repeated
+all checks at `ddd963fc95b4402b1a9b0d1686789bf78f240696`; its sanitized receipt is
+`scripts/qa/tenant-studio-recovery-scope-local-receipt.json`.
+An actual HTTP run with a deliberately no-op ownership oracle failed with
+"write validator accepts another employer's data"; the original was restored.
 
 ## Whole-method reconciliation remains gated
 
 This fix does not silently promote Studio POST or rewrite historical receipts.
 Draft, lifecycle, execution, resolution and language proofs must be rerun against
-the changed engine. The approvals PATCH and enterprise POST receipts also seal
-this transitive dependency and need fresh evidence; their old source seals must
-not simply be relabeled. The manifest remains unchanged until reconciliation.
+the changed engine. Approvals, enterprise, security-write, Spend/managed payroll
+and document-caller receipts also seal this dependency and need fresh evidence;
+their old source seals must not simply be relabeled. The manifest remains
+unchanged until reconciliation. The added dependency-renewal workflow executes
+the original guarded HTTP assertions to produce fresh evidence. Historical
+receipt-verification tests remain mandatory in the existing workflows and the
+regression suite; they are not removed or waived by the renewal workflow.
+
+Local focused tests: 27 pass; TypeScript passes; lint has zero errors and ten
+existing warnings. Repin reports 2,430 unchanged, zero repinned/review needed.
+The full tenant run reports 1,698 tests: 1,653 pass, 36 fail, nine skipped. Eight
+failures are existing Windows private-file permission cases; the remaining 28
+are fail-closed historical-source/credit checks affected by the changed engine.
+These are real unresolved failures, not a passing suite. They must be reconciled
+from fresh executed receipts before this PR can become merge-ready. The six-method
+review fails on the stale Spend engine seal for the same reason.
 
 All providers, workers, schedulers, external models, final-pay review, exact
 thirteenth centavos, payroll history and CSP remain OFF. No production SQL,
