@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { identityDomains, identityProviders, oidcLoginStates } from "@/db/schema";
@@ -5,6 +6,10 @@ import { canonicalAppOrigin } from "@/lib/security-request";
 import { encryptEnterpriseSecret } from "@/lib/enterprise-secret";
 import { oidcPkceChallenge } from "@/lib/oidc";
 import { randomToken, sha256 } from "@/lib/crypto";
+import {
+  OIDC_BROWSER_STATE_COOKIE, OIDC_BROWSER_STATE_PATH,
+  OIDC_BROWSER_STATE_MAX_AGE_SECONDS,
+} from "@/lib/oidc-browser-state";
 
 export const dynamic = "force-dynamic";
 
@@ -63,5 +68,18 @@ export async function GET(request: Request) {
   authorize.searchParams.set("code_challenge_method", "S256");
   authorize.searchParams.set("login_hint", loginHint);
 
-  return Response.redirect(authorize.toString(), 302);
+  // A DB state alone is not sufficient authorization to complete sign-in:
+  // the initiating browser also receives the unpredictable state in a
+  // short-lived host-only HttpOnly cookie. SameSite=Lax allows the IdP's
+  // top-level GET redirect back to this callback.
+  const response = NextResponse.redirect(authorize.toString(), 302);
+  response.cookies.set(OIDC_BROWSER_STATE_COOKIE, state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: OIDC_BROWSER_STATE_PATH,
+    maxAge: OIDC_BROWSER_STATE_MAX_AGE_SECONDS,
+  });
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
