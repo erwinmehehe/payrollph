@@ -80,7 +80,7 @@ export async function verifyPayrollReviewPagesIsolation() {
     const scoped = await extraActor("bookkeeper", a.unit.id);
     const groupHr = await extraActor("group_hr");
     const protectedTables = [
-      "organizations", "employees", "payrollRuns", "auditEvents", "yearEndPriorEvidence",
+      "organizations", "employees", "payrollRuns", "separationRecords", "auditEvents", "yearEndPriorEvidence",
     ];
     async function snapshot(orgId) {
       const result = {};
@@ -93,6 +93,23 @@ export async function verifyPayrollReviewPagesIsolation() {
       }
       return plain(result);
     }
+    // Real, fictional released rows let the selected-worker SSR gate prove
+    // its employer/employee/separation triple against actual PostgreSQL.
+    for (const subject of subjects) {
+      const [released] = await db.insert(s.separationRecords).values({
+        organizationId: subject.org.id, employeeId: subject.worker.id,
+        separationType: "resignation", noticeDate: "2026-09-01",
+        lastDay: "2026-09-30", status: "released",
+        computationSnapshot: { sourceFingerprint: { employeeLegalEntityId: subject.entity.id } },
+      }).returning({ id: s.separationRecords.id });
+      subject.releasedSeparationId = released.id;
+    }
+    const [unreleased] = await db.insert(s.separationRecords).values({
+      organizationId: a.org.id, employeeId: a.worker.id,
+      separationType: "resignation", noticeDate: "2026-10-01",
+      lastDay: "2026-10-31", status: "draft",
+    }).returning({ id: s.separationRecords.id });
+
     const before = new Map(await Promise.all(subjects.map(async subject =>
       [subject.org.id, await snapshot(subject.org.id)])));
 
@@ -140,6 +157,60 @@ export async function verifyPayrollReviewPagesIsolation() {
       }
     }
 
+    // A valid employer-wide role must not turn a forged worker or released
+    // separation ID into a private 2316 form. This is a live SSR request, not
+    // a function-name or status-only source assertion.
+    let selectedWorkerPositives = 0, selectedScopeDenials = 0;
+    const certPath = (orgId, employee, separation, year = "2026") =>
+      "/workspace/2316?organizationId=" + orgId +
+      (employee === undefined ? "" : "&employeeId=" + employee) +
+      (separation === undefined ? "" : "&separationId=" + separation) +
+      "&taxYear=" + year;
+    for (const actor of [a, b]) {
+      const own = await readLocal(certPath(actor.org.id, actor.worker.id,
+        actor.releasedSeparationId), actor.cookie);
+      assertTaxReviewOwnPage(own, "/workspace/2316", actor, subjects);
+      assert.ok(own.text.includes('value="' + actor.worker.id + '"'),
+        "Actual authorized employee must be selected in the server-rendered form");
+      selectedWorkerPositives++;
+      const ownWorkerOnly = await readLocal(certPath(actor.org.id, actor.worker.id),
+        actor.cookie);
+      assertTaxReviewOwnPage(ownWorkerOnly, "/workspace/2316", actor, subjects);
+      selectedWorkerPositives++;
+
+      for (const foreign of subjects.filter(subject => subject.org.id !== actor.org.id)) {
+        for (const forged of [
+          certPath(actor.org.id, foreign.worker.id),
+          certPath(actor.org.id, actor.worker.id, foreign.releasedSeparationId),
+          certPath(foreign.org.id, foreign.worker.id, foreign.releasedSeparationId),
+        ]) {
+          assertTaxReviewDeniedPage(await readLocal(forged, actor.cookie),
+            subjects, "Forged foreign employee, separation or employer under 2316");
+          selectedScopeDenials++;
+        }
+      }
+      for (const forged of [
+        certPath(actor.org.id, actor.worker.id, unreleased.id),
+        certPath(actor.org.id, actor.worker.id, actor.releasedSeparationId, "2025"),
+        certPath(actor.org.id, undefined, actor.releasedSeparationId),
+        certPath(actor.org.id, "01"),
+        certPath(actor.org.id, actor.worker.id + "&employeeId=" + victim.worker.id),
+        certPath(actor.org.id, actor.worker.id, actor.releasedSeparationId + "&separationId=" +
+          actor.releasedSeparationId),
+        certPath(actor.org.id, actor.worker.id, actor.releasedSeparationId, "2101"),
+      ]) {
+        assertTaxReviewDeniedPage(await readLocal(forged, actor.cookie),
+          subjects, "Unbound or noncanonical 2316 employee/separation/year selector");
+        selectedScopeDenials++;
+      }
+      for (const subject of subjects) {
+        assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id),
+          "Selected worker and separation review must not mutate tax/payroll/audit SQL");
+      }
+    }
+    assert.equal(selectedWorkerPositives, 4);
+    assert.equal(selectedScopeDenials, 26);
+
     for (const [label, actor] of [
       ["company-wide HR", hr], ["unit-only bookkeeper", scoped], ["group HR", groupHr],
     ]) {
@@ -184,6 +255,7 @@ export async function verifyPayrollReviewPagesIsolation() {
       kind: "TAX_REVIEW_PAGES_FICTIONAL_PG16_CANDIDATE",
       employers: 3, independentAttackers: 2,
       ownPagePositives, foreignDenials, forgedDenials,
+      selectedWorkerPositives, selectedScopeDenials,
       revokedStillSignedIn: true, victimPayrollTaxAuditUnchanged: true,
       pageCredits: 0, apiMethodCredits: 0, productionAccepted: false,
     };

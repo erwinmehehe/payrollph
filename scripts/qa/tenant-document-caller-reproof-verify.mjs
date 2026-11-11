@@ -7,6 +7,7 @@ import {
 } from "./tenant-hcm-lifecycle-caller-source-refresh-verify.mjs";
 import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
 import { HCM_QUEUE_PAGE, verifyHcmQueuePageSourceCompatibility } from "./tenant-work-queue-page-source-compat.mjs";
+import { verifySessionSourceCompatibility } from "./tenant-automation-session-source-compat.mjs";
 
 const RECEIPT = "scripts/qa/tenant-document-caller-reproof-receipt.json";
 const DIGEST = "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e";
@@ -50,6 +51,8 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
       assert.equal(current, HCM_NEW_SHA, "Unreviewed new HCM route has no source-current proof");
       verifyCurrentHcmCallerReproof(read);
       changedRouteCount++;
+    } else if (file === "src/lib/automation.ts" && current !== pinned) {
+      verifySessionSourceCompatibility(pinned, current, read);
     } else if (file === HCM_QUEUE_PAGE && current !== pinned) {
       // The old receipt stays historical. A source-exact, uncredited exception
       // must not be interpreted as prior execution of the new server wrapper.

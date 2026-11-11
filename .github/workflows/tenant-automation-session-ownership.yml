@@ -1,0 +1,123 @@
+name: Tenant automation session ownership (fictional PG16 real HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - "src/lib/automation.ts"
+      - "src/lib/automation-employee-account-boundary.ts"
+      - "scripts/qa/tenant-automation-session-ownership-http.mjs"
+      - "tests/tenant-automation-session-ownership-contract.test.mjs"
+      - ".github/workflows/tenant-automation-session-ownership.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-automation-session-ownership-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tenant-automation-session-ownership:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      NODE_ENV: production
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_SESSION_OWNERSHIP_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      AUTOMATION_LANGUAGE_STUDIO_ENABLED: "false"
+      OPENAI_AUTOMATION_DRAFT_ENABLED: "false"
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      OPENAI_API_KEY: ""
+      SMTP_URL: ""
+      SMTP_PASSWORD: ""
+      NEON_DATABASE_URL: ""
+      STRIPE_SECRET_KEY: ""
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact submitted source head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Run static fail-closed and fixture contract checks
+        run: |
+          node --check scripts/qa/tenant-automation-session-ownership-http.mjs
+          node --test tests/tenant-automation-session-ownership-contract.test.mjs
+      - name: Provision only ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create isolated PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed disposable baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode localhost Next server
+        run: npm run build
+      - name: Start localhost test server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-session-proof.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/tenant-session-proof.log
+          exit 1
+      - name: Verify actual employer-bound retry, replay and offboarding sessions
+        run: node --import tsx scripts/qa/tenant-automation-session-ownership-http.mjs
+      - name: Show bounded diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/tenant-session-proof.log || true

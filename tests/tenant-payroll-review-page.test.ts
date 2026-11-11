@@ -33,3 +33,35 @@ for (const file of [
     assert.match(source, /query\.organizationId === undefined/);
   });
 }
+
+test("2316 selected-worker and frozen released-employer context bind before private form mount", () => {
+  const source = readFileSync("src/app/workspace/2316/page.tsx", "utf8");
+  const role = source.indexOf("await assertOrganizationRole(");
+  const entity = source.indexOf("await resolveMultiEntityContext(");
+  const worker = source.indexOf("const [worker] = await db.select(");
+  const separation = source.indexOf("const [separation] = await db.select(");
+  const frozen = source.indexOf("frozenFinalPayLegalEntityId(separation.snapshot)");
+  const mount = source.indexOf("<Certificate2316Review");
+  assert.ok(role >= 0 && entity > role && worker > entity &&
+    separation > worker && frozen > separation && mount > frozen,
+    "Authenticated employer, worker, released separation and entity grant must precede the private form");
+  for (const token of [
+    "canonicalPriorReviewWorkerId(employeeId)",
+    "if (selectedWorkerId === false) notFound()",
+    "if (selectedSeparationId !== null && selectedWorkerId === null) notFound()",
+    "eq(employees.organizationId, organizationId)",
+    "eq(employees.id, selectedWorkerId)",
+    "eq(separationRecords.organizationId, organizationId)",
+    "eq(separationRecords.employeeId, selectedWorkerId!)",
+    "eq(separationRecords.id, selectedSeparationId)",
+    'separation.status !== "released"',
+    'separation.lastDay.startsWith(String(selectedYear) + "-")',
+    "assertEntityResource(",
+    "if (entityScope.context.enabled && selectedSeparationId === null)",
+    "initialEmployeeId={selectedWorkerId === null ?",
+    "key={String(organizationId)",
+  ]) assert.ok(source.includes(token), "Missing 2316 tenant boundary: " + token);
+  assert.ok(!source.slice(worker, mount).includes("catch"),
+    "Source failure must not render an unverified worker or separation shell");
+  assert.doesNotMatch(source, /Number\(query\.employeeId\)|Number\(query\.separationId\)/);
+});
