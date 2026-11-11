@@ -98,10 +98,10 @@ jobs:
             echo "::add-mask::$value"
             echo "$key=$value" >> "$GITHUB_ENV"
           done
-      - name: Prepare disposable PostgreSQL 16 schema and reviewed baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Push fresh disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated database baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode Next on localhost fixture only
         run: npm run build
       - name: Start localhost production-mode Next
