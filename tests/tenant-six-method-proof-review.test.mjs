@@ -817,9 +817,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
+  const frozenCovered = 367 + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
+  const frozenPublic = 7 + architecturePublic.length;
+  const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
+  const frozenGaps = 21 - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits
+    - architecturePublic.length - 1;
+  assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
+    "The original frozen batch population must not change");
+  assert.equal(frozenGaps, m.metrics.gap, "The classification may not hide other remaining method GAPs");
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-04 proposal): **" + (367 + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits) + " COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + (21 - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits) + " GAP = 406**"),
-    "Current frozen subtotal includes three sealed solo-development method credits and retains unrelated GAPs");
+    "Frozen subtotal (2026-11-11 classification proposal): **" + frozenCovered + " COVERED + "
+    + frozenPublic + " PUBLIC-BY-DESIGN + " + frozenPrivileged
+    + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + frozenGaps + " GAP = 406**"),
+    "Current frozen subtotal must preserve prior credits while tracking only nine relabels");
   assert.ok(plan.includes("ZERO CREDITS / NOT ACCEPTED"));
 
   // When a full checkout has origin/main, also verify that it agrees with the
