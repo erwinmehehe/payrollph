@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const pageProbe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
@@ -11,7 +12,7 @@ test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", 
   assert.deepEqual(covered.map((p) => p.path),
     ["src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx",
       "src/app/hcm/manager-decision-inbox/page.tsx",
-      "src/app/hcm/manager-direct-reports/page.tsx", "src/app/hcm/worker-360/page.tsx"]);
+      "src/app/hcm/manager-direct-reports/page.tsx"]);
   assert.equal(covered[1].testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
   assert.equal(covered[2].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
   assert.equal(covered[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
@@ -21,7 +22,9 @@ test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", 
   assert.match(pageProbe, /ownRes\.text\.includes\(f\.ownedEmployees\[idx - 1\]\.employeeNo\)/);
   assert.match(pageProbe, /expectStatus\(foreignRes, 404,/);
   assert.match(pageProbe, /!ownRes\.text\.includes\("Workspace unavailable"\)/);
-  assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 16);
+  assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 17);
+  assert.equal(verifyWorker360PageCredit(m), 17,
+    "Worker 360 current-source history must remain GAP without credited proof");
   assert.match(harness, /await \(await import\("\.\/tenant-scoped-page-probes\.mjs"\)\)\.probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\);/);
   assert.match(pageProbe, /for \(const page of pages\)/);
   assert.match(pageProbe, /for \(const idx of \[1, 2\]\)/);

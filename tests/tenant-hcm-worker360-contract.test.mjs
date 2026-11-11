@@ -216,7 +216,8 @@ test("SSR foreign-worker denial is independently exercised for BOTH legitimate e
     "await unchanged(\"final readonly database snapshot\")",
     "assert.equal(ownedPages, 5",
     "assert.equal(foreignDenials, 12",
-    "assert.equal(deniedCases, 44",
+    "assert.equal(ownedApi, 9",
+    "assert.equal(deniedCases, 46",
   ]) assert.ok(runner.includes(evidence), "Missing strict two-employer SSR evidence: " + evidence);
   assert.ok(runner.indexOf("requireDisposableWorker360Env();") <
     runner.indexOf('import("../../src/db/index.ts")'),

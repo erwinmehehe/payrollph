@@ -22,7 +22,7 @@ import { verifyPost1523Credits } from "../scripts/qa/tenant-post1523-credit-veri
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
-import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -3792,6 +3792,27 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return;
   }
 
+  // Worker 360's changed legal-employer authorization and history projection
+  // invalidate its organization-only GET receipt. Permit exactly this
+  // source-pinned, zero-credit GAP; never promote it from a denial-only proof.
+  if (isNewOrChanged && key === "src/app/api/hcm/worker-360/route.ts GET") {
+    assert.equal(currentBlob, "19875021d750b722fc69e0fe939e57928a158af9");
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.match(method.reason, /^LEGAL_EMPLOYER_SOURCE_CHANGE:/);
+    const hold = method.reviewedUncertified;
+    assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
+    assert.equal(hold?.oldSourceBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
+    assert.equal(hold?.newSourceBlobSha, currentBlob);
+    assert.equal(hold?.historicalProof?.file, "scripts/qa/tenant-table-http.mjs");
+    assert.equal(hold?.coverageCredits, 0);
+    assert.equal(hold?.exactHeadPg16Http, "PENDING");
+    assert.equal(hold?.independentSecurityReview, "PENDING");
+    assert.equal(hold?.productionCertified, false);
+    assert.equal(verifyWorker360PageCredit(manifest), 17);
+    return;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
@@ -7389,6 +7410,27 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(verifyUnacceptedSelfSchedulePage({
           entry, currentBlob: current, originalBlob: baseline.app[path], manifest,
         }), true);
+        continue;
+      }
+      // Exact-source revised Worker 360 SSR has lost its historical page
+      // credit; the new legal-employer acceptance is still independent-review
+      // pending. Never require a false "COVERED" state to appease inventory.
+      if (path === "src/app/hcm/worker-360/page.tsx") {
+        assert.equal(current, "3b506b27e0af73ec370c448c6a0ad02a80c8f75c");
+        assert.equal(entry.blob, current);
+        assert.equal(entry.status, "GAP");
+        assert.equal(entry.testedBy, undefined);
+        assert.match(entry.reason, /^LEGAL_EMPLOYER_SOURCE_CHANGE:/);
+        const hold = entry.reviewedUncertified;
+        assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
+        assert.equal(hold?.oldSourceBlobSha, "337034f839c17a30077e2cfe5991c640e0c6a5e9");
+        assert.equal(hold?.newSourceBlobSha, current);
+        assert.equal(hold?.historicalProof?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
+        assert.equal(hold?.coverageCredits, 0);
+        assert.equal(hold?.exactHeadPg16Http, "PENDING");
+        assert.equal(hold?.independentSecurityReview, "PENDING");
+        assert.equal(hold?.productionCertified, false);
+        assert.equal(verifyWorker360PageCredit(manifest), 17);
         continue;
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
