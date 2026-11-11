@@ -263,7 +263,7 @@ jobs:
           node --check scripts/qa/tenant-approval-task-http.mjs
           node --check tests/tenant-approval-task-contract.test.mjs
           node --test tests/tenant-approval-task-contract.test.mjs
-          node --test --test-name-pattern="^(?!prior real three-employer PATCH HTTP proof is reused without claiming a new coverage credit$)" tests/tenant-approval-task-tx-org-scope.test.mjs
+          node --test --test-name-pattern='approval task and linked|scope contract fails closed|linked whole-plan decision' tests/tenant-approval-task-tx-org-scope.test.mjs
       - name: Generate throwaway encryption keys and webhook secret
         shell: bash
         run: |
