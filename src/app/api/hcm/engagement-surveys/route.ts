@@ -6,6 +6,7 @@ import {
 import { assertMembership, getAccess, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { employeeBoundToEngagementEmployer } from "@/lib/tenant-engagement-employee-scope";
 import {
   closedSurveyDisclosure, closeEngagementSurvey, createEngagementSurveyWithAudit,
   isOpenSurveyConflict, listSurveysForTenant, submitAnonymousSurveyRating,
@@ -45,7 +46,11 @@ export async function GET(request: Request) {
     );
     if (adminDenied) return adminDenied;
   }
-  const canParticipate = role === "employee" && Number.isSafeInteger(session.employeeId) && Boolean(session.employeeId);
+  // A membership in B cannot turn an account linked to employer A's worker
+  // into a B employee, or expose B's private survey questions and status.
+  const canParticipate = role === "employee" &&
+    typeof session.employeeId === "number" &&
+    await employeeBoundToEngagementEmployer(session.id, session.employeeId, organizationId);
   if (!canAdminister && !canParticipate) return Response.json({ error: "Forbidden." }, { status: 403 });
 
   const surveys = await listSurveysForTenant(organizationId);
@@ -90,7 +95,9 @@ export async function POST(request: Request) {
   });
   if (rateDenied) return rateDenied;
   if (action === "answer") {
-    if (gate.access!.role !== "employee" || !session.employeeId) {
+    if (gate.access!.role !== "employee" ||
+        typeof session.employeeId !== "number" ||
+        !await employeeBoundToEngagementEmployer(session.id, session.employeeId, organizationId)) {
       return Response.json({ error: "Only linked employee accounts can submit a response." }, { status: 403 });
     }
     const surveyId = Number(body.surveyId);

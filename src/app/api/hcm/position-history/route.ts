@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import {
-  denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
+  denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerSingleQueryId,
 } from "@/lib/hcm-org-explorer-access";
 import { loadHcmPositionHistory } from "@/lib/hcm-org-explorer-server";
 
@@ -16,8 +16,9 @@ export async function GET(request: Request) {
   if (!user) return hcmOrgExplorerJson({ error: "Authentication required." }, 401);
 
   const params = new URL(request.url).searchParams;
-  const organizationId = hcmOrgExplorerPositiveId(params.get("organizationId"));
-  const positionId = hcmOrgExplorerPositiveId(params.get("positionId"));
+  // Never select an employer or position from the first of multiple values.
+  const organizationId = hcmOrgExplorerSingleQueryId(params, "organizationId");
+  const positionId = hcmOrgExplorerSingleQueryId(params, "positionId");
   if (!organizationId || !positionId) {
     return hcmOrgExplorerJson({ error: "Valid organizationId and positionId required." }, 400);
   }
