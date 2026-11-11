@@ -13,9 +13,9 @@ export const HISTORY = "/api/hcm/position-history";
 
 export const SOURCE_PINS = Object.freeze({
   "src/app/hcm/org-explorer/page.tsx": "89df291ced721e908d1c3023b8ec8c94919f479c",
-  "src/app/api/hcm/org-explorer/route.ts": "09d8ee08b74f3e8235ae6a4b06537ccd20121a72",
-  "src/app/api/hcm/position-history/route.ts": "0eb927272ee9dc2b68ad57a1012d17c7b2e53653",
-  "src/lib/hcm-org-explorer-access.ts": "5a1b261812e4f0576a1c2559e2d479837abdb8e7",
+  "src/app/api/hcm/org-explorer/route.ts": "a40510cf4756cffc16edbcaef87aae849d934bf8",
+  "src/app/api/hcm/position-history/route.ts": "15ebfaf0232502e07d7b8531f6df17620654652c",
+  "src/lib/hcm-org-explorer-access.ts": "0568e94f76c59eec8b0d2f3d6e6098575a61342f",
   "src/lib/hcm-org-explorer-server.ts": "7565fc1f8f17e1655479f4a82603d7876164181d",
   "src/lib/hcm-org-explorer-projection.ts": "b345695fbe8b5eb81af4ceef73224dd53b57f314",
   "src/lib/hcm-enterprise-plan-server.ts": "b436a61f091871e02bb662393429667cadb71b35",
@@ -45,11 +45,14 @@ export function verifySources(read = readFileSync) {
     "ORG_EXPLORER_PROOF_REFUSED: SSR boundary removed " + needle);
   for (const source of [graph, history]) {
     for (const needle of ["getSessionUser()", "hcmOrgExplorerEnabledForEmployer(organizationId)",
-      "denyHcmOrgExplorer(user.id, organizationId)", "denyOptInEnterpriseHcmPlan(organizationId)"]) {
+      "denyHcmOrgExplorer(user.id, organizationId)", "denyOptInEnterpriseHcmPlan(organizationId)",
+      'hcmOrgExplorerSingleQueryId(params, "organizationId")']) {
       assert.ok(source.includes(needle),
         "ORG_EXPLORER_PROOF_REFUSED: API access boundary removed " + needle);
     }
   }
+  assert.ok(history.includes('hcmOrgExplorerSingleQueryId(params, "positionId")'),
+    "ORG_EXPLORER_PROOF_REFUSED: position selection may not use first duplicate key");
   for (const needle of [
     "eq(orgUnits.organizationId, organizationId)",
     "eq(positions.organizationId, organizationId)",
