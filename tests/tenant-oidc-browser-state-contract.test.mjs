@@ -20,10 +20,16 @@ const safe = {
   XENDIT_BILLING_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
   PAYMONGO_DISBURSEMENTS_ENABLED: "false",
   EMPLOYEE_DOCUMENT_VAULT_ENABLED: "false",
+  ENTERPRISE_IDENTITY_ENCRYPTION_KEY: "11".repeat(32), // fictional 32-byte key, not a credential
 };
 
 test("browser-state runner refuses hosted databases, providers, workers and production targets", () => {
   assert.equal(requireDisposableOidcBrowserEnv(safe), true);
+  for (const key of [undefined, "", "11".repeat(31), "z".repeat(64), "11".repeat(33)]) {
+    assert.throws(() => requireDisposableOidcBrowserEnv({
+      ...safe, ENTERPRISE_IDENTITY_ENCRYPTION_KEY: key,
+    }), /OIDC_BROWSER_REFUSED/, "invalid synthetic PKCE encryption key");
+  }
   for (const [key, value] of Object.entries({
     GITHUB_ACTIONS: "false",
     NODE_ENV: "development",
@@ -39,6 +45,7 @@ test("browser-state runner refuses hosted databases, providers, workers and prod
     RESEND_API_KEY: "fake",
     XENDIT_SECRET_KEY: "fake",
     SMTP_PASSWORD: "fake",
+    ENTERPRISE_IDENTITY_ENCRYPTION_KEY: "malformed",
   })) assert.throws(
     () => requireDisposableOidcBrowserEnv({ ...safe, [key]: value }),
     /OIDC_BROWSER_REFUSED/,
