@@ -799,8 +799,29 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const checkoutCredits = verifyCheckoutCredit(m);
   assert.equal(expectedStatuses[CHECKOUT_PATH].POST, 'GAP');
   expectedStatuses[CHECKOUT_PATH].POST = 'COVERED';
+  // The Worker 360 GET was formerly credited only for parent-organization
+  // isolation. Its source now adds legal-employer checks, so that historical
+  // method receipt may not certify the new route until exact-head PG16 proof.
+  const worker360Path = "src/app/api/hcm/worker-360/route.ts";
+  assert.equal(expectedStatuses[worker360Path].GET, "COVERED",
+    "Frozen main snapshot must preserve the previously credited GET");
+  const worker360File = m.allApiRouteFiles[worker360Path];
+  const worker360Get = worker360File.methods.find(entry => entry.name === "GET");
+  assert.equal(worker360File.gitBlobSha, "19875021d750b722fc69e0fe939e57928a158af9");
+  assert.equal(blobSha(worker360Path), worker360File.gitBlobSha);
+  assert.equal(worker360Get.status, "GAP");
+  assert.equal(worker360Get.testedBy, null);
+  assert.equal(worker360Get.reviewedUncertified?.kind,
+    "worker360-legal-employer-source-supersession-zero-credit");
+  assert.equal(worker360Get.reviewedUncertified?.oldSourceBlobSha,
+    "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
+  assert.equal(worker360Get.reviewedUncertified?.historicalProof?.file,
+    "scripts/qa/tenant-table-http.mjs");
+  assert.equal(worker360Get.reviewedUncertified?.coverageCredits, 0);
+  assert.equal(worker360Get.reviewedUncertified?.independentSecurityReview, "PENDING");
+  expectedStatuses[worker360Path].GET = "GAP";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves inherited receipts plus separately sealed filing PATCH and checkout credits");
+    "Preserves inherited receipts with only the exact Worker 360 supersession demoted");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + birCandidateCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits + invitationAcceptCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
@@ -808,6 +829,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   };
   expectedCounts.COVERED += approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
   expectedCounts.GAP -= approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
+  // Exactly one source-invalidated Worker 360 method returns to GAP, not an unearned credit.
+  expectedCounts.COVERED -= 1;
+  expectedCounts.GAP += 1;
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   expectedCounts.GAP -= ownerTokenClassifications.length;
