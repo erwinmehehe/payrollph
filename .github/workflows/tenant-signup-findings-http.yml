@@ -180,12 +180,12 @@ jobs:
               exit 0
             fi
             if ! kill -0 "$server" 2>/dev/null; then
-              cat /tmp/tenant-prelogin-next.log
+              cat /tmp/tenant-signup-next.log
               exit 1
             fi
             sleep 2
           done
-          cat /tmp/tenant-prelogin-next.log
+          cat /tmp/tenant-signup-next.log
           exit 1
       - name: Prove RED on main and GREEN on this pull request against localhost PG16
         shell: bash
@@ -205,4 +205,4 @@ jobs:
       - name: Show localhost-only diagnostic log on failure
         if: failure()
         run: |
-          cat /tmp/tenant-prelogin-next.log || true
+          cat /tmp/tenant-signup-next.log || true
