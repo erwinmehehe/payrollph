@@ -44,8 +44,10 @@ export function readSecurityEvidence(read=readFileSync){
       catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
     }
     else if(file==='src/lib/automation.ts'){
-      assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Original security-write receipt source seal changed');
-      verifyNarrowStudioAutomationSource(read);
+      try {
+        assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Original security-write receipt source seal changed');
+        verifyNarrowStudioAutomationSource(read);
+      } catch(cause){throw new Error('Security source/proof drift: '+file,{cause});}
     } else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
   }
   for(const t of r.targets){assert.equal(t.evidence.routeBlobSha,r.pins[t.path]);assert.equal(t.evidence.proofBlobSha,r.pins[t.evidence.file]);
