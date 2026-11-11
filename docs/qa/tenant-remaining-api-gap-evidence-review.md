@@ -44,7 +44,7 @@ signature is implied.
 | GET /api/auth/sso/callback | State consumption, provider code exchange and account linking require a complete mocked IdP positive and cross-employer/forged-state proof. | HOLD; identity/security review required |
 | POST /api/auth/sso/resolve | Verified email-domain provider join now enforces same employer and has a fictional PG16 candidate. Anonymous discovery discloses enabled provider metadata; public policy and exact-head review remain unresolved. | HOLD; no anonymous discovery promotion |
 | GET /api/auth/sso/start | Verified provider/domain check and OIDC state creation exist, but no full successful paired start/callback proof with unchanged victim state. | HOLD |
-| POST /api/automation-studio | Existing source-specific triage and draft proof cover only subsets of a multi-action dispatcher; active PR #1918 is still partial relative to entire POST. | HOLD; all action branches need same-method proof |
+| POST /api/automation-studio | Existing source-specific triage and draft proof, including merged PR #1918, cover only subsets of a multi-action dispatcher; the separately open PR #1922 does not itself establish whole-method coverage. | HOLD; all action branches need same-method proof |
 | POST /api/hcm/work-items/escalate | Global multi-employer cron-token worker; tenant-attributed events/outbox. | **Token-only candidate**, not COVERED; approval required |
 | POST /api/intake-challenge | Public non-tenant email-proof issuance when enabled; source-only and helper-level replay evidence. | **Public candidate**, not COVERED; approval required |
 | GET /api/marketing/leads | Merged #1848 demonstrates an allowlisted MFA-scoped **platform-wide** aggregate (not a foreign-tenant report); grouped campaign/UTM dimensions need separate de-identification review. | HOLD; not public and not token-only without a new reviewed classification |
@@ -55,6 +55,39 @@ signature is implied.
 | POST /api/signup/resend | Anonymous verification resends require generic-response enumeration safety, no cross-account email misuse, authorized queued-mail proof, and unchanged other-account SQL. | HOLD |
 | POST /api/signup | Public new-workspace creation; current rate-limit hardening is not whole-method transactional own/foreign proof. | HOLD |
 | POST /api/signup/verify | One-time token activates a user/subscription/session and writes audit state; requires full successful token lifecycle, replay/foreign-account denial and unchanged-victim checks. | HOLD |
+
+## Independent review and cross-PR merge gates (not approved)
+
+This is an **evidence review**, not the authority to change any classification.
+Source inspection, a green CI run, the repository owner's authorship, or the
+`SOLO_VERIFIED_DEV_RECOVERY` label must not be recorded as independent
+product/security/identity/operations acceptance.
+
+| Decision required | Responsible independent review | Current disposition |
+|---|---|---|
+| Anonymous global setup-state disclosure (`GET /api/setup`) | Product + security/privacy | **PENDING**; retain GAP in this branch |
+| Public email-bound challenge issuance (`POST /api/intake-challenge`) | Product + identity/privacy/security/anti-abuse | **PENDING**; retain GAP in this branch |
+| Global bearer-token HCM escalation (`POST /api/hcm/work-items/escalate`) | Operations + security | **PENDING**; retain GAP in this branch |
+| Public SAML provider metadata disclosure (`GET /api/auth/saml/metadata/[providerId]`) | Identity + security/privacy | **PENDING**; separate decision, not bundled |
+| Remaining public and token-only labels proposed in PR #1921 | Product/identity/security/operations, as applicable | **PENDING**; no approvals inferred |
+
+**Mutually exclusive current branches:** [PR #1921](https://github.com/erwinmehehe/payrollph/pull/1921)
+proposes reclassifying all three methods guarded as `GAP` by this PR, as
+part of nine total zero-credit architectural changes. Therefore **do not
+squash-merge both unchanged in either order**. Choose the policy outcome
+first: (a) keep these methods GAP and retain this strict, source-pinned
+negative guard, or (b) independently approve #1921 with accepted source
+and method-specific HTTP evidence, then supersede/close this review-only
+PR or independently revise this guard to assert the approved disposition.
+Never simply widen an allowlist to make a red check green.
+
+**Review evidence still required:** recorded owner decisions with scope and
+rationale; exact-head focused source-seal test; current-head regression/CI,
+CodeQL and security checks; applicable real local disposable PG16/HTTP
+proofs for an accepted classification; consistent manifest, inventory and
+historical proof guards **in the separate authorized change**. Any changed
+source SHA, method ledger, or missing proof must reopen review. No runtime,
+production, identity, payment or provider activation is authorized here.
 
 ## Required next actions, in review order
 
