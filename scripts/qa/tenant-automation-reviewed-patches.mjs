@@ -28,4 +28,3 @@ const DEACTIVATE_AFTER="  if (action.type === \"deactivate_access\") {\n    if (
 function one(source,now,old){assert.equal(source.split(now).length,2,'Reviewed automation patch changed');return source.replace(now,old);}
 export function restoreRecoveryPatch(source){for(const [now,old] of REVIEWED_EDITS)source=one(source,now,old);return source;}
 export function restoreSessionPatch(source){source=one(source,IMPORT_AFTER.slice(IMPORT_BEFORE.length+1)+'\n','');for(const [now,old] of [[REVOKE_AFTER,REVOKE_BEFORE],[DEACTIVATE_AFTER,DEACTIVATE_BEFORE]])source=one(source,now,old);return source;}
-

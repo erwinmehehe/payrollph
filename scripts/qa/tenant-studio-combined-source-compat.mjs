@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import {restoreRecoveryPatch,restoreSessionPatch} from './tenant-automation-reviewed-patches.mjs';
 export const COMBINED_AUTOMATION_SHA='edb8330bc19362fb6828247eeddfb2f0c6169795';
 export const COMBINED_PROOF_PINS=Object.freeze({
- 'scripts/qa/tenant-automation-reviewed-patches.mjs':'ce1bf354bb5c27b83a0ad1480c4b20ca2ca3f496',
+ 'scripts/qa/tenant-automation-reviewed-patches.mjs':'5fe8b2477613e6b50b86e79c1e69de79d1ac5d78',
  'src/lib/automation-recovery-scope.ts':'ff3dddff0e7ddea20a7be24792d84503a540202e',
  'src/lib/automation-employee-account-boundary.ts':'4b66410789ec536482d63d9d58c5df1b17b38746',
  'scripts/qa/tenant-studio-recovery-scope-http.mjs':'5ed183ec0560ae4ccc53f56f4652a2d66d782e1e',
