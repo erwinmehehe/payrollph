@@ -108,6 +108,7 @@ try {
 
   await check("normal registered-versus-new status/body/headers/timing", async () => {
     const email = "signup-new-" + suffix + "@example.invalid";
+    const bootBefore = await userByEmail(bootEmail);
     const fresh = await signup(email);
     const existing = await signup(bootEmail);
     assert.equal(fresh.status, 202);
@@ -115,6 +116,7 @@ try {
     assertSamePublicAnswer(fresh, existing, "normal signup");
     assert.equal(mailedTokens(inbox, email).length, 1, "mail only to applicant");
     assert.equal(mailedTokens(inbox, bootEmail).length, 0, "no mail to verified foreign address");
+    assert.equal((await userByEmail(bootEmail)).passwordHash, bootBefore.passwordHash, "verified account password unchanged");
   });
   await check("expired unverified squatting has bounded recovery, no pending takeover", async () => {
     const email = "signup-squat-" + suffix + "@example.invalid";
@@ -142,6 +144,10 @@ try {
       createdAt: new Date(Date.now() - 25 * 60 * 60_000),
       expiresAt: new Date(Date.now() - 24 * 60 * 60_000),
     }).where(eq(saasSignupVerifications.id, verification.id));
+    const beforeStaleResend = inbox.length;
+    const staleResend = await req("/api/signup/resend", { body: { email } });
+    assert.equal(staleResend.status, 200);
+    assert.equal(inbox.length, beforeStaleResend, "resend must not prolong an expired pending registration");
 
     const recovered = await signup(email, { company: "Fictional Actual Mailbox Owner" });
     assert.equal(recovered.status, 202);
@@ -164,6 +170,27 @@ try {
     assertNoSession(replay, "token replay");
     assert.equal((await userByEmail(email)).id, after.id, "verified account cannot be replaced by token replay");
     assert.equal(mailedTokens(inbox, email).length, 2, "no unexpected email after verification");
+  });
+  await check("resend rotates an unexpired pending token only once", async () => {
+    const email = "signup-resend-" + suffix + "@example.invalid";
+    const first = await signup(email);
+    assert.equal(first.status, 202);
+    const firstToken = mailedTokens(inbox, email)[0];
+    assert.ok(firstToken);
+    const res = await req("/api/signup/resend", { body: { email } });
+    assert.equal(res.status, 200);
+    const nextTokens = mailedTokens(inbox, email);
+    assert.equal(nextTokens.length, 2);
+    assert.notEqual(nextTokens[0], nextTokens[1]);
+    const invalid = await req("/api/signup/verify", { body: { token: firstToken } });
+    assert.equal(invalid.status, 422);
+    assertNoSession(invalid, "superseded token");
+    const current = await req("/api/signup/verify", { body: { token: nextTokens[1] } });
+    assert.equal(current.status, 200);
+    const mailed = inbox.length;
+    const verifiedResend = await req("/api/signup/resend", { body: { email } });
+    assert.equal(verifiedResend.status, 200);
+    assert.equal(inbox.length, mailed, "verified account never receives resend mail");
   });
   await check("concurrent registrations cannot create two active email owners", async () => {
     const email = "signup-race-" + suffix + "@example.invalid";
