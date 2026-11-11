@@ -22,8 +22,41 @@ const rows = manifest => new Map(Object.entries(manifest.allApiRouteFiles)
   .flatMap(([path, route]) => route.methods.map(method =>
     [method.name + " " + path, { path, route, method }])));
 
+export const OWNER_APPROVAL_FILE = "docs/qa/tenant-1921-owner-approval.json";
+export const OWNER_APPROVAL_BLOB = "455769a992caba1ebcaa04b0999625db6ead07ce";
+export function readArchitecturalOwnerApproval(assert, read = readFileSync) {
+  const bytes = Buffer.from(read(OWNER_APPROVAL_FILE));
+  const actual = createHash("sha1").update("blob " + bytes.length + "\0").update(bytes).digest("hex");
+  assert.equal(actual, OWNER_APPROVAL_BLOB, "Owner decision changed: require explicit scope review");
+  const record = JSON.parse(bytes.toString("utf8"));
+  assert.equal(record.schema, "payrollph-owner-classification-approval-v1");
+  assert.equal(record.pullRequest, 1921);
+  assert.equal(record.status, "APPROVED");
+  assert.equal(record.ownerLogin, "erwinmehehe");
+  assert.equal(record.approvedOn, "2026-11-11");
+  assert.equal(record.authorization.response, "Approve the nine labels");
+  assert.equal(record.authorization.notIndependentCertification, true);
+  assert.deepEqual(record.scope, { newTenantCoveredCredits: 0, runtimeGuardChanges: false,
+    productionActivation: false, externalProviderCalls: false, independentSecurityCertification: false });
+  assert.deepEqual(record.reviewedPacket, {
+    commit: "de3f8cc869d280950e1aea68c1083a33bf1e97f0",
+    path: "docs/qa/tenant-1921-classification-decision.md",
+    gitBlobSha: "48e6faef2567440b350f19a102ecc0110407d634",
+  });
+  const expected = new Map([...PUBLIC.map(([path, verb]) => [verb + " " + path, "PUBLIC-BY-DESIGN"]),
+    [WORKER, "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]]);
+  assert.equal(record.classifications.length, 9);
+  assert.deepEqual(record.classifications.map(row => row.method + " " + row.path).sort(), [...expected.keys()].sort());
+  for (const row of record.classifications) {
+    assert.equal(row.classification, expected.get(row.method + " " + row.path));
+    assert.equal(row.routeBlobSha, sha(row.path), "Owner approval cannot authorize changed route bytes");
+  }
+  return record;
+}
+
 /** Base may already contain these accepted classifications, so post-merge delta is zero. */
 export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterManifest) {
+  const approval = readArchitecturalOwnerApproval(assert);
   const before = rows(beforeManifest), after = rows(afterManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
@@ -48,8 +81,9 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
       assert.equal(evidence?.methodCoverageCredits, 0, key);
       assert.equal(evidence?.independentSecurityReview, "PENDING", key);
       assert.equal(evidence?.productionCertified, false, key);
-      assert.equal(evidence?.classificationApproval, "PENDING", "No owner classification approval recorded: " + key);
-      assert.equal(evidence?.approvedOn, undefined, "Pending proposal cannot fabricate an approval date");
+      assert.equal(evidence?.classificationApproval, "OWNER_APPROVED", key);
+      assert.equal(evidence?.approvedOn, approval.approvedOn, "Approval date must match the recorded owner decision");
+      assert.deepEqual(evidence?.ownerApprovalRecord, { file: OWNER_APPROVAL_FILE, blobSha: OWNER_APPROVAL_BLOB }, key);
       assert.equal(evidence?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY", key);
       if (key.includes("/auth/saml/")) {
         assert.equal(evidence.category, "disabled-public-SAML-uniform-refusal", key);
@@ -80,9 +114,10 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
       assert.equal(evidence?.methodCoverageCredits, 0, key);
       assert.equal(evidence?.independentSecurityReview, "PENDING", key);
       assert.equal(evidence?.productionCertified, false, key);
-      assert.equal(evidence?.classificationApproval, "PENDING", key);
-      assert.equal(evidence?.approvedOn, undefined, "Pending proposal cannot fabricate an approval date");
-      assert.equal(evidence?.classification, "PROPOSED", key);
+      assert.equal(evidence?.classificationApproval, "OWNER_APPROVED", key);
+      assert.equal(evidence?.approvedOn, approval.approvedOn, key);
+      assert.deepEqual(evidence?.ownerApprovalRecord, { file: OWNER_APPROVAL_FILE, blobSha: OWNER_APPROVAL_BLOB }, key);
+      assert.equal(evidence?.classification, "RECLASSIFIED", key);
       assert.equal(evidence?.requiredHeader, "authorization", key);
       assert.equal(evidence?.headerForm, "Bearer", key);
       assert.equal(evidence?.denialStatus, 401, key);

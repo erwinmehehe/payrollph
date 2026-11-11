@@ -1,8 +1,8 @@
-# Non-session GAP triage — proposals only
+# Non-session GAP triage — historical proposals and decisions
 
 Source baseline: `origin/main` at `f9ea6c15a2e0f155a849016f23ab0e3c94489cb3` (2026-10-26).
 
-**36 methods reviewed; zero coverage credits, zero manifest classification changes, zero owner approvals.** Runtime verification for these candidates is **NOT_RUN**. No provider, live database, email, credential or production operation was performed. This document does not authorize activation or close any GAP.
+**Historical baseline: 36 methods reviewed; zero coverage credits, zero manifest classification changes, zero owner approvals.** Runtime verification at that snapshot was **NOT_RUN**. Later #1921 evidence and the exact nine-label owner decision are recorded below. No provider, live database, email, credential or production operation was performed by this triage. It authorizes no activation or tenant-private coverage credit.
 
 The selection is GAP methods whose route record has no SESSION employer source. Normalize both manifest representations: arrays use `includes("SESSION")`; objects use `.session === true`. This produces 36 methods on this baseline, rather than the earlier estimate of 49. A static missing SESSION marker is not proof that a route is anonymous: logout, for example, consumes a session cookie. Already COVERED SCIM/API methods are outside this audit.
 
@@ -72,9 +72,14 @@ Resend's [stored-message update](../../src/lib/mailer.ts#L515) derives audit org
 
 Current #1921 proposal: [the nine-method decision packet](tenant-1921-classification-decision.md)
 lists the exact returned fields, stored writes, credentials and unclosed risks.
-All nine decisions remain **PENDING**. This supplements the historical 36-row
-snapshot below; it does not approve any classification or close another GAP.
+The owner approved **C01–C09 on 2026-11-11** with the explicit response
+“Approve the nine labels”; the [exact approval record](tenant-1921-owner-approval.json)
+pins the nine methods, reviewed sources and zero-credit/no-activation scope.
+This supplements the historical 36-row snapshot below and approves no other labels.
 
-All 36 decisions: **PENDING**. Recommended next engineering work is a disposable two-key journal fixture and local inbound webhook fixtures with providers disabled, each as a separately scoped proof PR. Public-catalogue/intake proposals require explicit owner acceptance of the exact disclosed/written fields and privacy/anti-abuse boundary. Privileged jobs remain privileged; no scheduler execution is authorized by this triage.
+Historical 2026-10-26 snapshot: all 36 decisions were **PENDING**. Current #1921 owner approval covers only C01–C09 above; other methods retain their own existing or future evidence/approval requirements. Public-catalogue/intake proposals require explicit owner acceptance of the exact disclosed/written fields and privacy/anti-abuse boundary. Privileged jobs remain privileged; no scheduler execution is authorized by this triage.
 
-No rows are reclassified, no GAP is closed, and no estimated recoverable-method count is asserted by this document. Preserve all 36 existing GAP statuses until the appropriate proof or approved classification change lands.
+The original snapshot granted no classifications or coverage. The nine approved
+#1921 labels may land only through their reviewed source-bound PR and passing
+CI; they grant no tenant-private COVERED credit or production authority. All
+other method statuses require their own proof or approved classification change.

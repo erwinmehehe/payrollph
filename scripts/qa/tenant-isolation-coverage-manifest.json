@@ -1531,7 +1531,12 @@
             "activeSamlLoginProven": false,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -1603,7 +1608,12 @@
             "activeSamlLoginProven": false,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -16847,14 +16857,19 @@
             "proofBlobSha": "823c27150d75d1bdd630ec914b7c0efc4565b7de",
             "contractFile": "tests/tenant-hcm-sla-escalate-contract.test.mjs",
             "contractBlobSha": "17a56b928916bee468b3bca339e215029b92df12",
-            "classification": "PROPOSED",
+            "classification": "RECLASSIFIED",
             "methodCoverageCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
             "proposedOn": "2026-11-11",
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -17966,7 +17981,12 @@
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -31331,7 +31351,12 @@
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         },
         {
@@ -31353,7 +31378,12 @@
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -31413,7 +31443,12 @@
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -31497,7 +31532,12 @@
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],
@@ -31589,7 +31629,12 @@
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
-            "classificationApproval": "PENDING"
+            "classificationApproval": "OWNER_APPROVED",
+            "approvedOn": "2026-11-11",
+            "ownerApprovalRecord": {
+              "file": "docs/qa/tenant-1921-owner-approval.json",
+              "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce"
+            }
           }
         }
       ],

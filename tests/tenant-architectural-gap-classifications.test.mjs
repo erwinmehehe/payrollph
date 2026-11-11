@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { verifyArchitecturalRelabelDelta } from "./helpers/tenant-architectural-classification-delta.mjs";
+import { verifyArchitecturalRelabelDelta, readArchitecturalOwnerApproval, OWNER_APPROVAL_FILE } from "./helpers/tenant-architectural-classification-delta.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const prelogin = [
@@ -102,6 +102,30 @@ test("all classifications reconcile dynamically, without silently crediting any 
   assert.match(manifest.acceptanceStatus, new RegExp("^NOT ACCEPTED: " + tally.GAP + " API methods"));
 });
 
+
+test("the recorded owner decision cannot be expanded into credits, other methods or activation", () => {
+  const record = readArchitecturalOwnerApproval(assert);
+  assert.equal(record.classifications.length, 9);
+  assert.equal(record.authorization.response, "Approve the nine labels");
+  for (const mutate of [
+    r => r.ownerLogin = "someone-else",
+    r => r.approvedOn = "2099-12-31",
+    r => r.authorization.response = "not approved",
+    r => r.scope.productionActivation = true,
+    r => r.scope.newTenantCoveredCredits = 1,
+    r => r.scope.independentSecurityCertification = true,
+    r => r.classifications.pop(),
+    r => r.classifications.push({ path: "unapproved", method: "GET", classification: "PUBLIC-BY-DESIGN" }),
+    r => r.classifications[0].routeBlobSha = "0".repeat(40),
+    r => r.classifications[0].classification = "COVERED",
+    r => r.reviewedPacket.commit = "0".repeat(40),
+  ]) {
+    const forged = structuredClone(record); mutate(forged);
+    assert.throws(() => readArchitecturalOwnerApproval(assert, path =>
+      path === OWNER_APPROVAL_FILE ? Buffer.from(JSON.stringify(forged)) : readFileSync(path)),
+      /Owner decision changed/);
+  }
+});
 const proposedMethods = [...prelogin, ...disabledSaml, worker];
 const candidate = (m, [path, verb]) => m.allApiRouteFiles[path].methods.find(row => row.name === verb);
 function historicalGaps() {
@@ -110,7 +134,7 @@ function historicalGaps() {
   return before;
 }
 
-test("the exact nine proposed labels reconcile once and remain source-validated after integration", () => {
+test("the exact nine owner-approved labels reconcile once and remain source-validated after integration", () => {
   assert.deepEqual(verifyArchitecturalRelabelDelta(assert, historicalGaps(), manifest),
     { gapRelabels: 9, publicByDesign: 8, privilegedTokenOnly: 1 });
   assert.deepEqual(verifyArchitecturalRelabelDelta(assert, manifest, manifest),
@@ -123,7 +147,9 @@ test("classification cannot invent coverage, approve itself, change source or re
     ["invented receipt", m => { candidate(m, prelogin[0]).testedBy = { file: "invented" }; }],
     ["changed source", m => { m.allApiRouteFiles[prelogin[0][0]].gitBlobSha = "0".repeat(40); }],
     ["wrong worker class", m => { candidate(m, worker).status = "PUBLIC-BY-DESIGN"; }],
-    ["invented approval date", m => { candidate(m, worker).privilegedOperation.approvedOn = "2026-11-11"; }],
+    ["invented approval date", m => { candidate(m, worker).privilegedOperation.approvedOn = "2099-12-31"; }],
+    ["missing approval record", m => { delete candidate(m, prelogin[0]).classificationEvidence.ownerApprovalRecord; }],
+    ["forged approval record", m => { candidate(m, prelogin[0]).classificationEvidence.ownerApprovalRecord.blobSha = "0".repeat(40); }],
     ["wrong worker credential", m => { candidate(m, worker).privilegedOperation.credentialEnvironment = "SESSION_COOKIE"; }],
     ["wrong worker proof", m => { candidate(m, worker).privilegedOperation.proofBlobSha = "0".repeat(40); }],
     ["wrong proof head", m => { candidate(m, prelogin[0]).classificationEvidence.proofHead = "0".repeat(40); }],

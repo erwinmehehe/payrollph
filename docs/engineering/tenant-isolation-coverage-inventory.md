@@ -1,6 +1,6 @@
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 
-> **DRAFT CLASSIFICATION PROPOSAL — owner approval pending:** Syncing preserves main's Studio credit; it does not approve the nine proposed labels.
+> **OWNER-APPROVED CLASSIFICATION SCOPE — CI/source merge pending:** The [2026-11-11 owner record](../qa/tenant-1921-owner-approval.json) approves exactly nine labels, zero new COVERED credits and no production activation. Main's merged Studio credit is preserved.
 >
 > **CURRENT 2026-11-11 — nine zero-credit architecture reclassifications; 7 API GAPs remain.** 498 methods = **456 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 7 GAP**; 16 page/action GAPs. Six pre-login public routes: [merged #1898 exact-source PG16 HTTP](https://github.com/erwinmehehe/payrollph/actions/runs/42777964271/job/129700836113); two disabled no-data SAML 503 routes: [merged #1896](https://github.com/erwinmehehe/payrollph/pull/1896); one HCM token-only scheduler with dedicated synthetic PG16 proof. All remain **zero new tenant-private COVERED credit** and do not certify SSO, paid signup, active SAML, providers, payroll, or production.
 

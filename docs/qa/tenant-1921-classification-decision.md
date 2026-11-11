@@ -1,6 +1,10 @@
-# #1921 classification decision — proposal, not approval
+# #1921 classification decision — owner-approved inventory scope
 
-Status: **OWNER DECISION PENDING**. Prepared from the route sources on main
+Status: **OWNER APPROVED C01–C09 on 2026-11-11**, by the explicit response
+“Approve the nine labels.” The [source-bound approval record](tenant-1921-owner-approval.json)
+records this decision and the original reviewed packet at commit `de3f8cc86`.
+This is an owner inventory decision, not an independent security certification.
+Prepared from the route sources on main
 `3cf1581f6988445b92c25eee9c3697014a852f2f`, integrated into #1921.
 No route or feature flag is changed by this proposal.
 
@@ -24,7 +28,8 @@ never earns a tenant-session method credit.
 
 ## Exact owner decisions
 
-All nine decisions below remain unchecked.
+The owner accepted all nine inventory classifications below. Existing guards,
+unclosed findings and separate production acceptance remain unchanged.
 
 | Decision | Method and proposed category | Disclosed fields / private writes | Boundary and explicit limits |
 |---|---|---|---|
@@ -38,15 +43,15 @@ All nine decisions below remain unchecked.
 | C08 | POST auth/saml/acs/[providerId] → PUBLIC-BY-DESIGN | Same uniform disabled 503 response. | No assertion acceptance, provider lookup, account activation or session creation. SAML metadata GET remains a separate GAP; its provider-existence disclosure is not approved here. |
 | C09 | POST hcm/work-items/escalate → PRIVILEGED-OPERATIONS-TOKEN-ONLY | Dedicated scheduler can update due operational cases, write scoped work-item events and queue notices to active company-wide staff of each stored case organization. Response contains `escalated` and `remainingMayExist`; notices contain the work-item number, no payroll details. | `HCM_SLA_CRON_SECRET` bearer authorization precedes DB connection. Global cross-employer processing is intentional service authority, not a signed-in employer permission. Existing scheduler proof checks genuine work, forbidden sessions/tokens, idempotency and unchanged forbidden SQL. This decision does not authorize running a live scheduler. |
 
-- [ ] C01 approved
-- [ ] C02 approved
-- [ ] C03 approved
-- [ ] C04 approved
-- [ ] C05 approved
-- [ ] C06 approved
-- [ ] C07 approved
-- [ ] C08 approved
-- [ ] C09 approved
+- [x] C01 approved
+- [x] C02 approved
+- [x] C03 approved
+- [x] C04 approved
+- [x] C05 approved
+- [x] C06 approved
+- [x] C07 approved
+- [x] C08 approved
+- [x] C09 approved
 
 ## Executed evidence and what was not rerun here
 
@@ -78,7 +83,8 @@ wrong worker credentials and altered certification claims.
 - [Disabled SAML response](../../src/lib/saml-disabled-boundary.ts)
 - [Scheduler authorization and writes](../../src/app/api/hcm/work-items/escalate/route.ts)
 
-Approval may cover all nine or an explicit subset. Unapproved labels must stay
-GAP on main. Until a decision is recorded, #1921 remains a draft regardless of
-green CI. Runtime guards, unresolved findings and separate production gates
-remain in force after any inventory decision.
+The recorded decision covers exactly C01–C09 and the pinned route sources.
+It grants zero COVERED credits and no permission to change runtime guards or
+activate production. Source merge still requires the final reviewed head's
+applicable CI/security checks. Runtime guards, unresolved findings and separate
+production gates remain in force.
