@@ -3792,6 +3792,65 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return;
   }
 
+  // This route changed the *within-company legal-employer* boundary, which
+  // historical cross-organization table proofs did not exercise. Preserve
+  // prior provisional organization credit only; new entity-scope proof is a
+  // separately pinned, unaccepted candidate and creates ZERO new credits.
+  if (isNewOrChanged && key.startsWith("src/app/api/discipline/route.ts ")) {
+    const route = "src/app/api/discipline/route.ts";
+    const original = "e61337e2419bb63eedecb09ce9021a60b855dd0d";
+    const changed = "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc";
+    assert.equal(baseline.api[route], original,
+      "Original organization-scoped discipline source cannot be redefined");
+    assert.equal(currentBlob, changed, "Changed legal-employer source needs renewed proof");
+    assert.equal(manifest.allApiRouteFiles[route].gitBlobSha, changed);
+    assert.equal(method.status, "COVERED", "Only historical organization scope remains provisional");
+    assert.ok(["GET", "POST", "PATCH"].includes(method.name));
+    assert.equal(method.testedBy?.file, method.name === "GET"
+      ? "scripts/qa/tenant-table-http.mjs" : "scripts/qa/tenant-write-table-http.mjs",
+      "Historical organization proof must be preserved without re-labelling as entity proof");
+    const reviewed = method.reviewedUncertified;
+    assert.deepEqual(reviewed, {
+      kind: "discipline-same-organization-legal-employer-PG16-review-only",
+      originalRouteBlobSha: original, routeBlobSha: changed,
+      historicalOrganizationOnlyProof: method.testedBy.file,
+      historicalProofIsNotLegalEmployerAcceptance: true,
+      proofFile: "scripts/qa/tenant-discipline-entity-http.mjs",
+      proofBlobSha: "696dad856c6cf3be0ef34e7705748661e407bc7b",
+      contractFile: "tests/tenant-discipline-case-boundary.test.mjs",
+      contractBlobSha: "af49b5497d3066dd6535d1393691155eeb79eabd",
+      workflowFile: ".github/workflows/tenant-discipline-entity-qa.yml",
+      workflowBlobSha: "1743cef8216d930f22e592193def0f99eb9303fb",
+      exactHeadPg16Http: "PENDING", independentSecurityReview: "PENDING",
+      legalEmployerMethodCredits: 0, productionCertified: false,
+    }, "No old HTTP receipt can certify same-organization legal-employer isolation");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Discipline entity proof changed; renew exact-head PG16 and independent review: " + file);
+    const source = readFileSync(route, "utf8");
+    const get = source.slice(source.indexOf("export async function GET("),
+      source.indexOf("export async function POST("));
+    const post = source.slice(source.indexOf("export async function POST("),
+      source.indexOf("export async function PATCH("));
+    const patch = source.slice(source.indexOf("export async function PATCH("));
+    for (const [name, methodSource] of [["GET", get], ["POST", post], ["PATCH", patch]]) {
+      assert.ok(methodSource.indexOf("resolveMultiEntityContext(") >= 0 &&
+        methodSource.indexOf("resolveMultiEntityContext(") <
+        methodSource.indexOf("eq(employees.legalEntityId, legalEntityId)"),
+        name + ": selected legal employer must guard worker scope");
+      assert.match(methodSource, /entityAccess\.context\.group \|\| entityAccess\.context\.legalEntityId === null/,
+        "No group-wide disciplinary case access without dedicated acceptance");
+    }
+    assert.match(patch, /if \(!employee\) return Response\.json\(\{ error: "Disciplinary case unavailable\." \}, \{ status: 403 \}\)/,
+      "Cross-employer case ID must not be distinguishable from a nonexistent case ID");
+    assert.equal((patch.match(/currentLegalEmployerScope,\s*\)\)\.returning\(\)/g) ?? []).length, 4,
+      "All four disciplinary updates must re-check the authorized legal employer");
+    return true;
+  }
+
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
