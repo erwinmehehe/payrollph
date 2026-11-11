@@ -14603,12 +14603,12 @@
       ]
     },
     "src/app/api/hcm/engagement-surveys/route.ts": {
-      "gitBlobSha": "8355956668eb8bdc0f767f9f72bd01992e964349",
+      "gitBlobSha": "0440db4fb597953281769f154d73ad982f7c8efe",
       "route": "hcm/engagement-surveys",
       "methods": [
         {
           "name": "GET",
-          "line": 32,
+          "line": 33,
           "status": "COVERED",
           "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -14621,11 +14621,22 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
             "rowLine": 27
+          },
+          "sourceRefreshCandidate": {
+            "kind": "engagement-linked-employee-org-PG16-HTTP-uncredited",
+            "currentRouteBlobSha": "0440db4fb597953281769f154d73ad982f7c8efe",
+            "helperBlobSha": "6af77a09cb178b2d6111bb875ca21c722db5ac15",
+            "proofFile": "scripts/qa/tenant-engagement-employee-http.mjs",
+            "proofBlobSha": "d641313cdc46db7fe09df45c2f238dd39a231203",
+            "currentSourceHttpAcceptance": "PENDING",
+            "newMethodCredits": 0,
+            "priorMethodProofPreserved": true,
+            "productionCertified": false
           }
         },
         {
           "name": "POST",
-          "line": 72,
+          "line": 77,
           "status": "COVERED",
           "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
@@ -14638,6 +14649,17 @@
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/write/hcm.mjs",
             "rowLine": 21
+          },
+          "sourceRefreshCandidate": {
+            "kind": "engagement-linked-employee-org-PG16-HTTP-uncredited",
+            "currentRouteBlobSha": "0440db4fb597953281769f154d73ad982f7c8efe",
+            "helperBlobSha": "6af77a09cb178b2d6111bb875ca21c722db5ac15",
+            "proofFile": "scripts/qa/tenant-engagement-employee-http.mjs",
+            "proofBlobSha": "d641313cdc46db7fe09df45c2f238dd39a231203",
+            "currentSourceHttpAcceptance": "PENDING",
+            "newMethodCredits": 0,
+            "priorMethodProofPreserved": true,
+            "productionCertified": false
           }
         }
       ],
@@ -14662,75 +14684,63 @@
           "token": "getSessionUser"
         },
         {
-          "line": 14,
+          "line": 15,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 22,
+          "line": 23,
           "token": "getAccess"
         },
         {
-          "line": 34,
+          "line": 35,
           "token": "getSessionUser"
         },
         {
-          "line": 43,
+          "line": 44,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 74,
+          "line": 79,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 76,
+          "line": 81,
           "token": "getSessionUser"
         },
         {
-          "line": 110,
+          "line": 117,
           "token": "assertOrganizationRole"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 36,
+          "line": 37,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 79,
+          "line": 84,
           "token": "body.organizationId"
         }
       ],
       "businessIds": [
         {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
           "line": 20,
           "token": "organizationId"
         },
         {
-          "line": 22,
+          "line": 21,
           "token": "organizationId"
         },
         {
-          "line": 25,
+          "line": 23,
           "token": "organizationId"
         },
         {
-          "line": 25,
+          "line": 26,
           "token": "organizationId"
         },
         {
-          "line": 36,
-          "token": "organizationId"
-        },
-        {
-          "line": 36,
-          "token": "organizationId"
-        },
-        {
-          "line": 37,
+          "line": 26,
           "token": "organizationId"
         },
         {
@@ -14746,19 +14756,31 @@
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 38,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 45,
+          "token": "organizationId"
+        },
+        {
+          "line": 52,
           "token": "employeeId"
         },
         {
-          "line": 48,
+          "line": 52,
           "token": "employeeId"
         },
         {
-          "line": 51,
+          "line": 56,
           "token": "organizationId"
         }
       ]
@@ -41191,34 +41213,30 @@
   "scopedPages": [
     {
       "path": "src/app/app/engagement/page.tsx",
-      "blob": "8ddecfc89f1f8b23deeaefa410c00f36b072922e",
+      "blob": "48132ee7356603136d7ac660086b3812ef28ed94",
       "ids": [
         {
-          "line": 16,
-          "token": "searchParams"
-        },
-        {
           "line": 17,
           "token": "searchParams"
         },
         {
-          "line": 17,
-          "token": "organizationId"
-        },
-        {
-          "line": 22,
-          "token": "organizationId"
-        },
-        {
-          "line": 22,
+          "line": 18,
           "token": "searchParams"
         },
         {
-          "line": 25,
+          "line": 18,
           "token": "organizationId"
         },
         {
-          "line": 30,
+          "line": 23,
+          "token": "organizationId"
+        },
+        {
+          "line": 23,
+          "token": "searchParams"
+        },
+        {
+          "line": 26,
           "token": "organizationId"
         },
         {
@@ -41226,7 +41244,7 @@
           "token": "organizationId"
         },
         {
-          "line": 36,
+          "line": 32,
           "token": "organizationId"
         },
         {
@@ -41234,23 +41252,27 @@
           "token": "organizationId"
         },
         {
-          "line": 39,
-          "token": "employeeId"
-        },
-        {
-          "line": 39,
-          "token": "employeeId"
-        },
-        {
-          "line": 42,
+          "line": 38,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 40,
+          "token": "employeeId"
+        },
+        {
+          "line": 40,
+          "token": "employeeId"
+        },
+        {
+          "line": 46,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
           "token": "organizationId"
         }
       ],
@@ -41277,41 +41299,37 @@
           "token": "getSessionUser"
         },
         {
-          "line": 20,
+          "line": 21,
           "token": "getSessionUser"
         },
         {
-          "line": 31,
+          "line": 32,
           "token": "assertMembership"
         },
         {
-          "line": 36,
+          "line": 37,
           "token": "getAccess"
         },
         {
-          "line": 37,
+          "line": 38,
           "token": "singleLegalEntityForTenant"
         },
         {
-          "line": 42,
+          "line": 46,
           "token": "assertOrganizationRole"
         }
       ],
       "business": [
         {
-          "line": 17,
+          "line": 18,
           "token": "organizationId"
         },
         {
-          "line": 22,
+          "line": 23,
           "token": "organizationId"
         },
         {
-          "line": 25,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
+          "line": 26,
           "token": "organizationId"
         },
         {
@@ -41319,7 +41337,7 @@
           "token": "organizationId"
         },
         {
-          "line": 36,
+          "line": 32,
           "token": "organizationId"
         },
         {
@@ -41327,15 +41345,19 @@
           "token": "organizationId"
         },
         {
-          "line": 42,
+          "line": 38,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 46,
           "token": "organizationId"
         },
         {
-          "line": 44,
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
           "token": "organizationId"
         }
       ],
@@ -41362,6 +41384,26 @@
         "priorPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/42590838431/job/129071762836",
         "credits": 0,
         "independentlyAccepted": false,
+        "productionCertified": false
+      },
+      "sourceRefreshCandidate": {
+        "kind": "engagement-linked-employee-org-PG16-HTTP-uncredited",
+        "originalRouteBlobSha": "8355956668eb8bdc0f767f9f72bd01992e964349",
+        "currentRouteBlobSha": "0440db4fb597953281769f154d73ad982f7c8efe",
+        "originalPageBlobSha": "8ddecfc89f1f8b23deeaefa410c00f36b072922e",
+        "currentPageBlobSha": "48132ee7356603136d7ac660086b3812ef28ed94",
+        "helperFile": "src/lib/tenant-engagement-employee-scope.ts",
+        "helperBlobSha": "6af77a09cb178b2d6111bb875ca21c722db5ac15",
+        "proofFile": "scripts/qa/tenant-engagement-employee-http.mjs",
+        "proofBlobSha": "d641313cdc46db7fe09df45c2f238dd39a231203",
+        "contractFile": "scripts/qa/tenant-engagement-employee-contract.mjs",
+        "contractBlobSha": "9cc99ead5a8075bea8fa56bb042c35794db1debb",
+        "workflowFile": ".github/workflows/tenant-engagement-employee-qa.yml",
+        "priorMethodProofsPreserved": true,
+        "currentSourceHttpAcceptance": "PENDING",
+        "newMethodCredits": 0,
+        "pageActionCredits": 0,
+        "independentSecurityReview": "PENDING",
         "productionCertified": false
       }
     },
