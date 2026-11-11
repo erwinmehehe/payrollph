@@ -143,6 +143,24 @@ export async function verifyEngagementEmployeePrivacy() {
           "Real higher-ID victim " + field + " required");
       }
     }
+    // A real signed-in worker of A is also granted an active employee
+    // membership in B, but no B worker identity. A role grant alone must
+    // not grant access to B's confidential employee-survey details.
+    const crossLinked = a.employeeSessions[0];
+    await db.insert(s.userOrganizations).values({
+      userId: crossLinked.account.id, organizationId: b.org.id,
+      role: "employee", orgUnitId: b.unit.id,
+      workerEmployeeId: null, active: true,
+    });
+    const [crossLink] = await db.select().from(s.userOrganizations).where(and(
+      eq(s.userOrganizations.userId, crossLinked.account.id),
+      eq(s.userOrganizations.organizationId, b.org.id),
+      eq(s.userOrganizations.active, true),
+    )).limit(1);
+    assert.ok(crossLink, "Real foreign-employer membership precondition required");
+    assert.equal(crossLinked.worker.organizationId, a.org.id);
+    assert.notEqual(crossLinked.worker.organizationId, b.org.id);
+
     const baseline = new Map(await Promise.all(actors.map(async actor =>
       [actor.org.id, await snapshot(actor.org.id)])));
     async function unchanged(context) {
@@ -159,6 +177,23 @@ export async function verifyEngagementEmployeePrivacy() {
     function otherEmployers(actor) {
       return actors.filter(o => o !== actor);
     }
+
+    // Both memberships are active, but A's employee record cannot be used
+    // to read B's survey, mount B's SSR shell, or answer B's survey.
+    // These are true foreign-worker denials, not missing-ID 404 controls.
+    const crossAuthenticated = await local("/api/account", { cookie: crossLinked.cookie });
+    assert.equal(crossAuthenticated.status, 200, "Cross-linked user must remain signed in");
+    await denied(await read(b, crossLinked.cookie, b.org.id), 403,
+      "A-linked employee with active B membership cannot read B survey");
+    const crossPage = await local("/app/engagement?organizationId=" + b.org.id,
+      { cookie: crossLinked.cookie });
+    assert.equal(crossPage.status, 404, "Foreign-linked employee must not mount B survey SSR");
+    assertNoForeignMarkers(crossPage.text, actors, "foreign-linked employee SSR");
+    await unchanged("cross-linked employee SSR");
+    await denied(await submit(b, crossLinked, {
+      organizationId: b.org.id, surveyId: b.survey.id, score: 4,
+    }), 403, "A-linked employee with B membership cannot answer B survey");
+    receipts.crossLinkedEmployeeDenials = 3;
 
     for (const actor of [a, b]) {
       const first = actor.employeeSessions[0];
@@ -338,6 +373,7 @@ export async function verifyEngagementEmployeePrivacy() {
     assert.equal(victimNow.engagementSurveys[0].scoreSum, 0);
     assert.equal(victimNow.engagementSurveyParticipants.length, 0);
     assert.equal(victimNow.auditEvents.length, 0);
+    assert.equal(receipts.crossLinkedEmployeeDenials, 3);
     assert.equal(receipts.foreignPostDenials, 2);
     assert.equal(receipts.sourceIdDenials, 4);
     assert.equal(receipts.duplicateDenials, 2);
@@ -348,6 +384,8 @@ export async function verifyEngagementEmployeePrivacy() {
       employers: 3, distinctEmployeeSessions: 18,
       acceptedRatings: receipts.acceptedRatings,
       foreignPostDenials: receipts.foreignPostDenials,
+      crossLinkedEmployeeDenials: receipts.crossLinkedEmployeeDenials,
+      crossLinkedEmployerMembershipWasActive: true,
       sourceIdDenials: receipts.sourceIdDenials,
       duplicateDenials: receipts.duplicateDenials,
       rejectedCases: receipts.rejectedCases,

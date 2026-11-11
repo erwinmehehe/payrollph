@@ -9,6 +9,7 @@ import { singleLegalEntityForTenant } from "@/lib/hcm-single-entity-scope";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { employeeBoundToEngagementEmployer } from "@/lib/tenant-engagement-employee-scope";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Engagement Survey | Linaw", robots: { index: false } };
@@ -37,6 +38,9 @@ export default async function Page({ searchParams }: {
   if (!access || (await singleLegalEntityForTenant(organizationId)) === null) notFound();
   if (access.role === "employee") {
     if (!Number.isSafeInteger(session.employeeId) || !session.employeeId) notFound();
+    if (!await employeeBoundToEngagementEmployer(session.id, session.employeeId, organizationId)) {
+      notFound();
+    }
   } else {
     if (!access.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
     if (await assertOrganizationRole(session.id, organizationId, PEOPLE_ADMIN_ROLES)) notFound();
