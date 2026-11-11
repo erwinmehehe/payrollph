@@ -1,3 +1,5 @@
+> **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** 498 methods = 454 COVERED + 15 PUBLIC-BY-DESIGN + 11 TOKEN-ONLY + 18 GAP; 17 page/action GAPs. One changed API and page lose historical provisional credit. Zero new credits; production acceptance pending.
+
 > **SOLO_VERIFIED_DEV_RECOVERY — approvals PATCH proposal, NOT production acceptance:** 498 methods = 455 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP. [Fresh main combined-family receipt](../../scripts/qa/tenant-approvals-recovery-receipt.json). Both the approvals PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/payroll review and production acceptance are pending.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — merged checkout credit:** 498 methods = 454 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 18 GAP. One source-sealed #1900 PG16 HTTP method, no live provider, payment or production acceptance.

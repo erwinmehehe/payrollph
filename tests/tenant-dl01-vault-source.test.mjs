@@ -2,7 +2,7 @@
  * Static source guard only. Actual proof requires the same exact-head GitHub
  * Security HTTP Smoke PG16/localhost run; this cannot certify a GAP by itself.
  */
-import assert from "node:assert/strict";
+import assert from "node:assert/strict"; import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
@@ -152,5 +152,5 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
   assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
-  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 16);
+  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, verifyWorker360PageCredit(manifest));
 });

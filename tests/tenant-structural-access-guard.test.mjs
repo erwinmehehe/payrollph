@@ -6,7 +6,7 @@
  * and changes without evidence are blocked by the companion drift guard.
  */
 import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "node:assert/strict"; import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { inspectRouteHandler, traceFlaggedSource } from "../scripts/qa/tenant-delegated-trace.mjs";
@@ -128,9 +128,9 @@ test("all scoped pages stay source-pinned; only four exact independently probed 
   const directPath = "src/app/hcm/manager-direct-reports/page.tsx";
   const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath, "src/app/hcm/worker-360/page.tsx"],
+  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath],
     "Static route analysis cannot silently certify any additional page");
-  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, 16,
+  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, verifyWorker360PageCredit(manifest),
     "Other 16 employer-scoped page/action entries remain uncertified");
   for (const page of manifest.scopedPages) {
     const bytes = readFileSync(page.path);
