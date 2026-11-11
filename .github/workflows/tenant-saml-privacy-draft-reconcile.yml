@@ -45,6 +45,18 @@ jobs:
           test "$actual" = "$EXPECTED_HEAD"
       - name: Apply only exact-source proof and inventory reconciliation
         run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const p='scripts/qa/tenant-saml-privacy-draft-reconcile.mjs';
+          const b=readFileSync(p);
+          const sha=createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');
+          assert.equal(sha,'d800920e08d39194d2b452fe878f90481a7b7ddd');
+          const source=b.toString('utf8');
+          assert.equal(source.split('3bc8921a76f3caea6d3bb9dbeceac275cbcfbe75').length,2);
+          writeFileSync(p,source.replace('3bc8921a76f3caea6d3bb9dbeceac275cbcfbe75','c020a86869d1828ce1f751b8a5da604b3d086c97'));
+          NODE
           node --check scripts/qa/tenant-saml-privacy-draft-reconcile.mjs
           node scripts/qa/tenant-saml-privacy-draft-reconcile.mjs
           git diff --check
