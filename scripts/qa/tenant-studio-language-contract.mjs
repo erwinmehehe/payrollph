@@ -28,7 +28,7 @@ export const SOURCE_PINS=Object.freeze({
   "src/lib/automation-preview-approval.ts": "1182c52c04200c1b0cb79fde840390f81919a65f",
   "src/lib/automation-templates.ts": "f6cd21b7a09fc575345c92f49edcf8b80767952d",
   "src/lib/automation-versioning.ts": "02de9020858887818b70bd940d6b287d1c73e9bf",
-  "src/lib/automation.ts": "288d27789e062803d68ea38fd41fa78ee155a1ee",
+  "src/lib/automation.ts": "b6e8900f11f39f12263acb7ecd140a823e89a623",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
   "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
