@@ -1,3 +1,4 @@
+import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -7,7 +8,6 @@ import {
 } from "./tenant-hcm-lifecycle-caller-source-refresh-verify.mjs";
 import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
 import { HCM_QUEUE_PAGE, verifyHcmQueuePageSourceCompatibility } from "./tenant-work-queue-page-source-compat.mjs";
-import { verifySessionSourceCompatibility } from "./tenant-automation-session-source-compat.mjs";
 
 const RECEIPT = "scripts/qa/tenant-document-caller-reproof-receipt.json";
 const DIGEST = "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e";
@@ -40,6 +40,7 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
 
   let changedRouteCount = 0;
   let reviewedUncreditedPageCount = 0;
+  let reviewedStudioScopeCount = 0;
   for (const [file, pinned] of Object.entries(receipt.pins)) {
     if (file === "next.config.ts") {
       assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file, "utf8"), pinned);
@@ -51,8 +52,11 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
       assert.equal(current, HCM_NEW_SHA, "Unreviewed new HCM route has no source-current proof");
       verifyCurrentHcmCallerReproof(read);
       changedRouteCount++;
-    } else if (file === "src/lib/automation.ts" && current !== pinned) {
-      verifySessionSourceCompatibility(pinned, current, read);
+    } else if (file === 'src/lib/automation.ts' && current !== pinned) {
+      assert.equal(pinned,HISTORIC_AUTOMATION_SHA,'Original caller source seal changed');
+      const compatibility=verifyNarrowStudioAutomationSource(read);
+      assert.deepEqual(compatibility,{kind:'exact-narrowing-with-disposable-evidence',newCredits:0,independentAcceptance:false});
+      reviewedStudioScopeCount++;
     } else if (file === HCM_QUEUE_PAGE && current !== pinned) {
       // The old receipt stays historical. A source-exact, uncredited exception
       // must not be interpreted as prior execution of the new server wrapper.
@@ -66,6 +70,7 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
     }
   }
   assert.ok(changedRouteCount <= 1, "Only one HCM route source is eligible for replacement");
+  assert.ok(reviewedStudioScopeCount <= 1, "Only exact narrowed Studio recovery scope may differ");
   assert.ok(reviewedUncreditedPageCount <= 1, "Only the explicitly pinned uncredited HR queue page may differ");
   return receipt;
 }

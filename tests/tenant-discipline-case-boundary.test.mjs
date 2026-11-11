@@ -145,7 +145,7 @@ test("two legal employers in one company have real owned HTTP methods, foreign d
     'const posted = await request(API, actor.cookie, "POST", postBody(actor))',
     'const own = await request(API, actor.cookie, "PATCH", payload)',
     'const refused = await request(API, actor.cookie, "POST", foreignWorker)',
-    'await unchanged(before, "cross-entity POST")',
+    'await unchanged(beforeForeign, "cross-entity POST")',
     "await db.delete(s.userLegalEntityGrants)",
     "assert.equal(ownGets, 2)",
     "assert.equal(ownPosts, 2)",

@@ -1,5 +1,5 @@
+import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
 import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';import {readFileSync,writeFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';
-import { verifySessionSourceCompatibility } from './tenant-automation-session-source-compat.mjs';
 export const APPROVALS_PATH='src/app/api/approvals/[id]/route.ts';
 
 export const APPROVALS_PINS=Object.freeze({
@@ -134,9 +134,11 @@ export const APPROVALS_PINS=Object.freeze({
 const RECEIPT='scripts/qa/tenant-approvals-recovery-receipt.json',SEALED='c86b6c582de88772319ff10649dad03963695453',MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json',INVENTORY='docs/engineering/tenant-isolation-coverage-inventory.md',PLAN='docs/engineering/tenant-isolation-closure-plan.md';
 const blob=x=>{const b=Buffer.from(x);return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex')};
 export function approvalEvidence(read=readFileSync){const raw=read(RECEIPT);assert.equal(blob(raw),SEALED,'Execution receipt drift');const r=JSON.parse(raw);assert.equal(r.sourceHead,'6f1a193f8b56eb52174c33e7caf4335d8a8c95e7');assert.equal(r.run,42842335605);assert.equal(r.label,'SOLO_VERIFIED_DEV_RECOVERY');assert.equal(r.productionAccepted,false);assert.deepEqual(r.jobs.map(j=>j.name).sort(),['approval-types-http','complete-method-receipt','fictional-approval-flows-http','fictional-approval-http','fictional-approval-sources-http','money-lifecycle-pg16 (false)','money-lifecycle-pg16 (true)'].sort());for(const j of r.jobs){assert.equal(j.result,'success');assert.equal(j.output.length,1);}for(const[p,s]of Object.entries(APPROVALS_PINS)){
- if(p==='src/lib/automation.ts') verifySessionSourceCompatibility(s,blob(read(p)),read);
- else assert.equal(blob(read(p)),s,'Fresh HTTP proof needed: '+p);
-}return r;}
+  if(p==='src/lib/automation.ts'){
+    assert.equal(s,HISTORIC_AUTOMATION_SHA,'Original immutable receipt pin changed');
+    verifyNarrowStudioAutomationSource(read);
+  } else assert.equal(blob(read(p)),s,'Fresh HTTP proof needed: '+p);
+ }return r;}
 export function expectedApprovalsReceipt(read=readFileSync){const r=approvalEvidence(read);return {file:'scripts/qa/tenant-approval-types-http.mjs',line:326,ownPositiveLine:326,foreignDenialLine:230,forgedSelectorLine:343,unchangedDbLine:354,routeBlobSha:APPROVALS_PINS[APPROVALS_PATH],proofBlobSha:APPROVALS_PINS['scripts/qa/tenant-approval-types-http.mjs'],receiptFile:RECEIPT,receiptBlobSha:SEALED,sourceHead:r.sourceHead,workflowRunId:r.run,workflowJobs:r.jobs.map(j=>({name:j.name,id:j.id})),evidence:'https://github.com/erwinmehehe/payrollph/actions/runs/42842335605',evidenceLabel:r.label,postgresMajor:16,providerCalled:false,productionCertified:false,independentlyAccepted:false,independentSecurityReview:'PENDING',scope:'Complete same-head PG16 HTTP gate: generic approve/decline, leave/chain, HCM/workforce/handoffs/automation, dynamic groups, delegation, payroll approve/reject and both exact-link profiles; owned SQL transitions, real victim denials, forged selectors and unchanged foreign SQL/audits. No production acceptance.'};}
 export function verifyApprovalsCredit(m,read=readFileSync){const route=m.allApiRouteFiles[APPROVALS_PATH],row=route.methods.find(x=>x.name==='PATCH');assert.equal(route.gitBlobSha,APPROVALS_PINS[APPROVALS_PATH]);assert.equal(row.status,'COVERED');assert.equal(row.reviewedUncertified,undefined);assert.deepEqual(row.testedBy,expectedApprovalsReceipt(read));return 1;}
 const FILING_BANNER_PREFIX='> **SOLO_VERIFIED_DEV_RECOVERY — approvals PATCH proposal, NOT production acceptance:** ';
