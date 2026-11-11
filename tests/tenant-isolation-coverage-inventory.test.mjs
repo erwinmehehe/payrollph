@@ -314,6 +314,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       ["GET jobs/status", ["x-scheduler-monitor-token", "SCHEDULER_MONITOR_TOKEN", 401]],
       ["POST jobs/tick", ["x-worker-token", "WORKER_TOKEN", 401]],
       ["POST webhooks/drain", ["x-worker-token", "WORKER_TOKEN", 401]],
+      ["POST hcm/work-items/escalate", ["authorization", "HCM_SLA_CRON_SECRET", 401]],
       ["GET capabilities", ["x-readiness-token", "READINESS_TOKEN", 404]],
       ["GET readiness", ["x-readiness-token", "READINESS_TOKEN", 401]],
       ["GET readiness/billing", ["x-health-token", "HEALTH_TOKEN", 404]],
@@ -325,11 +326,12 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const expected = approved.get(label);
     assert.ok(expected, label + ": unapproved operations classification");
     assert.equal(currentBlob, method.privilegedOperation?.routeBlobSha);
-    assert.equal(method.privilegedOperation?.approvedOn, "2026-11-09");
+    assert.equal(method.privilegedOperation?.approvedOn, label === "POST hcm/work-items/escalate" ? "2026-11-11" : "2026-11-09");
     assert.equal(method.privilegedOperation?.requiredHeader, expected[0]);
     assert.equal(method.privilegedOperation?.credentialEnvironment, expected[1]);
     assert.equal(method.privilegedOperation?.denialStatus, expected[2]);
-    assert.equal(method.privilegedOperation?.denialHarness, "scripts/qa/tenant-privileged-token-only-http.mjs");
+    assert.equal(method.privilegedOperation?.denialHarness, label === "POST hcm/work-items/escalate"
+      ? "scripts/qa/tenant-hcm-sla-escalate-http.mjs" : "scripts/qa/tenant-privileged-token-only-http.mjs");
     assert.equal(method.privilegedOperation?.methodCoverageCredits, 0);
     assert.equal(method.privilegedOperation?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
     assert.equal(method.privilegedOperation?.productionCertified, false);
@@ -1436,10 +1438,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return;
   }
 
-  // Signup is a public tenant-CREATION method, not an already authenticated
-  // own/foreign employer method. Permit only the four reviewed anti-abuse
-  // source substitutions, while keeping the entire POST method GAP.
-  if (isNewOrChanged && method.status === "GAP" &&
+  // Signup is a public tenant-CREATION method, not an authenticated
+  // own/foreign employer method. Preserve the exact anti-abuse source
+  // verification even after public-entrypoint classification (zero COVERED credit).
+  if (isNewOrChanged && method.status === "PUBLIC-BY-DESIGN" &&
       key === "src/app/api/signup/route.ts POST") {
     const review = method.reviewedUncertified;
     const originalBlob = "e2461cd23756b2b1c078f76c7c751d646e7e4f0f";
@@ -1456,8 +1458,8 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(review.distributedMode, "distributed-postgres");
     assert.equal(review.fallbackResponseStatus, 503);
     assert.equal(review.authoritativeThrottleStatus, 429);
-    assert.equal(method.testedBy, null, "Signup POST remains GAP until separate method proof");
-    assert.match(method.reason, /GAP/);
+    assert.equal(method.testedBy, null, "Public signup must never inherit a tenant-private COVERED receipt");
+    assert.match(method.reason, /public pre-login entrypoint/i);
 
     const source = readFileSync("src/app/api/signup/route.ts", "utf8");
     // Reconstruct the exact pre-fix Git blob: no signup transaction,
@@ -2883,7 +2885,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       proofFile: "scripts/qa/tenant-hcm-sla-escalate-http.mjs",
       proofBlobSha: "823c27150d75d1bdd630ec914b7c0efc4565b7de",
       contractFile: "tests/tenant-hcm-sla-escalate-contract.test.mjs",
-      contractBlobSha: "54b165b516e224dfca32ba63e6733c3fc7ccb8e5",
+      contractBlobSha: "17a56b928916bee468b3bca339e215029b92df12",
       unitTestFile: "tests/hcm-work-item-sla.test.ts",
       unitTestBlobSha: "b5699786808d477bb33f2b8cc0a7e908fdd3678b",
       workflowFile: ".github/workflows/tenant-hcm-sla-escalate-http.yml",
@@ -2893,7 +2895,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     };
-    assert.equal(method.status, "GAP", "No global scheduler method coverage credit");
+    assert.equal(method.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY", "HCM cron uses global worker-token authorization, zero tenant-method credits");
     assert.equal(method.testedBy, null, "Do not call a worker-token denial a tenant method proof");
     assert.match(method.reason, /worker-token.*zero method credits/i);
     assert.equal(currentBlob, expectedReview.routeBlobSha,
@@ -3738,14 +3740,14 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.ok(pins, "Only start and ACS may use this hold");
     assert.equal(currentBlob, pins.after, "SAML handler changed; re-review before release");
     assert.equal(manifest.allApiRouteFiles[sourcePath].gitBlobSha, pins.after);
-    assert.equal(method.status, "GAP", "A disabled SAML refusal never becomes COVERED");
+    assert.equal(method.status, "PUBLIC-BY-DESIGN", "Disabled SAML always refuses, never earns a tenant-private COVERED credit");
     assert.equal(method.testedBy, null, "No own-tenant SAML authentication proof was executed");
     assert.deepEqual(method.reviewedUncertified, {
       kind: "saml-disabled-provider-enumeration-zero-credit",
       originalRouteBlobSha: pins.before,
       routeBlobSha: pins.after,
       contractFile: "tests/tenant-saml-disabled-boundary.test.ts",
-      contractBlobSha: "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
+      contractBlobSha: "9afd5c6ec0c499b394d498ed6211d84e5f787e4b",
       methodCredits: 0,
       exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING",
@@ -3759,7 +3761,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(gitBlobSha(readFileSync("src/lib/saml-disabled-boundary.ts")),
       "ad19ba4fb718fddd9826df15f7740f482b795ad7", "Common refusal changed without review");
     assert.equal(gitBlobSha(readFileSync("tests/tenant-saml-disabled-boundary.test.ts")),
-      "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
+      "9afd5c6ec0c499b394d498ed6211d84e5f787e4b",
       "SAML privacy test changed without renewed pin");
     return;
   }
