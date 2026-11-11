@@ -6,6 +6,7 @@ import {
   type Worker360EventCursor,
 } from "@/lib/hcm-worker-360-projection";
 import { loadWorker360Summary } from "@/lib/hcm-worker-360-server";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +31,10 @@ export async function GET(request: Request) {
   if (!user) return json({ error: "Authentication required." }, 401);
 
   const params = new URL(request.url).searchParams;
-  const organizationId = positiveId(params.get("organizationId"));
-  const employeeId = positiveId(params.get("employeeId"));
+  const organizationId = params.getAll("organizationId").length === 1
+    ? positiveId(params.get("organizationId")) : null;
+  const employeeId = params.getAll("employeeId").length === 1
+    ? positiveId(params.get("employeeId")) : null;
   if (!organizationId || !employeeId) return json({ error: "Valid organizationId and employeeId required." }, 400);
   const asOfDate = params.get("asOfDate") ?? philippineWorker360Date();
   if (!validWorker360Date(asOfDate)) return json({ error: "Valid asOfDate (YYYY-MM-DD) required." }, 400);
@@ -60,11 +63,26 @@ export async function GET(request: Request) {
     return json({ error: "Company-wide HR access required." }, 403);
   }
 
+  // A company-wide People role grants parent-organization access, NOT access
+  // to every legal employer in a multi-entity organization. Explicit query
+  // and x-legal-entity-id selectors must be reconciled by server policy.
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId, request,
+  });
+  if (!entityScope.ok || (entityScope.context.enabled &&
+      (entityScope.context.group || entityScope.context.legalEntityId === null))) {
+    return json({ error: "Worker not found in this employer." }, 404);
+  }
+  const authorizedLegalEntityId = entityScope.context.enabled
+    ? entityScope.context.legalEntityId : null;
+
   const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
   if (planDenied) return planDenied;
 
   try {
-    const summary = await loadWorker360Summary(organizationId, employeeId, asOfDate, before);
+    const summary = await loadWorker360Summary(
+      organizationId, employeeId, asOfDate, before, authorizedLegalEntityId,
+    );
     if (!summary) return json({ error: "Worker not found in this employer." }, 404);
     return json(summary);
   } catch {

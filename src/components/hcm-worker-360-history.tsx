@@ -28,10 +28,11 @@ function eventLabel(value: string) {
  * when employer, worker, date or refresh revision changes.
  */
 export function Worker360History({
-  organizationId, employeeId, asOfDate, preview,
+  organizationId, employeeId, legalEntityId = null, asOfDate, preview,
 }: {
   organizationId: number;
   employeeId: number;
+  legalEntityId?: number | null;
   asOfDate: string;
   preview: Worker360EventPreview;
 }) {
@@ -64,6 +65,7 @@ export function Worker360History({
         beforeDate: cursor.effectiveDate,
         beforeId: String(cursor.id),
       });
+      if (legalEntityId !== null) params.set("legalEntityId", String(legalEntityId));
       const response = await fetch("/api/hcm/worker-360?" + params.toString(), {
         cache: "no-store", signal: controller.signal,
       });
