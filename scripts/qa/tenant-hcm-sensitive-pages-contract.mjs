@@ -13,8 +13,8 @@ export const SOURCE_PINS = Object.freeze({
   "src/app/hcm/process-monitor/page.tsx": "977ae3415144cfa509e709c9a9422d93b6a9f97a",
   "src/lib/hcm-process-monitor-server.ts": "0d2d001e36fa40379f554d376a9ebd8a98221dcd",
   "src/lib/hcm-process-monitor.ts": "fe16b35e185eeea946770c7187ae1f66ca51cc6e",
-  "src/app/hcm/hire-payroll-review/page.tsx": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
-  "src/lib/hcm-hire-payroll-review-server.ts": "387d28a124db85281ffcfd968c50749a909f4d60",
+  "src/app/hcm/hire-payroll-review/page.tsx": "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
+  "src/lib/hcm-hire-payroll-review-server.ts": "41582d34f152a4eee5e2eea0700aec13da9ff380",
   "src/lib/hcm-hire-payroll-review.ts": "6cf695a7225d527e7efa96242432be70e8cabada",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
@@ -47,7 +47,9 @@ export function verifyHcmPageSources(read = readFileSync) {
     "getSessionUser()", "assertOrganizationRole(", "access?.companyWide",
     "eq(employees.organizationId, organizationId)",
     "eq(employees.id, employeeId)", "if (!boundWorker) notFound()",
-    "loadHirePayrollInputReview(organizationId, employeeId)",
+    "resolveMultiEntityContext({", "entityScope.context.group",
+    "eq(employees.legalEntityId, authorizedLegalEntityId)",
+    "loadHirePayrollInputReview(organizationId, employeeId, authorizedLegalEntityId)",
   ]) assert.ok(hire.includes(needle), "HCM_SSR_REFUSED: hire boundary removed: " + needle);
   for (const needle of [
     "eq(hcmBusinessProcessInstances.organizationId, organizationId)",
@@ -59,6 +61,8 @@ export function verifyHcmPageSources(read = readFileSync) {
   for (const needle of [
     "eq(employees.organizationId, organizationId)",
     "eq(employees.id, employeeId)",
+    "eq(employees.legalEntityId, authorizedLegalEntityId)",
+    'criticalReleaseFlagEnabled("multiEntity")',
     "eq(employeePayProfiles.organizationId, organizationId)",
     "eq(employeePayProfiles.employeeId, employeeId)",
     "eq(provisioningTasks.organizationId, organizationId)",

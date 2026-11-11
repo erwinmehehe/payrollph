@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
-import { employeePayProfiles, employees, organizations, provisioningTasks } from "../src/db/schema";
+import { employeePayProfiles, employees, legalEntities, organizations, provisioningTasks } from "../src/db/schema";
 import { loadHirePayrollInputReview } from "../src/lib/hcm-hire-payroll-review-server";
 
 // Synthetic employer records only. The protected page's custom-deny/role gate
@@ -40,6 +40,34 @@ test("hire-to-payroll source review excludes foreign worker and private values",
       { organizationId: beta.id, employeeId: b.id, kind: "onboarding",
         title: "Beta synthetic checklist", done: false },
     ]);
+    // Two actual legal employers inside the SAME parent organization.
+    // A selected grant for legal employer A must not read B's worker, even
+    // though both workers share organizationId=alpha.id.
+    const [legalA, legalB] = await db.insert(legalEntities).values([
+      { organizationId: alpha.id, code: "A-" + suffix,
+        legalName: "Alpha Legal A " + suffix, displayName: "Legal A" },
+      { organizationId: alpha.id, code: "B-" + suffix,
+        legalName: "Alpha Legal B " + suffix, displayName: "Legal B" },
+    ]).returning();
+    await db.update(employees).set({ legalEntityId: legalA.id })
+      .where(and(eq(employees.organizationId, alpha.id), eq(employees.id, a.id)));
+    const [sameParentPeer] = await db.insert(employees).values({
+      organizationId: alpha.id, legalEntityId: legalB.id,
+      employeeNo: "PEER-" + suffix, firstName: "PeerSynthetic",
+      lastName: "Worker", title: "Staff", avatarInitials: "PW",
+      basicRate: "23000", startDate: "2026-10-01",
+    }).returning();
+    const scopedA = await loadHirePayrollInputReview(alpha.id, a.id, legalA.id);
+    assert.ok(scopedA, "Current granted worker A must remain readable");
+    assert.equal(await loadHirePayrollInputReview(alpha.id, a.id, legalB.id), null,
+      "Wrong legal-employer scope must hide otherwise valid worker A");
+    assert.equal(await loadHirePayrollInputReview(alpha.id, sameParentPeer.id, legalA.id), null,
+      "Another real legal employer under the SAME organization must not be readable");
+    assert.ok(await loadHirePayrollInputReview(alpha.id, sameParentPeer.id, legalB.id),
+      "Legitimately selected legal employer B must see its own peer worker");
+    assert.equal(await loadHirePayrollInputReview(alpha.id, b.id, legalA.id), null,
+      "Cross-parent foreign worker must still fail");
+
     const first = await loadHirePayrollInputReview(alpha.id, a.id);
     assert.ok(first);
     assert.equal(first.sections.find((s) => s.key === "onboarding")?.state, "recorded");
