@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations, subscriptions, userOrganizations, users } from "@/db/schema";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
@@ -15,10 +15,12 @@ import { canonicalAppOrigin, enforceSameOriginMutation } from "@/lib/security-re
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceIntakeProof } from "@/lib/public-intake-proof-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { expiredUnverifiedSignup, PENDING_SIGNUP_MAX_AGE_MS, signupAcceptedResponse } from "@/lib/signup-pending-recovery";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const denied = enforceSameOriginMutation(request);
   if (denied) return denied;
   const mode = signupMode();
@@ -79,14 +81,6 @@ export async function POST(request: Request) {
   try { origin = canonicalAppOrigin(request); }
   catch { return Response.json({ error: "Registration URL is not configured." }, { status: 503 }); }
 
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-  if (existing) return Response.json({
-    ok: true,
-    ...(invitedPilot ? { activated: true, redirectTo: "/login" } : {}),
-    message: invitedPilot
-      ? "If you have already registered with this invitation, sign in using your account password."
-      : "If the address is eligible, check your inbox for the verification link.",
-  }, { status: 202 });
   let quote: { plan: string; seats: number; amountCents: number };
   if (isPilot) {
     quote = { plan: "Core", seats: 10, amountCents: 0 };
@@ -97,10 +91,42 @@ export async function POST(request: Request) {
     quote = subscriptionQuote(selected, seats);
   }
   const trialEndsAt = isPilot ? new Date(Date.now() + 14 * 86_400_000) : null;
+  // Perform the same password work for new and existing addresses before responding.
+  const passwordHash = hashPassword(password);
   const token = invitedPilot ? null : randomToken(24);
   let created: { userId: number; organizationId: number } | null = null;
   try {
     created = await db.transaction(async (tx) => {
+      // Lock the addressed user before any mutation. Only an expired, never-verified
+      // signup owner may release the address; a verified or still-pending account
+      // stays byte-for-byte unchanged. All changes and the new signup are atomic.
+      const [existing] = await tx.select({ id: users.id, active: users.active })
+        .from(users).where(eq(users.email, email)).limit(1).for("update");
+      if (existing) {
+        const [verification] = await tx.select({
+          id: saasSignupVerifications.id,
+          createdAt: saasSignupVerifications.createdAt,
+          verifiedAt: saasSignupVerifications.verifiedAt,
+        }).from(saasSignupVerifications)
+          .where(eq(saasSignupVerifications.userId, existing.id)).limit(1).for("update");
+        if (!verification || !expiredUnverifiedSignup({
+          active: existing.active, verifiedAt: verification.verifiedAt, createdAt: verification.createdAt,
+        })) return null;
+        const cutoff = new Date(Date.now() - PENDING_SIGNUP_MAX_AGE_MS);
+        const [expired] = await tx.update(saasSignupVerifications)
+          .set({ expiresAt: new Date(0) })
+          .where(and(eq(saasSignupVerifications.id, verification.id),
+            isNull(saasSignupVerifications.verifiedAt),
+            lt(saasSignupVerifications.createdAt, cutoff)))
+          .returning({ id: saasSignupVerifications.id });
+        if (!expired) return null;
+        // Preserve the dormant employer and all audit records; the impossible-to-register
+        // tombstone is not a mailbox and cannot be entered by a public signup.
+        const [released] = await tx.update(users).set({ email: "__expired_signup_" + existing.id })
+          .where(and(eq(users.id, existing.id), eq(users.email, email), eq(users.active, false)))
+          .returning({ id: users.id });
+        if (!released) throw new Error("Expired signup could not be released atomically.");
+      }
       const [org] = await tx.insert(organizations).values({
         name: company,
         legalName: company,
@@ -112,7 +138,7 @@ export async function POST(request: Request) {
       const [owner] = await tx.insert(users).values({
         name,
         email,
-        passwordHash: hashPassword(password),
+        passwordHash,
         role: "owner",
         active: invitedPilot,
         totpEnabled: false,
@@ -149,11 +175,11 @@ export async function POST(request: Request) {
   } catch (error) {
     // Another request can win the unique email race; do not reveal account existence.
     if (typeof error === "object" && error && "code" in error && error.code === "23505") {
-      return Response.json({ ok: true, message: "If the address is eligible, check your inbox for the verification link." }, { status: 202 });
+      return signupAcceptedResponse(startedAt);
     }
     throw error;
   }
-  if (!created) return Response.json({ error: "Could not initialize registration." }, { status: 503 });
+  if (!created) return signupAcceptedResponse(startedAt);
   if (invitedPilot) {
     await recordAuditEvent({
       organizationId: created.organizationId,
@@ -166,10 +192,7 @@ export async function POST(request: Request) {
         trialEndsAt: trialEndsAt?.toISOString() ?? null,
       },
     });
-    return Response.json({
-      ok: true, activated: true, redirectTo: "/login",
-      message: "Your private 14-day test-only pilot account is created. Sign in with the password you just chose.",
-    }, { status: 201 });
+    return signupAcceptedResponse(startedAt);
   }
   if (!token) return Response.json({ error: "Unable to initialize email verification." }, { status: 503 });
   const verificationUrl = origin + "/verify-signup?token=" + token;
@@ -197,11 +220,5 @@ export async function POST(request: Request) {
     resource: "Email verification pending",
     metadata: { registrationMode: mode, selectedPlan: quote.plan, seats: quote.seats, amountCents: quote.amountCents, trialEndsAt: trialEndsAt?.toISOString() ?? null, deliveryStatus: sent.status },
   });
-  return Response.json({
-    ok: true,
-    message: isPilot
-      ? "Check your email to verify your account and begin your 14-day pilot. No payment is required."
-      : "Check your email to verify your account. No subscription starts until you authorize payment.",
-    delivery: sent.delivered ? "accepted_by_provider" : "not_confirmed",
-  }, { status: 202 });
+  return signupAcceptedResponse(startedAt);
 }
