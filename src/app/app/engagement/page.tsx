@@ -37,8 +37,8 @@ export default async function Page({ searchParams }: {
   const access = await getAccess(session.id, organizationId);
   if (!access || (await singleLegalEntityForTenant(organizationId)) === null) notFound();
   if (access.role === "employee") {
-    if (typeof session.employeeId !== "number" ||
-        !await employeeBoundToEngagementEmployer(session.id, session.employeeId, organizationId)) {
+    if (!Number.isSafeInteger(session.employeeId) || !session.employeeId) notFound();
+    if (!await employeeBoundToEngagementEmployer(session.id, session.employeeId, organizationId)) {
       notFound();
     }
   } else {
