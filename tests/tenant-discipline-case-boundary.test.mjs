@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { requireDisposableDisciplineEntityEnv } from "../scripts/qa/tenant-discipline-entity-http.mjs";
 
 const route = readFileSync(new URL("../src/app/api/discipline/route.ts", import.meta.url), "utf8");
 const get = route.slice(route.indexOf("export async function GET("), route.indexOf("export async function POST("));
@@ -98,4 +99,68 @@ test("existing real-PG16 ownership and foreign-denial cases remain referenced wi
     [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]],
     "do not promote or remove any previously credited method");
   for (const method of methods) assert.ok(method.testedBy?.file, method.name + ": retain historical test evidence");
+});
+
+test("new real-HTTP discipline proof refuses non-disposable environments and provider secrets", () => {
+  const safe = {
+    CI: "true", GITHUB_ACTIONS: "true", NODE_ENV: "production",
+    TENANT_DISCIPLINE_ENTITY_PROOF: "fictional-pg16-only",
+    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    SECURITY_SMOKE_URL: "http://127.0.0.1:3000",
+    APP_BASE_URL: "http://127.0.0.1:3000",
+    TRUSTED_APP_ORIGINS: "http://127.0.0.1:3000",
+    BUILD_BLOCK_ACCEPTANCE_MODE: "synthetic-postgres-only",
+    MULTI_ENTITY_ENABLED: "true", DEMO_MODE: "false",
+    REQUIRE_PRIVILEGED_MFA: "true", WORKER_ENABLED: "false",
+    CENTRAL_SCHEDULER_ENABLED: "false",
+    XENDIT_BILLING_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
+    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+  };
+  assert.equal(requireDisposableDisciplineEntityEnv(safe), true);
+  for (const modified of [
+    { CI: "false" }, { NODE_ENV: "development" },
+    { DATABASE_URL: "postgresql://company.invalid/real" },
+    { MULTI_ENTITY_ENABLED: "false" }, { DEMO_MODE: "true" },
+    { TENANT_DISCIPLINE_ENTITY_PROOF: "live" },
+    { SECURITY_SMOKE_URL: "https://production.invalid" },
+    { XENDIT_PAYOUTS_ENABLED: "true" },
+    { PAYMONGO_SECRET_KEY: "live-secret" },
+    { RESEND_API_KEY: "live-secret" },
+  ]) assert.throws(() => requireDisposableDisciplineEntityEnv({ ...safe, ...modified }),
+    /DISCIPLINE_REFUSED/);
+});
+
+test("two legal employers in one company have real owned HTTP methods, foreign denials, unchanged victim SQL and grant revocation", () => {
+  const proof = readFileSync("scripts/qa/tenant-discipline-entity-http.mjs", "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-discipline-entity-qa.yml", "utf8");
+  for (const required of [
+    "requireDisposableDisciplineEntityEnv();",
+    'fixture.seedEmployer("ATTA"',
+    'fixture.seedEmployer("ATTB"',
+    'fixture.seedEmployer("VICTIM"',
+    'userId: b.owner.id, organizationId: a.org.id, role: "hr"',
+    "const caseV = await createCase(victim.org.id, victim.worker.id",
+    "caseV.id > Math.max(caseA.id, caseB.id)",
+    "const own = await request(GET(a.org.id, actor.entityId), actor.cookie)",
+    'const posted = await request(API, actor.cookie, "POST", postBody(actor))',
+    'const own = await request(API, actor.cookie, "PATCH", payload)',
+    'const refused = await request(API, actor.cookie, "POST", foreignWorker)',
+    'await unchanged(before, "cross-entity POST")',
+    "await db.delete(s.userLegalEntityGrants)",
+    "assert.equal(ownGets, 2)",
+    "assert.equal(ownPosts, 2)",
+    "assert.equal(ownPatches, 8)",
+    "assert.equal(deniedRequests, 48)",
+    "newCoverageCredits: 0",
+    'independentSecurityReview: "PENDING"',
+  ]) assert.ok(proof.includes(required), "Missing concrete PG16 adversarial step " + required);
+  assert.ok(proof.indexOf("requireDisposableDisciplineEntityEnv();") <
+    proof.indexOf('import("../../src/db/index.ts")'),
+    "Local-only refusal must happen before app or DB import");
+  assert.match(workflow, /image: postgres:16/);
+  assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+  assert.match(workflow, /MULTI_ENTITY_ENABLED: "true"/);
+  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-discipline-entity-http\.mjs/);
+  assert.match(workflow, /XENDIT_PAYOUTS_ENABLED: "false"/);
+  assert.match(workflow, /WORKER_ENABLED: "false"/);
 });
