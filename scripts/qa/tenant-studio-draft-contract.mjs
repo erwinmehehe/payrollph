@@ -13,7 +13,7 @@ export const SOURCE_BLOBS = Object.freeze({
   "src/app/api/automation-studio/route.ts": STUDIO_TRIAGE_ROUTE_SHA,
   "src/lib/automation-versioning.ts": "02de9020858887818b70bd940d6b287d1c73e9bf",
   "src/lib/automation-templates.ts": "f6cd21b7a09fc575345c92f49edcf8b80767952d",
-  "src/lib/automation.ts": "288d27789e062803d68ea38fd41fa78ee155a1ee",
+  "src/lib/automation.ts": "b6e8900f11f39f12263acb7ecd140a823e89a623",
 });
 
 export function requireDisposableStudioDraftEnv(env = process.env) {

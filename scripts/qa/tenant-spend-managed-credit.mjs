@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
+import {verifySessionSourceCompatibility} from './tenant-automation-session-source-compat.mjs';
 const FILE='scripts/qa/tenant-spend-managed-receipt.json';
 export const TARGETS=['POST spend','PATCH spend','POST managed-payroll/runs/[id]/approve'];
 const blob=raw=>{const b=Buffer.from(raw.toString().replaceAll('\r\n','\n'));return createHash('sha1').update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex');};
@@ -16,6 +17,7 @@ export function verifySpendManaged(manifest,reader=readFileSync){
  for(const [file,pin] of Object.entries(r.pins)){
   assert.ok(!file.includes('..')&&!file.startsWith('/'),'repository source only');
   if(file==='next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(reader(file),pin);
+  else if(file==='src/lib/automation.ts') verifySessionSourceCompatibility(pin,blob(reader(file)),reader);
   else assert.equal(blob(reader(file)),pin,file+': executed source drift');
  }
  for(const key of TARGETS){const [verb,...parts]=key.split(' '),path='src/app/api/'+parts.join(' ')+'/route.ts';

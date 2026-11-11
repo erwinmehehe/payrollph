@@ -7053,7 +7053,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ? "a6c4642f9e651eb616de6e301a832ac2d471a33e"
           : "82327e4d8580af2abe503e7a104321e854dc84f7";
         const pageBlobSha = certificate
-          ? "39e1d703e37c637d1b321d09eaa49df0b82d4c21"
+          ? "f5e2ed9e6e2b3fef38bd5551e3894fc586bda3ad"
           : "e55809f26075c142240675826a0c353d403a20e6";
         assert.equal(entry.status, "GAP", "Unaccepted tax-review SSR remains a GAP");
         assert.equal(entry.testedBy, undefined, "No page/action proof may be credited");
@@ -7067,16 +7067,16 @@ test("page and server-action inventory cannot silently omit new or changed busin
           selectorFile: "src/lib/tenant-payroll-review-page.ts",
           selectorBlobSha: "37766e6f9ec0dd8d1098bc8987bbd5de899a3739",
           proofFile: "scripts/qa/tenant-payroll-review-pages-http.mjs",
-          proofBlobSha: "9b81f55d7d49eeb4e8ae947c04081c30104a0051",
+          proofBlobSha: "79b5306badae37cdd583efd025b53301c96bc3f3",
           contractFile: "scripts/qa/tenant-payroll-review-pages-contract.mjs",
           contractBlobSha: "0f78a4b9a5ae1c6e06036cb4a15f162b1a39ff20",
           contractTestFile: "tests/tenant-payroll-review-pages-contract.test.mjs",
           contractTestBlobSha: "1f5c7b17b0696e2043e415f1cd02629ad02d7754",
           selectorTestFile: "tests/tenant-payroll-review-page.test.ts",
-          selectorTestBlobSha: "2e621c61d6b39c651b239e31504736dea474fa4a",
+          selectorTestBlobSha: "796942cfe3b13132862e99da4c649e498f7bd394",
           workflowFile: ".github/workflows/tenant-payroll-review-pages-qa.yml",
           workflowBlobSha: "41f0a76e683818d018a83ea82a10537b66cc93a5",
-          ownPositiveLine: 106, foreignDenialLine: 112, unchangedDbLine: 138,
+          ownPositiveLine: 123, foreignDenialLine: 129, unchangedDbLine: 155,
           previouslyPassingHead: "13e77283b83597738803afa843f3feea831080e8",
           previouslyPassingJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42622354364/job/129177441243",
           ...(certificate ? {} : { workerBinding: {
