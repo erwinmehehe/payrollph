@@ -67,7 +67,7 @@ test("real HTTP tests own legal employer and refuses all cross-employer mutation
   assert.ok(guard>=0&&pins>guard&&imports>pins,
     "Do not load app/db before safety and exact-source preflight");
   for(const phrase of [
-    "SHOW server_version_num","const secondaryEntity",
+    "SHOW server_version_num","const [secondaryEntity]",
     "legalEmployersInA:2","assert.equal(ownReads,3)",
     "assert.equal(ownWrites,2)","assert.equal(blocked,12)",
     "A cannot PATCH real second legal employer case",
