@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { verifyArchitecturalRelabelDelta } from "./helpers/tenant-architectural-classification-delta.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const prelogin = [
@@ -99,4 +100,56 @@ test("all classifications reconcile dynamically, without silently crediting any 
   assert.equal(tally.GAP, manifest.metrics.gap);
   assert.equal(Object.values(tally).reduce((a, b) => a + b, 0), manifest.metrics.methods);
   assert.match(manifest.acceptanceStatus, new RegExp("^NOT ACCEPTED: " + tally.GAP + " API methods"));
+});
+
+const proposedMethods = [...prelogin, ...disabledSaml, worker];
+const candidate = (m, [path, verb]) => m.allApiRouteFiles[path].methods.find(row => row.name === verb);
+function historicalGaps() {
+  const before = structuredClone(manifest);
+  for (const target of proposedMethods) candidate(before, target).status = "GAP";
+  return before;
+}
+
+test("the exact nine proposed labels reconcile once and remain source-validated after integration", () => {
+  assert.deepEqual(verifyArchitecturalRelabelDelta(assert, historicalGaps(), manifest),
+    { gapRelabels: 9, publicByDesign: 8, privilegedTokenOnly: 1 });
+  assert.deepEqual(verifyArchitecturalRelabelDelta(assert, manifest, manifest),
+    { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 });
+});
+
+test("classification cannot invent coverage, approve itself, change source or retire a tenth method", () => {
+  const cases = [
+    ["invented coverage", m => { candidate(m, prelogin[0]).status = "COVERED"; }],
+    ["invented receipt", m => { candidate(m, prelogin[0]).testedBy = { file: "invented" }; }],
+    ["changed source", m => { m.allApiRouteFiles[prelogin[0][0]].gitBlobSha = "0".repeat(40); }],
+    ["wrong worker class", m => { candidate(m, worker).status = "PUBLIC-BY-DESIGN"; }],
+    ["invented approval date", m => { candidate(m, worker).privilegedOperation.approvedOn = "2026-11-11"; }],
+    ["wrong worker credential", m => { candidate(m, worker).privilegedOperation.credentialEnvironment = "SESSION_COOKIE"; }],
+    ["wrong worker proof", m => { candidate(m, worker).privilegedOperation.proofBlobSha = "0".repeat(40); }],
+    ["wrong proof head", m => { candidate(m, prelogin[0]).classificationEvidence.proofHead = "0".repeat(40); }],
+    ["wrong executed job", m => { candidate(m, prelogin[0]).classificationEvidence.proofRun = "https://example.invalid/fake"; }],
+    ["wrong proof bytes", m => { candidate(m, prelogin[0]).classificationEvidence.proofBlobSha = "0".repeat(40); }],
+    ["changed workflow", m => { candidate(m, prelogin[0]).classificationEvidence.workflowBlobSha = "0".repeat(40); }],
+    ["arbitrary proof path", m => { candidate(m, prelogin[0]).classificationEvidence.proofFile = "unreviewed.mjs"; }],
+    ["fake SAML success", m => { candidate(m, disabledSaml[0]).classificationEvidence.activeSamlLoginProven = true; }],
+    ["missing method", m => { m.allApiRouteFiles[prelogin[0][0]].methods = []; }],
+    ["unrelated metadata retirement", m => { candidate(m, ["src/app/api/auth/saml/metadata/[providerId]/route.ts", "GET"]).status = "PUBLIC-BY-DESIGN"; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const forged = structuredClone(manifest); mutate(forged);
+    assert.throws(() => verifyArchitecturalRelabelDelta(assert, historicalGaps(), forged), { name: "AssertionError" }, label);
+  }
+});
+
+test("already-present labels still reject evidence tampering instead of bypassing verification", () => {
+  for (const target of proposedMethods) {
+    for (const [field, value] of [["productionCertified", true], ["methodCoverageCredits", 1],
+      ["classificationApproval", "APPROVED"], ["independentSecurityReview", "APPROVED"]]) {
+      const forged = structuredClone(manifest), row = candidate(forged, target);
+      const evidence = row.classificationEvidence ?? row.privilegedOperation;
+      evidence[field] = value;
+      assert.throws(() => verifyArchitecturalRelabelDelta(assert, manifest, forged), { name: "AssertionError" },
+        target.join(" ") + ": " + field);
+    }
+  }
 });

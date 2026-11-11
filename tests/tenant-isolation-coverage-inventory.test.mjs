@@ -382,7 +382,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     const expected = approved.get(label);
     assert.ok(expected, label + ": unapproved operations classification");
     assert.equal(currentBlob, method.privilegedOperation?.routeBlobSha);
-    assert.equal(method.privilegedOperation?.approvedOn, label === "POST hcm/work-items/escalate" ? "2026-11-11" : "2026-11-09");
+    assert.equal(method.privilegedOperation?.approvedOn, label === "POST hcm/work-items/escalate" ? undefined : "2026-11-09"); if (label === "POST hcm/work-items/escalate") { assert.equal(method.privilegedOperation.classificationApproval, "PENDING"); assert.equal(method.privilegedOperation.classification, "PROPOSED"); }
     assert.equal(method.privilegedOperation?.requiredHeader, expected[0]);
     assert.equal(method.privilegedOperation?.credentialEnvironment, expected[1]);
     assert.equal(method.privilegedOperation?.denialStatus, expected[2]);

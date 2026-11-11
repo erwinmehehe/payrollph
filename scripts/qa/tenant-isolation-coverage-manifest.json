@@ -1530,7 +1530,8 @@
             "methodCoverageCredits": 0,
             "activeSamlLoginProven": false,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -1601,7 +1602,8 @@
             "methodCoverageCredits": 0,
             "activeSamlLoginProven": false,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -16836,7 +16838,6 @@
             "productionCertified": false
           },
           "privilegedOperation": {
-            "approvedOn": "2026-11-11",
             "credentialEnvironment": "HCM_SLA_CRON_SECRET",
             "requiredHeader": "authorization",
             "headerForm": "Bearer",
@@ -16846,12 +16847,14 @@
             "proofBlobSha": "823c27150d75d1bdd630ec914b7c0efc4565b7de",
             "contractFile": "tests/tenant-hcm-sla-escalate-contract.test.mjs",
             "contractBlobSha": "17a56b928916bee468b3bca339e215029b92df12",
-            "classification": "RECLASSIFIED",
+            "classification": "PROPOSED",
             "methodCoverageCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "proposedOn": "2026-11-11",
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -17914,7 +17917,8 @@
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -31278,7 +31282,8 @@
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         },
         {
@@ -31299,7 +31304,8 @@
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -31358,7 +31364,8 @@
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -31441,7 +31448,8 @@
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],
@@ -31532,7 +31540,8 @@
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
             "methodCoverageCredits": 0,
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "classificationApproval": "PENDING"
           }
         }
       ],

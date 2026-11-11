@@ -70,6 +70,11 @@ Resend's [stored-message update](../../src/lib/mailer.ts#L515) derives audit org
 
 ## Owner decision record
 
+Current #1921 proposal: [the nine-method decision packet](tenant-1921-classification-decision.md)
+lists the exact returned fields, stored writes, credentials and unclosed risks.
+All nine decisions remain **PENDING**. This supplements the historical 36-row
+snapshot below; it does not approve any classification or close another GAP.
+
 All 36 decisions: **PENDING**. Recommended next engineering work is a disposable two-key journal fixture and local inbound webhook fixtures with providers disabled, each as a separately scoped proof PR. Public-catalogue/intake proposals require explicit owner acceptance of the exact disclosed/written fields and privacy/anti-abuse boundary. Privileged jobs remain privileged; no scheduler execution is authorized by this triage.
 
 No rows are reclassified, no GAP is closed, and no estimated recoverable-method count is asserted by this document. Preserve all 36 existing GAP statuses until the appropriate proof or approved classification change lands.
