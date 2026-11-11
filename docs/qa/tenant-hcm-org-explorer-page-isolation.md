@@ -52,10 +52,10 @@ See the new dedicated contract, test and exact-head workflow:
 - The page is a client-rendered graph shell. **This runner does not prove
   hydrated Chromium interactions**, rapid employer switching or selection
   of a position by a browser user. These need a separate browser acceptance.
-- Graph/history API duplicate query parameters currently use first-value
-  parsing. This runner does **not** accept duplicate API-selector normalization
-  as secure or complete; a separately reviewed source fix and exact-source
-  API reproving is required before page promotion.
+- Graph/history APIs now reject repeated organizationId/positionId selectors
+  instead of choosing a first value. The dedicated real-HTTP runner exercises
+  duplicate same/foreign employer and foreign-position requests as HTTP 400.
+  Any new handler edits require refreshed exact-head tests before review.
 - No cross-employer access from users legitimately authorized to *both*
   employers is adjudicated by this proof; those users must be reviewed
   against the intended multi-employer access policy.
