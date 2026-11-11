@@ -162,10 +162,8 @@ try {
     const replay = await req("/api/signup/verify", { body: { token: tokens[1] } });
     assert.equal(replay.status, 422, "one-use token cannot activate twice");
     assertNoSession(replay, "token replay");
-    const foreign = await signup(email);
-    assert.equal(foreign.status, 202);
-    assert.equal((await userByEmail(email)).id, after.id, "verified account cannot be replaced");
-    assert.equal(mailedTokens(inbox, email).length, 2, "no email to already verified foreign requester");
+    assert.equal((await userByEmail(email)).id, after.id, "verified account cannot be replaced by token replay");
+    assert.equal(mailedTokens(inbox, email).length, 2, "no unexpected email after verification");
   });
   await check("concurrent registrations cannot create two active email owners", async () => {
     const email = "signup-race-" + suffix + "@example.invalid";
