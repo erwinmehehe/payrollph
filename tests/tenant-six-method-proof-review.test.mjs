@@ -59,6 +59,51 @@ const allMethods = Object.entries(m.allApiRouteFiles).flatMap(([path, value]) =>
 const inventory = readFileSync("docs/engineering/tenant-isolation-coverage-inventory.md", "utf8");
 const plan = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
 
+// The independently source-pinned method verifiers construct the expected main
+// ledger below. Use that ledger when counting the frozen source links rather
+// than maintaining a second, hand-summed allowance of merged PR credits.
+function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus, snapshotStatuses = {}) {
+  const route = manifest.allApiRouteFiles[path];
+  const row = route?.methods.find(method => method.name === verb);
+  const label = verb + " " + path;
+  assert.ok(row, label + ": frozen source link must resolve to a method");
+  assert.ok(["COVERED", "GAP", "PUBLIC-BY-DESIGN",
+    "PRIVILEGED-OPERATIONS-TOKEN-ONLY"].includes(verifiedStatus),
+    label + ": missing independently reconciled main status");
+  assert.equal(row.status, verifiedStatus,
+    label + ": a status promotion without its verified proof is forbidden");
+  if (row.status === "COVERED") {
+    const proof = row.testedBy;
+    assert.ok(proof && typeof proof.file === "string" && proof.file.startsWith("scripts/qa/"),
+      label + ": COVERED requires a source-pinned proof citation");
+    // These are citation *shapes*, not a whitelist of PRs or an acceptance
+    // bypass. Individual proof verifiers above still enforce exact SHA,
+    // executed receipts, route/method ownership and remaining GAPs.
+    const hasCitation =
+      (Number.isSafeInteger(proof.prNumber) && proof.prNumber > 0) ||
+      (Number.isSafeInteger(proof.proofPullRequest) && proof.proofPullRequest > 0) ||
+      (typeof proof.receiptFile === "string" && typeof proof.receiptBlobSha === "string") ||
+      (Number.isSafeInteger(proof.workflowRunId) && proof.workflowRunId > 0 &&
+        typeof proof.evidence === "string") ||
+      (typeof proof.sourceHead === "string" && typeof proof.proofBlobSha === "string") ||
+      (typeof proof.workflowFile === "string" && typeof proof.workflowBlobSha === "string" &&
+        typeof proof.proofBlobSha === "string") ||
+      // The original source-sealed 2026-11-03 snapshot contains historical
+      // COVERED proof records predating merged-PR citation metadata.
+      (typeof proof.scope === "string" && typeof proof.ownPositiveLine === "number");
+    // Historical snapshot credits are already immutable in the 2026-11-03
+    // fixture. Only later GAP-to-COVERED promotions require these newer
+    // merge/receipt citation shapes; older proof metadata is not retrofitted.
+    if (snapshotStatuses[path]?.[verb] !== "COVERED") {
+      assert.ok(hasCitation, label + ": credited method lacks a merged-proof citation");
+    }
+  }
+  if (row.status === "GAP") {
+    assert.equal(row.testedBy, null, label + ": an unproved method must remain GAP");
+  }
+  return row.status;
+}
+
 test("four uncredited methods stay GAP; two main-owned provisional credits are preserved", () => {
   assert.equal(cases.length, 6);
   for (const [verb, route, pr, head, proofSha, own, foreign, forged, unchanged, ordering, missing] of cases) {
@@ -1190,8 +1235,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
       { encoding: "utf8" });
-    const frozenCovered = 320 + baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + (baselineHasOldRoute || baselineHasCurrentRoute ? 2 : 0) +
-      (baselineHasPayout ? 1 : 0) + (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits;
+    // Frozen subtotal is derived only after each source link is reconciled
+    // against independently verified main method statuses below.
     // Compute the descriptive batch line from the immutable source-linked
     // frozen method queue and current main manifest, not an old blanket
     // "all twelve incomplete" assumption. Never count a zero-GAP batch as
@@ -1203,6 +1248,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       .split("### Batch ").slice(1);
     assert.equal(frozenSections.length, 12, "all frozen batches must remain in main");
     const statuses = [];
+    const reviewedStatuses = [];
     const provisionalBatches = frozenSections.filter(section => {
       const links = section.split("\n").filter(line =>
         line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"));
@@ -1210,16 +1256,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const sectionStatuses = links.map(line => {
         const method = line.split("`")[1]?.split(" ")[0];
         const path = line.split(" — [source](../../")[1]?.split("#L")[0];
-        const status = baseline.allApiRouteFiles[path]?.methods
-          .find(row => row.name === method)?.status;
-        assert.ok(["COVERED", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY", "GAP"].includes(status),
-          "Every frozen source link must map to a known method status");
+        const verifiedStatus = expectedOriginalMain[path]?.[method];
+        const status = verifiedFrozenMethodStatus(baseline, path, method, verifiedStatus, snapshot.methodStatuses);
+        reviewedStatuses.push(verifiedStatus);
         statuses.push(status);
         return status;
       });
       return sectionStatuses.every(status => status !== "GAP");
     }).map(section => section.split(" ")[0]);
     assert.equal(statuses.length, 406, "the frozen queue must still contain exactly 406 methods");
+    const frozenCovered = reviewedStatuses.filter(status => status === "COVERED").length;
     assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
       "the frozen queue must match current main source-credited methods");
     assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + baselinePublicReclassifications);
@@ -1280,4 +1326,23 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         "origin/main frozen ledger drift beyond its documented PII-02 caption omission");
     }
   }
+});
+
+test("frozen credit guard rejects an uncited or unproved method", () => {
+  const creditedPath = "src/app/api/billing/route.ts";
+  const uncited = structuredClone(m);
+  const billed = uncited.allApiRouteFiles[creditedPath].methods.find(row => row.name === "POST");
+  assert.equal(billed.status, "COVERED");
+  billed.testedBy = null;
+  assert.throws(() => verifiedFrozenMethodStatus(uncited, creditedPath, "POST", "COVERED"),
+    /COVERED requires a source-pinned proof citation/);
+
+  const uncoveredPath = "src/app/api/payroll-runs/[id]/xendit-payout/route.ts";
+  const unproved = structuredClone(m);
+  const held = unproved.allApiRouteFiles[uncoveredPath].methods.find(row => row.name === "POST");
+  assert.equal(held.status, "GAP");
+  held.status = "COVERED";
+  held.testedBy = { file: "scripts/qa/tenant-fabricated-credit.mjs" };
+  assert.throws(() => verifiedFrozenMethodStatus(unproved, uncoveredPath, "POST", "GAP"),
+    /status promotion without its verified proof is forbidden/);
 });
