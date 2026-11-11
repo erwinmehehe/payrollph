@@ -41,7 +41,8 @@ export function requireDisposableBillingPageEnv(env = process.env) {
 
 async function readLocal(path, cookie) {
   assert.ok(path === "/api/account" ||
-    path === "/billing/setup" || path.startsWith("/billing/setup?"),
+    path === "/billing/setup" || path.startsWith("/billing/setup?") ||
+    path.startsWith("/app?organizationId="),
   "Only the reviewed billing setup GET and account authentication are allowed");
   const response = await fetch(ORIGIN + path, {
     method: "GET", headers: cookie ? { cookie } : {},
@@ -53,7 +54,8 @@ async function readLocal(path, cookie) {
     try { json = JSON.parse(text); } catch { /* Explicit status checks still apply. */ }
   }
   return { status: response.status, text, json,
-    contentType: response.headers.get("content-type") ?? "" };
+    contentType: response.headers.get("content-type") ?? "",
+    location: response.headers.get("location") };
 }
 
 function noForeignMarkers(response, employers, label) {
@@ -221,6 +223,73 @@ export async function verifyBillingSetupPageTenantIsolation() {
       ownBefore.userOrganizations.filter(row => row.userId !== a.owner.id),
       "Role/revocation tests may not modify any other member");
     assert.ok(ownAfter.userOrganizations.some(row => row.userId === a.owner.id && !row.active));
+
+
+    // A real administrator owns both employer A and employer B. A has the
+    // lower organization ID and is therefore B owner's primary fallback.
+    // B is now an unpaid self-serve company: navigation MUST stay on B.
+    const { saasSignupVerifications } = await import("../../src/lib/saas-billing-schema.ts");
+    const beforeShared = new Map(await Promise.all(subjects.map(async subject =>
+      [subject.org.id, await snapshot(subject.org.id)])));
+    const [sharedMembership] = await db.insert(schema.userOrganizations).values({
+      userId: b.owner.id, organizationId: a.org.id, role: "owner", active: true,
+    }).returning({ id: schema.userOrganizations.id });
+    let signupRow = null;
+    try {
+      // No fictional checkout/payment/provider is created. The verification
+      // row merely marks B as self-serve for the existing unpaid workspace gate.
+      assert.equal(beforeShared.get(b.org.id).subscriptions.length, 0,
+        "Disposable B employer must have no active subscription");
+      [signupRow] = await db.insert(saasSignupVerifications).values({
+        organizationId: b.org.id, userId: b.owner.id,
+        tokenHash: randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", ""),
+        expiresAt: new Date(Date.now() + 3600000), verifiedAt: new Date(),
+      }).returning({ id: saasSignupVerifications.id });
+      const bSetup = ownPath(b.org.id);
+      // B remains authorized, but /billing/setup WITHOUT a selector chooses
+      // A (the lower employer ID). The browser must never silently switch.
+      assertOwnBillingPage(await readLocal(bSetup, b.cookie), b, [a, victim]);
+      assertOwnBillingPage(await readLocal("/billing/setup", b.cookie), a, [b, victim]);
+
+      const response = await readLocal("/app?organizationId=" + b.org.id, b.cookie);
+      assert.ok([302, 303, 307, 308].includes(response.status),
+        "Unpaid B workspace must redirect before displaying payroll records");
+      assert.ok(response.location, "Unpaid employer redirect must have Location");
+      const selected = new URL(response.location, ORIGIN);
+      assert.equal(selected.origin, ORIGIN);
+      assert.equal(selected.pathname + selected.search, bSetup,
+        "B's unpaid workspace must never navigate to A's subscription setup");
+      noForeignMarkers(response, subjects, "unpaid B workspace redirect");
+      assertOwnBillingPage(await readLocal(selected.pathname + selected.search, b.cookie),
+        b, [a, victim]);
+
+      for (const invalid of ["0", "-1", "01", "1e0", "bad", "9007199254740992"]) {
+        assertDeniedBillingPage(
+          await readLocal("/billing/setup?organizationId=" + invalid, b.cookie),
+          subjects, "shared owner malformed billing target " + invalid);
+      }
+      assertDeniedBillingPage(
+        await readLocal("/billing/setup?organizationId=" + a.org.id +
+          "&organizationId=" + b.org.id, b.cookie),
+        subjects, "duplicate billing target may not choose either employer");
+      assertDeniedBillingPage(await readLocal(ownPath(victim.org.id), b.cookie),
+        subjects, "shared B owner may never view victim-only billing");
+      assertDeniedBillingPage(
+        await readLocal("/app?organizationId=" + victim.org.id, b.cookie),
+        subjects, "shared B owner may never request foreign company workspace");
+    } finally {
+      if (signupRow) await db.delete(saasSignupVerifications)
+        .where(eq(saasSignupVerifications.id, signupRow.id));
+      await db.delete(schema.userOrganizations)
+        .where(eq(schema.userOrganizations.id, sharedMembership.id));
+    }
+    for (const subject of subjects) {
+      assert.deepEqual(await snapshot(subject.org.id), beforeShared.get(subject.org.id),
+        "Shared-admin read-only billing and workspace requests must leave " + subject.label + " SQL unchanged");
+    }
+    assert.equal((await db.select().from(saasSignupVerifications)
+      .where(eq(saasSignupVerifications.organizationId, b.org.id))).length, 0,
+      "Self-serve marker must be removed from disposable fixture");
 
     const summary = {
       kind: "BILLING_PAGE_FICTIONAL_PG16_UNACCEPTED",

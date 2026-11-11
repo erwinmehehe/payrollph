@@ -72,6 +72,6 @@ export async function requireSaasPaidWrites(organizationId: number): Promise<Res
     error: "This company needs an active, paid subscription to change payroll or employee records.",
     code: "SUBSCRIPTION_REQUIRED",
     subscriptionState: entitlements.status,
-    billingUrl: "/billing/manage",
+    billingUrl: "/billing/setup?organizationId=" + organizationId,
   }, { status: 402 });
 }
