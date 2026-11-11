@@ -47,6 +47,14 @@ export function requireDisposableOidcBrowserEnv(env = process.env) {
   for (const [name, expected] of Object.entries(required)) {
     assert.equal(env[name], expected, "OIDC_BROWSER_REFUSED: unsafe " + name);
   }
+  // OIDC start encrypts its PKCE verifier before persisting login state.
+  // The PG16 runner must have a synthetic AES-256 key installed by CI;
+  // otherwise HTTP 500 tests only missing setup, not browser-state isolation.
+  assert.ok(
+    typeof env.ENTERPRISE_IDENTITY_ENCRYPTION_KEY === "string" &&
+      /^[0-9a-fA-F]{64}$/.test(env.ENTERPRISE_IDENTITY_ENCRYPTION_KEY),
+    "OIDC_BROWSER_REFUSED: ephemeral 32-byte enterprise identity key is required",
+  );
   for (const key of [
     "NEON_DATABASE_URL", "OPENAI_API_KEY", "PAYMONGO_SECRET_KEY",
     "XENDIT_SECRET_KEY", "XENDIT_PAYOUT_SECRET_KEY", "SMTP_URL",
