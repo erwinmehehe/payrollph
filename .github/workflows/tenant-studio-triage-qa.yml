@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "src/lib/automation.ts"
+      - "src/lib/automation-recovery-scope.ts"
       - "scripts/qa/tenant-studio-triage-contract.mjs"
       - "scripts/qa/tenant-studio-triage-http.mjs"
       - "tests/tenant-studio-triage-contract.test.mjs"

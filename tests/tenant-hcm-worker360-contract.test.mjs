@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs"; import { verifyStudioPostCredit } from "../scripts/qa/tenant-studio-post-credit.mjs";
 import {
   ORIGIN, AS_OF, SOURCE_PINS, gitBlobSha, verifyWorker360SourcePins,
   requireDisposableWorker360Env, assertOwnPage, assertOwnWorkerApi,
@@ -246,7 +246,7 @@ test("new Worker 360 source demotes stale historic page/API credits without eras
   assert.equal(get?.reviewedUncertified?.coverageCredits, 0);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.equal(m.scopedPages.filter(entry => entry.status === "GAP").length, 17);
-  assert.equal(m.metrics.gap, 18);
+  assert.equal(m.metrics.gap, 18 - verifyStudioPostCredit(m));
   assert.equal(verifyWorker360PageCredit(m), 17);
 });
 

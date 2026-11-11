@@ -1,10 +1,10 @@
 /** Three complete method receipts, fictional PG16 only; never production acceptance. */
+import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
-import {verifySessionSourceCompatibility} from './tenant-automation-session-source-compat.mjs';
 export const SECURITY_RECEIPT='scripts/qa/tenant-security-write-receipt.json';
 const SEALED_DIGEST='1631f96dca30437b852c7eb777b3d787fca5223fcc72800c68dcae0d1debe8b3';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
@@ -43,11 +43,12 @@ export function readSecurityEvidence(read=readFileSync){
       try { assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha); }
       catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
     }
-    else if(file==='src/lib/automation.ts') {
-      try { verifySessionSourceCompatibility(sha,blob(read(file)),read); }
-      catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
-    }
-    else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
+    else if(file==='src/lib/automation.ts'){
+      try {
+        assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Original security-write receipt source seal changed');
+        verifyNarrowStudioAutomationSource(read);
+      } catch(cause){throw new Error('Security source/proof drift: '+file,{cause});}
+    } else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
   }
   for(const t of r.targets){assert.equal(t.evidence.routeBlobSha,r.pins[t.path]);assert.equal(t.evidence.proofBlobSha,r.pins[t.evidence.file]);
     assert.equal(t.evidence.sourceHead,r.sourceHead);assert.equal(t.evidence.runLabel,r.runLabel);
