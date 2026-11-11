@@ -23,6 +23,14 @@ export function hcmOrgExplorerPositiveId(value: string | null): number | null {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+/** One unambiguous canonical identifier; never take the first of duplicate URL keys. */
+export function hcmOrgExplorerSingleQueryId(
+  params: URLSearchParams, key: "organizationId" | "positionId",
+): number | null {
+  const values = params.getAll(key);
+  return values.length === 1 ? hcmOrgExplorerPositiveId(values[0]) : null;
+}
+
 /**
  * Pilot activation is restricted to an explicit legal-employer allowlist.
  * A global server flag alone never enables this sensitive organization map.
