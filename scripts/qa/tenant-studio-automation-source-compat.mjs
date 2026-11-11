@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
+import {COMBINED_AUTOMATION_SHA,verifyCombinedStudioSource} from './tenant-studio-combined-source-compat.mjs';
 
 export const HISTORIC_AUTOMATION_SHA = "288d27789e062803d68ea38fd41fa78ee155a1ee";
 export const CURRENT_AUTOMATION_SHA = "ce2c8e8feee4554c85f7739b73f2fa0325b81306";
@@ -42,6 +43,7 @@ const sha = input => {
 export function verifyNarrowStudioAutomationSource(read=readFileSync) {
   const source=Buffer.from(read(AUTOMATION_PATH));
   const actual=sha(source);
+  if(actual===COMBINED_AUTOMATION_SHA){verifyCombinedStudioSource(read);return {kind:"exact-narrowing-with-disposable-evidence",newCredits:0,independentAcceptance:false};}
   if (actual===HISTORIC_AUTOMATION_SHA) return {kind:"historical-unchanged",newCredits:0};
   assert.equal(actual,CURRENT_AUTOMATION_SHA,"Studio runtime changed again; renew method-specific proof");
   let historical=source.toString("utf8");

@@ -3,13 +3,13 @@ import {STUDIO_POST_PATH,STUDIO_RECEIPT,readStudioPostReceipt,verifyStudioPostRe
 import {RENEWAL_FILE,readStudioDependencyRenewal,verifyRenewalResults} from '../scripts/qa/tenant-studio-dependency-renewal.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 const clone=x=>JSON.parse(JSON.stringify(x));
-test('only the complete seven-job, eleven-action Studio cohort earns one distinct method',()=>{
- const r=readStudioPostReceipt();assert.equal(Object.keys(r.actionProofs).length,11);assert.equal(Object.keys(r.cohort).length,7);
+test('only the complete eight-job, eleven-action Studio cohort earns one distinct method',()=>{
+ const r=readStudioPostReceipt();assert.equal(Object.keys(r.actionProofs).length,11);assert.equal(Object.keys(r.cohort).length,8);
  assert.equal(verifyStudioPostCredit(manifest()),1);assert.equal(reconcileStudioPostCredit({write:false}).credited,0);
  assert.equal(r.cohort.scope.result.resolution.families.length,6);
 });
 test('missing modes, borrowed jobs, failed positives or real-provider claims cannot pass',()=>{
- const r=readStudioPostReceipt();for(const mutate of [x=>delete x.cohort.language,x=>delete x.actionProofs['save-rule'],
+ const r=readStudioPostReceipt();for(const mutate of [x=>delete x.cohort.language,x=>delete x.cohort.sessions,x=>x.cohort.sessions.result.sharedGlobalSessionPreserved=false,x=>delete x.actionProofs['save-rule'],
   x=>x.cohort.scope.job=x.cohort.draft.job,x=>x.cohort.scope.conclusion='failure',x=>x.cohort.scope.result.own=0,
   x=>x.cohort.scope.result.resolution.families.pop(),x=>x.cohort.scope.result.unchangedVictim=false,
   x=>x.cohort.language.result.ownSaves=0,x=>x.providerCalls=1,x=>x.independentlyAccepted=true]){

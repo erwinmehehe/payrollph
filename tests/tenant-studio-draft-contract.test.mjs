@@ -87,7 +87,7 @@ test("foreign and forged-resource denial must hide both rule and private tenant 
 test("real production sources and proof actions are exact-blob pinned, never inferred", () => {
   assert.equal(STUDIO_DRAFT_ROUTE, "/api/automation-studio");
   assert.equal(STUDIO_DRAFT_TEMPLATE, "people-new-hire-core-onboarding");
-  assert.equal(Object.keys(SOURCE_BLOBS).length, 5);
+  assert.equal(Object.keys(SOURCE_BLOBS).length, 6);
   for (const sha of Object.values(SOURCE_BLOBS)) assert.match(sha, /^[a-f0-9]{40}$/);
   assert.equal(verifyStudioDraftSources(), true);
 });

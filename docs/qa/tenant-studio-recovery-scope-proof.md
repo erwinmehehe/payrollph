@@ -125,3 +125,14 @@ The original complete approvals workflow had a preflight failure on the old
 source hash, so its complete new-head reproof is still needed. Independent
 security and method-acceptance review remains PENDING. This is **not** new
 COVERED credit, production acceptance or deployment approval.
+# Combined #1922 / #1924 renewal checkpoint
+
+The reviewed engine now contains both stored-resource recovery locks and
+employer-bound account/session side effects. The earlier seven-job cohort and
+dependency receipts below are historical; they do not prove this combined
+engine. The strict complete-method gate now requires eight fresh Studio jobs,
+including the shared-account session-boundary proof, plus renewed transitive
+dependency evidence. Until those actual HTTP runs and their source pins are
+reconciled, the proposed Studio credit must not merge. No historical receipt
+has been rewritten to pretend it executed new code.
+

@@ -11,7 +11,7 @@ export const STUDIO_RECEIPT='scripts/qa/tenant-studio-post-credit-receipt.json';
 const SEALED='91e0cde74d6212efc3bc20c415ffbd9cdd87666e';
 const ACTIONS=Object.freeze({
  'quarantine-execution-step':'execution','triage-operational-case':['triage','resolution','scope'],
- 'retry-execution-step':'scope','replay-execution':'scope',
+ 'retry-execution-step':['scope','sessions'],'replay-execution':['scope','sessions'],
  'draft-from-language':'language','save-language-draft':'language',
  'create-from-template':'draft','save-rule':'draft','publish-rule':'lifecycle',
  'rollback-rule':'lifecycle','set-active':'lifecycle',
@@ -19,10 +19,13 @@ const ACTIONS=Object.freeze({
 export function verifyStudioPostResults(r){
  assert.equal(r.label,'SOLO_VERIFIED_DEV_RECOVERY');assert.equal(r.postgresMajor,16);
  assert.equal(r.providerCalls,0);assert.equal(r.productionAccepted,false);assert.equal(r.independentlyAccepted,false);
- assert.deepEqual(r.actionProofs,ACTIONS);assert.deepEqual(Object.keys(r.cohort).sort(),['triage','draft','lifecycle','execution','resolution','language','scope'].sort());
- assert.equal(new Set(Object.values(r.cohort).map(j=>j.job)).size,7,'Seven distinct executed proof jobs required');
+ assert.deepEqual(r.actionProofs,ACTIONS);assert.deepEqual(Object.keys(r.cohort).sort(),['triage','draft','lifecycle','execution','resolution','language','scope','sessions'].sort());
+ assert.equal(new Set(Object.values(r.cohort).map(j=>j.job)).size,8,'Eight distinct executed proof jobs required');
  for(const j of Object.values(r.cohort)){assert.equal(j.conclusion,'success');assert.ok(Number.isSafeInteger(j.job)&&j.job>0);assert.ok(Number.isSafeInteger(j.run)&&j.run>0);assert.match(j.head,/^[a-f0-9]{40}$/);}
  const data=k=>r.cohort[k].result;
+ const sessions=data('sessions');
+ for(const key of ['fictionalPG16','twoForeignEmployers','higherIdVictim','ownRetry','ownReplay','foreignSessionsUnchanged','sharedAccountFailClosed','employerMembershipDeactivation','sharedGlobalSessionPreserved'])assert.equal(sessions[key],true,key);
+ assert.equal(sessions.providerCalls,0);assert.equal(sessions.moneyMoved,false);assert.equal(sessions.newMethodCredits,0);assert.equal(sessions.productionAccepted,false);
  const t=data('triage');assert.deepEqual([t.ownSuccess,t.foreignDenials,t.negativeChecks],[2,4,18]);assert.equal(t.higherIdVictim,true);assert.equal(t.readOnlyAuthoritativeSources,true);
  const d=data('draft');assert.deepEqual([d.ownCreates,d.ownUpdates,d.foreignDenials,d.otherDenials],[5,2,8,10]);assert.equal(d.victimSQLUnchangedByAttackers,true);assert.equal(d.automationExecutions,0);
  const l=data('lifecycle');assert.deepEqual([l.ownedPublications,l.ownedActivations,l.ownedDisables,l.ownedRollbacks,l.foreignDenials,l.otherDenials],[2,2,2,2,22,19]);assert.equal(l.allTenantSqlProtected,true);assert.equal(l.noExternalProviders,true);
@@ -51,7 +54,7 @@ export function readStudioPostReceipt(read=readFileSync){
   assert.equal(jobSpecSha(workflow.jobs[j.jobKey]),j.jobSpecSha,'Studio execution recipe changed: '+j.workflow);
  }
  for(const [family,j]of Object.entries(r.cohort)){
-  const script='scripts/qa/tenant-studio-'+(family==='scope'?'recovery-scope':family)+'-http.mjs';
+  const script=family==='sessions'?'scripts/qa/tenant-automation-session-ownership-http.mjs':'scripts/qa/tenant-studio-'+(family==='scope'?'recovery-scope':family)+'-http.mjs';
   assert.equal(j.proofFile,script);assert.equal(j.proofBlobSha,r.inputBlobs[script]);
   assert.equal(j.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/'+j.run+'/job/'+j.job);
   if(j.result.sourceHead)assert.equal(j.result.sourceHead,j.head);
@@ -87,7 +90,7 @@ export function verifyStudioPostCredit(m,read=readFileSync){
 function reconcileDocs(m,write){
  const pageGaps=m.scopedPages.filter(x=>x.status==='GAP').length;
  const prefix='> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** ';
- const banner=prefix+m.metrics.methods+' methods = '+m.metrics.coveredAfter+' COVERED + '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+m.metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+m.metrics.gap+' GAP. Eleven actions, seven executed proof jobs and all six source families; '+pageGaps+' separate page/action gaps remain. No production or external-provider acceptance.\n\n';
+ const banner=prefix+m.metrics.methods+' methods = '+m.metrics.coveredAfter+' COVERED + '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+m.metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+m.metrics.gap+' GAP. Eleven actions, eight executed proof jobs and all six source families; '+pageGaps+' separate page/action gaps remain. No production or external-provider acceptance.\n\n';
  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
   const original=readFileSync(file,'utf8');let doc=original;
   while(doc.startsWith(prefix)){const end=doc.indexOf('\n');doc=end<0?'':doc.slice(end+1).replace(/^\n+/,'');}

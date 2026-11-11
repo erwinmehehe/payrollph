@@ -1,6 +1,7 @@
 import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
 import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';import {readFileSync,writeFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';
 export const APPROVALS_PATH='src/app/api/approvals/[id]/route.ts';
+
 export const APPROVALS_PINS=Object.freeze({
   ".github/workflows/tenant-approvals-recovery.yml": "475e602fc527403445e8c291b426ca2ce00efbfc",
   "docs/sql/source-baseline-supplement.sql": "9acc7896f4ea382917da7acd53984e73c6aface3",

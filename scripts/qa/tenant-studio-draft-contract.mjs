@@ -13,7 +13,8 @@ export const SOURCE_BLOBS = Object.freeze({
   "src/app/api/automation-studio/route.ts": STUDIO_TRIAGE_ROUTE_SHA,
   "src/lib/automation-versioning.ts": "02de9020858887818b70bd940d6b287d1c73e9bf",
   "src/lib/automation-templates.ts": "f6cd21b7a09fc575345c92f49edcf8b80767952d",
-  "src/lib/automation.ts": "ce2c8e8feee4554c85f7739b73f2fa0325b81306",
+  "src/lib/automation.ts": "edb8330bc19362fb6828247eeddfb2f0c6169795",
+  "src/lib/automation-employee-account-boundary.ts": "4b66410789ec536482d63d9d58c5df1b17b38746",
   "src/lib/automation-recovery-scope.ts": "ff3dddff0e7ddea20a7be24792d84503a540202e",
 });
 
