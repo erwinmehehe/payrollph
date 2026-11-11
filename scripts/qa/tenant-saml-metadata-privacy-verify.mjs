@@ -11,10 +11,10 @@ export const SAML_PRIVACY_HOLD = Object.freeze({
   "routeBlobSha": "4f8d12b9867de0c18aea8e447208e8470773350b",
   "ownerDecision": "CONCEAL_DISABLED_PROVIDERS",
   "pins": {
-    "scripts/qa/tenant-saml-metadata-public-contract.mjs": "2441096ba04ae781f53eba7970c0f378501e5342",
+    "scripts/qa/tenant-saml-metadata-public-contract.mjs": "ceae351aa208659d25fb37ce26bcf2ba01b96a83",
     "scripts/qa/tenant-saml-metadata-public-http.mjs": "564f1a50a078f3ec7a4fe2461ce27a8f9d5f54ff",
-    "tests/tenant-saml-metadata-public.test.mjs": "92319255a731985455c273836abafd812326edaf",
-    "tests/tenant-saml-metadata-disabled-route.test.mjs": "07b2f7400b5cc8072806258ea1b8470e702cca6e",
+    "tests/tenant-saml-metadata-public.test.mjs": "792ba21584827c85295eb7fd8d7198fe19206dba",
+    "tests/tenant-saml-metadata-disabled-route.test.mjs": "7e28f98ad85a393f44c69e16ccb1a1ed3f827bf7",
     "tests/tenant-saml-metadata-privacy-verify.test.mjs": "540d1e4745de83868e731819f1151bcb40692d98",
     ".github/workflows/tenant-saml-metadata-public-http.yml": "4ac2edcb432eb406557edf3db260f4da876f5e18"
   },

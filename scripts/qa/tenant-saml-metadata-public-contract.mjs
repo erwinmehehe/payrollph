@@ -33,9 +33,16 @@ export function requireIsolatedSamlProof(env = process.env) {
   }
 }
 
+function assertUncacheable(response) {
+  // Production Next may append max-age=0 to the handler's no-store header.
+  // Accept only these two non-storing forms, never a cacheable directive.
+  assert.ok(["no-store", "no-store, max-age=0"].includes(response.headers.get("cache-control")),
+    "Metadata must not be cached");
+}
+
 export function assertMetadata(response, providerId, secretMarkers = []) {
   assert.equal(response.status, 200, "Enabled public SP metadata must return 200");
-  assert.equal(response.headers.get("cache-control"), "no-store");
+  assertUncacheable(response);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.match(response.headers.get("content-type") || "", /application\/samlmetadata\+xml/i);
   assert.match(response.text, /<EntityDescriptor\b/);
@@ -75,7 +82,7 @@ export function assertMissingMetadata(response, markers = [], expectedStatus = 4
 export function assertHiddenMetadata(response, missing, markers = []) {
   assertMissingMetadata(response, markers, 404);
   assert.equal(response.text, HIDDEN_PROVIDER_BODY, "Hidden provider must use the generic error body");
-  assert.equal(response.headers.get("cache-control"), "no-store", "Hidden provider must not be cached");
+  assertUncacheable(response);
   assert.match(response.headers.get("content-type") || "", /^application\/json\b/i);
   if (missing) assertSameMetadata(missing, response);
 }

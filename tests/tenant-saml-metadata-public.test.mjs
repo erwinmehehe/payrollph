@@ -99,6 +99,30 @@ test("hidden provider requires exact generic 404, no XML and no-store", () => {
   assert.throws(() => assertHiddenMetadata(cached, missing), /must not be cached/);
 });
 
+test("production no-store normalization stays strict for enabled and hidden providers", () => {
+  for (const cache of ["no-store", "no-store, max-age=0"]) {
+    const enabled = response(xml(7));
+    const hidden = response(HIDDEN_PROVIDER_BODY, 404);
+    enabled.headers.set("cache-control", cache);
+    hidden.headers.set("cache-control", cache);
+    assert.doesNotThrow(() => assertMetadata(enabled, 7));
+    assert.doesNotThrow(() => assertHiddenMetadata(hidden, hidden));
+  }
+  for (const cache of ["", "max-age=0", "no-cache", "public, max-age=300",
+    "no-store, max-age=300", "no-store, s-maxage=300", "no-store, public"]) {
+    const enabled = response(xml(7));
+    const hidden = response(HIDDEN_PROVIDER_BODY, 404);
+    enabled.headers.set("cache-control", cache);
+    hidden.headers.set("cache-control", cache);
+    assert.throws(() => assertMetadata(enabled, 7), /must not be cached/);
+    assert.throws(() => assertHiddenMetadata(hidden, hidden), /must not be cached/);
+  }
+  const hidden = response(HIDDEN_PROVIDER_BODY, 404);
+  const different = response(HIDDEN_PROVIDER_BODY, 404);
+  different.headers.set("cache-control", "no-store, max-age=0");
+  assert.throws(() => assertHiddenMetadata(different, hidden), /header differs/);
+});
+
 test("malformed IDs are specifically 400, not an arbitrary failure", () => {
   assert.doesNotThrow(() => assertMissingMetadata(response("Invalid ID", 400), [], 400));
   assert.throws(() => assertMissingMetadata(response("Invalid ID", 404), [], 400));

@@ -61,15 +61,15 @@ function harness() {
       return `<EntityDescriptor entityID="${value.entityId}"><AssertionConsumerService Location="${value.acsUrl}"/></EntityDescriptor>`;
     } },
   };
-  const module = { exports: {} };
+  const handlerModule = { exports: {} };
   runInNewContext(compiled.outputText, {
-    module, exports: module.exports, Response,
+    module: handlerModule, exports: handlerModule.exports, Response,
     require(name) {
       assert.ok(Object.hasOwn(dependencies, name), "Unexpected dependency: " + name);
       return dependencies[name];
     },
   }, { filename: routePath, timeout: 1000 });
-  const get = (id, query = "", headers = {}) => module.exports.GET(
+  const get = (id, query = "", headers = {}) => handlerModule.exports.GET(
     new Request("http://127.0.0.1/api/auth/saml/metadata/" + id + query, { headers }),
     { params: Promise.resolve({ providerId: String(id) }) },
   );
