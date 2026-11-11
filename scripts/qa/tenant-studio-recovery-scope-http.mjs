@@ -80,7 +80,7 @@ export async function proveRecoveryScope(){
    if(type==='assign_permission_set')assert.ok(state.userPermissionAssignments.some(x=>x.userOrganizationId===a.membership.id&&x.permissionSetId===step.permissionSetId));
    if(type==='assign_benefit')assert.ok(state.benefitEnrollments.some(x=>x.employeeId===a.worker.id&&x.planId===step.planId&&x.status==='active'));
    const forged=structuredClone(response);forged.json.execution.organizationId=victim.org.id;forged.json.execution.employeeId=victim.worker.id;
-   assert.throws(()=>assertOwnedRecovery(forged,a,source,mode,forged.json.execution),/accepts another employer's data/);discriminations++;own++;
+   assert.throws(()=>assertOwnedRecovery(forged,a,source,mode,forged.json.execution),/accepts another employer's data/,"write validator accepts another employer's data");discriminations++;own++;
    await deny(a,mode,victimExecution,409,'real victim execution under own employer');
    await deny(a,mode,source,403,'foreign organization selector',victim.org.id);
    const foreignWorker=await execution(a,step,{employeeId:victim.worker.id});
