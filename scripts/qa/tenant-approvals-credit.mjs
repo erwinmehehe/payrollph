@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';import {readFileSync,writeFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';
-export const APPROVALS_PATH='src/app/api/approvals/[id]/route.ts';import { verifySessionSourceCompatibility } from "./tenant-automation-session-source-compat.mjs";
+import { verifySessionSourceCompatibility } from './tenant-automation-session-source-compat.mjs';
+export const APPROVALS_PATH='src/app/api/approvals/[id]/route.ts';
 
 export const APPROVALS_PINS=Object.freeze({
   ".github/workflows/tenant-approvals-recovery.yml": "475e602fc527403445e8c291b426ca2ce00efbfc",
