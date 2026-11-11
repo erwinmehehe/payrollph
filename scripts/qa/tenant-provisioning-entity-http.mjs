@@ -73,7 +73,7 @@ export async function proveProvisioningEntityIsolation() {
     "organizations", "legalEntities", "orgUnits", "userOrganizations",
     "userLegalEntityGrants", "employees", "employeePayProfiles",
     "provisioningTasks", "auditEvents", "payrollRuns",
-    "itAccessGrants", "itManagedDevices", "assets",
+    "itApplications", "itAccessGrants", "itManagedDevices", "itDeviceEvents", "assets",
   ];
   async function snapshot(orgId) {
     const state = {};
@@ -109,6 +109,19 @@ export async function proveProvisioningEntityIsolation() {
       marker: "PROV-B-" + nonce };
     internalB.worker = await fixture.addWorker(internalB, "WORKER");
     const unseededB = await fixture.addWorker(internalB, "UNSEEDED");
+    await db.update(schema.employees).set({ status: "Separating" }).where(and(
+      eq(schema.employees.id, unseededB.id),
+      eq(schema.employees.organizationId, a.org.id),
+    ));
+    // A fictional active IT grant makes a cross-entity GET side effect observable.
+    // Only B's OWN GET may ask a human to revoke B's app access.
+    const [app] = await db.insert(schema.itApplications).values({
+      organizationId: a.org.id, name: "Fictional B offboarding app " + nonce,
+    }).returning();
+    const [foreignGrant] = await db.insert(schema.itAccessGrants).values({
+      organizationId: a.org.id, employeeId: unseededB.id,
+      applicationId: app.id, state: "active", requestedByUserId: b.owner.id,
+    }).returning();
     // This is a DIFFERENT signed-in person, with role and grant to only entity B
     // in the SAME parent organization. The other B organization is a comparator.
     await db.insert(schema.userOrganizations).values({
@@ -181,14 +194,23 @@ export async function proveProvisioningEntityIsolation() {
       noForeignMarkers(response, actor.opponents, actor.name + " own checklist");
       assert.deepEqual(await snapshot(victim.org.id), victimBefore,
         "Owned checklist GET must not seed or edit a separate victim employer");
-      if (actor === actors[0]) assert.equal(
-        (await db.select().from(schema.provisioningTasks)
+      if (actor === actors[0]) {
+        assert.equal((await db.select().from(schema.provisioningTasks)
           .where(eq(schema.provisioningTasks.employeeId, unseededB.id))).length, 0,
-        "A legal employer GET must not initialize another employer's unseeded checklist");
-      else assert.equal(
-        (await db.select().from(schema.provisioningTasks)
-          .where(eq(schema.provisioningTasks.employeeId, unseededB.id))).length, 5,
-        "B legal employer GET should initialize only B's own onboarding tasks");
+          "A legal employer GET must not initialize B's onboarding OR offboarding tasks");
+        const [grant] = await db.select().from(schema.itAccessGrants)
+          .where(eq(schema.itAccessGrants.id, foreignGrant.id));
+        assert.equal(grant.state, "active",
+          "A-only GET must not request revocation of B's fictional IT access");
+      } else {
+        assert.equal((await db.select().from(schema.provisioningTasks)
+          .where(eq(schema.provisioningTasks.employeeId, unseededB.id))).length, 10,
+          "B's own GET must initialize B onboarding and offboarding task lists");
+        const [grant] = await db.select().from(schema.itAccessGrants)
+          .where(eq(schema.itAccessGrants.id, foreignGrant.id));
+        assert.equal(grant.state, "revoke_requested",
+          "Only an authorized B GET may request B's own offboarding IT revocation");
+      }
       ownReads++;
       await deny(actor, readPath(other), 403);
       await deny(actor, endpoint + "?organizationId=" + victim.org.id +
