@@ -60,6 +60,8 @@ test("ID-only PATCH resolves a case inside the current active employer membershi
   assert.ok(found > 0 && missing > found && role > missing && scope > role,
     "foreign and missing IDs must be denied identically before role, worker or case-state disclosure");
   assert.doesNotMatch(patch, /db\.select\(\)\.from\(disciplinaryCases\)\.where\(eq\(disciplinaryCases\.id, id\)\)/);
+  assert.match(patch, /if \(!employee\) return Response\.json\(\{ error: "Disciplinary case unavailable\." \}, \{ status: 403 \}\)/,
+    "Real out-of-scope cases and nonexistent IDs must have indistinguishable refusal bodies and status");
 });
 
 test("all four decisions bind the final update to case, employer and employee, and reject lost targets", () => {

@@ -192,7 +192,7 @@ export async function PATCH(request: Request) {
       legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
     ))
     .limit(1);
-  if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+  if (!employee) return Response.json({ error: "Disciplinary case unavailable." }, { status: 403 });
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
