@@ -24,7 +24,7 @@ test("only an unverified, inactive pending owner becomes reclaimable after a bou
 
 test("normal, duplicate, verified and invited acknowledgements have identical public shape", async () => {
   const responses = await Promise.all([1, 2, 3, 4].map(() => signupAcceptedResponse(Date.now() - 2000)));
-  const shape = (r: Response) => ({ status: r.status, headers: [...r.headers.entries()].sort(), body: r.text() });
+  const shape = async (r: Response) => ({ status: r.status, headers: [...r.headers.entries()].sort(), body: await r.text() });
   const samples = await Promise.all(responses.map(shape));
   for (const sample of samples) assert.deepEqual(sample, samples[0]);
   assert.equal(samples[0].status, 202);
