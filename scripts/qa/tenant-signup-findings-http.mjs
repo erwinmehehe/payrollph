@@ -144,11 +144,6 @@ try {
       createdAt: new Date(Date.now() - 25 * 60 * 60_000),
       expiresAt: new Date(Date.now() - 24 * 60 * 60_000),
     }).where(eq(saasSignupVerifications.id, verification.id));
-    const beforeStaleResend = inbox.length;
-    const staleResend = await req("/api/signup/resend", { body: { email } });
-    assert.equal(staleResend.status, 200);
-    assert.equal(inbox.length, beforeStaleResend, "resend must not prolong an expired pending registration");
-
     const recovered = await signup(email, { company: "Fictional Actual Mailbox Owner" });
     assert.equal(recovered.status, 202);
     const after = await userByEmail(email);
@@ -170,6 +165,24 @@ try {
     assertNoSession(replay, "token replay");
     assert.equal((await userByEmail(email)).id, after.id, "verified account cannot be replaced by token replay");
     assert.equal(mailedTokens(inbox, email).length, 2, "no unexpected email after verification");
+  });
+  await check("expired pending resend cannot prolong the 24-hour account hold", async () => {
+    const email = "signup-resend-expired-" + suffix + "@example.invalid";
+    const first = await signup(email);
+    assert.equal(first.status, 202);
+    const owner = await userByEmail(email);
+    assert.ok(owner && !owner.active);
+    const [verification] = await db.select().from(saasSignupVerifications)
+      .where(eq(saasSignupVerifications.userId, owner.id)).limit(1);
+    assert.ok(verification);
+    await db.update(saasSignupVerifications).set({
+      createdAt: new Date(Date.now() - 25 * 60 * 60_000),
+      expiresAt: new Date(Date.now() - 24 * 60 * 60_000),
+    }).where(eq(saasSignupVerifications.id, verification.id));
+    const beforeMail = inbox.length;
+    const resend = await req("/api/signup/resend", { body: { email } });
+    assert.equal(resend.status, 200);
+    assert.equal(inbox.length, beforeMail, "expired pending signup must not be revived or mailed");
   });
   await check("resend rotates an unexpired pending token only once", async () => {
     const email = "signup-resend-" + suffix + "@example.invalid";
