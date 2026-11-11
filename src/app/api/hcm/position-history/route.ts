@@ -16,8 +16,13 @@ export async function GET(request: Request) {
   if (!user) return hcmOrgExplorerJson({ error: "Authentication required." }, 401);
 
   const params = new URL(request.url).searchParams;
-  const organizationId = hcmOrgExplorerPositiveId(params.get("organizationId"));
-  const positionId = hcmOrgExplorerPositiveId(params.get("positionId"));
+  // Never select an employer or position from the first of multiple values.
+  const organizationId = hcmOrgExplorerPositiveId(
+    params.getAll("organizationId").length === 1 ? params.get("organizationId") : null,
+  );
+  const positionId = hcmOrgExplorerPositiveId(
+    params.getAll("positionId").length === 1 ? params.get("positionId") : null,
+  );
   if (!organizationId || !positionId) {
     return hcmOrgExplorerJson({ error: "Valid organizationId and positionId required." }, 400);
   }
