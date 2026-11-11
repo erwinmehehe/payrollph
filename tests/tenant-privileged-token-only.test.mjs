@@ -5,11 +5,11 @@ import {verifyWorkspaceReadinessCredit} from "../scripts/qa/tenant-workspace-rea
 const manifest=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 const expected=[
 "GET jobs/cron","GET jobs/dispatch-readiness","GET jobs/status",
-"POST jobs/tick","POST webhooks/drain","GET capabilities","GET readiness",
+"POST jobs/tick","POST webhooks/drain","POST hcm/work-items/escalate","GET capabilities","GET readiness",
 "GET readiness/billing","GET readiness/database-target","GET readiness/deployment",
 "GET readiness/pilot-status"
 ];
-test("only eleven approved methods use the token-only class; zero tenant proof credits",()=>{
+test("only twelve approved methods use the token-only class; zero tenant proof credits",()=>{
   const seen=Object.values(manifest.allApiRouteFiles).flatMap(x=>x.methods.map(m=>({key:m.name+" "+x.route,m})))
     .filter(x=>x.m.status==="PRIVILEGED-OPERATIONS-TOKEN-ONLY");
   assert.deepEqual(seen.map(x=>x.key).sort(),expected.sort());
