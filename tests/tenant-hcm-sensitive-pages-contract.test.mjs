@@ -113,6 +113,13 @@ test("SSR own-positive proof ignores scripts, styles, hidden templates, comments
     "<div data-fake='" + monitor + "'>No workflows here</div>",
   ]) assert.throws(() => assertOwnMonitor(result(200, emptyShell + fake),
     actor, actor.processes[0], [actor, victim]), /Owned monitor must show populated persisted workflow/);
+  // Two distinct elements cannot concatenate into a forged employer marker,
+  // unlike React's intentional comment separators inside one text phrase.
+  assert.throws(() => assertOwnMonitor(result(200,
+    "<p>Business Process Monitor</p><p>Employer #</p><p>8</p>" +
+    "<p>Recorded workflows</p><p>Step timeline</p><p>Hire #25</p><p>Step 1</p>"),
+    actor, actor.processes[0], [actor, victim]),
+    /Owned monitor must show populated persisted workflow/);
   const visible = "<p>Business Process Monitor</p><p>Employer #<!-- -->8</p>" +
     "<p>Recorded workflows</p><p>Step timeline</p><p>Hire #<!-- -->25</p><p>Step <!-- -->1</p>";
   assert.doesNotThrow(() => assertOwnMonitor(result(200,
