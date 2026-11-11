@@ -72,18 +72,33 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
   const allCount=routes.reduce((n,r)=>n+r.methods.length,0);
   const pageGaps=manifest.scopedPages.filter(page=>page.status==="GAP").length;
     // Owner-approved cross-tenant operational credentials are a distinct status,
-  // never a payout credit. Fail closed if any method outside the exact 12 is recategorized.
+  // never a payout credit. Fail closed beyond 11 historical methods plus one source-pinned HCM worker.
   const approvedTokenOnly = new Set([
     "GET jobs/cron", "GET jobs/dispatch-readiness", "GET jobs/status",
-    "POST jobs/tick", "POST webhooks/drain", "POST hcm/work-items/escalate", "GET capabilities",
+    "POST jobs/tick", "POST webhooks/drain", "GET capabilities",
     "GET readiness", "GET readiness/billing", "GET readiness/database-target",
     "GET readiness/deployment", "GET readiness/pilot-status",
   ]);
+  // Accept the extra HCM global worker only when its exact-source, zero-credit
+  // classification is present in THIS manifest. The historical main baseline
+  // retains the original 11 entries and must continue to verify unmodified.
+  const hcmPath = "src/app/api/hcm/work-items/escalate/route.ts";
+  const hcmRecord = manifest.allApiRouteFiles[hcmPath];
+  const hcm = hcmRecord?.methods.find(row => row.name === "POST");
+  if (hcm?.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY") {
+    assert.equal(hcmRecord.gitBlobSha, "b432d1331dac5c3da0c6a8bbc2b4c7ebe95ceb9a",
+      "HCM worker source changed without reviewed global-token proof");
+    assert.equal(hcm.privilegedOperation?.routeBlobSha, hcmRecord.gitBlobSha);
+    assert.equal(hcm.privilegedOperation?.credentialEnvironment, "HCM_SLA_CRON_SECRET");
+    assert.equal(hcm.privilegedOperation?.methodCoverageCredits, 0);
+    assert.equal(hcm.testedBy, null);
+    approvedTokenOnly.add("POST hcm/work-items/escalate");
+  }
   const observedTokenOnly = Object.values(manifest.allApiRouteFiles).flatMap(route =>
     route.methods.filter(row => row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY")
       .map(row => row.name + " " + route.route));
   // Historical main has no token-only class. The proposal must carry the exact
-  // reviewed 12-method class, but must not retroactively rewrite main.
+  // reviewed 11-method baseline or 12-method current class; do not rewrite main.
   const hasTokenOnlyClass = Object.hasOwn(manifest.metrics, "privilegedOperationsTokenOnly");
   assert.deepEqual(new Set(observedTokenOnly), hasTokenOnlyClass ? approvedTokenOnly : new Set(),
     "Unapproved token-only classification cannot bypass payout accounting");
