@@ -6748,13 +6748,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
           kind: "billing-setup-SSR-GET-PG16-unaccepted",
           originalPageBlobSha, pageBlobSha,
           proofFile: "scripts/qa/tenant-billing-setup-page-http.mjs",
-          proofBlobSha: "d0047d905a95ef6c33d63065d3404db114b102f3",
+          proofBlobSha: "87053f4ca7f7a03919b2b4fdbaeaadd41b1e204b",
           contractTestFile: "tests/tenant-billing-setup-boundary.test.mjs",
-          contractTestBlobSha: "b31437f6707036393404cc8ddad824dee56fd58d",
+          contractTestBlobSha: "e5a0d09eec50430f7ea13326e3390998a7de68e9",
           workflowFile: ".github/workflows/tenant-billing-setup-page-qa.yml",
-          workflowBlobSha: "a2b3bbe665e27d973d491426d9109853958ff425",
-          ownPageLine: 153, foreignPageLine: 161, revokedPageLine: 206,
-          unchangedDbLine: 210,
+          workflowBlobSha: "dbf0fe76f31df6638a14d9aa9eda1ad7a39f6c0b",
+          ownPageLine: 155, foreignPageLine: 163, revokedPageLine: 208,
+          unchangedDbLine: 212,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only this exact uncredited PG16 billing page proof is allowed");
         assert.match(entry.reason, /^Still GAP: #1631/);
