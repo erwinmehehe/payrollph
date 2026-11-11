@@ -1,0 +1,68 @@
+name: SAML metadata privacy regression (no DB or providers)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/app/api/auth/saml/metadata/**'
+      - 'tests/tenant-saml-metadata-privacy-route.test.mjs'
+      - '.github/workflows/tenant-saml-metadata-privacy-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saml-metadata-privacy-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  route-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      OPENAI_AUTOMATION_DRAFT_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact submitted head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Reproduce the reviewed baseline failure without executing app dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          route='src/app/api/auth/saml/metadata/[providerId]/route.ts'
+          before="$RUNNER_TEMP/saml-metadata-before.ts"
+          git show "6b8a924b9d668f78084d32778ddb8626d8c6f83d:$route" > "$before"
+          test "$(git hash-object "$before")" = '589fb64376d807f03245a12c6aca1de7c3bfa08f'
+          set +e
+          SAML_METADATA_REGRESSION_SOURCE="$before" node --test tests/tenant-saml-metadata-privacy-route.test.mjs > "$RUNNER_TEMP/saml-before.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/saml-before.log"
+          test "$result" -eq 1
+          grep -q '^# tests 6$' "$RUNNER_TEMP/saml-before.log"
+          grep -q '^# pass 1$' "$RUNNER_TEMP/saml-before.log"
+          grep -q '^# fail 5$' "$RUNNER_TEMP/saml-before.log"
+      - name: Require all actual current-route regression cases to pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/tenant-saml-metadata-privacy-route.test.mjs
