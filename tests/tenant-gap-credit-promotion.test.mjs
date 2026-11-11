@@ -3,6 +3,7 @@ import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-cr
 import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import assert from "node:assert/strict";
+import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
@@ -221,6 +222,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
+    if(key==='PATCH approvals/[id]'){assert.equal(verifyApprovalsCredit(manifest),1);continue;}
     if (key === "PATCH careers/admin") {
       // Independent executed PG16 method credit, not a credit from this older sweep.
       assert.equal(verifyCareersPatchCredit(manifest), 1);

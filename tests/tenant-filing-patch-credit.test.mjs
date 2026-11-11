@@ -1,3 +1,4 @@
+import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
@@ -33,8 +34,8 @@ test('changed source or fabricated receipt must be re-executed, never blindly re
  }
 });
 test('filing pass preserves six independent holds and the distinct BIR and billing credits',()=>{
- const m=manifest();
- for(const [route,verb]of [['approvals/[id]','PATCH'],['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST']]){
+ const m=manifest();assert.equal(verifyApprovalsCredit(m),1);
+ for(const [route,verb]of [['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST']]){
   const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
  }
  const billing=m.allApiRouteFiles['src/app/api/billing/route.ts'].methods.find(x=>x.name==='POST');

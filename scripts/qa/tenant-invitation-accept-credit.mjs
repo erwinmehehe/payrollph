@@ -1,3 +1,4 @@
+import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from './tenant-workspace-readiness-credit.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -176,7 +177,9 @@ export function verifyInvitationAcceptCredits(m) {
       if (checkoutPromotions.length) assert.equal(verifyCheckoutCredit(m), 1,
         'Only the sealed merged PG16 checkout receipt can authorize billing POST');
       const readinessPromotions=promoted.filter(k=>k==='GET '+READINESS_GET_PATH);if(readinessPromotions.length)assert.equal(verifyWorkspaceReadinessCredit(m),1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions].sort(),
+      const approvalPromotions=promoted.filter(key=>key==='PATCH '+APPROVALS_PATH);
+      if(approvalPromotions.length)assert.equal(verifyApprovalsCredit(m),1);
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions].sort(),
         "Merged invitation receipts permit only separately verified BIR, filing PATCH and checkout credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
