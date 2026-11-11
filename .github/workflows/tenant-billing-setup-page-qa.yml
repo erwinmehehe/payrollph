@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "src/app/billing/setup/**"
+      - "src/app/app/page.tsx"
+      - "src/lib/saas-workspace-access.ts"
       - "scripts/qa/tenant-billing-setup-page-http.mjs"
       - "tests/tenant-billing-setup-boundary.test.mjs"
       - ".github/workflows/tenant-billing-setup-page-qa.yml"

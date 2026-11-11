@@ -24,7 +24,8 @@ test("app server uses the shared gate, preserving billing redirects for subscrib
   const page = readFileSync("src/app/app/page.tsx", "utf8");
   assert.ok(page.includes("await isSelfServeOrganization(companyOrganizationId)"));
   assert.ok(page.includes('billing.status === "pending_payment"'));
-  assert.ok(page.includes('redirect("/billing/setup")'));
+  assert.ok(page.includes('redirect(`/billing/setup?organizationId=${companyOrganizationId}`)'));
+  assert.ok(!page.includes('redirect("/billing/setup")'), "Pending billing must retain the selected employer");
   // The duplicate self-serve quickstart was retired in favor of the
   // unified, role-filtered First Payroll readiness journey. The server-side
   // subscription redirect above is still mandatory for self-serve companies.
