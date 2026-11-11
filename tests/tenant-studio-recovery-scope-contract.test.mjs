@@ -32,3 +32,19 @@ test('dedicated PG16 workflow preserves exact-head, disabled-provider and receip
  assert.doesNotMatch(JSON.stringify(workflow),/secrets\.|continue-on-error/);
  assert.notEqual(workflow.concurrency.group,yaml.load(readFileSync('.github/workflows/tenant-studio-language-qa.yml','utf8')).concurrency.group);
 });
+test('renewal jobs preserve original HTTP/DB recipes; historical guards remain in their original workflows',()=>{
+ const read=p=>yaml.load(readFileSync(p,'utf8'));
+ const renewal=read('.github/workflows/tenant-studio-dependency-renewal.yml');
+ for(const [name,path,oldName,creditStep]of [
+  ['renew-document-callers','.github/workflows/tenant-document-caller-reproof.yml','caller-reproof',s=>s.run==='node --test tests/tenant-document-caller-reproof.test.mjs'],
+  ['renew-spend-managed','.github/workflows/tenant-spend-write-actions-http.yml','spend-full-write-method',s=>s.name==='Fail-closed exact-source and action contract'],
+  ['renew-approval-task','.github/workflows/tenant-approvals-recovery.yml','fictional-approval-http',s=>s.run?.includes('tests/tenant-approval-task-tx-org-scope.test.mjs')],
+ ]){
+  const original=read(path).jobs[oldName],job=renewal.jobs[name];assert.ok(job);
+  assert.deepEqual(job.env,original.env);assert.deepEqual(job.services,original.services);
+  assert.equal(job.steps.find(s=>s.uses?.startsWith('actions/checkout@')).with.ref,'${{ github.event.pull_request.head.sha || github.sha }}');
+  for(const step of original.steps)if(step.run&&!creditStep(step))assert.ok(job.steps.some(s=>s.run===step.run),'Lost original guarded recipe '+name+': '+step.name);
+  assert.ok(original.steps.some(creditStep),'Original historical guard must remain mandatory');
+ }
+ assert.doesNotMatch(JSON.stringify(renewal),/secrets\.|continue-on-error/);
+});
