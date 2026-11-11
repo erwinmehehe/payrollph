@@ -17,6 +17,10 @@ import { exchangeOidcCode, verifyOidcIdToken } from "@/lib/oidc";
 import { requestMeta } from "@/lib/rate-limit";
 import { effectiveSessionPolicyForUser } from "@/lib/enterprise-session";
 import { sha256 } from "@/lib/crypto";
+import {
+  OIDC_BROWSER_STATE_COOKIE, OIDC_BROWSER_STATE_PATH,
+  oidcBrowserStateMatches,
+} from "@/lib/oidc-browser-state";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +34,17 @@ export async function GET(request: Request) {
   }
   if (!code || !state) return Response.json({ error: "OIDC callback is missing code or state." }, { status: 400 });
 
+  // The state must originate from this browser. A state minted by another
+  // user/browser is insufficient even if it exists and is unconsumed in DB.
+  // Reject before querying or claiming any shared login state.
+  const browserCookies = await cookies();
+  if (!oidcBrowserStateMatches(state, browserCookies.get(OIDC_BROWSER_STATE_COOKIE)?.value)) {
+    return Response.json(
+      { error: "OIDC login was not started in this browser. Restart sign-in." },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const [loginState] = await db.select().from(oidcLoginStates).where(and(
     eq(oidcLoginStates.stateHash, sha256(state)),
     isNull(oidcLoginStates.usedAt),
@@ -42,6 +57,16 @@ export async function GET(request: Request) {
     isNull(oidcLoginStates.usedAt),
   )).returning({ id: oidcLoginStates.id });
   if (!claimed) return Response.json({ error: "OIDC login state was already consumed." }, { status: 409 });
+
+  // This login attempt is now one-use. Remove the callback-only cookie even
+  // if the provider refuses the exchange or account access is later denied.
+  browserCookies.set(OIDC_BROWSER_STATE_COOKIE, "", {
+    path: OIDC_BROWSER_STATE_PATH,
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
 
   const [provider] = await db.select().from(identityProviders).where(and(
     eq(identityProviders.id, loginState.providerId),
@@ -156,8 +181,7 @@ export async function GET(request: Request) {
     authMethod: "oidc",
     identityProviderId: provider.id,
   });
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
+  browserCookies.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
 
   await recordAuditEvent({
     organizationId: provider.organizationId,
