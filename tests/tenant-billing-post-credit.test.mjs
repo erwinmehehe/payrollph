@@ -1,4 +1,5 @@
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
+import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -72,8 +73,9 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const old = base.manifest.allApiRouteFiles[BILLING_POST_PATH].methods.find(x => x.name === 'POST');
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
-    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta, 'Exactly the billing method may gain credit');
-    assert.equal(before.gap - counts.gap, delta+readyDelta, 'No unrelated GAP may disappear');
+    const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
+    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta, 'Only separately sealed method credits may change totals');
+    assert.equal(before.gap - counts.gap, delta+readyDelta+approvalsDelta, 'No unrelated GAP may disappear');
   }
   for (const [verb, route] of [
     ["PATCH", "approvals/[id]"],
@@ -85,6 +87,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["GET", "readiness/workspace"],
   ]) {
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}
+    if(route==='approvals/[id]'){assert.equal(verifyApprovalsCredit(m),1);continue;}
     const row = m.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods
       .find(x => x.name === verb);
     assert.equal(row.status, "GAP", verb + " " + route + " remains uncredited");

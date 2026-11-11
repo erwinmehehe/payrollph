@@ -1,3 +1,5 @@
+> **SOLO_VERIFIED_DEV_RECOVERY — approvals PATCH proposal, NOT production acceptance:** 498 methods = 455 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP. [Fresh main combined-family receipt](../../scripts/qa/tenant-approvals-recovery-receipt.json). Both the approvals PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/payroll review and production acceptance are pending.
+
 > **SOLO_VERIFIED_DEV_RECOVERY — merged checkout credit:** 498 methods = 454 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 18 GAP. One source-sealed #1900 PG16 HTTP method, no live provider, payment or production acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — filing PATCH proposal, NOT production acceptance:** 498 methods = 453 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 19 GAP. [Fresh main three-leg receipt](../../scripts/qa/tenant-filing-patch-credit-receipt.json). Both the filing PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/tax review and production acceptance are pending.
@@ -224,7 +226,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 1 | **DL-01** | 26 | 23 | 2 | 0 | 1 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 0 | 1 | INCOMPLETE |
-| 2 | **MNY-02** | 33 | 31 | 1 | 0 | 1 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 38 | 0 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -234,7 +236,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 13 | 1 | 6 | 13 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-04 proposal): **370 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 18 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 6 batches remain INCOMPLETE; DL-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-04 proposal): **371 COVERED + 7 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 5 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
