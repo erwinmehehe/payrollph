@@ -201,6 +201,22 @@ export function computeFinalPay(input: {
     ? leaveDirectTaxable
     : Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay);
 
+  // Separation API validates reviewed allocations at entry, but keep the
+  // shared financial calculator fail-closed for other direct callers too.
+  // An invalid explicit taxable portion must not create an unchecked tax
+  // exemption, overcharge, or NaN annualization result.
+  if (input.taxableSeparationPay !== undefined) {
+    const exactNonnegativeCentavos = (value: number) =>
+      Number.isFinite(value) && value >= 0 &&
+      Number.isSafeInteger(Math.round(value * 100)) &&
+      Math.abs(value * 100 - Math.round(value * 100)) <= 0.000001;
+    if (!exactNonnegativeCentavos(input.separationPay) ||
+        !exactNonnegativeCentavos(input.taxableSeparationPay) ||
+        Math.round(input.taxableSeparationPay * 100) > Math.round(input.separationPay * 100)) {
+      throw new Error("Invalid reviewed final-pay separation tax split.");
+    }
+  }
+
   const grossForAnnualization = round2(
     Math.max(0, input.grossCompensationYtd)
       + Math.max(0, input.unpaidBasicSalary)
