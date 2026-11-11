@@ -7,6 +7,9 @@ const page = readFileSync("src/app/billing/setup/page.tsx", "utf8");
 const billingApi = readFileSync("src/app/api/billing/route.ts", "utf8");
 const proof = readFileSync("scripts/qa/tenant-billing-setup-page-http.mjs", "utf8");
 const workflow = readFileSync(".github/workflows/tenant-billing-setup-page-qa.yml", "utf8");
+const managePage = readFileSync("src/app/billing/manage/page.tsx", "utf8");
+const workspacePage = readFileSync("src/app/app/page.tsx", "utf8");
+const saasAccess = readFileSync("src/lib/saas-workspace-access.ts", "utf8");
 
 test("billing page checks exact employer role and company scope before reading any employer", () => {
   const session = page.indexOf("await getSessionUser()");
@@ -85,4 +88,37 @@ test("real billing proof refuses empty-success, forged IDs, revocation and victi
   assert.match(workflow, /image: postgres:16/);
   assert.match(workflow, /node --import tsx scripts\/qa\/tenant-billing-setup-page-http\.mjs/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+});
+
+test("multi-company billing paths preserve exact selected employer and fail closed on ambiguity", () => {
+  assert.match(managePage, /const \{ organizationId: selected \} = await searchParams/);
+  assert.match(managePage, /if \(selected === undefined\) redirect\("\/billing\/setup"\)/);
+  assert.match(managePage, /typeof selected !== "string"/,
+    "Duplicated employer query keys must not be coerced to one ID");
+  assert.match(managePage, /Number\.isSafeInteger\(organizationId\)/);
+  assert.match(managePage, /if \(!Number\.isSafeInteger\(organizationId\)\) notFound\(\)/);
+  assert.ok(managePage.includes("redirect(`/billing/setup?organizationId=${organizationId}`)"),
+    "Manage billing must carry the exact requested employer to the authorized setup page");
+  assert.ok(workspacePage.includes(
+    "redirect(`/billing/setup?organizationId=${companyOrganizationId}`)"),
+    "An unpaid selected company must not redirect to another primary company's subscription");
+  assert.ok(saasAccess.includes('billingUrl: "/billing/manage?organizationId=" + organizationId'),
+    "Payment-required API errors must link to the rejected company's own billing");
+  assert.match(page, /await assertOrganizationRole\([\s\S]*?BILLING_ADMIN_ROLES/);
+  assert.match(page, /if \(!access\?\.companyWide\) notFound\(\)/);
+});
+
+test("real HTTP proof must exercise shared A+B owner and refuse fallback to unrelated subscription", () => {
+  assert.match(proof, /userId: a\.owner\.id, organizationId: b\.org\.id, role: "owner"/);
+  assert.match(proof, /"shared A\+B owner managing B"/);
+  assert.match(proof, /assertOwnBillingPage\(await readLocal\(bTarget, a\.cookie\), b, \[a, victim\]\)/);
+  assert.match(proof, /"duplicate manage selector must never choose one employer"/);
+  assert.match(proof, /"foreign destination independently enforces billing membership"/);
+  assert.match(proof, /await db\.delete\(schema\.userOrganizations\)/);
+  for (const path of [
+    "src/app/app/page.tsx",
+    "src/app/billing/manage/page.tsx",
+    "src/lib/saas-workspace-access.ts",
+  ]) assert.ok(workflow.includes('"' + path + '"'),
+    "Billing navigation fix must trigger its existing exact-head PG16 HTTP workflow");
 });
