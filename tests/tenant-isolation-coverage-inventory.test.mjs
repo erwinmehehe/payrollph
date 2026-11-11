@@ -6447,7 +6447,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ? "caf09023985ba92210805555c8272b2f24df3f07"
           : "0792de4c8cbcb4efdf40ecfb986cb140561d5749";
         const pageBlobSha = isEngagement
-          ? "8ddecfc89f1f8b23deeaefa410c00f36b072922e"
+          ? "48132ee7356603136d7ac660086b3812ef28ed94"
           : "4989da5727ea5a55d0565fec6eb0af71cbb6046c";
         assert.equal(entry.status, "GAP", "People page must remain an unaccepted GAP");
         assert.equal(entry.testedBy, undefined, "Unaccepted page proof cannot claim a method/page credit");
@@ -6457,7 +6457,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const reviewed = entry.reviewedUncertified;
         assert.deepEqual(reviewed, {
           kind: "people-engagement-goals-SSR-GET-PG16-unaccepted",
-          originalPageBlobSha, pageBlobSha,
+          originalPageBlobSha, pageBlobSha: isEngagement
+            ? "8ddecfc89f1f8b23deeaefa410c00f36b072922e" : pageBlobSha,
           selectorFile: "src/lib/tenant-people-page-employer.ts",
           selectorBlobSha: "0f34a6276889c396c6287e0a830c02d7b05acdc9",
           proofFile: "scripts/qa/tenant-people-pages-http.mjs",
@@ -6475,6 +6476,57 @@ test("page and server-action inventory cannot silently omit new or changed busin
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited People/HR PG16 source evidence may be linked");
         assert.match(entry.reason, /^Still GAP: #1876 /);
+        if (isEngagement) {
+          // The old People SSR candidate stays historical. This separate
+          // source-current zero-credit guard must not rewrite its passed job.
+          const candidate = entry.sourceRefreshCandidate;
+          assert.deepEqual(candidate, {
+            kind: "engagement-linked-employee-org-PG16-HTTP-uncredited",
+            originalRouteBlobSha: "8355956668eb8bdc0f767f9f72bd01992e964349",
+            currentRouteBlobSha: "0440db4fb597953281769f154d73ad982f7c8efe",
+            originalPageBlobSha: "8ddecfc89f1f8b23deeaefa410c00f36b072922e",
+            currentPageBlobSha: "48132ee7356603136d7ac660086b3812ef28ed94",
+            helperFile: "src/lib/tenant-engagement-employee-scope.ts",
+            helperBlobSha: "6af77a09cb178b2d6111bb875ca21c722db5ac15",
+            proofFile: "scripts/qa/tenant-engagement-employee-http.mjs",
+            proofBlobSha: "d641313cdc46db7fe09df45c2f238dd39a231203",
+            contractFile: "scripts/qa/tenant-engagement-employee-contract.mjs",
+            contractBlobSha: "9cc99ead5a8075bea8fa56bb042c35794db1debb",
+            workflowFile: ".github/workflows/tenant-engagement-employee-qa.yml",
+            priorMethodProofsPreserved: true,
+            currentSourceHttpAcceptance: "PENDING", newMethodCredits: 0,
+            pageActionCredits: 0, independentSecurityReview: "PENDING",
+            productionCertified: false,
+          });
+          for (const [file, sha] of [
+            [candidate.helperFile, candidate.helperBlobSha],
+            [candidate.proofFile, candidate.proofBlobSha],
+            [candidate.contractFile, candidate.contractBlobSha],
+          ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Unreviewed engagement employee binding/proof drift: " + file);
+          const api = manifest.allApiRouteFiles["src/app/api/hcm/engagement-surveys/route.ts"];
+          assert.equal(api.gitBlobSha, candidate.currentRouteBlobSha);
+          for (const method of api.methods) {
+            assert.deepEqual(method.sourceRefreshCandidate, {
+              kind: candidate.kind, currentRouteBlobSha: candidate.currentRouteBlobSha,
+              helperBlobSha: candidate.helperBlobSha, proofFile: candidate.proofFile,
+              proofBlobSha: candidate.proofBlobSha, currentSourceHttpAcceptance: "PENDING",
+              newMethodCredits: 0, priorMethodProofPreserved: true,
+              productionCertified: false,
+            });
+          }
+          const route = readFileSync("src/app/api/hcm/engagement-surveys/route.ts", "utf8");
+          const page = readFileSync("src/app/app/engagement/page.tsx", "utf8");
+          assert.equal((route.match(/employeeBoundToEngagementEmployer\(/g) ?? []).length, 2);
+          assert.equal((page.match(/employeeBoundToEngagementEmployer\(/g) ?? []).length, 1);
+          const proof = readFileSync(candidate.proofFile, "utf8");
+          for (const control of [
+            "crossAuthenticated.status, 200", "await read(b, crossLinked.cookie, b.org.id)",
+            "crossPage.status, 404", "await submit(b, crossLinked",
+            "crossLinkedEmployeeDenials, 3", "await unchanged(\"cross-linked employee SSR\")",
+          ]) assert.ok(proof.includes(control), "No source-current real cross-link denial: " + control);
+        } else assert.equal(entry.sourceRefreshCandidate, undefined);
+
         for (const [file, sha] of [
           [reviewed.selectorFile, reviewed.selectorBlobSha],
           [reviewed.proofFile, reviewed.proofBlobSha],
