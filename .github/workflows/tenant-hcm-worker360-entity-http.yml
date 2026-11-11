@@ -86,6 +86,7 @@ jobs:
         run: |
           node --check scripts/qa/tenant-hcm-worker360-entity-contract.mjs
           node --check scripts/qa/tenant-hcm-worker360-entity-http.mjs
+          node --check scripts/qa/tenant-hcm-worker360-entity-build-hold.mjs
           node --test tests/tenant-hcm-worker360-entity-contract.test.mjs
       - name: Generate disposable encryption keys
         shell: bash
@@ -100,8 +101,21 @@ jobs:
         run: npm run db:push
       - name: Apply reviewed isolated database baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
-      - name: Build production-mode Next for local HTTP only
-        run: npm run build
+      - name: Build isolated Worker 360 path and restore HCM embargo byte-for-byte
+        shell: bash
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          trap 'node scripts/qa/tenant-hcm-worker360-entity-build-hold.mjs restore' EXIT
+          node scripts/qa/tenant-hcm-worker360-entity-build-hold.mjs apply
+          npm run build
+      - name: Verify original production HCM embargo was not changed
+        env:
+          NODE_ENV: production
+        run: |
+          node scripts/qa/tenant-hcm-worker360-entity-build-hold.mjs verify
+          git diff --exit-code -- src/lib/multi-entity-hcm-hold.ts
       - name: Start localhost Next
         shell: bash
         run: |

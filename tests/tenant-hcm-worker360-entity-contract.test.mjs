@@ -31,6 +31,20 @@ test("Worker 360 HTTP proof refuses live DB, credentials and feature-off shortcu
   }))assert.throws(()=>requireIsolatedWorker360({...safe,[name]:value}),
       /WORKER360_ENTITY_REFUSED/,name);
 });
+test("synthetic CI embargo path reverts to original production gate",async()=>{
+  const {HOLD_PATH,HOLD_BLOB_SHA,blob,applyIsolatedShim,restoreProductionHold} =
+    await import("../scripts/qa/tenant-hcm-worker360-entity-build-hold.mjs");
+  const original=readFileSync(HOLD_PATH,"utf8");
+  assert.equal(blob(original),HOLD_BLOB_SHA);
+  assert.match(original,/return !isolatedSalaryPreviewProof;/);
+  const synthetic=applyIsolatedShim(original);
+  assert.notEqual(synthetic,original);
+  assert.match(synthetic,/Ephemeral CI-compiled Worker 360 proof only/);
+  assert.match(synthetic,/env.TENANT_WORKER360_ENTITY_PROOF === "fictional-pg16-only"/);
+  assert.equal(restoreProductionHold(synthetic),original);
+  assert.throws(()=>applyIsolatedShim(original+"// unauthorized drift"),/WORKER360_ENTITY_REFUSED/);
+  assert.throws(()=>restoreProductionHold(synthetic+"// unauthorized drift"),/WORKER360_ENTITY_REFUSED/);
+});
 test("denial and unchanged SQL controls reject false-positive proofs",()=>{
   const denied={status:404,text:'{"error":"Worker not found."}',
     json:{error:"Worker not found."},
