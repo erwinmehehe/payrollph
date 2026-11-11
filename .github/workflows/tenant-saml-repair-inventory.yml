@@ -1,0 +1,72 @@
+name: One-use SAML inventory repair (draft 1934 only)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'scripts/qa/tenant-saml-repair-inventory.mjs'
+      - '.github/workflows/tenant-saml-repair-inventory.yml'
+permissions:
+  contents: read
+concurrency:
+  group: saml-inventory-repair-1934
+  cancel-in-progress: true
+jobs:
+  reconcile:
+    if: >-
+      github.repository == 'erwinmehehe/payrollph' &&
+      github.event.pull_request.number == 1934 &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/tenant-saml-metadata-privacy-recovery-20261111'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      TARGET_BRANCH: fix/tenant-saml-metadata-privacy-recovery-20261111
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Refuse stale source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | cut -f1)" = "$EXPECTED_HEAD"
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --include=dev --ignore-scripts
+      - name: Apply exact two-file repair and validate without a database
+        run: |
+          set -euo pipefail
+          node --check scripts/qa/tenant-saml-repair-inventory.mjs
+          node scripts/qa/tenant-saml-repair-inventory.mjs
+          git diff --check
+          node --test tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+          git cat-file -e '5b1f51b634e713aaa5bb5414e06e6eb92d3f2a13^{commit}'
+          npm run tenant:repin:check -- --base 5b1f51b634e713aaa5bb5414e06e6eb92d3f2a13
+      - name: Commit only validated manifest and inventory to this draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          printf '%s\n' scripts/qa/tenant-isolation-coverage-manifest.json tests/tenant-isolation-coverage-inventory.test.mjs | sort > /tmp/expected-files
+          git diff --name-only | sort > /tmp/changed-files
+          diff -u /tmp/expected-files /tmp/changed-files
+          test "$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | cut -f1)" = "$EXPECTED_HEAD"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/qa/tenant-isolation-coverage-manifest.json tests/tenant-isolation-coverage-inventory.test.mjs
+          git diff --cached --check
+          git commit -m 'test(tenant): reconcile exact SAML privacy source with zero coverage credit'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          git rev-parse HEAD
