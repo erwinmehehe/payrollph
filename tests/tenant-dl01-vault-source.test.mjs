@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const proofPath = "scripts/qa/tenant-dl01-vault-http.mjs";
 const source = readFileSync(proofPath, "utf8");
@@ -152,5 +153,8 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
   assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
-  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 16);
+  // Worker 360 retired its historical page credit after the legal-employer
+  // source change. Validate that exact source/hold instead of assuming 16 GAPs.
+  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length,
+    verifyWorker360PageCredit(manifest));
 });
