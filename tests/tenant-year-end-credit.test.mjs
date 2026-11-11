@@ -22,7 +22,16 @@ test("merged #1804 PG16 source proof gives only year-end GET and POST credits", 
     assert.equal(method.testedBy.ownerIsOnlyReviewer, true);
     assert.equal(method.testedBy.independentlyAccepted, false);
   }
-  assert.equal(m.metrics.privilegedOperationsTokenOnly, 11, "exactly eleven approved operations remain token-only, not method credits");
+  const workerRoute=m.allApiRouteFiles["src/app/api/hcm/work-items/escalate/route.ts"];
+  const worker=workerRoute.methods.find(x=>x.name==="POST");
+  const classified=worker.status==="PRIVILEGED-OPERATIONS-TOKEN-ONLY";
+  if (classified) {
+    assert.equal(worker.privilegedOperation?.routeBlobSha,workerRoute.gitBlobSha);
+    assert.equal(worker.privilegedOperation?.methodCoverageCredits,0);
+    assert.equal(worker.testedBy,null);
+  }
+  assert.equal(m.metrics.privilegedOperationsTokenOnly,11+Number(classified),
+    "Only 11 historical operations plus the zero-credit HCM scheduler");
   assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.privilegedOperationsTokenOnly + m.metrics.gap, m.metrics.methods);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and 16 page\/action GAPs/);
 });

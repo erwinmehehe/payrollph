@@ -1,3 +1,4 @@
+import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -29,7 +30,10 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   const base=baseTenantManifest();
   if(base){const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta+approvalDelta);
-    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta);}
+    const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
+    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+relabels.gapRelabels);
+    assert.equal(m.metrics.publicByDesign-base.manifest.metrics.publicByDesign,relabels.publicByDesign);
+    assert.equal(m.metrics.privilegedOperationsTokenOnly-base.manifest.metrics.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);}
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
   assert.deepEqual(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy,
     expectedWorkspaceReadinessTestedBy());

@@ -1,3 +1,4 @@
+import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -75,7 +76,10 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
     assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta, 'Only separately sealed method credits may change totals');
-    assert.equal(before.gap - counts.gap, delta+readyDelta+approvalsDelta, 'No unrelated GAP may disappear');
+    const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
+    assert.equal(before.gap-counts.gap,delta+readyDelta+approvalsDelta+relabels.gapRelabels,'Only sealed credits and nine source-pinned zero-credit classifications may retire GAPs');
+    assert.equal(counts.publicByDesign-before.publicByDesign,relabels.publicByDesign);
+    assert.equal(counts.privilegedOperationsTokenOnly-before.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);
   }
   for (const [verb, route] of [
     ["PATCH", "approvals/[id]"],
@@ -90,7 +94,11 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     if(route==='approvals/[id]'){assert.equal(verifyApprovalsCredit(m),1);continue;}
     const row = m.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods
       .find(x => x.name === verb);
-    assert.equal(row.status, "GAP", verb + " " + route + " remains uncredited");
+    if(route==="hcm/work-items/escalate") {
+      assert.equal(row.status,"PRIVILEGED-OPERATIONS-TOKEN-ONLY");
+      assert.equal(row.privilegedOperation?.methodCoverageCredits,0);
+      assert.equal(row.privilegedOperation?.credentialEnvironment,"HCM_SLA_CRON_SECRET");
+    } else assert.equal(row.status,"GAP",verb+" "+route+" remains uncredited");
     assert.equal(row.testedBy, null);
   }
   assert.equal(m.allApiRouteFiles["src/app/api/bir/annual-employer/candidate/route.ts"]

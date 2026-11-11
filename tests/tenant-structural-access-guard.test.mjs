@@ -88,7 +88,11 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
         assert.equal(method.privilegedOperation?.routeBlobSha, data.gitBlobSha, id + ": credential boundary is no longer source-pinned");
         assert.equal(method.privilegedOperation?.methodCoverageCredits, 0, id + ": operational denial cannot grant employer-method proof");
         assert.equal(method.testedBy, null, id + ": never borrow tenant-private proof");
-        assert.equal(method.privilegedOperation?.approvedOn, "2026-11-09", id + ": unknown owner classification");
+        if (id === "src/app/api/hcm/work-items/escalate/route.ts#POST") {
+          assert.equal(method.privilegedOperation?.approvedOn,"2026-11-11",id+": missing source classification");
+          assert.equal(method.privilegedOperation?.credentialEnvironment,"HCM_SLA_CRON_SECRET",id);
+          assert.equal(method.privilegedOperation?.denialHarness,"scripts/qa/tenant-hcm-sla-escalate-http.mjs",id);
+        } else assert.equal(method.privilegedOperation?.approvedOn,"2026-11-09",id+": unknown owner classification");
         privilegedOnly.push(id);
       } else if (method.status === "COVERED") {
         assert.ok(method.testedBy?.file && method.testedBy?.ownPositiveLine &&
