@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: saml-draft-reconcile-1934
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   reconcile-draft:
