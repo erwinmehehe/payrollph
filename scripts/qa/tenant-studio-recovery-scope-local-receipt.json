@@ -1,7 +1,7 @@
 {
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
   "family": "studio-stored-recovery-scope",
-  "sourceHead": "ddd963fc95b4402b1a9b0d1686789bf78f240696",
+  "sourceHead": "22601e38253ecae564ad86161cb8bc865d1b4b63",
   "postgresMajor": 16,
   "sourceBlobs": {
     "src/lib/automation-draft-conflict.ts": "077126c704fe62e83907c1e6c8f2c39828efb585",
@@ -22,13 +22,29 @@
     "src/lib/automation-recovery-scope.ts": "ff3dddff0e7ddea20a7be24792d84503a540202e",
     "src/lib/automation-execution-recovery.ts": "ecc727efb94ed78bd73ce7389ad4ef8aee264659",
     "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
-    "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e"
+    "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+    "scripts/qa/tenant-studio-source-resolution-proof.mjs": "65ae6c7ec3f11af5c79b291bc0f768ecc6848970",
+    "src/lib/automation-operational-cases.ts": "5355d830524f54e6d47dd551c9d7bc5e73649f52"
   },
-  "proofBlobSha": "b427a9d39c5d180859470584b5762ef8bcaa4127",
+  "proofBlobSha": "5ed183ec0560ae4ccc53f56f4652a2d66d782e1e",
   "own": 16,
   "denials": 64,
   "discriminations": 16,
   "locks": 1,
+  "resolution": {
+    "families": [
+      "coverage_recovery",
+      "timesheet_escalation",
+      "missing_timesheet_escalation",
+      "attendance_resolution",
+      "payroll_readiness",
+      "statutory_followup"
+    ],
+    "own": 36,
+    "denials": 36,
+    "discriminations": 36,
+    "authoritativeSourcesUnchanged": true
+  },
   "twoAttackers": true,
   "higherIdVictim": true,
   "realWorkerSessionEffects": true,

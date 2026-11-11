@@ -40,6 +40,16 @@ all checks at `ddd963fc95b4402b1a9b0d1686789bf78f240696`; its sanitized receipt 
 An actual HTTP run with a deliberately no-op ownership oracle failed with
 "write validator accepts another employer's data"; the original was restored.
 
+The expanded local run at `22601e38253ecae564ad86161cb8bc865d1b4b63`
+also proves acknowledge, resolve and reopen for all six authoritative case
+families: coverage, timesheets, missing-timesheet expectations, attendance,
+payroll readiness and statutory follow-up. Its additional 36 own transitions,
+36 refusals and 36 oracle discriminations bring the run to **52 persisted own
+transitions, 100 refusals and 52 oracle discriminations**, plus the transfer-lock
+check. Authoritative source records remain unchanged. A synthetic pre-seeded
+Released payroll row is only inert source evidence; no payroll release endpoint
+or provider was called.
+
 ## Whole-method reconciliation remains gated
 
 This fix does not silently promote Studio POST or rewrite historical receipts.
