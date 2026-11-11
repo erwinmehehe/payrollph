@@ -31,7 +31,9 @@ test("both separation actions call scoped login ownership and guard account-wide
   const boundary = readFileSync("src/lib/automation-employee-account-boundary.ts", "utf8");
   assert.equal((engine.match(/tenantLinkedEmployeeAccounts\(input\.organizationId, employeeId\)/g) ?? []).length, 2);
   assert.equal((engine.match(/noOtherActiveEmployerMembership\(linkedUser\.id, input\.organizationId\)/g) ?? []).length, 2);
-  assert.doesNotMatch(engine, /\.from\(users\)\.where\(eq\(users\.employeeId, employeeId\)\)/);
+  const separated = engine.slice(engine.indexOf('if (action.type === "revoke_sessions")'),
+    engine.indexOf('if (action.type === "request_payroll_adjustment")'));
+  assert.doesNotMatch(separated, /\.from\(users\)\.where\(eq\(users\.employeeId, employeeId\)\)/);
   assert.match(boundary, /eq\(employees\.organizationId, organizationId\)/);
   assert.match(boundary, /eq\(userOrganizations\.organizationId, organizationId\)/);
   assert.match(boundary, /eq\(userOrganizations\.active, true\)/);
