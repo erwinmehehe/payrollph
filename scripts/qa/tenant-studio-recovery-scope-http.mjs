@@ -5,6 +5,7 @@ import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {blob} from './tenant-studio-language-contract.mjs';
 import {SOURCE_PINS,requireScopeEnv,verifyScopeSources,assertOwnedRecovery} from './tenant-studio-recovery-scope-contract.mjs';
+import {proveStudioSourceResolutions} from './tenant-studio-source-resolution-proof.mjs';
 
 export async function proveRecoveryScope(){
  const origin=requireScopeEnv();verifyScopeSources();
@@ -18,7 +19,8 @@ export async function proveRecoveryScope(){
  async function snapshot(actor){
   const out={};for(const key of ['organizations','employees','employeePayProfiles','automationRules','automationExecutions',
    'automationRuleVersions','automationOperationalCases','automationEventLog','userOrganizations','permissionSets',
-   'userPermissionAssignments','benefitPlans','benefitEnrollments','scimIdentities','auditEvents','outbox','payrollRuns']){
+   'userPermissionAssignments','benefitPlans','benefitEnrollments','scimIdentities','auditEvents','outbox','payrollRuns',
+   'worksites','shiftDefinitions','openShifts','workforceTimesheets','workforceTimesheetExpectations','attendanceExceptionEvents','complianceActionTasks']){
     const t=s[key];out[key]=plain(await db.select().from(t).where(eq(key==='organizations'?t.id:t.organizationId,actor.org.id)).orderBy(asc(t.id)));
   }
   const ids=[actor.owner.id,...(actor.target?[actor.target.id]:[])];
@@ -97,9 +99,10 @@ export async function proveRecoveryScope(){
    }finally{await c.query('ROLLBACK');c.release();}
   });assert.deepEqual(await all(),before,'racing transfer changed state');
   assert.equal(own,16);assert.equal(denials,64);assert.equal(discriminations,16);assert.equal(locks,1);
+  const resolution=await proveStudioSourceResolutions({db,s,orm,actors,all,origin});
   const receipt={label:'SOLO_VERIFIED_DEV_RECOVERY',family:'studio-stored-recovery-scope',sourceHead:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
    postgresMajor:16,sourceBlobs:SOURCE_PINS,proofBlobSha:blob(readFileSync('scripts/qa/tenant-studio-recovery-scope-http.mjs')),
-   own,denials,discriminations,locks,twoAttackers:true,higherIdVictim:true,realWorkerSessionEffects:true,unchangedVictim:true,providerCalls:0,methodCredits:0,productionAccepted:false};
+   own,denials,discriminations,locks,resolution,twoAttackers:true,higherIdVictim:true,realWorkerSessionEffects:true,unchangedVictim:true,providerCalls:0,methodCredits:0,productionAccepted:false};
   mkdirSync('qa-artifacts',{recursive:true});writeFileSync('qa-artifacts/tenant-studio-recovery-scope.json',JSON.stringify(receipt,null,2)+'\n');
   console.log('STUDIO_RECOVERY_SCOPE_HTTP_COMPLETE '+JSON.stringify(receipt));return receipt;
  }finally{await pool.end();}

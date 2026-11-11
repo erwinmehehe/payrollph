@@ -23,7 +23,9 @@ export const SOURCE_PINS=Object.freeze({
   "src/lib/automation-recovery-scope.ts": "ff3dddff0e7ddea20a7be24792d84503a540202e",
   "src/lib/automation-execution-recovery.ts": "ecc727efb94ed78bd73ce7389ad4ef8aee264659",
   "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
-  "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e"
+  "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+  "scripts/qa/tenant-studio-source-resolution-proof.mjs": "65ae6c7ec3f11af5c79b291bc0f768ecc6848970",
+  "src/lib/automation-operational-cases.ts": "5355d830524f54e6d47dd551c9d7bc5e73649f52"
 });
 export function requireScopeEnv(env=process.env){
   for(const [k,v]of Object.entries(REQUIRED))assert.equal(env[k],v,'Unsafe recovery scope environment: '+k);

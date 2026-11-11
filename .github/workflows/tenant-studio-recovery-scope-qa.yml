@@ -7,6 +7,7 @@ name: Studio stored recovery scope (fictional PG16, no providers)
       - 'src/lib/automation-recovery-scope.ts'
       - 'src/lib/automation-execution-recovery.ts'
       - 'scripts/qa/tenant-table-http.mjs'
+      - 'scripts/qa/tenant-studio-source-resolution-proof.mjs'
       - .github/workflows/tenant-studio-recovery-scope-qa.yml
       - scripts/qa/tenant-studio-recovery-scope-*.mjs
       - tests/tenant-studio-recovery-scope-contract.test.mjs
