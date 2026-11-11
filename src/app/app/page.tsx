@@ -73,7 +73,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   if (isSelfServe) {
     const [billing] = await db.select({ status: subscriptions.status, periodEnd: subscriptions.periodEnd })
       .from(subscriptions).where(eq(subscriptions.organizationId, companyOrganizationId)).limit(1);
-    if (!billing || billing.status === "pending_payment") redirect("/billing/setup");
+    if (!billing || billing.status === "pending_payment") redirect(`/billing/setup?organizationId=${companyOrganizationId}`);
   }
 
   const companyDenied = await assertOrganizationSessionPolicy(user.id, companyOrganizationId);
