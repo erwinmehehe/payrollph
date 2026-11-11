@@ -103,6 +103,54 @@ function reviewedYearEndSourceSupersession(beforeManifest, liveManifest) {
   return new Set(["GET " + file, "POST " + file]);
 }
 
+/**
+ * Only Worker 360's exact previously credited GET may be demoted when the
+ * new legal-employer source makes its historic parent-employer receipt stale.
+ * The new source, historical receipt and zero-credit hold must all match.
+ * This NEVER permits a generic downgrade or a credit transfer.
+ */
+function reviewedWorker360LegalEmployerSupersession(beforeManifest, liveManifest) {
+  const file = "src/app/api/hcm/worker-360/route.ts";
+  const oldSha = "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62";
+  const newSha = "19875021d750b722fc69e0fe939e57928a158af9";
+  const oldPageSha = "337034f839c17a30077e2cfe5991c640e0c6a5e9";
+  const newPageSha = "3b506b27e0af73ec370c448c6a0ad02a80c8f75c";
+  const before = beforeManifest.allApiRouteFiles?.[file];
+  const after = liveManifest.allApiRouteFiles?.[file];
+  const oldPage = beforeManifest.scopedPages?.find(e => e.path === "src/app/hcm/worker-360/page.tsx");
+  const newPage = liveManifest.scopedPages?.find(e => e.path === "src/app/hcm/worker-360/page.tsx");
+  const prior = before?.methods?.find(e => e.name === "GET");
+  const current = after?.methods?.find(e => e.name === "GET");
+  const hold = current?.reviewedUncertified;
+  if (before?.gitBlobSha !== oldSha || after?.gitBlobSha !== newSha ||
+      before?.methods?.length !== 1 || after?.methods?.length !== 1 ||
+      prior?.status !== "COVERED" || current?.status !== "GAP" ||
+      current.testedBy !== null ||
+      hold?.kind !== "worker360-legal-employer-source-supersession-zero-credit" ||
+      hold?.oldSourceBlobSha !== oldSha || hold?.newSourceBlobSha !== newSha ||
+      JSON.stringify(hold.historicalProof) !== JSON.stringify(prior.testedBy) ||
+      hold.exactHeadPg16Http !== "PENDING" ||
+      hold.independentSecurityReview !== "PENDING" ||
+      hold.productionCertified !== false || hold.coverageCredits !== 0 ||
+      oldPage?.blob !== oldPageSha || oldPage.status !== "COVERED" ||
+      newPage?.blob !== newPageSha || newPage.status !== "GAP" ||
+      newPage.testedBy !== undefined ||
+      newPage.reviewedUncertified?.kind !== hold.kind ||
+      newPage.reviewedUncertified?.coverageCredits !== 0 ||
+      newPage.reviewedUncertified?.independentSecurityReview !== "PENDING" ||
+      newPage.reviewedUncertified?.productionCertified !== false) return new Set();
+  const sha = source => {
+    const b = Buffer.from(source, "utf8");
+    return createHash("sha1").update("blob " + b.length + "\0").update(b).digest("hex");
+  };
+  try {
+    if (sha(readFileSync(file, "utf8")) !== newSha ||
+        sha(readFileSync("src/app/hcm/worker-360/page.tsx", "utf8")) !== newPageSha)
+      return new Set();
+  } catch { return new Set(); }
+  return new Set(["GET " + file]);
+}
+
 /** The manifest at the PR's base, or null when no base is available outside CI. */
 export function baseTenantManifest(env = process.env) {
   const refs = [env.FAIL_CLOSED_GUARD_BASE_REF, env.TENANT_COUNTS_BASE_REF, "origin/main"].filter(Boolean);
@@ -139,7 +187,10 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     return { live, base: null };
   }
   const before = tallyTenantManifest(base.manifest);
-  const explicitlySuperseded = reviewedYearEndSourceSupersession(base.manifest, manifest);
+  const explicitlySuperseded = new Set([
+    ...reviewedYearEndSourceSupersession(base.manifest, manifest),
+    ...reviewedWorker360LegalEmployerSupersession(base.manifest, manifest),
+  ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
     const now = live.byKey.get(key);
@@ -153,8 +204,8 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
   }
   assert.deepEqual(regressions, [], "no proven method may disappear or be downgraded (base " + base.ref + ")");
   assert.ok(live.coveredAfter + explicitlySuperseded.size >= before.coveredAfter,
-    "COVERED never drops except exact two superseded #1730 year-end methods (base " + base.ref + ")");
+    "COVERED never drops except exact reviewed source supersessions (base " + base.ref + ")");
   assert.ok(live.gap - explicitlySuperseded.size <= before.gap,
-    "GAP never rises except exact two superseded #1730 year-end methods (base " + base.ref + ")");
+    "GAP never rises except exact reviewed source supersessions (base " + base.ref + ")");
   return { live, base: before };
 }

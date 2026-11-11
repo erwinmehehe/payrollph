@@ -223,78 +223,50 @@ test("SSR foreign-worker denial is independently exercised for BOTH legitimate e
     "No database or fixture import may precede local-only PG16 guard");
 });
 
-test("Worker 360 page closure proposal is source-pinned, scoped and review-gated", () => {
+test("new Worker 360 source demotes stale historic page/API credits without erasing receipts", () => {
   const m = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const path = "src/app/hcm/worker-360/page.tsx";
   const page = m.scopedPages.find(entry => entry.path === path);
-  assert.equal(page?.status, "COVERED", "Only bounded, provisional SSR page closure is proposed");
-  assert.equal(page?.blob, SOURCE_PINS[path]);
-  assert.equal(page?.testedBy?.sourceBlobSha, SOURCE_PINS[path]);
-  assert.equal(page?.testedBy?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
-  const code = readFileSync(page.testedBy.file);
-  assert.equal(page.testedBy.proofBlobSha, gitBlobSha(code));
-  assert.equal(page.testedBy.independentSecurityReview, "PENDING",
-    "Do not fabricate independent reviewer acceptance");
-  assert.equal(page.testedBy.productionCertified, false);
-  const lines = code.toString("utf8").split("\n");
-  assert.match(lines[page.testedBy.ownPositiveLine - 1],
-    /await readPage\(actor, actor\.worker, actor\.cookie\)/);
-  assert.match(lines[page.testedBy.foreignDenialLine - 1],
-    /await deny\(pagePath\(actor\.org\.id, victim\.worker\.id\)/);
-  assert.match(lines[page.testedBy.unchangedDbLine - 1],
-    /assertUnchangedSql\(baselines\.get\(actor\.org\.id\)/);
-  const gate = readFileSync("src/app/hcm/worker-360/page.tsx", "utf8");
-  for (const field of ["ids", "business", "guards"]) {
-    assert.ok(Array.isArray(page[field]) && page[field].length > 0);
-    const sourceLines = gate.split("\n");
-    for (const pin of page[field]) {
-      assert.ok(sourceLines[pin.line - 1]?.includes(pin.token),
-        "Page source line pin drift: " + field + " " + pin.line);
-    }
-  }
   const api = m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
-  assert.equal(api.methods.find(row => row.name === "GET")?.status, "COVERED",
-    "Prior independently proven API GET is unchanged");
-  assert.equal(m.metrics.routeFiles, Object.keys(m.allApiRouteFiles).length);
-  assert.equal(m.metrics.methods, Object.values(m.allApiRouteFiles)
-    .reduce((total, route) => total + route.methods.length, 0));
+  const get = api?.methods?.find(entry => entry.name === "GET");
+  assert.equal(page?.status, "GAP");
+  assert.equal(page?.blob, SOURCE_PINS[path]);
+  assert.equal(page?.testedBy, undefined);
+  assert.equal(page?.reviewedUncertified?.historicalProof?.sourceBlobSha,
+    "337034f839c17a30077e2cfe5991c640e0c6a5e9");
+  assert.equal(page?.reviewedUncertified?.independentSecurityReview, "PENDING");
+  assert.equal(page?.reviewedUncertified?.coverageCredits, 0);
+  assert.equal(api?.gitBlobSha, SOURCE_PINS["src/app/api/hcm/worker-360/route.ts"]);
+  assert.equal(get?.status, "GAP");
+  assert.equal(get?.testedBy, null);
+  assert.equal(get?.reviewedUncertified?.oldSourceBlobSha,
+    "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
+  assert.equal(get?.reviewedUncertified?.coverageCredits, 0);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
-  assert.equal(m.scopedPages.filter(row => row.status === "GAP").length, 16);
-  const workflow = readFileSync(
-    ".github/workflows/tenant-hcm-worker360-qa.yml", "utf8");
-  assert.match(workflow, /image: postgres:16/);
-  assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
-  assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-worker360-http\.mjs/);
+  assert.equal(m.scopedPages.filter(entry => entry.status === "GAP").length, 17);
+  assert.equal(m.metrics.gap, 18);
+  assert.equal(verifyWorker360PageCredit(m), 17);
 });
 
-test("historical page-GAP verifier only permits the exact current source-pinned Worker 360 promotion", () => {
-  const m = JSON.parse(readFileSync(
+test("changed Worker 360 cannot borrow historical page or API proof", () => {
+  const original = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  assert.equal(verifyWorker360PageCredit(m), 16);
-  const stale = structuredClone(m);
-  const page = stale.scopedPages.find(row => row.path ===
-    "src/app/hcm/worker-360/page.tsx");
-  page.testedBy.proofBlobSha = "0000000000000000000000000000000000000000";
-  assert.throws(() => verifyWorker360PageCredit(stale),
-    /Worker 360 PG16 proof|strictly equal/);
-  const unearned = structuredClone(m);
-  const unrelated = unearned.scopedPages.find(row =>
-    row.path === "src/app/hcm/org-explorer/page.tsx");
-  assert.equal(unrelated.status, "GAP");
-  unrelated.status = "COVERED";
-  assert.throws(() => verifyWorker360PageCredit(unearned),
-    /Only the exact Worker 360 page GAP may close/);
-  const forged = structuredClone(m);
-  const receipt = forged.scopedPages.find(row =>
-    row.path === "src/app/hcm/worker-360/page.tsx");
-  receipt.testedBy.independentSecurityReview = "APPROVED";
-  assert.throws(() => verifyWorker360PageCredit(forged));
-  // Old main remains a 17-GAP baseline, not an accidental source credit.
-  const historical = structuredClone(m);
-  const old = historical.scopedPages.find(row =>
-    row.path === "src/app/hcm/worker-360/page.tsx");
-  old.status = "GAP";
-  delete old.testedBy;
-  assert.equal(verifyWorker360PageCredit(historical), 17);
+  const page = original.scopedPages.find(entry =>
+    entry.path === "src/app/hcm/worker-360/page.tsx");
+  const uncovered = structuredClone(original);
+  const forgedPage = uncovered.scopedPages.find(entry => entry.path === page.path);
+  forgedPage.status = "COVERED";
+  assert.throws(() => verifyWorker360PageCredit(uncovered),
+    /Only the exact Worker 360 page GAP may close|strictly equal/);
+  const forgedApi = structuredClone(original);
+  const entry = forgedApi.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
+  entry.methods.find(row => row.name === "GET").status = "COVERED";
+  assert.throws(() => verifyWorker360PageCredit(forgedApi),
+    /Changed API GET cannot inherit old PG16 receipt/);
+  const forgedReceipt = structuredClone(original);
+  forgedReceipt.scopedPages.find(row => row.path === page.path)
+    .reviewedUncertified.coverageCredits = 1;
+  assert.throws(() => verifyWorker360PageCredit(forgedReceipt),
+    /strictly equal/);
 });
