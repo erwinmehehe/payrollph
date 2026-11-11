@@ -85,11 +85,45 @@ test("exact-source pins cover real survey API, aggregate storage, SSR and client
     "src/app/app/engagement/page.tsx",
     "src/components/engagement-survey-page.tsx",
     "src/lib/engagement-survey.ts",
+    "src/lib/tenant-engagement-employee-scope.ts",
   ].sort());
   for (const [path, sha] of Object.entries(ENGAGEMENT_SOURCE_PINS)) {
     assert.match(sha, /^[0-9a-f]{40}$/);
     assert.equal(gitBlobSha(readFileSync(path)), sha, path + " changed without review");
   }
+});
+
+test("survey API and SSR require a current worker binding in the selected employer", () => {
+  const api = readFileSync("src/app/api/hcm/engagement-surveys/route.ts", "utf8");
+  const page = readFileSync("src/app/app/engagement/page.tsx", "utf8");
+  const scope = readFileSync("src/lib/tenant-engagement-employee-scope.ts", "utf8");
+  const http = readFileSync("scripts/qa/tenant-engagement-employee-http.mjs", "utf8");
+
+  assert.equal((api.match(/employeeBoundToEngagementEmployer\(/g) ?? []).length, 2,
+    "GET and POST must independently verify the linked employee");
+  assert.equal((page.match(/employeeBoundToEngagementEmployer\(/g) ?? []).length, 1,
+    "SSR must independently reject foreign-linked employees");
+  for (const boundary of [
+    "eq(users.id, userId)", "eq(users.active, true)",
+    "eq(users.employeeId, employeeId)", "eq(employees.organizationId, organizationId)",
+    "eq(userOrganizations.organizationId, organizationId)",
+    "eq(userOrganizations.active, true)", "eq(userOrganizations.role, \"employee\")",
+    "eq(users.role, \"employee\")",
+  ]) assert.ok(scope.includes(boundary), "Missing account+employee tenant binding: " + boundary);
+
+  for (const proof of [
+    "crossLinked = a.employeeSessions[0]",
+    "organizationId: b.org.id",
+    "workerEmployeeId: null, active: true",
+    "crossLinked.worker.organizationId, a.org.id",
+    "crossLinked.worker.organizationId, b.org.id",
+    "crossAuthenticated.status, 200",
+    "await read(b, crossLinked.cookie, b.org.id)",
+    "crossPage.status, 404",
+    "await submit(b, crossLinked",
+    "crossLinkedEmployeeDenials, 3",
+    "await unchanged(\"cross-linked employee SSR\")",
+  ]) assert.ok(http.includes(proof), "Missing real PG16 cross-link negative control: " + proof);
 });
 
 test("a real employee GET must carry only own survey and own participation flag", () => {
