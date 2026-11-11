@@ -112,11 +112,11 @@ export async function proveDisciplineEntityIsolation() {
         offense: "PRIVATE-" + label + "-" + nonce, incidentDate: "2026-03-01",
         nteDetails: "PRIVATE-NTE-" + label + "-" + nonce,
       }).returning())[0];
-    const [caseA, caseB, caseV] = await Promise.all([
-      createCase(a.org.id, a.worker.id, "A"),
-      createCase(a.org.id, internalB.worker.id, "B"),
-      createCase(victim.org.id, victim.worker.id, "VICTIM"),
-    ]);
+    // Sequential inserts guarantee the victim case really has a higher ID;
+    // concurrent promises would make the test depend on database scheduling.
+    const caseA = await createCase(a.org.id, a.worker.id, "A");
+    const caseB = await createCase(a.org.id, internalB.worker.id, "B");
+    const caseV = await createCase(victim.org.id, victim.worker.id, "VICTIM");
     assert.ok(caseV.id > Math.max(caseA.id, caseB.id),
       "Third employer must have genuine higher-ID victim case");
     const actors = [
