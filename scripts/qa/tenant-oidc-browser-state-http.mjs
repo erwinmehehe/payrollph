@@ -45,11 +45,17 @@ export async function proveOidcBrowserStateIsolation() {
         "OIDC_BROWSER_REFUSED: database must start empty " + name);
     }
     const nonce = randomUUID().replaceAll("-", "").slice(0, 12);
+    // Real populated filler employers force all attacker and victim IDs beyond
+    // hand-picked 1/2/3 placeholders. Their sessions/employees are genuine PG rows.
+    const fillers = [];
+    for (let n = 0; n < 7; n++) {
+      fillers.push(await fixture.seedEmployer("OIDCF" + n, nonce, fixture.standaloneMakeSession));
+    }
     const a = await fixture.seedEmployer("OIDCA", nonce, fixture.standaloneMakeSession);
     const b = await fixture.seedEmployer("OIDCB", nonce, fixture.standaloneMakeSession);
     const victim = await fixture.seedEmployer("OIDCVICTIM", nonce, fixture.standaloneMakeSession);
-    assert.ok(victim.org.id > Math.max(a.org.id, b.org.id, 2));
-    assert.ok(victim.owner.id > Math.max(a.owner.id, b.owner.id, 2));
+    assert.ok(victim.org.id > Math.max(a.org.id, b.org.id, 6));
+    assert.ok(victim.owner.id > Math.max(a.owner.id, b.owner.id, 6));
 
     async function providerFor(actor, label) {
       // The provider intentionally has NO token endpoint, issuer, JWKS, or
@@ -182,7 +188,7 @@ export async function proveOidcBrowserStateIsolation() {
       ownStartRedirects: ownStarts,
       otherBrowserDeniedUnconsumed: deniedOtherBrowsers,
       validBrowserStateConsumedWithoutExternalIdp: matchedClaims,
-      differentEmployers: 2, highIdPopulatedVictim: true,
+      differentEmployers: 2, realFillerEmployers: fillers.length, highIdPopulatedVictim: true,
       unchangedVictimAndSessionSql: true,
       noExternalIdpOrMoneyCalls: true,
       completeMethodCredits: 0, independentSecurityReview: "PENDING",
