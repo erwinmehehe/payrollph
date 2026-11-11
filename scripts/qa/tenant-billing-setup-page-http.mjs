@@ -41,7 +41,8 @@ export function requireDisposableBillingPageEnv(env = process.env) {
 
 async function readLocal(path, cookie) {
   assert.ok(path === "/api/account" ||
-    path === "/billing/setup" || path.startsWith("/billing/setup?"),
+    path === "/billing/setup" || path.startsWith("/billing/setup?") ||
+    path === "/billing/manage" || path.startsWith("/billing/manage?"),
   "Only the reviewed billing setup GET and account authentication are allowed");
   const response = await fetch(ORIGIN + path, {
     method: "GET", headers: cookie ? { cookie } : {},
@@ -53,7 +54,8 @@ async function readLocal(path, cookie) {
     try { json = JSON.parse(text); } catch { /* Explicit status checks still apply. */ }
   }
   return { status: response.status, text, json,
-    contentType: response.headers.get("content-type") ?? "" };
+    contentType: response.headers.get("content-type") ?? "",
+    location: response.headers.get("location") };
 }
 
 function noForeignMarkers(response, employers, label) {
@@ -192,6 +194,56 @@ export async function verifyBillingSetupPageTenantIsolation() {
     assert.ok([302, 303, 307, 308].includes(anonymous.status),
       "Anonymous user must redirect to login rather than render employer billing");
     noForeignMarkers(anonymous, subjects, "anonymous billing response");
+
+    // A real shared owner can administer A and B, with A remaining their
+    // primary company. A billing-required link for B must never navigate to
+    // A's subscription by dropping B's company selector.
+    const [sharedMembership] = await db.insert(schema.userOrganizations).values({
+      userId: a.owner.id, organizationId: b.org.id, role: "owner", active: true,
+    }).returning({ id: schema.userOrganizations.id });
+    try {
+      async function assertRedirect(path, expected, label) {
+        const response = await readLocal(path, a.cookie);
+        assert.ok([302, 303, 307, 308].includes(response.status),
+          label + ": must issue a redirect rather than render a different employer");
+        assert.ok(response.location, label + ": missing Location");
+        const redirected = new URL(response.location, ORIGIN);
+        assert.equal(redirected.origin, ORIGIN, label + ": redirect origin changed");
+        assert.equal(redirected.pathname + redirected.search, expected,
+          label + ": wrong employer billing destination");
+        noForeignMarkers(response, subjects, label + " redirect body");
+        return redirected.pathname + redirected.search;
+      }
+      const bTarget = await assertRedirect(
+        "/billing/manage?organizationId=" + b.org.id,
+        "/billing/setup?organizationId=" + b.org.id,
+        "shared A+B owner managing B",
+      );
+      assertOwnBillingPage(await readLocal(bTarget, a.cookie), b, [a, victim]);
+      await assertRedirect("/billing/manage", "/billing/setup",
+        "missing selector retains primary-company fallback");
+
+      for (const invalid of ["0", "-1", "01", "1e0", "bad", "9007199254740992"]) {
+        assertDeniedBillingPage(
+          await readLocal("/billing/manage?organizationId=" + invalid, a.cookie),
+          subjects, "shared owner malformed manage selector " + invalid);
+      }
+      assertDeniedBillingPage(
+        await readLocal("/billing/manage?organizationId=" + a.org.id +
+          "&organizationId=" + b.org.id, a.cookie),
+        subjects, "duplicate manage selector must never choose one employer");
+      const foreignTarget = await assertRedirect(
+        "/billing/manage?organizationId=" + victim.org.id,
+        "/billing/setup?organizationId=" + victim.org.id,
+        "unowned employer never falls back to A",
+      );
+      assertDeniedBillingPage(await readLocal(foreignTarget, a.cookie), subjects,
+        "foreign destination independently enforces billing membership");
+    } finally {
+      await db.delete(schema.userOrganizations)
+        .where(eq(schema.userOrganizations.id, sharedMembership.id));
+    }
+
 
     const revoked = await db.update(schema.userOrganizations).set({ active: false })
       .where(and(
