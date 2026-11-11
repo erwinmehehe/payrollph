@@ -15,8 +15,10 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return hcmOrgExplorerJson({ error: "Authentication required." }, 401);
 
+  // A duplicated employer selector is ambiguous even when its first value is authorized.
+  const params = new URL(request.url).searchParams;
   const organizationId = hcmOrgExplorerPositiveId(
-    new URL(request.url).searchParams.get("organizationId"),
+    params.getAll("organizationId").length === 1 ? params.get("organizationId") : null,
   );
   if (!organizationId) return hcmOrgExplorerJson({ error: "Valid organizationId required." }, 400);
 
