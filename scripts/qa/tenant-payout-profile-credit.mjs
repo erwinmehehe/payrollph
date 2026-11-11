@@ -72,10 +72,10 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
   const allCount=routes.reduce((n,r)=>n+r.methods.length,0);
   const pageGaps=manifest.scopedPages.filter(page=>page.status==="GAP").length;
     // Owner-approved cross-tenant operational credentials are a distinct status,
-  // never a payout credit. Fail closed if any method outside the exact 11 is recategorized.
+  // never a payout credit. Fail closed if any method outside the exact 12 is recategorized.
   const approvedTokenOnly = new Set([
     "GET jobs/cron", "GET jobs/dispatch-readiness", "GET jobs/status",
-    "POST jobs/tick", "POST webhooks/drain", "GET capabilities",
+    "POST jobs/tick", "POST webhooks/drain", "POST hcm/work-items/escalate", "GET capabilities",
     "GET readiness", "GET readiness/billing", "GET readiness/database-target",
     "GET readiness/deployment", "GET readiness/pilot-status",
   ]);
@@ -83,7 +83,7 @@ export function verifyPayoutProfileCredit(manifest,read=path=>readFileSync(path,
     route.methods.filter(row => row.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY")
       .map(row => row.name + " " + route.route));
   // Historical main has no token-only class. The proposal must carry the exact
-  // reviewed 11-method class, but must not retroactively rewrite main.
+  // reviewed 12-method class, but must not retroactively rewrite main.
   const hasTokenOnlyClass = Object.hasOwn(manifest.metrics, "privilegedOperationsTokenOnly");
   assert.deepEqual(new Set(observedTokenOnly), hasTokenOnlyClass ? approvedTokenOnly : new Set(),
     "Unapproved token-only classification cannot bypass payout accounting");
