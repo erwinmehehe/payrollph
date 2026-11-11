@@ -250,6 +250,60 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+
+  if (key === "src/app/api/hcm/worker-profile/route.ts GET") {
+    // Historical broad employer-selector GET is retained as historical evidence.
+    // A new account-ownership query does NOT inherit source-current acceptance.
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy?.rowFile,"scripts/qa/tenant-table-rows/read/hcm.mjs");
+    assert.equal(currentBlob, "54604130e533d805159f8af08467fd02a5a587ab");
+    const candidate = method.sourceRefreshCandidate;
+    assert.deepEqual(candidate, {
+        "kind": "hcm-worker-profile-linked-account-membership-pg16-uncredited",
+        "originalRouteBlobSha": "755415e58650d7257caa84702219a559cc998676",
+        "currentRouteBlobSha": "54604130e533d805159f8af08467fd02a5a587ab",
+        "httpProofFile": "scripts/qa/tenant-worker-profile-account-http.mjs",
+        "httpProofBlobSha": "d2b2bff38ace083504329fe1b8aea614f8e82be1",
+        "contractTestFile": "tests/tenant-worker-profile-account-contract.test.mjs",
+        "contractTestBlobSha": "4f41f1ed3a046d9ffaee0f5ac3bcfdc03109fd2a",
+        "workflowFile": ".github/workflows/tenant-worker-profile-account-qa.yml",
+        "workflowBlobSha": "efac1d79c98b684876f084fe30a008432b0134fc",
+        "priorTableMethodEvidencePreserved": true,
+        "currentSourceHttpAcceptance": "PENDING",
+        "newMethodCredits": 0,
+        "independentSecurityReview": "PENDING",
+        "productionCertified": false
+    });
+    const source = readFileSync("src/app/api/hcm/worker-profile/route.ts","utf8");
+    const changedImport = "import { and, asc, desc, eq, inArray, isNull, or } from \"drizzle-orm\";";
+    const oldImport = "import { and, asc, desc, eq, inArray, isNull } from \"drizzle-orm\";";
+    const newQuery = "    }).from(users)\n      // A global users.employeeId is not an employer ownership boundary:\n      // another employer's account can carry the same worker pointer.\n      // Restrict linked login evidence to a membership in this employer,\n      // including archived/inactive memberships needed by offboarding.\n      .innerJoin(userOrganizations, and(\n        eq(userOrganizations.userId, users.id),\n        eq(userOrganizations.organizationId, organizationId),\n        or(\n          isNull(userOrganizations.workerEmployeeId),\n          eq(userOrganizations.workerEmployeeId, employeeId),\n        ),\n      ))\n      .where(eq(users.employeeId, employeeId)),";
+    const oldQuery = "    }).from(users).where(eq(users.employeeId, employeeId)),";
+    assert.equal(source.split(changedImport).length,2);
+    assert.equal(source.split(newQuery).length,2);
+    const previous=source.replace(changedImport,oldImport).replace(newQuery,oldQuery);
+    assert.equal(gitBlobSha(Buffer.from(previous)),"755415e58650d7257caa84702219a559cc998676",
+      "Only the exact reviewed linked-account tenant join may differ from historical GET source");
+    for(const [file,sha] of [
+      [candidate.httpProofFile,candidate.httpProofBlobSha],
+      [candidate.contractTestFile,candidate.contractTestBlobSha],
+      [candidate.workflowFile,candidate.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)),sha,
+      "Worker-profile account proof source changed without new PG16 execution: "+file);
+    const fixture=readFileSync(candidate.httpProofFile,"utf8");
+    for(const control of [
+      'account("PRIVATE-B-ACCOUNT"', 'account("PRIVATE-V-ACCOUNT"',
+      'own(await call(A,A.org.id,A.worker.id)',
+      'own(await call(B,B.org.id,B.worker.id)',
+      'foreignWorker.status,404',
+      'assert.deepEqual(await protectedRows(),before',
+      'foreignUnrelatedLoginsExcluded:3',
+      'newMethodCredits:0',
+    ]) assert.ok(fixture.includes(control),"Unreviewed linked-account negative oracle: "+control);
+    assert.match(readFileSync(candidate.workflowFile,"utf8"),/image: postgres:16/);
+    assert.equal(candidate.currentSourceHttpAcceptance,"PENDING");
+    assert.equal(candidate.newMethodCredits,0);
+  }
   if (SECURITY_TARGETS.some(t=>key===t.path+' '+t.method) && method.status==='COVERED') {
     assert.equal(verifySecurityCredits(manifest),3);
     assert.equal(currentBlob,readSecurityEvidence().pins[key.slice(0,key.lastIndexOf(' '))]);return true;
@@ -3714,6 +3768,86 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-sso-discovery-http\.mjs/);
     return true; // explicit unaccepted GAP; NOT blanket reclassification
+  }
+
+  // OIDC login-CSRF hardening is a two-route, exact-source, ZERO-CREDIT
+  // review. An initiating-browser cookie probe cannot certify complete SSO
+  // account linking or satisfy the two-owned-login whole-method standard.
+  // Keep BOTH methods GAP until full IdP success and tenant checks are proven.
+  if (isNewOrChanged && [
+    "src/app/api/auth/sso/start/route.ts GET",
+    "src/app/api/auth/sso/callback/route.ts GET",
+  ].includes(key)) {
+    const routePath = key.slice(0, key.lastIndexOf(" "));
+    const seals = {
+      "src/app/api/auth/sso/start/route.ts": {
+        before: "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
+        after: "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+      },
+      "src/app/api/auth/sso/callback/route.ts": {
+        before: "b18ac853e93155478474d02466617298d6773275",
+        after: "25116ab157ede52128a1ccbe189773104361f2d3",
+      },
+    };
+    const seal = seals[routePath];
+    assert.ok(seal, "Unrecognized OIDC route is not exempt from GAP review");
+    assert.equal(currentBlob, seal.after,
+      "OIDC browser binding changed: renewed identity security review required");
+    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, seal.after);
+    assert.equal(method.status, "GAP", "Browser binding is not complete SSO login coverage");
+    assert.equal(method.testedBy, null, "No unproven OIDC method credit");
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "oidc-initiating-browser-state-binding-zero-credit",
+      originalRouteBlobSha: seal.before,
+      routeBlobSha: seal.after,
+      cookieHelperFile: "src/lib/oidc-browser-state.ts",
+      cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
+      contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
+      contractBlobSha: "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+      proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+      proofBlobSha: "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+      unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
+      unitTestBlobSha: "926d45d242bbfe9672a95f02c3eef7dc27366815",
+      negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
+      negativeTestBlobSha: "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+      workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
+      workflowBlobSha: "b7479504956c98e08932241b71f16b49bfc9891b",
+      credits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    }, "OIDC cookie review must preserve all source pins and zero-credit gates");
+    const review = method.reviewedUncertified;
+    for (const [file, sha] of [
+      [review.cookieHelperFile, review.cookieHelperBlobSha],
+      [review.contractFile, review.contractBlobSha],
+      [review.proofFile, review.proofBlobSha],
+      [review.unitTestFile, review.unitTestBlobSha],
+      [review.negativeTestFile, review.negativeTestBlobSha],
+      [review.workflowFile, review.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "OIDC review source drift: " + file);
+    const start = readFileSync("src/app/api/auth/sso/start/route.ts", "utf8");
+    const callback = readFileSync("src/app/api/auth/sso/callback/route.ts", "utf8");
+    const workflow = readFileSync(review.workflowFile, "utf8");
+    assert.ok(start.indexOf("await db.insert(oidcLoginStates)") >= 0 &&
+      start.indexOf("await db.insert(oidcLoginStates)") <
+        start.indexOf("response.cookies.set(OIDC_BROWSER_STATE_COOKIE"),
+      "OIDC state must be durably stored before returning browser cookie");
+    for (const marker of [
+      'httpOnly: true', 'sameSite: "lax"',
+      'secure: process.env.NODE_ENV === "production"',
+      "path: OIDC_BROWSER_STATE_PATH",
+    ]) assert.ok(start.includes(marker), "Missing browser-cookie policy: " + marker);
+    const match = callback.indexOf("if (!oidcBrowserStateMatches(state");
+    const dbRead = callback.indexOf("db.select().from(oidcLoginStates)");
+    const claim = callback.indexOf("db.update(oidcLoginStates)");
+    assert.ok(match > 0 && match < dbRead && dbRead < claim,
+      "Refuse a foreign browser before even reading or consuming login state");
+    assert.match(callback, /browserCookies\.set\(OIDC_BROWSER_STATE_COOKIE, "",/);
+    assert.match(workflow, /image: postgres:16/);
+    assert.match(workflow,
+      /for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-oidc-browser-state-http\.mjs/);
+    return true; // Source-repaired GAP, NOT whole-method COVERED.
   }
 
   // Deliberately disabled SAML login endpoints must not enumerate provider IDs.
