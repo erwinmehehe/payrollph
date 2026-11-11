@@ -1,8 +1,9 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { disciplinaryCases, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -26,6 +27,15 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
+  // Parent-organization HR access does not grant access to every legal employer.
+  const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entityAccess.ok) return entityAccess.response;
+  if (entityAccess.context.enabled &&
+      (entityAccess.context.group || entityAccess.context.legalEntityId === null)) {
+    return Response.json({ error: "Select an authorized legal employer." }, { status: 403 });
+  }
+  const legalEntityId = entityAccess.context.enabled ? entityAccess.context.legalEntityId : null;
+
   const filter = employeeId > 0
     ? and(eq(disciplinaryCases.organizationId, organizationId), eq(disciplinaryCases.employeeId, employeeId))
     : eq(disciplinaryCases.organizationId, organizationId);
@@ -39,7 +49,10 @@ export async function GET(request: Request) {
       eq(disciplinaryCases.employeeId, employees.id),
       eq(disciplinaryCases.organizationId, employees.organizationId),
     ))
-    .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
+    .where(and(
+      access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)),
+      legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+    ))
     .orderBy(desc(disciplinaryCases.id));
 
   return Response.json({
@@ -76,11 +89,25 @@ export async function POST(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
+  const entityAccess = await resolveMultiEntityContext({
+    userId: user.id, organizationId, request, requested: body.legalEntityId,
+  });
+  if (!entityAccess.ok) return entityAccess.response;
+  if (entityAccess.context.enabled &&
+      (entityAccess.context.group || entityAccess.context.legalEntityId === null)) {
+    return Response.json({ error: "Select an authorized legal employer." }, { status: 403 });
+  }
+  const legalEntityId = entityAccess.context.enabled ? entityAccess.context.legalEntityId : null;
+
   if (!employeeId || !offense || !nteDetails) {
     return Response.json({ error: "Employee, offense category, and Notice to Explain (NTE) details are required." }, { status: 400 });
   }
 
-  const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
+  const [employee] = await db.select().from(employees).where(and(
+    eq(employees.id, employeeId),
+    eq(employees.organizationId, organizationId),
+    legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+  )).limit(1);
   if (!employee) {
     return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
   }
@@ -148,12 +175,36 @@ export async function PATCH(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, discCase.organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // A case ID is not authority to act on another legal employer's worker.
+  const entityAccess = await resolveMultiEntityContext({
+    userId: user.id, organizationId: discCase.organizationId, request,
+    requested: body.legalEntityId,
+  });
+  if (!entityAccess.ok || (entityAccess.context.enabled &&
+      (entityAccess.context.group || entityAccess.context.legalEntityId === null))) {
+    return Response.json({ error: "Disciplinary case unavailable." }, { status: 403 });
+  }
+  const legalEntityId = entityAccess.context.enabled ? entityAccess.context.legalEntityId : null;
   const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
-    .where(and(eq(employees.id, discCase.employeeId), eq(employees.organizationId, discCase.organizationId)))
+    .where(and(
+      eq(employees.id, discCase.employeeId),
+      eq(employees.organizationId, discCase.organizationId),
+      legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+    ))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+  // Recheck at write time; an intervening legal-employer transfer must not widen access.
+  const currentLegalEmployerScope = legalEntityId === null ? undefined : inArray(
+    disciplinaryCases.employeeId,
+    db.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.id, discCase.employeeId),
+      eq(employees.organizationId, discCase.organizationId),
+      eq(employees.legalEntityId, legalEntityId),
+    )),
+  );
 
   if (action === "submit_explanation") {
     const explanation = String(body.employeeExplanation ?? "").trim();
@@ -167,6 +218,7 @@ export async function PATCH(request: Request) {
       eq(disciplinaryCases.id, id),
       eq(disciplinaryCases.organizationId, discCase.organizationId),
       eq(disciplinaryCases.employeeId, discCase.employeeId),
+      currentLegalEmployerScope,
     )).returning();
     if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
@@ -192,6 +244,7 @@ export async function PATCH(request: Request) {
       eq(disciplinaryCases.id, id),
       eq(disciplinaryCases.organizationId, discCase.organizationId),
       eq(disciplinaryCases.employeeId, discCase.employeeId),
+      currentLegalEmployerScope,
     )).returning();
     if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
@@ -221,6 +274,7 @@ export async function PATCH(request: Request) {
       eq(disciplinaryCases.id, id),
       eq(disciplinaryCases.organizationId, discCase.organizationId),
       eq(disciplinaryCases.employeeId, discCase.employeeId),
+      currentLegalEmployerScope,
     )).returning();
     if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
@@ -242,6 +296,7 @@ export async function PATCH(request: Request) {
       eq(disciplinaryCases.id, id),
       eq(disciplinaryCases.organizationId, discCase.organizationId),
       eq(disciplinaryCases.employeeId, discCase.employeeId),
+      currentLegalEmployerScope,
     )).returning();
     if (!updated) return Response.json({ error: "Disciplinary case changed. Refresh." }, { status: 409 });
 
