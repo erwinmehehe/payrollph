@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assets,
@@ -182,7 +182,20 @@ export async function GET(request: Request) {
       active: users.active,
       localPasswordEnabled: users.localPasswordEnabled,
       createdAt: users.createdAt,
-    }).from(users).where(eq(users.employeeId, employeeId)),
+    }).from(users)
+      // A global users.employeeId is not an employer ownership boundary:
+      // another employer's account can carry the same worker pointer.
+      // Restrict linked login evidence to a membership in this employer,
+      // including archived/inactive memberships needed by offboarding.
+      .innerJoin(userOrganizations, and(
+        eq(userOrganizations.userId, users.id),
+        eq(userOrganizations.organizationId, organizationId),
+        or(
+          isNull(userOrganizations.workerEmployeeId),
+          eq(userOrganizations.workerEmployeeId, employeeId),
+        ),
+      ))
+      .where(eq(users.employeeId, employeeId)),
     db.select({
       id: separationRecords.id,
       separationType: separationRecords.separationType,

@@ -1589,15 +1589,36 @@
       "businessIds": []
     },
     "src/app/api/auth/sso/callback/route.ts": {
-      "gitBlobSha": "b18ac853e93155478474d02466617298d6773275",
+      "gitBlobSha": "25116ab157ede52128a1ccbe189773104361f2d3",
       "route": "auth/sso/callback",
       "methods": [
         {
           "name": "GET",
-          "line": 23,
+          "line": 27,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "oidc-initiating-browser-state-binding-zero-credit",
+            "originalRouteBlobSha": "b18ac853e93155478474d02466617298d6773275",
+            "routeBlobSha": "25116ab157ede52128a1ccbe189773104361f2d3",
+            "cookieHelperFile": "src/lib/oidc-browser-state.ts",
+            "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
+            "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
+            "contractBlobSha": "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+            "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
+            "proofBlobSha": "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+            "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
+            "unitTestBlobSha": "926d45d242bbfe9672a95f02c3eef7dc27366815",
+            "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
+            "negativeTestBlobSha": "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+            "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
+            "workflowBlobSha": "b7479504956c98e08932241b71f16b49bfc9891b",
+            "credits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -1611,51 +1632,51 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 80,
+          "line": 105,
           "token": "organizationId"
         },
         {
-          "line": 80,
+          "line": 105,
           "token": "organizationId"
         },
         {
-          "line": 88,
+          "line": 113,
           "token": "organizationId"
         },
         {
-          "line": 88,
+          "line": 113,
           "token": "organizationId"
         },
         {
-          "line": 120,
+          "line": 145,
           "token": "organizationId"
         },
         {
-          "line": 120,
+          "line": 145,
           "token": "organizationId"
         },
         {
-          "line": 127,
+          "line": 152,
           "token": "organizationId"
         },
         {
-          "line": 127,
+          "line": 152,
           "token": "organizationId"
         },
         {
-          "line": 141,
+          "line": 166,
           "token": "organizationId"
         },
         {
-          "line": 141,
+          "line": 166,
           "token": "organizationId"
         },
         {
-          "line": 163,
+          "line": 187,
           "token": "organizationId"
         },
         {
-          "line": 163,
+          "line": 187,
           "token": "organizationId"
         }
       ]
@@ -1714,15 +1735,36 @@
       "businessIds": []
     },
     "src/app/api/auth/sso/start/route.ts": {
-      "gitBlobSha": "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
+      "gitBlobSha": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
       "route": "auth/sso/start",
       "methods": [
         {
           "name": "GET",
-          "line": 11,
+          "line": 16,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "oidc-initiating-browser-state-binding-zero-credit",
+            "originalRouteBlobSha": "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
+            "routeBlobSha": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+            "cookieHelperFile": "src/lib/oidc-browser-state.ts",
+            "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
+            "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
+            "contractBlobSha": "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+            "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
+            "proofBlobSha": "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+            "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
+            "unitTestBlobSha": "926d45d242bbfe9672a95f02c3eef7dc27366815",
+            "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
+            "negativeTestBlobSha": "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+            "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
+            "workflowBlobSha": "b7479504956c98e08932241b71f16b49bfc9891b",
+            "credits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -1736,11 +1778,11 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 32,
+          "line": 37,
           "token": "organizationId"
         },
         {
-          "line": 32,
+          "line": 37,
           "token": "organizationId"
         }
       ]
@@ -17100,7 +17142,7 @@
       ]
     },
     "src/app/api/hcm/worker-profile/route.ts": {
-      "gitBlobSha": "755415e58650d7257caa84702219a559cc998676",
+      "gitBlobSha": "54604130e533d805159f8af08467fd02a5a587ab",
       "route": "hcm/worker-profile",
       "methods": [
         {
@@ -17118,6 +17160,22 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
             "rowLine": 59
+          },
+          "sourceRefreshCandidate": {
+            "kind": "hcm-worker-profile-linked-account-membership-pg16-uncredited",
+            "originalRouteBlobSha": "755415e58650d7257caa84702219a559cc998676",
+            "currentRouteBlobSha": "54604130e533d805159f8af08467fd02a5a587ab",
+            "httpProofFile": "scripts/qa/tenant-worker-profile-account-http.mjs",
+            "httpProofBlobSha": "d2b2bff38ace083504329fe1b8aea614f8e82be1",
+            "contractTestFile": "tests/tenant-worker-profile-account-contract.test.mjs",
+            "contractTestBlobSha": "4f41f1ed3a046d9ffaee0f5ac3bcfdc03109fd2a",
+            "workflowFile": ".github/workflows/tenant-worker-profile-account-qa.yml",
+            "workflowBlobSha": "efac1d79c98b684876f084fe30a008432b0134fc",
+            "priorTableMethodEvidencePreserved": true,
+            "currentSourceHttpAcceptance": "PENDING",
+            "newMethodCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         }
       ],
