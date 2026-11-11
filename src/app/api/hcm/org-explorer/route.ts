@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import {
-  denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
+  denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerSingleQueryId,
 } from "@/lib/hcm-org-explorer-access";
 import { loadHcmOrgExplorer, OrgExplorerPreviewLimitError } from "@/lib/hcm-org-explorer-server";
 
@@ -17,9 +17,7 @@ export async function GET(request: Request) {
 
   // A duplicated employer selector is ambiguous even when its first value is authorized.
   const params = new URL(request.url).searchParams;
-  const organizationId = hcmOrgExplorerPositiveId(
-    params.getAll("organizationId").length === 1 ? params.get("organizationId") : null,
-  );
+  const organizationId = hcmOrgExplorerSingleQueryId(params, "organizationId");
   if (!organizationId) return hcmOrgExplorerJson({ error: "Valid organizationId required." }, 400);
 
   if (!hcmOrgExplorerEnabledForEmployer(organizationId)) return hcmOrgExplorerJson({ error: "Not found." }, 404);
