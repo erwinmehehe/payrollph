@@ -74,3 +74,27 @@ review fails on the stale Spend engine seal for the same reason.
 All providers, workers, schedulers, external models, final-pay review, exact
 thirteenth centavos, payroll history and CSP remain OFF. No production SQL,
 Neon, migration, real credentials, provider calls or live configuration changes.
+
+
+## Bounded historical-source compatibility (not a new method credit)
+
+The changed engine source is the exact four-edit narrowing of the historically
+sealed `src/lib/automation.ts`: original Git blob `288d27789e062803d68ea38fd41fa78ee155a1ee` and reviewed
+new blob `ce2c8e8feee4554c85f7739b73f2fa0325b81306`. The verifier
+`scripts/qa/tenant-studio-automation-source-compat.mjs` reverses *only* the
+four approved edits and requires the byte-identical SHA-1 Git blob of the
+original. It pins the new employer-row update/share-lock helper, the original
+disposable PG16 recovery receipt, complete proof runner and contract; any
+unreviewed source, receipt, lock or proof edit fails closed.
+
+This compatibility check does **not** rewrite or replace the historical
+approvals PATCH or enterprise POST HTTP receipts, their job identifiers, source
+pins or existing provisional coverage status. The current-source fictional
+PG16 checks remain mandatory. Current-head runs independently passed:
+[Studio recovery scope](https://github.com/erwinmehehe/payrollph/actions/runs/42937362387),
+[enterprise action matrix](https://github.com/erwinmehehe/payrollph/actions/runs/42937362395),
+[Spend/managed, document callers and approval task renewal](https://github.com/erwinmehehe/payrollph/actions/runs/42937361753).
+The original complete approvals workflow had a preflight failure on the old
+source hash, so its complete new-head reproof is still needed. Independent
+security and method-acceptance review remains PENDING. This is **not** new
+COVERED credit, production acceptance or deployment approval.
