@@ -41597,7 +41597,7 @@
     },
     {
       "path": "src/app/app/page.tsx",
-      "blob": "c08e9772f90d8a6680577eb169f4a7ba02bc52e0",
+      "blob": "f1f452d08194069857a9e219cee7f22e77bc78c2",
       "ids": [
         {
           "line": 33,
@@ -41735,7 +41735,7 @@
       ],
       "hasAction": false,
       "status": "COVERED",
-      "reason": "Provisional: real signed-in own HTML must include persisted employer/worker; two independent owners receive 404 for the real victim. Exact-head CI required.",
+      "reason": "Provisional: real signed-in own HTML must include persisted employer/worker; two independent owners receive 404 for the real victim. Exact-head CI required. Exact one-line billing-target delta is checked against original source; shared-owner target proof and rerun of own/foreign workspace HTML are required on this head. No new credit is granted.",
       "testedBy": {
         "file": "scripts/qa/tenant-scoped-page-probes.mjs",
         "ownPositiveLine": 69,
@@ -41821,15 +41821,15 @@
         "originalPageBlobSha": "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381",
         "pageBlobSha": "c5830a95d2c13063c43a36629690010220d99d31",
         "proofFile": "scripts/qa/tenant-billing-setup-page-http.mjs",
-        "proofBlobSha": "d0047d905a95ef6c33d63065d3404db114b102f3",
+        "proofBlobSha": "87053f4ca7f7a03919b2b4fdbaeaadd41b1e204b",
         "contractTestFile": "tests/tenant-billing-setup-boundary.test.mjs",
-        "contractTestBlobSha": "b31437f6707036393404cc8ddad824dee56fd58d",
+        "contractTestBlobSha": "e5a0d09eec50430f7ea13326e3390998a7de68e9",
         "workflowFile": ".github/workflows/tenant-billing-setup-page-qa.yml",
-        "workflowBlobSha": "a2b3bbe665e27d973d491426d9109853958ff425",
-        "ownPageLine": 153,
-        "foreignPageLine": 161,
-        "revokedPageLine": 206,
-        "unchangedDbLine": 210,
+        "workflowBlobSha": "dbf0fe76f31df6638a14d9aa9eda1ad7a39f6c0b",
+        "ownPageLine": 155,
+        "foreignPageLine": 163,
+        "revokedPageLine": 208,
+        "unchangedDbLine": 212,
         "credits": 0,
         "independentlyAccepted": false,
         "productionCertified": false
