@@ -2,19 +2,16 @@
 
 **Status: DRAFT / unaccepted, fictional PG16 proof only. Zero tenant page/action/API method credits, no production certification.**
 
-This is the follow-up evidence missing from merged PR #1876. It adds only a
-dedicated workflow, real-HTTP/SQL test runner, fail-closed assertions, unit
-negative controls, and this runbook. **No existing application/UX code, API,
-schema, production configuration, tenant-isolation manifest, shared CI gate,
-financial code, or provider integration is modified.**
+This follow-up builds on merged PR #1876 and adds a **production authorization fix** for cross-employer employee identity confusion: an employee membership by itself can no longer expose survey questions unless the signed-in account's current employee record belongs to that employer. The existing fictional PG16 real-HTTP suite now covers the adversarial case. No schema, feature flags, tenant credit ledger, shared CI gate, financial code, or provider integration is modified.
 
 ## Reviewed source scope and drift guard
 
 The proof requires exact Git blob hashes for the following unchanged sources:
 
-- `src/app/api/hcm/engagement-surveys/route.ts` — `8355956668eb8bdc0f767f9f72bd01992e964349`
+- `src/app/api/hcm/engagement-surveys/route.ts` — `0440db4fb597953281769f154d73ad982f7c8efe`
 - `src/lib/engagement-survey.ts` — `3cd87143f9a1be6d136a552ee4a3c4c4a0348057`
-- `src/app/app/engagement/page.tsx` — `8ddecfc89f1f8b23deeaefa410c00f36b072922e`
+- `src/app/app/engagement/page.tsx` — `48132ee7356603136d7ac660086b3812ef28ed94`
+- `src/lib/tenant-engagement-employee-scope.ts` — `6af77a09cb178b2d6111bb875ca21c722db5ac15`
 - `src/components/engagement-survey-page.tsx` — `28bbb0fc7c7fe172301af414079c81182552177f`
 
 If any reviewed source changes, the dedicated unit and HTTP proof jobs fail
@@ -36,6 +33,32 @@ survey, six staff rows, six linked ESS employee accounts and an owner session.
 The third employer is an actual higher-ID victim, not a fabricated ID or
 a missing-record 404. The first two employers each prove successful own
 employee SSR and GET/POST activity.
+
+## New production tenant boundary
+
+Before this change, employee access to the engagement-survey GET and the SSR
+page required an active selected-employer membership and merely a non-null,
+positive global `users.employee_id`. Those separate facts did not establish
+that the employee record belonged to the selected employer. An employee
+account linked to Employer A but with an active employee-role membership in
+Employer B could receive B's survey question/status over GET and mount its
+SSR client shell. The POST answer path had a deeper same-employer worker
+check at the database write, but the route's gate was inconsistent.
+
+The added `employeeBoundToEngagementEmployer` function joins the authenticated
+current account, an active employee-role membership in the selected employer,
+and the actual employee record **in that same employer**. A contradictory
+non-null membership worker link also denies. GET, POST answer and SSR invoke
+this same fail-closed binding. This is **not** a claim of a known externally
+exploited production leak or an approved general permission grant.
+
+The real adversarial test inserts an additional **active B membership** on a
+genuine signed-in worker of A while B has a real, distinct employee directory
+and survey. It first proves the account remains authenticated. B's survey GET
+returns 403, B's SSR page returns 404, and B's survey answer returns 403;
+no B or higher-ID victim marker leaks and SQL snapshots for all employers
+remain unchanged. The same account still passes A's legitimate own survey
+reads and submissions. No missing-row 404 or mock-only case is counted.
 
 Covered positive and negative controls:
 
