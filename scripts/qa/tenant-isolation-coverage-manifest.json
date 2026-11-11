@@ -1552,7 +1552,7 @@
       "businessIds": []
     },
     "src/app/api/auth/saml/metadata/[providerId]/route.ts": {
-      "gitBlobSha": "589fb64376d807f03245a12c6aca1de7c3bfa08f",
+      "gitBlobSha": "4f8d12b9867de0c18aea8e447208e8470773350b",
       "route": "auth/saml/metadata/[providerId]",
       "methods": [
         {
@@ -1560,7 +1560,25 @@
           "line": 9,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "saml-metadata-disabled-provider-privacy-uncredited",
+            "originalRouteBlobSha": "589fb64376d807f03245a12c6aca1de7c3bfa08f",
+            "routeBlobSha": "4f8d12b9867de0c18aea8e447208e8470773350b",
+            "ownerDecision": "CONCEAL_DISABLED_PROVIDERS",
+            "pins": {
+              "scripts/qa/tenant-saml-metadata-public-contract.mjs": "ceae351aa208659d25fb37ce26bcf2ba01b96a83",
+              "scripts/qa/tenant-saml-metadata-public-http.mjs": "564f1a50a078f3ec7a4fe2461ce27a8f9d5f54ff",
+              "tests/tenant-saml-metadata-public.test.mjs": "792ba21584827c85295eb7fd8d7198fe19206dba",
+              "tests/tenant-saml-metadata-disabled-route.test.mjs": "7e28f98ad85a393f44c69e16ccb1a1ed3f827bf7",
+              "tests/tenant-saml-metadata-privacy-verify.test.mjs": "540d1e4745de83868e731819f1151bcb40692d98",
+              ".github/workflows/tenant-saml-metadata-public-http.yml": "4ac2edcb432eb406557edf3db260f4da876f5e18"
+            },
+            "coverageCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentlyAccepted": false,
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
