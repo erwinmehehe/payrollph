@@ -630,11 +630,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       originalRouteBlobSha: payrollReviewed.original,
       routeBlobSha: payrollReviewed.current,
       proofFile: "scripts/qa/tenant-batches/payroll-runs-path-http.mjs",
-      proofBlobSha: "0f82c4e2af1a4f30363e0953ead21ea21475283a",
+      proofBlobSha: "47615fbf020754f016148acccf0cb67da4cc5a19",
       contractFile: "tests/tenant-payroll-runs-path-boundaries.test.mjs",
-      contractBlobSha: "30dbd3e97304728b0d70f38aaa8ec9443d2e8d59",
+      contractBlobSha: "d0510f84b89f17da3e7b9ef049a7461f916bf307",
       workflowFile: ".github/workflows/tenant-payroll-run-path-boundaries.yml",
-      workflowBlobSha: "899f6dac19cf5e3d6b47ca8242cb93d86738508d",
+      workflowBlobSha: "059ee5a35146eece87fbcfcc75863ad1d992f6f7",
       coverageCredits: 0,
       exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING",
@@ -3761,6 +3761,34 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(gitBlobSha(readFileSync("tests/tenant-saml-disabled-boundary.test.ts")),
       "e8672972221ecda71f26f8aeca0f2cd28a5d6bd1",
       "SAML privacy test changed without renewed pin");
+    return;
+  }
+
+  // Payslip GET hardening shares a route file with the still-unproven payout
+  // POST. Preserve the hold only for this exact source: POST's entire body
+  // must be byte-identical to main after undoing its stricter ID parser.
+  // This is zero credit; a provider-off 409 is never a positive payout proof.
+  if (key === "src/app/api/payroll-runs/[id]/exports/route.ts POST" &&
+      currentBlob === "6d4397c1ef98df82fa4917d6241b44e14b3ae96f") {
+    assert.equal(method.status, "GAP");
+    assert.equal(method.testedBy, null);
+    assert.deepEqual(method.reviewedUncertified, {
+      kind: "payroll-export-selector-source-hardening-zero-credit",
+      priorSourceBlobSha: "cc48189634bdd200a3d7f9408e3bf8d540086bce",
+      routeBlobSha: currentBlob,
+      ownPreflightPositive: "NOT_PROVEN_PROVIDER_FLAGS_OFF",
+      newMethodCredits: 0, exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING", productionCertified: false,
+    });
+    const source = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+    const post = source.slice(source.indexOf("export async function POST("))
+      .replace("const runId = canonicalTenantResourceId(id);", "const runId = Number(id);")
+      .replace("if (runId === null)", "if (!Number.isInteger(runId))");
+    assert.equal(createHash("sha256").update(post).digest("hex"),
+      "d68661adca342e08e538c0ef5db945e0977e2805903c3bfd431f3db78e872cab",
+      "No payout mutation or authorization behavior may change under a payslip-only hold");
+    assert.equal(gitBlobSha(readFileSync("src/lib/canonical-tenant-resource-id.ts")),
+      "506325c520b0346a8a857cd73412a231c31e5e7f");
     return;
   }
 

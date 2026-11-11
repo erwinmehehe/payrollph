@@ -23034,14 +23034,14 @@
       ]
     },
     "src/app/api/payroll-runs/[id]/exports/route.ts": {
-      "gitBlobSha": "cc48189634bdd200a3d7f9408e3bf8d540086bce",
+      "gitBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
       "route": "payroll-runs/[id]/exports",
       "methods": [
         {
           "name": "GET",
-          "line": 51,
+          "line": 54,
           "status": "COVERED",
-          "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: existing high-risk GET credit retained; payslip-selector and worker-association hardening requires fresh exact-head HTTP security-smoke and default/multi-entity path jobs. Historical run is not evidence for new source; zero new credits, no production or independent acceptance.",
           "testedBy": {
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 201,
@@ -23050,14 +23050,33 @@
             "unchangedDbLine": 349,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          },
+          "sourceRevalidation": {
+            "priorSourceBlobSha": "cc48189634bdd200a3d7f9408e3bf8d540086bce",
+            "currentSourceBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
+            "historicalProofNotPortable": true,
+            "exactPrHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "newMethodCredits": 0,
+            "accepted": false
           }
         },
         {
           "name": "POST",
-          "line": 316,
+          "line": 342,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
-          "testedBy": null
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "payroll-export-selector-source-hardening-zero-credit",
+            "priorSourceBlobSha": "cc48189634bdd200a3d7f9408e3bf8d540086bce",
+            "routeBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
+            "ownPreflightPositive": "NOT_PROVEN_PROVIDER_FLAGS_OFF",
+            "newMethodCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          }
         }
       ],
       "employerSources": {
@@ -24203,11 +24222,11 @@
             "originalRouteBlobSha": "745d24f56eac8dca56012728ad6674f3d160de53",
             "routeBlobSha": "c100c146ce1373c1526bae90dd77667d6ed6aaad",
             "proofFile": "scripts/qa/tenant-batches/payroll-runs-path-http.mjs",
-            "proofBlobSha": "0f82c4e2af1a4f30363e0953ead21ea21475283a",
+            "proofBlobSha": "47615fbf020754f016148acccf0cb67da4cc5a19",
             "contractFile": "tests/tenant-payroll-runs-path-boundaries.test.mjs",
-            "contractBlobSha": "30dbd3e97304728b0d70f38aaa8ec9443d2e8d59",
+            "contractBlobSha": "d0510f84b89f17da3e7b9ef049a7461f916bf307",
             "workflowFile": ".github/workflows/tenant-payroll-run-path-boundaries.yml",
-            "workflowBlobSha": "899f6dac19cf5e3d6b47ca8242cb93d86738508d",
+            "workflowBlobSha": "059ee5a35146eece87fbcfcc75863ad1d992f6f7",
             "coverageCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",

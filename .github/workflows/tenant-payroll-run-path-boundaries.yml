@@ -74,8 +74,10 @@ jobs:
             echo 'RESEND_API_KEY='
             echo 'MULTI_ENTITY_ENABLED=${{ matrix.profile == 'multi-entity' && 'true' || 'false' }}'
           } >> "$GITHUB_ENV"
-      - name: Verify the seven-method source contract and no-money fixture
-        run: node --test tests/tenant-payroll-runs-path-boundaries.test.mjs
+      - name: Verify eight method boundaries and the fail-closed payslip exporter
+        run: |
+          node --test tests/tenant-payroll-runs-path-boundaries.test.mjs tests/tenant-payroll-export-boundaries.test.mjs
+          npx tsx --test tests/canonical-tenant-resource-id.test.ts tests/payroll-payslip-tenant-ownership.test.ts
       - name: Generate disposable encryption and signing keys
         shell: bash
         run: |
@@ -105,7 +107,7 @@ jobs:
           done
           cat /tmp/payroll-runs-path-server.log
           exit 1
-      - name: Two authenticated attackers and one real higher-ID victim; seven paths; no money
+      - name: Two attackers, higher-ID victim, payslip corruption and eight paths; no money
         run: npx tsx scripts/qa/tenant-batches/payroll-runs-path-http.mjs
       - name: Show isolated server log on failure
         if: failure()
