@@ -17,7 +17,7 @@ export function expiredUnverifiedSignup(
     && record.verifiedAt === null
     && record.createdAt instanceof Date
     && Number.isFinite(record.createdAt.getTime())
-    && record.createdAt.getTime() <= now - PENDING_SIGNUP_MAX_AGE_MS;
+    && record.createdAt.getTime() < now - PENDING_SIGNUP_MAX_AGE_MS;
 }
 
 /**
