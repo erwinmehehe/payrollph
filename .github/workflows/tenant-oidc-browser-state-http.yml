@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do
             value=$(openssl rand -hex 32)
             echo "::add-mask::$value"
             echo "$key=$value" >> "$GITHUB_ENV"
