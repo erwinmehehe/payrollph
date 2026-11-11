@@ -82,4 +82,3 @@ Approval may cover all nine or an explicit subset. Unapproved labels must stay
 GAP on main. Until a decision is recorded, #1921 remains a draft regardless of
 green CI. Runtime guards, unresolved findings and separate production gates
 remain in force after any inventory decision.
-
