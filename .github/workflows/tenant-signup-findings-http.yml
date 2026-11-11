@@ -1,4 +1,4 @@
-name: Signup #1898 findings (fictional PG16 HTTP; loopback only; no money)
+name: "Signup #1898 findings (fictional PG16 HTTP; loopback only; no money)"
 
 on:
   pull_request:
@@ -39,7 +39,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tenant-signup-findings-${{ github.event.pull_request.number }}
+  group: tenant-signup-findings-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -84,12 +84,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Focused signup / rate-fallback regression and source guard
+        run: |
+          npx tsx --test tests/signup-pending-recovery.test.ts tests/registration-entry.test.ts
+          npm run tenant:repin:check
       - name: Export disposable localhost targets, loopback mail address and throwaway secrets; disable all providers and workers
         shell: bash
         run: |
