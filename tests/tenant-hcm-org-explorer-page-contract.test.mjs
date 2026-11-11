@@ -51,7 +51,7 @@ test("source seal covers SSR, both APIs, SQL loader, auth, roles and client", ()
   assert.match(runner, /assertSqlUnchanged\(/);
   assert.match(runner, /loggedInAfterRevoke/);
   assert.match(runner, /pageActionCredits: 0, apiMethodCredits: 0/);
-  assert.match(runner, /duplicateApiSelectorsProven: false/);
+  assert.match(runner, /duplicateApiSelectorsProven: true/);
 });
 
 test("fictional PG16 environment refuses remote database, enabled money and credentials", () => {
