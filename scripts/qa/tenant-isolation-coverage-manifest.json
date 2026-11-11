@@ -1867,59 +1867,66 @@
             "routeBlobSha": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
             "proofBlobSha": "5ed183ec0560ae4ccc53f56f4652a2d66d782e1e",
             "receiptFile": "scripts/qa/tenant-studio-post-credit-receipt.json",
-            "receiptBlobSha": "91e0cde74d6212efc3bc20c415ffbd9cdd87666e",
+            "receiptBlobSha": "f75b1436996f98ffe40be2f0a785700530583e0e",
             "recoveryCredit": "studio-post-complete",
             "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
-            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42937362387/job/130250632298",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909017/job/130378012121",
             "cohort": [
               {
                 "family": "triage",
-                "job": 130250628988,
-                "run": 42937361287,
-                "sourceHead": "805925193af05eb666a531e2028532a9d5a73b47",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42937361287/job/130250628988"
+                "job": 130378012392,
+                "run": 42976909059,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909059/job/130378012392"
               },
               {
                 "family": "draft",
-                "job": 130241307724,
-                "run": 42934565441,
-                "sourceHead": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565441/job/130241307724"
+                "job": 130378011099,
+                "run": 42976908827,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976908827/job/130378011099"
               },
               {
                 "family": "lifecycle",
-                "job": 130241308894,
-                "run": 42934565504,
-                "sourceHead": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565504/job/130241308894"
+                "job": 130378011560,
+                "run": 42976908891,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976908891/job/130378011560"
               },
               {
                 "family": "execution",
-                "job": 130241308450,
-                "run": 42934565526,
-                "sourceHead": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565526/job/130241308450"
+                "job": 130378013368,
+                "run": 42976909137,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909137/job/130378013368"
               },
               {
                 "family": "resolution",
-                "job": 130241308708,
-                "run": 42934565626,
-                "sourceHead": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565626/job/130241308708"
+                "job": 130378012979,
+                "run": 42976909044,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909044/job/130378012979"
               },
               {
                 "family": "language",
-                "job": 130241309191,
-                "run": 42934565608,
-                "sourceHead": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565608/job/130241309191"
+                "job": 130378014291,
+                "run": 42976909055,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909055/job/130378014291"
               },
               {
                 "family": "scope",
-                "job": 130250632298,
-                "run": 42937362387,
-                "sourceHead": "805925193af05eb666a531e2028532a9d5a73b47",
-                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42937362387/job/130250632298"
+                "job": 130378012121,
+                "run": 42976909017,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909017/job/130378012121"
+              },
+              {
+                "family": "sessions",
+                "job": 130378013681,
+                "run": 42976909243,
+                "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909243/job/130378013681"
               }
             ],
             "providerCalled": false,

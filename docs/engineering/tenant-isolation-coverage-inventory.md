@@ -1,4 +1,4 @@
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 16 GAP. Eleven actions, seven executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 16 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — approvals PATCH proposal, NOT production acceptance:** 498 methods = 455 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP. [Fresh main combined-family receipt](../../scripts/qa/tenant-approvals-recovery-receipt.json). Both the approvals PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/payroll review and production acceptance are pending.
 

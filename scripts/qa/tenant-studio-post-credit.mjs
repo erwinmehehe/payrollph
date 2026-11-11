@@ -8,7 +8,7 @@ import yaml from 'js-yaml';
 
 export const STUDIO_POST_PATH='src/app/api/automation-studio/route.ts';
 export const STUDIO_RECEIPT='scripts/qa/tenant-studio-post-credit-receipt.json';
-const SEALED='91e0cde74d6212efc3bc20c415ffbd9cdd87666e';
+const SEALED='f75b1436996f98ffe40be2f0a785700530583e0e';
 const ACTIONS=Object.freeze({
  'quarantine-execution-step':'execution','triage-operational-case':['triage','resolution','scope'],
  'retry-execution-step':['scope','sessions'],'replay-execution':['scope','sessions'],

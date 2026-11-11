@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import yaml from 'js-yaml';
 
 export const RENEWAL_FILE='scripts/qa/tenant-studio-dependency-renewal-receipt.json';
-const SEALED='8ef69ff3befe331849dcfed1d2d393ac85ad9709';
+const SEALED='dd41a5f4ac55c683a4281e22946494cb3a2319e3';
 export const ENGINE='src/lib/automation.ts';
 const OLD_ENGINE='288d27789e062803d68ea38fd41fa78ee155a1ee';
 const CURRENT_ENGINE='edb8330bc19362fb6828247eeddfb2f0c6169795';

@@ -13,8 +13,14 @@
       "resolution",
       "scope"
     ],
-    "retry-execution-step": "scope",
-    "replay-execution": "scope",
+    "retry-execution-step": [
+      "scope",
+      "sessions"
+    ],
+    "replay-execution": [
+      "scope",
+      "sessions"
+    ],
     "draft-from-language": "language",
     "save-language-draft": "language",
     "create-from-template": "draft",
@@ -25,11 +31,11 @@
   },
   "cohort": {
     "triage": {
-      "job": 130250628988,
-      "run": 42937361287,
-      "head": "805925193af05eb666a531e2028532a9d5a73b47",
+      "job": 130378012392,
+      "run": 42976909059,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42937361287/job/130250628988",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909059/job/130378012392",
       "workflow": ".github/workflows/tenant-studio-triage-qa.yml",
       "jobKey": "tenant-studio-triage",
       "jobSpecSha": "5857e530e7fdfff9549ae9898ed04e412d8f9b306129e78b70df757f97a03ddc",
@@ -54,11 +60,11 @@
       }
     },
     "draft": {
-      "job": 130241307724,
-      "run": 42934565441,
-      "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+      "job": 130378011099,
+      "run": 42976908827,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565441/job/130241307724",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976908827/job/130378011099",
       "workflow": ".github/workflows/tenant-studio-draft-qa.yml",
       "jobKey": "draft-writes",
       "jobSpecSha": "a29661265fb3970b0a21cf3b9b02b351e78230755c90d01b497042b2fb34c188",
@@ -83,11 +89,11 @@
       }
     },
     "lifecycle": {
-      "job": 130241308894,
-      "run": 42934565504,
-      "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+      "job": 130378011560,
+      "run": 42976908891,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565504/job/130241308894",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976908891/job/130378011560",
       "workflow": ".github/workflows/tenant-studio-lifecycle-qa.yml",
       "jobKey": "studio-lifecycle",
       "jobSpecSha": "b09a087a2e87693dea374ba8163792d3a2e670c80a2793c19287d4652aab723b",
@@ -114,11 +120,11 @@
       }
     },
     "execution": {
-      "job": 130241308450,
-      "run": 42934565526,
-      "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+      "job": 130378013368,
+      "run": 42976909137,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565526/job/130241308450",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909137/job/130378013368",
       "workflow": ".github/workflows/tenant-studio-execution-qa.yml",
       "jobKey": "studio-execution",
       "jobSpecSha": "e8c9a46d54eeb23e7fccd07b9b602cb78b22925b4a627b902fdd96190601bffb",
@@ -148,11 +154,11 @@
       }
     },
     "resolution": {
-      "job": 130241308708,
-      "run": 42934565626,
-      "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+      "job": 130378012979,
+      "run": 42976909044,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565626/job/130241308708",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909044/job/130378012979",
       "workflow": ".github/workflows/tenant-studio-resolution-qa.yml",
       "jobKey": "resolve-reopen",
       "jobSpecSha": "9d6aadee73632c7ba98efbc7d23f54ff5041897a792c00baab500673b3f1f4e1",
@@ -161,7 +167,7 @@
       "result": {
         "family": "studio-operational-case-resolve-reopen",
         "status": "passed",
-        "sourceCommit": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+        "sourceCommit": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
         "sourceBlobs": {
           "src/app/api/automation-studio/route.ts": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
           "src/lib/automation-operational-cases.ts": "5355d830524f54e6d47dd551c9d7bc5e73649f52",
@@ -203,11 +209,11 @@
       }
     },
     "language": {
-      "job": 130241309191,
-      "run": 42934565608,
-      "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+      "job": 130378014291,
+      "run": 42976909055,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42934565608/job/130241309191",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909055/job/130378014291",
       "workflow": ".github/workflows/tenant-studio-language-qa.yml",
       "jobKey": "signed-language-drafts",
       "jobSpecSha": "055dff6aaa80859b3822e4a1a5fda425aacfc0102d4ba07e6f9a5d54779fa1a8",
@@ -217,7 +223,7 @@
         "label": "SOLO_VERIFIED_DEV_RECOVERY",
         "family": "studio-keyless-language-signed-drafts",
         "postgresMajor": 16,
-        "sourceHead": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+        "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
         "sourceBlobs": {
           "src/lib/automation-draft-conflict.ts": "077126c704fe62e83907c1e6c8f2c39828efb585",
           "src/app/api/automation-studio/route.ts": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
@@ -229,7 +235,8 @@
           "src/lib/automation-preview-approval.ts": "1182c52c04200c1b0cb79fde840390f81919a65f",
           "src/lib/automation-templates.ts": "f6cd21b7a09fc575345c92f49edcf8b80767952d",
           "src/lib/automation-versioning.ts": "02de9020858887818b70bd940d6b287d1c73e9bf",
-          "src/lib/automation.ts": "ce2c8e8feee4554c85f7739b73f2fa0325b81306",
+          "src/lib/automation.ts": "edb8330bc19362fb6828247eeddfb2f0c6169795",
+          "src/lib/automation-employee-account-boundary.ts": "4b66410789ec536482d63d9d58c5df1b17b38746",
           "src/lib/automation-recovery-scope.ts": "ff3dddff0e7ddea20a7be24792d84503a540202e",
           "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
           "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
@@ -252,11 +259,11 @@
       }
     },
     "scope": {
-      "job": 130250632298,
-      "run": 42937362387,
-      "head": "805925193af05eb666a531e2028532a9d5a73b47",
+      "job": 130378012121,
+      "run": 42976909017,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
       "conclusion": "success",
-      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42937362387/job/130250632298",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909017/job/130378012121",
       "workflow": ".github/workflows/tenant-studio-recovery-scope-qa.yml",
       "jobKey": "stored-recovery-scope",
       "jobSpecSha": "bc721eebe17ac3e201fd9c6bcae900831c0858848cd6e5ce38073747c8ff40fb",
@@ -265,7 +272,7 @@
       "result": {
         "label": "SOLO_VERIFIED_DEV_RECOVERY",
         "family": "studio-stored-recovery-scope",
-        "sourceHead": "805925193af05eb666a531e2028532a9d5a73b47",
+        "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
         "postgresMajor": 16,
         "sourceBlobs": {
           "src/lib/automation-draft-conflict.ts": "077126c704fe62e83907c1e6c8f2c39828efb585",
@@ -278,7 +285,8 @@
           "src/lib/automation-preview-approval.ts": "1182c52c04200c1b0cb79fde840390f81919a65f",
           "src/lib/automation-templates.ts": "f6cd21b7a09fc575345c92f49edcf8b80767952d",
           "src/lib/automation-versioning.ts": "02de9020858887818b70bd940d6b287d1c73e9bf",
-          "src/lib/automation.ts": "ce2c8e8feee4554c85f7739b73f2fa0325b81306",
+          "src/lib/automation.ts": "edb8330bc19362fb6828247eeddfb2f0c6169795",
+          "src/lib/automation-employee-account-boundary.ts": "4b66410789ec536482d63d9d58c5df1b17b38746",
           "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
           "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
           "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
@@ -317,6 +325,33 @@
         "methodCredits": 0,
         "productionAccepted": false
       }
+    },
+    "sessions": {
+      "job": 130378013681,
+      "run": 42976909243,
+      "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+      "conclusion": "success",
+      "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909243/job/130378013681",
+      "result": {
+        "fictionalPG16": true,
+        "twoForeignEmployers": true,
+        "higherIdVictim": true,
+        "ownRetry": true,
+        "ownReplay": true,
+        "foreignSessionsUnchanged": true,
+        "sharedAccountFailClosed": true,
+        "employerMembershipDeactivation": true,
+        "sharedGlobalSessionPreserved": true,
+        "providerCalls": 0,
+        "moneyMoved": false,
+        "newMethodCredits": 0,
+        "productionAccepted": false
+      },
+      "workflow": ".github/workflows/tenant-automation-session-ownership.yml",
+      "jobKey": "tenant-automation-session-ownership",
+      "jobSpecSha": "05c2c1799d11aebb2bdbbcbd6c543059fd1664043113645e2d912223d743c61d",
+      "proofFile": "scripts/qa/tenant-automation-session-ownership-http.mjs",
+      "proofBlobSha": "44323b1ca7cf406a2644f852425837ae05237cb2"
     }
   },
   "anchors": {
@@ -508,7 +543,7 @@
     "src/lib/automation-operational-cases.ts": "5355d830524f54e6d47dd551c9d7bc5e73649f52",
     "src/lib/automation-recovery-scope.ts": "ff3dddff0e7ddea20a7be24792d84503a540202e",
     "src/lib/automation-webhook-context.ts": "9c7ef04d910a119682964d14cfe4c9818c9eccbb",
-    "src/lib/automation.ts": "ce2c8e8feee4554c85f7739b73f2fa0325b81306",
+    "src/lib/automation.ts": "edb8330bc19362fb6828247eeddfb2f0c6169795",
     "src/lib/bank-account-crypto.ts": "350ab8def720f4c69a6e9a41e2b85d5b708affa5",
     "src/lib/bank-file-bundle.ts": "7688d3e1506fe9d8d2130220527bf962a43973d5",
     "src/lib/billing-matrix.ts": "c3f640ad7f1f3097afababef5baaf574e6cf9c2e",
@@ -660,8 +695,8 @@
     "scripts/qa/tenant-studio-triage-contract.mjs": "147be2e0f55d64624f9b2d98d986cf5226ae4f3e",
     "tests/tenant-studio-triage-contract.test.mjs": "04c82aa9d668ffae79002a7ae43264f893444860",
     "scripts/qa/tenant-studio-draft-http.mjs": "ccf28ca79e3d0d08a821d41304b0e649c18ae15b",
-    "scripts/qa/tenant-studio-draft-contract.mjs": "b5541cc521d39d27f238802987ee6524ca6003c3",
-    "tests/tenant-studio-draft-contract.test.mjs": "d1a2466511444588399a3015d13facb6eb3c8e92",
+    "scripts/qa/tenant-studio-draft-contract.mjs": "cb0e485354de6a470c04c9d79d89b8d6bafccb71",
+    "tests/tenant-studio-draft-contract.test.mjs": "4f1836352fd12b9dcbd70e714ef9da78ec06a14c",
     "scripts/qa/tenant-studio-lifecycle-http.mjs": "741a7989af6a37342430782a5fa9ace826e21ce1",
     "scripts/qa/tenant-studio-lifecycle-contract.mjs": "1db9d4064bdf5d09bf11ec35ddd4b04658ef39b8",
     "tests/tenant-studio-lifecycle-contract.test.mjs": "016328c1295526366cc198df14fefb93e37b762a",
@@ -672,12 +707,16 @@
     "scripts/qa/tenant-studio-resolution-contract.mjs": "baf45dc31a1b61f6d53424b715bb31d978802311",
     "tests/tenant-studio-resolution-contract.test.mjs": "3beabcf7b85c8d95d448e46a1a2a8accc9180765",
     "scripts/qa/tenant-studio-language-http.mjs": "a7ebe5f39ed55e41eabe61b044d4904ab8db8d82",
-    "scripts/qa/tenant-studio-language-contract.mjs": "965dae60f6cbac9ff949ca0593277bddcd29f399",
+    "scripts/qa/tenant-studio-language-contract.mjs": "cbc7432ddf9eaa3dadd3b9866aeffb3846714b6d",
     "tests/tenant-studio-language-contract.test.mjs": "ea2ba7eeb20b6ebc0431bbc67e3b1934822c020e",
     "scripts/qa/tenant-studio-recovery-scope-http.mjs": "5ed183ec0560ae4ccc53f56f4652a2d66d782e1e",
-    "scripts/qa/tenant-studio-recovery-scope-contract.mjs": "9e22df692f39494356bcc5fe65e5267872f51adf",
+    "scripts/qa/tenant-studio-recovery-scope-contract.mjs": "97ed2220e0d69ee391c73fa563c1649b3f1cfbe2",
     "tests/tenant-studio-recovery-scope-contract.test.mjs": "9a7017ea8b1d1608fd2d662e2bfe70a7fe3901ae",
     "scripts/qa/tenant-studio-source-resolution-proof.mjs": "65ae6c7ec3f11af5c79b291bc0f768ecc6848970",
-    ".github/workflows/tenant-studio-dependency-renewal.yml": "0a6be8456ea2490b973591fddd6695e31dc387af"
+    ".github/workflows/tenant-studio-dependency-renewal.yml": "0a6be8456ea2490b973591fddd6695e31dc387af",
+    "src/lib/automation-employee-account-boundary.ts": "4b66410789ec536482d63d9d58c5df1b17b38746",
+    "scripts/qa/tenant-automation-session-ownership-http.mjs": "44323b1ca7cf406a2644f852425837ae05237cb2",
+    "tests/tenant-automation-session-ownership-contract.test.mjs": "ad5ed2fd0373f5baeefdd212a8df75a367863ccf",
+    ".github/workflows/tenant-automation-session-ownership.yml": "4e38d660816716d9ee9b3174c2e3ed88ed2413ce"
   }
 }

@@ -10,9 +10,9 @@
       "jobs": [
         {
           "name": "renew-approval-task",
-          "job": 130250631208,
-          "run": 42937361753,
-          "head": "805925193af05eb666a531e2028532a9d5a73b47",
+          "job": 130378013713,
+          "run": 42976909051,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [
             {
@@ -45,9 +45,9 @@
         },
         {
           "name": "fictional-approval-sources-http",
-          "job": 130241308960,
-          "run": 42934565523,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130386399685,
+          "run": 42976909040,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [
             {
@@ -85,9 +85,9 @@
         },
         {
           "name": "fictional-approval-flows-http",
-          "job": 130241308490,
-          "run": 42934565523,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130386399705,
+          "run": 42976909040,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [
             {
@@ -125,9 +125,9 @@
         },
         {
           "name": "approval-types-http",
-          "job": 130241308908,
-          "run": 42934565523,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130386399868,
+          "run": 42976909040,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [
             {
@@ -184,9 +184,9 @@
         },
         {
           "name": "money-lifecycle-pg16 (false)",
-          "job": 130241308881,
-          "run": 42934565523,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130386399865,
+          "run": 42976909040,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [],
           "lines": [
@@ -199,9 +199,9 @@
         },
         {
           "name": "money-lifecycle-pg16 (true)",
-          "job": 130241308993,
-          "run": 42934565523,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130386399732,
+          "run": 42976909040,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [],
           "lines": [
@@ -218,16 +218,16 @@
       "jobs": [
         {
           "name": "enterprise-admin-http",
-          "job": 130241307650,
-          "run": 42934565425,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130378012414,
+          "run": 42976908956,
+          "head": "f78e90a35f0b07c4d09715ee14ef7f28c5e50e5a",
           "conclusion": "success",
           "results": [
             {
               "kind": "ENTERPRISE_ADMIN_HTTP",
               "label": "SOLO_VERIFIED_DEV_RECOVERY",
               "result": "PASS",
-              "sourceHead": "7c17651cc93dcc8129b8df910fd1ebf4a3acd8e1",
+              "sourceHead": "f78e90a35f0b07c4d09715ee14ef7f28c5e50e5a",
               "routeBlobSha": "be3e320df828d681ad34c034b6469cf4940846cc",
               "proofBlobSha": "415c2005393dadfeccb106260495b2ce7d408c91",
               "stateBlobSha": "c44079a8811320e11bf512f0b8751d6370d94145",
@@ -256,9 +256,9 @@
       "jobs": [
         {
           "name": "four-method-security-write",
-          "job": 130241308492,
-          "run": 42934565535,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130378011224,
+          "run": 42976908516,
+          "head": "f78e90a35f0b07c4d09715ee14ef7f28c5e50e5a",
           "conclusion": "success",
           "results": [
             {
@@ -355,9 +355,9 @@
       "jobs": [
         {
           "name": "renew-spend-managed",
-          "job": 130241309017,
-          "run": 42934565733,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130378013812,
+          "run": 42976909051,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [
             {
@@ -411,9 +411,9 @@
       "jobs": [
         {
           "name": "renew-document-callers",
-          "job": 130241309497,
-          "run": 42934565733,
-          "head": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f",
+          "job": 130378013336,
+          "run": 42976909051,
+          "head": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
           "conclusion": "success",
           "results": [
             {
@@ -598,7 +598,7 @@
     "src/lib/automation-operational-cases.ts": "5355d830524f54e6d47dd551c9d7bc5e73649f52",
     "src/lib/automation-recovery-scope.ts": "ff3dddff0e7ddea20a7be24792d84503a540202e",
     "src/lib/automation-webhook-context.ts": "9c7ef04d910a119682964d14cfe4c9818c9eccbb",
-    "src/lib/automation.ts": "ce2c8e8feee4554c85f7739b73f2fa0325b81306",
+    "src/lib/automation.ts": "edb8330bc19362fb6828247eeddfb2f0c6169795",
     "src/lib/bank-account-crypto.ts": "350ab8def720f4c69a6e9a41e2b85d5b708affa5",
     "src/lib/bank-file-bundle.ts": "7688d3e1506fe9d8d2130220527bf962a43973d5",
     "src/lib/billing-matrix.ts": "c3f640ad7f1f3097afababef5baaf574e6cf9c2e",
@@ -735,7 +735,8 @@
     "src/lib/workforce-timesheet.ts": "6f1f50b7329899530bd0ec0cb52bbdaa2b757b44",
     "src/lib/workforce-worksite.ts": "32953d8ddecc1e443e66f79e9da89a21c26ca786",
     "src/proxy.ts": "8ed6591c4846cad3251bc1ee2444ceb3461b170a",
-    "tsconfig.json": "51b2236817d4f86d64198a483b0207941862d212"
+    "tsconfig.json": "51b2236817d4f86d64198a483b0207941862d212",
+    "src/lib/automation-employee-account-boundary.ts": "4b66410789ec536482d63d9d58c5df1b17b38746"
   },
   "historicalReceipts": {
     "scripts/qa/tenant-enterprise-admin-credit-receipt.json": "fb35fef200ca7f0d7d3dd8b8797cafc4d299407f",
@@ -744,5 +745,5 @@
     "scripts/qa/tenant-spend-managed-receipt.json": "9d3e13cb5f2de79a9aa9c5f9c56a2b61ee27c8f5"
   },
   "enterpriseExecutedSource": "7c17651cc93dcc8129b8df910fd1ebf4a3acd8e1",
-  "prHeadAtFirstRenewal": "33bc3eed6ac8cc0f7b5c5f3181404984c6a4548f"
+  "prHeadAtFirstRenewal": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766"
 }
