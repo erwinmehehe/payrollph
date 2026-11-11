@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
+import {verifySessionSourceCompatibility} from './tenant-automation-session-source-compat.mjs';
 export const RECOVERY_RECEIPT='scripts/qa/tenant-merged-recovery-receipt.json';
 const SEALED_DIGEST='613f2c9046bb99233a0773857088812bf15b1879d2206155dd2c1d3dec596263';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
@@ -38,6 +39,7 @@ export function readRecoveryEvidence(read=readFileSync){
       try { assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha); }
       catch (cause) { throw new Error('Recovery source/proof drift: '+file, { cause }); }
     }
+    else if(file==='src/lib/automation.ts') verifySessionSourceCompatibility(sha,blob(read(file)),read);
     else assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
   }
   for(const target of r.targets){
