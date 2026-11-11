@@ -2,6 +2,7 @@ import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approva
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
+import { verifyArchitecturalRelabelDelta, readArchitecturalOwnerApproval } from "./helpers/tenant-architectural-classification-delta.mjs";
 import { verifyCheckoutCredit, CHECKOUT_PATH } from '../scripts/qa/tenant-billing-checkout-credit.mjs';
 import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
@@ -1261,6 +1262,31 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baselineReadinessCredits=baseline.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='COVERED'?verifyWorkspaceReadinessCredit(baseline):0;if(baselineReadinessCredits)expectedOriginalMain[READINESS_GET_PATH].GET='COVERED';
     const baselineApprovalCredits=baseline.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='COVERED'?verifyApprovalsCredit(baseline):0;if(baselineApprovalCredits)expectedOriginalMain[APPROVALS_PATH].PATCH='COVERED';
     const baselineStudioCredits=baseline.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='COVERED'?verifyStudioPostCredit(baseline):0;if(baselineStudioCredits)expectedOriginalMain[STUDIO_POST_PATH].POST='COVERED';
+    // The nine merged #1921 architecture labels have zero tenant-private credits.
+    const architectureApproval = readArchitecturalOwnerApproval(assert);
+    const beforeArchitecture = structuredClone(baseline);
+    let mergedArchitectureLabels = 0;
+    for (const { path, method, classification } of architectureApproval.classifications) {
+      const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === method);
+      assert.ok(row, "Owner-approved main classification missing: " + method + " " + path);
+      assert.ok(row.status === "GAP" || row.status === classification,
+        "Unapproved main classification status: " + method + " " + path);
+      beforeArchitecture.allApiRouteFiles[path].methods.find(item => item.name === method).status = "GAP";
+      if (row.status === classification) {
+        expectedOriginalMain[path][method] = classification;
+        mergedArchitectureLabels++;
+      } else {
+        assert.equal(row.testedBy, null, "Unclassified baseline cannot claim tenant proof");
+      }
+    }
+    assert.ok(mergedArchitectureLabels === 0 ||
+      mergedArchitectureLabels === architectureApproval.classifications.length,
+      "The nine zero-credit owner classifications must be all present or all absent");
+    const architectureDelta = verifyArchitecturalRelabelDelta(assert, beforeArchitecture, baseline);
+    assert.deepEqual(architectureDelta, mergedArchitectureLabels === 0
+      ? { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 }
+      : { gapRelabels: 9, publicByDesign: 8, privilegedTokenOnly: 1 },
+      "Only nine source- and owner-pinned relabels; no tenant coverage credit");
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1275,12 +1301,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
-      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
-      "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications,
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + architectureDelta.publicByDesign,
+      "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + architectureDelta.privilegedTokenOnly,
       GAP: snapshot.counts.GAP - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications - architectureDelta.gapRelabels,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
@@ -1318,11 +1344,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const frozenCovered = reviewedStatuses.filter(status => status === "COVERED").length;
     assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
       "the frozen queue must match current main source-credited methods");
-    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + baselinePublicReclassifications);
-    assert.equal(statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length, baselineTokenClassifications,
+    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length,
+      3 + baselinePublicReclassifications + architectureDelta.publicByDesign);
+    assert.equal(statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length,
+      baselineTokenClassifications + architectureDelta.privilegedTokenOnly,
       "Every approved token-only operation must remain inside the frozen 406-method queue");
     assert.equal(statuses.filter(status => status === "GAP").length,
-      403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications);
+      403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications
+        - architectureDelta.gapRelabels);
     const incomplete = 12 - provisionalBatches.length;
     const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
       provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
@@ -1337,20 +1366,27 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicReclassifications) + " PUBLIC-BY-DESIGN")
+      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicReclassifications + architectureDelta.publicByDesign) + " PUBLIC-BY-DESIGN")
       .replace("91 GAP",
-        (baselineTokenClassifications
-          ? baselineTokenClassifications + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + "
+        (baselineTokenClassifications + architectureDelta.privilegedTokenOnly
+          ? (baselineTokenClassifications + architectureDelta.privilegedTokenOnly) + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + "
           : "") +
-        (403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications) + " GAP")
+        (403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications
+          - architectureDelta.gapRelabels) + " GAP")
 .replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
     const mainFrozenSubtotal = baselinePlan.split("\n").find(line =>
       line.startsWith("Frozen subtotal: **") ||
-      line.startsWith("Frozen subtotal (2026-11-04 proposal): **"));
-    const normalizeCaption=line=>line?.replace(/^Frozen subtotal \(2026-11-04 proposal\):/, 'Frozen subtotal:')
+      line.startsWith("Frozen subtotal (2026-11-04 proposal): **") ||
+      line.startsWith("Frozen subtotal (2026-11-11 classification proposal): **"));
+    const namedIncompleteBatches = frozenSections.map(section => section.split(" ")[0])
+      .filter(name => !provisionalBatches.includes(name));
+    assert.equal(namedIncompleteBatches.length, incomplete);
+    const normalizeCaption=line=>line?.replace(/^Frozen subtotal \((?:2026-11-04 proposal|2026-11-11 classification proposal)\):/, 'Frozen subtotal:')
       .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
+      .replace(`${incomplete} batches remain INCOMPLETE (${namedIncompleteBatches.join(', ')})`,
+        `${incomplete} batches remain INCOMPLETE`)
       .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
     const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
     const correctMainFrozen = normalizeCaption(expectedMainFrozen);
