@@ -184,11 +184,18 @@ export async function proveOrgExplorerPageIsolation() {
         await deny(historyUrl(actor.org.id, invalid), actor.cookie, 400,
           actor.label + " malformed history position " + invalid);
       }
-      // Server-rendered page rejects duplicate organizationId query inputs.
-      // API duplicate-key normalization is a separate unresolved hardening
-      // candidate and is NOT credited or described as proven here.
+      // Every selector rejects ambiguity rather than silently choosing a first
+      // organization or position, even when the duplicate values are identical.
       await deny(pageUrl(actor.org.id + "&organizationId=" + victim.org.id),
         actor.cookie, 404, actor.label + " duplicate SSR employer");
+      await deny(graphUrl(actor.org.id + "&organizationId=" + victim.org.id),
+        actor.cookie, 400, actor.label + " duplicated foreign graph employer");
+      await deny(graphUrl(actor.org.id + "&organizationId=" + actor.org.id),
+        actor.cookie, 400, actor.label + " duplicated same graph employer");
+      await deny(historyUrl(actor.org.id + "&organizationId=" + victim.org.id,
+        actor.position.id), actor.cookie, 400, actor.label + " duplicated history employer");
+      await deny(historyUrl(actor.org.id, actor.position.id + "&positionId=" + victim.position.id),
+        actor.cookie, 400, actor.label + " duplicated foreign history position");
 
       await unchanged(actor.label + " foreign/forged/malformed denials");
     }
@@ -232,7 +239,7 @@ export async function proveOrgExplorerPageIsolation() {
     assert.equal(ownGraphs, 3);
     assert.equal(ownHistories, 3);
     assert.equal(foreignDenials, 16, "Every cross-employer page/graph/history/object control");
-    assert.ok(negativeChecks >= 65, "Adversarial negative HTTP coverage must not shrink");
+    assert.ok(negativeChecks >= 73, "Adversarial negative HTTP coverage must not shrink");
 
     console.log(JSON.stringify({
       family: "hcm-org-explorer-page-graph-history", fictionalPg16: true,
@@ -241,7 +248,7 @@ export async function proveOrgExplorerPageIsolation() {
       foreignDenials, negativeChecks, verifiedProtectedTables: protectedTables.length,
       immutableEmployerAndAuditSql: true, revokedMembershipDenied: true,
       serverRenderedPageAndBothReadApis: true, clientBrowserInteractionsProven: false,
-      duplicateApiSelectorsProven: false, pageActionCredits: 0, apiMethodCredits: 0,
+      duplicateApiSelectorsProven: true, pageActionCredits: 0, apiMethodCredits: 0,
       independentlyAccepted: false, productionCertified: false,
       realUsers: 0, externalProviders: 0, moneyMoved: false
     }));
