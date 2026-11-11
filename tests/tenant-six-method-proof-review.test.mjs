@@ -745,6 +745,43 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(row.publicBoundary?.fourPartMethodCredit, false);
     expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
   }
+  // 2026-11-11: distinct source-reviewed architecture classifications from
+  // previously uncredited GAPs. These are NOT tenant-private method credits.
+  // Their already-merged route/proof SHA and zero-credit evidence are checked
+  // by tenant-architectural-gap-classifications.test.mjs on this same checkout.
+  const architecturePublic = [
+    ["src/app/api/setup/route.ts", "GET"],
+    ["src/app/api/setup/route.ts", "POST"],
+    ["src/app/api/intake-challenge/route.ts", "POST"],
+    ["src/app/api/signup/route.ts", "POST"],
+    ["src/app/api/signup/resend/route.ts", "POST"],
+    ["src/app/api/signup/verify/route.ts", "POST"],
+    ["src/app/api/auth/saml/start/[providerId]/route.ts", "GET"],
+    ["src/app/api/auth/saml/acs/[providerId]/route.ts", "POST"],
+  ];
+  for (const [path, verb] of architecturePublic) {
+    assert.equal(expectedStatuses[path]?.[verb], "GAP",
+      "Architecture classification may replace only a previously GAP method");
+    const row = m.allApiRouteFiles[path].methods.find(item => item.name === verb);
+    assert.equal(row.status, "PUBLIC-BY-DESIGN");
+    assert.equal(row.testedBy, null, "Public entrypoint is never a tenant-private COVERED credit");
+    assert.equal(row.classificationEvidence?.methodCoverageCredits, 0);
+    assert.equal(row.classificationEvidence?.sourceBlobSha, m.allApiRouteFiles[path].gitBlobSha);
+    assert.equal(row.classificationEvidence?.productionCertified, false);
+    expectedStatuses[path][verb] = "PUBLIC-BY-DESIGN";
+  }
+  const architectureToken = ["src/app/api/hcm/work-items/escalate/route.ts", "POST"];
+  assert.equal(expectedStatuses[architectureToken[0]]?.[architectureToken[1]], "GAP");
+  const workerMethod = m.allApiRouteFiles[architectureToken[0]].methods.find(
+    row => row.name === architectureToken[1]);
+  assert.equal(workerMethod.status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY");
+  assert.equal(workerMethod.testedBy, null, "Token-only scheduler earns no tenant-private credit");
+  assert.equal(workerMethod.privilegedOperation?.methodCoverageCredits, 0);
+  assert.equal(workerMethod.privilegedOperation?.routeBlobSha,
+    m.allApiRouteFiles[architectureToken[0]].gitBlobSha);
+  assert.equal(workerMethod.privilegedOperation?.productionCertified, false);
+  expectedStatuses[architectureToken[0]][architectureToken[1]] =
+    "PRIVILEGED-OPERATIONS-TOKEN-ONLY";
   const filingPatchCredits = verifyFilingPatchCredit(m);
   assert.equal(filingPatchCredits, 1);
   assert.equal(expectedStatuses[FILING_PATH].PATCH, "GAP");
@@ -767,6 +804,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   expectedCounts.GAP -= ownerTokenClassifications.length;
   expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] = ownerTokenClassifications.length;
+  expectedCounts.GAP -= architecturePublic.length + 1;
+  expectedCounts["PUBLIC-BY-DESIGN"] += architecturePublic.length;
+  expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] += 1;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
