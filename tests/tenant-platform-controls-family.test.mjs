@@ -1,3 +1,4 @@
+import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -121,7 +122,8 @@ test("five distinct platform targets preserve security-write and full enterprise
       const { verifyEnterprisePostCredit } = await import("../scripts/qa/tenant-enterprise-admin-credit.mjs");
       assert.equal(verifyEnterprisePostCredit(manifest), 1);
       assert.equal(row.testedBy.file, "scripts/qa/tenant-enterprise-admin-http.mjs");
-    } else assert.equal(row.status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP");
+    } else if(key==="POST automation-studio") assert.equal(verifyStudioPostCredit(manifest),1);
+    else assert.equal(row.status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP");
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);

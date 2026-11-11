@@ -1,4 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
+import {verifyStudioPostCredit,STUDIO_POST_PATH} from './tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from './tenant-workspace-readiness-credit.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -179,7 +180,9 @@ export function verifyInvitationAcceptCredits(m) {
       const readinessPromotions=promoted.filter(k=>k==='GET '+READINESS_GET_PATH);if(readinessPromotions.length)assert.equal(verifyWorkspaceReadinessCredit(m),1);
       const approvalPromotions=promoted.filter(key=>key==='PATCH '+APPROVALS_PATH);
       if(approvalPromotions.length)assert.equal(verifyApprovalsCredit(m),1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions].sort(),
+      const studioPromotions=promoted.filter(key=>key==='POST '+STUDIO_POST_PATH);
+      if(studioPromotions.length)assert.equal(verifyStudioPostCredit(m),1);
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions].sort(),
         "Merged invitation receipts permit only separately verified BIR, filing PATCH and checkout credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
