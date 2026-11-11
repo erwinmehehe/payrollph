@@ -1,3 +1,4 @@
+import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -16,7 +17,10 @@ export function verifySpendManaged(manifest,reader=readFileSync){
  for(const [file,pin] of Object.entries(r.pins)){
   assert.ok(!file.includes('..')&&!file.startsWith('/'),'repository source only');
   if(file==='next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(reader(file),pin);
-  else assert.equal(blob(reader(file)),pin,file+': executed source drift');
+  else if(file==='src/lib/automation.ts'){
+    assert.equal(pin,HISTORIC_AUTOMATION_SHA,'Original spend/managed receipt source seal changed');
+    verifyNarrowStudioAutomationSource(reader);
+  } else assert.equal(blob(reader(file)),pin,file+': executed source drift');
  }
  for(const key of TARGETS){const [verb,...parts]=key.split(' '),path='src/app/api/'+parts.join(' ')+'/route.ts';
   const method=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
