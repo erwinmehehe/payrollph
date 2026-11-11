@@ -250,6 +250,60 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+
+  if (key === "src/app/api/hcm/worker-profile/route.ts GET") {
+    // Historical broad employer-selector GET is retained as historical evidence.
+    // A new account-ownership query does NOT inherit source-current acceptance.
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.testedBy?.rowFile,"scripts/qa/tenant-table-rows/read/hcm.mjs");
+    assert.equal(currentBlob, "54604130e533d805159f8af08467fd02a5a587ab");
+    const candidate = method.sourceRefreshCandidate;
+    assert.deepEqual(candidate, {
+        "kind": "hcm-worker-profile-linked-account-membership-pg16-uncredited",
+        "originalRouteBlobSha": "755415e58650d7257caa84702219a559cc998676",
+        "currentRouteBlobSha": "54604130e533d805159f8af08467fd02a5a587ab",
+        "httpProofFile": "scripts/qa/tenant-worker-profile-account-http.mjs",
+        "httpProofBlobSha": "d2b2bff38ace083504329fe1b8aea614f8e82be1",
+        "contractTestFile": "tests/tenant-worker-profile-account-contract.test.mjs",
+        "contractTestBlobSha": "4f41f1ed3a046d9ffaee0f5ac3bcfdc03109fd2a",
+        "workflowFile": ".github/workflows/tenant-worker-profile-account-qa.yml",
+        "workflowBlobSha": "efac1d79c98b684876f084fe30a008432b0134fc",
+        "priorTableMethodEvidencePreserved": true,
+        "currentSourceHttpAcceptance": "PENDING",
+        "newMethodCredits": 0,
+        "independentSecurityReview": "PENDING",
+        "productionCertified": false
+    });
+    const source = readFileSync("src/app/api/hcm/worker-profile/route.ts","utf8");
+    const changedImport = "import { and, asc, desc, eq, inArray, isNull, or } from \"drizzle-orm\";";
+    const oldImport = "import { and, asc, desc, eq, inArray, isNull } from \"drizzle-orm\";";
+    const newQuery = "    }).from(users)\n      // A global users.employeeId is not an employer ownership boundary:\n      // another employer's account can carry the same worker pointer.\n      // Restrict linked login evidence to a membership in this employer,\n      // including archived/inactive memberships needed by offboarding.\n      .innerJoin(userOrganizations, and(\n        eq(userOrganizations.userId, users.id),\n        eq(userOrganizations.organizationId, organizationId),\n        or(\n          isNull(userOrganizations.workerEmployeeId),\n          eq(userOrganizations.workerEmployeeId, employeeId),\n        ),\n      ))\n      .where(eq(users.employeeId, employeeId)),";
+    const oldQuery = "    }).from(users).where(eq(users.employeeId, employeeId)),";
+    assert.equal(source.split(changedImport).length,2);
+    assert.equal(source.split(newQuery).length,2);
+    const previous=source.replace(changedImport,oldImport).replace(newQuery,oldQuery);
+    assert.equal(gitBlobSha(Buffer.from(previous)),"755415e58650d7257caa84702219a559cc998676",
+      "Only the exact reviewed linked-account tenant join may differ from historical GET source");
+    for(const [file,sha] of [
+      [candidate.httpProofFile,candidate.httpProofBlobSha],
+      [candidate.contractTestFile,candidate.contractTestBlobSha],
+      [candidate.workflowFile,candidate.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)),sha,
+      "Worker-profile account proof source changed without new PG16 execution: "+file);
+    const fixture=readFileSync(candidate.httpProofFile,"utf8");
+    for(const control of [
+      'account("PRIVATE-B-ACCOUNT"', 'account("PRIVATE-V-ACCOUNT"',
+      'own(await call(A,A.org.id,A.worker.id)',
+      'own(await call(B,B.org.id,B.worker.id)',
+      'foreignWorker.status,404',
+      'assert.deepEqual(await protectedRows(),before',
+      'foreignUnrelatedLoginsExcluded:3',
+      'newMethodCredits:0',
+    ]) assert.ok(fixture.includes(control),"Unreviewed linked-account negative oracle: "+control);
+    assert.match(readFileSync(candidate.workflowFile,"utf8"),/image: postgres:16/);
+    assert.equal(candidate.currentSourceHttpAcceptance,"PENDING");
+    assert.equal(candidate.newMethodCredits,0);
+  }
   if (SECURITY_TARGETS.some(t=>key===t.path+' '+t.method) && method.status==='COVERED') {
     assert.equal(verifySecurityCredits(manifest),3);
     assert.equal(currentBlob,readSecurityEvidence().pins[key.slice(0,key.lastIndexOf(' '))]);return true;

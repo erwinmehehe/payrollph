@@ -17142,7 +17142,7 @@
       ]
     },
     "src/app/api/hcm/worker-profile/route.ts": {
-      "gitBlobSha": "755415e58650d7257caa84702219a559cc998676",
+      "gitBlobSha": "54604130e533d805159f8af08467fd02a5a587ab",
       "route": "hcm/worker-profile",
       "methods": [
         {
@@ -17160,6 +17160,22 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/hcm.mjs",
             "rowLine": 59
+          },
+          "sourceRefreshCandidate": {
+            "kind": "hcm-worker-profile-linked-account-membership-pg16-uncredited",
+            "originalRouteBlobSha": "755415e58650d7257caa84702219a559cc998676",
+            "currentRouteBlobSha": "54604130e533d805159f8af08467fd02a5a587ab",
+            "httpProofFile": "scripts/qa/tenant-worker-profile-account-http.mjs",
+            "httpProofBlobSha": "d2b2bff38ace083504329fe1b8aea614f8e82be1",
+            "contractTestFile": "tests/tenant-worker-profile-account-contract.test.mjs",
+            "contractTestBlobSha": "4f41f1ed3a046d9ffaee0f5ac3bcfdc03109fd2a",
+            "workflowFile": ".github/workflows/tenant-worker-profile-account-qa.yml",
+            "workflowBlobSha": "efac1d79c98b684876f084fe30a008432b0134fc",
+            "priorTableMethodEvidencePreserved": true,
+            "currentSourceHttpAcceptance": "PENDING",
+            "newMethodCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         }
       ],
