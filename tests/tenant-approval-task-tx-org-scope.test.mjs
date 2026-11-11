@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -86,7 +87,6 @@ test("prior real three-employer PATCH HTTP proof is reused without claiming a ne
   const entry = manifest.allApiRouteFiles["src/app/api/approvals/[id]/route.ts"];
   assert.equal(entry.methods.length, 1);
   assert.equal(entry.methods[0].name, "PATCH");
-  assert.equal(entry.methods[0].status, "GAP");
-  assert.equal(entry.methods[0].testedBy, null,
-    "Existing generic-task proof does not cover all approval-linked payroll/HCM sources");
+  assert.equal(verifyApprovalsCredit(manifest), 1,
+    'Credit requires the complete six-execution receipt, not this generic-task proof alone');
 });

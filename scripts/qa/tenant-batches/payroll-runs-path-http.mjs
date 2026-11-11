@@ -1,5 +1,5 @@
 /**
- * Synthetic source/authorization regression for seven payroll-run method keys.
+ * Synthetic source/authorization regression for eight payroll-run method keys.
  * Zero new coverage credits: only Xendit GET has a fully populated own-data
  * positive; mutations deliberately stop before release, sign-off, or transfers.
  * This never exercises a live provider, production database, or payout.
@@ -9,7 +9,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import { db, pool } from "../../../src/db";
 import {
-  approvalTasks, auditEvents, legalEntities, payrollEntries, payrollRuns,
+  approvalTasks, auditEvents, legalEntities, payrollEntries, payrollRuns, payslips,
   payoutBatches, payoutBatchTransfers, payoutTransfers,
   userLegalEntityGrants, userOrganizations, users,
 } from "../../../src/db/schema";
@@ -21,6 +21,7 @@ import {
 export const PAYROLL_PATH_METHODS = Object.freeze([
   "POST payroll-runs/[id]/submit-review",
   "POST payroll-runs/[id]/exports",
+  "GET payroll-runs/[id]/exports",
   "POST payroll-runs/[id]/pilot-signoff",
   "POST payroll-runs/[id]/release",
   "GET payroll-runs/[id]/xendit-payout",
@@ -44,7 +45,7 @@ export function requireNoMoneyFixture(env = process.env) {
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 async function businessState(orgId) {
-  const [runs, entries, batches, transfers, links, tasks, audit] = await Promise.all([
+  const [runs, entries, batches, transfers, links, tasks, audit, slips] = await Promise.all([
     db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, orgId)).orderBy(asc(payrollRuns.id)),
     db.select({ entry: payrollEntries }).from(payrollEntries)
       .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -54,8 +55,9 @@ async function businessState(orgId) {
     db.select().from(payoutBatchTransfers).where(eq(payoutBatchTransfers.organizationId, orgId)).orderBy(asc(payoutBatchTransfers.id)),
     db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, orgId)).orderBy(asc(approvalTasks.id)),
     db.select().from(auditEvents).where(eq(auditEvents.organizationId, orgId)).orderBy(asc(auditEvents.id)),
+    db.select().from(payslips).where(eq(payslips.organizationId, orgId)).orderBy(asc(payslips.id)),
   ]);
-  return plain({ runs, entries, batches, transfers, links, tasks, audit });
+  return plain({ runs, entries, batches, transfers, links, tasks, audit, slips });
 }
 
 async function seedRuns(employer, multiEntity) {
@@ -86,7 +88,15 @@ async function seedRuns(employer, multiEntity) {
       payrollRunId: run.id, employeeId: e.worker.id,
       grossPay: "20000.00", deductions: "0.00", netPay: "20000.00",
     }).returning();
-    if (run.id === released.id) e.releasedEntry = entry;
+    if (run.id === released.id) {
+      e.releasedEntry = entry;
+      const [slip] = await db.insert(payslips).values({
+        payrollEntryId: entry.id, organizationId: e.org.id,
+        employeeId: e.worker.id, periodLabel: run.periodLabel,
+        content: "FICTIONAL-LOCAL-PAYSLIP-" + e.marker,
+      }).returning();
+      e.releasedPayslip = slip;
+    }
   }
   // Purely pre-populated fictional ledger rows. Nothing is submitted to Xendit.
   const amountCents = 2000000;
@@ -135,11 +145,12 @@ async function seedUnqualifiedCheckers(e, nonce) {
 const cases = Object.freeze([
   { key: PAYROLL_PATH_METHODS[0], route: "submit-review", method: "POST", run: "draft", body: () => ({ approverUserId: -1 }), own: 409 },
   { key: PAYROLL_PATH_METHODS[1], route: "exports", method: "POST", run: "draft", body: () => ({ mode: "preflight" }), own: 409 },
-  { key: PAYROLL_PATH_METHODS[2], route: "pilot-signoff", method: "POST", run: "draft", body: () => ({}), own: 409 },
-  { key: PAYROLL_PATH_METHODS[3], route: "release", method: "POST", run: "draft", body: (actor) => ({ confirmLegalEntityName: actor.entity.legalName }), own: 409 },
-  { key: PAYROLL_PATH_METHODS[4], route: "xendit-payout", method: "GET", run: "released", own: 200 },
-  { key: PAYROLL_PATH_METHODS[5], route: "xendit-payout", method: "POST", run: "released", body: () => ({ action: "preflight" }), own: 409 },
-  { key: PAYROLL_PATH_METHODS[6], route: "payout-reconciliation", method: "POST", run: "released", body: () => ({ action: "reconcile" }), own: 501 },
+  { key: PAYROLL_PATH_METHODS[2], route: "exports", method: "GET", run: "released", query: () => "?kind=payslip", own: 200 },
+  { key: PAYROLL_PATH_METHODS[3], route: "pilot-signoff", method: "POST", run: "draft", body: () => ({}), own: 409 },
+  { key: PAYROLL_PATH_METHODS[4], route: "release", method: "POST", run: "draft", body: (actor) => ({ confirmLegalEntityName: actor.entity.legalName }), own: 409 },
+  { key: PAYROLL_PATH_METHODS[5], route: "xendit-payout", method: "GET", run: "released", own: 200 },
+  { key: PAYROLL_PATH_METHODS[6], route: "xendit-payout", method: "POST", run: "released", body: () => ({ action: "preflight" }), own: 409 },
+  { key: PAYROLL_PATH_METHODS[7], route: "payout-reconciliation", method: "POST", run: "released", body: () => ({ action: "reconcile" }), own: 501 },
 ]);
 
 export async function verifyPayrollPathBoundary() {
@@ -167,10 +178,15 @@ export async function verifyPayrollPathBoundary() {
       const ownId = attacker.runs[item.run].id;
       const foreignId = victim.runs[item.run].id;
       const own = standaloneExpectStatus(await standaloneRequest(
-        "/api/payroll-runs/" + ownId + "/" + item.route,
+        "/api/payroll-runs/" + ownId + "/" + item.route + (item.query?.(attacker) ?? ""),
         { method: item.method, cookie: attacker.cookie, body: item.body?.(attacker) }
       ), item.own, item.key + " own guarded path");
-      if (item.method === "GET") {
+      if (item.key === "GET payroll-runs/[id]/exports") {
+        assert.equal(own.json?.payslips?.length, 1);
+        assert.equal(own.json.payslips[0].id, attacker.releasedPayslip.id);
+        assert.equal(own.json.payslips[0].employeeId, attacker.worker.id);
+        assert.equal(own.json.payslips[0].content, "FICTIONAL-LOCAL-PAYSLIP-" + attacker.marker);
+      } else if (item.method === "GET") {
         assert.equal(own.json?.ledger?.batchId, attacker.runs.batch.id);
         assert.equal(own.json?.ledger?.rows?.length, 1);
         assert.equal(own.json.ledger.rows[0].employeeNo, attacker.worker.employeeNo);
@@ -183,7 +199,7 @@ export async function verifyPayrollPathBoundary() {
         uncreditedDenials++;
       }
       const foreign = standaloneExpectStatus(await standaloneRequest(
-        "/api/payroll-runs/" + foreignId + "/" + item.route,
+        "/api/payroll-runs/" + foreignId + "/" + item.route + (item.query?.(victim) ?? ""),
         { method: item.method, cookie: attacker.cookie, body: item.body?.(attacker) }
       ), 403, item.key + " real higher-ID foreign employer");
       assert.ok(!own.text.includes(victim.marker) && !foreign.text.includes(victim.marker),
@@ -217,6 +233,67 @@ export async function verifyPayrollPathBoundary() {
     // Checker probes only generate fictional checker users, never payroll writes.
     assert.deepEqual(await businessState(attacker.org.id), before);
   }
+  // Disposable FK-corruption negative control: two ways an own-employer
+  // payslip could point to a real, higher-ID foreign worker.
+  const own = attackers[0];
+  const ownBefore = await businessState(own.org.id);
+  for (const variant of ["mismatched-slip-worker", "foreign-entry-worker"]) {
+    let insertedSlipId = null;
+    let insertedEntryId = null;
+    try {
+      if (variant === "foreign-entry-worker") {
+        const [entry] = await db.insert(payrollEntries).values({
+          payrollRunId: own.runs.released.id, employeeId: victim.worker.id,
+          grossPay: "1000.00", deductions: "0.00", netPay: "1000.00",
+        }).returning({ id: payrollEntries.id });
+        insertedEntryId = entry.id;
+      }
+      const [slip] = await db.insert(payslips).values({
+        payrollEntryId: insertedEntryId ?? own.releasedEntry.id,
+        organizationId: own.org.id, employeeId: victim.worker.id,
+        periodLabel: own.runs.released.periodLabel,
+        content: "PRIVATE-VICTIM-PAYSLIP-" + victim.marker,
+      }).returning({ id: payslips.id });
+      insertedSlipId = slip.id;
+      const denied = standaloneExpectStatus(await standaloneRequest(
+        "/api/payroll-runs/" + own.runs.released.id + "/exports?kind=payslip",
+        { cookie: own.cookie },
+      ), 409, variant + " blocks contaminated payroll export");
+      assert.ok(!denied.text.includes(victim.marker) && !denied.text.includes(victim.worker.employeeNo),
+        variant + ": foreign payslip may not leave the server");
+      assert.deepEqual(await businessState(victim.org.id), victimBefore,
+        variant + ": victim payroll and audit unchanged");
+    } finally {
+      if (insertedSlipId !== null) await db.delete(payslips).where(eq(payslips.id, insertedSlipId));
+      if (insertedEntryId !== null) await db.delete(payrollEntries).where(eq(payrollEntries.id, insertedEntryId));
+    }
+    assert.deepEqual(await businessState(own.org.id), ownBefore,
+      variant + ": clean up synthetic corruption");
+  }
+  // Explicit malformed selectors must never become a whole-list read.
+  for (const bad of ["NaN", "0", "1e2", "-1", "01", ""]) {
+    const denied = standaloneExpectStatus(await standaloneRequest(
+      "/api/payroll-runs/" + own.runs.released.id + "/exports?kind=payslip&payslipId=" + bad,
+      { cookie: own.cookie },
+    ), 400, "malformed payslip selector " + bad);
+    assert.ok(!denied.text.includes(own.marker), "malformed selector exposed a payslip list");
+  }
+  const duplicate = standaloneExpectStatus(await standaloneRequest(
+    "/api/payroll-runs/" + own.runs.released.id +
+      "/exports?kind=payslip&payslipId=" + own.releasedPayslip.id +
+      "&payslipId=" + victim.releasedPayslip.id,
+    { cookie: own.cookie },
+  ), 400, "duplicate own/foreign payslip selectors");
+  assert.ok(!duplicate.text.includes(victim.marker));
+  for (const badId of ["0", "01", "1e2"]) {
+    for (const route of ["exports?kind=payslip"]) {
+      const denied = standaloneExpectStatus(await standaloneRequest(
+        "/api/payroll-runs/" + badId + "/" + route, { cookie: own.cookie },
+      ), 400, "noncanonical run resource " + badId + "/" + route);
+      assert.ok(!denied.text.includes(victim.marker));
+    }
+  }
+  assert.deepEqual(await businessState(own.org.id), ownBefore);
   assert.deepEqual(await businessState(victim.org.id), victimBefore);
   assert.equal(verifiedPairs, PAYROLL_PATH_METHODS.length * 2);
   assert.equal(uncreditedDenials, 12);
@@ -227,7 +304,8 @@ export async function verifyPayrollPathBoundary() {
     profile: multiEntity ? "multi-entity" : "default",
     fictionalEmployerCount: 3, attackerEmployers: 2,
     methodKeys: PAYROLL_PATH_METHODS,
-    ownForeignPairs: verifiedPairs, populatedOwnXenditGet: 2,
+    ownForeignPairs: verifiedPairs, populatedOwnXenditGet: 2, populatedOwnPayslipListGet: 2,
+    blockedForeignPayslipAssociations: 2, rejectedMalformedPayslipSelectors: 7,
     blockedPreconditionOnlyMutations: uncreditedDenials,
     ungrantedSameWorkspaceLegalEmployerDenials: legalEmployerDenials,
     inactiveAndDisabledCheckerDenials: checkerDenials,

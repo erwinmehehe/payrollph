@@ -1,5 +1,6 @@
 import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
+import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
@@ -25,7 +26,7 @@ test("runtime, runner or auth source drift requires renewed proof",()=>{
 test("no credits borrowed by unrelated tenant GAP methods",()=>{
  for(const [p,v] of [["src/app/api/documents/route.ts","POST"],["src/app/api/approvals/[id]/route.ts","PATCH"]])
  if(p==='src/app/api/documents/route.ts')assert.equal(verifySecurityCredits(original),3);
- else assert.equal(original.allApiRouteFiles[p].methods.find(m=>m.name===v).status,'GAP');
+ else assert.equal(verifyApprovalsCredit(original),1);
  // The transfers methods were credited later by their own dedicated proof (#1853), never by the migration receipt.
  for(const v of ["POST","PATCH"]){const t=original.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"].methods.find(m=>m.name===v);
  assert.equal(t.status,"COVERED");assert.equal(t.testedBy.file,"scripts/qa/tenant-transfers-http.mjs");assert.equal(t.testedBy.proofPullRequest,1853);}
