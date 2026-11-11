@@ -218,6 +218,17 @@ try {
     assert.equal(mailedTokens(inbox, email).length, 1, "unique-email race sends one email only");
   });
   if (mode === "invited") {
+    await check("invitation bypass remains bound to its exact recipient and code", async () => {
+      const wrongEmail = "signup-wrong-invite-" + suffix + "@example.invalid";
+      const beforeMail = inbox.length;
+      const wrongRecipient = await signup(wrongEmail, { privatePilotInviteCode: INVITED_CODE });
+      assert.equal(wrongRecipient.status, 422, "genuine code cannot activate another mailbox");
+      assert.equal(await userByEmail(wrongEmail), null);
+      const wrongCode = await signup(INVITED_EMAIL, { privatePilotInviteCode: "wrong-fictitious-invite-code-" + "x".repeat(45) });
+      assert.equal(wrongCode.status, 422, "invited address without the exact code gets no bypass");
+      assert.equal(await userByEmail(INVITED_EMAIL), null, "failed invitations never create owner");
+      assert.equal(inbox.length, beforeMail, "rejected invitations mail no account");
+    });
     await check("invited-pilot new-versus-existing status/body/headers/timing", async () => {
       const count = inbox.length;
       const first = await signup(INVITED_EMAIL, { privatePilotInviteCode: INVITED_CODE });
