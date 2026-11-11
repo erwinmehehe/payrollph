@@ -9645,14 +9645,14 @@
       ]
     },
     "src/app/api/discipline/route.ts": {
-      "gitBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+      "gitBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
       "route": "discipline",
       "methods": [
         {
           "name": "GET",
-          "line": 11,
+          "line": 12,
           "status": "COVERED",
-          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. Legal-employer enforcement changed in the current source: preceding two-tenant organization-only PG16 receipts are historical and do not prove same-organization multi-entity scope. Current-head multi-entity HTTP proof and independent HR/privacy review remain PENDING; zero new coverage credits.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
             "line": 251,
@@ -9663,13 +9663,30 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
             "rowLine": 80
+          },
+          "reviewedUncertified": {
+            "kind": "discipline-same-organization-legal-employer-PG16-review-only",
+            "originalRouteBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+            "routeBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
+            "historicalOrganizationOnlyProof": "scripts/qa/tenant-table-http.mjs",
+            "historicalProofIsNotLegalEmployerAcceptance": true,
+            "proofFile": "scripts/qa/tenant-discipline-entity-http.mjs",
+            "proofBlobSha": "696dad856c6cf3be0ef34e7705748661e407bc7b",
+            "contractFile": "tests/tenant-discipline-case-boundary.test.mjs",
+            "contractBlobSha": "6e42576da34f6e94461b65cd8648b3c8957e4325",
+            "workflowFile": ".github/workflows/tenant-discipline-entity-qa.yml",
+            "workflowBlobSha": "1743cef8216d930f22e592193def0f99eb9303fb",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "legalEmployerMethodCredits": 0,
+            "productionCertified": false
           }
         },
         {
           "name": "POST",
-          "line": 55,
+          "line": 68,
           "status": "COVERED",
-          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. Legal-employer enforcement changed in the current source: preceding two-tenant organization-only PG16 receipts are historical and do not prove same-organization multi-entity scope. Current-head multi-entity HTTP proof and independent HR/privacy review remain PENDING; zero new coverage credits.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
             "line": 112,
@@ -9680,13 +9697,30 @@
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/write/people.mjs",
             "rowLine": 23
+          },
+          "reviewedUncertified": {
+            "kind": "discipline-same-organization-legal-employer-PG16-review-only",
+            "originalRouteBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+            "routeBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
+            "historicalOrganizationOnlyProof": "scripts/qa/tenant-write-table-http.mjs",
+            "historicalProofIsNotLegalEmployerAcceptance": true,
+            "proofFile": "scripts/qa/tenant-discipline-entity-http.mjs",
+            "proofBlobSha": "696dad856c6cf3be0ef34e7705748661e407bc7b",
+            "contractFile": "tests/tenant-discipline-case-boundary.test.mjs",
+            "contractBlobSha": "6e42576da34f6e94461b65cd8648b3c8957e4325",
+            "workflowFile": ".github/workflows/tenant-discipline-entity-qa.yml",
+            "workflowBlobSha": "1743cef8216d930f22e592193def0f99eb9303fb",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "legalEmployerMethodCredits": 0,
+            "productionCertified": false
           }
         },
         {
           "name": "PATCH",
-          "line": 115,
+          "line": 142,
           "status": "COVERED",
-          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. Legal-employer enforcement changed in the current source: preceding two-tenant organization-only PG16 receipts are historical and do not prove same-organization multi-entity scope. Current-head multi-entity HTTP proof and independent HR/privacy review remain PENDING; zero new coverage credits.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
             "line": 112,
@@ -9697,6 +9731,23 @@
             "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)"
+          },
+          "reviewedUncertified": {
+            "kind": "discipline-same-organization-legal-employer-PG16-review-only",
+            "originalRouteBlobSha": "e61337e2419bb63eedecb09ce9021a60b855dd0d",
+            "routeBlobSha": "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc",
+            "historicalOrganizationOnlyProof": "scripts/qa/tenant-write-table-http.mjs",
+            "historicalProofIsNotLegalEmployerAcceptance": true,
+            "proofFile": "scripts/qa/tenant-discipline-entity-http.mjs",
+            "proofBlobSha": "696dad856c6cf3be0ef34e7705748661e407bc7b",
+            "contractFile": "tests/tenant-discipline-case-boundary.test.mjs",
+            "contractBlobSha": "6e42576da34f6e94461b65cd8648b3c8957e4325",
+            "workflowFile": ".github/workflows/tenant-discipline-entity-qa.yml",
+            "workflowBlobSha": "1743cef8216d930f22e592193def0f99eb9303fb",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "legalEmployerMethodCredits": 0,
+            "productionCertified": false
           }
         }
       ],
@@ -9718,147 +9769,183 @@
         },
         {
           "line": 6,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 7,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 6,
+          "line": 7,
           "token": "assertScope"
         },
         {
-          "line": 6,
+          "line": 7,
           "token": "getAccess"
         },
         {
-          "line": 12,
+          "line": 13,
           "token": "getSessionUser"
         },
         {
-          "line": 19,
+          "line": 20,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 26,
+          "line": 27,
           "token": "getAccess"
         },
         {
-          "line": 56,
-          "token": "enforceSameOriginMutation"
-        },
-        {
-          "line": 59,
-          "token": "getSessionUser"
+          "line": 31,
+          "token": "resolveMultiEntityContext"
         },
         {
           "line": 69,
-          "token": "assertOrganizationRole"
-        },
-        {
-          "line": 76,
-          "token": "getAccess"
-        },
-        {
-          "line": 87,
-          "token": "assertScope"
-        },
-        {
-          "line": 116,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 119,
+          "line": 72,
           "token": "getSessionUser"
         },
         {
-          "line": 142,
+          "line": 82,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 149,
+          "line": 89,
           "token": "getAccess"
         },
         {
-          "line": 155,
+          "line": 92,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 114,
+          "token": "assertScope"
+        },
+        {
+          "line": 143,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 146,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 169,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 176,
+          "token": "getAccess"
+        },
+        {
+          "line": 179,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 196,
           "token": "assertScope"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 16,
+          "line": 17,
           "token": "searchParams.get(\"organizationId\")"
         },
         {
-          "line": 17,
+          "line": 18,
           "token": "searchParams.get(\"employeeId\")"
         },
         {
-          "line": 63,
+          "line": 76,
           "token": "body.organizationId"
         },
         {
-          "line": 64,
+          "line": 77,
           "token": "body.employeeId"
+        },
+        {
+          "line": 93,
+          "token": "body.legalEntityId"
+        },
+        {
+          "line": 181,
+          "token": "body.legalEntityId"
         }
       ],
       "businessIds": [
         {
-          "line": 16,
-          "token": "organizationId"
-        },
-        {
-          "line": 16,
+          "line": 17,
           "token": "organizationId"
         },
         {
           "line": 17,
+          "token": "organizationId"
+        },
+        {
+          "line": 18,
           "token": "employeeId"
         },
         {
-          "line": 17,
+          "line": 18,
           "token": "employeeId"
         },
         {
-          "line": 21,
+          "line": 22,
           "token": "organizationId"
         },
         {
-          "line": 26,
+          "line": 27,
           "token": "organizationId"
         },
         {
-          "line": 29,
-          "token": "employeeId"
-        },
-        {
-          "line": 30,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
-          "token": "employeeId"
-        },
-        {
-          "line": 30,
-          "token": "employeeId"
-        },
-        {
-          "line": 31,
-          "token": "organizationId"
-        },
-        {
-          "line": 31,
-          "token": "organizationId"
+          "line": 37,
+          "token": "legalEntityId"
         },
         {
           "line": 39,
           "token": "employeeId"
         },
         {
-          "line": 42,
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "employeeId"
+        },
+        {
+          "line": 40,
+          "token": "employeeId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 49,
+          "token": "employeeId"
+        },
+        {
+          "line": 53,
           "token": "orgUnitId"
+        },
+        {
+          "line": 100,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 187,
+          "token": "legalEntityId"
         }
       ]
     },
@@ -17628,14 +17715,14 @@
       ]
     },
     "src/app/api/hr-cases/route.ts": {
-      "gitBlobSha": "995420a26af9766d89216ee0ccec93a9d63b1846",
+      "gitBlobSha": "2cd3e59558d6a6ae6946b3a7f0f3685b5ddf7cd1",
       "route": "hr-cases",
       "methods": [
         {
           "name": "GET",
-          "line": 38,
+          "line": 39,
           "status": "COVERED",
-          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI. Existing employer-level PG16 evidence is unchanged; added legal-entity grant restrictions require updated exact-head CI and independent security review (no added method credits).",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1105,
@@ -17647,9 +17734,9 @@
         },
         {
           "name": "POST",
-          "line": 110,
+          "line": 126,
           "status": "COVERED",
-          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI. Existing employer-level PG16 evidence is unchanged; added legal-entity grant restrictions require updated exact-head CI and independent security review (no added method credits).",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1100,
@@ -17661,9 +17748,9 @@
         },
         {
           "name": "PATCH",
-          "line": 266,
+          "line": 282,
           "status": "COVERED",
-          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI. Existing employer-level PG16 evidence is unchanged; added legal-entity grant restrictions require updated exact-head CI and independent security review (no added method credits).",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1108,
@@ -17699,131 +17786,131 @@
           "token": "getSessionUser"
         },
         {
-          "line": 18,
+          "line": 13,
+          "token": "assertEntityResource"
+        },
+        {
+          "line": 13,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 20,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 28,
+          "line": 31,
           "token": "getSessionUser"
         },
         {
-          "line": 38,
+          "line": 41,
           "token": "getSessionUser"
         },
         {
-          "line": 46,
+          "line": 60,
           "token": "getAccess"
         },
         {
-          "line": 48,
+          "line": 62,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 96,
+          "line": 74,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 128,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 98,
+          "line": 130,
           "token": "getSessionUser"
         },
         {
-          "line": 252,
+          "line": 284,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 254,
+          "line": 286,
           "token": "getSessionUser"
         },
         {
-          "line": 268,
+          "line": 311,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 270,
+          "line": 313,
           "token": "getAccess"
         },
         {
-          "line": 277,
+          "line": 318,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 330,
+          "token": "assertEntityResource"
+        },
+        {
+          "line": 333,
           "token": "assertScope"
         },
         {
-          "line": 291,
+          "line": 347,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 43,
-          "token": "searchParams.get(\"organizationId\")"
+          "line": 46,
+          "token": "searchParams.getAll(\"organizationId\")"
         },
         {
-          "line": 147,
+          "line": 179,
           "token": "input.employeeId"
         },
         {
-          "line": 147,
+          "line": 179,
           "token": "input.organizationId"
         },
         {
-          "line": 150,
+          "line": 182,
           "token": "input.organizationId"
         },
         {
-          "line": 167,
+          "line": 199,
           "token": "input.organizationId"
         },
         {
-          "line": 167,
+          "line": 199,
           "token": "input.employeeId"
         },
         {
-          "line": 173,
+          "line": 205,
           "token": "input.organizationId"
         },
         {
-          "line": 177,
+          "line": 209,
           "token": "input.employeeId"
         },
         {
-          "line": 200,
+          "line": 232,
           "token": "input.organizationId"
         },
         {
-          "line": 204,
+          "line": 236,
           "token": "input.employeeId"
         }
       ],
       "businessIds": [
         {
-          "line": 29,
-          "token": "employeeId"
-        },
-        {
-          "line": 30,
-          "token": "employeeId"
-        },
-        {
           "line": 32,
-          "token": "organizationId"
+          "token": "employeeId"
         },
         {
-          "line": 43,
-          "token": "organizationId"
+          "line": 33,
+          "token": "employeeId"
         },
         {
-          "line": 43,
-          "token": "organizationId"
-        },
-        {
-          "line": 43,
-          "token": "organizationId"
-        },
-        {
-          "line": 44,
-          "token": "organizationId"
-        },
-        {
-          "line": 44,
+          "line": 35,
           "token": "organizationId"
         },
         {
@@ -17831,28 +17918,76 @@
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 49,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
           "token": "organizationId"
         },
         {
           "line": 55,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 55,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 58,
           "token": "organizationId"
         },
         {
-          "line": 58,
+          "line": 55,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
           "token": "organizationId"
         },
         {
           "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
           "token": "orgUnitId"
+        },
+        {
+          "line": 66,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 75,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 83,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 85,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 85,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 89,
+          "token": "organizationId"
+        },
+        {
+          "line": 319,
+          "token": "organizationId"
+        },
+        {
+          "line": 319,
+          "token": "organizationId"
         }
       ]
     },
@@ -41743,7 +41878,7 @@
     },
     {
       "path": "src/app/app/page.tsx",
-      "blob": "c08e9772f90d8a6680577eb169f4a7ba02bc52e0",
+      "blob": "f1f452d08194069857a9e219cee7f22e77bc78c2",
       "ids": [
         {
           "line": 33,
@@ -41881,7 +42016,7 @@
       ],
       "hasAction": false,
       "status": "COVERED",
-      "reason": "Provisional: real signed-in own HTML must include persisted employer/worker; two independent owners receive 404 for the real victim. Exact-head CI required.",
+      "reason": "Provisional: real signed-in own HTML must include persisted employer/worker; two independent owners receive 404 for the real victim. Exact-head CI required. Exact one-line billing-target delta is checked against original source; shared-owner target proof and rerun of own/foreign workspace HTML are required on this head. No new credit is granted.",
       "testedBy": {
         "file": "scripts/qa/tenant-scoped-page-probes.mjs",
         "ownPositiveLine": 69,
@@ -41967,15 +42102,15 @@
         "originalPageBlobSha": "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381",
         "pageBlobSha": "c5830a95d2c13063c43a36629690010220d99d31",
         "proofFile": "scripts/qa/tenant-billing-setup-page-http.mjs",
-        "proofBlobSha": "d0047d905a95ef6c33d63065d3404db114b102f3",
+        "proofBlobSha": "87053f4ca7f7a03919b2b4fdbaeaadd41b1e204b",
         "contractTestFile": "tests/tenant-billing-setup-boundary.test.mjs",
-        "contractTestBlobSha": "b31437f6707036393404cc8ddad824dee56fd58d",
+        "contractTestBlobSha": "e5a0d09eec50430f7ea13326e3390998a7de68e9",
         "workflowFile": ".github/workflows/tenant-billing-setup-page-qa.yml",
-        "workflowBlobSha": "a2b3bbe665e27d973d491426d9109853958ff425",
-        "ownPageLine": 153,
-        "foreignPageLine": 161,
-        "revokedPageLine": 206,
-        "unchangedDbLine": 210,
+        "workflowBlobSha": "dbf0fe76f31df6638a14d9aa9eda1ad7a39f6c0b",
+        "ownPageLine": 155,
+        "foreignPageLine": 163,
+        "revokedPageLine": 208,
+        "unchangedDbLine": 212,
         "credits": 0,
         "independentlyAccepted": false,
         "productionCertified": false

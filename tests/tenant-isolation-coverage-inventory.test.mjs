@@ -3948,6 +3948,66 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(verifyWorker360PageCredit(manifest), 17);
     return;
   }
+  // This route changed the *within-company legal-employer* boundary, which
+  // historical cross-organization table proofs did not exercise. Preserve
+  // prior provisional organization credit only; new entity-scope proof is a
+  // separately pinned, unaccepted candidate and creates ZERO new credits.
+  if (isNewOrChanged && key.startsWith("src/app/api/discipline/route.ts ")) {
+    const route = "src/app/api/discipline/route.ts";
+    const original = "e61337e2419bb63eedecb09ce9021a60b855dd0d";
+    const changed = "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc";
+    assert.equal(baseline.api[route], "9d5250e34a86116b5afae61b3f254256dce78a73",
+      "Original audited inventory baseline cannot be redefined");
+    assert.notEqual(original, baseline.api[route],
+      "The immediately prior reviewed main source is not the older audit baseline");
+    assert.equal(currentBlob, changed, "Changed legal-employer source needs renewed proof");
+    assert.equal(manifest.allApiRouteFiles[route].gitBlobSha, changed);
+    assert.equal(method.status, "COVERED", "Only historical organization scope remains provisional");
+    assert.ok(["GET", "POST", "PATCH"].includes(method.name));
+    assert.equal(method.testedBy?.file, method.name === "GET"
+      ? "scripts/qa/tenant-table-http.mjs" : "scripts/qa/tenant-write-table-http.mjs",
+      "Historical organization proof must be preserved without re-labelling as entity proof");
+    const reviewed = method.reviewedUncertified;
+    assert.deepEqual(reviewed, {
+      kind: "discipline-same-organization-legal-employer-PG16-review-only",
+      originalRouteBlobSha: original, routeBlobSha: changed,
+      historicalOrganizationOnlyProof: method.testedBy.file,
+      historicalProofIsNotLegalEmployerAcceptance: true,
+      proofFile: "scripts/qa/tenant-discipline-entity-http.mjs",
+      proofBlobSha: "696dad856c6cf3be0ef34e7705748661e407bc7b",
+      contractFile: "tests/tenant-discipline-case-boundary.test.mjs",
+      contractBlobSha: "6e42576da34f6e94461b65cd8648b3c8957e4325",
+      workflowFile: ".github/workflows/tenant-discipline-entity-qa.yml",
+      workflowBlobSha: "1743cef8216d930f22e592193def0f99eb9303fb",
+      exactHeadPg16Http: "PENDING", independentSecurityReview: "PENDING",
+      legalEmployerMethodCredits: 0, productionCertified: false,
+    }, "No old HTTP receipt can certify same-organization legal-employer isolation");
+    for (const [file, sha] of [
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Discipline entity proof changed; renew exact-head PG16 and independent review: " + file);
+    const source = readFileSync(route, "utf8");
+    const get = source.slice(source.indexOf("export async function GET("),
+      source.indexOf("export async function POST("));
+    const post = source.slice(source.indexOf("export async function POST("),
+      source.indexOf("export async function PATCH("));
+    const patch = source.slice(source.indexOf("export async function PATCH("));
+    for (const [name, methodSource] of [["GET", get], ["POST", post], ["PATCH", patch]]) {
+      assert.ok(methodSource.indexOf("resolveMultiEntityContext(") >= 0 &&
+        methodSource.indexOf("resolveMultiEntityContext(") <
+        methodSource.indexOf("eq(employees.legalEntityId, legalEntityId)"),
+        name + ": selected legal employer must guard worker scope");
+      assert.match(methodSource, /entityAccess\.context\.group \|\| entityAccess\.context\.legalEntityId === null/,
+        "No group-wide disciplinary case access without dedicated acceptance");
+    }
+    assert.match(patch, /if \(!employee\) return Response\.json\(\{ error: "Disciplinary case unavailable\." \}, \{ status: 403 \}\)/,
+      "Cross-employer case ID must not be distinguishable from a nonexistent case ID");
+    assert.equal((patch.match(/currentLegalEmployerScope,\s*\)\)\.returning\(\)/g) ?? []).length, 4,
+      "All four disciplinary updates must re-check the authorized legal employer");
+    return true;
+  }
 
   if (isNewOrChanged) {
     assert.notEqual(method.status, "GAP",
@@ -6906,13 +6966,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
           kind: "billing-setup-SSR-GET-PG16-unaccepted",
           originalPageBlobSha, pageBlobSha,
           proofFile: "scripts/qa/tenant-billing-setup-page-http.mjs",
-          proofBlobSha: "d0047d905a95ef6c33d63065d3404db114b102f3",
+          proofBlobSha: "87053f4ca7f7a03919b2b4fdbaeaadd41b1e204b",
           contractTestFile: "tests/tenant-billing-setup-boundary.test.mjs",
-          contractTestBlobSha: "b31437f6707036393404cc8ddad824dee56fd58d",
+          contractTestBlobSha: "e5a0d09eec50430f7ea13326e3390998a7de68e9",
           workflowFile: ".github/workflows/tenant-billing-setup-page-qa.yml",
-          workflowBlobSha: "a2b3bbe665e27d973d491426d9109853958ff425",
-          ownPageLine: 153, foreignPageLine: 161, revokedPageLine: 206,
-          unchangedDbLine: 210,
+          workflowBlobSha: "dbf0fe76f31df6638a14d9aa9eda1ad7a39f6c0b",
+          ownPageLine: 155, foreignPageLine: 163, revokedPageLine: 208,
+          unchangedDbLine: 212,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only this exact uncredited PG16 billing page proof is allowed");
         assert.match(entry.reason, /^Still GAP: #1631/);
