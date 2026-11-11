@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { automationRules, automationRuleVersions } from "@/db/schema";
 import { fingerprintAutomationDraft } from "@/lib/automation-preview-approval";
+import { isAutomationDraftNameConflict } from "@/lib/automation-draft-conflict";
 import {
   automationTriggerIsLive,
   normalizeAutomationActions,
@@ -132,6 +133,13 @@ export async function saveAutomationRuleDraft(input: {
     )).returning();
 
     return { rule: updatedRule, draft, created: false };
+  }).catch((error: unknown) => {
+    // Map only the expected name conflict after the transaction has rolled back.
+    // Preserve all other database/audit failures instead of disguising them.
+    if (isAutomationDraftNameConflict(error)) {
+      throw new AutomationVersionError("Another Automation Studio rule already uses this name.", 409);
+    }
+    throw error;
   });
 }
 
