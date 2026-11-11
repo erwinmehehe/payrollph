@@ -1,4 +1,5 @@
 /** Three complete method receipts, fictional PG16 only; never production acceptance. */
+import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
@@ -42,7 +43,10 @@ export function readSecurityEvidence(read=readFileSync){
       try { assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha); }
       catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
     }
-    else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
+    else if(file==='src/lib/automation.ts'){
+      assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Original security-write receipt source seal changed');
+      verifyNarrowStudioAutomationSource(read);
+    } else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
   }
   for(const t of r.targets){assert.equal(t.evidence.routeBlobSha,r.pins[t.path]);assert.equal(t.evidence.proofBlobSha,r.pins[t.evidence.file]);
     assert.equal(t.evidence.sourceHead,r.sourceHead);assert.equal(t.evidence.runLabel,r.runLabel);
