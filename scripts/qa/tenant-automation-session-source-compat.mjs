@@ -19,7 +19,7 @@ const DEACTIVATE_AFTER="  if (action.type === \"deactivate_access\") {\n    if (
 const SOURCE_PINS=Object.freeze({
   "src/lib/automation-employee-account-boundary.ts":"4b66410789ec536482d63d9d58c5df1b17b38746",
   "scripts/qa/tenant-automation-session-ownership-http.mjs":"44323b1ca7cf406a2644f852425837ae05237cb2",
-  ".github/workflows/tenant-automation-session-ownership.yml":"0fa8e52454a9d7e5afef636388ff78d68774fe2d",
+  ".github/workflows/tenant-automation-session-ownership.yml":"4e38d660816716d9ee9b3174c2e3ed88ed2413ce",
 });
 const blob = (input) => {const b=Buffer.from(input.toString().replaceAll("\r\n","\n"));return createHash("sha1").update("blob "+b.length+"\0").update(b).digest("hex")};
 function replaceExactlyOne(source,current,previous){assert.equal(source.split(current).length,2,"Additional or missing session diff");return source.replace(current,previous)}

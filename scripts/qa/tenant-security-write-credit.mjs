@@ -43,7 +43,10 @@ export function readSecurityEvidence(read=readFileSync){
       try { assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file),sha); }
       catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
     }
-    else if(file==='src/lib/automation.ts') verifySessionSourceCompatibility(sha,blob(read(file)),read);
+    else if(file==='src/lib/automation.ts') {
+      try { verifySessionSourceCompatibility(sha,blob(read(file)),read); }
+      catch (cause) { throw new Error('Security source/proof drift: '+file, { cause }); }
+    }
     else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
   }
   for(const t of r.targets){assert.equal(t.evidence.routeBlobSha,r.pins[t.path]);assert.equal(t.evidence.proofBlobSha,r.pins[t.evidence.file]);

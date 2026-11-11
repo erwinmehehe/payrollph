@@ -97,10 +97,10 @@ jobs:
             echo "::add-mask::$value"
             echo "$key=$value" >> "$GITHUB_ENV"
           done
-      - name: Create isolated PostgreSQL schema and reviewed baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Create isolated PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed disposable baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode localhost Next server
         run: npm run build
       - name: Start localhost test server
