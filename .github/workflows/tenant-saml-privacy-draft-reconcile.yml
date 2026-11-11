@@ -1,0 +1,72 @@
+name: One-use SAML draft source reconciliation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'scripts/qa/tenant-saml-privacy-draft-reconcile.mjs'
+      - '.github/workflows/tenant-saml-privacy-draft-reconcile.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saml-draft-reconcile-1934
+  cancel-in-progress: false
+
+jobs:
+  reconcile-draft:
+    if: >-
+      github.repository == 'erwinmehehe/payrollph' &&
+      github.event.pull_request.number == 1934 &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/tenant-saml-metadata-privacy-recovery-20261111'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Refuse a moved draft head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          actual=$(git ls-remote origin refs/heads/fix/tenant-saml-metadata-privacy-recovery-20261111 | cut -f1)
+          test "$actual" = "$EXPECTED_HEAD"
+      - name: Apply only exact-source proof and inventory reconciliation
+        run: |
+          node --check scripts/qa/tenant-saml-privacy-draft-reconcile.mjs
+          node scripts/qa/tenant-saml-privacy-draft-reconcile.mjs
+          git diff --check
+      - name: Install locked test dependencies without lifecycle scripts
+        run: npm ci --include=dev --ignore-scripts
+      - name: Run handler, source, hold and inventory regressions without a database
+        run: |
+          node --check scripts/qa/tenant-saml-metadata-public-http.mjs
+          node --test tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+      - name: Commit reviewed files only to the existing draft branch
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual=$(git ls-remote origin refs/heads/fix/tenant-saml-metadata-privacy-recovery-20261111 | cut -f1)
+          test "$actual" = "$EXPECTED_HEAD"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/qa/tenant-saml-metadata-public-contract.mjs scripts/qa/tenant-saml-metadata-public-http.mjs tests/tenant-saml-metadata-public.test.mjs scripts/qa/tenant-saml-metadata-privacy-verify.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs scripts/qa/tenant-isolation-coverage-manifest.json docs/qa/tenant-saml-metadata-public-proof.md
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 8
+          git diff --cached --check
+          git commit -m 'test(identity): reconcile disabled SAML privacy proof and zero-credit source hold'
+          git push origin HEAD:refs/heads/fix/tenant-saml-metadata-privacy-recovery-20261111
+          echo 'The separate read-only PG16 workflow update must still be published and exact-head CI must pass.'
+          git hash-object .github/workflows/tenant-saml-metadata-public-http.yml
