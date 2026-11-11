@@ -118,7 +118,7 @@ test("reads cannot modify source or audit rows", () => {
 });
 
 test("source pins fail closed on any drift in page, API, auth or fixture", () => {
-  assert.equal(Object.keys(SOURCE_PINS).length, 9);
+  assert.equal(Object.keys(SOURCE_PINS).length, 10);
   for (const sha of Object.values(SOURCE_PINS)) assert.match(sha, /^[0-9a-f]{40}$/);
   assert.equal(gitBlobSha("tenant"), "34f104e42d3d8d71271e2fdebce48d513fca39e3");
   assert.notEqual(gitBlobSha("tenant"), gitBlobSha("tenant!"));

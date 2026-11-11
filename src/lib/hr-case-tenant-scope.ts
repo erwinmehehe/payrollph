@@ -30,10 +30,19 @@ export function explicitHrCaseEmployerId(values: readonly string[]): number | nu
   return Number.isSafeInteger(id) ? id : null;
 }
 
-/** Apply employer and optional authorized unit restrictions in SQL, not JS. */
-export function hrCaseStaffRosterScope(organizationId: number, orgUnitId: number | null) {
+/**
+ * Bind the HR staff roster to the authenticated organization, assigned unit,
+ * AND (when multi-entity is enabled) the single granted legal employer.
+ * Never fall back to an all-employer roster when the legal employer is missing.
+ * The caller must obtain legalEntityId from resolveMultiEntityContext, never
+ * from an unverified request parameter.
+ */
+export function hrCaseStaffRosterScope(
+  organizationId: number, orgUnitId: number | null, legalEntityId: number | null = null,
+) {
   return and(
     eq(employees.organizationId, organizationId),
     orgUnitId === null ? undefined : eq(employees.orgUnitId, orgUnitId),
+    legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
   );
 }

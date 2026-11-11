@@ -17667,14 +17667,14 @@
       ]
     },
     "src/app/api/hr-cases/route.ts": {
-      "gitBlobSha": "995420a26af9766d89216ee0ccec93a9d63b1846",
+      "gitBlobSha": "2cd3e59558d6a6ae6946b3a7f0f3685b5ddf7cd1",
       "route": "hr-cases",
       "methods": [
         {
           "name": "GET",
-          "line": 38,
+          "line": 39,
           "status": "COVERED",
-          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI. Existing employer-level PG16 evidence is unchanged; added legal-entity grant restrictions require updated exact-head CI and independent security review (no added method credits).",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1105,
@@ -17686,9 +17686,9 @@
         },
         {
           "name": "POST",
-          "line": 110,
+          "line": 126,
           "status": "COVERED",
-          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI. Existing employer-level PG16 evidence is unchanged; added legal-entity grant restrictions require updated exact-head CI and independent security review (no added method credits).",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1100,
@@ -17700,9 +17700,9 @@
         },
         {
           "name": "PATCH",
-          "line": 266,
+          "line": 282,
           "status": "COVERED",
-          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI.",
+          "reason": "Provisional: actual disposable HTTP own-success, foreign denial/session binding and victim DB invariants; requires current-head CI. Existing employer-level PG16 evidence is unchanged; added legal-entity grant restrictions require updated exact-head CI and independent security review (no added method credits).",
           "testedBy": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "line": 1108,
@@ -17738,131 +17738,131 @@
           "token": "getSessionUser"
         },
         {
-          "line": 18,
+          "line": 13,
+          "token": "assertEntityResource"
+        },
+        {
+          "line": 13,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 20,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 28,
+          "line": 31,
           "token": "getSessionUser"
         },
         {
-          "line": 38,
+          "line": 41,
           "token": "getSessionUser"
         },
         {
-          "line": 46,
+          "line": 60,
           "token": "getAccess"
         },
         {
-          "line": 48,
+          "line": 62,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 96,
+          "line": 74,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 128,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 98,
+          "line": 130,
           "token": "getSessionUser"
         },
         {
-          "line": 252,
+          "line": 284,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 254,
+          "line": 286,
           "token": "getSessionUser"
         },
         {
-          "line": 268,
+          "line": 311,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 270,
+          "line": 313,
           "token": "getAccess"
         },
         {
-          "line": 277,
+          "line": 318,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 330,
+          "token": "assertEntityResource"
+        },
+        {
+          "line": 333,
           "token": "assertScope"
         },
         {
-          "line": 291,
+          "line": 347,
           "token": "getAccess"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 43,
-          "token": "searchParams.get(\"organizationId\")"
+          "line": 46,
+          "token": "searchParams.getAll(\"organizationId\")"
         },
         {
-          "line": 147,
+          "line": 179,
           "token": "input.employeeId"
         },
         {
-          "line": 147,
+          "line": 179,
           "token": "input.organizationId"
         },
         {
-          "line": 150,
+          "line": 182,
           "token": "input.organizationId"
         },
         {
-          "line": 167,
+          "line": 199,
           "token": "input.organizationId"
         },
         {
-          "line": 167,
+          "line": 199,
           "token": "input.employeeId"
         },
         {
-          "line": 173,
+          "line": 205,
           "token": "input.organizationId"
         },
         {
-          "line": 177,
+          "line": 209,
           "token": "input.employeeId"
         },
         {
-          "line": 200,
+          "line": 232,
           "token": "input.organizationId"
         },
         {
-          "line": 204,
+          "line": 236,
           "token": "input.employeeId"
         }
       ],
       "businessIds": [
         {
-          "line": 29,
-          "token": "employeeId"
-        },
-        {
-          "line": 30,
-          "token": "employeeId"
-        },
-        {
           "line": 32,
-          "token": "organizationId"
+          "token": "employeeId"
         },
         {
-          "line": 43,
-          "token": "organizationId"
+          "line": 33,
+          "token": "employeeId"
         },
         {
-          "line": 43,
-          "token": "organizationId"
-        },
-        {
-          "line": 43,
-          "token": "organizationId"
-        },
-        {
-          "line": 44,
-          "token": "organizationId"
-        },
-        {
-          "line": 44,
+          "line": 35,
           "token": "organizationId"
         },
         {
@@ -17870,28 +17870,76 @@
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 49,
+          "token": "organizationId"
+        },
+        {
+          "line": 54,
           "token": "organizationId"
         },
         {
           "line": 55,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 55,
-          "token": "orgUnitId"
-        },
-        {
-          "line": 58,
           "token": "organizationId"
         },
         {
-          "line": 58,
+          "line": 55,
+          "token": "organizationId"
+        },
+        {
+          "line": 56,
+          "token": "organizationId"
+        },
+        {
+          "line": 57,
           "token": "organizationId"
         },
         {
           "line": 60,
+          "token": "organizationId"
+        },
+        {
+          "line": 62,
+          "token": "organizationId"
+        },
+        {
+          "line": 65,
           "token": "orgUnitId"
+        },
+        {
+          "line": 66,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 75,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 83,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 85,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 85,
+          "token": "orgUnitId"
+        },
+        {
+          "line": 89,
+          "token": "organizationId"
+        },
+        {
+          "line": 319,
+          "token": "organizationId"
+        },
+        {
+          "line": 319,
+          "token": "organizationId"
         }
       ]
     },

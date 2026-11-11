@@ -82,3 +82,49 @@ test("HR-case GET canonicalizes tenant IDs and the unchanged SSR gate still reje
   assert.ok(page.indexOf("assertOrganizationRole(") < page.indexOf("<EmployeeHrCaseStaffQueue"),
     "SSR must authorize before mounting the HR case queue");
 });
+
+
+test("HR-case roster SQL additionally binds the selected legal employer in multi-entity mode", () => {
+  const single = dialect.sqlToQuery(hrCaseStaffRosterScope(11, null, 42)!);
+  assert.deepEqual(single.params, [11, 42]);
+  assert.match(single.sql, /"employees"\."organization_id"/);
+  assert.match(single.sql, /"employees"\."legal_entity_id"/);
+  const unit = dialect.sqlToQuery(hrCaseStaffRosterScope(11, 37, 42)!);
+  assert.deepEqual(unit.params, [11, 37, 42]);
+  assert.match(unit.sql, /"employees"\."org_unit_id"/);
+  assert.match(unit.sql, /"employees"\."legal_entity_id"/);
+  // Preserve historical single-company behavior only while multi-entity is OFF.
+  const disabled = dialect.sqlToQuery(hrCaseStaffRosterScope(11, 37)!);
+  assert.deepEqual(disabled.params, [11, 37]);
+  assert.doesNotMatch(disabled.sql, /"employees"\."legal_entity_id"/);
+});
+
+test("HR-case API binds GET and all staff PATCH actions to server-granted legal employer", () => {
+  const source = readFileSync("src/app/api/hr-cases/route.ts", "utf8");
+  const get = source.split("export async function GET(request: Request) {")[1]
+    ?.split("export async function POST(request: Request) {")[0];
+  const patch = source.split("export async function PATCH(request: Request) {")[1];
+  assert.ok(get && patch);
+  const getAuth = get.indexOf("await assertOrganizationRole(");
+  const getEntity = get.indexOf("await resolveMultiEntityContext({");
+  const getRoster = get.indexOf(".where(hrCaseStaffRosterScope(");
+  const getCases = get.indexOf(".from(employeeHrCases)");
+  assert.ok(getAuth >= 0 && getEntity > getAuth && getRoster > getEntity &&
+    getCases > getRoster, "Legal employer gate must run before any HR-case roster or message read");
+  assert.match(get, /organizationId, access!\.companyWide \? null : access!\.orgUnitId,\s*authorizedLegalEntityId,/);
+  assert.match(get, /entityScope\.context\.group \|\| entityScope\.context\.legalEntityId === null/);
+  assert.match(get, /userId: user\.id, organizationId, request/);
+
+  const patchAuth = patch.indexOf("await assertOrganizationRole(");
+  const patchEntity = patch.indexOf("await resolveMultiEntityContext({");
+  const patchWorker = patch.indexOf("const [worker] = await db.select({");
+  const patchResource = patch.indexOf("assertEntityResource(entityScope.context, worker.legalEntityId)");
+  const patchAction = patch.indexOf('const action = String(body.action ?? "");');
+  assert.ok(patchAuth >= 0 && patchEntity > patchAuth && patchWorker > patchEntity &&
+    patchResource > patchWorker && patchAction > patchResource,
+    "Staff may not post notes, transition cases or approve COEs before legal employer authorization");
+  assert.match(patch, /eq\(employees\.id, existing\.employeeId\), eq\(employees\.organizationId, existing\.organizationId\)/);
+  assert.match(patch, /if \(!worker \|\| assertEntityResource\(entityScope\.context, worker\.legalEntityId\)\)/);
+  assert.match(patch, /userId: user\.id, organizationId: existing\.organizationId, request/);
+  assert.match(patch, /return hrCaseNotFound\(\)/);
+});
