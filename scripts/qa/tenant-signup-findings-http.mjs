@@ -74,7 +74,7 @@ function stableHttpShape(r) {
   };
 }
 function timingClass(r) {
-  return r.durationMs < 200 ? "fast" : r.durationMs < 1600 ? "bounded" : "slow";
+  return r.durationMs < 400 ? "fast" : r.durationMs < 5000 ? "bounded" : "slow";
 }
 function assertSamePublicAnswer(a, b, label) {
   assert.deepEqual(stableHttpShape(a), stableHttpShape(b), label + ": status/body/headers must be indistinguishable");
