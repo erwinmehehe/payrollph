@@ -1,3 +1,4 @@
+import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -46,7 +47,10 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
     const expectedNetCredits = delta + approvalDelta + studioDelta - revokedWorkerCredit;
     assert.equal(m.metrics.coveredAfter - base.manifest.metrics.coveredAfter, expectedNetCredits);
-    assert.equal(base.manifest.metrics.gap - m.metrics.gap, expectedNetCredits);
+    const relabels = verifyArchitecturalRelabelDelta(assert, base.manifest, m);
+    assert.equal(base.manifest.metrics.gap - m.metrics.gap, expectedNetCredits + relabels.gapRelabels);
+    assert.equal(m.metrics.publicByDesign - base.manifest.metrics.publicByDesign, relabels.publicByDesign);
+    assert.equal(m.metrics.privilegedOperationsTokenOnly - base.manifest.metrics.privilegedOperationsTokenOnly, relabels.privilegedTokenOnly);
   }
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
   assert.deepEqual(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy,

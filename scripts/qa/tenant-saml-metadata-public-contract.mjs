@@ -1,8 +1,9 @@
-/** Public SAML service-provider XML is a candidate, never a covered tenant method. */
+/** Enabled public SP XML is a candidate, never a covered tenant method. */
 import assert from "node:assert/strict";
 
 export const ROUTE = "src/app/api/auth/saml/metadata/[providerId]/route.ts";
-export const ROUTE_BLOB = "589fb64376d807f03245a12c6aca1de7c3bfa08f";
+export const ROUTE_BLOB = "4f8d12b9867de0c18aea8e447208e8470773350b";
+export const HIDDEN_PROVIDER_BODY = '{"error":"SAML provider not found."}';
 
 export function requireIsolatedSamlProof(env = process.env) {
   const expected = {
@@ -16,6 +17,9 @@ export function requireIsolatedSamlProof(env = process.env) {
     CENTRAL_SCHEDULER_ENABLED: "false",
     XENDIT_BILLING_ENABLED: "false", XENDIT_PAYOUTS_ENABLED: "false",
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+    FINAL_PAY_SIGNED_REVIEW_ENABLED: "false",
+    EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false",
+    PAYROLL_CALCULATION_HISTORY_ENABLED: "false", NEXT_CSP_ENABLED: "false",
   };
   for (const [name, value] of Object.entries(expected)) {
     assert.equal(env[name], value, "SAML_PROOF_REFUSED: " + name);
@@ -29,8 +33,17 @@ export function requireIsolatedSamlProof(env = process.env) {
   }
 }
 
+function assertUncacheable(response) {
+  // Production Next may append max-age=0 to the handler's no-store header.
+  // Accept only these two non-storing forms, never a cacheable directive.
+  assert.ok(["no-store", "no-store, max-age=0"].includes(response.headers.get("cache-control")),
+    "Metadata must not be cached");
+}
+
 export function assertMetadata(response, providerId, secretMarkers = []) {
-  assert.equal(response.status, 200, "Public SP metadata must return 200");
+  assert.equal(response.status, 200, "Enabled public SP metadata must return 200");
+  assertUncacheable(response);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.match(response.headers.get("content-type") || "", /application\/samlmetadata\+xml/i);
   assert.match(response.text, /<EntityDescriptor\b/);
   assert.match(response.text, /<SPSSODescriptor\b/);
@@ -49,15 +62,27 @@ export function assertMetadata(response, providerId, secretMarkers = []) {
 
 export function assertSameMetadata(a, b) {
   assert.equal(b.status, a.status);
-  assert.equal(b.text, a.text, "Public XML must be caller- and selector-independent");
-  assert.equal(b.headers.get("content-type"), a.headers.get("content-type"));
+  assert.equal(b.text, a.text, "Metadata responses must be caller- and selector-independent");
+  for (const name of ["content-type", "cache-control", "x-content-type-options"]) {
+    assert.equal(b.headers.get(name), a.headers.get(name), "Response header differs: " + name);
+  }
 }
 
-export function assertMissingMetadata(response, markers = []) {
-  assert.ok(response.status === 400 || response.status === 404,
+export function assertMissingMetadata(response, markers = [], expectedStatus = 404) {
+  assert.equal(response.status, expectedStatus,
     "Non-SAML, unknown or invalid providers must not return public metadata");
+  assert.ok(expectedStatus === 400 || expectedStatus === 404);
+  assert.doesNotMatch(response.text, /EntityDescriptor|SPSSODescriptor|AssertionConsumerService/);
   for (const marker of markers) {
     assert.ok(marker && !response.text.includes(marker),
       "Private employer/provider marker leaked in error response");
   }
+}
+
+export function assertHiddenMetadata(response, missing, markers = []) {
+  assertMissingMetadata(response, markers, 404);
+  assert.equal(response.text, HIDDEN_PROVIDER_BODY, "Hidden provider must use the generic error body");
+  assertUncacheable(response);
+  assert.match(response.headers.get("content-type") || "", /^application\/json\b/i);
+  if (missing) assertSameMetadata(missing, response);
 }

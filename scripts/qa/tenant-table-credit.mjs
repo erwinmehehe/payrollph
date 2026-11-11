@@ -68,6 +68,12 @@ const catalogKeys = new Set(["read", "write"].flatMap(kind => tenantFamilyCatalo
 // A passing create_worksite action cannot certify other POST worksite actions.
 // Keep this method GAP until a separately reviewed complete proof is accepted.
 const actionScopedMethodHolds = new Set(["POST workforce/worksites"]);
+// The old organization-only row cannot recertify the revised legal-employer
+// identity/history source. Require a separately reviewed new source receipt.
+const retiredSourceMethodHolds = new Set(["GET hcm/worker-360"]);
+if (onlyKeys.some(key => retiredSourceMethodHolds.has(key))) {
+  throw new Error("GET hcm/worker-360 remains GAP: historical organization-only proof was superseded");
+}
 if (onlyKeys.some(key => actionScopedMethodHolds.has(key))) {
   throw new Error("POST workforce/worksites remains GAP: create_worksite does not prove other POST actions");
 }
@@ -176,6 +182,7 @@ for (const source of SOURCES) {
     if (selection && !selection.methods.has(row.key)) continue;
     const ownedHere = method.testedBy?.file === source.file;
     if (method.status === "GAP" && actionScopedMethodHolds.has(row.key)) continue;
+    if (method.status === "GAP" && retiredSourceMethodHolds.has(row.key)) continue;
     if (method.status === "GAP" && selectedKeys.size && !selectedKeys.has(row.key)) continue;
     if (method.status !== "GAP" && !ownedHere) continue; // Preserve independently reviewed proof provenance.
     if (refreshLinks && !ownedHere) continue; // Pending rows remain GAP until an executed proof is credited.

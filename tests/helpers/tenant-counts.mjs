@@ -109,7 +109,7 @@ function reviewedYearEndSourceSupersession(beforeManifest, liveManifest) {
  * The new source, historical receipt and zero-credit hold must all match.
  * This NEVER permits a generic downgrade or a credit transfer.
  */
-function reviewedWorker360LegalEmployerSupersession(beforeManifest, liveManifest) {
+export function reviewedWorker360LegalEmployerSupersession(beforeManifest, liveManifest) {
   const file = "src/app/api/hcm/worker-360/route.ts";
   const oldSha = "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62";
   const newSha = "19875021d750b722fc69e0fe939e57928a158af9";

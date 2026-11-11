@@ -60,5 +60,5 @@ test("disposable PG16 proof denies tenant sessions and cross-employer notificati
   const methods = manifest.allApiRouteFiles["src/app/api/hcm/work-items/escalate/route.ts"].methods;
   assert.equal(methods.length, 1);
   assert.equal(methods[0].name, "POST");
-  assert.equal(methods[0].status, "GAP", "No credits before exact-head CI and security review");
+  assert.equal(methods[0].status, "PRIVILEGED-OPERATIONS-TOKEN-ONLY", "Global bearer-token scheduler is not a signed-in tenant API and earns zero tenant credits");
 });
