@@ -1,3 +1,4 @@
+import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -251,6 +252,13 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+
+  // Exact-source uncredited privacy repair; this permits no coverage promotion.
+  if (key === SAML_METADATA_ROUTE + " GET") {
+    assert.equal(currentBlob, "4f8d12b9867de0c18aea8e447208e8470773350b");
+    assert.equal(verifySamlMetadataPrivacyHold(manifest), 0);
+    return true;
+  }
 
   if (key === "src/app/api/hcm/worker-profile/route.ts GET") {
     // Historical broad employer-selector GET is retained as historical evidence.
