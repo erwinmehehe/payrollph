@@ -11,7 +11,7 @@ const server = read("src/lib/hcm-org-explorer-server.ts");
 const client = read("src/components/hcm-org-explorer.tsx");
 const people = read("src/components/workspace/people.tsx");
 import {
-  hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerPositiveId,
+  hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerPositiveId, hcmOrgExplorerSingleQueryId,
 } from "../src/lib/hcm-org-explorer-access";
 
 
@@ -47,6 +47,29 @@ test("pilot flags fail closed without exact server employer allowlist", () => {
   assert.equal(hcmOrgExplorerPositiveId("007"), null);
   assert.equal(hcmOrgExplorerPositiveId("7"), 7);
   assert.equal(hcmOrgExplorerPositiveId("7.0"), null);
+});
+
+test("both read handlers reject duplicate, ambiguous and noncanonical employer/position selectors", () => {
+  const one = (key: "organizationId" | "positionId", value: string) =>
+    new URLSearchParams([[key, value]]);
+  for (const key of ["organizationId", "positionId"] as const) {
+    assert.equal(hcmOrgExplorerSingleQueryId(one(key, "8"), key), 8);
+    for (const invalid of ["", "0", "08", "8.0", "8e0", "-8", "abc", "9007199254740992"]) {
+      assert.equal(hcmOrgExplorerSingleQueryId(one(key, invalid), key), null, invalid);
+    }
+    assert.equal(hcmOrgExplorerSingleQueryId(new URLSearchParams(), key), null);
+    for (const values of [["8", "8"], ["8", "10"], ["10", "8"]]) {
+      const params = new URLSearchParams(values.map(value => [key, value]));
+      assert.equal(hcmOrgExplorerSingleQueryId(params, key), null,
+        "No first-value winner for duplicated " + key);
+    }
+  }
+  for (const source of [graphApi, historyApi]) {
+    assert.match(source, /hcmOrgExplorerSingleQueryId\(params, "organizationId"\)/);
+    assert.doesNotMatch(source, /params\.get\("organizationId"\)/);
+  }
+  assert.match(historyApi, /hcmOrgExplorerSingleQueryId\(params, "positionId"\)/);
+  assert.doesNotMatch(historyApi, /params\.get\("positionId"\)/);
 });
 
 test("server flag and organization allowlist authorize before any read", () => {
