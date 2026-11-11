@@ -1,4 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
+import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import { verifyCheckoutCredit, CHECKOUT_PATH } from '../scripts/qa/tenant-billing-checkout-credit.mjs';
@@ -832,6 +833,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(expectedStatuses[FILING_PATH].PATCH, "GAP");
   expectedStatuses[FILING_PATH].PATCH = "COVERED";
   const approvalCredits=verifyApprovalsCredit(m);assert.equal(expectedStatuses[APPROVALS_PATH].PATCH,'GAP');expectedStatuses[APPROVALS_PATH].PATCH='COVERED';
+  const studioCredits=verifyStudioPostCredit(m);assert.equal(expectedStatuses[STUDIO_POST_PATH].POST,'GAP');expectedStatuses[STUDIO_POST_PATH].POST='COVERED';
   const readinessGetCredits=verifyWorkspaceReadinessCredit(m);assert.equal(expectedStatuses[READINESS_GET_PATH].GET,'GAP');expectedStatuses[READINESS_GET_PATH].GET='COVERED';
   const checkoutCredits = verifyCheckoutCredit(m);
   assert.equal(expectedStatuses[CHECKOUT_PATH].POST, 'GAP');
@@ -843,8 +845,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - birCandidateCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
   };
-  expectedCounts.COVERED += approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
-  expectedCounts.GAP -= approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
+  expectedCounts.COVERED += studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
+  expectedCounts.GAP -= studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   expectedCounts.GAP -= ownerTokenClassifications.length;
@@ -862,10 +864,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const frozenCovered = 367 + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
+  const frozenCovered = 367 + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
-  const frozenGaps = 21 - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits
+  const frozenGaps = 21 - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits
     - architecturePublic.length - 1;
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
@@ -1258,6 +1260,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     if (baselineCheckoutCredits) expectedOriginalMain[CHECKOUT_PATH].POST = 'COVERED';
     const baselineReadinessCredits=baseline.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='COVERED'?verifyWorkspaceReadinessCredit(baseline):0;if(baselineReadinessCredits)expectedOriginalMain[READINESS_GET_PATH].GET='COVERED';
     const baselineApprovalCredits=baseline.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='COVERED'?verifyApprovalsCredit(baseline):0;if(baselineApprovalCredits)expectedOriginalMain[APPROVALS_PATH].PATCH='COVERED';
+    const baselineStudioCredits=baseline.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='COVERED'?verifyStudioPostCredit(baseline):0;if(baselineStudioCredits)expectedOriginalMain[STUDIO_POST_PATH].POST='COVERED';
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1268,13 +1271,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
+      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications,
-      GAP: snapshot.counts.GAP - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,

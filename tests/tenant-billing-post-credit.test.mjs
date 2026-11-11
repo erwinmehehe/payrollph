@@ -1,4 +1,5 @@
 import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
+import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -74,10 +75,11 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const old = base.manifest.allApiRouteFiles[BILLING_POST_PATH].methods.find(x => x.name === 'POST');
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
+    const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
-    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta, 'Only separately sealed method credits may change totals');
+    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta+studioDelta, 'Only separately sealed method credits may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
-    assert.equal(before.gap-counts.gap,delta+readyDelta+approvalsDelta+relabels.gapRelabels,'Only sealed credits and nine source-pinned zero-credit classifications may retire GAPs');
+    assert.equal(before.gap-counts.gap,delta+readyDelta+approvalsDelta+studioDelta+relabels.gapRelabels,'Only sealed credits and nine source-pinned zero-credit classifications may retire GAPs');
     assert.equal(counts.publicByDesign-before.publicByDesign,relabels.publicByDesign);
     assert.equal(counts.privilegedOperationsTokenOnly-before.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);
   }
@@ -90,6 +92,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["POST", "automation-studio"],
     ["GET", "readiness/workspace"],
   ]) {
+    if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}
     if(route==='approvals/[id]'){assert.equal(verifyApprovalsCredit(m),1);continue;}
     const row = m.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods
