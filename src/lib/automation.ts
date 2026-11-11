@@ -26,6 +26,7 @@ import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
 import { loadWorkerAttributeContext } from "@/lib/worker-attribute-context";
 import { resolveWorkerDynamicGroups } from "@/lib/dynamic-worker-groups";
 import { persistAutomationRetryResult, withAutomationRetryTransaction } from "@/lib/automation-execution-recovery";
+import { tenantLinkedEmployeeAccounts, noOtherActiveEmployerMembership } from "@/lib/automation-employee-account-boundary";
 import {
   operationalReviewPolicyBlocks,
   operationalReviewTriggerAllowed,
@@ -1457,11 +1458,20 @@ async function executeAction(input: {
       throw new Error("Session revocation automation is allowed only for employee separation.");
     }
     const employeeId = requiredEmployeeId(input.employeeId, "Revoke sessions");
-    const linkedUsers = await db.select({ id: users.id }).from(users).where(eq(users.employeeId, employeeId));
+    const linkedUsers = await tenantLinkedEmployeeAccounts(input.organizationId, employeeId);
+    // A session belongs to the account, not a single workspace. Never log an
+    // account out of another active employer as a side effect of separation.
+    if (linkedUsers.some((account) => account.sharedWithOtherEmployer)) {
+      throw new Error("A linked login also belongs to another active employer. Review shared sessions manually.");
+    }
     let revoked = 0;
     for (const linkedUser of linkedUsers) {
       const rows = await db.update(sessions).set({ revokedAt: new Date() })
-        .where(and(eq(sessions.userId, linkedUser.id), isNull(sessions.revokedAt)))
+        .where(and(
+          eq(sessions.userId, linkedUser.id),
+          isNull(sessions.revokedAt),
+          noOtherActiveEmployerMembership(linkedUser.id, input.organizationId),
+        ))
         .returning({ id: sessions.id });
       revoked += rows.length;
     }
@@ -1473,11 +1483,13 @@ async function executeAction(input: {
       throw new Error("Workspace-access removal is allowed only for employee separation.");
     }
     const employeeId = requiredEmployeeId(input.employeeId, "Remove workspace access");
-    const linkedUsers = await db.select({ id: users.id }).from(users).where(eq(users.employeeId, employeeId));
+    const linkedUsers = await tenantLinkedEmployeeAccounts(input.organizationId, employeeId);
     let membershipsDeactivated = 0;
     let scimDeactivated = 0;
     let sessionsRevoked = 0;
+    let sharedLoginSessionsPreserved = 0;
     for (const linkedUser of linkedUsers) {
+      // Disable only this employer's membership and SCIM identity.
       const memberships = await db.update(userOrganizations).set({ active: false }).where(and(
         eq(userOrganizations.userId, linkedUser.id),
         eq(userOrganizations.organizationId, input.organizationId),
@@ -1492,12 +1504,23 @@ async function executeAction(input: {
       )).returning({ id: scimIdentities.id });
       scimDeactivated += scim.length;
 
+      // There is no per-employer session cookie. Preserve a shared account's
+      // global session so its other active workspace remains accessible.
+      if (linkedUser.sharedWithOtherEmployer) {
+        sharedLoginSessionsPreserved += 1;
+        continue;
+      }
       const revoked = await db.update(sessions).set({ revokedAt: new Date() })
-        .where(and(eq(sessions.userId, linkedUser.id), isNull(sessions.revokedAt)))
+        .where(and(
+          eq(sessions.userId, linkedUser.id),
+          isNull(sessions.revokedAt),
+          noOtherActiveEmployerMembership(linkedUser.id, input.organizationId),
+        ))
         .returning({ id: sessions.id });
       sessionsRevoked += revoked.length;
     }
-    return { type: action.type, membershipsDeactivated, scimDeactivated, sessionsRevoked };
+    return { type: action.type, membershipsDeactivated, scimDeactivated,
+      sessionsRevoked, sharedLoginSessionsPreserved };
   }
 
   if (action.type === "request_payroll_adjustment") {
