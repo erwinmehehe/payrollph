@@ -191,6 +191,10 @@ function renderedText(html) {
     }
     if (hidden.length === 0) parts.push(html.slice(cursor, nextTag));
     const tag = readHtmlToken(html, nextTag);
+    // Preserve the prior proof's element-boundary whitespace: two separate
+    // nodes must not be concatenated into a forged employer/worker identifier.
+    // React's <!-- --> text separators have no tag name and remain joined.
+    if (hidden.length === 0 && tag.name) parts.push(" ");
     cursor = tag.end;
     if (tag.closing) {
       if (hidden.at(-1) === tag.name) hidden.pop();
