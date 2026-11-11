@@ -3800,8 +3800,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const route = "src/app/api/discipline/route.ts";
     const original = "e61337e2419bb63eedecb09ce9021a60b855dd0d";
     const changed = "25e95e79c0f30b4d9829d0ebfdfcc2c6469c06fc";
-    assert.equal(baseline.api[route], original,
-      "Original organization-scoped discipline source cannot be redefined");
+    assert.equal(baseline.api[route], "9d5250e34a86116b5afae61b3f254256dce78a73",
+      "Original audited inventory baseline cannot be redefined");
+    assert.notEqual(original, baseline.api[route],
+      "The immediately prior reviewed main source is not the older audit baseline");
     assert.equal(currentBlob, changed, "Changed legal-employer source needs renewed proof");
     assert.equal(manifest.allApiRouteFiles[route].gitBlobSha, changed);
     assert.equal(method.status, "COVERED", "Only historical organization scope remains provisional");
