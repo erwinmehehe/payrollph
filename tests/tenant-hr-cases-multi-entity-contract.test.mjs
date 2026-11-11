@@ -44,6 +44,19 @@ test("exact-source legal employer, API, feature flag, DB fixture pins cannot dri
   assert.equal(verifyPins(),true);
   assert.notEqual(blob("legitimate"),blob("legitimate altered"));
 });
+test("temporary CI compile path changes one activation guard and restores it exactly",async()=>{
+  const {syntheticActivation,restoredActivation,ACTIVATION_PATH} =
+    await import("../scripts/qa/tenant-hr-cases-multi-entity-build-activation.mjs");
+  const original=readFileSync(ACTIVATION_PATH,"utf8");
+  assert.equal(blob(original),PINS[ACTIVATION_PATH]);
+  assert.match(original,/!criticalReleaseFlagEnabled\("multiEntity", env\)/);
+  const synthetic=syntheticActivation(original);
+  assert.notEqual(synthetic,original);
+  assert.match(synthetic,/ephemeral fictional PG16 HTTP build only/);
+  assert.equal(restoredActivation(synthetic),original);
+  assert.throws(()=>syntheticActivation(original+"// drift"),/HR_ENTITY_REFUSED/);
+  assert.throws(()=>restoredActivation(synthetic+"// drift"),/HR_ENTITY_REFUSED/);
+});
 test("negative controls fail when foreign case, private marker or session leaks",()=>{
   const denied={status:404,text:'{"error":"Case not found."}',
     headers:new Headers({"cache-control":"private, no-store"})};

@@ -86,6 +86,7 @@ jobs:
         run: |
           node --check scripts/qa/tenant-hr-cases-multi-entity-contract.mjs
           node --check scripts/qa/tenant-hr-cases-multi-entity-http.mjs
+          node --check scripts/qa/tenant-hr-cases-multi-entity-build-activation.mjs
           node --test tests/tenant-hr-cases-multi-entity-contract.test.mjs
       - name: Generate synthetic ephemeral encryption keys
         shell: bash
@@ -100,8 +101,21 @@ jobs:
         run: npm run db:push
       - name: Apply reviewed isolated database baseline after schema push
         run: node scripts/qa/apply-isolated-baseline.mjs
-      - name: Build production-mode localhost Next
-        run: npm run build
+      - name: Build isolated CI-only multi-entity HR path and restore deferred release guard
+        shell: bash
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          trap 'node scripts/qa/tenant-hr-cases-multi-entity-build-activation.mjs restore' EXIT
+          node scripts/qa/tenant-hr-cases-multi-entity-build-activation.mjs apply
+          npm run build
+      - name: Verify production HR case release guard remains byte-identical
+        env:
+          NODE_ENV: production
+        run: |
+          node scripts/qa/tenant-hr-cases-multi-entity-build-activation.mjs verify
+          git diff --exit-code -- src/lib/hr-case-activation.ts
       - name: Start localhost Next without external connections
         shell: bash
         run: |
