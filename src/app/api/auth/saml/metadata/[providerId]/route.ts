@@ -19,8 +19,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   }).from(identityProviders).where(and(
     eq(identityProviders.id, providerId),
     eq(identityProviders.protocol, "saml"),
+    eq(identityProviders.enabled, true),
   )).limit(1);
-  if (!provider) return Response.json({ error: "SAML provider not found." }, { status: 404 });
+  if (!provider) return Response.json(
+    { error: "SAML provider not found." },
+    { status: 404, headers: { "Cache-Control": "no-store" } },
+  );
 
   const origin = canonicalAppOrigin(request);
   const entityId = `${origin}/api/auth/saml/metadata/${provider.id}`;
@@ -31,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     status: 200,
     headers: {
       "Content-Type": "application/samlmetadata+xml; charset=utf-8",
-      "Cache-Control": "private, max-age=300",
+      "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });

@@ -1,3 +1,4 @@
+import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -30,7 +31,10 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   const base=baseTenantManifest();
   if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta+approvalDelta+studioDelta);
-    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+studioDelta);}
+    const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
+    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+studioDelta+relabels.gapRelabels);
+    assert.equal(m.metrics.publicByDesign-base.manifest.metrics.publicByDesign,relabels.publicByDesign);
+    assert.equal(m.metrics.privilegedOperationsTokenOnly-base.manifest.metrics.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);}
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
   assert.deepEqual(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy,
     expectedWorkspaceReadinessTestedBy());
