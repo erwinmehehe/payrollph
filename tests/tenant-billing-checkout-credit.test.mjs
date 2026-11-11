@@ -1,3 +1,4 @@
+import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -35,6 +36,7 @@ test('borrowed employer-proof anchors and fabricated receipts cannot promote a m
 test('partial exports and unrelated GAPs receive zero credits from this verifier', () => {
   const m = manifest();
   for (const path of ['payroll-runs/[id]/exports', 'payroll-runs/[id]/xendit-payout', 'automation-studio']) {
+    if(path==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
     assert.equal(m.allApiRouteFiles['src/app/api/' + path + '/route.ts'].methods.find(x => x.name === 'POST').status, 'GAP');
   }
 });

@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'src/lib/automation.ts'
+      - 'src/lib/automation-recovery-scope.ts'
       - '.github/workflows/tenant-studio-resolution-qa.yml'
       - 'scripts/qa/tenant-studio-resolution-*.mjs'
       - 'tests/tenant-studio-resolution-contract.test.mjs'

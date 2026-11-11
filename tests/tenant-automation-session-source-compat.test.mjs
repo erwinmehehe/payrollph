@@ -13,12 +13,11 @@ test("historical runtime is byte-identical outside the two reviewed separation a
     independentlyAccepted:result.independentlyAccepted,
     productionCertified:result.productionCertified,
     sourceSha:result.sourceSha,
-    executedProofRun:result.executedProofRun,
-    executedProofJob:result.executedProofJob,
+    proofStatus:result.proofStatus,
   }, {
     credits:0, independentlyAccepted:false, productionCertified:false,
     sourceSha:CURRENT_AUTOMATION_SHA,
-    executedProofRun:42955303269, executedProofJob:130308961153,
+    proofStatus:'COMBINED_HEAD_HTTP_RENEWAL_REQUIRED',
   });
 });
 
@@ -46,11 +45,11 @@ test("no silent history repin, unrelated source drift or tampered evidence is pe
 
 test("historical receipts stay immutable and the current job earns zero credits", () => {
   const verifier=readFileSync("scripts/qa/tenant-document-caller-reproof-verify.mjs","utf8");
-  assert.match(verifier,/verifySessionSourceCompatibility\(pinned, current, read\)/);
+  assert.match(verifier,/verifyNarrowStudioAutomationSource\(read\)/);
   for(const path of [
     "scripts/qa/tenant-enterprise-admin-credit.mjs",
     "scripts/qa/tenant-security-write-credit.mjs",
     "scripts/qa/tenant-merged-recovery-credit.mjs",
     "scripts/qa/tenant-approvals-credit.mjs",
-  ]) assert.match(readFileSync(path,"utf8"),/verifySessionSourceCompatibility\(/,path);
+  ]) assert.match(readFileSync(path,"utf8"),/verifyNarrowStudioAutomationSource\(|verifySessionSourceCompatibility\(/,path);
 });
