@@ -4714,6 +4714,10 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
+        assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
+        continue;
+      }
       if (path === CHECKOUT_PATH && method.name === "POST") {
         assert.equal(verifyCheckoutCredit(manifest), 1);
         continue;

@@ -1,3 +1,5 @@
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 457 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+
 > **CURRENT Worker 360 source recovery — SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = **457 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 6 GAP**; **5 of 21 scoped pages COVERED / 16 GAP**. Worker 360 GET and SSR shell each have exact-source fictional PG16 real-HTTP evidence [run 43219788230](https://github.com/erwinmehehe/payrollph/actions/runs/43219788230/job/131188072874). Independent HR/privacy/security review and production activation remain PENDING.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.

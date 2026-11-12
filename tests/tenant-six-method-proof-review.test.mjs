@@ -28,7 +28,7 @@ import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-cre
 import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
-import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -907,7 +907,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "The original frozen batch population must not change");
   assert.equal(frozenGaps, m.metrics.gap, "The classification may not hide other remaining method GAPs");
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-11 classification proposal, renewed Worker 360 proof): **" + frozenCovered + " COVERED + "
+    "Frozen subtotal (2026-11-11 classification proposal): **" + frozenCovered + " COVERED + "
     + frozenPublic + " PUBLIC-BY-DESIGN + " + frozenPrivileged
     + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + frozenGaps + " GAP = 406**"),
     "Current frozen subtotal must preserve prior credits while tracking only nine relabels");
@@ -1329,6 +1329,21 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok([0, architecturePublic.length].includes(baselineArchPublic) && baselineArchPublic === architecturePublic.length * baselineArchToken,
       "The nine architecture classifications are present on origin/main entirely or not at all");
     const baselineArch = baselineArchPublic + baselineArchToken;
+    // The PR's new Worker 360 credit cannot retroactively credit main's
+    // independently source-sealed #1933 withdrawal. Verify main's own files.
+    const mainWorkerPath='src/app/api/hcm/worker-360/route.ts';
+    const mainWorkerFile=baseline.allApiRouteFiles[mainWorkerPath];
+    const mainWorkerGet=mainWorkerFile.methods.find(x=>x.name==='GET');
+    const mainWorkerDemotion=mainWorkerGet.status==='GAP'?1:0;
+    if(mainWorkerDemotion){
+      assert.equal(verifyWorker360PageCredit(baseline,p=>execFileSync('git',['show','origin/main:'+p],{maxBuffer:16*1024*1024})),17);
+      assert.equal(mainWorkerFile.gitBlobSha,'19875021d750b722fc69e0fe939e57928a158af9');
+      assert.equal(mainWorkerGet.testedBy,null);
+      assert.equal(mainWorkerGet.reviewedUncertified?.kind,'worker360-legal-employer-source-supersession-zero-credit');
+      assert.equal(mainWorkerGet.reviewedUncertified?.oldSourceBlobSha,'78874e3800c9648b2e9e8895a4c0f1b2db9e2e62');
+      assert.equal(mainWorkerGet.reviewedUncertified?.coverageCredits,0);
+      expectedOriginalMain[mainWorkerPath].GET='GAP';
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1339,13 +1354,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
+      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
-      GAP: snapshot.counts.GAP - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP + mainWorkerDemotion - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,

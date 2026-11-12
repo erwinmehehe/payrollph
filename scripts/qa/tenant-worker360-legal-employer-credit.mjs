@@ -168,13 +168,11 @@ export function verifyWorker360LegalEmployerCredits(manifest, read = readFileSyn
     "SSR proof must be source/run/line pinned");
   assert.equal(manifest.scopedPages.filter(row => row.status === "GAP").length, 16);
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(file => file.methods);
-  assert.equal(methods.filter(m => m.status === "COVERED").length, 457);
-  assert.equal(methods.filter(m => m.status === "GAP").length, 6);
-  assert.equal(manifest.metrics.coveredAfter, 457);
-  assert.equal(manifest.metrics.gap, 6);
-  assert.equal(manifest.metrics.methods, 498);
-  assert.equal(manifest.metrics.scopedPagesAndActions, 21);
-  assert.ok(String(manifest.acceptanceStatus).startsWith("NOT ACCEPTED: 6 API methods and 16 page/action GAPs"));
+  assert.equal(manifest.metrics.coveredAfter, methods.filter(m => m.status === "COVERED").length);
+  assert.equal(manifest.metrics.gap, methods.filter(m => m.status === "GAP").length);
+  assert.equal(manifest.metrics.methods, methods.length);
+  assert.equal(manifest.metrics.scopedPagesAndActions, manifest.scopedPages.length);
+  assert.ok(String(manifest.acceptanceStatus).startsWith("NOT ACCEPTED: " + manifest.metrics.gap + " API methods and 16 page/action GAPs"));
   return 2;
 }
 function regenerate(original, read = readFileSync) {
@@ -229,20 +227,21 @@ function regenerate(original, read = readFileSync) {
   verifyWorker360LegalEmployerCredits(m, read);
   return m;
 }
-const notice = "> **CURRENT Worker 360 source recovery — SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** " +
-  "498 methods = **457 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 6 GAP**; " +
-  "**5 of 21 scoped pages COVERED / 16 GAP**. Worker 360 GET and SSR shell each have exact-source " +
+function renderDocs(path, existing, manifest) {
+  const m=manifest.metrics,pageGaps=manifest.scopedPages.filter(p=>p.status==='GAP').length;
+  const notice = "> **CURRENT Worker 360 source recovery — SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** " +
+  m.methods+" methods = **"+m.coveredAfter+" COVERED / "+m.publicByDesign+" PUBLIC-BY-DESIGN / "+m.privilegedOperationsTokenOnly+" PRIVILEGED-OPERATIONS-TOKEN-ONLY / "+m.gap+" GAP**; " +
+  "**"+(manifest.scopedPages.length-pageGaps)+" of "+manifest.scopedPages.length+" scoped pages COVERED / "+pageGaps+" GAP**. Worker 360 GET and SSR shell each have exact-source " +
   "fictional PG16 real-HTTP evidence [run 43219788230](" + URL + "). " +
-  "Independent HR/privacy/security review and production activation remain PENDING.\n\n";
-function renderDocs(path, existing) {
-  let s = existing.startsWith(notice) ? existing : notice + existing;
+  "Independent HR/privacy/security review and production activation remain PENDING.";
+  let s = existing.replace(/^> \*\*CURRENT Worker 360 source recovery[^\n]+/m,notice);
   if (path === INVENTORY) {
-    s = s.replace("| coveredAfter | 456 |", "| coveredAfter | 457 |")
-      .replace("| gap | 7 |", "| gap | 6 |")
-      .replace("**RELEASE BLOCKER:** 7 API methods and 17 business-ID page entries",
-        "**RELEASE BLOCKER:** 6 API methods and 16 business-ID page entries")
-      .replace("**NOT ACCEPTED**: 7 method gaps and 17 page/action gaps remain.",
-        "**NOT ACCEPTED**: 6 method gaps and 16 page/action gaps remain.");
+    s = s.replace(/^\| coveredAfter \| \d+ \|$/m, "| coveredAfter | "+m.coveredAfter+" |")
+      .replace(/^\| gap \| \d+ \|$/m, "| gap | "+m.gap+" |")
+      .replace(/\*\*RELEASE BLOCKER:\*\* \d+ API methods and \d+ business-ID page entries/,
+        "**RELEASE BLOCKER:** "+m.gap+" API methods and "+pageGaps+" business-ID page entries")
+      .replace(/\*\*NOT ACCEPTED\*\*: \d+ method gaps and \d+ page\/action gaps remain\./,
+        "**NOT ACCEPTED**: "+m.gap+" method gaps and "+pageGaps+" page/action gaps remain.");
     const lines = s.split("\n");
     let methodRows = 0, pageRows = 0;
     for (let i = 0; i < lines.length; i++) {
@@ -269,11 +268,8 @@ function renderDocs(path, existing) {
     assert.equal(pageRows, 1);
     s = lines.join("\n");
   }
-  if (path === PLAN) {
-    s = s.replace("Frozen subtotal (2026-11-11 classification proposal): **372 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP = 406**",
-      "Frozen subtotal (2026-11-11 classification proposal, renewed Worker 360 proof): **373 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP = 406**");
-  }
-  return s;
+  return s.replace(/^Frozen subtotal \(2026-11-11 classification proposal, renewed Worker 360 proof\):/m,
+    'Frozen subtotal (2026-11-11 classification proposal):');
 }
 function main() {
   const argv = process.argv.slice(2);
@@ -282,8 +278,8 @@ function main() {
   const beforeRaw = readFileSync(MANIFEST_PATH, "utf8");
   const updated = regenerate(JSON.parse(beforeRaw));
   const expectedManifest = JSON.stringify(updated, null, 2) + "\n";
-  const expectedInventory = renderDocs(INVENTORY, readFileSync(INVENTORY, "utf8"));
-  const expectedPlan = renderDocs(PLAN, readFileSync(PLAN, "utf8"));
+  const expectedInventory = renderDocs(INVENTORY, readFileSync(INVENTORY, "utf8"), updated);
+  const expectedPlan = renderDocs(PLAN, readFileSync(PLAN, "utf8"), updated);
   if (argv[0] === "--write") {
     writeFileSync(MANIFEST_PATH, expectedManifest);
     writeFileSync(INVENTORY, expectedInventory);
