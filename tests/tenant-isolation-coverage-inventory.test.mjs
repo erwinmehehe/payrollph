@@ -42,6 +42,7 @@ import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-pol
  * This test supplements (never replaces) the existing second-pass inventory and
  * the isolated PostgreSQL live HTTP security smoke.
  */
+import { readPendingSignupSourceRevalidation } from "./helpers/tenant-architectural-classification-delta.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
@@ -1500,6 +1501,57 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(gitBlobSha(Buffer.from(source.replace(hardened, former))), originalBlob,
       "PayMongo PR may change ONLY the reviewed run-lookup ordering and response");
     return;
+  }
+
+  // #1939: exact-source synthetic evidence for registration recovery + response parity.
+  // The prior limiter-only review remains pinned to its *original* blob below.
+  // This additional branch accepts only the fully identified test/proof sources
+  // and explicitly does NOT grant current-source owner approval or method credit.
+  if (isNewOrChanged && method.status === "PUBLIC-BY-DESIGN" &&
+      key === "src/app/api/signup/route.ts POST" &&
+      currentBlob === "46fe376db0951fb9851aa52d22f0e8dcc8c9750b") {
+    const pending = readPendingSignupSourceRevalidation(assert);
+    const routePin = pending.proposedRuntimeSourcePins.find(row =>
+      row.path === "src/app/api/signup/route.ts");
+    assert.equal(routePin.old, "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc");
+    assert.equal(routePin.now, currentBlob);
+    assert.equal(method.reviewedUncertified?.kind, "signup-antiabuse-hardening-only-no-tenant-credit");
+    assert.equal(method.reviewedUncertified?.routeBlobSha, routePin.old);
+    assert.equal(method.reviewedUncertified?.goLiveApproval, false);
+    assert.equal(method.reviewedUncertified?.fullMethodCoverageCredits, 0);
+    assert.equal(method.testedBy, null);
+    assert.match(method.reason, /public pre-login entrypoint/i);
+    const evidence = method.classificationEvidence;
+    assert.equal(evidence?.sourceBlobSha, currentBlob);
+    assert.equal(evidence?.proofBlobSha, pending.preloginProof.blobSha);
+    assert.equal(evidence?.workflowBlobSha, pending.preloginProof.workflowBlobSha);
+    assert.equal(evidence?.proofRun, pending.preloginProof.passedJob);
+    assert.equal(evidence?.proofHead, pending.preloginProof.passedHead);
+    assert.equal(evidence?.methodCoverageCredits, 0);
+    assert.equal(evidence?.independentSecurityReview, "PENDING");
+    assert.equal(evidence?.productionCertified, false);
+    assert.deepEqual(evidence?.ownerApprovalRecord,
+      { file: pending.originalClassificationApproval.file,
+        blobSha: pending.originalClassificationApproval.blobSha });
+    for (const [path, expected] of [
+      ["src/lib/signup-pending-recovery.ts", "3aa5a6b1631d9ffbe181a88448d4e706abdd76bc"],
+      ["scripts/qa/tenant-signup-findings-http.mjs", "67d4fc26230644f02be133296c5b0730a74c67d8"],
+      [".github/workflows/tenant-signup-findings-http.yml", "1f0a24741dba522b3d5e0a053898cd9788c90667"],
+      ["tests/signup-pending-recovery.test.ts", "19b6d3f37c4e8e6d48cf612cf599abaad915f778"],
+      ["tests/signup-rate-limit-fallback.test.ts", "5f5b85afb8ce331e8442a495d3ddd96d37553ec6"],
+      ["tests/private-pilot-invite.test.ts", "9fd528ed9e06402c9844c5f9c8ff7b505463ae7a"],
+    ]) assert.equal(gitBlobSha(readFileSync(path)), expected,
+      "Changed signup proof/test requires renewed review: " + path);
+    const signup = readFileSync("src/app/api/signup/route.ts", "utf8");
+    assert.equal((signup.match(/signupRateLimitResponse\(/g) ?? []).length, 3);
+    assert.equal((signup.match(/rateLimitDistributed\(/g) ?? []).length, 3);
+    assert.match(signup, /signupAcceptedResponse/);
+    assert.match(signup, /pg_advisory_xact_lock/);
+    const sharedLimiter = readFileSync("src/lib/saas-launch-config.ts", "utf8");
+    assert.equal(gitBlobSha(Buffer.from(sharedLimiter)),
+      method.reviewedUncertified.launchConfigBlobSha);
+    assert.match(sharedLimiter, /rate\.mode !== "distributed-postgres"/);
+    return; // Exact synthetic source/proof; owner approval of changed bytes PENDING.
   }
 
   // Signup is a public tenant-CREATION method, not an authenticated
