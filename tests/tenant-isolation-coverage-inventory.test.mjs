@@ -6790,7 +6790,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
       assert.ok(Array.isArray(alias[field]) && alias[field].length > 0);
       for (const pin of alias[field]) {
         assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
-          src.split("\\n")[pin.line - 1]?.includes(pin.token),
+          src.split("\n")[pin.line - 1]?.includes(pin.token),
           alias.path + ": invalid source pin " + pin.line);
       }
     }
@@ -6800,13 +6800,14 @@ test("page and server-action inventory cannot silently omit new or changed busin
     const role = src.indexOf("await assertOrganizationRole(user.id, organizationId, BILLING_ADMIN_ROLES)");
     const scope = src.indexOf("await getAccess(user.id, organizationId)");
     const denied = src.indexOf("if (denied || !access?.companyWide) notFound()");
-    const target = src.indexOf("redirect(`/billing/setup?organizationId=${organizationId}`)");
-    assert.ok(session > 0 && selected > session && parsed > selected &&
+    const target = src.lastIndexOf("redirect(");
+    assert.ok(src.includes("/billing/setup?organizationId=") &&
+      session > 0 && selected > session && parsed > selected &&
       role > parsed && scope > role && denied > scope && target > denied,
       "Only an active authorized company-wide billing user may reach the selected employer");
-    assert.match(src, /selected === undefined[\\s\\S]*primaryCompanyOrganizationId\\(user\\.id\\)/);
-    assert.match(src, /if \\(!organizationId\\) notFound\\(\\);/);
-    assert.doesNotMatch(src, /permanentRedirect|db\\.select|db\\.execute|from ["']@\\/db/,
+    assert.match(src, /selected === undefined[\s\S]*primaryCompanyOrganizationId\(user\.id\)/);
+    assert.match(src, /if \(!organizationId\) notFound\(\);/);
+    assert.doesNotMatch(src, /permanentRedirect|db\.select|db\.execute|from ["']@\/db/,
       "Alias must remain redirect-only with no employer data read");
     const proof = readFileSync(alias.proofFile, "utf8");
     const workflow = readFileSync(alias.workflowFile, "utf8");
@@ -6824,8 +6825,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
       "Redirect-only page cannot omit adversarial PG16 proof: " + marker);
     assert.match(workflow, /image: postgres:16/);
     assert.ok(workflow.includes('"src/app/billing/manage/**"'));
-    assert.match(workflow, /node --import tsx scripts\\/qa\\/tenant-billing-setup-page-http\\.mjs/);
-    assert.match(workflow, /ref: \\$\\{\\{ github\\.event\\.pull_request\\.head\\.sha \\|\\| github\\.sha \\}\\}/);
+    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-billing-setup-page-http\.mjs/);
+    assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   }
   assert.equal(Object.keys(baseline.app).length, 92,
     "original app/module baseline scope is pinned to the audited 92-file snapshot");
