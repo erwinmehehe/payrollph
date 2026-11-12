@@ -3798,7 +3798,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       unitTestFile: "tests/tenant-sso-discovery.test.ts",
       unitTestBlobSha: "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
       workflowFile: ".github/workflows/tenant-sso-discovery-http.yml",
-      workflowBlobSha: "4f6a87415432204f818c520d7a24a447745d5748",
+      workflowBlobSha: "d917ba748c8deba27bdeaff766504d92a986c1a0",
       coverageCredits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     }, "SSO review remains zero-credit and exact-source-pinned");
@@ -3839,7 +3839,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const workflow = readFileSync(reviewed.workflowFile, "utf8");
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-sso-discovery-http\.mjs/);
-    assert.match(workflow, /OIDC_SSO_RUNTIME_ENABLED: 'true'/);
+    assert.match(workflow, /OIDC_SSO_RUNTIME_MODE: 'enabled'/);
     const hold = route.indexOf("if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();");
     assert.ok(hold > 0 && hold < route.indexOf("enforceSameOriginMutation(request)"),
       "SSO pilot hold must preempt request parsing, rate-limiting, and provider SQL");
@@ -3887,7 +3887,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
       negativeTestBlobSha: "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
       workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
-      workflowBlobSha: "900f21651b27d22ad1e8cb23886da2b7cd20dcf5",
+      workflowBlobSha: "b2564a3b00232505e2fedeec342b2988277ee9ac",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
@@ -3923,7 +3923,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.match(workflow,
       /for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-oidc-browser-state-http\.mjs/);
-    assert.match(workflow, /OIDC_SSO_RUNTIME_ENABLED: 'true'/);
+    assert.match(workflow, /OIDC_SSO_RUNTIME_MODE: 'enabled'/);
     const urls = [start, callback];
     for (const text of urls) {
       const held = text.indexOf("if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();");
