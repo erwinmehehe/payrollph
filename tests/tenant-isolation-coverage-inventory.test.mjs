@@ -9,7 +9,7 @@ import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../sc
 import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits, RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { YEAR_END_SOURCE_PINS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
@@ -3007,18 +3007,26 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     // Old #1730 proof is source-revoked by #1744. A distinct #1804 fictional
     // PG16 real-HTTP run now proves both current-source year-end methods.
     assert.equal(currentBlob, YEAR_END_SOURCE_PINS["src/app/api/year-end/route.ts"]);
-    assert.equal(method.status, "COVERED");
-    assert.equal(method.testedBy?.proofPullRequest, 1804);
-    assert.equal(method.testedBy?.workflowRunId, 42254117862);
-    assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
-    assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
-    assert.equal(method.testedBy?.productionCertified, false);
-    assert.equal(method.reviewedUncertified, undefined);
-    assert.equal(verifyYearEndCredits(manifest), 2);
+    const yearEndHeld = isYearEndHeld(manifest);
+    if (yearEndHeld) {
+      // Credit withdrawn while the annualization source differs from the proven one; a fresh exact-head proof renews it.
+      assert.equal(method.status, "GAP");
+      assert.equal(method.testedBy, null);
+      assert.equal(verifyYearEndHold(manifest), 0);
+    } else {
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy?.proofPullRequest, 1804);
+      assert.equal(method.testedBy?.workflowRunId, 42254117862);
+      assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
+      assert.equal(method.testedBy?.productionCertified, false);
+      assert.equal(method.reviewedUncertified, undefined);
+      assert.equal(verifyYearEndCredits(manifest), 2);
+    }
     for (const [file, hash] of [
       ["tests/year-end-binding-transaction-contract.test.mjs",
         "9562442c4d9e7d820027630cead6d753c0fc3767"],
-      ["src/lib/year-end.ts", "7194658c42b9ef33c84acd84ab356c28c6303883"],
+      ...(yearEndHeld ? [] : [["src/lib/year-end.ts", "7194658c42b9ef33c84acd84ab356c28c6303883"]]),
       ["src/lib/payroll-engine.ts", "dc5719a2c34094b5449bf4ecacb198ab0d74a313"],
     ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
       "Financial binding dependency changed; require new PG16 proof");

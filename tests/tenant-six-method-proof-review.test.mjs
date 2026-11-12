@@ -9,7 +9,7 @@ import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admi
 import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits,RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { YEAR_END_RECEIPTS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
 /**
  * Non-credentialled, source-only guard on six merged proof candidates.
  * Keeps historical coverage + live metrics unchanged until the exact four-part
@@ -477,6 +477,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     if (pin.path === "src/app/api/year-end/route.ts") {
       const held = m.allApiRouteFiles[pin.path]?.methods.find(method => method.name === pin.verb);
       assert.equal(expectedStatuses[pin.path]?.[pin.verb], "GAP", label + " historical status");
+      if (isYearEndHeld(m)) {
+        // Withdrawn to the exact zero-credit hold (annualization source moved): no receipt, no credit.
+        assert.equal(held?.status, "GAP", label + " is held at zero credit");
+        assert.equal(held?.testedBy, null);
+        assert.equal(verifyYearEndHold(m), 0);
+        assert.equal(blobSha(pin.path), "f040f5bbbc3df275d32d23f1728b1b0345f77814");
+        continue;
+      }
       assert.equal(held?.status, "COVERED", label + " needs distinct current-source #1804 proof");
       assert.equal(held?.testedBy?.proofPullRequest, 1804);
       assert.equal(held?.testedBy?.workflowRunId, 42254117862);
@@ -750,12 +758,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(publicCatalog?.status, "PUBLIC-BY-DESIGN");
   assert.equal(publicCatalog?.testedBy, null);
   expectedStatuses[publicCatalogPath].GET = "PUBLIC-BY-DESIGN";
-  const yearEndCredits = verifyYearEndCredits(m);
-  assert.equal(yearEndCredits, 2, "Two distinct source-current #1804 methods");
+  const yearEndCredits = verifyYearEndPairState(m);
+  assert.equal(yearEndCredits, isYearEndHeld(m) ? 0 : 2, "Two distinct source-current #1804 methods, or held at zero credit");
   for (const spec of YEAR_END_RECEIPTS) {
     assert.equal(expectedStatuses[spec.path]?.[spec.method], "GAP",
       "Only a previously uncredited method may be promoted: " + spec.method);
-    expectedStatuses[spec.path][spec.method] = "COVERED";
+    if (yearEndCredits) expectedStatuses[spec.path][spec.method] = "COVERED";
   }
   const invitationAcceptCredits = verifyInvitationAcceptCredits(m);
   assert.equal(invitationAcceptCredits, 2);
@@ -876,10 +884,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const frozenCovered = 367 + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits;
+  const yearEndHeldMethods = 2 - yearEndCredits;
+  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
-  const frozenGaps = 21 - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
+  const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
     - architecturePublic.length - 1;
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
@@ -925,6 +934,15 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         assert.equal(method.testedBy?.workflowRunId, 41446394887);
         assert.equal(method.testedBy?.independentlyAccepted, false);
       }
+    } else if (baselineHasCurrentRoute && isYearEndHeld(m)) {
+      // This change withdraws the credit (annualization source moved): the merged baseline must be the exact #1804 receipt.
+      for (const method of mainYearEnd.methods) {
+        assert.equal(method.status, "COVERED");
+        assert.equal(method.testedBy?.proofPullRequest, 1804);
+        assert.equal(method.testedBy?.workflowRunId, 42254117862);
+        assert.equal(method.testedBy?.verifiedPrHeadSha, "d79db85b2a2ca0276810634dccaf904fd4469099");
+      }
+      assert.equal(verifyYearEndHold(m), 0);
     } else if (baselineHasCurrentRoute) {
       assert.equal(verifyYearEndCredits(baseline), 2,
         "Merged current-source year-end evidence must match exact source and PG16 job");
