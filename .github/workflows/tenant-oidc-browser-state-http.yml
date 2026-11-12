@@ -32,7 +32,7 @@ jobs:
       GITHUB_ACTIONS: "true"
       TZ: Asia/Manila
       NEXT_TELEMETRY_DISABLED: "1"
-      OIDC_SSO_RUNTIME_ENABLED: 'true'
+      OIDC_SSO_RUNTIME_MODE: 'enabled'
       TENANT_OIDC_BROWSER_PROOF: fictional-pg16-only
       BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
