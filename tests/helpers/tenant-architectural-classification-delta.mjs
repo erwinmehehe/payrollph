@@ -1,7 +1,7 @@
 /** Enumerate exactly nine zero-credit architecture relabels, without weakening credit checks. */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { isYearEndHeld, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
 
 const PUBLIC = [
   ["src/app/api/setup/route.ts", "GET"],
@@ -67,6 +67,15 @@ export function yearEndHoldDelta(beforeManifest, afterManifest) {
   if (!baseCredited || !isYearEndHeld(afterManifest)) return 0;
   verifyYearEndHold(afterManifest);
   return 2;
+}
+
+/**
+ * Year-end pair held in the base (#1944) and renewed by a fresh source-matched main proof in the live manifest.
+ * The renewal itself is verified fail-closed (exact receipt, pins, run and job); this grants nothing else.
+ */
+export function yearEndRenewalDelta(beforeManifest, afterManifest) {
+  if (!isYearEndHeld(beforeManifest) || isYearEndHeld(afterManifest)) return 0;
+  return verifyYearEndCredits(afterManifest);
 }
 
 /** Base may already contain these accepted classifications, so post-merge delta is zero. */
