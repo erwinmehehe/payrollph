@@ -25,6 +25,7 @@ import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verif
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -4072,24 +4073,15 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return true;
   }
 
-  // Worker 360's changed legal-employer authorization and history projection
-  // invalidate its organization-only GET receipt. Permit exactly this
-  // source-pinned, zero-credit GAP; never promote it from a denial-only proof.
+  // Worker 360's current legal-employer read has a dedicated exact-source
+  // fictional PG16 real-HTTP receipt. Historical org-only proof remains retired.
   if (isNewOrChanged && key === "src/app/api/hcm/worker-360/route.ts GET") {
     assert.equal(currentBlob, "19875021d750b722fc69e0fe939e57928a158af9");
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
-    assert.match(method.reason, /^LEGAL_EMPLOYER_SOURCE_CHANGE:/);
-    const hold = method.reviewedUncertified;
-    assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
-    assert.equal(hold?.oldSourceBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
-    assert.equal(hold?.newSourceBlobSha, currentBlob);
-    assert.equal(hold?.historicalProof?.file, "scripts/qa/tenant-table-http.mjs");
-    assert.equal(hold?.coverageCredits, 0);
-    assert.equal(hold?.exactHeadPg16Http, "PENDING");
-    assert.equal(hold?.independentSecurityReview, "PENDING");
-    assert.equal(hold?.productionCertified, false);
-    assert.equal(verifyWorker360PageCredit(manifest), 17);
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.reviewedUncertified, undefined);
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
+    assert.equal(verifyWorker360PageCredit(manifest), 16);
     return;
   }
   // This route changed the *within-company legal-employer* boundary, which
@@ -7765,25 +7757,16 @@ test("page and server-action inventory cannot silently omit new or changed busin
         }), true);
         continue;
       }
-      // Exact-source revised Worker 360 SSR has lost its historical page
-      // credit; the new legal-employer acceptance is still independent-review
-      // pending. Never require a false "COVERED" state to appease inventory.
+      // Revised Worker 360 SSR is credited only through its own real-HTTP
+      // legal-employer proof, not the historical parent-employer shell receipt.
       if (path === "src/app/hcm/worker-360/page.tsx") {
         assert.equal(current, "3b506b27e0af73ec370c448c6a0ad02a80c8f75c");
         assert.equal(entry.blob, current);
-        assert.equal(entry.status, "GAP");
-        assert.equal(entry.testedBy, undefined);
-        assert.match(entry.reason, /^LEGAL_EMPLOYER_SOURCE_CHANGE:/);
-        const hold = entry.reviewedUncertified;
-        assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
-        assert.equal(hold?.oldSourceBlobSha, "337034f839c17a30077e2cfe5991c640e0c6a5e9");
-        assert.equal(hold?.newSourceBlobSha, current);
-        assert.equal(hold?.historicalProof?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
-        assert.equal(hold?.coverageCredits, 0);
-        assert.equal(hold?.exactHeadPg16Http, "PENDING");
-        assert.equal(hold?.independentSecurityReview, "PENDING");
-        assert.equal(hold?.productionCertified, false);
-        assert.equal(verifyWorker360PageCredit(manifest), 17);
+        assert.equal(entry.status, "COVERED");
+        assert.equal(entry.reviewedUncertified, undefined);
+        assert.equal(entry.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
+        assert.equal(verifyWorker360PageCredit(manifest), 16);
         continue;
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
