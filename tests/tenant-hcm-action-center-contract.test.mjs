@@ -51,6 +51,18 @@ test("owned page must contain the actual populated employer and all three source
     assert.throws(() => assertOwnPage(response(status, ownedHtml()), actor, actors));
   assert.throws(() => assertOwnPage(response(200, ownedHtml(), { "cache-control": "public, max-age=3600" }), actor, actors));
 });
+test("comment normalization cannot splice source labels or count evidence", () => {
+  // Ordinary SSR/React separators still preserve the expected populated page.
+  assertOwnPage(response(200, ownedHtml()), actor, actors);
+  for (const html of [
+    ownedHtml().replace("Transfer Approval", "Trans<!-- removed -->fer Approval"),
+    ownedHtml().replace("items previewed", "i<!-- removed -->tems previewed"),
+    ownedHtml().replace("Onboarding checklist", "Onboard<!-- removed -->ing checklist"),
+  ]) {
+    assert.throws(() => assertOwnPage(response(200, html), actor, actors),
+      /Missing persisted source|Wrong populated source count/);
+  }
+});
 test("every denial rejects success, error and private shells", () => {
   assertDenied(response(404, "Not Found"), actors);
   for (const status of [200, 302, 307, 401, 403, 500])
