@@ -1361,6 +1361,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     } else {
       assert.equal(mainWorker360Get?.status, "COVERED",
         "Historical receipt or exact zero-credit supersession required");
+      assert.equal(mainWorker360File.gitBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62",
+        "An unreviewed Worker 360 source cannot inherit the original GET credit");
+      assert.equal(mainWorker360Get.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
+        "Historical credit must retain its actual own/victim proof source");
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
