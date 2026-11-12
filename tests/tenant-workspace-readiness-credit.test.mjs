@@ -1,4 +1,5 @@
 import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -6,7 +7,6 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
 import {verifyCheckoutCredit} from '../scripts/qa/tenant-billing-checkout-credit.mjs';
-import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {
   ROUTE_PATH, RECEIPT_FILE, expectedWorkspaceReadinessTestedBy,
   verifyWorkspaceReadinessReceipt, verifyWorkspaceReadinessCredit,
@@ -30,28 +30,21 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
   const base=baseTenantManifest();
-  if (base) {
-    const studioDelta = base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x => x.name === "POST").status === "GAP"
-      ? verifyStudioPostCredit(m) : 0;
-    const approvalDelta = base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x => x.name === "PATCH").status === "GAP"
-      ? verifyApprovalsCredit(m) : 0;
-    const delta = base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status === "GAP" ? 1 : 0;
-    // Count the exact reviewed Worker 360 source-credit revocation separately
-    // from successful readiness/approvals/Studio proof promotions.
+  if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
+    // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
     const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
     const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
-    assert.equal(currentWorker.status, "GAP", "Revised Worker 360 source remains uncredited");
+    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must remain uncredited");
     assert.equal(currentWorker.testedBy, null);
     verifyWorker360PageCredit(m);
     const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
-    const expectedNetCredits = delta + approvalDelta + studioDelta - revokedWorkerCredit;
-    assert.equal(m.metrics.coveredAfter - base.manifest.metrics.coveredAfter, expectedNetCredits);
-    const relabels = verifyArchitecturalRelabelDelta(assert, base.manifest, m);
-    assert.equal(base.manifest.metrics.gap - m.metrics.gap, expectedNetCredits + relabels.gapRelabels);
-    assert.equal(m.metrics.publicByDesign - base.manifest.metrics.publicByDesign, relabels.publicByDesign);
-    assert.equal(m.metrics.privilegedOperationsTokenOnly - base.manifest.metrics.privilegedOperationsTokenOnly, relabels.privilegedTokenOnly);
-  }
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-revokedWorkerCredit;
+    assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
+    const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
+    assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
+    assert.equal(m.metrics.publicByDesign-base.manifest.metrics.publicByDesign,relabels.publicByDesign);
+    assert.equal(m.metrics.privilegedOperationsTokenOnly-base.manifest.metrics.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);}
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
   assert.deepEqual(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy,
     expectedWorkspaceReadinessTestedBy());
@@ -101,6 +94,7 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
     if(route===STUDIO_POST_PATH){assert.equal(verifyStudioPostCredit(m),1);continue;}
     if(route==='src/app/api/billing/route.ts'){assert.equal(verifyCheckoutCredit(m),1);continue;}
     if(route===APPROVALS_PATH){assert.equal(verifyApprovalsCredit(m),1);continue;}
+    if(route==='src/app/api/payroll-runs/[id]/exports/route.ts'){const x=m.allApiRouteFiles[route].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     const method = m.allApiRouteFiles[route].methods.find(x => x.name === verb);
     assert.equal(method.status, "GAP", route);
     assert.equal(method.testedBy, null, route);

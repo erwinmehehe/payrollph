@@ -37,6 +37,7 @@ test('partial exports and unrelated GAPs receive zero credits from this verifier
   const m = manifest();
   for (const path of ['payroll-runs/[id]/exports', 'payroll-runs/[id]/xendit-payout', 'automation-studio']) {
     if(path==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
+    if(path==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     assert.equal(m.allApiRouteFiles['src/app/api/' + path + '/route.ts'].methods.find(x => x.name === 'POST').status, 'GAP');
   }
 });

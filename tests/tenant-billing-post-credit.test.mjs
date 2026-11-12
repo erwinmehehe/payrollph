@@ -1,4 +1,5 @@
 import { verifyArchitecturalRelabelDelta } from './helpers/tenant-architectural-classification-delta.mjs';
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
@@ -10,7 +11,6 @@ import {
   expectedBillingPostProof, readBillingPostReceipt, verifyBillingPostCredit,
 } from "../scripts/qa/tenant-billing-post-credit.mjs";
 import { tallyTenantManifest, assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
-import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const manifest = () => JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -77,25 +77,22 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
     const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
+    const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
-    // The revised Worker 360 GET invalidates its historic parent-employer proof.
-    // A separate exact-blob verifier and assertLiveTenantCounts() restrict this
-    // to the reviewed zero-credit legal-employer source supersession.
+    // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
     const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
     const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
-    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must stay uncredited");
+    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must remain uncredited");
     assert.equal(currentWorker.testedBy, null);
     verifyWorker360PageCredit(m);
     const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
-    const expectedNetCredits = delta + readyDelta + approvalsDelta + studioDelta - revokedWorkerCredit;
-    assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits,
-      "Only sealed credits and the exact Worker 360 source supersession may change totals");
-    const relabels = verifyArchitecturalRelabelDelta(assert, base.manifest, m);
-    assert.equal(before.gap - counts.gap, expectedNetCredits + relabels.gapRelabels,
-      "No unrelated GAP may disappear or be introduced");
-    assert.equal(counts.publicByDesign - before.publicByDesign, relabels.publicByDesign);
-    assert.equal(counts.privilegedOperationsTokenOnly - before.privilegedOperationsTokenOnly, relabels.privilegedTokenOnly);
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-revokedWorkerCredit;
+    assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
+    const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
+    assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
+    assert.equal(counts.publicByDesign-before.publicByDesign,relabels.publicByDesign);
+    assert.equal(counts.privilegedOperationsTokenOnly-before.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);
   }
   for (const [verb, route] of [
     ["PATCH", "approvals/[id]"],
@@ -107,6 +104,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["GET", "readiness/workspace"],
   ]) {
     if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
+    if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}
     if(route==='approvals/[id]'){assert.equal(verifyApprovalsCredit(m),1);continue;}
     const row = m.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods

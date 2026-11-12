@@ -3913,9 +3913,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   // Payslip GET hardening shares a route file with the still-unproven payout
   // POST. Preserve the hold only for this exact source: POST's entire body
   // must be byte-identical to main after undoing its stricter ID parser.
-  // This is zero credit; a provider-off 409 is never a positive payout proof.
+  // This is zero credit; a provider-off 409 is never a positive payout proof. Once the dedicated loopback-synthetic proof
+  // credits the method, its own pinned test (below) replaces this hold; the hold still fires for any non-COVERED state.
   if (key === "src/app/api/payroll-runs/[id]/exports/route.ts POST" &&
-      currentBlob === "6d4397c1ef98df82fa4917d6241b44e14b3ae96f") {
+      currentBlob === "6d4397c1ef98df82fa4917d6241b44e14b3ae96f" && method.status !== "COVERED") {
     assert.equal(method.status, "GAP");
     assert.equal(method.testedBy, null);
     assert.deepEqual(method.reviewedUncertified, {
@@ -5437,6 +5438,18 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.verifiedPrHeadSha, "02cfd9445d7fe67a8a63b156c037005d531f832a");
         assert.equal(proof.workflowRunId, 42253150229);
         assert.equal(proof.workflowJobId, 128013254082);
+        continue;
+      }
+      // payroll exports POST: loopback-synthetic PayMongo receipt; pins are checked by the dedicated test at the end of this file.
+      if (proof?.file === "scripts/qa/tenant-payroll-exports-post-http.mjs") {
+        assert.equal(path + " " + method.name, "src/app/api/payroll-runs/[id]/exports/route.ts POST", "No unrelated method may reuse the exports POST evidence");
+        assert.equal(proof.independentSecurityReview, "PENDING");
+        assert.equal(proof.productionTested, false);
+        assert.equal(proof.moneyMovedByLinaw, false);
+        assert.equal(proof.providerMode, "loopback-synthetic-paymongo");
+        assert.equal(proof.verifiedMainHeadSha, "efd875a246bb38345ef805ea64363472af72414f");
+        assert.equal(proof.workflowRunId, 43124297782);
+        assert.equal(proof.workflowJobId, 130872336062);
         continue;
       }
       // payout-reconciliation POST: loopback-synthetic PayMongo receipt; pins are checked by the dedicated test at the end of this file.
@@ -8498,9 +8511,13 @@ test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) require
   }
   for (const token of ["for (let i = 0; i < 7; i++)", '["xendit-payout GET", victim.runs.ledger.run.id, "GET"]', "coverageCredits: 0", "payoutEvidenceMode"])
     assert.ok(harness.includes(token), "harness lacks " + token);
-  // exports and xendit-payout POST must remain GAP: the harness proves them only as refusals (no provider, rail OFF).
+  // exports POST must not borrow this credit: it stays GAP, or is COVERED only by its own dedicated loopback-synthetic proof.
   const exportsMethods = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/exports/route.ts"].methods;
-  for (const entry of exportsMethods.filter(item => item.name === "POST")) assert.equal(entry.status, "GAP", "exports POST must not borrow this credit");
+  for (const entry of exportsMethods.filter(item => item.name === "POST")) {
+    if (entry.status === "COVERED") assert.equal(entry.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs", "exports POST must not borrow this credit");
+    else assert.equal(entry.status, "GAP", "exports POST must not borrow this credit");
+  }
+  // xendit-payout POST must remain GAP: the harness proves it only as refusals (no provider, rail OFF).
   const xenditPost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/xendit-payout/route.ts"].methods.find(entry => entry.name === "POST");
   assert.equal(xenditPost.status, "GAP", "xendit-payout POST must not borrow this credit");
   // The credited routes must keep the authorization gates the proof exercises, and never take an identity from the request body.
@@ -8756,4 +8773,62 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
   // The route must keep the bounds the proof exercises.
   for (const token of ["enforceSameOriginMutation(request)", "getSessionUser()", "requireSensitiveActionMfa(user)", "assertOrganizationRole(", "access?.companyWide",
     "assertBirAnnualEntityAccess(", "loadBirAnnualEmployerSource("]) assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
+});
+
+test("payroll exports POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
+  const routePath = "src/app/api/payroll-runs/[id]/exports/route.ts";
+  const harnessFile = "scripts/qa/tenant-payroll-exports-post-http.mjs";
+  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const harness = readFileSync(harnessFile, "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-payroll-exports-post-http.yml", "utf8");
+  const route = readFileSync(routePath, "utf8");
+  assert.match(workflow, /npx tsx scripts\/qa\/tenant-payroll-exports-post-http\.mjs/);
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("PAYMONGO_SECRET_KEY: sk_test_synthetic_no_network"));
+  assert.ok(workflow.includes("branches: [main]"), "the proof must run on main so the credit can cite a main-history run");
+  const api = manifest.allApiRouteFiles[routePath];
+  const get = api.methods.find(entry => entry.name === "GET");
+  const method = api.methods.find(entry => entry.name === "POST");
+  assert.equal(get.status, "COVERED", "the GET credit is unrelated and must be untouched");
+  assert.equal(get.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  assert.equal(method.status, "COVERED");
+  assert.equal(method.reviewedUncertified, undefined, "the zero-credit hold must be gone for the credited method");
+  const proof = method.testedBy;
+  assert.equal(proof.file, harnessFile);
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.moneyMovedByLinaw, false);
+  assert.equal(proof.providerMode, "loopback-synthetic-paymongo");
+  assert.equal(proof.independentSecurityReview, "PENDING");
+  assert.equal(proof.productionTested, false);
+  assert.equal(proof.runLabel, "GitHub Actions " + proof.workflowRunId + "/" + proof.workflowJobId + " PG16 payroll-exports-post PASS");
+  assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
+  assert.deepEqual(proof.methodActions, ["preflight", "disburse", "complete-manual"]);
+  assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the harness changed; re-run the workflow and re-credit");
+  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)), "the workflow changed; re-run the workflow and re-credit");
+  assert.equal(proof.routeBlobSha, gitBlobSha(Buffer.from(route)));
+  assert.equal(api.gitBlobSha, proof.routeBlobSha);
+  assert.equal(proof.routeBlobSha, "6d4397c1ef98df82fa4917d6241b44e14b3ae96f", "the proof was written against this exact route");
+  const lines = harness.split(String.fromCharCode(10));
+  const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
+  assert.equal(proof.line, proof.ownPositiveLine);
+  cites(proof.ownPositiveLine, '" own disbursement: "', "own disbursement anchor");
+  cites(proof.ownPreflightLine, 'e.label + " own preflight: "', "own preflight anchor");
+  cites(proof.ownManualCompletionLine, '" own manual completion: "', "own manual completion anchor");
+  cites(proof.foreignDenialLine, '"foreign " + body.mode + " on the victim run"', "foreign denial anchor");
+  cites(proof.forgedSelectorLine, "const forgedBody = { organizationId: v.org.id", "forged-selector anchor");
+  cites(proof.unchangedDbLine, '"victim after both complete attacker journeys"', "victim byte-identical anchor");
+  cites(proof.victimIdOrderingLine, "must be a real persisted row with an ID above both attackers and six", "high-ID victim anchor");
+  cites(proof.secondAttackerLine, "for (const e of [a, b]) {", "second independent attacker anchor");
+  cites(proof.borrowedValidationLine, "another employer's accepted bank validation must not be borrowed", "borrowed validation anchor");
+  cites(proof.loopbackProviderLine, 'provider.listen(3012, "127.0.0.1"', "loopback provider anchor");
+  assert.ok(harness.indexOf("assertPaymongoHttpProofTarget(process.env);") < harness.indexOf('import("../../src/db/index.ts")'), "the synthetic-target guard must precede database imports");
+  for (const token of ["a refusal must never contact the synthetic provider", "exactly one synthetic batch transfer is created",
+    "a replay must not create a second batch transfer", "a manual completion never contacts the provider",
+    "exactly two synthetic batch transfers in the whole proof", 'for (let i = 0; i < 7; i++) await seed("PAD" + i);', "coverageCredits: 0"])
+    assert.ok(harness.includes(token), "harness lacks " + token);
+  // The route must keep the authorization gates the proof exercises, and never take the employer from the request body.
+  for (const bound of ["enforceSameOriginMutation(request)", "const user = await getSessionUser();", "authorizeTreasuryOperation({",
+    "assertOrganizationUnitAccess(", "requireRunEmployer({", "requireSensitiveActionMfa(user)", "eq(bankFileValidations.organizationId, run.organizationId)"])
+    assert.ok(route.includes(bound), routePath + " lost a bound the proof exercises: " + bound);
+  assert.ok(!/body\.(?:organizationId|orgId|legalEntityId)/.test(route), "the route must never read the employer from the request body");
 });
