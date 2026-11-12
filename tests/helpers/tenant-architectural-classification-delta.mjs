@@ -98,13 +98,13 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
       } else {
         assert.equal(evidence.category, "public-prelogin-source-and-PG16", key);
         assert.equal(evidence.proofFile, "scripts/qa/tenant-prelogin-http.mjs", key);
-        assert.equal(evidence.proofBlobSha, "1cd04c46ae9df3e2291df8f810917d98a59ef841", key);
+        assert.equal(evidence.proofBlobSha, "71bf01cf03caefbb2caf6c7c23a97cb53bd636c0", key);
         assert.equal(evidence.proofBlobSha, sha(evidence.proofFile), key);
         assert.equal(evidence.workflowFile, ".github/workflows/tenant-prelogin-http.yml", key);
-        assert.equal(evidence.workflowBlobSha, "b452bbaa93639778142d9bffcc934d7ad554eb60", key);
+        assert.equal(evidence.workflowBlobSha, "d382490efdbf19efd0a06aa233b7181b2d7c40d8", key);
         assert.equal(evidence.workflowBlobSha, sha(evidence.workflowFile), key);
-        assert.equal(evidence.proofRun, "https://github.com/erwinmehehe/payrollph/actions/runs/42777964271/job/129700836113", key);
-        assert.equal(evidence.proofHead, "27e68846e138da665dd8786d46e403ee724d6f1a", key);
+        assert.equal(evidence.proofRun, "https://github.com/erwinmehehe/payrollph/actions/runs/43134412313/job/130906150181", key);
+        assert.equal(evidence.proofHead, "f0a005e4ef7a35672b5b3986556d9f2c4e1fca7e", key);
       }
       if (old.method.status === "GAP") changes.publicByDesign++;
     } else {
