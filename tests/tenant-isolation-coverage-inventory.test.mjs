@@ -9,7 +9,7 @@ import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../sc
 import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits, RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { YEAR_END_SOURCE_PINS, verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { YEAR_END_SOURCE_PINS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
@@ -3007,18 +3007,26 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     // Old #1730 proof is source-revoked by #1744. A distinct #1804 fictional
     // PG16 real-HTTP run now proves both current-source year-end methods.
     assert.equal(currentBlob, YEAR_END_SOURCE_PINS["src/app/api/year-end/route.ts"]);
-    assert.equal(method.status, "COVERED");
-    assert.equal(method.testedBy?.proofPullRequest, 1804);
-    assert.equal(method.testedBy?.workflowRunId, 42254117862);
-    assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
-    assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
-    assert.equal(method.testedBy?.productionCertified, false);
-    assert.equal(method.reviewedUncertified, undefined);
-    assert.equal(verifyYearEndCredits(manifest), 2);
+    const yearEndHeld = isYearEndHeld(manifest);
+    if (yearEndHeld) {
+      // Credit withdrawn while the annualization source differs from the proven one; a fresh exact-head proof renews it.
+      assert.equal(method.status, "GAP");
+      assert.equal(method.testedBy, null);
+      assert.equal(verifyYearEndHold(manifest), 0);
+    } else {
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy?.proofPullRequest, 1804);
+      assert.equal(method.testedBy?.workflowRunId, 42254117862);
+      assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
+      assert.equal(method.testedBy?.productionCertified, false);
+      assert.equal(method.reviewedUncertified, undefined);
+      assert.equal(verifyYearEndCredits(manifest), 2);
+    }
     for (const [file, hash] of [
       ["tests/year-end-binding-transaction-contract.test.mjs",
         "9562442c4d9e7d820027630cead6d753c0fc3767"],
-      ["src/lib/year-end.ts", "7194658c42b9ef33c84acd84ab356c28c6303883"],
+      ...(yearEndHeld ? [] : [["src/lib/year-end.ts", "7194658c42b9ef33c84acd84ab356c28c6303883"]]),
       ["src/lib/payroll-engine.ts", "dc5719a2c34094b5449bf4ecacb198ab0d74a313"],
     ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
       "Financial binding dependency changed; require new PG16 proof");
@@ -3937,6 +3945,79 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(gitBlobSha(readFileSync("src/lib/canonical-tenant-resource-id.ts")),
       "506325c520b0346a8a857cd73412a231c31e5e7f");
     return;
+  }
+
+  // This reviewed fix separates legal employers WITHIN one organization.
+  // Previously accepted organization-only PG16 GET/PATCH rows remain historical
+  // provisional receipts and never become new same-company legal-entity credit.
+  if (isNewOrChanged && [
+    "src/app/api/provisioning/route.ts GET",
+    "src/app/api/provisioning/route.ts PATCH",
+  ].includes(key)) {
+    const routePath = "src/app/api/provisioning/route.ts";
+    const original = "beddf30861cdb810c5f4ee2ca5631fb29e768ed9";
+    const fixed = "dbda44075260d0b0ca0aaba07223e02e3c035240";
+    assert.equal(baseline.api[routePath], original,
+      "Prior audited provisioning source baseline must remain unmodified");
+    assert.equal(currentBlob, fixed,
+      "Provisioning route source drift requires renewed exact-head PG16 entity proof");
+    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, fixed);
+    assert.equal(method.status, "COVERED",
+      "Do not downgrade previously provisional organization-only methods without review");
+    assert.equal(method.testedBy?.file, method.name === "GET"
+      ? "scripts/qa/tenant-table-http.mjs" : "scripts/qa/tenant-write-table-http.mjs",
+      "Do not misrepresent an old organization proof as a legal-entity HTTP proof");
+    const reviewed = method.reviewedUncertified;
+    assert.deepEqual(reviewed, {
+      kind: "provisioning-same-org-legal-employer-PG16-HTTP-review-only",
+      originalRouteBlobSha: original, routeBlobSha: fixed,
+      helperFile: "src/lib/provisioning.ts",
+      helperBlobSha: "d5bc5d806276c061500061732fb7c4bc16755940",
+      proofFile: "scripts/qa/tenant-provisioning-entity-http.mjs",
+      proofBlobSha: "ce9c462e16dc282ae28f70c903c5306866cfabdf",
+      contractFile: "tests/tenant-provisioning-entity-boundary.test.mjs",
+      contractBlobSha: "581f83612e82d247d41ebd778f75c501ae9b0437",
+      workflowFile: ".github/workflows/tenant-provisioning-entity-qa.yml",
+      workflowBlobSha: "399f3f0faddb1ccebdc331b27b319eb0e4898125",
+      historicalOrganizationProofFile: method.testedBy.file,
+      historicalOnly: true,
+      newLegalEmployerMethodCredits: 0,
+      exactHeadPg16Http: "PENDING",
+      independentSecurityReview: "PENDING",
+      productionCertified: false,
+    }, "Same-organization legal employer evidence must stay source-pinned and uncredited");
+    for (const [file, sha] of [
+      [reviewed.helperFile, reviewed.helperBlobSha],
+      [reviewed.proofFile, reviewed.proofBlobSha],
+      [reviewed.contractFile, reviewed.contractBlobSha],
+      [reviewed.workflowFile, reviewed.workflowBlobSha],
+    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+      "Provisioning legal-employer source/proof/contract/workflow changed: " + file);
+    const route = readFileSync(routePath, "utf8");
+    const get = route.slice(route.indexOf("export async function GET("),
+      route.indexOf("export async function PATCH("));
+    const patch = route.slice(route.indexOf("export async function PATCH("));
+    assert.ok(get.indexOf("resolveMultiEntityContext(") <
+      get.indexOf("ensureLifecycleProvisioning(organizationId, legalEntityId, scopedUnitId)") &&
+      get.indexOf("ensureLifecycleProvisioning(organizationId, legalEntityId, scopedUnitId)") <
+      get.indexOf("const [tasks, staff] = await Promise.all("),
+      "An unauthorized GET must not seed cross-employer onboarding or IT offboarding tasks");
+    assert.match(get, /eq\(employees\.legalEntityId, legalEntityId\)/);
+    assert.match(get, /inArray\([\s\S]*provisioningTasks\.employeeId/);
+    assert.ok(patch.indexOf("resolveMultiEntityContext(") <
+      patch.indexOf("const [target] = await db.select("),
+      "Entity authorization must precede private task-ID lookup");
+    assert.match(patch, /requested: body\.legalEntityId/);
+    assert.match(patch, /inArray\([\s\S]*eq\(employees\.legalEntityId, legalEntityId\)/);
+    assert.ok(patch.includes("and legal_entity_id = ") &&
+      patch.indexOf("and legal_entity_id = ") <
+      patch.indexOf("const [freshEmployee]") &&
+      patch.indexOf("const [freshEmployee]") <
+      patch.indexOf("tx.update(provisioningTasks)"),
+      "A concurrent legal-employer transfer cannot bypass locked write-time authorization");
+    assert.match(patch, /eq\(provisioningTasks\.organizationId, organizationId\)/);
+    assert.match(patch, /eq\(provisioningTasks\.employeeId, employeeId\)/);
+    return true;
   }
 
   // This route changed the *within-company legal-employer* boundary, which

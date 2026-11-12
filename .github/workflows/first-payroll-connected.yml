@@ -93,7 +93,11 @@ jobs:
           PAYROLL_CALCULATION_HISTORY_ENABLED=false npx tsx --test tests/payroll-combined-recovery-postgres.test.ts
           PAYROLL_CALCULATION_HISTORY_ENABLED=true npx tsx --test tests/payroll-combined-recovery-postgres.test.ts
       - run: npm install --no-save --package-lock=false playwright@1.55.0
-      - run: npx playwright install --with-deps chromium
+      # Ubuntu hosted runners already provide Chromium's system libraries.
+      # This journey launches headless Chromium only; avoid the redundant apt
+      # font dependency download that failed on the Azure Ubuntu mirror.
+      # Missing runtime libraries still fail the actual browser journey below.
+      - run: timeout 240s npx playwright install --only-shell chromium
       - run: node scripts/qa/first-payroll-connected-browser.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

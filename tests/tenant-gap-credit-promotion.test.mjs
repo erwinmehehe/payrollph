@@ -1,4 +1,4 @@
-import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
@@ -237,6 +237,12 @@ test("already credited and partial-action methods are not double-counted", () =>
       // Old #1730 route proof stays invalid; distinct executed #1804 current-source
       // PG16 receipt now supports two provisional methods, not tax acceptance.
       const method = methods.get(key);
+      if (isYearEndHeld(manifest)) {
+        assert.equal(verifyYearEndHold(manifest), 0);
+        assert.equal(method?.status, "GAP", key);
+        assert.equal(method?.testedBy, null);
+        continue;
+      }
       assert.equal(verifyYearEndCredits(manifest), 2);
       assert.equal(method?.status, "COVERED", key);
       assert.equal(method?.testedBy?.proofPullRequest, 1804);

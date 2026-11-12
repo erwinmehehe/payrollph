@@ -129,3 +129,55 @@ export function verifyYearEndCredits(manifest, read = readFileSync) {
   assert.equal(manifest.metrics.scopedPagesAndActions, 21);
   return YEAR_END_RECEIPTS.length;
 }
+
+/**
+ * Withdrawn-credit state. The #1804 receipts above are pinned to the annualization source they ran against.
+ * When src/lib/year-end.ts changes, the pair is HELD at zero credit (GAP, no testedBy) until a fresh
+ * exact-head PG16 proof on main renews it. The hold is exact and fail-closed: it records the withdrawn
+ * receipt, the annualization source it ran against and the source that replaced it.
+ */
+export const YEAR_END_HOLD_KIND = "year-end-imported-de-minimis-source-moved-zero-credit";
+export const YEAR_END_HOLD_REASON = "Held, zero credit: src/lib/year-end.ts now applies imported de minimis to the year-end settlement, so the #1804 fictional PG16 proof (run 42254117862, verified head d79db85b) ran against a previous annualization source (blob 7194658c). The method credit is withdrawn until a fresh exact-head PG16 proof on main renews it. Not a security finding; no independent payroll/security review yet.";
+export function yearEndHoldRecord(routeBlobSha, annualizationBlobSha) {
+  return {
+    kind: YEAR_END_HOLD_KIND,
+    priorCreditPullRequest: 1804,
+    priorVerifiedPrHeadSha: HEAD,
+    priorWorkflowRunId: RUN,
+    priorAnnualizationBlobSha: YEAR_END_SOURCE_PINS["src/lib/year-end.ts"],
+    annualizationBlobSha,
+    routeBlobSha,
+    credits: 0,
+    actualPg16Http: "RENEWAL_PENDING",
+    independentSecurityReview: "PENDING",
+    productionCertified: false,
+  };
+}
+
+/** True when both year-end methods carry the exact hold (and nothing else), whatever the source on disk. */
+export function isYearEndHeld(manifest) {
+  const route = manifest.allApiRouteFiles?.[ROUTE];
+  return Boolean(route?.methods?.length === 2 && route.methods.every(m =>
+    m.status === "GAP" && m.testedBy === null && m.reviewedUncertified?.kind === YEAR_END_HOLD_KIND));
+}
+
+/** Verifies the held state against the files on disk. Returns 0 credits. Throws on any drift. */
+export function verifyYearEndHold(manifest, read = readFileSync) {
+  assert.ok(isYearEndHeld(manifest), "the year-end pair must carry the exact hold");
+  const route = manifest.allApiRouteFiles[ROUTE];
+  const annualization = sha(read("src/lib/year-end.ts"));
+  assert.notEqual(annualization, YEAR_END_SOURCE_PINS["src/lib/year-end.ts"],
+    "a hold is only valid while the annualization source differs from the proven one; otherwise restore the credit");
+  assert.equal(sha(read(ROUTE)), route.gitBlobSha);
+  for (const method of route.methods) {
+    assert.equal(method.reason, YEAR_END_HOLD_REASON);
+    assert.deepEqual(method.reviewedUncertified, yearEndHoldRecord(route.gitBlobSha, annualization),
+      method.name + ": the hold must name the current annualization source");
+  }
+  return 0;
+}
+
+/** Either state, fail-closed: returns the number of credits the manifest may carry for the pair (2 or 0). */
+export function verifyYearEndPairState(manifest, read = readFileSync) {
+  return isYearEndHeld(manifest) ? verifyYearEndHold(manifest, read) : verifyYearEndCredits(manifest, read);
+}
