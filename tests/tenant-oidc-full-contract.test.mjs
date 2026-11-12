@@ -50,8 +50,11 @@ test('Node 22 single-address OIDC transport pins the validated IP without weaken
   assert.equal(blob, 'f263da3898451ee53c7b3d1490241ea8aa46e0c2',
     'Existing public-IP validation, pinned lookup and TLS checks must remain byte-identical');
   for (const name of ['postValidatedWebhook', 'getValidatedJson', 'postValidatedForm']) {
-    const from = source.indexOf('export async function ' + name + '(');
+    const declaration = 'export async function ' + name;
+    const from = source.indexOf(declaration);
     assert.ok(from >= 0, 'Missing validated transport: ' + name);
+    assert.ok(['(', '<'].includes(source[from + declaration.length]),
+      'Transport declaration must match exactly, including generic functions');
     const next = source.indexOf('export async function ', from + 1);
     const handler = source.slice(from, next < 0 ? undefined : next);
     for (const required of [
