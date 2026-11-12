@@ -53,10 +53,15 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out proof head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
           cache: npm
@@ -83,10 +88,10 @@ jobs:
             echo "::add-mask::$value"
             echo "$key=$value" >> "$GITHUB_ENV"
           done
-      - name: Prepare fresh disposable PG16 schema and isolated baseline
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Push fresh disposable PG16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Typecheck and build production-mode Next on fictional flags
         run: |
           npm run typecheck
