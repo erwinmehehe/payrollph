@@ -7,7 +7,6 @@ import { performanceCycles } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { singleLegalEntityForTenant } from "@/lib/hcm-single-entity-scope";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 
@@ -17,9 +16,6 @@ export const metadata: Metadata = { title: "Goals & Review Cycles | Linaw", robo
 export default async function Page({ searchParams }: {
   searchParams: Promise<{ organizationId?: string | string[] }>;
 }) {
-  // These People pages live outside /hcm/*; honor the same multi-entity
-  // HCM embargo before session, worker or performance source reads.
-  if (multiEntityHcmDeferred()) notFound();
   if (!criticalReleaseFlagEnabled("goalsReviewCycle")) notFound();
   const user = await getSessionUser();
   if (!user) redirect("/login");
