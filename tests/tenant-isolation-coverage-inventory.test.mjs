@@ -3775,7 +3775,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   if (isNewOrChanged && key === "src/app/api/auth/sso/resolve/route.ts POST") {
     const routePath = "src/app/api/auth/sso/resolve/route.ts";
     const originalRouteBlobSha = "ecf9eb2ff759a4b39300abea5193356038aaad71";
-    const routeBlobSha = "740e3dbb4325a55f5556ea14e04b6ec1f3c99137";
+    const routeBlobSha = "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299";
     assert.equal(baseline.api[routePath], originalRouteBlobSha,
       "SSO discovery baseline was redefined");
     assert.equal(currentBlob, routeBlobSha,
@@ -3798,7 +3798,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       unitTestFile: "tests/tenant-sso-discovery.test.ts",
       unitTestBlobSha: "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
       workflowFile: ".github/workflows/tenant-sso-discovery-http.yml",
-      workflowBlobSha: "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
+      workflowBlobSha: "4f6a87415432204f818c520d7a24a447745d5748",
       coverageCredits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     }, "SSO review remains zero-credit and exact-source-pinned");
@@ -3839,6 +3839,10 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const workflow = readFileSync(reviewed.workflowFile, "utf8");
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-sso-discovery-http\.mjs/);
+    assert.match(workflow, /OIDC_SSO_RUNTIME_ENABLED: 'true'/);
+    const hold = route.indexOf("if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();");
+    assert.ok(hold > 0 && hold < route.indexOf("enforceSameOriginMutation(request)"),
+      "SSO pilot hold must preempt request parsing, rate-limiting, and provider SQL");
     return true; // explicit unaccepted GAP; NOT blanket reclassification
   }
 
@@ -3854,11 +3858,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const seals = {
       "src/app/api/auth/sso/start/route.ts": {
         before: "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
-        after: "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+        after: "060cd49b10ffd270863445a27b23ea702fbd91bc",
       },
       "src/app/api/auth/sso/callback/route.ts": {
         before: "b18ac853e93155478474d02466617298d6773275",
-        after: "25116ab157ede52128a1ccbe189773104361f2d3",
+        after: "51aae9e960eb879d6710991093fed88118b12ee1",
       },
     };
     const seal = seals[routePath];
@@ -3875,7 +3879,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       cookieHelperFile: "src/lib/oidc-browser-state.ts",
       cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
       contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-      contractBlobSha: "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+      contractBlobSha: "d216ded9f82bef64bd9c10a210897c7ee506760d",
       proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
       proofBlobSha: "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
       unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
@@ -3883,7 +3887,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
       negativeTestBlobSha: "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
       workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
-      workflowBlobSha: "b7479504956c98e08932241b71f16b49bfc9891b",
+      workflowBlobSha: "900f21651b27d22ad1e8cb23886da2b7cd20dcf5",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
@@ -3919,6 +3923,13 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.match(workflow,
       /for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-oidc-browser-state-http\.mjs/);
+    assert.match(workflow, /OIDC_SSO_RUNTIME_ENABLED: 'true'/);
+    const urls = [start, callback];
+    for (const text of urls) {
+      const held = text.indexOf("if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();");
+      assert.ok(held > 0 && held < text.indexOf("new URL(request.url)"),
+        "OIDC pilot hold must run before reading any caller-supplied URL or provider identity");
+    }
     return true; // Source-repaired GAP, NOT whole-method COVERED.
   }
 
