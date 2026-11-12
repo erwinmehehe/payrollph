@@ -276,9 +276,15 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
           item.key + " real own resource");
         item.prove(owned);
         ownPositive[idx - 1]++;
-        const foreign = expectStatus(await request(item.foreign, { cookie: ownerCookie }), item.foreign.startsWith("/api/payroll-runs/") ? 404 : 403,
+        if (item.foreign.startsWith("/api/payroll-runs/")) {
+          const concealedRun = expectStatus(await request(item.foreign, { cookie: ownerCookie }), 404,
+            item.key + " real victim resource");
+          assertNoVictimBytes(concealedRun, victimMarker);
+        } else {
+        const foreign = expectStatus(await request(item.foreign, { cookie: ownerCookie }), 403,
           item.key + " real victim resource");
         assertNoVictimBytes(foreign, victimMarker);
+        }
         deniedForeign[idx - 1]++;
       });
     }

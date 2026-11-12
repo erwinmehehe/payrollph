@@ -25,6 +25,7 @@ on:
       - "src/app/api/first-payroll/**"
       - "src/app/api/legal-entities/**"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/approvals/**"
       - "src/app/api/hr-cases/**"
       - "src/app/hcm/hr-cases/**"
@@ -65,6 +66,7 @@ on:
       - "src/app/api/first-payroll/**"
       - "src/app/api/legal-entities/**"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/approvals/**"
       - "src/app/api/hr-cases/**"
       - "src/app/hcm/hr-cases/**"

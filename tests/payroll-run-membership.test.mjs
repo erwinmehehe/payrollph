@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
+import { load } from "js-yaml";
 
 const read = path => readFileSync(path, "utf8");
 const walk = path => readdirSync(path, { withFileTypes: true }).flatMap(entry =>
@@ -41,4 +42,12 @@ test("root runId lookup and process authentication cannot expose a foreign or an
   const source = read("src/app/api/payroll-runs/[id]/process/route.ts");
   assert.ok(source.indexOf("await getSessionUser()") < source.indexOf("await findPayrollRunForMember("));
   assert.ok(source.indexOf('status: 401') < source.indexOf("await findPayrollRunForMember("));
+});
+
+test("payroll proof workflows rerun when their shared membership boundary changes", () => {
+  for (const file of readdirSync(".github/workflows").filter(file => file.endsWith(".yml"))) {
+    const workflow = load(read(".github/workflows/" + file)), paths = workflow.on?.pull_request?.paths;
+    if (paths?.some(path => path.includes("src/app/api/payroll-runs")))
+      assert.ok(paths.includes("src/lib/payroll-run-membership.ts"), file + ": missing shared authorization dependency");
+  }
 });

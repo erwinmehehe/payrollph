@@ -20,6 +20,53 @@ export const ORACLE_HELD_METHODS = Object.freeze([
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const blob = text => createHash("sha1").update("blob " + Buffer.byteLength(text) + "\0" + text).digest("hex");
 const sourceAtBase = path => execFileSync("git", ["show", ORACLE_BASE + ":" + path], { encoding: "utf8", maxBuffer: 64 << 20 });
+/** Recognize only this exact source withdrawal; never restore a method credit.
+ * Historical receipts are compared against trusted Git, not caller-provided
+ * metadata. All fifteen route sources and the shared boundary stay sealed. */
+export function verifyOracleSourceHolds(manifest, before = null, read = readFileSync) {
+  const candidate = Object.values(manifest.allApiRouteFiles ?? {}).some(file =>
+    file.methods?.some(row => row.reviewedUncertified?.kind === "payroll-run-membership-oracle-source-withdrawal"));
+  if (!candidate) return new Set();
+  const historical = JSON.parse(sourceAtBase(MANIFEST));
+  const paths = Object.keys(historical.allApiRouteFiles).filter(path => path.startsWith("src/app/api/payroll-runs/")).sort((a, b) => a.localeCompare(b));
+  const pins = {};
+  for (const path of paths) {
+    pins[path] = blob(read(path, "utf8").replaceAll("\r\n", "\n"));
+    assert.equal(manifest.allApiRouteFiles[path].gitBlobSha, pins[path], "held route source pin mismatch");
+  }
+  assert.equal(createHash("sha256").update(JSON.stringify(pins)).digest("hex"),
+    "d5517d81ac09acd825cec137be432adee850de267c29cda8b9c9ff3746446115", "unreviewed payroll oracle route revision");
+  assert.equal(blob(read("src/lib/payroll-run-membership.ts", "utf8").replaceAll("\r\n", "\n")),
+    "75f5a40afd1ee4f608a2fe38be9971f4bc8bed47", "unreviewed shared membership boundary");
+  const allowed = new Set();
+  for (const path of paths) for (const old of historical.allApiRouteFiles[path].methods.filter(row => row.status === "COVERED")) {
+    const row = manifest.allApiRouteFiles[path].methods.find(row => row.name === old.name);
+    if (row.status !== "GAP") {
+      // Actual new credits are checked by their dedicated proof guards; an old
+      // hold cannot silently turn into an accepted or public method.
+      assert.equal(row.status, "COVERED");
+      assert.equal(row.reviewedUncertified, undefined);
+      assert.ok(row.testedBy && typeof row.testedBy === "object");
+      continue;
+    }
+    const hold = row.reviewedUncertified;
+    assert.equal(row.testedBy, null);
+    assert.deepEqual(hold, {
+      kind: "payroll-run-membership-oracle-source-withdrawal", base: ORACLE_BASE,
+      oldSourceBlobSha: historical.allApiRouteFiles[path].gitBlobSha, currentSourceBlobSha: pins[path],
+      priorProof: old.testedBy, coverageCredits: 0, evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
+      execution: "NOT_RUN", independentSecurityReview: "PENDING", productionCertified: false,
+    });
+    const prior = before?.allApiRouteFiles?.[path]?.methods.find(method => method.name === old.name);
+    if (prior?.status === "COVERED") {
+      assert.equal(before.allApiRouteFiles[path].gitBlobSha, historical.allApiRouteFiles[path].gitBlobSha);
+      assert.deepEqual(prior.testedBy, old.testedBy, "a different base proof cannot be withdrawn implicitly");
+    }
+    allowed.add(old.name + " " + path);
+  }
+  assert.ok(allowed.size > 0 && allowed.size <= ORACLE_HELD_METHODS.length);
+  return allowed;
+}
 export function withdrawRunOracleCredits({ write = false } = {}) {
   const original = JSON.parse(sourceAtBase(MANIFEST));
   const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
@@ -70,6 +117,10 @@ export function withdrawRunOracleCredits({ write = false } = {}) {
     lines[at] = cells.join(" | ");
   }
   doc = lines.join("\n");
+  const updateLiveBanner = text => text.replace(/(complete Studio POST proposal:\*\* )\d+ methods = \d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP\./g,
+    "$1" + manifest.metrics.methods + " methods = " + manifest.metrics.coveredAfter + " COVERED + " + manifest.metrics.publicByDesign + " PUBLIC-BY-DESIGN + " + manifest.metrics.privilegedOperationsTokenOnly + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + manifest.metrics.gap + " GAP.");
+  doc = updateLiveBanner(doc).replace(/(\*\*RELEASE BLOCKER:\*\* )\d+ API methods/g, "$1" + manifest.metrics.gap + " API methods")
+    .replace(/(\*\*NOT ACCEPTED\*\*: )\d+ method gaps/g, "$1" + manifest.metrics.gap + " method gaps");
   const prefix = "> **PAYROLL RUN ORACLE — SOURCE HOLD:** ";
   if (doc.startsWith(prefix)) doc = doc.slice(doc.indexOf("\n") + 1).replace(/^\n+/, "");
   doc = prefix + held.length + " prior credits held; " + manifest.metrics.coveredAfter + " COVERED / " + manifest.metrics.gap + " GAP. New source is NOT_RUN until fresh PG16 proof; historical receipts do not certify it.\n\n" + doc;
@@ -79,7 +130,7 @@ export function withdrawRunOracleCredits({ write = false } = {}) {
     let closure = readFileSync(file, "utf8");
     const section = closure.split("### Batch DL-01 —")[1]?.split("## Page and server-action closure")[0];
     assert.ok(section);
-    const total = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0, GAP: 0 };
+    const total = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0, GAP: 0 }, provisional = [];
     for (const block of ("### Batch DL-01 —" + section).split("### Batch ").slice(1)) {
       const id = block.split(" ")[0], counts = { ...total };
       for (const key of Object.keys(counts)) counts[key] = 0;
@@ -88,6 +139,7 @@ export function withdrawRunOracleCredits({ write = false } = {}) {
         const status = manifest.allApiRouteFiles[path].methods.find(row => row.name === verb).status;
         assert.ok(Object.hasOwn(counts, status)); counts[status]++; total[status]++;
       }
+      if (counts.GAP === 0) provisional.push(id);
       closure = closure.split("\n").map(line => {
         const cells = line.split("|"); if (cells.length !== 10 || cells[2].trim() !== "**" + id + "**") return line;
         for (const [i, key] of ["COVERED", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY", "GAP"].entries()) cells[i + 4] = " " + counts[key] + " ";
@@ -95,8 +147,26 @@ export function withdrawRunOracleCredits({ write = false } = {}) {
       }).join("\n");
     }
     assert.equal(Object.values(total).reduce((a, n) => a + n, 0), 406);
-    closure = closure.replace(/Frozen subtotal[^\n]+/, line => line.replace(/\*\*\d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP = 406\*\*/,
-      "**" + total.COVERED + " COVERED + " + total["PUBLIC-BY-DESIGN"] + " PUBLIC-BY-DESIGN + " + total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + total.GAP + " GAP = 406**"));
+    const outside = [
+      [manifest.metrics.coveredAfter - total.COVERED, "COVERED"],
+      [manifest.metrics.publicByDesign - total["PUBLIC-BY-DESIGN"], "PUBLIC-BY-DESIGN"],
+      [manifest.metrics.privilegedOperationsTokenOnly - total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"], "PRIVILEGED-OPERATIONS-TOKEN-ONLY"],
+      [manifest.metrics.gap - total.GAP, "GAP"],
+    ];
+    assert.ok(outside.every(([n]) => Number.isSafeInteger(n) && n >= 0));
+    closure = closure.replace(/^Frozen subtotal[^\n]+/m, line => line.replace(/\*\*\d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP = 406\*\*/,
+      "**" + total.COVERED + " COVERED + " + total["PUBLIC-BY-DESIGN"] + " PUBLIC-BY-DESIGN + " + total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + total.GAP + " GAP = 406**")
+      .replace(/\d+ batches remain INCOMPLETE; [^.]+ remain PROVISIONAL — NOT ACCEPTED\./,
+        (12 - provisional.length) + " batches remain INCOMPLETE; " + provisional.join(", ") + " remain PROVISIONAL — NOT ACCEPTED.")
+      .replace(/Relative to the live \d+-method ledger, the other \*\*\d+ methods\*\* are \*\*[^*]+\*\*\./,
+        "Relative to the live " + manifest.metrics.methods + "-method ledger, the other **" + (manifest.metrics.methods - 406) + " methods** are **" + outside.filter(([n]) => n > 0).map(([n, status]) => n + " " + status).join(" + ") + "**."));
+    const queueHeading = "## Supplemental payroll-run source-withdrawal renewals";
+    if (closure.includes(queueHeading)) closure = closure.replace(new RegExp(queueHeading + "[\\s\\S]*?(?=\\n## |$)"), "").trimEnd();
+    const frozen = new Set([...closure.matchAll(/^- `(GET|POST|PATCH|PUT|DELETE) \/api\/([^`]+)` — \[source\]/gm)].map(match => match[1] + " " + match[2]));
+    const supplemental = ORACLE_HELD_METHODS.filter(key => !frozen.has(key));
+    closure += "\n\n" + queueHeading + "\n\nThese source-withdrawn methods were outside the immutable 406-method queue. Each stays GAP until its own renewed proof; no frozen link is changed.\n\n" +
+      supplemental.map(key => "- HELD `" + key.split(" ")[0] + " /api/" + key.split(" ").slice(1).join(" ") + "` — fresh exact-source PG16 HTTP required").join("\n") + "\n";
+    closure = updateLiveBanner(closure);
     if (!closure.startsWith(prefix)) closure = prefix + held.length + " current-source methods need renewed proof. No fresh credit claimed.\n\n" + closure;
     writeFileSync(file, closure);
   }

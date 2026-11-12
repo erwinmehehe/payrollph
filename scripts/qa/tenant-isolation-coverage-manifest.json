@@ -4432,8 +4432,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 209,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }
@@ -6324,8 +6324,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 239,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }
@@ -8271,8 +8271,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 232,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }
@@ -12435,8 +12435,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 254,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "Original source-only proof: high-risk batch-01 two-owner own/foreign and immutable victim snapshot; original run 39445598204 is NOT evidence for newly hardened source. Fresh exact-head PG16 HTTP security-smoke run on current PR required before acceptance."
           },
@@ -21714,8 +21714,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 246,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           },
@@ -22361,8 +22361,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 216,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }
@@ -25196,8 +25196,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 224,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }
@@ -28838,8 +28838,8 @@
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
             "line": 263,
             "ownPositiveLine": 275,
-            "foreignDenialLine": 279,
-            "unchangedDbLine": 349,
+            "foreignDenialLine": 284,
+            "unchangedDbLine": 355,
             "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }
@@ -29567,10 +29567,10 @@
           "reason": "Provisional: verified 2026-10-20 source-matched disposable PG16 real-HTTP two-attacker Batch 01 own-success, populated victim-denial and victim DB invariant; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
           "testedBy": {
             "file": "scripts/qa/tenant-high-risk-01-http.mjs",
-            "line": 287,
-            "ownPositiveLine": 288,
-            "foreignDenialLine": 340,
-            "unchangedDbLine": 349,
+            "line": 293,
+            "ownPositiveLine": 294,
+            "foreignDenialLine": 346,
+            "unchangedDbLine": 355,
             "scope": "Two independent active employee sessions: forged employer/employee selectors stay self-scoped; revoked former-employer membership denied 403 on same live session; victim database unchanged (CI PG16 only).",
             "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
           }

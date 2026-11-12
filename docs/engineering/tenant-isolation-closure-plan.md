@@ -1,6 +1,6 @@
 > **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 current-source methods need renewed proof. No fresh credit claimed.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 437 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 26 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** Latest 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 TOKEN-ONLY + 7 GAP; 17 page/action GAPs. Changed Worker 360 API and page lose historical provisional credit; newest exports POST proof retained. Zero new Worker 360 credits; production acceptance pending.
 
@@ -247,7 +247,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 13 | 9 | 6 | 5 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **372 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 3 batches remain INCOMPLETE; DL-01, DL-02, MNY-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **360 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 19 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **77 COVERED + 8 PUBLIC-BY-DESIGN + 7 GAP**. 4 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -880,3 +880,16 @@ If a real HTTP cross-employer leak is reproduced, create a stand-alone security 
 ## Completion criterion
 
 All 490 current exported methods and all 20 page/action entries must resolve to **COVERED with executed four-part proof**, **PUBLIC-BY-DESIGN with an explicit method-level reason**, or **NEEDS OWNER with a concrete owner question**. Every case has a source- and CI-line-pinned evidence record. The manifest must remain **NOT ACCEPTED** until independent reviewer/owner acceptance. As of baseline: **406 API method GAPs and 20 page/action GAPs remain; 0 confirmed live exploits, no new fixes in this planning PR.**
+
+
+## Supplemental payroll-run source-withdrawal renewals
+
+These source-withdrawn methods were outside the immutable 406-method queue. Each stays GAP until its own renewed proof; no frozen link is changed.
+
+- HELD `GET /api/payroll-runs` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/payroll-runs` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/assurance` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/release-checklist` — fresh exact-source PG16 HTTP required

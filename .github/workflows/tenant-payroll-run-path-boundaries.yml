@@ -9,6 +9,7 @@ on:
       - 'scripts/qa/tenant-batches/payroll-runs-path-http.mjs'
       - 'tests/tenant-payroll-runs-path-boundaries.test.mjs'
       - 'src/app/api/payroll-runs/**'
+      - 'src/lib/payroll-run-membership.ts'
       - 'src/lib/multi-entity-run-guard.ts'
       - 'src/lib/multi-entity-server.ts'
       - 'src/lib/treasury-controls.ts'

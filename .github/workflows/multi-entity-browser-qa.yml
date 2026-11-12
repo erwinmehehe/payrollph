@@ -6,6 +6,7 @@ on:
     paths:
       - "src/lib/multi-entity-*.ts"
       - "src/app/api/payroll-runs/**/close/route.ts"
+      - 'src/lib/payroll-run-membership.ts'
       - "tests/payroll-run-legal-employer-gates.test.ts"
       - "scripts/multi-entity-synthetic-browser.mjs"
       - "src/app/api/multi-entity/**"
