@@ -9,12 +9,8 @@ import { nonceContentSecurityPolicy } from "@/lib/nonce-csp";
  */
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  // These private People pages live outside /hcm/* but must obey the
-  // same multi-entity HCM hold, including Next.js prefetch requests.
-  const peoplePage = path === "/app/engagement" || path.startsWith("/app/engagement/") ||
-    path === "/app/goals-reviews" || path.startsWith("/app/goals-reviews/");
   const guarded = path === "/api/hcm" || path.startsWith("/api/hcm/") ||
-    (path.startsWith("/hcm/") && path !== "/hcm/") || peoplePage;
+    (path.startsWith("/hcm/") && path !== "/hcm/");
   if (guarded && multiEntityHcmRequestDeferred(path, request.method)) {
     return NextResponse.json({
       error: "HCM APIs are unavailable until multi-entity employer isolation is reviewed.",
@@ -44,9 +40,6 @@ export const config = {
   matcher: [
     "/api/hcm/:path*",
     "/hcm/:path*",
-    // Explicit matchers ensure no prefetch header can skip the embargo.
-    "/app/engagement/:path*",
-    "/app/goals-reviews/:path*",
     {
       source: "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
       missing: [
