@@ -51,6 +51,6 @@
     "Monthly imported rows only, one category per worker. Categories with a month, semester and year period are handled by the same rule; the month and year periods are exercised.",
     "The release approval workflow and the HTTP, role and MFA gates are not exercised. The importer is covered by its own tests.",
     "Whether SSS compensation should include de minimis benefits is a rule question for a practitioner; the expectations here follow the engine's current treatment (SSS on the month's gross).",
-    "The expected values follow the cited BIR rules and the repository's year-end treatment. They have not been reviewed by a qualified Philippine tax practitioner and must be before anyone relies on them for filing."
+    "The expected values are derived by hand from the cited BIR rules (TRAIN annual table, RR 29-2025 ceilings, the 90,000 exemption) and the repository's year-end treatment. The owner has decided that no separate Philippine tax practitioner review is required."
   ]
 }

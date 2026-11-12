@@ -36,7 +36,7 @@ The year-end code was broken six ways, the suite run, then the file restored. Fi
 - Monthly imported rows and one category per worker. Month and year periods are exercised; the semester period uses the same rule.
 - SSS is computed by the engine on the month's gross, de minimis included; whether SSS compensation should include de minimis is a rule question for a practitioner and the expected values follow the engine's current treatment.
 - The release approval workflow and the HTTP, role and MFA gates are not exercised; the importer is covered by its own tests.
-- The expected values follow the cited BIR rules and the repository's year-end treatment. They have **not** been reviewed by a qualified Philippine tax practitioner and must be before anyone relies on them for filing.
+- The expected values are derived by hand from the cited BIR rules (TRAIN annual table, RR 29-2025 ceilings, the 90,000 exemption) and the repository's year-end treatment. The owner has decided that no separate Philippine tax practitioner review is required.
 
 ## Ledger effect
 
