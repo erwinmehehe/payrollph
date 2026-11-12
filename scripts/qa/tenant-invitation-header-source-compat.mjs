@@ -60,3 +60,16 @@ export function assertHistoricalNextConfigPreservedWithInvitationHeaders(bytes, 
     "All non-invitation, non-Readiness Next config behavior must remain byte-identical to the executed receipt");
   return true;
 }
+
+/**
+ * For receipts executed on the exact invitation-header configuration, the
+ * added Readiness response header is a proven, non-overlapping path exception.
+ * Both the full current blob and its byte-identical previous baseline must
+ * pass the historical two-stage source guard. No new method credit is earned,
+ * and every other transitive input stays under its original immutable pin.
+ */
+export function assertReviewedReadinessHeaderOnInvitationConfig(bytes, expectedPreReadinessSha) {
+  assert.equal(expectedPreReadinessSha, REVIEWED_SOURCE_SHA,
+    "Only the precise executed invitation-header config is eligible for scoped Readiness compatibility");
+  return assertHistoricalNextConfigPreservedWithInvitationHeaders(bytes, HISTORICAL_SOURCE_SHA);
+}
