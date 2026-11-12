@@ -1,0 +1,56 @@
+{
+  "version": "phase14-shared-de-minimis-ceiling-2026-11-13",
+  "toleranceCentavos": 0,
+  "description": "Phase 13 certified imported prior-provider history in the year-end settlement, including imported de minimis capped at its statutory ceilings. A worker whose previous provider's months are imported and whose later months the engine calculated can receive the same de minimis category from both sources. The statutory ceiling (RR 29-2025) applies once per category and statutory period to the worker, not once per source. Phase 14 certifies that the year-end settlement applies it to the union.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN, annual table effective 2023 onward: taxable income <= 250,000 exempt; to 400,000 at 15% over 250,000 (22,500 at 400,000); to 800,000 at 22,500 + 20% over 400,000.",
+    "deMinimis": "BIR RR 29-2025 de minimis ceilings in force for 2026 (the repository's DE_MINIMIS_2026 table): uniform and clothing allowance 8,000 a year; rice subsidy 2,500 a month. The part of a benefit inside its ceiling is exempt; the part above it is treated as other benefits.",
+    "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e) as amended by TRAIN: 13th-month pay and other benefits share one exemption of 90,000.",
+    "sss": "SSS 2025 contribution schedule: employee share 5% of the monthly salary credit; salary credit in steps of 500 (a month's compensation of 31,750-32,249.99 gives 32,000; 32,750-33,249.99 gives 33,000; 34,750 and above gives the 35,000 maximum). The engine computes SSS on the month's gross, de minimis included."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' statutory timing. The company switched provider on 2026-07-01: January to June are imported monthly rows (pay date = last day of the month), July to December (cutoffs 13-24) are calculated by the engine.",
+    "Each worker's basic pay is PHP 30,000 a month. An imported month: basic 30,000, SSS 1,500, PhilHealth 750, Pag-IBIG 200, withholding 1,007.40 (the previous provider's own contributions), plus the de minimis stated in the case, which raises its gross. A calculated cutoff: basic 15,000 plus half of the month's de minimis grant, PhilHealth 375, Pag-IBIG 100, SSS half of 5% of the month's salary credit.",
+    "The 13th month is the accrued basic of the year, 360,000 / 12 = 30,000, paid by nobody, so it is accrued in the settlement and joins the shared 90,000 pool.",
+    "Year-end annualization reads Released runs, so each calculated run is set to Released directly in the fixture.",
+    "Withholding during the calculated cutoffs is not asserted: only the settlement's own figures (gross, non-taxable, contributions, taxable income, tax due and the de minimis and benefit-pool breakdown) are, because that is what the shared ceiling changes."
+  ],
+  "employees": {
+    "ceilingPartlyUsedByPreviousProvider": {
+      "description": "Uniform allowance: previous provider 1,000 a month (6,000 in six months); engine grant 2,000 a month (12,000). Paid 18,000 against the 8,000 yearly ceiling: exempt 8,000, excess 10,000. Gross: imported 6 x 31,000 = 186,000 + calculated 12 x 16,000 = 192,000 + 13th month 30,000 = 408,000. Contributions: imported 6 x 2,450 = 14,700; calculated 6 x (SSS 5% of 32,000 = 1,600 + 750 + 200) = 15,300; 30,000. Benefit pool 30,000 + 10,000 = 40,000, all inside 90,000. Non-taxable 30,000 + 8,000 + 40,000 = 78,000. Taxable 330,000; tax 15% over 250,000 = 12,000.00.",
+      "imported": { "grossPay": 31000, "basicSalary": 30000, "netPay": 27542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": { "uniformClothing": 1000 } },
+      "grant": { "benefitType": "uniformClothing", "amount": 2000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "yearEnd": { "grossCompensation": 408000, "thirteenthMonth": 30000, "nonTaxable": 78000, "statutoryContributions": 30000, "taxableIncome": 330000, "taxDue": 12000 },
+      "breakdown": { "deMinimisExempt": 8000, "deMinimisExcess": 10000, "benefitPool": 40000, "exemptBenefitPool": 40000, "taxableBenefitPool": 0, "importedHistoryRows": 6, "runsIncluded": 12 }
+    },
+    "ceilingExhaustedByBothSources": {
+      "description": "Uniform allowance: previous provider 6,000 a month (36,000); engine grant 6,000 a month (36,000). Paid 72,000 against the 8,000 yearly ceiling: exempt 8,000, excess 64,000. Gross: imported 6 x 36,000 = 216,000 + calculated 12 x 18,000 = 216,000 + 13th month 30,000 = 462,000. Contributions: imported 14,700; calculated 6 x (SSS 5% of the 35,000 maximum credit = 1,750 + 750 + 200) = 16,200; 30,900. Benefit pool 30,000 + 64,000 = 94,000: 90,000 exempt, 4,000 taxable. Non-taxable 30,900 + 8,000 + 90,000 = 128,900. Taxable 333,100; tax 15% over 250,000 = 12,465.00. Treating each source's ceiling on its own would exempt 16,000 and let the pool absorb 86,000: taxable 329,100, tax 11,865.00, 600.00 too little.",
+      "imported": { "grossPay": 36000, "basicSalary": 30000, "netPay": 32542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": { "uniformClothing": 6000 } },
+      "grant": { "benefitType": "uniformClothing", "amount": 6000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "yearEnd": { "grossCompensation": 462000, "thirteenthMonth": 30000, "nonTaxable": 128900, "statutoryContributions": 30900, "taxableIncome": 333100, "taxDue": 12465 },
+      "breakdown": { "deMinimisExempt": 8000, "deMinimisExcess": 64000, "benefitPool": 94000, "exemptBenefitPool": 90000, "taxableBenefitPool": 4000, "importedHistoryRows": 6, "runsIncluded": 12 }
+    },
+    "monthlyCeilingInSeparatePeriods": {
+      "description": "Rice subsidy (2,500 a month ceiling): previous provider 3,000 a month in January to June; engine grant 3,000 a month in July to December. The months never overlap, so each month has its own ceiling: 12 months x 2,500 exempt = 30,000, 12 x 500 = 6,000 excess. Gross: imported 6 x 33,000 = 198,000 + calculated 12 x 16,500 = 198,000 + 13th month 30,000 = 426,000. Contributions: imported 14,700; calculated 6 x (SSS 5% of 33,000 = 1,650 + 750 + 200) = 15,600; 30,300. Benefit pool 30,000 + 6,000 = 36,000, all inside 90,000. Non-taxable 30,300 + 30,000 + 36,000 = 96,300. Taxable 329,700; tax 15% over 250,000 = 11,955.00.",
+      "imported": { "grossPay": 33000, "basicSalary": 30000, "netPay": 29542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": { "riceSubsidy": 3000 } },
+      "grant": { "benefitType": "riceSubsidy", "amount": 3000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "yearEnd": { "grossCompensation": 426000, "thirteenthMonth": 30000, "nonTaxable": 96300, "statutoryContributions": 30300, "taxableIncome": 329700, "taxDue": 11955 },
+      "breakdown": { "deMinimisExempt": 30000, "deMinimisExcess": 6000, "benefitPool": 36000, "exemptBenefitPool": 36000, "taxableBenefitPool": 0, "importedHistoryRows": 6, "runsIncluded": 12 }
+    },
+    "importedHistoryWithoutDeMinimis": {
+      "description": "The previous provider paid no de minimis; the engine grants uniform allowance 6,000 a month in July to December (36,000) against the 8,000 yearly ceiling. Nothing imported shares the ceiling, so the engine's own accounting stands: exempt 8,000, excess 28,000. Gross: imported 6 x 30,000 = 180,000 + calculated 12 x 18,000 = 216,000 + 13th month 30,000 = 426,000. Contributions: imported 14,700; calculated 6 x (1,750 + 750 + 200) = 16,200; 30,900. Benefit pool 30,000 + 28,000 = 58,000 inside 90,000. Non-taxable 30,900 + 8,000 + 58,000 = 96,900. Taxable 329,100; tax 15% over 250,000 = 11,865.00.",
+      "imported": { "grossPay": 30000, "basicSalary": 30000, "netPay": 26542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0 },
+      "grant": { "benefitType": "uniformClothing", "amount": 6000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "yearEnd": { "grossCompensation": 426000, "thirteenthMonth": 30000, "nonTaxable": 96900, "statutoryContributions": 30900, "taxableIncome": 329100, "taxDue": 11865 },
+      "breakdown": { "deMinimisExempt": 8000, "deMinimisExcess": 28000, "benefitPool": 58000, "exemptBenefitPool": 58000, "taxableBenefitPool": 0, "importedHistoryRows": 6, "runsIncluded": 12 }
+    }
+  },
+  "limitations": [
+    "Only the year-end settlement is certified. The payroll engine still applies the ceiling to its own earlier cutoffs only, so in a provider-switch year its monthly payslip lines may show more of a category as exempt than the settlement finally allows, and its withholding during those cutoffs follows; the payroll run flags that combination for review and the settlement corrects the year. Withholding during the calculated cutoffs is therefore not asserted here.",
+    "Only fixed-peso ceiling categories are shared across sources. The daily overtime/night meal allowance (a wage-order based daily ceiling) and monetized leave days stay exactly as the engine accounted them.",
+    "Monthly imported rows only, one category per worker. Categories with a month, semester and year period are handled by the same rule; the month and year periods are exercised.",
+    "The release approval workflow and the HTTP, role and MFA gates are not exercised. The importer is covered by its own tests.",
+    "Whether SSS compensation should include de minimis benefits is a rule question for a practitioner; the expectations here follow the engine's current treatment (SSS on the month's gross).",
+    "The expected values follow the cited BIR rules and the repository's year-end treatment. They have not been reviewed by a qualified Philippine tax practitioner and must be before anyone relies on them for filing."
+  ]
+}
