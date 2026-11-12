@@ -144,7 +144,7 @@ export async function postValidatedWebhook(input: {
       signal: input.signal,
       // Pin the request to the exact public IP that passed validation. HTTPS
       // still uses the original URL hostname for Host + SNI/certificate checks.
-      autoSelectFamily: false,
+      ...{ autoSelectFamily: false },
       lookup: (_hostname, _options, callback) => {
         callback(null, pinned.address, pinned.family);
       },
@@ -183,7 +183,7 @@ export async function getValidatedJson<T = unknown>(input: {
     const request = transport(url, {
       method: "GET",
       headers: { Accept: "application/json", ...(input.headers ?? {}) },
-      autoSelectFamily: false,
+      ...{ autoSelectFamily: false },
       lookup: (_hostname, _options, callback) => {
         callback(null, pinned.address, pinned.family);
       },
@@ -246,7 +246,7 @@ export async function postValidatedForm<T = unknown>(input: {
         "Content-Length": Buffer.byteLength(encoded).toString(),
         ...(input.headers ?? {}),
       },
-      autoSelectFamily: false,
+      ...{ autoSelectFamily: false },
       lookup: (_hostname, _options, callback) => {
         callback(null, pinned.address, pinned.family);
       },
