@@ -1647,23 +1647,23 @@
       "businessIds": []
     },
     "src/app/api/auth/sso/callback/route.ts": {
-      "gitBlobSha": "25116ab157ede52128a1ccbe189773104361f2d3",
+      "gitBlobSha": "51aae9e960eb879d6710991093fed88118b12ee1",
       "route": "auth/sso/callback",
       "methods": [
         {
           "name": "GET",
-          "line": 27,
+          "line": 29,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "reason": "No valid own-object + real victim-only denial was linked to this method SSO first-pilot entrypoint now defaults OFF via exact-true runtime hold, with enabled-mode acceptance and independent identity/security review still PENDING. No new credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "oidc-initiating-browser-state-binding-zero-credit",
             "originalRouteBlobSha": "b18ac853e93155478474d02466617298d6773275",
-            "routeBlobSha": "25116ab157ede52128a1ccbe189773104361f2d3",
+            "routeBlobSha": "51aae9e960eb879d6710991093fed88118b12ee1",
             "cookieHelperFile": "src/lib/oidc-browser-state.ts",
             "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
             "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-            "contractBlobSha": "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+            "contractBlobSha": "d216ded9f82bef64bd9c10a210897c7ee506760d",
             "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
             "proofBlobSha": "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
             "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
@@ -1671,7 +1671,7 @@
             "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
             "negativeTestBlobSha": "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
             "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
-            "workflowBlobSha": "b7479504956c98e08932241b71f16b49bfc9891b",
+            "workflowBlobSha": "900f21651b27d22ad1e8cb23886da2b7cd20dcf5",
             "credits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -1690,69 +1690,69 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 105,
+          "line": 108,
           "token": "organizationId"
         },
         {
-          "line": 105,
+          "line": 108,
           "token": "organizationId"
         },
         {
-          "line": 113,
+          "line": 116,
           "token": "organizationId"
         },
         {
-          "line": 113,
+          "line": 116,
           "token": "organizationId"
         },
         {
-          "line": 145,
+          "line": 148,
           "token": "organizationId"
         },
         {
-          "line": 145,
+          "line": 148,
           "token": "organizationId"
         },
         {
-          "line": 152,
+          "line": 155,
           "token": "organizationId"
         },
         {
-          "line": 152,
+          "line": 155,
           "token": "organizationId"
         },
         {
-          "line": 166,
+          "line": 169,
           "token": "organizationId"
         },
         {
-          "line": 166,
+          "line": 169,
           "token": "organizationId"
         },
         {
-          "line": 187,
+          "line": 190,
           "token": "organizationId"
         },
         {
-          "line": 187,
+          "line": 190,
           "token": "organizationId"
         }
       ]
     },
     "src/app/api/auth/sso/resolve/route.ts": {
-      "gitBlobSha": "740e3dbb4325a55f5556ea14e04b6ec1f3c99137",
+      "gitBlobSha": "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299",
       "route": "auth/sso/resolve",
       "methods": [
         {
           "name": "POST",
-          "line": 12,
+          "line": 14,
           "status": "GAP",
-          "reason": "Still GAP: anonymous SSO discovery now binds each verified email domain to an enabled OIDC provider in the same employer and refuses malformed selectors or non-distributed throttling. A dedicated fictional PG16 production-mode HTTP candidate is required on the exact final head; public-discovery policy, independent identity/security review and complete method acceptance remain pending; zero credits.",
+          "reason": "Still GAP: anonymous SSO discovery now binds each verified email domain to an enabled OIDC provider in the same employer and refuses malformed selectors or non-distributed throttling. A dedicated fictional PG16 production-mode HTTP candidate is required on the exact final head; public-discovery policy, independent identity/security review and complete method acceptance remain pending; zero credits. SSO first-pilot entrypoint now defaults OFF via exact-true runtime hold, with enabled-mode acceptance and independent identity/security review still PENDING. No new credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "sso-discovery-domain-provider-org-match-PG16-HTTP-uncredited",
             "originalRouteBlobSha": "ecf9eb2ff759a4b39300abea5193356038aaad71",
-            "routeBlobSha": "740e3dbb4325a55f5556ea14e04b6ec1f3c99137",
+            "routeBlobSha": "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299",
             "helperFile": "src/lib/tenant-sso-discovery.ts",
             "helperBlobSha": "713b25dd4afad7a58afc5a01b69e55012d1b7613",
             "proofFile": "scripts/qa/tenant-sso-discovery-http.mjs",
@@ -1764,7 +1764,7 @@
             "unitTestFile": "tests/tenant-sso-discovery.test.ts",
             "unitTestBlobSha": "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
             "workflowFile": ".github/workflows/tenant-sso-discovery-http.yml",
-            "workflowBlobSha": "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
+            "workflowBlobSha": "4f6a87415432204f818c520d7a24a447745d5748",
             "coverageCredits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -1785,7 +1785,7 @@
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 10,
+          "line": 12,
           "token": "enforceSameOriginMutation"
         }
       ],
@@ -1793,23 +1793,23 @@
       "businessIds": []
     },
     "src/app/api/auth/sso/start/route.ts": {
-      "gitBlobSha": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+      "gitBlobSha": "060cd49b10ffd270863445a27b23ea702fbd91bc",
       "route": "auth/sso/start",
       "methods": [
         {
           "name": "GET",
-          "line": 16,
+          "line": 18,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "reason": "No valid own-object + real victim-only denial was linked to this method SSO first-pilot entrypoint now defaults OFF via exact-true runtime hold, with enabled-mode acceptance and independent identity/security review still PENDING. No new credit.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "oidc-initiating-browser-state-binding-zero-credit",
             "originalRouteBlobSha": "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
-            "routeBlobSha": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+            "routeBlobSha": "060cd49b10ffd270863445a27b23ea702fbd91bc",
             "cookieHelperFile": "src/lib/oidc-browser-state.ts",
             "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
             "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-            "contractBlobSha": "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+            "contractBlobSha": "d216ded9f82bef64bd9c10a210897c7ee506760d",
             "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
             "proofBlobSha": "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
             "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
@@ -1817,7 +1817,7 @@
             "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
             "negativeTestBlobSha": "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
             "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
-            "workflowBlobSha": "b7479504956c98e08932241b71f16b49bfc9891b",
+            "workflowBlobSha": "900f21651b27d22ad1e8cb23886da2b7cd20dcf5",
             "credits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
@@ -1836,11 +1836,11 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 37,
+          "line": 40,
           "token": "organizationId"
         },
         {
-          "line": 37,
+          "line": 40,
           "token": "organizationId"
         }
       ]
