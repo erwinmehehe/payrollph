@@ -107,7 +107,34 @@ export function verifyWorker360PageCredit(
   const gaps = manifest.scopedPages.filter(entry => entry.status === "GAP").length;
   assert.ok(row, "Worker 360 scoped page must stay in the inventory");
   if (row.status === "GAP") {
-    assert.equal(gaps, 17, "Historical page GAP baseline changed unexpectedly");
+    assert.equal(gaps, 17, "Only Worker 360 may lose provisional page credit");
+    const currentPageSha = "3b506b27e0af73ec370c448c6a0ad02a80c8f75c";
+    const currentApiSha = "19875021d750b722fc69e0fe939e57928a158af9";
+    const blob = data => {
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      return gitBlobSha(buf);
+    };
+    assert.equal(row.blob, currentPageSha);
+    assert.equal(blob(read(name)), currentPageSha, "Worker 360 page must be exact revised source");
+    assert.equal(row.testedBy, undefined, "Historical page receipt cannot certify changed source");
+    assert.equal(row.reviewedUncertified?.kind,
+      "worker360-legal-employer-source-supersession-zero-credit");
+    assert.equal(row.reviewedUncertified?.coverageCredits, 0);
+    const api = manifest.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
+    assert.equal(api?.gitBlobSha, currentApiSha);
+    assert.equal(blob(read("src/app/api/hcm/worker-360/route.ts")), currentApiSha);
+    const get = api.methods.find(method => method.name === "GET");
+    assert.equal(get?.status, "GAP", "Changed API GET cannot inherit old PG16 receipt");
+    assert.equal(get?.testedBy, null);
+    assert.equal(get?.reviewedUncertified?.coverageCredits, 0);
+    const pageSource = read(name).toString("utf8");
+    const apiSource = read("src/app/api/hcm/worker-360/route.ts").toString("utf8");
+    for (const source of [pageSource, apiSource]) {
+      assert.ok(source.includes("resolveMultiEntityContext("),
+        "Legal-employer policy must run before worker reads");
+      assert.ok(source.includes("authorizedLegalEntityId"),
+        "Selected legal employer must bind the worker query");
+    }
     return gaps;
   }
   assert.equal(row.status, "COVERED", "No unreviewed alternate page classification");

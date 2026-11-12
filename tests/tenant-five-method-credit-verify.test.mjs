@@ -37,10 +37,18 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
       assert.equal(method.reviewedUncertified, undefined);
     }
   }
+  // Current Worker 360 SSR source is not the historically credited source.
+  const worker360Page = manifest.scopedPages.find(x => x.path ===
+    "src/app/hcm/worker-360/page.tsx");
+  assert.equal(worker360Page?.status, "GAP");
+  assert.equal(worker360Page?.testedBy, undefined);
+  assert.equal(worker360Page?.reviewedUncertified?.coverageCredits, 0);
+  assert.equal(worker360Page?.reviewedUncertified?.historicalProof?.sourceBlobSha,
+    "337034f839c17a30077e2cfe5991c640e0c6a5e9");
   assert.deepEqual(verifyFiveMethodCredits(manifest), {
     status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
     methodsHeld: 0, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap,
-    pageActionGaps: 16, productionTested: false, independentlyAccepted: false,
+    pageActionGaps: 17, productionTested: false, independentlyAccepted: false,
   });
 });
 

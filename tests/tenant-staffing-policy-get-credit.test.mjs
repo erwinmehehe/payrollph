@@ -15,9 +15,9 @@ test("source-current dual-mode PG16 proves one provisional staffing GET method o
   assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + (m.metrics.privilegedOperationsTokenOnly ?? 0) + m.metrics.gap,
     liveMethodCount);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
-  // Historical 17-page GAP baseline is still valid; the ONLY permissible
-  // 16-page candidate is the source-pinned Worker 360 SSR worker-binding proof.
-  assert.equal(verifyWorker360PageCredit(m), 16);
+  // Revised Worker 360 runtime cannot borrow its original 16-GAP provisional
+  // page credit. The strict verifier pins the exact source and zero-credit GAP.
+  assert.equal(verifyWorker360PageCredit(m), 17);
 });
 test("no invented review, stale source, empty modes, duplicated or borrowed receipts", () => {
   const m = load();

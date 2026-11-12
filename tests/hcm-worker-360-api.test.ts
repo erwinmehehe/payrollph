@@ -28,6 +28,11 @@ test("Worker 360 API is disabled by default, read-only and session/permission pr
   assert.match(route, /validWorker360Date\(asOfDate\)/);
   assert.ok(!route.includes("primaryOrganizationId("));
   assert.ok(!route.includes("primaryCompanyOrganizationId("));
+  assert.match(route, /resolveMultiEntityContext/);
+  assert.match(route, /authorizedLegalEntityId/);
+  assert.match(page, /resolveMultiEntityContext/);
+  assert.match(page, /eq\(employees\.legalEntityId, authorizedLegalEntityId\)/);
+  assert.match(client, /url\.set\("legalEntityId", String\(legalEntityId\)\)/);
   assert.ok(!route.includes("export async function POST"));
   assert.ok(!route.includes("export async function PATCH"));
   assert.ok(!route.includes("export function philippineWorker360Date"), "Next route should expose only supported exports");
@@ -39,6 +44,10 @@ test("every Worker 360 database read is tenant + worker scoped and bounded in SQ
     assert.match(loader, new RegExp("eq\\(" + source + "\\.(?:employeeId|id), employeeId\\)"));
   }
   assert.match(loader, /eq\(positionAssignments\.assignmentType, "primary"\)/);
+  assert.match(loader, /eq\(employees\.legalEntityId, authorizedLegalEntityId\)/);
+  assert.match(loader, /eq\(positions\.legalEntityId, authorizedLegalEntityId\)/);
+  assert.match(loader, /eq\(workerEmploymentEvents\.toLegalEntityId, authorizedLegalEntityId\)/);
+  assert.match(loader, /eq\(workerEmploymentEvents\.fromLegalEntityId, authorizedLegalEntityId\)/);
   assert.match(loader, /lte\(positionAssignments\.effectiveFrom, asOfDate\)/);
   assert.match(loader, /gte\(positionAssignments\.effectiveUntil, asOfDate\)/);
   assert.match(loader, /lte\(workerEmploymentEvents\.effectiveDate, asOfDate\)/);

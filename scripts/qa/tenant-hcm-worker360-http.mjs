@@ -190,12 +190,12 @@ export async function proveWorker360Isolation() {
         "&asOfDate=" + AS_OF + "&beforeDate=2026-07-12&beforeId=" + actor.events.later.id,
         { before: { effectiveDate: "2026-07-12", id: actor.events.later.id } });
 
-      // GET with two query values may honor the first value; no second
-      // selector may ever influence the authorized worker or employer.
-      await readApi(actor, actor.worker, actor.cookie, actor.assignment,
-        [actor.events.later, actor.events.earlier],
+      // Even when the first employer and worker belong to the actor, duplicate
+      // selectors are ambiguous and must fail rather than use the first value.
+      await deny(apiPath(actor.org.id, actor.worker.id,
         "&asOfDate=" + AS_OF +
-        "&organizationId=" + victim.org.id + "&employeeId=" + victim.worker.id);
+        "&organizationId=" + victim.org.id + "&employeeId=" + victim.worker.id),
+        actor.cookie, 400, actor.label + ": duplicate own-first employer and worker selectors");
       await deny(apiPath(actor.org.id, victim.worker.id,
         "&asOfDate=" + AS_OF), actor.cookie, 404,
         actor.label + ": foreign actual employee within own employer selector");
@@ -219,10 +219,10 @@ export async function proveWorker360Isolation() {
         actor.label + ": duplicate employer selector must fail closed");
       await deny(apiPath(victim.org.id, victim.worker.id,
         "&organizationId=" + actor.org.id + "&asOfDate=" + AS_OF),
-        actor.cookie, 403, actor.label + ": victim-first duplicate employer");
+        actor.cookie, 400, actor.label + ": victim-first duplicate employer");
       await deny(apiPath(actor.org.id, victim.worker.id,
         "&employeeId=" + actor.worker.id + "&asOfDate=" + AS_OF),
-        actor.cookie, 404, actor.label + ": victim-first duplicate worker");
+        actor.cookie, 400, actor.label + ": victim-first duplicate worker");
       await deny(apiPath("01", actor.worker.id), actor.cookie, 400,
         actor.label + ": noncanonical employer ID");
       await deny(apiPath(actor.org.id, "01"), actor.cookie, 400,
@@ -278,10 +278,10 @@ export async function proveWorker360Isolation() {
     await unchanged("final readonly database snapshot");
     assert.equal(ownedPages, 5,
       "Two owners must render both actual same-employer employees, plus authorized HR");
-    assert.equal(ownedApi, 11);
+    assert.equal(ownedApi, 9);
     assert.equal(foreignDenials, 12,
       "Two owners must each deny two actual foreign employee SSRs and two foreign API/SSR selectors");
-    assert.equal(deniedCases, 44, "Every independent page and API negative control must execute");
+    assert.equal(deniedCases, 46, "Every independent page and API negative control must execute");
 
     console.log(JSON.stringify({
       family: "hcm-worker360-page-and-get", pg16: true,

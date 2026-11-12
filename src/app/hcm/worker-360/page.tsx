@@ -10,6 +10,7 @@ import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { philippineWorker360Date } from "@/lib/hcm-worker-360-projection";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentUploadsEnabled } from "@/lib/storage";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -27,7 +28,7 @@ function positiveId(value: string | string[] | undefined): number | null {
 export default async function Worker360Page({
   searchParams,
 }: {
-  searchParams: Promise<{ organizationId?: string; employeeId?: string }>;
+  searchParams: Promise<{ organizationId?: string; employeeId?: string; legalEntityId?: string }>;
 }) {
   if (process.env.HCM_WORKER_360_ENABLED !== "true") notFound();
 
@@ -37,7 +38,8 @@ export default async function Worker360Page({
   const query = await searchParams;
   const organizationId = positiveId(query.organizationId);
   const employeeId = positiveId(query.employeeId);
-  if (!organizationId || !employeeId) notFound();
+  if (!organizationId || !employeeId ||
+      (query.legalEntityId !== undefined && !positiveId(query.legalEntityId))) notFound();
 
   const denied = await assertOrganizationRole(
     user.id, organizationId, PEOPLE_ADMIN_ROLES,
@@ -45,6 +47,16 @@ export default async function Worker360Page({
   );
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
+
+  // This server component must independently enforce the same legal-employer
+  // selection as the read API, before mounting the history or vault client.
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId, requested: query.legalEntityId,
+  });
+  if (!entityScope.ok || (entityScope.context.enabled &&
+      (entityScope.context.group || entityScope.context.legalEntityId === null))) notFound();
+  const authorizedLegalEntityId = entityScope.context.enabled
+    ? entityScope.context.legalEntityId : null;
 
   const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
   if (planDenied) notFound();
@@ -57,6 +69,8 @@ export default async function Worker360Page({
     .where(and(
       eq(employees.organizationId, organizationId),
       eq(employees.id, employeeId),
+      authorizedLegalEntityId === null ? undefined
+        : eq(employees.legalEntityId, authorizedLegalEntityId),
     ))
     .limit(1);
   if (!verifiedWorker) notFound();
@@ -72,6 +86,7 @@ export default async function Worker360Page({
       <Worker360Client
         organizationId={organizationId}
         employeeId={employeeId}
+        legalEntityId={authorizedLegalEntityId}
         initialAsOfDate={philippineWorker360Date()}
         vaultEnabled={criticalReleaseFlagEnabled("employeeDocumentVault") && ["owner", "hr"].includes(access.role)}
         vaultUploadsEnabled={documentUploadsEnabled()}

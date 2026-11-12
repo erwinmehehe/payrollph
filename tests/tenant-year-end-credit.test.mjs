@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import test from "node:test"; import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {
   YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState,
 } from "../scripts/qa/tenant-year-end-credit.mjs";
@@ -34,7 +34,7 @@ test("merged #1804 PG16 source proof gives only year-end GET and POST credits", 
   assert.equal(m.metrics.privilegedOperationsTokenOnly,11+Number(classified),
     "Only 11 historical operations plus the zero-credit HCM scheduler");
   assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + m.metrics.privilegedOperationsTokenOnly + m.metrics.gap, m.metrics.methods);
-  assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and 16 page\/action GAPs/);
+  assert.ok(m.acceptanceStatus.startsWith("NOT ACCEPTED: " + m.metrics.gap + " API methods and " + verifyWorker360PageCredit(m) + " page/action GAPs"));
 });
 
 test("forged receipt, altered financial source, and fake approval fail closed", () => {

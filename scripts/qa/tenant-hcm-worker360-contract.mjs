@@ -1,6 +1,7 @@
 /**
  * Standalone, source-pinned Worker 360 tenant/worker boundary proof.
- * Pins the strengthened server-side page; API and unrelated families are unchanged.
+ * Pins current Worker 360 runtime scope; historical page/API proof receipts
+ * are not repurposed as multi-entity legal-employer acceptance.
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -13,13 +14,13 @@ export const API = "/api/hcm/worker-360";
 export const AS_OF = "2026-11-09";
 
 export const SOURCE_PINS = Object.freeze({
-  "src/app/hcm/worker-360/page.tsx": "337034f839c17a30077e2cfe5991c640e0c6a5e9",
-  "src/app/api/hcm/worker-360/route.ts": "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62",
-  "src/lib/hcm-worker-360-server.ts": "7bc310dd03d89bd3cc29cd2a73f95d9e3959bece",
+  "src/app/hcm/worker-360/page.tsx": "3b506b27e0af73ec370c448c6a0ad02a80c8f75c",
+  "src/app/api/hcm/worker-360/route.ts": "19875021d750b722fc69e0fe939e57928a158af9",
+  "src/lib/hcm-worker-360-server.ts": "eb96de991ca31589f195e3e4e10eeccaeccf8ec6",
   "src/lib/hcm-worker-360-contract.ts": "ed4741dab306ed2b4081bb4319f96d04f6462690",
   "src/lib/hcm-worker-360-projection.ts": "0890a4e22d1404152ffa7a5b5ab8c77c7c916e14",
   "src/lib/hcm-worker-360-response.ts": "9107293ba8692614fb721cddfd1c9351353ebefb",
-  "src/components/hcm-worker-360.tsx": "9d3284087cd593707dba2643f9eea9068f3d65fe",
+  "src/components/hcm-worker-360.tsx": "13e10c357f6b744aa9280c1c8f5eb8a01ddd6878",
   "src/lib/hcm-enterprise-plan-server.ts": "b436a61f091871e02bb662393429667cadb71b35",
   "src/lib/hcm-enterprise-plan-policy.ts": "6c02b69e0b9a5526aa40ff3aa92ce09085866aba",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
@@ -49,6 +50,7 @@ export function verifyWorker360SourcePins(root = process.cwd()) {
     "eq(employees.organizationId, organizationId)",
     "eq(employees.id, employeeId)",
     "if (!verifiedWorker) notFound();",
+    "eq(employees.legalEntityId, authorizedLegalEntityId)",
   ]) assert.ok(page.includes(required), "WORKER360_REFUSED: page guard missing: " + required);
   const authIndex = page.indexOf("await assertOrganizationRole(");
   const planIndex = page.indexOf("await denyOptInEnterpriseHcmPlan(organizationId)");
@@ -61,7 +63,8 @@ export function verifyWorker360SourcePins(root = process.cwd()) {
   for (const required of [
     "getSessionUser()", "assertOrganizationRole(", "access?.companyWide",
     "HCM_WORKER_360_ENABLED", "denyOptInEnterpriseHcmPlan(",
-    "loadWorker360Summary(organizationId, employeeId",
+    "loadWorker360Summary(", "authorizedLegalEntityId",
+    "resolveMultiEntityContext(",
   ]) assert.ok(api.includes(required), "WORKER360_REFUSED: API guard missing: " + required);
   for (const required of [
     "eq(employees.organizationId, organizationId)",
@@ -72,6 +75,10 @@ export function verifyWorker360SourcePins(root = process.cwd()) {
     "eq(workerEmploymentEvents.employeeId, employeeId)",
     "lte(workerEmploymentEvents.effectiveDate, asOfDate)",
     "WORKER_360_EVENT_PAGE_SIZE + 1",
+    "eq(employees.legalEntityId, authorizedLegalEntityId)",
+    "eq(positions.legalEntityId, authorizedLegalEntityId)",
+    "eq(workerEmploymentEvents.fromLegalEntityId, authorizedLegalEntityId)",
+    "eq(workerEmploymentEvents.toLegalEntityId, authorizedLegalEntityId)",
   ]) assert.ok(server.includes(required),
     "WORKER360_REFUSED: SQL source boundary missing: " + required);
   return true;
