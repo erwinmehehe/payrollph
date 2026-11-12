@@ -41,9 +41,16 @@ test("Worker 360 JSON API must enforce paid depth before reading worker history"
   const route = read(path);
   const authorize = route.indexOf("assertOrganizationRole(");
   const scope = route.indexOf('!["owner", "admin", "hr"].includes(access.role)');
+  const entityScope = route.indexOf("const entityScope = await resolveMultiEntityContext({");
   const paid = route.indexOf("denyOptInEnterpriseHcmPlan(organizationId)");
-  const source = route.indexOf("loadWorker360Summary(organizationId, employeeId, asOfDate");
-  assert.ok(authorize >= 0 && scope > authorize && paid > scope && source > paid);
+  const source = route.indexOf("const summary = await loadWorker360Summary(");
+  assert.ok(authorize >= 0 && scope > authorize && entityScope > scope &&
+    paid > entityScope && source > paid,
+    "HR role and granted legal-employer scope must precede billing and worker history");
+  assert.ok(route.slice(entityScope, paid).includes("legalEntityId === null"),
+    "Group-wide or unselected legal-employer reads must fail closed before billing");
+  assert.ok(route.slice(source).includes("before, authorizedLegalEntityId,"),
+    "Worker history must use the authorized legal-employer selector");
   assert.equal(route.split("denyOptInEnterpriseHcmPlan(organizationId)").length - 1, 1);
   assert.ok(route.includes("if (planDenied) return planDenied;"));
   assert.ok(route.includes('if (process.env.HCM_WORKER_360_ENABLED !== "true")'));

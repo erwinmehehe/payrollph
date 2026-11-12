@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, isNull, lt, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, positionAssignments, workerEmploymentEvents } from "@/db/schema";
+import { employees, positionAssignments, positions, workerEmploymentEvents } from "@/db/schema";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   projectWorker360Events,
   selectWorker360Assignment,
@@ -24,7 +25,12 @@ export async function loadWorker360Summary(
   employeeId: number,
   asOfDate: string,
   before?: Worker360EventCursor,
+  authorizedLegalEntityId: number | null = null,
 ): Promise<Worker360Summary | null> {
+  // The route resolves this from the authenticated actor, not request input.
+  // A future direct caller must not bypass entity checks by omitting it.
+  if (criticalReleaseFlagEnabled("multiEntity") &&
+      (!Number.isSafeInteger(authorizedLegalEntityId) || !authorizedLegalEntityId)) return null;
   if (before && !validWorker360EventCursor(before, asOfDate)) {
     throw new Error("Invalid Worker 360 event cursor");
   }
@@ -39,6 +45,8 @@ export async function loadWorker360Summary(
   }).from(employees).where(and(
     eq(employees.organizationId, organizationId),
     eq(employees.id, employeeId),
+    authorizedLegalEntityId === null ? undefined
+      : eq(employees.legalEntityId, authorizedLegalEntityId),
   )).limit(1);
   if (!worker) return null;
 
@@ -51,8 +59,16 @@ export async function loadWorker360Summary(
       assignmentType: positionAssignments.assignmentType,
       effectiveFrom: positionAssignments.effectiveFrom,
       effectiveUntil: positionAssignments.effectiveUntil,
-    }).from(positionAssignments).where(and(
+    }).from(positionAssignments)
+      .innerJoin(positions, and(
+        eq(positions.id, positionAssignments.positionId),
+        eq(positions.organizationId, organizationId),
+      )).where(and(
       eq(positionAssignments.organizationId, organizationId),
+      // Historic positions with unknown/different employer are not evidence
+      // this HR actor may view; entity scope must apply before LIMIT 2.
+      authorizedLegalEntityId === null ? undefined
+        : eq(positions.legalEntityId, authorizedLegalEntityId),
       eq(positionAssignments.employeeId, employeeId),
       eq(positionAssignments.assignmentType, "primary"),
       lte(positionAssignments.effectiveFrom, asOfDate),
@@ -70,6 +86,17 @@ export async function loadWorker360Summary(
     }).from(workerEmploymentEvents).where(and(
       eq(workerEmploymentEvents.organizationId, organizationId),
       eq(workerEmploymentEvents.employeeId, employeeId),
+      // Earlier employment in a different legal employer is private even
+      // when the worker has since transferred into the selected entity.
+      // Unattributed legacy events stay hidden rather than being guessed.
+      authorizedLegalEntityId === null ? undefined : or(
+        and(eq(workerEmploymentEvents.fromLegalEntityId, authorizedLegalEntityId),
+          eq(workerEmploymentEvents.toLegalEntityId, authorizedLegalEntityId)),
+        and(isNull(workerEmploymentEvents.fromLegalEntityId),
+          eq(workerEmploymentEvents.toLegalEntityId, authorizedLegalEntityId)),
+        and(eq(workerEmploymentEvents.fromLegalEntityId, authorizedLegalEntityId),
+          isNull(workerEmploymentEvents.toLegalEntityId)),
+      ),
       lte(workerEmploymentEvents.effectiveDate, asOfDate),
       before ? or(
         lt(workerEmploymentEvents.effectiveDate, before.effectiveDate),

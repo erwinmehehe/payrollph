@@ -26,27 +26,29 @@ function dateText(value: string | null) {
 }
 
 export function Worker360Client({
-  organizationId, employeeId, initialAsOfDate, vaultEnabled = false, vaultUploadsEnabled = false,
+  organizationId, employeeId, legalEntityId = null, initialAsOfDate, vaultEnabled = false, vaultUploadsEnabled = false,
 }: {
   organizationId: number;
   employeeId: number;
+  legalEntityId?: number | null;
   initialAsOfDate: string;
   vaultEnabled?: boolean;
   vaultUploadsEnabled?: boolean;
 }) {
-  return <ScopedWorker360 key={`${organizationId}:${employeeId}`} organizationId={organizationId}
-    employeeId={employeeId} initialAsOfDate={initialAsOfDate}
+  return <ScopedWorker360 key={`${organizationId}:${legalEntityId ?? "legacy"}:${employeeId}`}
+    organizationId={organizationId} employeeId={employeeId} legalEntityId={legalEntityId}
+    initialAsOfDate={initialAsOfDate}
     vaultEnabled={vaultEnabled} vaultUploadsEnabled={vaultUploadsEnabled} />;
 }
 
-function ScopedWorker360({ organizationId, employeeId, initialAsOfDate, vaultEnabled, vaultUploadsEnabled }: {
-  organizationId: number; employeeId: number; initialAsOfDate: string;
+function ScopedWorker360({ organizationId, employeeId, legalEntityId, initialAsOfDate, vaultEnabled, vaultUploadsEnabled }: {
+  organizationId: number; employeeId: number; legalEntityId: number | null; initialAsOfDate: string;
   vaultEnabled: boolean; vaultUploadsEnabled: boolean;
 }) {
   const [asOfDate, setAsOfDate] = useState(initialAsOfDate);
   const [revision, setRevision] = useState(0);
   const [load, setLoad] = useState<Load | null>(null);
-  const scope = [organizationId, employeeId, asOfDate, revision].join(":");
+  const scope = [organizationId, legalEntityId ?? "legacy", employeeId, asOfDate, revision].join(":");
   const validDate = validWorker360Date(asOfDate);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate, vaultEna
       employeeId: String(employeeId),
       asOfDate,
     });
+    if (legalEntityId !== null) url.set("legalEntityId", String(legalEntityId));
     void fetch("/api/hcm/worker-360?" + url.toString(), {
       cache: "no-store", signal: controller.signal,
     }).then(async (response) => {
@@ -84,7 +87,7 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate, vaultEna
       });
     });
     return () => controller.abort();
-  }, [organizationId, employeeId, asOfDate, scope, validDate]);
+  }, [organizationId, employeeId, legalEntityId, asOfDate, scope, validDate]);
 
   const active = load?.key === scope ? load : null;
   const data = active?.status === "ready" ? active.data : null;
@@ -197,7 +200,8 @@ function ScopedWorker360({ organizationId, employeeId, initialAsOfDate, vaultEna
               </section>
 
               {history && <Worker360History key={scope} organizationId={organizationId}
-                employeeId={employeeId} asOfDate={asOfDate} preview={history} />}
+                employeeId={employeeId} legalEntityId={legalEntityId}
+                asOfDate={asOfDate} preview={history} />}
             </div>
             {vaultEnabled && <EmployeeVaultProfilePanel key={organizationId + ":" + employeeId}
               organizationId={organizationId} employeeId={employeeId} uploadsEnabled={vaultUploadsEnabled} />}
