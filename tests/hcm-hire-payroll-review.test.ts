@@ -123,6 +123,12 @@ test("route is feature-gated and authorized before any source reads; review neve
   assert.match(page, /getAccess\(user.id, organizationId\)/);
   assert.match(page, /access\?\.companyWide/);
   assert.match(page, /\["owner", "admin", "hr"\]/);
+  assert.match(page, /resolveMultiEntityContext\(\{/);
+  assert.match(page, /entityScope\.context\.group/);
+  assert.match(page, /eq\(employees\.legalEntityId, authorizedLegalEntityId\)/);
+  assert.match(server, /criticalReleaseFlagEnabled\("multiEntity"\)/);
+  assert.match(server, /eq\(employees\.legalEntityId, authorizedLegalEntityId\)/);
+  assert.match(page, /loadHirePayrollInputReview\(organizationId, employeeId, authorizedLegalEntityId\)/);
   assert.ok(page.indexOf("assertOrganizationRole(") < page.indexOf("loadHirePayrollInputReview("));
   assert.match(page, /notFound\(\)/);
   assert.match(page, /unavailable = true/);
@@ -166,6 +172,10 @@ test("hire-to-payroll SSR gates the worker identity before rendering even on a s
     "Employer authorization must precede any worker existence query");
   assert.ok(gate > page.indexOf("getAccess(user.id, organizationId)"),
     "Company-wide access must precede any worker existence query");
+  assert.ok(page.indexOf("const entityScope = await resolveMultiEntityContext({") >
+    page.indexOf("getAccess(user.id, organizationId)") &&
+    gate > page.indexOf("const entityScope = await resolveMultiEntityContext({"),
+    "Legal-employer grant must be resolved before existence-only worker SQL");
   assert.ok(reject > gate && loader > reject && fallback > reject,
     "Foreign/missing worker must be rejected before the catchable source loader");
   assert.ok(navigation > reject,

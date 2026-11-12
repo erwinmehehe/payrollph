@@ -42969,51 +42969,31 @@
     },
     {
       "path": "src/app/hcm/hire-payroll-review/page.tsx",
-      "blob": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+      "blob": "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
       "ids": [
-        {
-          "line": 51,
-          "token": "searchParams"
-        },
         {
           "line": 53,
           "token": "searchParams"
         },
         {
-          "line": 54,
-          "token": "organizationId"
-        },
-        {
           "line": 55,
-          "token": "employeeId"
-        },
-        {
-          "line": 58,
           "token": "searchParams"
         },
         {
-          "line": 59,
+          "line": 56,
           "token": "organizationId"
         },
         {
-          "line": 59,
-          "token": "organizationId"
-        },
-        {
-          "line": 60,
-          "token": "employeeId"
-        },
-        {
-          "line": 60,
+          "line": 57,
           "token": "employeeId"
         },
         {
           "line": 61,
-          "token": "organizationId"
+          "token": "searchParams"
         },
         {
-          "line": 61,
-          "token": "employeeId"
+          "line": 62,
+          "token": "organizationId"
         },
         {
           "line": 62,
@@ -43021,10 +43001,26 @@
         },
         {
           "line": 63,
+          "token": "employeeId"
+        },
+        {
+          "line": 63,
+          "token": "employeeId"
+        },
+        {
+          "line": 64,
           "token": "organizationId"
         },
         {
-          "line": 69,
+          "line": 64,
+          "token": "employeeId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
           "token": "organizationId"
         },
         {
@@ -43032,31 +43028,7 @@
           "token": "organizationId"
         },
         {
-          "line": 83,
-          "token": "organizationId"
-        },
-        {
-          "line": 84,
-          "token": "employeeId"
-        },
-        {
-          "line": 92,
-          "token": "organizationId"
-        },
-        {
-          "line": 92,
-          "token": "employeeId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
-          "line": 100,
+          "line": 75,
           "token": "organizationId"
         },
         {
@@ -43065,23 +43037,55 @@
         },
         {
           "line": 101,
-          "token": "organizationId"
-        },
-        {
-          "line": 101,
-          "token": "organizationId"
-        },
-        {
-          "line": 107,
-          "token": "organizationId"
-        },
-        {
-          "line": 107,
-          "token": "organizationId"
-        },
-        {
-          "line": 107,
           "token": "employeeId"
+        },
+        {
+          "line": 111,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "employeeId"
+        },
+        {
+          "line": 118,
+          "token": "organizationId"
+        },
+        {
+          "line": 118,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 126,
+          "token": "organizationId"
+        },
+        {
+          "line": 126,
+          "token": "organizationId"
+        },
+        {
+          "line": 126,
+          "token": "employeeId"
+        },
+        {
+          "line": 58,
+          "token": "legalEntityId"
         }
       ],
       "actions": [],
@@ -43099,53 +43103,33 @@
           "token": "getSessionUser"
         },
         {
-          "line": 65,
+          "line": 68,
           "token": "getSessionUser"
         },
         {
-          "line": 68,
+          "line": 71,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 72,
+          "line": 75,
           "token": "getAccess"
         },
         {
-          "line": 87,
+          "line": 106,
           "token": "notFound"
+        },
+        {
+          "line": 84,
+          "token": "resolveMultiEntityContext"
         }
       ],
       "business": [
         {
-          "line": 54,
+          "line": 56,
           "token": "organizationId"
         },
         {
-          "line": 55,
-          "token": "employeeId"
-        },
-        {
-          "line": 59,
-          "token": "organizationId"
-        },
-        {
-          "line": 59,
-          "token": "organizationId"
-        },
-        {
-          "line": 60,
-          "token": "employeeId"
-        },
-        {
-          "line": 60,
-          "token": "employeeId"
-        },
-        {
-          "line": 61,
-          "token": "organizationId"
-        },
-        {
-          "line": 61,
+          "line": 57,
           "token": "employeeId"
         },
         {
@@ -43153,11 +43137,31 @@
           "token": "organizationId"
         },
         {
-          "line": 63,
+          "line": 62,
           "token": "organizationId"
         },
         {
-          "line": 69,
+          "line": 63,
+          "token": "employeeId"
+        },
+        {
+          "line": 63,
+          "token": "employeeId"
+        },
+        {
+          "line": 64,
+          "token": "organizationId"
+        },
+        {
+          "line": 64,
+          "token": "employeeId"
+        },
+        {
+          "line": 65,
+          "token": "organizationId"
+        },
+        {
+          "line": 66,
           "token": "organizationId"
         },
         {
@@ -43165,31 +43169,7 @@
           "token": "organizationId"
         },
         {
-          "line": 83,
-          "token": "organizationId"
-        },
-        {
-          "line": 84,
-          "token": "employeeId"
-        },
-        {
-          "line": 92,
-          "token": "organizationId"
-        },
-        {
-          "line": 92,
-          "token": "employeeId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
-          "line": 100,
+          "line": 75,
           "token": "organizationId"
         },
         {
@@ -43198,36 +43178,64 @@
         },
         {
           "line": 101,
+          "token": "employeeId"
+        },
+        {
+          "line": 111,
           "token": "organizationId"
         },
         {
-          "line": 101,
+          "line": 111,
+          "token": "employeeId"
+        },
+        {
+          "line": 118,
           "token": "organizationId"
         },
         {
-          "line": 107,
+          "line": 118,
           "token": "organizationId"
         },
         {
-          "line": 107,
+          "line": 119,
           "token": "organizationId"
         },
         {
-          "line": 107,
+          "line": 119,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 126,
+          "token": "organizationId"
+        },
+        {
+          "line": 126,
+          "token": "organizationId"
+        },
+        {
+          "line": 126,
           "token": "employeeId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Still GAP: #1888 fail-closed hire-to-payroll employer/worker SSR binding has source-linked fictional PG16 candidate tests; independent security/HR review and exact-head HTTP proof required before acceptance. Zero credits.",
+      "reason": "Still GAP: #1888 and #1937 hire-to-payroll legal-employer/worker SSR boundary has source-linked fictional PG16 candidate tests; same-parent multi-entity-on end-to-end evidence and independent security/HR review required before acceptance. Zero credits.",
       "reviewedUncertified": {
         "kind": "hire-payroll-employer-worker-SSR-PG16-candidate-unaccepted",
         "originalPageBlobSha": "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a",
-        "pageBlobSha": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+        "pageBlobSha": "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
         "proofFile": "scripts/qa/tenant-hire-payroll-review-http.mjs",
         "proofBlobSha": "38b87f3f71fd15e93ac096bcc9c16899fb76b0b2",
         "contractFile": "scripts/qa/tenant-hire-payroll-review-contract.mjs",
-        "contractBlobSha": "06f0370a196fc283dee7aa33597aa802841b9993",
+        "contractBlobSha": "188a60edbf47b81e8c471d6cde75a8a11b7c8d28",
         "contractTestFile": "tests/tenant-hire-payroll-review-contract.test.mjs",
         "contractTestBlobSha": "0a437d35f600280aeb29ca89b503bc0052fa9f07",
         "workflowFile": ".github/workflows/tenant-hire-payroll-review-qa.yml",

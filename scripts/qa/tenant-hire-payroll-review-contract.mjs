@@ -9,8 +9,8 @@ import { readFileSync } from "node:fs";
 export const ORIGIN = "http://127.0.0.1:3000";
 export const PAGE = "/hcm/hire-payroll-review";
 export const SOURCE_PINS = Object.freeze({
-  "src/app/hcm/hire-payroll-review/page.tsx": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
-  "src/lib/hcm-hire-payroll-review-server.ts": "387d28a124db85281ffcfd968c50749a909f4d60",
+  "src/app/hcm/hire-payroll-review/page.tsx": "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
+  "src/lib/hcm-hire-payroll-review-server.ts": "41582d34f152a4eee5e2eea0700aec13da9ff380",
   "src/lib/hcm-hire-payroll-review.ts": "6cf695a7225d527e7efa96242432be70e8cabada",
   "src/lib/hcm-people-home-scope.ts": "b643254e294f56d8fc6687595758acdf19734d49",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
@@ -62,23 +62,30 @@ export function verifyHireReviewSourcePins() {
   const page = readFileSync("src/app/hcm/hire-payroll-review/page.tsx", "utf8");
   const firstAccess = page.indexOf("await assertOrganizationRole(");
   const companyWide = page.indexOf("!access?.companyWide");
+  const entityScope = page.indexOf("const entityScope = await resolveMultiEntityContext({");
   const workerQuery = page.indexOf("const [boundWorker] = await db.select");
   const missing = page.indexOf("if (!boundWorker) notFound();");
   const loader = page.indexOf("loadHirePayrollInputReview(");
   const navigation = page.indexOf("<HcmContextNavigation");
   assert.ok(firstAccess >= 0 && companyWide > firstAccess &&
-    workerQuery > companyWide && missing > workerQuery &&
+    entityScope > companyWide && workerQuery > entityScope && missing > workerQuery &&
     loader > missing && navigation > missing,
   "HIRE_REVIEW_REFUSED: authorization/worker-binding before private UI required");
   for (const required of [
     "db.select({ id: employees.id })",
     "eq(employees.organizationId, organizationId)",
-    "eq(employees.id, employeeId)", "if (!boundWorker) notFound();",
+    "eq(employees.id, employeeId)",
+    "eq(employees.legalEntityId, authorizedLegalEntityId)",
+    "entityScope.context.group",
+    "loadHirePayrollInputReview(organizationId, employeeId, authorizedLegalEntityId)",
+    "if (!boundWorker) notFound();",
   ]) assert.ok(page.includes(required), "HIRE_REVIEW_REFUSED: missing source boundary " + required);
   assert.ok(!page.slice(workerQuery, missing).includes("catch"),
     "HIRE_REVIEW_REFUSED: binding errors must fail closed");
   const loaderSource = readFileSync("src/lib/hcm-hire-payroll-review-server.ts", "utf8");
   for (const required of [
+    'criticalReleaseFlagEnabled("multiEntity")',
+    "eq(employees.legalEntityId, authorizedLegalEntityId)",
     "eq(employees.organizationId, organizationId)", "eq(employees.id, employeeId)",
     "eq(employeePayProfiles.organizationId, organizationId)",
     "eq(employeePayProfiles.employeeId, employeeId)",

@@ -32,3 +32,28 @@ The added source-contract test checks the authorization-ordering, two-column SQL
 - [ ] Complete fresh exact-head CI, security checks and **independent human security/HR privacy review**. Keep global tenant-isolation counts unchanged pending a separate acceptance decision.
 
 No live/production/Neon access, migration, data write, external provider, payout, payroll release, deploy or merge is authorized by this draft.
+
+## Legal-employer boundary follow-up (current proposal; zero credits)
+
+The existing organization-plus-worker existence binding was not enough for a parent
+organization with multiple legal employers. The selected worker may belong to a
+legal employer that the authenticated HR actor was not granted. This is a
+**source-identified latent boundary** behind the unchanged production
+multi-entity HCM embargo, not an observed production exploit.
+
+This follow-up resolves the single granted legal-employer context after active
+company-wide HR authorization, rejects group/invalid/duplicated selections and
+binds the first existence-only employee lookup to the selected legal employer.
+It passes the resolved legal entity to the read-only source loader, which also
+requires legal-employer matching and refuses missing legal-entity scope when
+the multi-entity flag is enabled. The multi-entity-OFF legacy behavior remains
+unchanged. Synthetic same-parent / two-legal-employer SQL test cases are added.
+
+**Proof status: NOT ACCEPTED, zero new page/API credits.** Existing historical
+PG16 proof passed against older source bytes and must not be counted for this
+revision. Run both existing exact-head fictional PG16 HTTP workflows, complete
+new multi-entity same-parent HTTP/browser coverage and independent HR/security
+review. Parent-organization pay profiles and provisioning history require
+separate legal-employer attribution review before any multi-entity HCM release.
+Do not relax the HCM production embargo, activate flags, merge without review,
+or treat this source hardening as payroll/financial acceptance.
