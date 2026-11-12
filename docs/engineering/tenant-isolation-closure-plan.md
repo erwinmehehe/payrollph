@@ -1,3 +1,5 @@
+> **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 current-source methods need renewed proof. No fresh credit claimed.
+
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** Latest 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 TOKEN-ONLY + 7 GAP; 17 page/action GAPs. Changed Worker 360 API and page lose historical provisional credit; newest exports POST proof retained. Zero new Worker 360 credits; production acceptance pending.
@@ -232,9 +234,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 1 | **DL-01** | 26 | 22 | 2 | 0 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 32 | 0 | 0 | 1 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 22 | 0 | 0 | 11 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 37 | 0 | 1 | 1 | INCOMPLETE |

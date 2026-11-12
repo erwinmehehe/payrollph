@@ -1,0 +1,78 @@
+name: Payroll run existence oracle (fictional PG16, zero credits)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/app/api/payroll-runs/**'
+      - 'src/lib/payroll-run-membership.ts'
+      - 'scripts/qa/payroll-run-oracle*'
+      - 'tests/payroll-run-membership*'
+      - 'tests/payroll-run-oracle*'
+      - '.github/workflows/payroll-run-oracle.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  run-membership-oracle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U postgres -d app_db'
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Require exact reviewed source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Set isolated targets and keep payroll/provider release gates OFF
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          for flag in XENDIT_BILLING_ENABLED XENDIT_PAYOUTS_ENABLED PAYMONGO_DISBURSEMENTS_ENABLED WORKER_ENABLED CENTRAL_SCHEDULER_ENABLED FINAL_PAY_SIGNED_REVIEW_ENABLED EXACT_THIRTEENTH_CENTAVOS_ENABLED PAYROLL_CALCULATION_HISTORY_ENABLED NEXT_CSP_ENABLED; do echo "$flag=false" >> "$GITHUB_ENV"; done
+          echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http' >> "$GITHUB_ENV"
+          echo 'PAYROLL_CONNECTED_IMPACT_ENABLED=true' >> "$GITHUB_ENV"
+          echo 'PAYMONGO_SECRET_KEY=' >> "$GITHUB_ENV"
+          echo 'XENDIT_SECRET_KEY=' >> "$GITHUB_ENV"
+          echo 'RESEND_API_KEY=' >> "$GITHUB_ENV"
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do value=$(openssl rand -hex 32); echo "::add-mask::$value"; echo "$key=$value" >> "$GITHUB_ENV"; done
+      - name: Verify source and refusal contracts
+        run: node --test tests/payroll-run-membership.test.mjs tests/payroll-run-oracle-contract.test.mjs
+      - name: Create isolated schema
+        run: npm run db:push
+      - name: Apply reviewed disposable baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual application
+        run: npm run build
+      - name: Start localhost application
+        run: |
+          npm start -- -H 127.0.0.1 > /tmp/payroll-run-oracle-next.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Compare foreign and missing runs, wrong roles, forgery, revocation and victim SQL
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/payroll-run-oracle-http.mjs
+      - name: Bounded synthetic diagnostics
+        if: failure()
+        run: tail -n 50 /tmp/payroll-run-oracle-next.log || true

@@ -141,7 +141,7 @@ export async function verifyPayrollReadSweep(f, { request, expectStatus }) {
     expectStatus(await request(
       "/api/payroll-runs/" + f.victimRun.id + "/explain/" + f.victimEmployee.id,
       { cookie },
-    ), 403, "Explain pay GET real victim-only run denied");
+    ), 404, "Explain pay GET real victim-only run denied");
 
     const ownCorrectionGet = expectStatus(await request("/api/compliance/statutory-remittance-corrections?organizationId=" + org.id +
       "&legalEntityId=" + f.entities[idx].id, { cookie }), 200, "Remittance corrections GET own real pending evidence");

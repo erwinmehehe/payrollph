@@ -207,12 +207,12 @@ async function investigate(v, a) {
   const reconciled = status(await request(reconcilePath(a.source.id), a.checker.cookie, 'POST', { action: 'reconcile' }), 200, 'own successful provider reconciliation');
   check(reconciled.organizationId === a.org.id && reconciled.runId === a.source.id && reconciled.reconciliation.succeeded === 1, 'reconciliation bound to own employer and exact one worker');
   for (const query of ['?kind=journal', '?kind=bank&dryRun=true', '?kind=bank&dryRun=false']) {
-    await deniedNoProvider(v, a.maker, exportPath(v.source.id) + query, 'GET', undefined, 403, 'foreign export ' + query);
+    await deniedNoProvider(v, a.maker, exportPath(v.source.id) + query, 'GET', undefined, 404, 'foreign export ' + query);
   }
-  await deniedNoProvider(v, a.maker, exportPath(v.source.id), 'POST', { mode: 'preflight', organizationId: a.org.id }, 403, 'foreign payout preflight');
-  await deniedNoProvider(v, a.checker, reconcilePath(v.source.id) + '?view=payout', 'GET', undefined, 403, 'foreign reconciliation read');
+  await deniedNoProvider(v, a.maker, exportPath(v.source.id), 'POST', { mode: 'preflight', organizationId: a.org.id }, 404, 'foreign payout preflight');
+  await deniedNoProvider(v, a.checker, reconcilePath(v.source.id) + '?view=payout', 'GET', undefined, 404, 'foreign reconciliation read');
   for (const action of ['reconcile', 'retry-failed']) {
-    await deniedNoProvider(v, a.checker, reconcilePath(v.source.id), 'POST', { action, confirm: true, organizationId: a.org.id }, 403, 'foreign reconciliation ' + action);
+    await deniedNoProvider(v, a.checker, reconcilePath(v.source.id), 'POST', { action, confirm: true, organizationId: a.org.id }, 404, 'foreign reconciliation ' + action);
   }
   const units = await db.insert(s.orgUnits).values(['OWN', 'OTHER'].map(code => ({
     organizationId: a.org.id, legalEntityId: a.entity.id, type: 'department', name: code, code,
@@ -227,7 +227,7 @@ async function investigate(v, a) {
   await deniedNoProvider(a, a.checker, reconcilePath(a.source.id), 'POST', { action: 'reconcile' }, 403, 'missing MFA blocks provider lookup');
   await db.update(s.sessions).set({ mfaVerifiedAt: new Date() }).where(eq(s.sessions.id, a.checker.session.id));
   await db.update(s.userOrganizations).set({ active: false }).where(eq(s.userOrganizations.userId, a.checker.user.id));
-  await deniedNoProvider(a, a.checker, reconcilePath(a.source.id), 'POST', { action: 'reconcile' }, 403, 'revoked membership retained session');
+  await deniedNoProvider(a, a.checker, reconcilePath(a.source.id), 'POST', { action: 'reconcile' }, 404, 'revoked membership retained session');
   await deniedNoProvider(a, a.employeeUser, exportPath(a.source.id) + '?kind=bank&dryRun=false', 'GET', undefined, 403, 'employee cannot obtain final bank file');
   successes.push({ organizationId: a.org.id, ownJournal: true, ownProviderReconcile: true });
 }
@@ -407,7 +407,7 @@ async function crossRailClaim(a, victim) {
     check(blocked.json.code === 'XENDIT_PAYOUT_LEDGER_ALREADY_EXISTS', 'exact cross-rail claim guard');
     check(providerCalls.length === count, 'cross-rail rejection cannot reach provider');
     assert.deepEqual(await snapshot(a), before, 'blocked cross-rail operation changes no state'); assertions++;
-    await deniedNoProvider(a, victim.checker, path(a.source.id), 'POST', { mode, confirm: true }, 403,
+    await deniedNoProvider(a, victim.checker, path(a.source.id), 'POST', { mode, confirm: true }, 404,
       'foreign actor cannot inspect claimed provider through ' + mode);
   }
   const before = await snapshot(a);
