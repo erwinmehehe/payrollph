@@ -217,6 +217,11 @@ function regenerate(original, read = readFileSync) {
   m.acceptanceStatus = m.acceptanceStatus.replace(
     /^NOT ACCEPTED: \d+ API methods and \d+ page\/action GAPs/,
     "NOT ACCEPTED: " + m.metrics.gap + " API methods and " + pageGaps + " page/action GAPs");
+  const historicalHoldSentence = "Worker 360 SSR and GET have superseded parent-employer-only source receipts: both changed legal-employer-scoped surfaces remain GAP and zero credit; new exact-head PG16 HTTP and independent HR/privacy/security review remain PENDING.";
+  const reproofSentence = "Worker 360 SSR and GET previously held GAP when parent-employer-only receipts were superseded by legal-employer-scoped fixes; separate exact-source fictional PG16 HTTP reproof now supports one provisional GET credit and one SSR shell credit, with independent HR/privacy/security review PENDING.";
+  assert.ok(m.acceptanceStatus.includes(historicalHoldSentence) ||
+    m.acceptanceStatus.includes(reproofSentence), "Historical Worker 360 source hold must exist");
+  m.acceptanceStatus = m.acceptanceStatus.replace(historicalHoldSentence, reproofSentence);
   const note = " Worker 360 exact-source reproof: one GET and one SSR shell provisional " +
     "SOLO_VERIFIED_DEV_RECOVERY credit linked to " + URL + "; independent HR/privacy/security review " +
     "PENDING, production and overall tenant isolation NOT ACCEPTED.";

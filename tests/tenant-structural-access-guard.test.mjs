@@ -7,6 +7,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict"; import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { inspectRouteHandler, traceFlaggedSource } from "../scripts/qa/tenant-delegated-trace.mjs";
@@ -123,7 +124,7 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
     reminder: "HTTP proof required; no historical GAP is certified" }));
 });
 
-test("all scoped pages stay source-pinned; only four exact independently probed pages may be provisional", () => {
+test("all scoped pages stay source-pinned; only five source-proved pages may be provisional", () => {
   assert.equal(manifest.scopedPages.length, 21);
   const approvedPath = "src/app/hcm/manager-decision-inbox/page.tsx";
   const evidenceFile = "scripts/qa/hcm-manager-inbox-page-http.mjs";
@@ -131,8 +132,9 @@ test("all scoped pages stay source-pinned; only four exact independently probed 
   const peopleHomeProofFile = "scripts/qa/hcm-people-home-page-http.mjs";
   const directPath = "src/app/hcm/manager-direct-reports/page.tsx";
   const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
+  const workerPath = "src/app/hcm/worker-360/page.tsx";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath],
+  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath, workerPath],
     "Static route analysis cannot silently certify any additional page");
   assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, verifyWorker360PageCredit(manifest),
     "Other 16 employer-scoped page/action entries remain uncertified");
@@ -217,10 +219,14 @@ test("all scoped pages stay source-pinned; only four exact independently probed 
       assert.match(runner, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
       continue;
     }
-    if (page.path === "src/app/hcm/worker-360/page.tsx") {
-      assert.equal(page.testedBy?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
+    if (page.path === workerPath) {
+      assert.equal(page.testedBy?.file, "scripts/qa/tenant-hcm-worker360-entity-http.mjs");
+      assert.equal(page.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
       assert.equal(page.testedBy?.independentSecurityReview, "PENDING");
+      assert.equal(page.testedBy?.independentlyAccepted, false);
       assert.equal(page.testedBy?.productionCertified, false);
+      assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2,
+        "Worker 360 must have both exact-current-source GET and SSR legal-employer receipts");
       continue;
     }
     assert.equal(page.path, approvedPath, "No blanket exception for changed pages");
