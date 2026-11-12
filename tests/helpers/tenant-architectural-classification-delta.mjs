@@ -89,6 +89,21 @@ export function readPendingSignupSourceRevalidation(assert) {
   return packet;
 }
 
+/**
+ * A historical main-ref review must read all three original signup blobs from
+ * that same ref. A current-source review must read all three renewed blobs and
+ * validate the pending proof. Reject mixed versions and injected source edits;
+ * a custom reader is not automatically a historical approval.
+ */
+function pendingSignupProofForSource(assert, read) {
+  const observed = SIGNUP_SOURCE_CHANGES.map(row => sha(row.path, read));
+  const historical = SIGNUP_SOURCE_CHANGES.every((row, i) => observed[i] === row.old);
+  const current = SIGNUP_SOURCE_CHANGES.every((row, i) => observed[i] === row.now);
+  assert.ok(historical || current,
+    "Signup review must use one exact historical or pending source set; mixed or changed source is unapproved");
+  return current ? readPendingSignupSourceRevalidation(assert) : null;
+}
+
 export function readArchitecturalOwnerApproval(assert, read = readFileSync) {
   const bytes = Buffer.from(read(OWNER_APPROVAL_FILE));
   const actual = createHash("sha1").update("blob " + bytes.length + "\0").update(bytes).digest("hex");
@@ -112,7 +127,7 @@ export function readArchitecturalOwnerApproval(assert, read = readFileSync) {
     [WORKER, "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]]);
   assert.equal(record.classifications.length, 9);
   assert.deepEqual(record.classifications.map(row => row.method + " " + row.path).sort(), [...expected.keys()].sort());
-  const pending = read === readFileSync ? readPendingSignupSourceRevalidation(assert) : null;
+  const pending = pendingSignupProofForSource(assert, read);
   for (const row of record.classifications) {
     assert.equal(row.classification, expected.get(row.method + " " + row.path));
     const sourceChange = pending?.proposedRuntimeSourcePins.find(changed => changed.path === row.path);
@@ -146,7 +161,7 @@ export function yearEndHoldDelta(beforeManifest, afterManifest) {
 /** Base may already contain these accepted classifications, so post-merge delta is zero. */
 export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterManifest, read = readFileSync) {
   const approval = readArchitecturalOwnerApproval(assert, read);
-  const pending = read === readFileSync ? readPendingSignupSourceRevalidation(assert) : null;
+  const pending = pendingSignupProofForSource(assert, read);
   const before = rows(beforeManifest), after = rows(afterManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
