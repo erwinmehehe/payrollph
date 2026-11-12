@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { requireDisposablePrelogin, clientAddresses, mailedTokens, solveIntakeProof,
   assertNoSession, sessionCookieOf } from "./tenant-prelogin-contract.mjs";
@@ -274,7 +275,13 @@ try {
     result: passed ? (baseline ? "EXPECTED_RED" : "PASS") : "FAIL", infrastructureOK, tests: results, httpEvidence, sourcePins: pins,
     coverageCredits: 0, productionCertified: false, externalProviderCalled: false, paidEnrollmentExercised: false,
     realEmailDeliveryTested: false, headerSpoofingBeyondOneTrustedProxyTested: false };
-  writeFileSync("/tmp/signup-findings-" + mode + "-" + revision + ".json", JSON.stringify(report, null, 2) + "\n");
+  // A private unpredictable directory and exclusive file creation avoid the
+  // predictable /tmp filename flagged by CodeQL. The runner uploads this file
+  // only after the disposable proof ends, never to an external provider.
+  const evidenceDir = mkdtempSync(join(process.cwd(), "signup-findings-"));
+  const evidenceFile = join(evidenceDir, "signup-findings-" + mode + "-" + revision + ".json");
+  writeFileSync(evidenceFile, JSON.stringify(report, null, 2) + "\n",
+    { encoding: "utf8", mode: 0o600, flag: "wx" });
   console.log(JSON.stringify(report));
   if (!passed) process.exitCode = 1;
   await new Promise(resolve => sink.close(resolve));

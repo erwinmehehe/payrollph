@@ -1535,8 +1535,8 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
         blobSha: pending.originalClassificationApproval.blobSha });
     for (const [path, expected] of [
       ["src/lib/signup-pending-recovery.ts", "3aa5a6b1631d9ffbe181a88448d4e706abdd76bc"],
-      ["scripts/qa/tenant-signup-findings-http.mjs", "85cb3bd48a06e252e5b0e9f2120870eb373895e6"],
-      [".github/workflows/tenant-signup-findings-http.yml", "e3b9737467777e56449a7b56d73b6ac8071e46b7"],
+      ["scripts/qa/tenant-signup-findings-http.mjs", "67d4fc26230644f02be133296c5b0730a74c67d8"],
+      [".github/workflows/tenant-signup-findings-http.yml", "1f0a24741dba522b3d5e0a053898cd9788c90667"],
       ["tests/signup-pending-recovery.test.ts", "19b6d3f37c4e8e6d48cf612cf599abaad915f778"],
       ["tests/signup-rate-limit-fallback.test.ts", "5f5b85afb8ce331e8442a495d3ddd96d37553ec6"],
       ["tests/private-pilot-invite.test.ts", "9fd528ed9e06402c9844c5f9c8ff7b505463ae7a"],

@@ -159,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: signup-findings-${{ matrix.mode }}-baseline
-          path: /tmp/signup-findings-${{ matrix.mode }}-baseline.json
+          path: signup-findings-*/signup-findings-${{ matrix.mode }}-baseline.json
           if-no-files-found: ignore
           retention-days: 7
 
@@ -289,7 +289,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: signup-findings-${{ matrix.mode }}-current
-          path: /tmp/signup-findings-${{ matrix.mode }}-current.json
+          path: signup-findings-*/signup-findings-${{ matrix.mode }}-current.json
           if-no-files-found: ignore
           retention-days: 7
 

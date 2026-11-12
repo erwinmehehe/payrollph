@@ -52,3 +52,17 @@ test("signup source repin is exact, zero-credit and still expressly awaiting own
       proposal.originalClassificationApproval.blobSha);
   }
 });
+
+
+test("the #1898 synthetic proof stores artifacts in private, exclusive workspace files", () => {
+  const proof = readFileSync("scripts/qa/tenant-signup-findings-http.mjs", "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-signup-findings-http.yml", "utf8");
+  assert.match(proof, /mkdtempSync\(join\(process\.cwd\(\), "signup-findings-"\)\)/);
+  assert.match(proof, /mode: 0o600, flag: "wx"/);
+  assert.doesNotMatch(proof, /writeFileSync\(["']\/tmp\//);
+  for (const revision of ["baseline", "current"]) {
+    assert.ok(workflow.includes(
+      "path: signup-findings-*/signup-findings-\${{ matrix.mode }}-" + revision + ".json"),
+      "Workflow must upload the private report for " + revision);
+  }
+});
