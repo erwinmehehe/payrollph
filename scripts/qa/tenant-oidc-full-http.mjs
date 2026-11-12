@@ -120,7 +120,7 @@ export async function proveCompleteOidcHttp() {
       const out = {};
       const tables = (await pool.query("SELECT table_name FROM information_schema.columns WHERE table_schema='public' AND column_name='organization_id' ORDER BY table_name")).rows;
       for (const { table_name: table } of tables) {
-        assert.match(table, /^[a-z_]+$/);
+        assert.match(table, /^[a-z_][a-z0-9_]*$/);
         out[table] = (await pool.query(`SELECT to_jsonb(t) AS row FROM "${table}" t WHERE organization_id=$1 ORDER BY to_jsonb(t)::text`, [v.org.id])).rows;
       }
       out.victimUser = plain(await db.select().from(s.users).where(eq(s.users.id, v.owner.id)));
