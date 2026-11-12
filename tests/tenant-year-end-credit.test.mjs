@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  YEAR_END_RECEIPTS, verifyYearEndCredits,
+  YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState,
 } from "../scripts/qa/tenant-year-end-credit.mjs";
 
 const getManifest = () => JSON.parse(
@@ -12,10 +12,11 @@ const row = (m, verb) => m.allApiRouteFiles[
 
 test("merged #1804 PG16 source proof gives only year-end GET and POST credits", () => {
   const m = getManifest();
-  assert.equal(verifyYearEndCredits(m), 2);
+  assert.equal(verifyYearEndPairState(m), isYearEndHeld(m) ? 0 : 2);
   assert.deepEqual(YEAR_END_RECEIPTS.map(x => x.method), ["GET", "POST"]);
   for (const verb of ["GET", "POST"]) {
     const method = row(m, verb);
+    if (isYearEndHeld(m)) { assert.equal(method.status, "GAP"); assert.equal(method.testedBy, null); continue; }
     assert.equal(method.status, "COVERED");
     assert.equal(method.testedBy.proofPullRequest, 1804);
     assert.equal(method.testedBy.workflowRunId, 42254117862);
@@ -38,6 +39,15 @@ test("merged #1804 PG16 source proof gives only year-end GET and POST credits", 
 
 test("forged receipt, altered financial source, and fake approval fail closed", () => {
   const m = getManifest();
+  if (isYearEndHeld(m)) {
+    // The credited-state tamper matrix reactivates when a fresh proof renews the credit. While held, the withdrawal
+    // itself must reject re-promotion without a receipt, and the moved source must not verify as a credit.
+    const promoted = structuredClone(m);
+    row(promoted, "GET").status = "COVERED";
+    assert.throws(() => verifyYearEndHold(promoted));
+    assert.throws(() => verifyYearEndCredits(m), /source\/proof changed/, "the withdrawn credit must not verify against the moved source");
+    return;
+  }
   const changes = [
     a => { row(a, "GET").status = "GAP"; },
     a => { row(a, "POST").testedBy.workflowRunId++; },
@@ -61,7 +71,7 @@ test("forged receipt, altered financial source, and fake approval fail closed", 
 
 test("year-end evidence is internal only; billing is not claimed here", () => {
   const m = getManifest();
-  assert.equal(verifyYearEndCredits(m), 2);
+  assert.equal(verifyYearEndPairState(m), isYearEndHeld(m) ? 0 : 2);
   for (const name of ["start", "cancel"]) {
     const method = m.allApiRouteFiles[
       "src/app/api/billing/subscription/" + name + "/route.ts"].methods.find(x => x.name === "POST");
@@ -80,6 +90,7 @@ test("year-end evidence is internal only; billing is not claimed here", () => {
   assert.match(source, /noOfficialFilingOrPayment: true/);
   assert.match(source, /independentReviewPending: true/);
   for (const verb of ["GET", "POST"]) {
+    if (isYearEndHeld(m)) { assert.equal(row(m, verb).reviewedUncertified.productionCertified, false); continue; }
     assert.equal(row(m, verb).testedBy.governmentFilingPerformed, false);
     assert.equal(row(m, verb).testedBy.productionMoneyMoved, false);
   }

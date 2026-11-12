@@ -19,17 +19,20 @@ on:
       - "src/lib/annualization*"
       - "src/lib/security-request.ts"
       - "src/db/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: tenant-yearend-post-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: tenant-yearend-post-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   annualize-and-bind-isolated:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:

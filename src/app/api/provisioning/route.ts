@@ -1,10 +1,11 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, employees, itAccessGrants, itManagedDevices, provisioningTasks } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { parseScopedProvisioningMutation } from "@/lib/scoped-provisioning-mutation";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
@@ -24,11 +25,34 @@ export async function GET(request: Request) {
   if (deniedOrg) return deniedOrg;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-  await ensureLifecycleProvisioning(organizationId);
+  // People access to a parent organization does not grant every legal employer.
+  // Resolve before seeding tasks: a read must not initialize another entity's
+  // offboarding/IT workflow as a side effect.
+  const entity = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!entity.ok) return entity.response;
+  if (entity.context.enabled &&
+      (entity.context.group || entity.context.legalEntityId === null)) {
+    return Response.json({ error: "Select an authorized legal employer." }, { status: 403 });
+  }
+  const legalEntityId = entity.context.enabled ? entity.context.legalEntityId : null;
+  const scopedUnitId = access.companyWide ? null : access.orgUnitId;
+  await ensureLifecycleProvisioning(organizationId, legalEntityId, scopedUnitId);
 
+  const visibleWorkers = and(
+    eq(employees.organizationId, organizationId),
+    legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+    scopedUnitId === null ? undefined : eq(employees.orgUnitId, scopedUnitId),
+  );
   const [tasks, staff] = await Promise.all([
-    db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, organizationId)),
-    db.select().from(employees).where(eq(employees.organizationId, organizationId)),
+    db.select().from(provisioningTasks).where(and(
+      eq(provisioningTasks.organizationId, organizationId),
+      // Do not fetch another entity's checklists into the API process.
+      legalEntityId === null && scopedUnitId === null ? undefined : inArray(
+        provisioningTasks.employeeId,
+        db.select({ id: employees.id }).from(employees).where(visibleWorkers),
+      ),
+    )),
+    db.select().from(employees).where(visibleWorkers),
   ]);
 
   const visibleStaff = access.companyWide ? staff : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
@@ -72,6 +96,15 @@ export async function PATCH(request: Request) {
   if (deniedTask) return deniedTask;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const entity = await resolveMultiEntityContext({
+    userId: user.id, organizationId, request, requested: body.legalEntityId,
+  });
+  if (!entity.ok) return entity.response;
+  if (entity.context.enabled &&
+      (entity.context.group || entity.context.legalEntityId === null)) {
+    return Response.json({ error: "Select an authorized legal employer." }, { status: 403 });
+  }
+  const legalEntityId = entity.context.enabled ? entity.context.legalEntityId : null;
 
   // Bind the task lookup to the already-authorized employer and worker.
   const [target] = await db.select({
@@ -83,12 +116,22 @@ export async function PATCH(request: Request) {
     eq(provisioningTasks.id, id),
     eq(provisioningTasks.organizationId, organizationId),
     eq(provisioningTasks.employeeId, employeeId),
+    legalEntityId === null ? undefined : inArray(
+      provisioningTasks.employeeId,
+      db.select({ id: employees.id }).from(employees).where(and(
+        eq(employees.organizationId, organizationId),
+        eq(employees.legalEntityId, legalEntityId),
+      )),
+    ),
   )).limit(1);
   if (!target) return Response.json({ error: "Task not found." }, { status: 404 });
   if (target.employeeId != null) {
     const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
-      .where(and(eq(employees.id, target.employeeId), eq(employees.organizationId, organizationId)))
-      .limit(1);
+      .where(and(
+        eq(employees.id, target.employeeId),
+        eq(employees.organizationId, organizationId),
+        legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+      )).limit(1);
     if (!employee) return Response.json({ error: "Employee not found for this provisioning task." }, { status: 404 });
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
@@ -128,11 +171,23 @@ export async function PATCH(request: Request) {
   // FOR SHARE conflicts with an employee reassignment UPDATE, so a scope
   // decision cannot go stale between this locked read and the task write.
   const result = await db.transaction(async (tx) => {
-    await tx.execute(sql`select id from employees
-      where id = ${employeeId} and organization_id = ${organizationId} for share`);
+    // Lock the worker row and recheck legal-employer + unit scope *inside*
+    // the same transaction as the checklist mutation. A concurrent transfer
+    // cannot move a worker to another legal employer after our preflight.
+    if (legalEntityId === null) {
+      await tx.execute(sql`select id from employees
+        where id = ${employeeId} and organization_id = ${organizationId} for share`);
+    } else {
+      await tx.execute(sql`select id from employees
+        where id = ${employeeId} and organization_id = ${organizationId}
+          and legal_entity_id = ${legalEntityId} for share`);
+    }
     const [freshEmployee] = await tx.select({ orgUnitId: employees.orgUnitId }).from(employees)
-      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
-      .limit(1);
+      .where(and(
+        eq(employees.id, employeeId),
+        eq(employees.organizationId, organizationId),
+        legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+      )).limit(1);
     if (!freshEmployee) return { status: "missing_employee" as const };
     if (!assertScope(access, freshEmployee.orgUnitId).ok) {
       return { status: "scope_changed" as const };

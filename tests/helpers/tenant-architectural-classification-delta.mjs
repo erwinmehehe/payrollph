@@ -1,6 +1,7 @@
 /** Enumerate exactly nine zero-credit architecture relabels, without weakening credit checks. */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { isYearEndHeld, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
 
 const PUBLIC = [
   ["src/app/api/setup/route.ts", "GET"],
@@ -128,6 +129,20 @@ export function readArchitecturalOwnerApproval(assert, read = readFileSync) {
   return record;
 }
 
+const YEAR_END_KEYS = new Set(["GET src/app/api/year-end/route.ts", "POST src/app/api/year-end/route.ts"]);
+
+/**
+ * Methods withdrawn from the base's credited year-end pair to the exact zero-credit hold (annualization source moved).
+ * The hold itself is verified fail-closed against the files on disk; assertLiveTenantCounts pins the withdrawn receipt.
+ */
+export function yearEndHoldDelta(beforeManifest, afterManifest) {
+  const route = "src/app/api/year-end/route.ts";
+  const baseCredited = beforeManifest.allApiRouteFiles?.[route]?.methods?.every(method => method.status === "COVERED");
+  if (!baseCredited || !isYearEndHeld(afterManifest)) return 0;
+  verifyYearEndHold(afterManifest);
+  return 2;
+}
+
 /** Base may already contain these accepted classifications, so post-merge delta is zero. */
 export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterManifest) {
   const approval = readArchitecturalOwnerApproval(assert);
@@ -137,6 +152,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
   for (const [key, old] of before) {
     const current = after.get(key);
     assert.ok(current, "API method disappeared: " + key);
+    if (YEAR_END_KEYS.has(key) && old.method.status === "COVERED" && current.method.status === "GAP" && yearEndHoldDelta(beforeManifest, afterManifest) === 2) continue;
     const target = allowed.has(key) ? "PUBLIC-BY-DESIGN"
       : key === WORKER ? "PRIVILEGED-OPERATIONS-TOKEN-ONLY" : null;
     if (target) assert.notEqual(current.method.status, "COVERED", "Classification cannot grant a tenant-private credit: " + key);
