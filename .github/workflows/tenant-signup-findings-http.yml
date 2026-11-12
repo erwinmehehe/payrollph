@@ -134,9 +134,9 @@ jobs:
         if: env.GITHUB_HEAD_REVISION == 'current'
         run: npx tsx --test --test-concurrency=1 tests/signup-pending-recovery.test.ts tests/signup-rate-limit-fallback.test.ts tests/registration-entry.test.ts
       - name: Initialize only this disposable PostgreSQL 16
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+        run: npm run db:push
+      - name: Apply only the reviewed disposable PostgreSQL cutover baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build application with provider and release flags OFF
         run: npm run build
       - name: Start loopback-only app without exposing raw request or database diagnostics
@@ -264,9 +264,9 @@ jobs:
         if: env.GITHUB_HEAD_REVISION == 'current'
         run: npx tsx --test --test-concurrency=1 tests/signup-pending-recovery.test.ts tests/signup-rate-limit-fallback.test.ts tests/registration-entry.test.ts
       - name: Initialize only this disposable PostgreSQL 16
-        run: |
-          npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+        run: npm run db:push
+      - name: Apply only the reviewed disposable PostgreSQL cutover baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build application with provider and release flags OFF
         run: npm run build
       - name: Start loopback-only app without exposing raw request or database diagnostics
