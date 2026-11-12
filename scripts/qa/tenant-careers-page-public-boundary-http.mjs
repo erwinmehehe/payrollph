@@ -67,8 +67,12 @@ async function run() {
         assert.ok(!res.text.includes(other.name), "cross-employer name in Careers SSR");
       }
       assert.ok(!res.text.includes("@example.invalid"), "private fictional worker email disclosed");
-      assert.ok(!/bankAccount|payslip|payrollRun|salaryAmount/i.test(res.text),
-        "Careers SSR may not carry private worker/payroll data");
+      // Shared public layout/navigation can mention "Payslips" or "Payroll".
+      // Reject actual serialized private field names, not harmless menu text.
+      // This covers quoted JSON and escaped React Flight object-property keys.
+      assert.doesNotMatch(res.text,
+        /\\*"(?:bankAccount|payslip|payrollRun|salaryAmount)\\*"\s*:/i,
+        "Careers SSR may not serialize private worker/payroll fields");
       ownSuccesses++;
     }
     const invalid = [
