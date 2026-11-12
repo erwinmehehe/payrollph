@@ -50,7 +50,7 @@ It does not accept any GAP, does not move any method to COVERED or PUBLIC-BY-DES
 ## Subsequent pilot SSO hold draft — November 12
 
 The review candidate `fix/tenant-oidc-sso-runtime-hold-20261112` adds a typed
-`OIDC_SSO_RUNTIME_ENABLED` exact-true runtime gate across SSO start, callback
+`OIDC_SSO_RUNTIME_MODE` exact-`enabled` runtime gate across SSO start, callback
 and discovery. The first pilot must keep this **unset/OFF**. Unlike the earlier
 workaround of withholding the enterprise identity encryption key, this is a
 server-side route-level hold that also blocks previously configured providers.
