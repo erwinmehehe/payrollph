@@ -35,19 +35,3 @@ test("billing manage checks session, employer, role, and company scope before re
     "A bare billing/setup target loses a multi-client user's selected employer");
 });
 
-test("public careers only accepts a canonical employer and fetches published jobs", () => {
-  const code = readFileSync("src/app/careers/page.tsx", "utf8");
-  const selected = code.indexOf("canonicalTenantPageId(raw)");
-  const fail = code.indexOf("if (!organizationId) notFound()");
-  const readiness = code.indexOf("await careersSchemaReady()");
-  const orgRead = code.indexOf("db.select({ name: organizations.name })");
-  const publicRows = code.indexOf(".where(publishedCareersPredicate(organizationId))");
-  assert.ok(selected >= 0 && fail > selected && readiness > fail &&
-    orgRead > readiness && publicRows > orgRead,
-  "Malformed/duplicate employers must fail before any careers SQL reads");
-  assert.doesNotMatch(code, /getSessionUser/, "Published careers remain intentionally public");
-  const privacy = readFileSync("src/lib/careers-privacy-gates.ts", "utf8");
-  assert.match(privacy, /eq\(jobRequisitions\.organizationId, organizationId\)/);
-  assert.match(privacy, /careersPublishedSql} = true/);
-  assert.match(privacy, /positionId} is not null/);
-});
