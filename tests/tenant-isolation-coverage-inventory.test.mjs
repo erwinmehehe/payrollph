@@ -6822,8 +6822,38 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(entry.status, "GAP", "People page must remain an unaccepted GAP");
         assert.equal(entry.testedBy, undefined, "Unaccepted page proof cannot claim a method/page credit");
         assert.equal(baseline.app[path], originalPageBlobSha, "People page original SHA must remain pinned");
-        assert.equal(current, pageBlobSha, "People page changed: renew independent PG16 proof");
-        assert.equal(entry.blob, pageBlobSha, "Manifest must pin the reviewed People page source");
+        // Historical #1876 and employee receipts remain pinned to the prior
+        // versions. This new page-only embargo is a separate zero-credit candidate
+        // pending exact-final-head PG16 HTTP and independent security/HR review.
+        const currentHoldPageSha = isEngagement
+          ? "6e84c87f63816042a847e4fbccfd970b84ceffa3"
+          : "13cc6239921d740cf984066e3cf716f752ec1371";
+        const pendingHold = entry.securityHoldCandidate;
+        assert.deepEqual(pendingHold, {
+          kind: "people-SSR-multi-entity-early-404-unreviewed",
+          priorPageBlobSha: pageBlobSha, currentPageBlobSha: currentHoldPageSha,
+          guard: "multiEntityHcmDeferred",
+          contractTestFile: "tests/tenant-people-ssr-multi-entity-hold.test.ts",
+          featureOffProofFile: "scripts/qa/tenant-people-pages-http.mjs",
+          featureOnProofFile: "scripts/qa/tenant-people-pages-multi-entity-http.mjs",
+          independentAcceptance: "PENDING", pageCredits: 0, methodCredits: 0,
+          productionCertified: false,
+          featureOffWorkflowCurrentBlobSha: "a87a0a8803ce1ce49a64357fbaf549125ac94344",
+          featureOnProofCurrentBlobSha: "99ada251c31031821ddef758b7fe06573061bd82",
+          contractTestCurrentBlobSha: "610df27e1fe07979619c5d67773b0670fe46ad45",
+          ...(isEngagement ? {
+            engagementEmployeeContractCurrentBlobSha: "b40729065e7b696292862d8fb299a527c5a95366",
+            engagementEmployeeWorkflowCurrentBlobSha: "a146cc00a92a0a7b254280fb1f1848f97696746a",
+          } : {}),
+        }, "Uncredited HCM SSR hold must track current proof without repinning history");
+        assert.equal(current, currentHoldPageSha,
+          "People SSR hold changed: rerun independent PG16 HTTP and security review");
+        assert.equal(entry.blob, currentHoldPageSha,
+          "The manifest must track the pending current People SSR source");
+        const hold = actual.indexOf("if (multiEntityHcmDeferred()) notFound();");
+        const sessionRead = actual.indexOf("await getSessionUser()");
+        assert.ok(hold > 0 && sessionRead > hold,
+          "Global People HCM hold must refuse before session or private SSR reads");
         const reviewed = entry.reviewedUncertified;
         assert.deepEqual(reviewed, {
           kind: "people-engagement-goals-SSR-GET-PG16-unaccepted",
@@ -6872,8 +6902,10 @@ test("page and server-action inventory cannot silently omit new or changed busin
             [candidate.helperFile, candidate.helperBlobSha],
             [candidate.proofFile, candidate.proofBlobSha],
             [candidate.contractFile, candidate.contractBlobSha],
-          ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
-            "Unreviewed engagement employee binding/proof drift: " + file);
+          ]) assert.equal(gitBlobSha(readFileSync(file)),
+            file === candidate.contractFile
+              ? pendingHold.engagementEmployeeContractCurrentBlobSha : sha,
+            "Source-current engagement employee binding/proof drift: " + file);
           const api = manifest.allApiRouteFiles["src/app/api/hcm/engagement-surveys/route.ts"];
           assert.equal(api.gitBlobSha, candidate.currentRouteBlobSha);
           for (const method of api.methods) {
@@ -6905,7 +6937,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.selectorTestFile, reviewed.selectorTestBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
-          assert.equal(gitBlobSha(readFileSync(file)), sha,
+          assert.equal(gitBlobSha(readFileSync(file)),
+            file === reviewed.workflowFile
+              ? pendingHold.featureOffWorkflowCurrentBlobSha : sha,
             "People proof changed without renewed review: " + file);
         }
         for (const field of ["ids", "business", "guards"]) {
