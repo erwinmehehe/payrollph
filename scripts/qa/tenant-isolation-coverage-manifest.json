@@ -44913,7 +44913,7 @@
     },
     {
       "path": "src/app/workspace/2316/page.tsx",
-      "blob": "f5e2ed9e6e2b3fef38bd5551e3894fc586bda3ad",
+      "blob": "f4badb3f1782812aab672665340e967911cff2cb",
       "ids": [
         {
           "line": 17,
@@ -45000,47 +45000,47 @@
           "token": "employeeId"
         },
         {
-          "line": 62,
+          "line": 63,
           "token": "organizationId"
         },
         {
-          "line": 62,
+          "line": 63,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 84,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 84,
           "token": "organizationId"
         },
         {
-          "line": 77,
+          "line": 85,
           "token": "employeeId"
         },
         {
-          "line": 94,
-          "token": "organizationId"
-        },
-        {
-          "line": 95,
-          "token": "organizationId"
-        },
-        {
-          "line": 98,
-          "token": "organizationId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
           "line": 102,
+          "token": "organizationId"
+        },
+        {
+          "line": 103,
+          "token": "organizationId"
+        },
+        {
+          "line": 106,
+          "token": "organizationId"
+        },
+        {
+          "line": 107,
+          "token": "organizationId"
+        },
+        {
+          "line": 107,
+          "token": "organizationId"
+        },
+        {
+          "line": 110,
           "token": "separationId"
         }
       ],
@@ -45087,11 +45087,15 @@
           "token": "resolveMultiEntityContext"
         },
         {
-          "line": 82,
+          "line": 73,
           "token": "assertEntityResource"
         },
         {
-          "line": 83,
+          "line": 90,
+          "token": "assertEntityResource"
+        },
+        {
+          "line": 91,
           "token": "frozenFinalPayLegalEntityId"
         }
       ],
@@ -45169,47 +45173,47 @@
           "token": "employeeId"
         },
         {
-          "line": 62,
+          "line": 63,
           "token": "organizationId"
         },
         {
-          "line": 62,
+          "line": 63,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 84,
           "token": "organizationId"
         },
         {
-          "line": 76,
+          "line": 84,
           "token": "organizationId"
         },
         {
-          "line": 77,
+          "line": 85,
           "token": "employeeId"
         },
         {
-          "line": 94,
-          "token": "organizationId"
-        },
-        {
-          "line": 95,
-          "token": "organizationId"
-        },
-        {
-          "line": 98,
-          "token": "organizationId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
-          "line": 99,
-          "token": "organizationId"
-        },
-        {
           "line": 102,
+          "token": "organizationId"
+        },
+        {
+          "line": 103,
+          "token": "organizationId"
+        },
+        {
+          "line": 106,
+          "token": "organizationId"
+        },
+        {
+          "line": 107,
+          "token": "organizationId"
+        },
+        {
+          "line": 107,
+          "token": "organizationId"
+        },
+        {
+          "line": 110,
           "token": "separationId"
         }
       ],
@@ -45219,7 +45223,7 @@
       "reviewedUncertified": {
         "kind": "payroll-tax-review-SSR-GET-PG16-unaccepted",
         "originalPageBlobSha": "a6c4642f9e651eb616de6e301a832ac2d471a33e",
-        "pageBlobSha": "f5e2ed9e6e2b3fef38bd5551e3894fc586bda3ad",
+        "pageBlobSha": "f4badb3f1782812aab672665340e967911cff2cb",
         "selectorFile": "src/lib/tenant-payroll-review-page.ts",
         "selectorBlobSha": "37766e6f9ec0dd8d1098bc8987bbd5de899a3739",
         "proofFile": "scripts/qa/tenant-payroll-review-pages-http.mjs",
@@ -45240,7 +45244,21 @@
         "pageActionCredits": 0,
         "apiMethodCredits": 0,
         "independentlyAccepted": false,
-        "productionCertified": false
+        "productionCertified": false,
+        "workerWithoutSeparationBoundary": {
+          "kind": "form2316-worker-only-same-parent-ungranted-legal-employer-existence-denial",
+          "sourceBlobSha": "f4badb3f1782812aab672665340e967911cff2cb",
+          "proofFile": "scripts/qa/tenant-prior-review-worker-http.mjs",
+          "proofBlobSha": "db38b5ce9e33c42feb81a69929849c2c52a6d004",
+          "workflowFile": ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
+          "workflowBlobSha": "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+          "unitTestFile": "tests/tenant-2316-legal-employer-worker.test.ts",
+          "unitTestBlobSha": "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7",
+          "exactFinalHeadPg16": "PENDING",
+          "pageActionCredits": 0,
+          "independentlyAccepted": false,
+          "productionCertified": false
+        }
       }
     },
     {
@@ -45444,7 +45462,7 @@
           "helperFile": "src/lib/tenant-prior-review-worker.ts",
           "helperBlobSha": "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
           "proofFile": "scripts/qa/tenant-prior-review-worker-http.mjs",
-          "proofBlobSha": "b4c55c0d9dceb77364a330ebc5222d0c49c1158d",
+          "proofBlobSha": "db38b5ce9e33c42feb81a69929849c2c52a6d004",
           "contractFile": "scripts/qa/tenant-prior-review-worker-contract.mjs",
           "contractBlobSha": "428b115e1814942fdfbb43f799010745af55f3de",
           "testFile": "tests/tenant-prior-review-worker.test.ts",
@@ -45452,7 +45470,7 @@
           "contractTestFile": "tests/tenant-prior-review-worker-contract.test.mjs",
           "contractTestBlobSha": "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
           "workflowFile": ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-          "workflowBlobSha": "beda36c25495f84d0cbc85030f9cce47f9faa32a",
+          "workflowBlobSha": "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
           "proofStatus": "EXACT_PR_HEAD_PG16_PENDING",
           "pageActionCredits": 0,
           "apiMethodCredits": 0,
