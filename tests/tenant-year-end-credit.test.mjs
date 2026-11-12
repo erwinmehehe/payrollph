@@ -19,7 +19,7 @@ test("merged #1804 PG16 source proof gives only year-end GET and POST credits", 
     if (isYearEndHeld(m)) { assert.equal(method.status, "GAP"); assert.equal(method.testedBy, null); continue; }
     assert.equal(method.status, "COVERED");
     assert.equal(method.testedBy.proofPullRequest, 1804);
-    assert.equal(method.testedBy.workflowRunId, 42254117862);
+    assert.equal(method.testedBy.workflowRunId, 43178709246);
     assert.equal(method.testedBy.ownerIsOnlyReviewer, true);
     assert.equal(method.testedBy.independentlyAccepted, false);
   }

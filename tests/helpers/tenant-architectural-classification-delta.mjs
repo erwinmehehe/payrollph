@@ -1,7 +1,7 @@
 /** Enumerate exactly nine zero-credit architecture relabels, without weakening credit checks. */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { isYearEndHeld, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
 import { reviewedWorker360LegalEmployerSupersession } from "./tenant-counts.mjs";
 
 const PUBLIC = [
@@ -68,6 +68,15 @@ export function yearEndHoldDelta(beforeManifest, afterManifest) {
   if (!baseCredited || !isYearEndHeld(afterManifest)) return 0;
   verifyYearEndHold(afterManifest);
   return 2;
+}
+
+/**
+ * Two year-end credits renewed by a source-matched main-only PG16 run
+ * after the #1944 historical hold. Validate the precise proof, not just count.
+ */
+export function yearEndRenewalDelta(beforeManifest, afterManifest) {
+  if (!isYearEndHeld(beforeManifest) || isYearEndHeld(afterManifest)) return 0;
+  return verifyYearEndCredits(afterManifest);
 }
 
 /** Base may already contain these accepted classifications, so post-merge delta is zero. */
