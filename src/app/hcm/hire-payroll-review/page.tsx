@@ -14,6 +14,8 @@ import {
 } from "@/lib/hcm-hire-payroll-review";
 import { loadHirePayrollInputReview } from "@/lib/hcm-hire-payroll-review-server";
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -53,6 +55,7 @@ export default async function HirePayrollInputReviewPage({
   searchParams: Promise<{
     organizationId?: string | string[];
     employeeId?: string | string[];
+    legalEntityId?: string | string[];
   }>;
 }) {
   const query = await searchParams;
@@ -73,6 +76,20 @@ export default async function HirePayrollInputReviewPage({
   if (denied || !access?.companyWide ||
       !["owner", "admin", "hr"].includes(access.role)) notFound();
 
+  // Parent-organization HR permission is NOT a grant to every legal employer.
+  // Reconcile a single explicit selector (if any) after role authorization and
+  // before any employee or pay-source read. No all-entity HR view is available.
+  if (criticalReleaseFlagEnabled("multiEntity") &&
+      query.legalEntityId !== undefined && typeof query.legalEntityId !== "string") notFound();
+  const entityScope = await resolveMultiEntityContext({
+    userId: user.id, organizationId,
+    requested: typeof query.legalEntityId === "string" ? query.legalEntityId : undefined,
+  });
+  if (!entityScope.ok || (entityScope.context.enabled &&
+      (entityScope.context.group || entityScope.context.legalEntityId === null))) notFound();
+  const authorizedLegalEntityId = entityScope.context.enabled
+    ? entityScope.context.legalEntityId : null;
+
   // Employer authorization does not by itself authorize an arbitrary worker ID.
   // Prove the exact employer/worker pair with an existence-only query before
   // rendering worker-specific navigation or even an "unavailable" shell.
@@ -82,6 +99,8 @@ export default async function HirePayrollInputReviewPage({
     .where(and(
       eq(employees.organizationId, organizationId),
       eq(employees.id, employeeId),
+      authorizedLegalEntityId === null ? undefined :
+        eq(employees.legalEntityId, authorizedLegalEntityId),
     ))
     .limit(1);
   if (!boundWorker) notFound();
@@ -89,7 +108,7 @@ export default async function HirePayrollInputReviewPage({
   let review: HirePayrollInputReview | null = null;
   let unavailable = false;
   try {
-    review = await loadHirePayrollInputReview(organizationId, employeeId);
+    review = await loadHirePayrollInputReview(organizationId, employeeId, authorizedLegalEntityId);
   } catch {
     // Fail closed. Never substitute empty or "complete" source evidence on error.
     unavailable = true;

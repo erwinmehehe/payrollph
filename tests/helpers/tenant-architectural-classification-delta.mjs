@@ -15,8 +15,8 @@ const PUBLIC = [
 ];
 const WORKER = "POST src/app/api/hcm/work-items/escalate/route.ts";
 const allowed = new Set(PUBLIC.map(([path, verb]) => verb + " " + path));
-const sha = path => {
-  const value = readFileSync(path);
+const sha = (path, read = readFileSync) => {
+  const value = Buffer.from(read(path));
   return createHash("sha1").update("blob " + value.length + "\0").update(value).digest("hex");
 };
 const rows = manifest => new Map(Object.entries(manifest.allApiRouteFiles)
@@ -50,7 +50,7 @@ export function readArchitecturalOwnerApproval(assert, read = readFileSync) {
   assert.deepEqual(record.classifications.map(row => row.method + " " + row.path).sort(), [...expected.keys()].sort());
   for (const row of record.classifications) {
     assert.equal(row.classification, expected.get(row.method + " " + row.path));
-    assert.equal(row.routeBlobSha, sha(row.path), "Owner approval cannot authorize changed route bytes");
+    assert.equal(row.routeBlobSha, sha(row.path, read), "Owner approval cannot authorize changed route bytes");
   }
   return record;
 }
@@ -70,8 +70,8 @@ export function yearEndHoldDelta(beforeManifest, afterManifest) {
 }
 
 /** Base may already contain these accepted classifications, so post-merge delta is zero. */
-export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterManifest) {
-  const approval = readArchitecturalOwnerApproval(assert);
+export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterManifest, read = readFileSync) {
+  const approval = readArchitecturalOwnerApproval(assert, read);
   const before = rows(beforeManifest), after = rows(afterManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
@@ -89,7 +89,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
     assert.equal(current.method.status, target, "Wrong architecture classification: " + key);
     assert.ok(old.method.status === "GAP" || old.method.status === target, "Unapproved classification replacement: " + key);
     assert.equal(current.route.gitBlobSha, old.route.gitBlobSha, "Route bytes changed: " + key);
-    assert.equal(current.route.gitBlobSha, sha(current.path), "Source pin drift: " + key);
+    assert.equal(current.route.gitBlobSha, sha(current.path, read), "Source pin drift: " + key);
     assert.equal(current.method.testedBy, null, "No tenant-private proof credit: " + key);
     if (target === "PUBLIC-BY-DESIGN") {
       const evidence = current.method.classificationEvidence;
@@ -107,18 +107,18 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
         assert.equal(evidence.mergedPr, 1896, key);
         assert.equal(evidence.boundaryFile, "src/lib/saml-disabled-boundary.ts", key);
         assert.equal(evidence.boundaryBlobSha, "ad19ba4fb718fddd9826df15f7740f482b795ad7", key);
-        assert.equal(evidence.boundaryBlobSha, sha(evidence.boundaryFile), key);
+        assert.equal(evidence.boundaryBlobSha, sha(evidence.boundaryFile, read), key);
         assert.equal(evidence.testFile, "tests/tenant-saml-disabled-boundary.test.ts", key);
         assert.equal(evidence.testBlobSha, "9afd5c6ec0c499b394d498ed6211d84e5f787e4b", key);
-        assert.equal(evidence.testBlobSha, sha(evidence.testFile), key);
+        assert.equal(evidence.testBlobSha, sha(evidence.testFile, read), key);
       } else {
         assert.equal(evidence.category, "public-prelogin-source-and-PG16", key);
         assert.equal(evidence.proofFile, "scripts/qa/tenant-prelogin-http.mjs", key);
         assert.equal(evidence.proofBlobSha, "1cd04c46ae9df3e2291df8f810917d98a59ef841", key);
-        assert.equal(evidence.proofBlobSha, sha(evidence.proofFile), key);
+        assert.equal(evidence.proofBlobSha, sha(evidence.proofFile, read), key);
         assert.equal(evidence.workflowFile, ".github/workflows/tenant-prelogin-http.yml", key);
         assert.equal(evidence.workflowBlobSha, "b452bbaa93639778142d9bffcc934d7ad554eb60", key);
-        assert.equal(evidence.workflowBlobSha, sha(evidence.workflowFile), key);
+        assert.equal(evidence.workflowBlobSha, sha(evidence.workflowFile, read), key);
         assert.equal(evidence.proofRun, "https://github.com/erwinmehehe/payrollph/actions/runs/42777964271/job/129700836113", key);
         assert.equal(evidence.proofHead, "27e68846e138da665dd8786d46e403ee724d6f1a", key);
       }
@@ -141,10 +141,10 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
       assert.equal(evidence?.exactHeadPg16Http, "PENDING", key);
       assert.equal(evidence?.denialHarness, "scripts/qa/tenant-hcm-sla-escalate-http.mjs", key);
       assert.equal(evidence?.proofBlobSha, "823c27150d75d1bdd630ec914b7c0efc4565b7de", key);
-      assert.equal(evidence?.proofBlobSha, sha(evidence.denialHarness), key);
+      assert.equal(evidence?.proofBlobSha, sha(evidence.denialHarness, read), key);
       assert.equal(evidence?.contractFile, "tests/tenant-hcm-sla-escalate-contract.test.mjs", key);
       assert.equal(evidence?.contractBlobSha, "17a56b928916bee468b3bca339e215029b92df12", key);
-      assert.equal(evidence?.contractBlobSha, sha(evidence.contractFile), key);
+      assert.equal(evidence?.contractBlobSha, sha(evidence.contractFile, read), key);
       if (old.method.status === "GAP") changes.privilegedTokenOnly++;
     }
     if (old.method.status === "GAP") changes.gapRelabels++;
@@ -152,4 +152,33 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
   assert.ok(changes.publicByDesign <= 8 && changes.privilegedTokenOnly <= 1,
     "Only the named nine uncredited architecture relabels are permitted");
   return changes;
+}
+
+/**
+ * Reconcile only source-verified #1921 labels in a main-branch ledger.
+ * Read approval, route and proof bytes from that same ref, not the PR checkout.
+ * Return a copy only after validation; never mutate or credit an unknown method.
+ */
+export function reconcileArchitecturalMainStatuses(assert, manifest, expectedStatuses, read = readFileSync) {
+  const specs = [...PUBLIC.map(([path, verb]) => [path, verb, "PUBLIC-BY-DESIGN"]),
+    [WORKER.slice("POST ".length), "POST", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]];
+  const statuses = structuredClone(expectedStatuses);
+  const counts = { publicByDesign: 0, privilegedTokenOnly: 0 };
+  for (const [path, verb, target] of specs) {
+    const matches = manifest.allApiRouteFiles[path]?.methods.filter(row => row.name === verb);
+    assert.equal(matches?.length, 1, "Exactly one approved architecture method is required: " + verb + " " + path);
+    const row = matches[0];
+    assert.equal(statuses[path]?.[verb], "GAP", "Architecture reconciliation cannot replace a credited method: " + path);
+    assert.equal(row.testedBy, null, "Architecture classification cannot invent method proof: " + path);
+    assert.ok(row.status === "GAP" || row.status === target, "Unapproved architecture status: " + path);
+    if (row.status === "GAP") continue;
+    statuses[path][verb] = target;
+    if (target === "PUBLIC-BY-DESIGN") counts.publicByDesign++;
+    else counts.privilegedTokenOnly++;
+  }
+  if (counts.publicByDesign || counts.privilegedTokenOnly) {
+    // An identical before/after ledger must still verify all existing evidence.
+    verifyArchitecturalRelabelDelta(assert, manifest, manifest, read);
+  }
+  return { statuses, ...counts };
 }

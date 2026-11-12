@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { employeePayProfiles, employees, provisioningTasks } from "@/db/schema";
 import { buildHirePayrollInputReview, type HirePayrollInputReview } from "@/lib/hcm-hire-payroll-review";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 const ONBOARDING_PREVIEW_LIMIT = 25;
 
@@ -14,9 +15,15 @@ const ONBOARDING_PREVIEW_LIMIT = 25;
  */
 export async function loadHirePayrollInputReview(
   organizationId: number, employeeId: number,
+  authorizedLegalEntityId: number | null = null,
 ): Promise<HirePayrollInputReview | null> {
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
       !Number.isSafeInteger(employeeId) || employeeId <= 0) return null;
+  if (authorizedLegalEntityId !== null &&
+      (!Number.isSafeInteger(authorizedLegalEntityId) || authorizedLegalEntityId <= 0)) return null;
+  // A caller that forgets the selected employer cannot read a group-wide
+  // worker/payroll source when multi-entity isolation is enabled.
+  if (criticalReleaseFlagEnabled("multiEntity") && authorizedLegalEntityId === null) return null;
 
   const [worker] = await db.select({
     id: employees.id,
@@ -32,6 +39,8 @@ export async function loadHirePayrollInputReview(
   }).from(employees).where(and(
     eq(employees.organizationId, organizationId),
     eq(employees.id, employeeId),
+    authorizedLegalEntityId === null ? undefined :
+      eq(employees.legalEntityId, authorizedLegalEntityId),
   )).limit(1);
   if (!worker) return null;
 
