@@ -29,10 +29,10 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
   const base=baseTenantManifest();
-  if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;
-    assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta+approvalDelta+studioDelta);
+  if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
+    assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta+approvalDelta+studioDelta+exportsDelta);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
-    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+studioDelta+relabels.gapRelabels);
+    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+studioDelta+exportsDelta+relabels.gapRelabels);
     assert.equal(m.metrics.publicByDesign-base.manifest.metrics.publicByDesign,relabels.publicByDesign);
     assert.equal(m.metrics.privilegedOperationsTokenOnly-base.manifest.metrics.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);}
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);
@@ -84,6 +84,7 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
     if(route===STUDIO_POST_PATH){assert.equal(verifyStudioPostCredit(m),1);continue;}
     if(route==='src/app/api/billing/route.ts'){assert.equal(verifyCheckoutCredit(m),1);continue;}
     if(route===APPROVALS_PATH){assert.equal(verifyApprovalsCredit(m),1);continue;}
+    if(route==='src/app/api/payroll-runs/[id]/exports/route.ts'){const x=m.allApiRouteFiles[route].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     const method = m.allApiRouteFiles[route].methods.find(x => x.name === verb);
     assert.equal(method.status, "GAP", route);
     assert.equal(method.testedBy, null, route);
