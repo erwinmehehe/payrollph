@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
-import { oidcSsoDisabledResponse, oidcSsoRuntimeEnabled } from "../src/lib/oidc-sso-runtime";
+import {
+  OIDC_SSO_RUNTIME_POLICY, oidcSsoDisabledResponse, oidcSsoRuntimeEnabled,
+} from "../src/lib/oidc-sso-runtime";
 
-test("OIDC SSO is disabled by default; only exact true permits sign-in", () => {
-  for (const value of [undefined, "", "1", "on", "TRUE", "True", "false", " true", "true "]) {
-    assert.equal(oidcSsoRuntimeEnabled({ OIDC_SSO_RUNTIME_ENABLED: value }), false);
+test("OIDC mode defaults OFF; only exact enabled value permits entry", () => {
+  assert.equal(OIDC_SSO_RUNTIME_POLICY.env, "OIDC_SSO_RUNTIME_MODE");
+  assert.equal(OIDC_SSO_RUNTIME_POLICY.enabledValue, "enabled");
+  assert.ok(OIDC_SSO_RUNTIME_POLICY.owner && OIDC_SSO_RUNTIME_POLICY.approval);
+  for (const value of [undefined, "", "1", "on", "TRUE", "True", "false", " true", "enabled "]) {
+    assert.equal(oidcSsoRuntimeEnabled({ OIDC_SSO_RUNTIME_MODE: value }), false);
   }
-  assert.equal(oidcSsoRuntimeEnabled({ OIDC_SSO_RUNTIME_ENABLED: "true" }), true);
-  assert.equal(criticalReleaseFlagEnabled("oidcSsoRuntime", { OIDC_SSO_RUNTIME_ENABLED: "true" }), true);
+  assert.equal(oidcSsoRuntimeEnabled({ OIDC_SSO_RUNTIME_MODE: "enabled" }), true);
 });
 
 test("disabled SSO is non-cacheable, does not set cookies, and reveals no provider metadata", async () => {
