@@ -188,7 +188,8 @@ export async function verifyPreloginTenantIsolation() {
       const response = await req(SIGNUP, { method: "POST", body: signupBody(who, { intakeProof: proof, ...forged }) });
       assert.equal(response.status, 202, who.key + " own signup: " + response.text.slice(0, 300));
       assertNoSession(response, who.key + " signup");
-      assert.equal(response.json.delivery, "accepted_by_provider", who.key + ": the loopback sink accepted the verification mail");
+      assert.equal(mailedTokens(MAIL, who.email).length, 1, who.key + ": the loopback sink accepted the verification mail");
+      assert.deepEqual(Object.keys(response.json).sort(), ["message", "ok"], "signup must not disclose account or delivery state");
       const now = await totals();
       assert.deepEqual(now, { ...startTotals, organizations: startTotals.organizations + 1, users: startTotals.users + 1,
         memberships: startTotals.memberships + 1, subscriptions: startTotals.subscriptions + 1, verifications: startTotals.verifications + 1 },
@@ -247,9 +248,9 @@ export async function verifyPreloginTenantIsolation() {
       assert.equal(MAIL.length, mailBefore, "a registered address is sent nothing");
     }
     await mustStayUnchanged("signups naming registered addresses");
-    // An address whose verification is still PENDING is protected too: a second registration cannot take over the account,
-    // change its password or company, or mail a new link. (The unverified registration itself is never replaced or expired;
-    // that is the recorded address-squatting finding, not something this proof closes.)
+    // A still-valid PENDING registration is protected: an unauthenticated duplicate
+    // cannot change its password/company or mail another link. Expired-address
+    // recovery is proved separately by tenant-signup-findings-http.mjs.
     {
       const pending = await workspaceOf(b), mailBefore = MAIL.length, at = await totals();
       const takeover = await req(SIGNUP, { method: "POST", body: { ...signupBody(b), company: "PRE-TAKEOVER-" + nonce, password: "Takeover-" + nonce + "-Pass9",
@@ -347,13 +348,13 @@ export async function verifyPreloginTenantIsolation() {
 
     console.log(JSON.stringify({
       proof: PRELOGIN_TITLE, methods: PRELOGIN_METHODS, postgresMajor: 16,
+      evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
       realFirstRunSetup: 1, realRegistrations: 2, realActivations: 2, realResends: 1,
       independentApplicants: 2, victimHigherThanFirstApplicantAndSix: true, forgedSelectorsIgnored: true,
       registeredAddressesProtected: 2, verificationLinksReadFromRecipientMailboxOnly: true,
       existingEmployersByteIdentical: ["bootstrap", "victim", "other applicant"],
       bootstrapEmployerId: boot.org.id, victimEmployerId: victim.org.id, applicantEmployerIds: [activeA.org.id, activeB.org.id],
-      knownFindingsNotClosedByThisProof: ["an unverified registration is never replaced or expired (address squatting)",
-        "the signup answer differs between a new and a registered address (enumeration)"],
+      knownFindingsNotClosedByThisProof: ["#1898 squatting and enumeration require the dedicated signup-findings proof"],
       providerMode: "loopback-smtp-sink-only", externalProviderCalled: false, paidEnrollmentExercised: false,
       coverageCredits: 0, independentlyAccepted: false, independentSecurityReview: "PENDING",
     }));
@@ -364,5 +365,10 @@ export async function verifyPreloginTenantIsolation() {
 }
 
 if (process.argv[1] && process.argv[1].replaceAll("\\", "/").endsWith("scripts/qa/tenant-prelogin-http.mjs")) {
-  await verifyPreloginTenantIsolation();
+  try { await verifyPreloginTenantIsolation(); }
+  catch (error) {
+    const location = String(error?.stack ?? "").match(/tenant-prelogin-http\.mjs:\d+:\d+/)?.[0] ?? "unknown";
+    console.error("PRELOGIN_BOUNDARY_FAILED " + location);
+    process.exitCode = 1;
+  }
 }

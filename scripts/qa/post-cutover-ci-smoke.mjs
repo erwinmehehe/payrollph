@@ -224,7 +224,20 @@ try {
         email: EMAIL_B, password: env.SMOKE_FAKE_ACCOUNT_PASSWORD,
         privatePilotInviteCode: env.SMOKE_SIGNUP_INVITE_CODE,
         plan: "Core", acceptTerms: true } });
-    expectStatus(registered, 201, "SIGNUP_B");
+    const accepted = expectStatus(registered, 202, "SIGNUP_B");
+    // A new valid invited pilot and an existing address must not leak identity
+    // through response fields or a registration session cookie.
+    assert.equal(accepted?.ok, true, "SIGNUP_B_GENERIC_ACCEPTED_BODY");
+    assert.equal(typeof accepted.message, "string", "SIGNUP_B_GENERIC_MESSAGE_REQUIRED");
+    assert.equal("organizationId" in accepted, false, "SIGNUP_B_NO_TENANT_ID_IN_RESPONSE");
+    assert.equal("user" in accepted, false, "SIGNUP_B_NO_USER_IN_RESPONSE");
+    assert.equal(registered.headers.get("set-cookie"), null,
+      "SIGNUP_B_MUST_NOT_ISSUE_SESSION_ON_REGISTRATION");
+    const provisionedB = await app.query(
+      "SELECT id, active FROM public.users WHERE email=$1", [EMAIL_B]);
+    assert.equal(provisionedB.rows.length, 1, "SIGNUP_B_OWNER_MUST_EXIST_IN_SQL");
+    assert.equal(provisionedB.rows[0].active, true,
+      "SIGNUP_B_INVITE_MUST_ACTIVATE_INDEPENDENT_OWNER");
     const logged = await http("/api/auth/login", { method: "POST",
       body: { email: EMAIL_B, password: env.SMOKE_FAKE_ACCOUNT_PASSWORD } });
     const login = expectStatus(logged, 200, "LOGIN_B");
