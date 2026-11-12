@@ -2,11 +2,20 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { readPendingSignupSourceRevalidation } from "./helpers/tenant-architectural-classification-delta.mjs";
 
 const blobSha = (path) => {
   const bytes = readFileSync(path);
   return createHash("sha1").update("blob " + bytes.length + "\0").update(bytes).digest("hex");
 };
+
+test("historical source label approval and newer proof remain separate", () => {
+  const record = readPendingSignupSourceRevalidation(assert);
+  assert.equal(record.status, "PENDING_OWNER_REVIEW");
+  assert.equal(record.nonclaims.ownerApprovedChangedSources, false);
+  assert.equal(record.nonclaims.independentSecurityReview, false);
+  assert.equal(record.proposedRuntimeSourcePins.length, 3);
+});
 
 test("signup source repin is exact, zero-credit and still expressly awaiting owner approval", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
