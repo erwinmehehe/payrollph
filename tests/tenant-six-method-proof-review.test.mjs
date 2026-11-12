@@ -1339,6 +1339,29 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok([0, architecturePublic.length].includes(baselineArchPublic) && baselineArchPublic === architecturePublic.length * baselineArchToken,
       "The nine architecture classifications are present on origin/main entirely or not at all");
     const baselineArch = baselineArchPublic + baselineArchToken;
+    // Merged #1933 superseded Worker 360's old organization-only proof.
+    // Accept only its precisely pinned GAP downgrade on main, with zero new
+    // credits. Do not silently treat changed legal-employer reads as COVERED.
+    const mainWorker360File = baseline.allApiRouteFiles[worker360Path];
+    const mainWorker360Get = mainWorker360File?.methods.find(row => row.name === "GET");
+    let mainWorker360Supersession = 0;
+    if (mainWorker360Get?.status === "GAP") {
+      assert.equal(mainWorker360File.gitBlobSha,
+        "19875021d750b722fc69e0fe939e57928a158af9");
+      assert.equal(mainWorker360Get.testedBy, null);
+      const hold = mainWorker360Get.reviewedUncertified;
+      assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
+      assert.equal(hold?.oldSourceBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
+      assert.equal(hold?.newSourceBlobSha, mainWorker360File.gitBlobSha);
+      assert.equal(hold?.coverageCredits, 0);
+      assert.equal(hold?.independentSecurityReview, "PENDING");
+      assert.equal(hold?.productionCertified, false);
+      expectedOriginalMain[worker360Path].GET = "GAP";
+      mainWorker360Supersession = 1;
+    } else {
+      assert.equal(mainWorker360Get?.status, "COVERED",
+        "Historical receipt or exact zero-credit supersession required");
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1349,13 +1372,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
+      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorker360Supersession + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
-      GAP: snapshot.counts.GAP - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP + mainWorker360Supersession - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
