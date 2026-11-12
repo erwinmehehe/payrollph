@@ -138,6 +138,30 @@ async function proveMarketingReport() {
     assert.equal(report.byCampaign.length, 3,
       "fictional campaign attribution must be count-only, no prospect fields");
 
+    // Second independent allowlisted user: a stale session must first fail,
+    // then the same persisted fictional session can succeed only after its MFA
+    // freshness is advanced. This is a CI-only session state change, not TOTP UAT.
+    await query("UPDATE sessions SET mfa_verified_at = NOW() WHERE id = $1",
+      [attackerB.sessionId]);
+    const authorizedB = await realGet(PATH + "?days=7", attackerB.cookie);
+    const secondReport = assertMkt01Aggregate(authorizedB,
+      { days: 7, total: 3, attributed: 3 }, privateFields);
+    const stableAggregate = ({ since, ...fields }) => fields;
+    assert.deepEqual(stableAggregate(secondReport), stableAggregate(report),
+      "two separately signed-in operator accounts must see identical safe aggregates");
+
+    // This global report has no employer/object selector. Inject real higher-ID
+    // victim IDs and an attempted raw format in a valid operator request:
+    // they must never expose a row or alter the fixed aggregate contract.
+    const forgedUrl = PATH + "?days=7&organizationId=" + victim.orgId +
+      "&employeeId=" + victim.userId + "&runId=" + prospects[2].id + "&format=raw";
+    const forgedAuthorized = await realGet(forgedUrl, attackerA.cookie);
+    const forgedReport = assertMkt01Aggregate(forgedAuthorized,
+      { days: 7, total: 3, attributed: 3 }, privateFields);
+    assert.deepEqual(stableAggregate(forgedReport), stableAggregate(report),
+      "forged object selectors and raw format must not change the report");
+    assertMkt01Denied(await realGet(forgedUrl, victim.cookie), 403, privateFields);
+
     assertMkt01Aggregate(await realGet(PATH + "?days=1", attackerA.cookie),
       { days: 1, total: 0, attributed: 0 }, privateFields);
     assertMkt01Aggregate(await realGet(PATH + "?days=9999", attackerA.cookie),
@@ -160,6 +184,8 @@ async function proveMarketingReport() {
       postgresMajor: 16, operatorOwnedReport: true,
       deniedAnonymous: true, deniedUnallowlistedHigherIdUser: true,
       deniedStaleMfaSession: true, deniedRevokedSession: true,
+      twoIndependentOperatorSuccesses: true,
+      forgedHigherIdSelectorsIgnored: true,
       privateProspectFieldsExcluded: true, boundedReportDays: true,
       snapshotRowsUnchanged: true, newCoverageCredits: 0,
       independentSecurityReview: "PENDING", productionCertified: false,

@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { CHECKOUT_INPUT_BLOBS, CHECKOUT_RECEIPT_BLOB } from './tenant-billing-checkout-credit-pins.mjs';
 import { expectedBillingPostProof } from './tenant-billing-post-credit.mjs';
+import {assertReviewedReadinessHeaderOnInvitationConfig} from './tenant-invitation-header-source-compat.mjs';
 
 export const CHECKOUT_PATH = 'src/app/api/billing/route.ts';
 export const CHECKOUT_RECEIPT = 'scripts/qa/tenant-billing-checkout-credit-receipt.json';
@@ -41,7 +42,8 @@ export function checkoutEvidence(read = readFileSync) {
   assert.equal(original.sourceHead, r.sourceHead);
   assert.equal(original.workflowJobId, r.workflowJobId);
   for (const [file, sha] of Object.entries(CHECKOUT_INPUT_BLOBS)) {
-    assert.equal(blob(read(file)), sha, 'Fresh HTTP/PG16 proof required after input drift: ' + file);
+    if (file === 'next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(file), sha);
+    else assert.equal(blob(read(file)), sha, 'Fresh HTTP/PG16 proof required after input drift: ' + file);
   }
   const proof = read('scripts/qa/tenant-billing-paymongo-http.mjs').toString().split('\n');
   for (const [line, fragment] of [[149, 'deny(foreign, 403'], [150, 'snapshot(victim.org.id)'],

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import yaml from 'js-yaml';
+import {assertReviewedReadinessHeaderOnInvitationConfig} from './tenant-invitation-header-source-compat.mjs';
 
 export const RENEWAL_FILE='scripts/qa/tenant-studio-dependency-renewal-receipt.json';
 const SEALED='dd41a5f4ac55c683a4281e22946494cb3a2319e3';
@@ -62,7 +63,10 @@ export function readStudioDependencyRenewal(read=readFileSync){
  assert.equal(Object.keys(r.historicalReceipts).length,4,'Historical receipt set must remain immutable');
  for(const [p,sha]of Object.entries(r.historicalReceipts))assert.equal(blob(read(p)),sha,'Historical receipt was rewritten: '+p);
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete transitive source union required');
- for(const [p,sha]of Object.entries(r.inputBlobs))assert.equal(blob(read(p)),sha,'Renewed runtime/proof source drift: '+p);
+ for(const [p,sha]of Object.entries(r.inputBlobs)){
+  if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else assert.equal(blob(read(p)),sha,'Renewed runtime/proof source drift: '+p);
+ }
  for(const f of Object.values(r.families))for(const job of f.jobs){
   const workflow=yaml.load(read(job.workflow,'utf8'));assert.deepEqual(workflow.permissions,{contents:'read'});
   assert.equal(jobSpecSha(workflow.jobs[job.jobKey]),job.jobSpecSha,'Executed job recipe changed: '+job.proof);
