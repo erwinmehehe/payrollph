@@ -360,6 +360,24 @@ jobs:
           name: payrollph-golden-payroll-phase11
           path: qa-artifacts/golden-payroll-phase11-reconciliation.json
           retention-days: 14
+      - name: Run prior-employer evidence golden reconciliation (Phase 12)
+        run: npx tsx scripts/golden-payroll-phase12.ts
+      - name: Upload Phase 12 prior-employer evidence reconciliation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase12
+          path: qa-artifacts/golden-payroll-phase12-reconciliation.json
+          retention-days: 14
+      - name: Run imported provider-history golden reconciliation (Phase 13)
+        run: npx tsx scripts/golden-payroll-phase13.ts
+      - name: Upload Phase 13 imported provider-history reconciliation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase13
+          path: qa-artifacts/golden-payroll-phase13-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links

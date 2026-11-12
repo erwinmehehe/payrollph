@@ -182,7 +182,20 @@ export function verifyInvitationAcceptCredits(m) {
       if(approvalPromotions.length)assert.equal(verifyApprovalsCredit(m),1);
       const studioPromotions=promoted.filter(key=>key==='POST '+STUDIO_POST_PATH);
       if(studioPromotions.length)assert.equal(verifyStudioPostCredit(m),1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions].sort(),
+      // The payroll exports POST: only with its own provisional, unaccepted, loopback-synthetic receipt (exact pins are verified
+      // by the inventory test's dedicated test).
+      const exportsPath = "src/app/api/payroll-runs/[id]/exports/route.ts";
+      const exportsPromotions = promoted.filter(key => key === "POST " + exportsPath);
+      if (exportsPromotions.length) {
+        const exportsPost = m.allApiRouteFiles[exportsPath].methods.find(row => row.name === "POST");
+        assert.equal(exportsPost?.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs");
+        assert.equal(exportsPost.testedBy.providerMode, "loopback-synthetic-paymongo");
+        assert.equal(exportsPost.testedBy.moneyMovedByLinaw, false);
+        assert.equal(exportsPost.testedBy.independentSecurityReview, "PENDING");
+        assert.equal(exportsPost.testedBy.productionTested, false);
+        assert.equal(exportsPost.reviewedUncertified, undefined);
+      }
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions].sort(),
         "Merged invitation receipts permit only separately verified BIR, filing PATCH and checkout credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
