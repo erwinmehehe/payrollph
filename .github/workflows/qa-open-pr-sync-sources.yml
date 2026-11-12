@@ -1,0 +1,39 @@
+name: Open PR pinned source bundle (sync work only)
+on:
+  push:
+    branches: [qa/open-pr-main-sync-20261112]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    if: github.repository == 'erwinmehehe/payrollph'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export pinned main and four PR source heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin 79d81d5f164d028cb2e20cda76deb43d7c38352b:refs/heads/sync-main
+          test "$(git rev-parse refs/heads/sync-main)" = 79d81d5f164d028cb2e20cda76deb43d7c38352b
+          git fetch --no-tags origin 9ce20e3608c0b0d449043d362c2d14ff89851c3f:refs/heads/sync-pr1933
+          test "$(git rev-parse refs/heads/sync-pr1933)" = 9ce20e3608c0b0d449043d362c2d14ff89851c3f
+          git fetch --no-tags origin 36c921e1d2ab690aace04dfce19b90a83cf290ee:refs/heads/sync-pr1946
+          test "$(git rev-parse refs/heads/sync-pr1946)" = 36c921e1d2ab690aace04dfce19b90a83cf290ee
+          git fetch --no-tags origin 878b32b75119faf9473935e9c9c8eebd4ed9d4df:refs/heads/sync-pr1948
+          test "$(git rev-parse refs/heads/sync-pr1948)" = 878b32b75119faf9473935e9c9c8eebd4ed9d4df
+          git fetch --no-tags origin 7030d059469d8df0daf55b024b12e226a6fdd27c:refs/heads/sync-pr1949
+          test "$(git rev-parse refs/heads/sync-pr1949)" = 7030d059469d8df0daf55b024b12e226a6fdd27c
+          git bundle create /tmp/open-pr-sync-sources.bundle refs/heads/sync-main refs/heads/sync-pr1933 refs/heads/sync-pr1946 refs/heads/sync-pr1948 refs/heads/sync-pr1949
+          git bundle verify /tmp/open-pr-sync-sources.bundle
+          git bundle list-heads /tmp/open-pr-sync-sources.bundle
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: open-pr-sync-source-bundle
+          path: /tmp/open-pr-sync-sources.bundle
+          retention-days: 1
+          if-no-files-found: error
