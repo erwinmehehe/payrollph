@@ -6786,6 +6786,18 @@ test("page and server-action inventory cannot silently omit new or changed busin
     assert.equal(alias.independentSecurityReview, "PENDING");
     assert.equal(alias.productionCertified, false);
     assert.equal(alias.destination, "/billing/setup?organizationId=<authorized employer ID>");
+    assert.equal(alias.parserFile, "src/lib/tenant-page-id.ts");
+    assert.equal(alias.proofFile, "scripts/qa/tenant-billing-setup-page-http.mjs");
+    assert.equal(alias.workflowFile, ".github/workflows/tenant-billing-setup-page-qa.yml");
+    for (const [file, sha] of [
+      [alias.parserFile, alias.parserBlobSha],
+      [alias.proofFile, alias.proofBlobSha],
+      [alias.workflowFile, alias.workflowBlobSha],
+    ]) {
+      assert.ok(typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha));
+      assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "Unreviewed redirect alias dependency/proof drift: " + file);
+    }
     for (const field of ["business", "guards"]) {
       assert.ok(Array.isArray(alias[field]) && alias[field].length > 0);
       for (const pin of alias[field]) {
