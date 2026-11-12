@@ -3854,7 +3854,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const seals = {
       "src/app/api/auth/sso/start/route.ts": {
         before: "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
-        after: "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+        after: "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
       },
       "src/app/api/auth/sso/callback/route.ts": {
         before: "b18ac853e93155478474d02466617298d6773275",
@@ -3875,11 +3875,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       cookieHelperFile: "src/lib/oidc-browser-state.ts",
       cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
       contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-      contractBlobSha: "5c4990abfcc7310d893f22a211732a7d484c3033",
+      contractBlobSha: "80d8278c439251d068584a946e9ef186b654275d",
       proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-      proofBlobSha: "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
+      proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
       unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
-      unitTestBlobSha: "cb79eea24335ee49f5b80c9838f04827c2d28e10",
+      unitTestBlobSha: "f82c666418c4f0dd5f9f369146ad1748b9f542e6",
       negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
       negativeTestBlobSha: "b89879de534005a17f4164df51eb1dca647fbb33",
       workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
@@ -3891,11 +3891,19 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
           kind: "existing-oidc-provider-subject-must-match-provider-employer",
           sourceSha: seal.after,
           proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
           scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
           accepted: false, credits: 0, productionCertified: false,
         },
-      } : {}),
+      } : {
+        selectorBoundary: {
+          kind: "canonical-singular-provider-and-verified-email",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
+        },
+      }),
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
     const review = method.reviewedUncertified;
     for (const [file, sha] of [
