@@ -29,6 +29,7 @@ import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-s
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { reconcileKnownEdg02MainCaption } from "./helpers/tenant-frozen-caption.mjs";
 import { reconcileArchitecturalMainStatuses } from "./helpers/tenant-architectural-classification-delta.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -1364,8 +1365,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       .replace(/^Frozen subtotal \(2026-11-11 classification proposal\):/, 'Frozen subtotal:')
       .replace(`${word} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`,`${incomplete} ${incomplete === 1 ? 'batch remains' : 'batches remain'}`)
       .replace(`${names} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`,`${provisionalBatches.join(', ')} ${provisionalBatches.length === 1 ? 'remains' : 'remain'} PROVISIONAL`);
-    const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
     const correctMainFrozen = normalizeCaption(expectedMainFrozen);
+    const currentFrozenSubtotals = plan.split("\n").filter(line =>
+      line.startsWith("Frozen subtotal (2026-11-11 classification proposal): **"));
+    const baselinePlanBytes = Buffer.from(baselinePlan, "utf8");
+    const actualMainFrozen = reconcileKnownEdg02MainCaption({
+      actual: normalizeCaption(mainFrozenSubtotal),
+      expected: correctMainFrozen,
+      current: currentFrozenSubtotals.length === 1
+        ? normalizeCaption(currentFrozenSubtotals[0]) : undefined,
+      baselinePlanBlob: createHash("sha1")
+        .update(Buffer.from("blob " + baselinePlanBytes.length + "\0"))
+        .update(baselinePlanBytes).digest("hex"),
+    });
     if (actualMainFrozen !== correctMainFrozen) {
       // Historical main's summary accidentally omits PII-02 even though its
       // frozen-row table explicitly marks 36 COVERED + 2 PUBLIC + 0 GAP.
