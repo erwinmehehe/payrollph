@@ -1,39 +1,59 @@
-name: Open PR pinned source bundle (sync work only)
+name: Open PR pinned merge sync candidates (no PR writes)
 on:
   push:
     branches: [qa/open-pr-main-sync-20261112]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  snapshot:
-    if: github.repository == 'erwinmehehe/payrollph'
+  merge:
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/open-pr-main-sync-20261112'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pr: 1933
+            head: 9ce20e3608c0b0d449043d362c2d14ff89851c3f
+            branch: fix/tenant-worker360-legal-employer-history-20261111
+            tree: 3996befc8b93f879b362954973a050ab2b320f3f
+            candidate: qa/pr1933-sync-79d81d-20261112
+          - pr: 1946
+            head: 36c921e1d2ab690aace04dfce19b90a83cf290ee
+            branch: fix/tenant-people-ssr-multi-entity-hold-20261112
+            tree: 7e52467dfeccccf2f5f7cac2d0e405095a5cd85f
+            candidate: qa/pr1946-sync-79d81d-20261112
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          persist-credentials: false
-      - name: Export pinned main and four PR source heads
+          persist-credentials: true
+      - name: Verify exact source heads still current, merge, and pin tree
         shell: bash
+        env:
+          PR: ${{ matrix.pr }}
+          EXPECTED_HEAD: ${{ matrix.head }}
+          BRANCH: ${{ matrix.branch }}
+          EXPECTED_TREE: ${{ matrix.tree }}
+          CANDIDATE: ${{ matrix.candidate }}
+          MAIN_SHA: 79d81d5f164d028cb2e20cda76deb43d7c38352b
         run: |
           set -euo pipefail
-          git fetch --no-tags origin 79d81d5f164d028cb2e20cda76deb43d7c38352b:refs/heads/sync-main
-          test "$(git rev-parse refs/heads/sync-main)" = 79d81d5f164d028cb2e20cda76deb43d7c38352b
-          git fetch --no-tags origin 9ce20e3608c0b0d449043d362c2d14ff89851c3f:refs/heads/sync-pr1933
-          test "$(git rev-parse refs/heads/sync-pr1933)" = 9ce20e3608c0b0d449043d362c2d14ff89851c3f
-          git fetch --no-tags origin 36c921e1d2ab690aace04dfce19b90a83cf290ee:refs/heads/sync-pr1946
-          test "$(git rev-parse refs/heads/sync-pr1946)" = 36c921e1d2ab690aace04dfce19b90a83cf290ee
-          git fetch --no-tags origin 878b32b75119faf9473935e9c9c8eebd4ed9d4df:refs/heads/sync-pr1948
-          test "$(git rev-parse refs/heads/sync-pr1948)" = 878b32b75119faf9473935e9c9c8eebd4ed9d4df
-          git fetch --no-tags origin 7030d059469d8df0daf55b024b12e226a6fdd27c:refs/heads/sync-pr1949
-          test "$(git rev-parse refs/heads/sync-pr1949)" = 7030d059469d8df0daf55b024b12e226a6fdd27c
-          git bundle create /tmp/open-pr-sync-sources.bundle refs/heads/sync-main refs/heads/sync-pr1933 refs/heads/sync-pr1946 refs/heads/sync-pr1948 refs/heads/sync-pr1949
-          git bundle verify /tmp/open-pr-sync-sources.bundle
-          git bundle list-heads /tmp/open-pr-sync-sources.bundle
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: open-pr-sync-source-bundle
-          path: /tmp/open-pr-sync-sources.bundle
-          retention-days: 1
-          if-no-files-found: error
+          current_main="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test "$current_main" = "$MAIN_SHA" || { echo "Main changed, refusing stale sync"; exit 1; }
+          current_head="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
+          test "$current_head" = "$EXPECTED_HEAD" || { echo "PR branch changed, refusing overwrite"; exit 1; }
+          git fetch --no-tags origin "$EXPECTED_HEAD" "$MAIN_SHA"
+          git checkout --detach "$EXPECTED_HEAD"
+          git -c user.name="GitHub Actions PR sync" -c user.email="actions@users.noreply.github.com" merge --no-ff --no-commit "$MAIN_SHA"
+          test -z "$(git ls-files -u)" || { echo "Unresolved merge conflicts"; exit 1; }
+          test "$(git write-tree)" = "$EXPECTED_TREE" || { echo "Unexpected merged tree"; exit 1; }
+          git diff --cached --check
+          git -c user.name="GitHub Actions PR sync" -c user.email="actions@users.noreply.github.com" commit -m "chore(sync): merge main into PR #$PR without changing release gates"
+          test "$(git rev-parse HEAD^{tree})" = "$EXPECTED_TREE"
+          test "$(git show -s --format=%P HEAD)" = "$EXPECTED_HEAD $MAIN_SHA"
+          test -z "$(git ls-remote --heads origin "refs/heads/$CANDIDATE")" || { echo "Candidate ref exists; refuse overwrite"; exit 1; }
+          git push origin "HEAD:refs/heads/$CANDIDATE"
+          echo "Candidate PR #$PR: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Exact tree: $EXPECTED_TREE" >> "$GITHUB_STEP_SUMMARY"
+          echo "No PR or main refs updated." >> "$GITHUB_STEP_SUMMARY"
