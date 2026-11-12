@@ -76,10 +76,11 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
     const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
+    const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
-    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta+studioDelta, 'Only separately sealed method credits may change totals');
+    assert.equal(counts.coveredAfter - before.coveredAfter, delta+readyDelta+approvalsDelta+studioDelta+exportsDelta, 'Only separately sealed method credits may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
-    assert.equal(before.gap-counts.gap,delta+readyDelta+approvalsDelta+studioDelta+relabels.gapRelabels,'Only sealed credits and nine source-pinned zero-credit classifications may retire GAPs');
+    assert.equal(before.gap-counts.gap,delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+relabels.gapRelabels,'Only sealed credits and nine source-pinned zero-credit classifications may retire GAPs');
     assert.equal(counts.publicByDesign-before.publicByDesign,relabels.publicByDesign);
     assert.equal(counts.privilegedOperationsTokenOnly-before.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);
   }
@@ -93,6 +94,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["GET", "readiness/workspace"],
   ]) {
     if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
+    if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}
     if(route==='approvals/[id]'){assert.equal(verifyApprovalsCredit(m),1);continue;}
     const row = m.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods
