@@ -27171,14 +27171,14 @@
       ]
     },
     "src/app/api/provisioning/route.ts": {
-      "gitBlobSha": "beddf30861cdb810c5f4ee2ca5631fb29e768ed9",
+      "gitBlobSha": "dbda44075260d0b0ca0aaba07223e02e3c035240",
       "route": "provisioning",
       "methods": [
         {
           "name": "GET",
-          "line": 13,
+          "line": 14,
           "status": "COVERED",
-          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. Current source adds same-organization legal-employer and worker-locked provisioning restrictions: historic organization-only proof cannot establish within-company entity isolation. Source-pinned PG16 real-HTTP candidate awaits exact-head execution and independent HR/privacy review. No new coverage credit.",
           "testedBy": {
             "file": "scripts/qa/tenant-table-http.mjs",
             "line": 251,
@@ -27189,13 +27189,32 @@
             "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
             "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
             "rowLine": 32
+          },
+          "reviewedUncertified": {
+            "kind": "provisioning-same-org-legal-employer-PG16-HTTP-review-only",
+            "originalRouteBlobSha": "beddf30861cdb810c5f4ee2ca5631fb29e768ed9",
+            "routeBlobSha": "dbda44075260d0b0ca0aaba07223e02e3c035240",
+            "helperFile": "src/lib/provisioning.ts",
+            "helperBlobSha": "d5bc5d806276c061500061732fb7c4bc16755940",
+            "proofFile": "scripts/qa/tenant-provisioning-entity-http.mjs",
+            "proofBlobSha": "ce9c462e16dc282ae28f70c903c5306866cfabdf",
+            "contractFile": "tests/tenant-provisioning-entity-boundary.test.mjs",
+            "contractBlobSha": "581f83612e82d247d41ebd778f75c501ae9b0437",
+            "workflowFile": ".github/workflows/tenant-provisioning-entity-qa.yml",
+            "workflowBlobSha": "399f3f0faddb1ccebdc331b27b319eb0e4898125",
+            "historicalOrganizationProofFile": "scripts/qa/tenant-table-http.mjs",
+            "historicalOnly": true,
+            "newLegalEmployerMethodCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         },
         {
           "name": "PATCH",
-          "line": 50,
+          "line": 74,
           "status": "COVERED",
-          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "reason": "Provisional: write-table disposable PG16 real-HTTP proof (GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)): two independently authenticated attacker employers each perform the write for their own employer with the exact status and the own PostgreSQL rows change as the row's expectation states, the same session naming the real higher-ID victim employer (or a victim row id) is denied with the exact status, and the victim's rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required. Current source adds same-organization legal-employer and worker-locked provisioning restrictions: historic organization-only proof cannot establish within-company entity isolation. Source-pinned PG16 real-HTTP candidate awaits exact-head execution and independent HR/privacy review. No new coverage credit.",
           "testedBy": {
             "file": "scripts/qa/tenant-write-table-http.mjs",
             "line": 112,
@@ -27206,6 +27225,25 @@
             "unchangedDbLine": 149,
             "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (CI PG16 only).",
             "evidence": "Shared tenant-table workflow write step (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40200060037 head 1fd16ee304a896072560fd86ff06915e7bce159c: default write job 121189150538 passed 28 writes/56 pairs/28 discriminating/30 forged and unchanged victim DB; multi-entity and flagged-reads table profiles passed (no write rows)"
+          },
+          "reviewedUncertified": {
+            "kind": "provisioning-same-org-legal-employer-PG16-HTTP-review-only",
+            "originalRouteBlobSha": "beddf30861cdb810c5f4ee2ca5631fb29e768ed9",
+            "routeBlobSha": "dbda44075260d0b0ca0aaba07223e02e3c035240",
+            "helperFile": "src/lib/provisioning.ts",
+            "helperBlobSha": "d5bc5d806276c061500061732fb7c4bc16755940",
+            "proofFile": "scripts/qa/tenant-provisioning-entity-http.mjs",
+            "proofBlobSha": "ce9c462e16dc282ae28f70c903c5306866cfabdf",
+            "contractFile": "tests/tenant-provisioning-entity-boundary.test.mjs",
+            "contractBlobSha": "581f83612e82d247d41ebd778f75c501ae9b0437",
+            "workflowFile": ".github/workflows/tenant-provisioning-entity-qa.yml",
+            "workflowBlobSha": "399f3f0faddb1ccebdc331b27b319eb0e4898125",
+            "historicalOrganizationProofFile": "scripts/qa/tenant-write-table-http.mjs",
+            "historicalOnly": true,
+            "newLegalEmployerMethodCredits": 0,
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
           }
         }
       ],
@@ -27226,87 +27264,111 @@
           "token": "getSessionUser"
         },
         {
-          "line": 9,
+          "line": 10,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 9,
+          "line": 10,
           "token": "assertScope"
         },
         {
-          "line": 9,
+          "line": 10,
           "token": "getAccess"
         },
         {
-          "line": 16,
+          "line": 17,
           "token": "getSessionUser"
         },
         {
-          "line": 18,
+          "line": 19,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 25,
+          "line": 26,
           "token": "getAccess"
         },
         {
-          "line": 51,
+          "line": 75,
           "token": "enforceSameOriginMutation"
         },
         {
-          "line": 54,
+          "line": 78,
           "token": "getSessionUser"
         },
         {
-          "line": 66,
+          "line": 90,
           "token": "assertOrganizationRole"
         },
         {
-          "line": 73,
+          "line": 97,
           "token": "getAccess"
         },
         {
-          "line": 93,
+          "line": 136,
           "token": "assertScope"
         },
         {
-          "line": 137,
+          "line": 192,
           "token": "assertScope"
+        },
+        {
+          "line": 31,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 99,
+          "token": "resolveMultiEntityContext"
+        },
+        {
+          "line": 39,
+          "token": "ensureLifecycleProvisioning"
+        },
+        {
+          "line": 43,
+          "token": "eq(employees.legalEntityId, legalEntityId)"
+        },
+        {
+          "line": 119,
+          "token": "inArray"
+        },
+        {
+          "line": 183,
+          "token": "legal_entity_id"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 15,
+          "line": 16,
           "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 100,
+          "token": "body.legalEntityId"
+        },
+        {
+          "line": 37,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 107,
+          "token": "legalEntityId"
         }
       ],
       "businessIds": [
         {
-          "line": 15,
+          "line": 16,
           "token": "organizationId"
         },
         {
-          "line": 15,
+          "line": 16,
           "token": "organizationId"
         },
         {
-          "line": 20,
+          "line": 21,
           "token": "organizationId"
         },
         {
-          "line": 25,
-          "token": "organizationId"
-        },
-        {
-          "line": 27,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
-          "token": "organizationId"
-        },
-        {
-          "line": 30,
+          "line": 26,
           "token": "organizationId"
         },
         {
@@ -27314,31 +27376,43 @@
           "token": "organizationId"
         },
         {
-          "line": 31,
+          "line": 48,
           "token": "organizationId"
         },
         {
-          "line": 34,
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 48,
+          "token": "organizationId"
+        },
+        {
+          "line": 58,
           "token": "orgUnitId"
         },
         {
-          "line": 34,
+          "line": 58,
           "token": "orgUnitId"
         },
         {
-          "line": 36,
-          "token": "employeeId"
-        },
-        {
-          "line": 38,
+          "line": 60,
           "token": "employeeId"
         },
         {
           "line": 62,
+          "token": "employeeId"
+        },
+        {
+          "line": 86,
           "token": "organizationId"
         },
         {
-          "line": 62,
+          "line": 86,
           "token": "employeeId"
         }
       ]

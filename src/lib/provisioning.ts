@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, provisioningTasks } from "@/db/schema";
 import { requestOffboardingIT } from "@/lib/it-offboarding";
@@ -33,8 +33,16 @@ export async function seedProvisioning(organizationId: number, employeeId: numbe
   }))).returning();
 }
 
-export async function ensureLifecycleProvisioning(organizationId: number) {
-  const rows = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
+export async function ensureLifecycleProvisioning(
+  organizationId: number, legalEntityId: number | null = null, orgUnitId: number | null = null,
+) {
+  // Callers can seed only the selected legal employer and authorized unit.
+  // The one-argument legacy path retains its original organization-wide behavior.
+  const rows = await db.select().from(employees).where(and(
+    eq(employees.organizationId, organizationId),
+    legalEntityId === null ? undefined : eq(employees.legalEntityId, legalEntityId),
+    orgUnitId === null ? undefined : eq(employees.orgUnitId, orgUnitId),
+  ));
   for (const employee of rows) {
     await seedProvisioning(organizationId, employee.id, "onboarding");
     if (employee.status === "Separating" || employee.status === "Separated") {
