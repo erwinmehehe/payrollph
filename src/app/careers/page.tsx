@@ -10,14 +10,18 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Careers | Linaw" };
 
 export default async function CareersPage({ searchParams }: {
-  searchParams: Promise<{ organizationId?: string }>;
+  searchParams: Promise<{ organizationId?: string | string[] }>;
 }) {
   const notice = careersNoticeConfig();
   // Before privacy/migration activation, never evaluate a requisition query.
   if (!notice) notFound();
   const { organizationId: raw } = await searchParams;
+  // Public-by-design, but a requested employer must be unambiguous. Next.js
+  // exposes repeated keys as arrays; Number(raw) previously coerced ["1"] or
+  // whitespace into valid IDs. Never let malformed selectors reach SQL.
+  if (typeof raw !== "string" || !/^[1-9][0-9]*$/.test(raw)) notFound();
   const organizationId = Number(raw);
-  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) notFound();
+  if (!Number.isSafeInteger(organizationId)) notFound();
   if (!await careersSchemaReady()) notFound();
 
   const [organization] = await db.select({ name: organizations.name })
