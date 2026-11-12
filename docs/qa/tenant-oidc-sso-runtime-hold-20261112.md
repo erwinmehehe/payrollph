@@ -7,8 +7,9 @@ that enabled OIDC is certified safe.
 
 ## What changes
 
-- `OIDC_SSO_RUNTIME_ENABLED` is an exact-true, server-side,
-  release-critical flag. Missing/mistyped/false means **OFF**.
+- `OIDC_SSO_RUNTIME_MODE` is a server-side enumerated security policy:
+  only exact `enabled` permits the OIDC routes. Missing/mistyped/blocked means **OFF**.
+  The separately sealed shared Boolean release-flag registry is unchanged.
 - `GET /api/auth/sso/start`, `GET /api/auth/sso/callback`, and
   `POST /api/auth/sso/resolve` reject uniformly with a private, non-cacheable
   503 before reading URL/body, provider IDs, cookies, login-state SQL or sessions.
@@ -16,7 +17,7 @@ that enabled OIDC is certified safe.
   No client-visible navigation toggle is relied on as an authorization guard.
 - Enabled behavior after the early guard is unchanged. Existing separate
   real-HTTP, fictional PostgreSQL 16 tests for browser state and tenant-bound
-  discovery explicitly set the flag TRUE only in isolated CI.
+  discovery explicitly set the mode `enabled` only in isolated CI.
 - SAML remains separately disabled; SAML metadata and other identity
   integrations retain their independent review boundaries.
 
