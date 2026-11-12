@@ -191,12 +191,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Temporary read-only legacy PII key compatibility",
     approval: "Key custody, measured rewrap and retirement acceptance",
   },
-  oidcSsoRuntime: {
-    env: "OIDC_SSO_RUNTIME_ENABLED",
-    owner: "Security / Identity",
-    risk: "OIDC discovery, authorization and callback can link employee identities and create authenticated sessions",
-    approval: "Independent identity and privacy review, exact-head multi-employer PG16 HTTP, IdP integration and fail-closed callback acceptance, controlled production rollout; first pilot remains default OFF",
-  },
   multiEntity: {
     env: "MULTI_ENTITY_ENABLED",
     owner: "Security / Payroll Operations",
