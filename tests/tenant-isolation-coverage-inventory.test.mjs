@@ -7427,7 +7427,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ? "a6c4642f9e651eb616de6e301a832ac2d471a33e"
           : "82327e4d8580af2abe503e7a104321e854dc84f7";
         const pageBlobSha = certificate
-          ? "f5e2ed9e6e2b3fef38bd5551e3894fc586bda3ad"
+          ? "f4badb3f1782812aab672665340e967911cff2cb"
           : "e55809f26075c142240675826a0c353d403a20e6";
         assert.equal(entry.status, "GAP", "Unaccepted tax-review SSR remains a GAP");
         assert.equal(entry.testedBy, undefined, "No page/action proof may be credited");
@@ -7453,14 +7453,25 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 123, foreignDenialLine: 129, unchangedDbLine: 155,
           previouslyPassingHead: "13e77283b83597738803afa843f3feea831080e8",
           previouslyPassingJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42622354364/job/129177441243",
-          ...(certificate ? {} : { workerBinding: {
+          ...(certificate ? { workerWithoutSeparationBoundary: {
+            kind: "form2316-worker-only-same-parent-ungranted-legal-employer-existence-denial",
+            sourceBlobSha: "f4badb3f1782812aab672665340e967911cff2cb",
+            proofFile: "scripts/qa/tenant-prior-review-worker-http.mjs",
+            proofBlobSha: "db38b5ce9e33c42feb81a69929849c2c52a6d004",
+            workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
+            workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+            unitTestFile: "tests/tenant-2316-legal-employer-worker.test.ts",
+            unitTestBlobSha: "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7",
+            exactFinalHeadPg16: "PENDING",
+            pageActionCredits: 0, independentlyAccepted: false, productionCertified: false,
+          }} : { workerBinding: {
             kind: "prior-employer-selected-worker-legal-entity-SSR-PG16-uncredited",
             originalPageBlobSha: "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff",
             pageBlobSha: "e55809f26075c142240675826a0c353d403a20e6",
             helperFile: "src/lib/tenant-prior-review-worker.ts",
             helperBlobSha: "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
             proofFile: "scripts/qa/tenant-prior-review-worker-http.mjs",
-            proofBlobSha: "b4c55c0d9dceb77364a330ebc5222d0c49c1158d",
+            proofBlobSha: "db38b5ce9e33c42feb81a69929849c2c52a6d004",
             contractFile: "scripts/qa/tenant-prior-review-worker-contract.mjs",
             contractBlobSha: "428b115e1814942fdfbb43f799010745af55f3de",
             testFile: "tests/tenant-prior-review-worker.test.ts",
@@ -7468,7 +7479,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
             contractTestFile: "tests/tenant-prior-review-worker-contract.test.mjs",
             contractTestBlobSha: "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
             workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-            workflowBlobSha: "beda36c25495f84d0cbc85030f9cce47f9faa32a",
+            workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
             proofStatus: "EXACT_PR_HEAD_PG16_PENDING",
             pageActionCredits: 0, apiMethodCredits: 0,
             independentlyAccepted: false, productionCertified: false,
@@ -7498,6 +7509,39 @@ test("page and server-action inventory cannot silently omit new or changed busin
         ]) {
           assert.equal(gitBlobSha(readFileSync(file)), sha,
             "Tax-review evidence changed without renewed independent test: " + file);
+        }
+        if (certificate) {
+          const boundary = reviewed.workerWithoutSeparationBoundary;
+          assert.equal(boundary.sourceBlobSha, current);
+          assert.equal(boundary.exactFinalHeadPg16, "PENDING");
+          assert.equal(boundary.pageActionCredits, 0);
+          assert.equal(boundary.independentlyAccepted, false);
+          assert.equal(boundary.productionCertified, false);
+          for (const [file, sha] of [
+            [boundary.proofFile, boundary.proofBlobSha],
+            [boundary.workflowFile, boundary.workflowBlobSha],
+            [boundary.unitTestFile, boundary.unitTestBlobSha],
+          ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Uncredited 2316 worker boundary proof changed; re-pin and rerun: " + file);
+          const workerRead = actual.indexOf("legalEntityId: employees.legalEntityId");
+          const workerGrant = actual.indexOf("assertEntityResource(entityScope.context, worker.legalEntityId)");
+          const separationQuery = actual.indexOf("const [separation] = await db.select(");
+          const guidance = actual.indexOf("Select a released final-pay separation");
+          const mount = actual.indexOf("<Certificate2316Review");
+          assert.ok(workerRead > 0 && workerGrant > workerRead &&
+            separationQuery > workerGrant && guidance > separationQuery && mount > guidance,
+            "2316 must deny ungranted worker IDs before guidance or private form mount");
+          const proof = readFileSync(boundary.proofFile, "utf8");
+          for (const required of [
+            "certPath(actor.org.id, actor.worker.id)",
+            "certPath(actor.org.id, actor.worker.id, actor.certificateSeparationId)",
+            "certPath(a.org.id, otherWorker.id)",
+            "certPath(a.org.id, otherWorker.id, otherSep.id)",
+            "certPath(a.org.id, victim.worker.id)",
+            "certPath(b.org.id, a.worker.id)",
+            "revoked2316.status, 404",
+          ]) assert.ok(proof.includes(required),
+            "2316 fictional PG16 proof must include own, foreign, cross-tenant and revoked cases: " + required);
         }
         if (!certificate) {
           const binding = reviewed.workerBinding;
