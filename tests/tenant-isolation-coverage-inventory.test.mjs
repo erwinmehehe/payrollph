@@ -253,6 +253,11 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(key===OIDC_CALLBACK+' GET'&&method.status==='COVERED'){
+    assert.equal(verifyOidcCallbackCredit(manifest),1);
+    assert.equal(currentBlob,method.testedBy.routeBlobSha);
+    return true;
+  }
 
   // Exact-source uncredited privacy repair; this permits no coverage promotion.
   if (key === SAML_METADATA_ROUTE + " GET") {
@@ -4740,6 +4745,7 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if(path===OIDC_CALLBACK&&method.name==='GET'){assert.equal(verifyOidcCallbackCredit(manifest),1);continue;}
       if (path === CHECKOUT_PATH && method.name === "POST") {
         assert.equal(verifyCheckoutCredit(manifest), 1);
         continue;
@@ -8983,3 +8989,4 @@ test("payroll exports POST credit requires the exact passing run, byte-pinned in
     assert.ok(route.includes(bound), routePath + " lost a bound the proof exercises: " + bound);
   assert.ok(!/body\.(?:organizationId|orgId|legalEntityId)/.test(route), "the route must never read the employer from the request body");
 });
+import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

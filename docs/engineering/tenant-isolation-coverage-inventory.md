@@ -1,3 +1,7 @@
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 457 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
+
+> **SOLO_VERIFIED_DEV_RECOVERY — OIDC callback proposal:** 457 COVERED / 6 API GAP. [Actual HTTPS IdP/PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/43241241290/job/131261892308). Start/resolve remain GAP. Independent and production acceptance PENDING.
+
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** Latest 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 TOKEN-ONLY + 7 GAP; 17 page/action GAPs. Changed Worker 360 API and page lose historical provisional credit; newest exports POST proof retained. Zero new Worker 360 credits; production acceptance pending.
@@ -152,9 +156,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 7 API methods and 17 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 6 API methods and 17 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 7 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 6 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -263,10 +267,10 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 456 |
+| coveredAfter | 457 |
 | publicByDesign | 23 |
 | privilegedOperationsTokenOnly | 12 |
-| gap | 7 |
+| gap | 6 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -408,7 +412,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`auth/saml/acs/[providerId]` POST](../../src/app/api/auth/saml/acs/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | evidenced disabled SAML no-data 503 #1896; zero tenant-private credits | **PUBLIC-BY-DESIGN** |
 | [`auth/saml/metadata/[providerId]` GET](../../src/app/api/auth/saml/metadata/[providerId]/route.ts#L9) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/saml/start/[providerId]` GET](../../src/app/api/auth/saml/start/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | evidenced disabled SAML no-data 503 #1896; zero tenant-private credits | **PUBLIC-BY-DESIGN** |
-| [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L27) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L27) | query | NONE FOUND | none found | [complete HTTPS IdP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43241241290/job/131261892308) | **COVERED** |
 | [`auth/sso/resolve` POST](../../src/app/api/auth/sso/resolve/route.ts#L9) | body | enforceSameOriginMutation L4, enforceSameOriginMutation L10 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/sso/start` GET](../../src/app/api/auth/sso/start/route.ts#L16) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/totp/setup` GET](../../src/app/api/auth/totp/setup/route.ts#L18) | session, body | getSessionUser L4, enforceSameOriginMutation L8, getSessionUser L19, enforceSameOriginMutation L33 | none found | NO VALID METHOD PROOF | **GAP** |

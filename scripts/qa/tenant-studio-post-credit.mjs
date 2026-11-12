@@ -51,6 +51,7 @@ export function readStudioPostReceipt(read=readFileSync){
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete current runtime/fixture/proof input union required');
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),sha,read);
   else assert.equal(blob(read(p)),sha,'Studio executed source drift: '+p);
  }
  for(const j of Object.values(r.cohort)){
@@ -150,3 +151,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  assert.ok(process.argv.length===3&&['--check','--write'].includes(process.argv[2]));
  console.log(JSON.stringify(reconcileStudioPostCredit({write:process.argv[2]==='--write'})));
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

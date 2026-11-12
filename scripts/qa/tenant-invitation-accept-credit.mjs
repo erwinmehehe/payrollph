@@ -203,7 +203,9 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(yearEndPromotions.length, 2, "The year-end renewal is an atomic GET/POST pair");
         assert.equal(verifyYearEndCredits(m), 2, "Only the renewed, source-matched year-end proof can authorize its credit");
       }
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions].sort(),
+      const oidcPromotions=promoted.filter(key=>key==='GET '+OIDC_CALLBACK);
+      if(oidcPromotions.length)assert.equal(verifyOidcCallbackCredit(m),1);
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...oidcPromotions].sort(),
         "Merged invitation receipts permit only separately verified BIR, filing PATCH and checkout credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
@@ -219,3 +221,4 @@ export function verifyInvitationAcceptCredits(m) {
   }
   return 2;
 }
+import {verifyOidcCallbackCredit,OIDC_CALLBACK} from './tenant-oidc-full-credit.mjs';

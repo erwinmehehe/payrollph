@@ -65,6 +65,7 @@ export function readStudioDependencyRenewal(read=readFileSync){
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete transitive source union required');
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),sha,read);
   else assert.equal(blob(read(p)),sha,'Renewed runtime/proof source drift: '+p);
  }
  for(const f of Object.values(r.families))for(const job of f.jobs){
@@ -82,3 +83,4 @@ export function studioDependencyRenewalRef(family,read=readFileSync){
   jobs:r.families[family].jobs.map(j=>({id:j.job,run:j.run,sourceHead:j.head})),engineBlob:CURRENT_ENGINE,scopeBlob:SCOPE_SHA,
   evidenceLabel:r.label,productionAccepted:false,independentlyAccepted:false};
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

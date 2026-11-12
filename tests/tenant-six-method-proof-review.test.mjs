@@ -879,6 +879,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(worker360Get.reviewedUncertified?.coverageCredits, 0);
   assert.equal(worker360Get.reviewedUncertified?.independentSecurityReview, "PENDING");
   expectedStatuses[worker360Path].GET = "GAP";
+  const oidcCallbackCredits=verifyOidcCallbackCredit(m);
+  assert.equal(expectedStatuses[OIDC_CALLBACK].GET,'GAP');
+  expectedStatuses[OIDC_CALLBACK].GET='COVERED';
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited receipts and newer exports credit, with only source-pinned Worker 360 demoted");
   const expectedCounts = {
@@ -888,6 +891,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   };
   expectedCounts.COVERED += studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
   expectedCounts.COVERED -= 1; // Revised Worker 360 source invalidates old organization-only GET credit.
+  expectedCounts.COVERED += oidcCallbackCredits;
+  expectedCounts.GAP -= oidcCallbackCredits;
   expectedCounts.GAP -= studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
   expectedCounts.GAP += 1; // No worker 360 legal-employer method acceptance is claimed.
   expectedCounts.GAP -= ownerClassifications.length;
@@ -908,11 +913,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   const yearEndHeldMethods = 2 - yearEndCredits;
-  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits - 1;
+  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits - 1 + oidcCallbackCredits;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
   const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
-    - architecturePublic.length - 1 + 1; // Revoke historical Worker 360 GET credit.
+    - architecturePublic.length - 1 + 1 - oidcCallbackCredits; // Revoke historical Worker 360 GET credit; add sealed OIDC proof.
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
   assert.equal(frozenGaps, m.metrics.gap, "The classification may not hide other remaining method GAPs");
@@ -1512,3 +1517,4 @@ test("frozen credit guard rejects an uncited or unproved method", () => {
   assert.throws(() => verifiedFrozenMethodStatus(unproved, uncoveredPath, "POST", "GAP"),
     /status promotion without its verified proof is forbidden/);
 });
+import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

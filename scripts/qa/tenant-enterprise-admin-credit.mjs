@@ -32,7 +32,8 @@ function evidence(read=readFileSync){const raw=read(RECEIPT,'utf8').toString().r
    else if(file==='src/lib/automation.ts'){
      assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Historical enterprise source seal changed');
      verifyNarrowStudioAutomationSource(read);
-   } else assert.equal(blob(read(file)),sha,'Enterprise proof/runtime drift: '+file);
+   } else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(file),sha,read);
+   else assert.equal(blob(read(file)),sha,'Enterprise proof/runtime drift: '+file);
  }
  assert.equal(r.result.routeBlobSha,r.pins[ENTERPRISE_POST_PATH]);assert.equal(r.result.proofBlobSha,r.pins[r.method.file]);assert.equal(r.result.stateBlobSha,r.pins['scripts/qa/tenant-enterprise-admin-state.mjs']);
  for(const [field,fragment] of Object.entries({ownPositiveLine:'const response=await post(actor.cookie,payload)',foreignDenialLine:'organizationId:victim.org.id}),403',unchangedDbLine:"'final victim unchanged'",forgedSelectorLine:"404,'forged '",writeDiscriminationLine:"write validator accepts another employer",persistedStateLine:'assertEnterpriseMutation(before,after,payload,value,actor.owner.id)',victimIdOrderingLine:'victim.org.id>Math.max(a.org.id,b.org.id,6)'}))assert.ok(read(r.method.file,'utf8').split('\n')[r.method[field]-1]?.includes(fragment),'Lost enterprise proof anchor: '+field);
@@ -67,3 +68,4 @@ if(direct&&process.argv[2]==='--credit'){
  }
  console.log(JSON.stringify({credited:1,before:{covered:before.coveredAfter,gap:before.gap},after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap},label:'SOLO_VERIFIED_DEV_RECOVERY'}));
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

@@ -88,7 +88,8 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     assert.equal(currentWorker.testedBy, null);
     verifyWorker360PageCredit(m);
     const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
-    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-revokedWorkerCredit-yearEndHold;
+    const oidcDelta=base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status==='GAP'?verifyOidcCallbackCredit(m):0;
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+oidcDelta-revokedWorkerCredit-yearEndHold;
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -123,3 +124,4 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     .methods[0].status, "COVERED", "Filing evidence is not this credit");
   assert.equal(m.acceptanceStatus.startsWith('NOT ACCEPTED: ' + counts.gap + ' API methods'), true);
 });
+import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

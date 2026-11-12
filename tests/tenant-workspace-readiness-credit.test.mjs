@@ -40,7 +40,8 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     assert.equal(currentWorker.testedBy, null);
     verifyWorker360PageCredit(m);
     const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-revokedWorkerCredit-yearEndHold;
+    const oidcDelta=base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status==='GAP'?verifyOidcCallbackCredit(m):0;
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+oidcDelta-revokedWorkerCredit-yearEndHold;
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
@@ -103,3 +104,4 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.productionTested, false);
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.launchApproved, false);
 });
+import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

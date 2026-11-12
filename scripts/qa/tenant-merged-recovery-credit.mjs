@@ -40,6 +40,7 @@ export function readRecoveryEvidence(read=readFileSync){
       catch (cause) { throw new Error('Recovery source/proof drift: '+file, { cause }); }
     }
     else if(file==='src/lib/automation.ts') verifySessionSourceCompatibility(sha,blob(read(file)),read);
+    else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(file),sha,read);
     else assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
   }
   for(const target of r.targets){
@@ -109,3 +110,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     console.log(JSON.stringify({credited:3,before:{covered:before.coveredAfter,gap:before.gap},after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap}}));
   }
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

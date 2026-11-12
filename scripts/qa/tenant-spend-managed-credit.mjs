@@ -20,7 +20,8 @@ export function verifySpendManaged(manifest,reader=readFileSync){
   else if(file==='src/lib/automation.ts'){
     assert.equal(pin,HISTORIC_AUTOMATION_SHA,'Original spend/managed receipt source seal changed');
     verifyNarrowStudioAutomationSource(reader);
-  } else assert.equal(blob(reader(file)),pin,file+': executed source drift');
+  } else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(reader(file),pin,reader);
+  else assert.equal(blob(reader(file)),pin,file+': executed source drift');
  }
  for(const key of TARGETS){const [verb,...parts]=key.split(' '),path='src/app/api/'+parts.join(' ')+'/route.ts';
   const method=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
@@ -30,3 +31,4 @@ export function verifySpendManaged(manifest,reader=readFileSync){
  }
  return 3;
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

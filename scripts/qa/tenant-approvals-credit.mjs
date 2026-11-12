@@ -139,6 +139,7 @@ export function approvalEvidence(read=readFileSync){const raw=read(RECEIPT);asse
     assert.equal(s,HISTORIC_AUTOMATION_SHA,'Original immutable receipt pin changed');
     verifyNarrowStudioAutomationSource(read);
   } else if (p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),s);
+  else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),s,read);
   else assert.equal(blob(read(p)),s,'Fresh HTTP proof needed: '+p);
  }return r;}
 export function expectedApprovalsReceipt(read=readFileSync){const r=approvalEvidence(read);return {file:'scripts/qa/tenant-approval-types-http.mjs',line:326,ownPositiveLine:326,foreignDenialLine:230,forgedSelectorLine:343,unchangedDbLine:354,routeBlobSha:APPROVALS_PINS[APPROVALS_PATH],proofBlobSha:APPROVALS_PINS['scripts/qa/tenant-approval-types-http.mjs'],receiptFile:RECEIPT,receiptBlobSha:SEALED,sourceHead:r.sourceHead,workflowRunId:r.run,workflowJobs:r.jobs.map(j=>({name:j.name,id:j.id})),evidence:'https://github.com/erwinmehehe/payrollph/actions/runs/42842335605',evidenceLabel:r.label,postgresMajor:16,providerCalled:false,productionCertified:false,independentlyAccepted:false,independentSecurityReview:'PENDING',scope:'Complete same-head PG16 HTTP gate: generic approve/decline, leave/chain, HCM/workforce/handoffs/automation, dynamic groups, delegation, payroll approve/reject and both exact-link profiles; owned SQL transitions, real victim denials, forged selectors and unchanged foreign SQL/audits. No production acceptance.'};}
@@ -190,3 +191,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  execFileSync('git',['merge-base','--is-ancestor','6f1a193f8b56eb52174c33e7caf4335d8a8c95e7','HEAD']);
  console.log(JSON.stringify(reconcileApprovalsCredit({write:args[0]==='--write'})));
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';
