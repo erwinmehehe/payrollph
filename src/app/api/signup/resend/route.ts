@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { saasSignupVerifications } from "@/lib/saas-billing-schema";
@@ -7,6 +7,7 @@ import { normalizeEmail, validEmail } from "@/lib/tokens";
 import { queueMessage, deliveryCapable } from "@/lib/mailer";
 import { canonicalAppOrigin, enforceSameOriginMutation } from "@/lib/security-request";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
+import { PENDING_SIGNUP_MAX_AGE_MS } from "@/lib/signup-pending-recovery";
 
 export const dynamic = "force-dynamic";
 const GENERIC = { ok: true, message: "If verification is pending for this account, a fresh link will be emailed." };
@@ -29,23 +30,32 @@ export async function POST(request: Request) {
     id: saasSignupVerifications.id,
     organizationId: saasSignupVerifications.organizationId,
     userId: saasSignupVerifications.userId,
+    createdAt: saasSignupVerifications.createdAt,
   }).from(saasSignupVerifications)
     .innerJoin(users, eq(saasSignupVerifications.userId, users.id))
-    .where(and(eq(users.email, email), eq(users.active, false), isNull(saasSignupVerifications.verifiedAt)))
+    .where(and(eq(users.email, email), eq(users.active, false), isNull(saasSignupVerifications.verifiedAt),
+      gt(saasSignupVerifications.createdAt, new Date(Date.now() - PENDING_SIGNUP_MAX_AGE_MS))))
     .limit(1);
   if (!record) return Response.json(GENERIC);
   const token = randomToken(24);
-  await db.update(saasSignupVerifications).set({
+  // A concurrent verification or expiry must win over resend: no mail is
+  // emitted unless the old pending row was atomically rotated.
+  const now = Date.now();
+  const [rotated] = await db.update(saasSignupVerifications).set({
     tokenHash: sha256(token),
-    expiresAt: new Date(Date.now() + 60 * 60_000),
-  }).where(eq(saasSignupVerifications.id, record.id));
+    expiresAt: new Date(Math.min(now + 60 * 60_000, record.createdAt.getTime() + PENDING_SIGNUP_MAX_AGE_MS)),
+  }).where(and(eq(saasSignupVerifications.id, record.id),
+    isNull(saasSignupVerifications.verifiedAt),
+    gt(saasSignupVerifications.createdAt, new Date(now - PENDING_SIGNUP_MAX_AGE_MS))))
+    .returning({ id: saasSignupVerifications.id });
+  if (!rotated) return Response.json(GENERIC);
   await queueMessage({
     organizationId: record.organizationId, recipient: email,
     subject: "New Linaw account verification link",
     purpose: "signup-email-verification",
     body: [
       "You requested a new email verification link for your Linaw company account.",
-      "This link works once and expires after 60 minutes:",
+      "This link works once and expires within 60 minutes:",
       origin + "/verify-signup?token=" + token,
       "",
       "If you did not request this, ignore the message.",
