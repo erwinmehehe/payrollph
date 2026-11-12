@@ -1391,6 +1391,41 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const actualMainFrozen = normalizeCaption(mainFrozenSubtotal);
     const correctMainFrozen = normalizeCaption(expectedMainFrozen);
     if (actualMainFrozen !== correctMainFrozen) {
+      // The current main caption calls EDG-02 INCOMPLETE, but the approved
+      // frozen row records 27 COVERED + 1 PUBLIC + 5 TOKEN-ONLY + zero GAP.
+      // Permit only this exact descriptive mismatch, never a method credit.
+      if (architectureDelta.gapRelabels === 9 && provisionalBatches.includes("EDG-02")) {
+        const edg02Row = "| 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |";
+        assert.ok(baselinePlan.includes(edg02Row),
+          "EDG-02 must remain a 33-method zero-GAP provisional batch");
+        const edg02Section = frozenSections.find(section => section.startsWith("EDG-02 "));
+        assert.ok(edg02Section, "EDG-02 must remain in the frozen queue");
+        const edg02Statuses = edg02Section.split("\n")
+          .filter(line => line.startsWith("- `") && line.includes(" — [source](../../src/app/api/"))
+          .map(line => {
+            const verb = line.split("`")[1]?.split(" ")[0];
+            const sourcePath = line.split(" — [source](../../")[1]?.split("#L")[0];
+            return verifiedFrozenMethodStatus(baseline, sourcePath, verb,
+              expectedOriginalMain[sourcePath]?.[verb], snapshot.methodStatuses);
+          });
+        assert.equal(edg02Statuses.length, 33);
+        assert.deepEqual({
+          COVERED: edg02Statuses.filter(status => status === "COVERED").length,
+          PUBLIC: edg02Statuses.filter(status => status === "PUBLIC-BY-DESIGN").length,
+          TOKEN_ONLY: edg02Statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length,
+          GAP: edg02Statuses.filter(status => status === "GAP").length,
+        }, { COVERED: 27, PUBLIC: 1, TOKEN_ONLY: 5, GAP: 0 });
+        assert.equal(incomplete, 3);
+        assert.deepEqual(namedIncompleteBatches, ["DL-01", "MNY-01", "EDG-01"]);
+        const correctSummary = `${incomplete} batches remain INCOMPLETE; ${provisionalBatches.join(", ")} remain PROVISIONAL — NOT ACCEPTED.`;
+        const staleSummary = `${incomplete + 1} batches remain INCOMPLETE (${[...namedIncompleteBatches, "EDG-02"].join(", ")}); ${provisionalBatches.filter(name => name !== "EDG-02").join(", ")} remain PROVISIONAL — NOT ACCEPTED.`;
+        assert.ok(correctMainFrozen.includes(correctSummary),
+          "The stale caption may only overlay a verified 406-method frozen ledger");
+        const documentedStaleCaption = correctMainFrozen.replace(correctSummary, staleSummary);
+        assert.notEqual(documentedStaleCaption, correctMainFrozen);
+        assert.equal(actualMainFrozen, documentedStaleCaption,
+          "Only the exact EDG-02 descriptive mismatch is allowed");
+      } else {
       // Historical main's summary accidentally omits PII-02 even though its
       // frozen-row table explicitly marks 36 COVERED + 2 PUBLIC + 0 GAP.
       // Only tolerate that exact *description* omission; never skip the 406
@@ -1410,6 +1445,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         "The exact historical omission must be present in the derived caption");
       assert.equal(actualMainFrozen, legacyMainFrozen,
         "origin/main frozen ledger drift beyond its documented PII-02 caption omission");
+      }
     }
   }
 });
