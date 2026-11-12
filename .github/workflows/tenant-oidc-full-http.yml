@@ -1,0 +1,136 @@
+name: Tenant complete OIDC HTTPS IdP and PG16 proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/app/api/auth/sso/**'
+      - 'src/lib/oidc*'
+      - 'src/lib/auth.ts'
+      - 'src/lib/security-network.ts'
+      - 'scripts/qa/tenant-oidc-full*'
+      - 'tests/tenant-oidc-full*'
+      - '.github/workflows/tenant-oidc-full-http.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  full-idp-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      OIDC_FULL_HTTP_PROOF: isolated-pg16-real-https-idp-only
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: https://payroll.example.test
+      TRUSTED_APP_ORIGINS: https://payroll.example.test
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      NODE_EXTRA_CA_CERTS: /tmp/payrollph-oidc-full/ca.crt
+      NEXT_TELEMETRY_DISABLED: '1'
+      DEMO_MODE: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'false'
+      OPENAI_API_KEY: ''
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      SMTP_URL: ''
+      SMTP_PASSWORD: ''
+      WORKER_TOKEN: ''
+      CRON_SECRET: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Require exact checked-out head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Isolate synthetic HTTPS address and mint ephemeral TLS certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux && test "$GITHUB_ACTIONS" = true
+          sudo iptables -I OUTPUT -d 93.184.216.2 ! -o lo -j REJECT
+          sudo ip addr add 93.184.216.2/32 dev lo
+          ip route get 93.184.216.2 | grep -E 'local .*dev lo'
+          echo '93.184.216.2 oidc.payrollph.invalid' | sudo tee -a /etc/hosts >/dev/null
+          install -d -m 700 /tmp/payrollph-oidc-full
+          cd /tmp/payrollph-oidc-full
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout ca.key -out ca.crt -subj '/CN=Fictional disposable OIDC CA' 2>/dev/null
+          openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj '/CN=oidc.payrollph.invalid' 2>/dev/null
+          printf 'subjectAltName=DNS:oidc.payrollph.invalid\nextendedKeyUsage=serverAuth\n' > server.ext
+          openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 1 -extfile server.ext 2>/dev/null
+          chmod 600 *.key
+          openssl verify -CAfile ca.crt -verify_hostname oidc.payrollph.invalid server.crt
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify proof contract and refusal controls
+        run: node --test tests/tenant-oidc-full-contract.test.mjs
+      - name: Create disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start actual production Next on localhost
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-oidc-full-next.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Real authorize, token, PKCE, TLS, RSA JWKS, callback, session and tenant SQL
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-oidc-full-http.mjs
+      - name: Retain sanitized receipt only
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tenant-oidc-full-http-receipt
+          path: /tmp/payrollph-oidc-full/receipt.json
+          if-no-files-found: error
+      - name: Bounded synthetic app diagnostics
+        if: failure()
+        run: tail -n 50 /tmp/tenant-oidc-full-next.log || true
+      - name: Remove isolated network fixture
+        if: always()
+        run: |
+          sudo ip addr del 93.184.216.2/32 dev lo || true
+          sudo iptables -D OUTPUT -d 93.184.216.2 ! -o lo -j REJECT || true
