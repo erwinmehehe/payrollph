@@ -5,6 +5,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import {assertAcceptedReceipt} from './tenant-filing-patch-method-contract.mjs';
+import {assertReviewedReadinessHeaderOnInvitationConfig} from './tenant-invitation-header-source-compat.mjs';
 export const FILING_PATH='src/app/api/compliance/filing-validations/[id]/route.ts';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 const INVENTORY='docs/engineering/tenant-isolation-coverage-inventory.md';
@@ -34,7 +35,8 @@ export function filingEvidence(read=readFileSync){
   // replacement rather than rewriting the historical execution receipt.
   const guardPins={'tests/tenant-filing-patch-method-contract.test.mjs':'b67012c6a029083473b00edb5c7bf2679c6201c7','tests/tenant-filing-outcome-contract.test.mjs':'c9d101e7c9ac5aeb1a46b38f61bb335d2dd89ea3'};
   const current=guardPins[path]??sha;
-  assert.equal(blob(read(path)),current,'Fresh PG16 reproof required after input drift: '+path);
+  if(path==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(path),current);
+  else assert.equal(blob(read(path)),current,'Fresh PG16 reproof required after input drift: '+path);
  }
  return r;
 }
