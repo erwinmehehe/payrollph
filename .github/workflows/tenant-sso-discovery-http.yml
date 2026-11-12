@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      OIDC_SSO_RUNTIME_ENABLED: 'true'
+      OIDC_SSO_RUNTIME_MODE: 'enabled'
       TENANT_SSO_DISCOVERY_MODE: isolated-ci-only
       PAYMONGO_SECRET_KEY: ''
       XENDIT_SECRET_KEY: ''
