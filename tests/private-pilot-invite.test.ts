@@ -82,7 +82,8 @@ test("one guarded signup endpoint never grants a public applicant unverified acc
   assert.ok(proofClient.includes('fetch("/api/intake-challenge"'), "client must ask the authoritative server whether proof is required");
   assert.ok(!proofClient.includes('process.env.NEXT_PUBLIC_PUBLIC_INTAKE_PROOF_ENABLED'), "a stale build-time flag must not skip an enabled server gate");
   assert.ok(ui.includes('fetch("/api/signup/resend"'));
-  assert.ok(ui.includes("Your private pilot account is ready"));
+  assert.ok(ui.includes("Private pilot invitation submitted"), "UI must not disclose account creation on public signup");
+  assert.ok(!ui.includes("Your private pilot account is ready"), "a public acknowledgement must not claim activation");
   assert.ok(ui.includes("setPrivatePilotInviteCode(\"\")"));
   assert.ok(readFileSync("src/app/register/page.tsx", "utf8").includes('redirect("/signup")'));
   assert.ok(readFileSync("src/app/trial/page.tsx", "utf8").includes('redirect("/signup")'));
