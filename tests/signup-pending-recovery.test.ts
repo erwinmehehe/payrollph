@@ -39,7 +39,7 @@ test("same normalized mailbox gets one transaction lock, unrelated mailboxes get
   assert.equal(signupLockKey("one@example.invalid"), signupLockKey("one@example.invalid"));
   assert.notEqual(signupLockKey("one@example.invalid"), signupLockKey("two@example.invalid"));
   const key = BigInt(signupLockKey("one@example.invalid"));
-  assert.ok(key >= -(1n << 63n) && key < (1n << 63n));
+  assert.ok(key >= -(BigInt(1) << BigInt(63)) && key < (BigInt(1) << BigInt(63)));
 });
 
 test("wrapped unique-email conflicts are generic, not unrelated PostgreSQL failures", () => {
