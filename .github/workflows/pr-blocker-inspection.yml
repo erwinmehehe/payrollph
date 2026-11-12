@@ -1,24 +1,112 @@
-name: Read-only PR blocker inspection
+name: Tenant PR merge-conflict validation
 on:
   push:
     branches: [qa/pr-blocker-inspect-20261112a]
 permissions:
   contents: read
 jobs:
-  inspect:
+  validate:
     if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/pr-blocker-inspect-20261112a'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      CI: "true"
+      DATABASE_URL: ""
+      REPAIR_WORK_ROOT: ${{ github.workspace }}/repair
+      BASE: a6cb85c80e63a1a8428d4085ba5bbed839aacd88
+      FAIL_CLOSED_GUARD_BASE_REF: a6cb85c80e63a1a8428d4085ba5bbed839aacd88
     steps:
-      - name: Fetch exact public test dependency archives
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: a6cb85c80e63a1a8428d4085ba5bbed839aacd88
+          path: repair/payrollph-live
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Retrieve exact reviewed resolver, without executing repository changes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/pr-blocker-deps
-          cd /tmp/pr-blocker-deps
-          npm pack --ignore-scripts js-yaml@4.3.2 argparse@2.0.1
+          gh api repos/erwinmehehe/payrollph/git/blobs/273b99ac590adcfa95f8c7e18e849d86bc5e32c7 --jq .content | base64 --decode > /tmp/resolve-tenant-conflicts.py
+          test "$(git hash-object /tmp/resolve-tenant-conflicts.py)" = 273b99ac590adcfa95f8c7e18e849d86bc5e32c7
+      - name: Install locked test dependencies
+        working-directory: repair/payrollph-live
+        run: npm ci
+      - name: Prepare pinned local merges and reproduce reviewed source trees
+        working-directory: repair/payrollph-live
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 - <<'PY'
+          import os,subprocess
+          from pathlib import Path
+          work=Path(os.environ['REPAIR_WORK_ROOT']);base=os.environ['BASE']
+          refs={1933:'bcd0f3adcae7de20d87b94d7e827a617f73b9b07',1935:'7e448e59d530ae03fa7428f2d467ecaa798e2ce3',1937:'600de3a0cd31c5c2f71b867c3b5d350170f2390e'}
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==base
+          for pr,sha in refs.items():
+            root=work/('payrollph-'+str(pr))
+            subprocess.run(['git','worktree','add','-b','merge-candidate-'+str(pr),str(root),sha],check=True)
+            r=subprocess.run(['git','merge','--no-commit','--no-ff',base],cwd=root,capture_output=True,text=True)
+            assert r.returncode==1,(pr,r.stdout,r.stderr)
+            print(r.stdout)
+          PY
+          python3 /tmp/resolve-tenant-conflicts.py
+          mkdir -p "$REPAIR_WORK_ROOT/results"
+          for pr in 1933 1935 1937; do
+            cd "$REPAIR_WORK_ROOT/payrollph-$pr"
+            ln -s "$REPAIR_WORK_ROOT/payrollph-live/node_modules" node_modules
+            git commit -m "Merge current main into tenant PR #$pr; preserve source and coverage guards"
+            git rev-parse HEAD > "$REPAIR_WORK_ROOT/results/$pr-head.txt"
+            git rev-parse HEAD^{tree} > "$REPAIR_WORK_ROOT/results/$pr-tree.txt"
+          done
+      - name: Run full tenant source guards, repin checks and TypeScript on all candidates
+        run: |
+          set -uo pipefail
+          result=0
+          for pr in 1933 1935 1937; do
+            cd "$REPAIR_WORK_ROOT/payrollph-$pr"
+            echo "Validating PR $pr"
+            if ! node --test --test-concurrency=1 tests/tenant-*.test.mjs > "$REPAIR_WORK_ROOT/results/$pr-tests.log" 2>&1; then
+              tail -n 120 "$REPAIR_WORK_ROOT/results/$pr-tests.log"
+              result=1
+            fi
+            tail -n 12 "$REPAIR_WORK_ROOT/results/$pr-tests.log"
+            if ! node scripts/qa/tenant-manifest-repin.mjs > "$REPAIR_WORK_ROOT/results/$pr-repin.log" 2>&1; then
+              cat "$REPAIR_WORK_ROOT/results/$pr-repin.log"
+              result=1
+            fi
+            if ! npm run typecheck > "$REPAIR_WORK_ROOT/results/$pr-typecheck.log" 2>&1; then
+              cat "$REPAIR_WORK_ROOT/results/$pr-typecheck.log"
+              result=1
+            fi
+            git diff --exit-code || result=1
+          done
+          exit "$result"
+      - name: Publish tested candidates only, never main or existing PR refs
+        working-directory: repair/payrollph-live
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/erwinmehehe/payrollph/git/ref/heads/main --jq .object.sha)" = "$BASE"
+          test "$(gh api repos/erwinmehehe/payrollph/git/ref/heads/fix/tenant-worker360-legal-employer-history-20261111 --jq .object.sha)" = bcd0f3adcae7de20d87b94d7e827a617f73b9b07
+          test "$(gh api repos/erwinmehehe/payrollph/git/ref/heads/fix/tenant-provisioning-legal-employer-20261111 --jq .object.sha)" = 7e448e59d530ae03fa7428f2d467ecaa798e2ce3
+          test "$(gh api repos/erwinmehehe/payrollph/git/ref/heads/fix/tenant-pages-hire-review-legal-employer-20261111 --jq .object.sha)" = 600de3a0cd31c5c2f71b867c3b5d350170f2390e
+          gh auth setup-git
+          git push --atomic origin \
+            "$(cat "$REPAIR_WORK_ROOT/results/1933-head.txt"):refs/heads/qa/merge-candidate-1933-20261112a" \
+            "$(cat "$REPAIR_WORK_ROOT/results/1935-head.txt"):refs/heads/qa/merge-candidate-1935-20261112a" \
+            "$(cat "$REPAIR_WORK_ROOT/results/1937-head.txt"):refs/heads/qa/merge-candidate-1937-20261112a"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: pr-blocker-yaml-dependencies
-          path: /tmp/pr-blocker-deps/*.tgz
-          retention-days: 1
+          name: tenant-merge-conflict-validation
+          path: repair/results/
+          retention-days: 3
           if-no-files-found: error
