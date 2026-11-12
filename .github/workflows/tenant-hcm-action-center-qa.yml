@@ -1,0 +1,142 @@
+name: Tenant HCM Action Center SSR Isolation (Fictional PG16)
+
+on:
+  push:
+    branches: [qa/tenant-hcm-action-center-ssr-20261112]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-hcm-action-center-qa.yml"
+      - "docs/qa/tenant-hcm-action-center-isolation.md"
+      - "scripts/qa/tenant-hcm-action-center-contract.mjs"
+      - "scripts/qa/tenant-hcm-action-center-http.mjs"
+      - "tests/tenant-hcm-action-center-contract.test.mjs"
+      - "src/app/hcm/action-center/page.tsx"
+      - "src/lib/hcm-people-home-worklist.ts"
+      - "src/lib/hcm-people-home-scope.ts"
+      - "src/lib/hcm-enterprise-plan-server.ts"
+      - "src/lib/hcm-enterprise-plan-policy.ts"
+      - "src/lib/delegation.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/organization-auth-policy.ts"
+      - "src/lib/workspace-role-ui.ts"
+      - "src/components/hcm-context-navigation.tsx"
+      - "src/components/hcm-business-process-inbox.tsx"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "src/db/schema.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  isolated-action-center:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      TZ: "Asia/Manila"
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: "synthetic-postgres-only"
+      TENANT_ACTION_CENTER_PROOF: "fictional-pg16-only"
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db"
+      APP_BASE_URL: "http://127.0.0.1:3000"
+      SECURITY_SMOKE_URL: "http://127.0.0.1:3000"
+      TRUSTED_APP_ORIGINS: "http://127.0.0.1:3000"
+      HCM_PEOPLE_HOME_ENABLED: "true"
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "true"
+      HCM_PEOPLE_HOME_ORG_IDS: "8,9,10"
+      HCM_ENTERPRISE_PLAN_GATE_ENABLED: "false"
+      REQUEST_SCHEMA_READONLY_ENABLED: "true"
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      MULTI_ENTITY_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+      BIR_1604C_DAT_CANDIDATE_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      CRON_SECRET: ""
+      WORKER_TOKEN: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify source-pins, sandbox gate and negative controls
+        run: |
+          node --check scripts/qa/tenant-hcm-action-center-contract.mjs
+          node --check scripts/qa/tenant-hcm-action-center-http.mjs
+          node --test tests/tenant-hcm-action-center-contract.test.mjs
+      - name: Generate ephemeral-only encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create fresh isolated PostgreSQL schema
+        run: npm run db:push
+      - name: Apply approved disposable schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build Next production-mode app for localhost only
+        run: npm run build
+      - name: Start isolated local Next instance
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-hcm-action-center.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-hcm-action-center.log
+          exit 1
+      - name: Prove populated own pages and exact foreign/revoked denials
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-hcm-action-center-http.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tenant-hcm-action-center-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/tenant-hcm-action-center/evidence.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Show bounded localhost server errors
+        if: failure()
+        run: tail -n 80 /tmp/tenant-hcm-action-center.log || true
