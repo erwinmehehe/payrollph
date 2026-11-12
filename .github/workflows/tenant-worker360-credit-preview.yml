@@ -16,6 +16,11 @@ on:
       - "scripts/qa/tenant-isolation-coverage-manifest.json"
 permissions:
   contents: read
+# Read-only disposable source regeneration: newer heads may supersede a PR run;
+# push/manual executions never share that cancellation group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   regenerate-worker360-ledger:
     runs-on: ubuntu-24.04

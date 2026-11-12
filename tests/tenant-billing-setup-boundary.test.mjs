@@ -125,3 +125,32 @@ test("real fictional PostgreSQL HTTP checks shared A+B admin and unpaid B worksp
     "await db.delete(saasSignupVerifications)",
   ]) assert.ok(proof.includes(token), "Missing shared-admin real HTTP negative control: " + token);
 });
+
+test("billing manage alias is included in the fictional PG16 two-attacker proof", () => {
+  const manage = readFileSync("src/app/billing/manage/page.tsx", "utf8");
+  assert.match(manage, /await assertOrganizationRole\(user\.id, organizationId, BILLING_ADMIN_ROLES\)/);
+  assert.match(manage, /if \(denied \|\| !access\?\.companyWide\) notFound\(\)/);
+  assert.ok(manage.includes('redirect(`/billing/setup?organizationId=${organizationId}`)'));
+  for (const token of [
+    'path === "/billing/manage"',
+    'path.startsWith("/billing/manage?")',
+    "function assertManageRedirect(",
+    '"/billing/setup?organizationId=" + expectedOrganizationId',
+    "actor.label + \" own manage\"",
+    "actor.label + \" default manage\"",
+    "actor.label + \" manage -> \" + other.label",
+    "actor.label + \" manage invalid \" + invalid",
+    "duplicate manage employer",
+    "cannot enter billing manage",
+    "Unauthenticated manage must redirect to login",
+    "revoked membership / manage redirect",
+    "shared administrator B",
+    "shared administrator A",
+    "shared administrator foreign manage",
+    "shared administrator duplicate manage selector",
+  ]) assert.ok(proof.includes(token), "Missing real-HTTP manage page proof: " + token);
+  assert.ok(workflow.includes('"src/app/billing/manage/**"'),
+    "Changes to the protected manage alias must trigger the PG16 workflow");
+  assert.ok(workflow.includes("tests/tenant-page-id.test.ts"),
+    "The strict employer parser must be re-tested by the billing workflow");
+});
