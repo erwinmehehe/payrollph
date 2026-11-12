@@ -6,7 +6,6 @@ on:
     paths:
       - "src/app/billing/setup/**"
       - "src/app/billing/manage/**"
-      - "src/app/careers/page.tsx"
       - "src/lib/tenant-page-id.ts"
       - "src/app/app/page.tsx"
       - "src/lib/saas-workspace-access.ts"
