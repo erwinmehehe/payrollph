@@ -7187,13 +7187,41 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(entry.reason, /^Still GAP: #1631/);
         assert.equal(entry.blob, pageBlobSha);
         assert.equal(baseline.app[path], originalPageBlobSha);
+        // The previous #1631 source hashes/lines above are an immutable
+        // historical receipt. The redirect-only #1950 extension changed the
+        // proof/test/workflow bytes, and must have its own current source pins.
+        // Never repoint the historical receipt at a different executed file.
+        const refresh = entry.sourceRefreshCandidate;
+        assert.deepEqual(refresh, {
+          kind: "billing-setup-plus-manage-redirect-PG16-source-refresh-zero-credit",
+          historicalProofBlobSha: reviewed.proofBlobSha,
+          historicalContractBlobSha: reviewed.contractTestBlobSha,
+          historicalWorkflowBlobSha: reviewed.workflowBlobSha,
+          currentProofBlobSha: "c29179b97f7a24f63b2ec44d19e0da68544d4765",
+          currentContractBlobSha: "2595809bec34048c86a9b5e4fe4e8abc1c213987",
+          currentWorkflowBlobSha: "e96979a1490200e9acb643de344439185af80f0c",
+          managePageFile: "src/app/billing/manage/page.tsx",
+          managePageBlobSha: "a6fb0497204edf98bf0f647cd5caef77455c62e6",
+          selectorFile: "src/lib/tenant-page-id.ts",
+          selectorBlobSha: "e47b2332732c7722d792ff92a528158fc8282212",
+          currentOwnPageLine: 167, currentForeignPageLine: 179,
+          currentForeignRequestLine: 178, currentRevokedPageLine: 237,
+          currentUnchangedDbLine: 243, ownManageRedirectLine: 171,
+          sharedAdminManageRedirectLine: 286,
+          priorExactHeadPassed: "c941516ebdbac7b0740d9a29dcd8ca405c8a19c6",
+          priorExactHeadPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/43217920243",
+          currentExactHeadCi: "PENDING",
+          credits: 0, independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact current unaccepted billing redirect source refresh is allowed");
         for (const [file, sha] of [
-          [reviewed.proofFile, reviewed.proofBlobSha],
-          [reviewed.contractTestFile, reviewed.contractTestBlobSha],
-          [reviewed.workflowFile, reviewed.workflowBlobSha],
+          [reviewed.proofFile, refresh.currentProofBlobSha],
+          [reviewed.contractTestFile, refresh.currentContractBlobSha],
+          [reviewed.workflowFile, refresh.currentWorkflowBlobSha],
+          [refresh.managePageFile, refresh.managePageBlobSha],
+          [refresh.selectorFile, refresh.selectorBlobSha],
         ]) {
           assert.equal(gitBlobSha(readFileSync(file)), sha,
-            "Billing proof changed without renewed review: " + file);
+            "Unreviewed billing redirect source/proof drift: " + file);
         }
         for (const field of ["ids", "business", "guards"]) {
           assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
@@ -7225,16 +7253,32 @@ test("page and server-action inventory cannot silently omit new or changed busin
 
         const proof = readFileSync(reviewed.proofFile, "utf8");
         const proofLines = proof.split("\n");
-        assert.match(evidenceLine(reviewed.proofFile, reviewed.ownPageLine, path),
+        assert.match(evidenceLine(reviewed.proofFile, refresh.currentOwnPageLine, path),
           /assertOwnBillingPage\(await readLocal\(ownPath\(actor\.org\.id\), actor\.cookie\)/);
-        assert.match(evidenceLine(reviewed.proofFile, reviewed.foreignPageLine, path),
+        assert.match(evidenceLine(reviewed.proofFile, refresh.currentForeignPageLine, path),
           /assertDeniedBillingPage\(denied, subjects/);
-        assert.match(proofLines[reviewed.foreignPageLine - 2] ?? "",
+        assert.match(proofLines[refresh.currentForeignRequestLine - 1] ?? "",
           /readLocal\(ownPath\(other\.org\.id\), actor\.cookie\)/);
-        assert.match(evidenceLine(reviewed.proofFile, reviewed.revokedPageLine, path),
+        assert.match(evidenceLine(reviewed.proofFile, refresh.currentRevokedPageLine, path),
           /assertDeniedBillingPage\(await readLocal\(ownPath\(a\.org\.id\), a\.cookie\)/);
-        assert.match(evidenceLine(reviewed.proofFile, reviewed.unchangedDbLine, path),
+        assert.match(evidenceLine(reviewed.proofFile, refresh.currentUnchangedDbLine, path),
           /assert\.deepEqual\(await snapshot\(other\.org\.id\), before\.get\(other\.org\.id\)/);
+        assert.match(proofLines[refresh.ownManageRedirectLine - 1] ?? "",
+          /assertManageRedirect\(await readLocal\("\/billing\/manage\?organizationId=" \+ actor\.org\.id/);
+        assert.match(proofLines[refresh.sharedAdminManageRedirectLine - 1] ?? "",
+          /assertManageRedirect\(await readLocal\("\/billing\/manage\?organizationId=" \+ b\.org\.id/);
+        for (const marker of [
+          'path.startsWith("/billing/manage?")',
+          'function assertManageRedirect(',
+          'actor.label + " duplicate manage employer"',
+          '"shared administrator B"',
+          '"shared administrator foreign manage"',
+          '"revoked membership / manage redirect"',
+          '"anonymous manage response"',
+          'assert.deepEqual(await snapshot(subject.org.id), beforeShared.get(subject.org.id)',
+        ]) assert.ok(proof.includes(marker),
+          "Current redirect-only PG16 proof missing separate tenant control: " + marker);
+        assert.equal(refresh.credits, 0, "No new tenant-isolation credit from this proof");
         assert.ok(proof.indexOf("requireDisposableBillingPageEnv();") > 0 &&
           proof.indexOf("requireDisposableBillingPageEnv();") <
           proof.indexOf('import("../../src/db/index.ts")'),
