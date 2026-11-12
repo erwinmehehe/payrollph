@@ -36,6 +36,27 @@
       "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 59400, "statutoryContributions": 29400, "taxableIncome": 330600, "taxDue": 12090, "taxWithheld": 12088.8, "adjustment": 1.2, "outcome": "collect" },
       "breakdown": { "importedHistoryRows": 6, "periodsIncluded": 18, "runsIncluded": 12, "basicSalaryEarned": 360000, "thirteenthEntitlement": 30000, "thirteenthAlreadyPaid": 30000, "thirteenthStillDue": 0 }
     },
+    "deMinimisWithinCeilings": {
+      "description": "The previous provider paid a rice subsidy of 2,500 in each of the six months (the monthly ceiling), inside gross pay of 32,500 a month (basic 30,000). Imported de minimis is exempt up to its ceiling: 6 x 2,500 = 15,000 exempt, nothing above the ceiling. Gross 6 x 32,500 + 12 x 15,000 + accrued 13th month 30,000 = 405,000; non-taxable 30,000 + 15,000 + 29,400 = 74,400; taxable 330,600; tax 12,090.00; withheld 12,088.80: collect 1.20, the same as the steady worker because the subsidy is not taxed.",
+      "imported": { "grossPay": 32500, "basicSalary": 30000, "netPay": 29042.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": {"riceSubsidy": 2500} },
+      "importedOverrides": {},
+      "yearEnd": { "grossCompensation": 405000, "thirteenthMonth": 30000, "nonTaxable": 74400, "statutoryContributions": 29400, "taxableIncome": 330600, "taxDue": 12090, "taxWithheld": 12088.8, "adjustment": 1.2, "outcome": "collect" },
+      "breakdown": { "importedHistoryRows": 6, "periodsIncluded": 18, "runsIncluded": 12, "basicSalaryEarned": 360000, "thirteenthEntitlement": 30000, "thirteenthAlreadyPaid": 0, "thirteenthStillDue": 30000, "deMinimisExempt": 15000, "deMinimisExcess": 0 }
+    },
+    "deMinimisAboveMonthlyCeiling": {
+      "description": "Rice subsidy of 3,000 a month (ceiling 2,500), gross 33,000 a month. Per month 2,500 is exempt and 500 is the excess: 15,000 exempt, 3,000 excess. The excess joins the shared 90,000 pool with the 13th month (30,000 + 3,000 = 33,000, under the cap, so it is still not taxed). Gross 6 x 33,000 + 180,000 + 30,000 = 408,000; non-taxable pool 33,000 + 15,000 + 29,400 = 77,400; taxable 330,600; tax 12,090.00; withheld 12,088.80: collect 1.20.",
+      "imported": { "grossPay": 33000, "basicSalary": 30000, "netPay": 29542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": {"riceSubsidy": 3000} },
+      "importedOverrides": {},
+      "yearEnd": { "grossCompensation": 408000, "thirteenthMonth": 30000, "nonTaxable": 77400, "statutoryContributions": 29400, "taxableIncome": 330600, "taxDue": 12090, "taxWithheld": 12088.8, "adjustment": 1.2, "outcome": "collect" },
+      "breakdown": { "importedHistoryRows": 6, "periodsIncluded": 18, "runsIncluded": 12, "basicSalaryEarned": 360000, "thirteenthEntitlement": 30000, "thirteenthAlreadyPaid": 0, "thirteenthStillDue": 30000, "deMinimisExempt": 15000, "deMinimisExcess": 3000 }
+    },
+    "deMinimisAnnualCeilingAcrossMonths": {
+      "description": "Uniform allowance of 2,000 in each of the six months against the 8,000 ANNUAL ceiling: 12,000 paid, so 8,000 is exempt and 4,000 is the excess, however the months fall. Gross 6 x 32,000 + 180,000 + 30,000 = 402,000; the pool is 30,000 + 4,000 = 34,000; non-taxable 34,000 + 8,000 + 29,400 = 71,400; taxable 330,600; tax 12,090.00; withheld 12,088.80: collect 1.20.",
+      "imported": { "grossPay": 32000, "basicSalary": 30000, "netPay": 28542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": {"uniformClothing": 2000} },
+      "importedOverrides": {},
+      "yearEnd": { "grossCompensation": 402000, "thirteenthMonth": 30000, "nonTaxable": 71400, "statutoryContributions": 29400, "taxableIncome": 330600, "taxDue": 12090, "taxWithheld": 12088.8, "adjustment": 1.2, "outcome": "collect" },
+      "breakdown": { "importedHistoryRows": 6, "periodsIncluded": 18, "runsIncluded": 12, "basicSalaryEarned": 360000, "thirteenthEntitlement": 30000, "thirteenthAlreadyPaid": 0, "thirteenthStillDue": 30000, "deMinimisExempt": 8000, "deMinimisExcess": 4000 }
+    },
     "rowsOutsideTheTaxYearAreIgnored": {
       "description": "The same six months plus two imported rows outside the year: pay date 2025-12-31 (gross 999,999.99, tax 99,999.00, 13th month 5,000) and 2027-01-01 (gross 888,888.88, tax 88,888.00). Neither belongs to 2026, so the year is exactly the first case: collect 1.20.",
       "imported": { "grossPay": 30000, "basicSalary": 30000, "netPay": 26542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0 },
@@ -55,11 +76,14 @@
     "missingBasicRefusal": "missing basic salary earned",
     "mweRefusal": "does not contain the statutory-wage",
     "duplicateSourceRefusal": "historical_payroll_source_unique",
+    "deMinimisLeaveDaysRefusal": "cannot be applied to imported totals",
+    "deMinimisUnknownCategoryRefusal": "unknown de minimis category",
+    "deMinimisAboveGrossRefusal": "more de minimis",
     "cleanYearEnd": { "grossCompensation": 16250, "thirteenthMonth": 1250, "nonTaxable": 2475, "statutoryContributions": 1225, "taxableIncome": 13775, "taxDue": 0, "taxWithheld": 503.7, "adjustment": -503.7, "outcome": "refund" }
   },
   "limitations": [
     "Imported rows are inserted as the importer stores them; the importer's parsing, mapping and approval are covered by its own tests, not here.",
-    "The imported de minimis breakdown is stored by the importer but the year-end annualization does not read it: imported pay is treated as fully taxable compensation, so an employee whose previous provider paid de minimis benefits is annualized more conservatively than one paid by the engine. This suite certifies the behavior that exists and records the difference as an open engineering finding; it does not pin it as correct.",
+    "Imported de minimis is capped per statutory category and period (month, semester, year by pay date) at the RR 29-2025 ceilings in force; the part inside the ceiling is exempt and the excess joins the shared 90,000 pool. Monetized leave days and the daily overtime meal allowance cannot be proven from imported totals and are refused. Imported de minimis is not combined with de minimis grants calculated by the engine for the same worker (the payroll run already flags that combination for review).",
     "Monthly imported rows only; semi-monthly imported rows aggregate the same way but are not separately exercised. Minimum wage earners with imported history are refused (certified), not supported.",
     "The release approval workflow and the HTTP, role and MFA gates of the migration routes are not exercised.",
     "The expected values follow the cited BIR rules and the repository's year-end treatment. They have not been reviewed by a qualified Philippine tax practitioner and must be before anyone relies on them for filing."

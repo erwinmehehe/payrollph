@@ -10,6 +10,63 @@ import { priorEvidenceEnabled, priorEmployeeScope, readPriorEvidence } from "./y
 import { annualizeWithPrior } from "./year-end-prior-evidence";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
+import { DE_MINIMIS_2026, deMinimisStatutoryPeriodStart, type DeMinimisType } from "./ph-compliance";
+
+/**
+ * Imported payroll history can carry the previous provider's de minimis totals by statutory category
+ * (importer field deMinimisBreakdown). Each category is capped at its RR 29-2025 ceiling per statutory
+ * period (month, semester or year, by pay date). The part inside the ceiling is exempt; the part above it
+ * enters the shared 90,000 benefit pool, exactly as the engine treats its own de minimis lines.
+ * Categories whose ceiling is not a peso amount per period (days of monetized leave, a daily meal allowance
+ * that depends on eligible days and the wage order) cannot be proven from imported totals and are refused.
+ */
+export function importedDeMinimisTreatment(rows: ReadonlyArray<{
+  id: number;
+  payDate: string;
+  grossPay: number | string;
+  deMinimisBreakdown: unknown;
+}>) {
+  const paid = new Map<string, number>();
+  for (const row of rows) {
+    const breakdown = row.deMinimisBreakdown;
+    if (breakdown === null || breakdown === undefined) continue;
+    if (typeof breakdown !== "object" || Array.isArray(breakdown)) {
+      throw new Error(`Imported payroll history row #${row.id} has an unreadable de minimis breakdown. Re-import it before running year-end annualization.`);
+    }
+    let rowTotal = 0;
+    for (const [key, raw] of Object.entries(breakdown as Record<string, unknown>)) {
+      const amount = Number(raw);
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new Error(`Imported payroll history row #${row.id} has an invalid de minimis amount for "${key}".`);
+      }
+      if (amount === 0) continue;
+      const rule = (DE_MINIMIS_2026 as Record<string, { ceiling?: number }>)[key];
+      if (!rule) {
+        throw new Error(`Imported payroll history row #${row.id} has an unknown de minimis category "${key}".`);
+      }
+      if (typeof rule.ceiling !== "number" || key === "monetizedVacationLeaveDays") {
+        throw new Error(
+          `Imported payroll history row #${row.id} reports "${key}", whose statutory ceiling cannot be applied to imported totals. Resolve this employee's de minimis outside Linaw and record the verified adjustment.`,
+        );
+      }
+      rowTotal += amount;
+      const periodKey = `${key}|${deMinimisStatutoryPeriodStart(key as DeMinimisType, row.payDate)}`;
+      paid.set(periodKey, (paid.get(periodKey) ?? 0) + amount);
+    }
+    if (round2(rowTotal) > round2(Number(row.grossPay))) {
+      throw new Error(`Imported payroll history row #${row.id} reports more de minimis (${round2(rowTotal)}) than gross pay (${round2(Number(row.grossPay))}).`);
+    }
+  }
+  let exempt = 0;
+  let excess = 0;
+  for (const [periodKey, amount] of paid) {
+    const ceiling = (DE_MINIMIS_2026 as Record<string, { ceiling?: number }>)[periodKey.split("|")[0]].ceiling as number;
+    const within = Math.min(amount, ceiling);
+    exempt += within;
+    excess += amount - within;
+  }
+  return { exempt: round2(exempt), excess: round2(excess) };
+}
 
 type LineItem = {
   code?: string;
@@ -300,6 +357,22 @@ export async function runYearEndAnnualization(
     bucket.periods += 1;
     bucket.importedPeriods += 1;
     totals.set(entry.employeeId, bucket);
+  }
+  const importedByEmployee = new Map<number, typeof importedHistory>();
+  for (const entry of importedHistory) {
+    importedByEmployee.set(entry.employeeId, [...(importedByEmployee.get(entry.employeeId) ?? []), entry]);
+  }
+  for (const [employeeId, employeeRows] of importedByEmployee) {
+    const treatment = importedDeMinimisTreatment(employeeRows.map((row) => ({
+      id: row.id,
+      payDate: String(row.payDate),
+      grossPay: row.grossPay,
+      deMinimisBreakdown: row.deMinimisBreakdown,
+    })));
+    const bucket = totals.get(employeeId);
+    if (!bucket) continue;
+    bucket.deMinimisExempt += treatment.exempt;
+    bucket.deMinimisExcess += treatment.excess;
   }
 
   const existingAdjustments = await tx.select().from(yearEndAdjustments).where(and(
