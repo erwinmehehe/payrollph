@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "scripts/qa/tenant-engagement-employee-*.mjs"
+      - "src/app/app/engagement/page.tsx"
+      - "src/lib/multi-entity-hcm-hold.ts"
       - "tests/tenant-engagement-employee-contract.test.mjs"
       - "docs/qa/tenant-engagement-employee-privacy.md"
       - ".github/workflows/tenant-engagement-employee-qa.yml"
