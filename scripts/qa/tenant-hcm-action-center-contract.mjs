@@ -68,7 +68,9 @@ export function assertNoLeak(res, actors, own = null) {
       assert.ok(!serialized.includes(secret), "Private source field leaked into HTML/RSC/headers");
   }
 }
-const visible = html => html.replace(/<!--[\s\S]*?-->/g, "")
+// Assertion text only, never an HTML sanitizer or rendered output. Preserve a
+// separator so removing a comment cannot join its neighboring fragments.
+const visible = html => html.replace(/<!--[\s\S]*?-->/g, " ")
   .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 export function assertOwnPage(res, actor, actors) {
   assert.equal(res.status, 200, "Owned page must be HTTP 200");
