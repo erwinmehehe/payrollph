@@ -1,0 +1,44 @@
+name: Worker 360 source-pinned credit regeneration (fictional evidence)
+on:
+  push:
+    branches: [qa/tenant-worker360-legal-employer-recredit-20261112]
+    paths:
+      - "scripts/qa/tenant-worker360-legal-employer-credit.mjs"
+      - ".github/workflows/tenant-worker360-credit-preview.yml"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "docs/engineering/tenant-isolation-coverage-inventory.md"
+      - "docs/engineering/tenant-isolation-closure-plan.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/tenant-worker360-legal-employer-credit.mjs"
+      - ".github/workflows/tenant-worker360-credit-preview.yml"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+permissions:
+  contents: read
+jobs:
+  regenerate-worker360-ledger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check exact checked-out head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Regenerate Worker 360 credit and verify pins without changing source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/qa/tenant-worker360-legal-employer-credit.mjs
+          node scripts/qa/tenant-worker360-legal-employer-credit.mjs --write
+          node scripts/qa/tenant-worker360-legal-employer-credit.mjs --check
+          git diff --stat -- scripts/qa/tenant-isolation-coverage-manifest.json docs/engineering/tenant-isolation-coverage-inventory.md docs/engineering/tenant-isolation-closure-plan.md
+          git diff -- scripts/qa/tenant-isolation-coverage-manifest.json | sed -n '1,150p'
+          test -z "$(git diff --name-only -- src/app/api/hcm/worker-360/route.ts src/app/hcm/worker-360/page.tsx)"
