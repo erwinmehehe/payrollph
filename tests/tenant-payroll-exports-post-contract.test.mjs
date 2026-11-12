@@ -88,8 +88,9 @@ test("the workflow is synthetic-only, holds no secret and runs the contract test
     "payroll_mny01_test", "scripts/qa/paymongo-http-proof-preload.mjs", "node --test tests/tenant-payroll-exports-post-contract.test.mjs",
     "npx tsx scripts/qa/tenant-payroll-exports-post-http.mjs", "contents: read", "persist-credentials: false",
     "'src/app/api/payroll-runs/**'", "'src/lib/paymongo-*.ts'", "'src/lib/treasury-controls.ts'",
-    'ref: ${{ github.event.pull_request.head.sha }}',
-    'EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
+    'push:', 'branches: [main]', 'workflow_dispatch:',
+    'ref: ${{ github.event.pull_request.head.sha || github.sha }}',
+    'EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}',
     'test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"',
   ]) assert.ok(workflow.includes(required), "missing workflow content " + required);
   assert.doesNotMatch(workflow, /secrets\./, "no secret may reach a synthetic proof");

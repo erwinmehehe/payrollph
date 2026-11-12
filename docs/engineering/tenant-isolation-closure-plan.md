@@ -1,6 +1,6 @@
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 457 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 
-> **2026-11-11 — source-evidenced architecture classification (not nine new tenant-private method credits):** **498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP**; **16 separate page/action GAPs** remain. Six anonymous pre-login methods are classified public from merged #1898's unchanged-route PG16 two-applicant/victim+loopback-mail proof; two permanently disabled SAML login entrypoints return uniform no-data 503 under merged #1896; one global HCM SLA scheduler uses a verified worker bearer token and never trusts employer sessions. Every classification has zero new COVERED credits. SAML metadata, SSO, provider/payroll, and the operator marketing report remain GAP; the merged Studio POST credit is preserved. This is not complete tenant security or production authorization.
+> **2026-11-11 — source-evidenced architecture classification (not nine new tenant-private method credits):** **498 methods = 457 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP**; **16 separate page/action GAPs** remain. Six anonymous pre-login methods are classified public from merged #1898's unchanged-route PG16 two-applicant/victim+loopback-mail proof; two permanently disabled SAML login entrypoints return uniform no-data 503 under merged #1896; one global HCM SLA scheduler uses a verified worker bearer token and never trusts employer sessions. Every classification has zero new COVERED credits. SAML metadata, SSO, provider/payroll, and the operator marketing report remain GAP; the merged Studio POST credit is preserved. This is not complete tenant security or production authorization.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — approvals PATCH proposal, NOT production acceptance:** 498 methods = 455 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP. [Fresh main combined-family receipt](../../scripts/qa/tenant-approvals-recovery-receipt.json). Both the approvals PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/payroll review and production acceptance are pending.
 
@@ -227,7 +227,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 23 | 2 | 0 | 1 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-01** | 33 | 32 | 0 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -240,7 +240,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 13 | 9 | 6 | 5 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **372 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 4 batches remain INCOMPLETE (DL-01, MNY-01, EDG-01, EDG-02); DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **373 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. 4 batches remain INCOMPLETE (DL-01, MNY-01, EDG-01, EDG-02); DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
