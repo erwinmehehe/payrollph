@@ -42,7 +42,8 @@ export function requireDisposableBillingPageEnv(env = process.env) {
 async function readLocal(path, cookie) {
   assert.ok(path === "/api/account" ||
     path === "/billing/setup" || path.startsWith("/billing/setup?") ||
-    path.startsWith("/app?organizationId="),
+    path.startsWith("/app?organizationId=") ||
+    path === "/billing/manage" || path.startsWith("/billing/manage?"),
   "Only the reviewed billing setup GET and account authentication are allowed");
   const response = await fetch(ORIGIN + path, {
     method: "GET", headers: cookie ? { cookie } : {},
@@ -80,6 +81,17 @@ function assertOwnBillingPage(response, own, foreign) {
 function assertDeniedBillingPage(response, foreign, label) {
   assert.equal(response.status, 404, label + ": private billing SSR must be hidden");
   noForeignMarkers(response, foreign, label);
+}
+
+function assertManageRedirect(response, expectedOrganizationId, employers, label) {
+  assert.equal(response.status, 307, label + ": expected temporary tenant-bound redirect");
+  assert.ok(response.location, label + ": missing redirect target");
+  const target = new URL(response.location, ORIGIN);
+  assert.equal(target.origin, ORIGIN, label + ": must remain same-origin");
+  assert.equal(target.pathname + target.search,
+    "/billing/setup?organizationId=" + expectedOrganizationId,
+    label + ": the selected employer must not change during the redirect");
+  noForeignMarkers(response, employers, label);
 }
 
 export async function verifyBillingSetupPageTenantIsolation() {
@@ -156,17 +168,28 @@ export async function verifyBillingSetupPageTenantIsolation() {
         actor, subjects.filter(item => item.org.id !== actor.org.id));
       assertOwnBillingPage(await readLocal("/billing/setup", actor.cookie),
         actor, subjects.filter(item => item.org.id !== actor.org.id));
+      assertManageRedirect(await readLocal("/billing/manage?organizationId=" + actor.org.id,
+        actor.cookie), actor.org.id, subjects, actor.label + " own manage");
+      assertManageRedirect(await readLocal("/billing/manage", actor.cookie),
+        actor.org.id, subjects, actor.label + " default manage");
       ownSuccesses++;
 
       for (const other of subjects.filter(item => item.org.id !== actor.org.id)) {
         const denied = await readLocal(ownPath(other.org.id), actor.cookie);
         assertDeniedBillingPage(denied, subjects, actor.label + " -> " + other.label);
+        assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" + other.org.id,
+          actor.cookie), subjects, actor.label + " manage -> " + other.label);
         foreignDenials++;
       }
       for (const invalid of ["0", "-1", "01", "1e0", "bad", "9007199254740992"]) {
         const denied = await readLocal(ownPath(invalid), actor.cookie);
         assertDeniedBillingPage(denied, subjects, actor.label + " invalid " + invalid);
+        assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" + invalid,
+          actor.cookie), subjects, actor.label + " manage invalid " + invalid);
       }
+      assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" + actor.org.id +
+        "&organizationId=" + actor.org.id, actor.cookie), subjects,
+        actor.label + " duplicate manage employer");
       assertDeniedBillingPage(await readLocal(ownPath(actor.org.id) +
         "&organizationId=" + actor.org.id, actor.cookie), subjects,
         actor.label + " duplicate employer selector");
@@ -188,12 +211,18 @@ export async function verifyBillingSetupPageTenantIsolation() {
       assert.equal(signedIn.status, 200, label + " must have real authenticated session");
       assertDeniedBillingPage(await readLocal(ownPath(a.org.id), cookie),
         subjects, label + " cannot render billing setup");
+      assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" + a.org.id,
+        cookie), subjects, label + " cannot enter billing manage");
     }
 
     const anonymous = await readLocal(ownPath(victim.org.id));
     assert.ok([302, 303, 307, 308].includes(anonymous.status),
       "Anonymous user must redirect to login rather than render employer billing");
     noForeignMarkers(anonymous, subjects, "anonymous billing response");
+    const anonymousManage = await readLocal("/billing/manage?organizationId=" + victim.org.id);
+    assert.equal(anonymousManage.status, 307, "Unauthenticated manage must redirect to login");
+    assert.equal(new URL(anonymousManage.location, ORIGIN).pathname, "/login");
+    noForeignMarkers(anonymousManage, subjects, "anonymous manage response");
 
     const revoked = await db.update(schema.userOrganizations).set({ active: false })
       .where(and(
@@ -207,6 +236,8 @@ export async function verifyBillingSetupPageTenantIsolation() {
     assert.equal(stillSignedIn.json?.profile?.id, a.owner.id);
     assertDeniedBillingPage(await readLocal(ownPath(a.org.id), a.cookie),
       subjects, "revoked membership / still-valid session");
+    assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" + a.org.id,
+      a.cookie), subjects, "revoked membership / manage redirect");
 
     for (const other of [b, victim]) {
       assert.deepEqual(await snapshot(other.org.id), before.get(other.org.id),
@@ -250,6 +281,19 @@ export async function verifyBillingSetupPageTenantIsolation() {
       // A (the lower employer ID). The browser must never silently switch.
       assertOwnBillingPage(await readLocal(bSetup, b.cookie), b, [a, victim]);
       assertOwnBillingPage(await readLocal("/billing/setup", b.cookie), a, [b, victim]);
+      // The manage alias must preserve B when explicitly selected, even
+      // though this owner has A as their primary/lowest-ID company.
+      assertManageRedirect(await readLocal("/billing/manage?organizationId=" + b.org.id,
+        b.cookie), b.org.id, subjects, "shared administrator B");
+      assertManageRedirect(await readLocal("/billing/manage?organizationId=" + a.org.id,
+        b.cookie), a.org.id, subjects, "shared administrator A");
+      assertManageRedirect(await readLocal("/billing/manage", b.cookie),
+        a.org.id, subjects, "shared administrator default");
+      assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" +
+        victim.org.id, b.cookie), subjects, "shared administrator foreign manage");
+      assertDeniedBillingPage(await readLocal("/billing/manage?organizationId=" + a.org.id +
+        "&organizationId=" + b.org.id, b.cookie), subjects,
+        "shared administrator duplicate manage selector");
 
       const response = await readLocal("/app?organizationId=" + b.org.id, b.cookie);
       assert.ok([302, 303, 307, 308].includes(response.status),
