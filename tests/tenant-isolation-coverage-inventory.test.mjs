@@ -6810,6 +6810,83 @@ test("page and server-action inventory cannot silently omit new or changed busin
     if (scopedCandidate && changed) {
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
+      // Public Careers is deliberately anonymous; being public does NOT make
+      // a caller-controlled employer selector safe or confer private tenant
+      // authorization. Preserve the original source receipt and the 17
+      // outstanding page/action GAPs. This exact version has uncredited
+      // fictional PG16 published-only SSR proof, pending independent review.
+      if (path === "src/app/careers/page.tsx") {
+        const originalPageBlobSha = "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3";
+        const pageBlobSha = "8e56412c909b7d70a5c33a21d3df52a79a693d4f";
+        const reviewed = entry.reviewedUncertified;
+        assert.equal(entry.status, "GAP", "Public Careers is not a private method-coverage credit");
+        assert.equal(entry.testedBy, undefined, "Unaccepted synthetic proof cannot certify a page");
+        assert.equal(baseline.app[path], originalPageBlobSha);
+        assert.equal(current, pageBlobSha, "Careers page changed: renew real SSR+privacy evidence");
+        assert.equal(entry.blob, current);
+        assert.deepEqual(reviewed, {
+          kind: "public-careers-SSR-GET-PG16-canonical-selector-unaccepted",
+          originalPageBlobSha, pageBlobSha,
+          proofFile: "scripts/qa/tenant-careers-page-public-boundary-http.mjs",
+          proofBlobSha: "511abfc448d87aadf89515adc29a78f475193434",
+          workflowFile: ".github/workflows/tenant-edg01-careers-public-get-http.yml",
+          workflowBlobSha: "c9f89477a1e013d3ae4c7c50b1d737df1d257269",
+          pageActionCredits: 0, methodCredits: 0,
+          independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited public Careers SSR proof is recorded");
+        assert.match(entry.reason, /^Still GAP: public Careers/);
+        for (const [file, sha] of [
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "Public Careers proof or workflow changed without a renewed source review");
+        const sourceLines = actual.split("\n");
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": missing reviewed source-line anchor " + pin.line);
+          }
+        }
+        const notice = actual.indexOf("const notice = careersNoticeConfig()");
+        const denied = actual.indexOf("if (!notice) notFound()");
+        const selector = actual.indexOf('typeof raw !== "string"');
+        const parse = actual.indexOf("const organizationId = Number(raw)");
+        const safe = actual.indexOf("Number.isSafeInteger(organizationId)");
+        const schema = actual.indexOf("await careersSchemaReady()");
+        const read = actual.indexOf("await db.select(");
+        const filtered = actual.indexOf("publishedCareersPredicate(organizationId)");
+        assert.ok(notice >= 0 && denied > notice && selector > denied &&
+          parse > selector && safe > parse && schema > safe &&
+          read > schema && filtered > read,
+          "Careers SSR must reject coerced employer IDs before published-only SQL");
+        assert.match(actual, /organizationId\?: string \| string\[\]/);
+        assert.match(actual, /!\^\[1-9\]\[0-9\]\*\$\/\.test\(raw\)/);
+        assert.doesNotMatch(actual, /getSessionUser\(|assertOrganizationRole\(/,
+          "Careers is a public-by-design published jobs page; do not add private session assumptions");
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        assert.ok(proof.indexOf("requireDisposableCareersEnv();") > 0 &&
+          proof.indexOf("requireDisposableCareersEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "CI-only PostgreSQL gate must refuse unsafe targets before DB imports");
+        for (const marker of [
+          "fixture.requireTenantTableDisposable()",
+          '"TTBL-ATTA-"', '"TTBL-ATTB-"', '"TTBL-VICTIM-"',
+          "victimPublic.length, 1", "fixture.standaloneRequest(ownPath(employer.id))",
+          "res.status, 200", "denied.status, 404",
+          "malformedDenials, invalid.length", "assert.deepEqual(await snapshot(), before",
+          "pageActionCredits: 0", "productionCertified: false",
+        ]) assert.ok(proof.includes(marker),
+          "Public Careers PG16 negative control missing: " + marker);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-careers-page-public-boundary-http\.mjs/);
+        assert.ok(workflow.includes("'src/app/careers/page.tsx'"));
+        continue; // Public page is a pinned unaccepted GAP, not a new COVERED page.
+      }
+
       // #1876 People/HR pages: exact-source, feature-ON, disposable
       // PG16/HTTP *provisional* evidence. Preserve both page/action GAPs:
       // this GET-only proof does not certify interactive survey writes or
