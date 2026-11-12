@@ -1,5 +1,7 @@
 # OIDC linked identity: provider-employer authorization boundary
 
+The follow-on [identity-write boundary](tenant-oidc-identity-write-boundary.md) adds production transactional rechecks, actual callback dependency-double regressions, and a separate real-PG16 concurrency fixture. It preserves this PR's organization-scoped identity lookup and read-only negative proof. The new fixture observed 4 legitimate writes, 14 denied writes and an in-flight membership revocation; it is not an IdP-over-HTTP login receipt and grants zero credits.
+
 ## Source-identified risk
 
 The SSO callback formerly retrieved an external identity by globally unique provider ID and subject without also checking the persisted linked identity's organization ID. Those tables have independent foreign keys; an inconsistent or stale link pointing at the correct provider from another employer must not be treated as an authorized sign-in link.

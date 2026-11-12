@@ -3858,7 +3858,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       },
       "src/app/api/auth/sso/callback/route.ts": {
         before: "b18ac853e93155478474d02466617298d6773275",
-        after: "25116ab157ede52128a1ccbe189773104361f2d3",
+        after: "a27d855a81751498cc907134e8e9dde7400c9f58",
       },
     };
     const seal = seals[routePath];
@@ -3875,17 +3875,27 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       cookieHelperFile: "src/lib/oidc-browser-state.ts",
       cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
       contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-      contractBlobSha: "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+      contractBlobSha: "5c4990abfcc7310d893f22a211732a7d484c3033",
       proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-      proofBlobSha: "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+      proofBlobSha: "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
       unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
-      unitTestBlobSha: "926d45d242bbfe9672a95f02c3eef7dc27366815",
+      unitTestBlobSha: "cb79eea24335ee49f5b80c9838f04827c2d28e10",
       negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
-      negativeTestBlobSha: "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+      negativeTestBlobSha: "b89879de534005a17f4164df51eb1dca647fbb33",
       workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
-      workflowBlobSha: "b7479504956c98e08932241b71f16b49bfc9891b",
+      workflowBlobSha: "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
+      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
+        linkedIdentityBoundary: {
+          kind: "existing-oidc-provider-subject-must-match-provider-employer",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
+          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
+          accepted: false, credits: 0, productionCertified: false,
+        },
+      } : {}),
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
     const review = method.reviewedUncertified;
     for (const [file, sha] of [

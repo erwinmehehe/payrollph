@@ -16,6 +16,7 @@ import { decryptEnterpriseSecret } from "@/lib/enterprise-secret";
 import { exchangeOidcCode, verifyOidcIdToken } from "@/lib/oidc";
 import { requestMeta } from "@/lib/rate-limit";
 import { effectiveSessionPolicyForUser } from "@/lib/enterprise-session";
+import { persistVerifiedOidcIdentity } from "@/lib/oidc-identity-binding";
 import { sha256 } from "@/lib/crypto";
 import {
   OIDC_BROWSER_STATE_COOKIE, OIDC_BROWSER_STATE_PATH,
@@ -159,31 +160,17 @@ export async function GET(request: Request) {
     }, { status: 403 });
   }
 
-  // A revoked or MFA-deficient member must not even update the linked
-  // identity's last-login timestamp. Bind writes to this provider employer
-  // AFTER active membership and effective MFA policy have passed.
-  if (existingIdentity) {
-    await db.update(externalIdentities).set({
-      email: identity.email, lastLoginAt: new Date(),
-    }).where(and(
-      eq(externalIdentities.id, existingIdentity.id),
-      eq(externalIdentities.organizationId, provider.organizationId),
-      eq(externalIdentities.providerId, provider.id),
-      eq(externalIdentities.subject, identity.subject),
-    ));
-  } else {
-    try {
-      await db.insert(externalIdentities).values({
-        organizationId: provider.organizationId,
-        providerId: provider.id,
-        userId: user.id,
-        subject: identity.subject,
-        email: identity.email,
-        lastLoginAt: new Date(),
-      });
-    } catch {
-      return Response.json({ error: "The OIDC identity could not be linked safely. Retry sign-in." }, { status: 409 });
-    }
+  // Recheck and lock live provider/account/membership authority in the same
+  // transaction as identity persistence, after inherited MFA acceptance.
+  try {
+    const linked = await persistVerifiedOidcIdentity({
+      organizationId: provider.organizationId, providerId: provider.id,
+      userId: user.id, subject: identity.subject, email: identity.email,
+      existingIdentityId: existingIdentity?.id ?? null,
+    });
+    if (!linked) return Response.json({ error: "The OIDC identity no longer has workspace access." }, { status: 403 });
+  } catch {
+    return Response.json({ error: "The OIDC identity could not be linked safely. Retry sign-in." }, { status: 409 });
   }
 
   const session = await createSession(user.id, requestMeta(request), {

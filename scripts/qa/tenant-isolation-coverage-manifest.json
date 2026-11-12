@@ -1647,38 +1647,38 @@
       "businessIds": []
     },
     "src/app/api/auth/sso/callback/route.ts": {
-      "gitBlobSha": "65904babe9cb2bb1e248fba5b8baa163b17f320a",
+      "gitBlobSha": "a27d855a81751498cc907134e8e9dde7400c9f58",
       "route": "auth/sso/callback",
       "methods": [
         {
           "name": "GET",
-          "line": 27,
+          "line": 28,
           "status": "GAP",
-          "reason": "No valid own-object + real victim-only denial was linked to this method",
+          "reason": "Still GAP: OIDC callback defers account-link writes until verified identity, active employer membership and inherited MFA policy acceptance; a transaction rechecks provider/account/membership under share locks and binds identity writes to employer/provider/user/subject. Browser-state and new PG16 membership regressions require exact-head CI; no complete real-HTTP IdP login or method credit is claimed. SOLO_VERIFIED_DEV_RECOVERY; independent identity/security review and production acceptance PENDING.",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "oidc-initiating-browser-state-binding-zero-credit",
             "originalRouteBlobSha": "b18ac853e93155478474d02466617298d6773275",
-            "routeBlobSha": "65904babe9cb2bb1e248fba5b8baa163b17f320a",
+            "routeBlobSha": "a27d855a81751498cc907134e8e9dde7400c9f58",
             "cookieHelperFile": "src/lib/oidc-browser-state.ts",
             "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
             "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-            "contractBlobSha": "e6e28c7d50fd4507cd4287a070052ffb63d857fe",
+            "contractBlobSha": "5c4990abfcc7310d893f22a211732a7d484c3033",
             "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
             "proofBlobSha": "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
             "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
-            "unitTestBlobSha": "0c8df337347e0bd45e2a1af0a27097ab0552e356",
+            "unitTestBlobSha": "cb79eea24335ee49f5b80c9838f04827c2d28e10",
             "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
-            "negativeTestBlobSha": "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+            "negativeTestBlobSha": "b89879de534005a17f4164df51eb1dca647fbb33",
             "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
-            "workflowBlobSha": "b7479504956c98e08932241b71f16b49bfc9891b",
+            "workflowBlobSha": "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
             "credits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
             "productionCertified": false,
             "linkedIdentityBoundary": {
               "kind": "existing-oidc-provider-subject-must-match-provider-employer",
-              "sourceSha": "65904babe9cb2bb1e248fba5b8baa163b17f320a",
+              "sourceSha": "a27d855a81751498cc907134e8e9dde7400c9f58",
               "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
               "proofBlobSha": "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
               "scope": "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
@@ -1700,59 +1700,51 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 105,
+          "line": 106,
           "token": "organizationId"
         },
         {
-          "line": 105,
+          "line": 106,
           "token": "organizationId"
         },
         {
-          "line": 113,
+          "line": 114,
           "token": "organizationId"
         },
         {
-          "line": 113,
+          "line": 114,
           "token": "organizationId"
         },
         {
-          "line": 126,
+          "line": 127,
           "token": "organizationId"
         },
         {
-          "line": 126,
+          "line": 127,
           "token": "organizationId"
         },
         {
-          "line": 149,
+          "line": 150,
           "token": "organizationId"
         },
         {
-          "line": 149,
+          "line": 150,
           "token": "organizationId"
         },
         {
-          "line": 170,
+          "line": 167,
           "token": "organizationId"
         },
         {
-          "line": 170,
+          "line": 167,
           "token": "organizationId"
         },
         {
-          "line": 177,
+          "line": 184,
           "token": "organizationId"
         },
         {
-          "line": 177,
-          "token": "organizationId"
-        },
-        {
-          "line": 197,
-          "token": "organizationId"
-        },
-        {
-          "line": 197,
+          "line": 184,
           "token": "organizationId"
         }
       ]
@@ -1827,15 +1819,15 @@
             "cookieHelperFile": "src/lib/oidc-browser-state.ts",
             "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
             "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-            "contractBlobSha": "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+            "contractBlobSha": "5c4990abfcc7310d893f22a211732a7d484c3033",
             "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
-            "proofBlobSha": "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+            "proofBlobSha": "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
             "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
-            "unitTestBlobSha": "926d45d242bbfe9672a95f02c3eef7dc27366815",
+            "unitTestBlobSha": "cb79eea24335ee49f5b80c9838f04827c2d28e10",
             "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
-            "negativeTestBlobSha": "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+            "negativeTestBlobSha": "b89879de534005a17f4164df51eb1dca647fbb33",
             "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
-            "workflowBlobSha": "b7479504956c98e08932241b71f16b49bfc9891b",
+            "workflowBlobSha": "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
             "credits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",

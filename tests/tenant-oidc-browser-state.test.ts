@@ -80,16 +80,19 @@ test("OIDC linked identities must match the IdP employer before login or audit w
   const scopedSubject = callback.indexOf("eq(externalIdentities.subject, identity.subject)", lookup);
   const userMembership = callback.indexOf("const [membership]");
   const policy = callback.indexOf("const effectivePolicy");
-  const linkedUpdate = callback.indexOf("await db.update(externalIdentities)");
-  const linkedInsert = callback.indexOf("await db.insert(externalIdentities)");
+  const persist = callback.indexOf("await persistVerifiedOidcIdentity(");
   const session = callback.indexOf("await createSession(");
 
   assert.ok(lookup >= 0 && scopedOrg > lookup && scopedProvider > scopedOrg &&
     scopedSubject > scopedProvider && userMembership > scopedSubject &&
-    policy > userMembership && linkedUpdate > policy && linkedInsert > policy &&
-    session > linkedUpdate && session > linkedInsert,
+    policy > userMembership && persist > policy && session > persist,
     "Foreign links, revoked membership and MFA failures must not write a login link or session");
-  assert.match(callback, /eq\(externalIdentities\.id, existingIdentity\.id\)/);
+  const persistence = readFileSync("src/lib/oidc-identity-binding.ts", "utf8");
+  assert.match(persistence, /eq\(externalIdentities\.id, input\.existingIdentityId\)/);
+  for (const key of ["organizationId", "providerId", "userId", "subject"])
+    assert.ok(persistence.includes("eq(externalIdentities." + key + ", input." + key + ")"));
+  assert.equal((persistence.match(/\.for\("share"\)/g) ?? []).length, 3);
+  assert.doesNotMatch(callback, /db\.(update|insert)\(externalIdentities\)/);
   assert.match(callback, /eq\(externalIdentities\.organizationId, provider\.organizationId\)/);
   assert.match(callback, /eq\(externalIdentities\.providerId, provider\.id\)/);
   assert.match(callback, /eq\(externalIdentities\.subject, identity\.subject\)/);
