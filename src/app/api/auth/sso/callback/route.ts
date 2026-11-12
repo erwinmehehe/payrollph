@@ -22,9 +22,12 @@ import {
   oidcBrowserStateMatches,
 } from "@/lib/oidc-browser-state";
 
+import { oidcSsoRuntimeEnabled, oidcSsoDisabledResponse } from "@/lib/oidc-sso-runtime";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();
   const url = new URL(request.url);
   const code = String(url.searchParams.get("code") ?? "");
   const state = String(url.searchParams.get("state") ?? "");
