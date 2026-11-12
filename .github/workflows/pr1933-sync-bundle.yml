@@ -1,34 +1,84 @@
-name: PR 1933 pinned source bundle for conflict resolution
+name: PR 1933 validated main sync (isolated candidate)
 on:
   push:
     branches: [qa/pr1933-sync-bundle-20261112]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  bundle:
+  validate:
     if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/pr1933-sync-bundle-20261112'
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          persist-credentials: false
-      - name: Export exact reviewed source commits
+          persist-credentials: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Reproduce pinned merge and exact verified source tree
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f:refs/heads/exact-pr1933
-          git fetch --no-tags origin f359902ee3aa39079cebafaa1ba6573e646049da:refs/heads/exact-main
-          test "$(git rev-parse refs/heads/exact-pr1933)" = 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f
-          test "$(git rev-parse refs/heads/exact-main)" = f359902ee3aa39079cebafaa1ba6573e646049da
-          git bundle create /tmp/pr1933-sync.bundle refs/heads/exact-pr1933 refs/heads/exact-main
-          git bundle verify /tmp/pr1933-sync.bundle
-          git log -1 --format="%H %s" refs/heads/exact-main
-          git log -1 --format="%H %s" refs/heads/exact-pr1933
+          cp qa/resolve-pr1933.py /tmp/resolve-pr1933.py
+          git fetch --no-tags origin 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f
+          git fetch --no-tags origin f359902ee3aa39079cebafaa1ba6573e646049da
+          git checkout --detach 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f
+          git update-ref refs/remotes/local/current-main f359902ee3aa39079cebafaa1ba6573e646049da
+          git -c user.name="ChatGPT CI merge candidate" -c user.email="actions@users.noreply.github.com" merge --no-ff --no-commit -X ours f359902ee3aa39079cebafaa1ba6573e646049da
+          python3 /tmp/resolve-pr1933.py
+          git add -u
+          git diff --cached --check
+          test "$(git write-tree)" = 826479b920c8a503f6fe86c003fb96884e579e26
+          if git diff --cached --name-only | grep '^src/'; then echo "Runtime source modification forbidden"; exit 1; fi
+          node --check tests/helpers/tenant-architectural-classification-delta.mjs
+          node --check tests/tenant-billing-post-credit.test.mjs
+          node --check tests/tenant-workspace-readiness-credit.test.mjs
+          node --check scripts/qa/tenant-year-end-credit.mjs
+      - run: npm ci
+      - name: Focused Worker 360 and year-end source contract tests
+        env:
+          NODE_OPTIONS: "--import tsx"
+        run: |
+          node --test --test-concurrency=4 \
+            tests/tenant-worker360-table-credit-hold.test.mjs \
+            tests/tenant-year-end-credit.test.mjs \
+            tests/tenant-architectural-gap-classifications.test.mjs \
+            tests/tenant-billing-post-credit.test.mjs \
+            tests/tenant-workspace-readiness-credit.test.mjs \
+            tests/tenant-studio-post-credit.test.mjs
+      - name: Full tenant source regression suite
+        env:
+          NODE_OPTIONS: "--import tsx"
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=4 tests/tenant-*.test.mjs > /tmp/pr1933-tenant-tests.tap 2>&1 || { grep -E '^not ok|^# (tests|pass|fail|skipped|cancelled)' /tmp/pr1933-tenant-tests.tap | tail -n 60; exit 1; }
+          grep -E '^# (tests|pass|fail|skipped|cancelled)' /tmp/pr1933-tenant-tests.tap | tail -n 6
+      - name: TypeScript and zero-credit source reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node scripts/qa/tenant-table-credit.mjs --check > /tmp/pr1933-credit.json
+          node -e 'const x=require("/tmp/pr1933-credit.json");if(x.newlyCredited!==0||x.before.coveredAfter!==456||x.before.gap!==7||JSON.stringify(x.after)!==JSON.stringify(x.before))process.exit(1)'
+          git diff --cached --check
+          test "$(git write-tree)" = 826479b920c8a503f6fe86c003fb96884e579e26
+      - name: Publish only the tested merge commit to a temporary candidate ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -c user.name="GitHub Actions" -c user.email="actions@users.noreply.github.com" commit -m "fix(tenant): sync Worker 360 with renewed year-end evidence on main"
+          test "$(git rev-parse HEAD^{tree})" = 826479b920c8a503f6fe86c003fb96884e579e26
+          test "$(git show -s --format=%P HEAD)" = "0a56aeb2721b46ccaf7a160e05d3c5090dadd69f f359902ee3aa39079cebafaa1ba6573e646049da"
+          test -z "$(git ls-remote --heads origin refs/heads/qa/pr1933-validated-main-sync-20261112)"
+          git push origin HEAD:refs/heads/qa/pr1933-validated-main-sync-20261112
+          printf "PR 1933 candidate commit %s\nTree 826479b920c8a503f6fe86c003fb96884e579e26\nPR parent 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f\nMain parent f359902ee3aa39079cebafaa1ba6573e646049da\nZero added coverage credits\nNo runtime files changed in sync\n" "$(git rev-parse HEAD)" > /tmp/pr1933-candidate-evidence.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: pr1933-two-pinned-commit-source
-          path: /tmp/pr1933-sync.bundle
-          retention-days: 1
+          name: pr1933-validated-main-sync-candidate
+          path: /tmp/pr1933-candidate-evidence.txt
+          retention-days: 2
           if-no-files-found: error
