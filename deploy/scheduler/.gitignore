@@ -1,4 +1,0 @@
-# Real infrastructure credentials must never be committed.
-*.env
-.env
-.env.*

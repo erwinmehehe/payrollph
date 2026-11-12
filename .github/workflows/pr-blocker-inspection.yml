@@ -1,0 +1,45 @@
+name: Read-only PR blocker inspection
+on:
+  push:
+    branches: [qa/pr-blocker-inspect-20261112a]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/pr-blocker-inspect-20261112a'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: a6cb85c80e63a1a8428d4085ba5bbed839aacd88
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Inspect pinned merges and export source history for local verification
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pr-blockers
+          python3 - <<'PY'
+          import json, subprocess
+          base='a6cb85c80e63a1a8428d4085ba5bbed839aacd88'
+          refs={'baseline':base,'pr-1933':'bcd0f3adcae7de20d87b94d7e827a617f73b9b07','pr-1935':'7e448e59d530ae03fa7428f2d467ecaa798e2ce3','pr-1937':'600de3a0cd31c5c2f71b867c3b5d350170f2390e','pr-1943':'632068316c775f342e5a02c78934e8fa6b40f22d'}
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==base
+          for name, sha in refs.items():
+            subprocess.run(['git','cat-file','-e',sha+'^{commit}'],check=True)
+            subprocess.run(['git','branch',name,sha],check=True)
+          for name in ['pr-1933','pr-1935','pr-1937']:
+            r=subprocess.run(['git','merge-tree','--write-tree','--messages',refs[name],base],text=True,capture_output=True)
+            assert r.returncode in [0,1],r.stderr
+            open('/tmp/pr-blockers/'+name+'-merge.txt','w').write(r.stdout)
+            print(name,r.returncode,r.stdout)
+          subprocess.run(['git','bundle','create','/tmp/pr-blockers/source.bundle',*['refs/heads/'+x for x in refs]],check=True)
+          json.dump(refs,open('/tmp/pr-blockers/refs.json','w'),indent=2)
+          for path in subprocess.check_output(['git','ls-files','*AGENTS.md'],text=True).splitlines():
+            print('INSTRUCTIONS '+path+'\n'+open(path).read())
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-blocker-source-and-conflicts
+          path: /tmp/pr-blockers/
+          retention-days: 1
+          if-no-files-found: error
