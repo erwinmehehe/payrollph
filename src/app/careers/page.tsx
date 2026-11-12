@@ -16,8 +16,11 @@ export default async function CareersPage({ searchParams }: {
   // Before privacy/migration activation, never evaluate a requisition query.
   if (!notice) notFound();
   const { organizationId: raw } = await searchParams;
+  // Public listings still need one unambiguous employer. Never coerce
+  // duplicate, decimal, exponent or whitespace selectors into another ID.
+  if (typeof raw !== "string" || !/^[1-9]\\d*$/.test(raw)) notFound();
   const organizationId = Number(raw);
-  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) notFound();
+  if (!Number.isSafeInteger(organizationId)) notFound();
   if (!await careersSchemaReady()) notFound();
 
   const [organization] = await db.select({ name: organizations.name })
