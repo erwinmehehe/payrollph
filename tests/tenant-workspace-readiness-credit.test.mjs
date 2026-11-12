@@ -1,4 +1,5 @@
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -30,9 +31,19 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   assertLiveTenantCounts(assert, m);
   const base=baseTenantManifest();
   if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
-    const yearEndHold=yearEndHoldDelta(base.manifest,m)-yearEndRenewalDelta(base.manifest,m);assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,delta+approvalDelta+studioDelta+exportsDelta-yearEndHold);
+    const yearEndHold=yearEndHoldDelta(base.manifest,m)-yearEndRenewalDelta(base.manifest,m);
+    // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
+    const workerPath = "src/app/api/hcm/worker-360/route.ts";
+    const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
+    const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
+    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must remain uncredited");
+    assert.equal(currentWorker.testedBy, null);
+    verifyWorker360PageCredit(m);
+    const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-revokedWorkerCredit-yearEndHold;
+    assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
-    assert.equal(base.manifest.metrics.gap-m.metrics.gap,delta+approvalDelta+studioDelta+exportsDelta+relabels.gapRelabels-yearEndHold);
+    assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
     assert.equal(m.metrics.publicByDesign-base.manifest.metrics.publicByDesign,relabels.publicByDesign);
     assert.equal(m.metrics.privilegedOperationsTokenOnly-base.manifest.metrics.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);}
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.coverageCredits, 1);

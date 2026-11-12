@@ -3,8 +3,35 @@ import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { verifyArchitecturalRelabelDelta, readArchitecturalOwnerApproval, OWNER_APPROVAL_FILE } from "./helpers/tenant-architectural-classification-delta.mjs";
+import { reviewedWorker360LegalEmployerSupersession } from "./helpers/tenant-counts.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+
+test("classification reconciliation composes only the exact source-sealed Worker 360 retirement", () => {
+  const path = "src/app/api/hcm/worker-360/route.ts";
+  const before = structuredClone(manifest);
+  const prior = before.allApiRouteFiles[path];
+  const hold = prior.methods[0].reviewedUncertified;
+  prior.gitBlobSha = hold.oldSourceBlobSha;
+  prior.methods[0].status = "COVERED";
+  prior.methods[0].testedBy = structuredClone(hold.historicalProof);
+  const page = before.scopedPages.find(row => row.path === "src/app/hcm/worker-360/page.tsx");
+  page.blob = "337034f839c17a30077e2cfe5991c640e0c6a5e9";
+  page.status = "COVERED";
+  assert.deepEqual([...reviewedWorker360LegalEmployerSupersession(before, manifest)], ["GET " + path]);
+  assert.deepEqual(verifyArchitecturalRelabelDelta(assert, before, manifest),
+    { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 });
+  for (const mutate of [
+    m => { m.allApiRouteFiles[path].gitBlobSha = "0".repeat(40); },
+    m => { m.allApiRouteFiles[path].methods[0].reviewedUncertified.coverageCredits = 1; },
+    m => { m.allApiRouteFiles[path].methods[0].reviewedUncertified.historicalProof = {}; },
+    m => { m.scopedPages.find(row => row.path === page.path).blob = "0".repeat(40); },
+    m => { m.allApiRouteFiles["src/app/api/discipline/route.ts"].methods[0].status = "GAP"; },
+  ]) {
+    const forged = structuredClone(manifest); mutate(forged);
+    assert.throws(() => verifyArchitecturalRelabelDelta(assert, before, forged), { name: "AssertionError" });
+  }
+});
 const prelogin = [
   ["src/app/api/setup/route.ts", "GET"],
   ["src/app/api/setup/route.ts", "POST"],

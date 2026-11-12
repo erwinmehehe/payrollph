@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
+import { reviewedWorker360LegalEmployerSupersession } from "./tenant-counts.mjs";
 
 const PUBLIC = [
   ["src/app/api/setup/route.ts", "GET"],
@@ -159,8 +160,8 @@ export function yearEndHoldDelta(beforeManifest, afterManifest) {
 }
 
 /**
- * Year-end pair held in the base (#1944) and renewed by a fresh source-matched main proof in the live manifest.
- * The renewal itself is verified fail-closed (exact receipt, pins, run and job); this grants nothing else.
+ * Two year-end credits renewed by a source-matched main-only PG16 run
+ * after the #1944 historical hold. Validate the precise proof, not just count.
  */
 export function yearEndRenewalDelta(beforeManifest, afterManifest) {
   if (!isYearEndHeld(beforeManifest) || isYearEndHeld(afterManifest)) return 0;
@@ -172,6 +173,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
   const approval = readArchitecturalOwnerApproval(assert, read);
   const pending = pendingSignupProofForSource(assert, read);
   const before = rows(beforeManifest), after = rows(afterManifest);
+  const retiredWorkerCredit = reviewedWorker360LegalEmployerSupersession(beforeManifest, afterManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
     const current = after.get(key);
@@ -182,6 +184,9 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
     if (target) assert.notEqual(current.method.status, "COVERED", "Classification cannot grant a tenant-private credit: " + key);
     if (!target || current.method.status !== target) {
       if (current.method.status === old.method.status || current.method.status === "COVERED") continue;
+      // This exact source-sealed retirement is not an owner classification or
+      // a new credit; all other downgrades still fail the existing check.
+      if (!target && retiredWorkerCredit.has(key)) continue;
       assert.equal(old.method.status, "GAP", "Unapproved status downgrade: " + key);
     }
     assert.ok(target, "No unrelated GAP may disappear: " + key);
