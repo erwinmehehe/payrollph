@@ -614,6 +614,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(payoutReconciliation.testedBy.productionTested, false);
   expectedStatuses[payoutReconciliationPath].POST = "COVERED";
   const payoutReconciliationCredits = 1;
+  // Credit after the snapshot: POST payroll-runs/[id]/exports, from its dedicated three-mode proof on a loopback-synthetic PayMongo
+  // (cited run on main). The inventory test verifies the receipt, blob identity and cited lines exactly.
+  const exportsPostPath = "src/app/api/payroll-runs/[id]/exports/route.ts";
+  assert.equal(expectedStatuses[exportsPostPath]?.POST, "GAP", "exports POST must start GAP in the reviewed snapshot");
+  const exportsPost = m.allApiRouteFiles[exportsPostPath].methods.find(row => row.name === "POST");
+  assert.equal(exportsPost?.status, "COVERED");
+  assert.equal(exportsPost.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs");
+  assert.equal(exportsPost.testedBy.providerMode, "loopback-synthetic-paymongo");
+  assert.equal(exportsPost.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(exportsPost.testedBy.productionTested, false);
+  expectedStatuses[exportsPostPath].POST = "COVERED";
+  const exportsPostCredits = 1;
   // Credit after the snapshot: POST pilot-signoff and GET xendit-payout, from the dedicated payroll-run-actions harness (merged proof #1803).
   // The inventory test verifies the receipt, blob identity and cited lines exactly.
   const pilotSignoffPath = "src/app/api/payroll-runs/[id]/pilot-signoff/route.ts";
@@ -841,9 +853,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited receipts plus separately sealed filing PATCH and checkout credits");
   const expectedCounts = {
-    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + birCandidateCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits + invitationAcceptCredits,
+    COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + exportsPostCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + birCandidateCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits + invitationAcceptCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
-    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - birCandidateCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
+    GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - exportsPostCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - birCandidateCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
   };
   expectedCounts.COVERED += studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
   expectedCounts.GAP -= studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
@@ -864,10 +876,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
-  const frozenCovered = 367 + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
+  const frozenCovered = 367 + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
-  const frozenGaps = 21 - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits
+  const frozenGaps = 21 - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
     - architecturePublic.length - 1;
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
@@ -969,6 +981,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       ["src/app/api/account/password/route.ts", "scripts/qa/tenant-account-password-http.mjs"],
       ["src/app/api/auth/logout/route.ts", "scripts/qa/tenant-auth-logout-http.mjs"],
       ["src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "scripts/qa/paymongo-export-isolation-local.mjs"],
+      ["src/app/api/payroll-runs/[id]/exports/route.ts", "scripts/qa/tenant-payroll-exports-post-http.mjs"],
       ["src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs"],
       ["src/app/api/payroll-runs/[id]/xendit-payout/route.ts", "scripts/qa/tenant-payroll-run-actions-http.mjs", "GET"],
       ["src/app/api/multi-entity/transfers/route.ts", "scripts/qa/tenant-transfers-http.mjs"],
