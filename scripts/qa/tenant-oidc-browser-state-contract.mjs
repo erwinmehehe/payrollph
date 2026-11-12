@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 export const ORIGIN = "http://127.0.0.1:3000";
 export const SOURCE_PINS = Object.freeze({
   "src/app/api/auth/sso/start/route.ts": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
-  "src/app/api/auth/sso/callback/route.ts": "25116ab157ede52128a1ccbe189773104361f2d3",
+  "src/app/api/auth/sso/callback/route.ts": "65904babe9cb2bb1e248fba5b8baa163b17f320a",
   "src/lib/oidc-browser-state.ts": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
   "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",

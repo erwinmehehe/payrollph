@@ -31,7 +31,7 @@ async function http(path, cookie) {
 export async function proveOidcBrowserStateIsolation() {
   requireDisposableOidcBrowserEnv();
   verifyOidcBrowserSourcePins();
-  const [{db, pool}, s, {asc, eq}, fixture] = await Promise.all([
+  const [{db, pool}, s, {asc, and, eq}, fixture] = await Promise.all([
     import("../../src/db/index.ts"),
     import("../../src/db/schema.ts"),
     import("drizzle-orm"),
@@ -179,6 +179,54 @@ export async function proveOidcBrowserStateIsolation() {
     assert.deepEqual(await snapshot(), beforeReplay, "replayed login mutated SQL");
     assert.equal((await db.select().from(s.externalIdentities).limit(1)).length, 0);
 
+    // Prove the exact provider+employer+subject query against actual PG16 rows.
+    // A foreign employer can hold a corrupted link pointing at A's provider ID
+    // because each FK exists independently. Never treat such a row as A's link.
+    // No external IdP or valid ID token is available in this disposable proof;
+    // this exercises the SQL boundary, NOT a successful OIDC callback.
+    const foreignSubject = "foreign-link-" + nonce;
+    const ownSubject = "own-link-" + nonce;
+    await db.insert(s.externalIdentities).values({
+      organizationId: victim.org.id,
+      providerId: A.provider.id,
+      userId: victim.owner.id,
+      subject: foreignSubject,
+      email: victim.owner.email,
+    });
+    await db.insert(s.externalIdentities).values({
+      organizationId: a.org.id,
+      providerId: A.provider.id,
+      userId: a.owner.id,
+      subject: ownSubject,
+      email: a.owner.email,
+    });
+    const linkedBefore = await snapshot();
+    const unscopedForeign = await db.select({ id: s.externalIdentities.id })
+      .from(s.externalIdentities).where(and(
+        eq(s.externalIdentities.providerId, A.provider.id),
+        eq(s.externalIdentities.subject, foreignSubject),
+      )).limit(1);
+    assert.equal(unscopedForeign.length, 1,
+      "Negative control: provider+subject alone would select a foreign employer's identity");
+    const scopedForeign = await db.select({ id: s.externalIdentities.id })
+      .from(s.externalIdentities).where(and(
+        eq(s.externalIdentities.organizationId, a.org.id),
+        eq(s.externalIdentities.providerId, A.provider.id),
+        eq(s.externalIdentities.subject, foreignSubject),
+      )).limit(1);
+    assert.equal(scopedForeign.length, 0,
+      "Foreign-employer identity must not be accepted by the callback's scoped query");
+    const scopedOwn = await db.select({ id: s.externalIdentities.id })
+      .from(s.externalIdentities).where(and(
+        eq(s.externalIdentities.organizationId, a.org.id),
+        eq(s.externalIdentities.providerId, A.provider.id),
+        eq(s.externalIdentities.subject, ownSubject),
+      )).limit(1);
+    assert.equal(scopedOwn.length, 1,
+      "Positive control: own-employer identity must still be found");
+    assert.deepEqual(await snapshot(), linkedBefore,
+      "Cross-employer identity lookup may not change sessions, identities or audits");
+
     assert.equal(ownStarts, 2);
     assert.equal(deniedOtherBrowsers, 6);
     assert.equal(matchedClaims, 2);
@@ -190,6 +238,9 @@ export async function proveOidcBrowserStateIsolation() {
       validBrowserStateConsumedWithoutExternalIdp: matchedClaims,
       differentEmployers: 2, realFillerEmployers: fillers.length, highIdPopulatedVictim: true,
       unchangedVictimAndSessionSql: true,
+      crossEmployerLinkedIdentityRejected: true,
+      ownEmployerLinkedIdentitySelected: true,
+      linkedIdentitySqlReadOnly: true,
       noExternalIdpOrMoneyCalls: true,
       completeMethodCredits: 0, independentSecurityReview: "PENDING",
       productionCertified: false,
