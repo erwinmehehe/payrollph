@@ -8,7 +8,7 @@ import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../sc
 import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
@@ -782,9 +782,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(mwePatch.testedBy?.independentlyAccepted, false);
   assert.equal(mwePatch.testedBy?.productionCertified, false);
   const mwePatchCredits = 1;
-  const yearEndCredits = verifyYearEndCredits(manifest);
-  assert.equal(yearEndCredits, 2, "GET/POST year-end use only current-source #1804 receipt");
+  const yearEndCredits = verifyYearEndPairState(manifest);
+  assert.equal(yearEndCredits, isYearEndHeld(manifest) ? 0 : 2, "GET/POST year-end use only the current-source #1804 receipt, or are held at zero");
   for (const key of ["GET year-end", "POST year-end"]) {
+    if (isYearEndHeld(manifest)) { assert.equal(methodsByKey.get(key)?.status, "GAP"); continue; }
     assert.equal(methodsByKey.get(key)?.status, "COVERED");
     assert.equal(methodsByKey.get(key)?.testedBy?.proofPullRequest, 1804);
   }

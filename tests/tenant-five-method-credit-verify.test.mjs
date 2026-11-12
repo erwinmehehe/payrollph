@@ -1,4 +1,4 @@
-import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -23,14 +23,19 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   const yearEnd = manifest.allApiRouteFiles["src/app/api/year-end/route.ts"];
   assert.equal(yearEnd.gitBlobSha, "f040f5bbbc3df275d32d23f1728b1b0345f77814",
     "Atomic year-end changed source must not borrow the old PG16 receipts");
-  assert.equal(verifyYearEndCredits(manifest), 2,
-    "Only the separate executed #1804 current-source PG16 proof can re-credit year-end");
-  for (const method of yearEnd.methods) {
-    assert.ok(["GET", "POST"].includes(method.name));
-    assert.equal(method.status, "COVERED");
-    assert.equal(method.testedBy?.proofPullRequest, 1804);
-    assert.equal(method.testedBy?.independentlyAccepted, false);
-    assert.equal(method.reviewedUncertified, undefined);
+  if (isYearEndHeld(manifest)) {
+    assert.equal(verifyYearEndHold(manifest), 0, "A withdrawn year-end credit is held at zero until a fresh exact-head PG16 proof renews it");
+    for (const method of yearEnd.methods) { assert.equal(method.status, "GAP"); assert.equal(method.testedBy, null); }
+  } else {
+    assert.equal(verifyYearEndCredits(manifest), 2,
+      "Only the separate executed #1804 current-source PG16 proof can re-credit year-end");
+    for (const method of yearEnd.methods) {
+      assert.ok(["GET", "POST"].includes(method.name));
+      assert.equal(method.status, "COVERED");
+      assert.equal(method.testedBy?.proofPullRequest, 1804);
+      assert.equal(method.testedBy?.independentlyAccepted, false);
+      assert.equal(method.reviewedUncertified, undefined);
+    }
   }
   // Current Worker 360 SSR source is not the historically credited source.
   const worker360Page = manifest.scopedPages.find(x => x.path ===

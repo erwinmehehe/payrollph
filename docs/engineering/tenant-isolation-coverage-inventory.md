@@ -1,11 +1,11 @@
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 454 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 9 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** Latest 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 TOKEN-ONLY + 7 GAP; 17 page/action GAPs. Changed Worker 360 API and page lose historical provisional credit; newest exports POST proof retained. Zero new Worker 360 credits; production acceptance pending.
 
 
 > **OWNER-APPROVED CLASSIFICATION SCOPE — CI/source merge pending:** The [2026-11-11 owner record](../qa/tenant-1921-owner-approval.json) approves exactly nine labels, zero new COVERED credits and no production activation. Main's merged Studio credit is preserved.
 >
-> **CURRENT 2026-11-11 — nine zero-credit architecture reclassifications; 6 API GAPs remain.** 498 methods = **457 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 6 GAP**; 16 page/action GAPs. Six pre-login public routes: [merged #1898 exact-source PG16 HTTP](https://github.com/erwinmehehe/payrollph/actions/runs/42777964271/job/129700836113); two disabled no-data SAML 503 routes: [merged #1896](https://github.com/erwinmehehe/payrollph/pull/1896); one HCM token-only scheduler with dedicated synthetic PG16 proof. All remain **zero new tenant-private COVERED credit** and do not certify SSO, paid signup, active SAML, providers, payroll, or production.
+> **CURRENT 2026-11-11 — nine zero-credit architecture reclassifications; 8 API GAPs remain.** 498 methods = **455 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 8 GAP**; 16 page/action GAPs. Six pre-login public routes: [merged #1898 exact-source PG16 HTTP](https://github.com/erwinmehehe/payrollph/actions/runs/42777964271/job/129700836113); two disabled no-data SAML 503 routes: [merged #1896](https://github.com/erwinmehehe/payrollph/pull/1896); one HCM token-only scheduler with dedicated synthetic PG16 proof. All remain **zero new tenant-private COVERED credit** and do not certify SSO, paid signup, active SAML, providers, payroll, or production.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — approvals PATCH proposal, NOT production acceptance:** 498 methods = 455 COVERED + 15 PUBLIC-BY-DESIGN + 11 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP. [Fresh main combined-family receipt](../../scripts/qa/tenant-approvals-recovery-receipt.json). Both the approvals PATCH and the separately merged BIR candidate POST have distinct provisional evidence; 16 page/action gaps remain. Independent security/payroll review and production acceptance are pending.
 
@@ -50,6 +50,8 @@
 > **2026-11-04 #1760 three-source PG16 provisional recovery (DRAFT / NOT ACCEPTED):** **498 API methods = 408 COVERED / 11 PUBLIC-BY-DESIGN / 79 GAP**; frozen 406-method queue = **324 COVERED / 3 PUBLIC / 79 GAP**; 17 page/action GAPs. POST salary-corrections/preview, POST invitations and PATCH self/profile receive separate #1762 source-matched exact-head fictional PG16 real-HTTP proof receipts, subject to owner/security acceptance. #1762 transfer POST/PATCH remain **GAP / testedBy:null**, as do the source-changed year-end GET/POST. No global isolation certification, production rollout, payroll, provider, payout, CSP or money authorization.
 
 # Tenant isolation — complete API and page coverage inventory (NOT ACCEPTED)
+
+> **Year-end GET and POST held at zero credit (annualization source moved):** 455 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 8 GAP. `src/lib/year-end.ts` now applies imported de minimis to the settlement, so the #1804 fictional PG16 proof (run 42254117862, head `d79db85b`) ran against a previous annualization source. The two provisional method credits are withdrawn, not revoked for cause: a fresh exact-head PG16 proof run on main renews them in a follow-up. Independent payroll and security review remain PENDING.
 
 > **Payroll exports POST provisional evidence:** 457 COVERED / 23 PUBLIC-BY-DESIGN / 6 GAP. exports POST: [PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/43124297782/job/130872336062) from main head `efd875a24`, against a loopback-synthetic PayMongo only (no real provider contacted); route, harness, workflow and shared inputs are byte-identical on the credit base. Independent security review **PENDING**. No production authorization.
 
@@ -150,9 +152,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 7 API methods and 17 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 9 API methods and 17 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 7 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 9 method gaps and 17 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -261,10 +263,10 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 456 |
+| coveredAfter | 454 |
 | publicByDesign | 23 |
 | privilegedOperationsTokenOnly | 12 |
-| gap | 7 |
+| gap | 9 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |

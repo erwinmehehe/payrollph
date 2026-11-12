@@ -18,6 +18,7 @@ type Money = Record<string, number | string>;
 type ImportedRow = {
   grossPay: number; basicSalary: number; netPay: number; taxWithheld: number;
   sssEmployee: number; philHealthEmployee: number; pagIbigEmployee: number; thirteenthMonth: number;
+  deMinimisBreakdown?: Record<string, number>;
 };
 type ExtraRow = ImportedRow & { payDate: string; sourceReference: string };
 type Catalog = {
@@ -32,6 +33,7 @@ type Catalog = {
   controls: {
     description: string; monthlySalary: number; startCutoff: number;
     missingBasicRefusal: string; mweRefusal: string; duplicateSourceRefusal: string; cleanYearEnd: Money;
+    deMinimisLeaveDaysRefusal: string; deMinimisUnknownCategoryRefusal: string; deMinimisAboveGrossRefusal: string;
   };
   limitations: string[];
 };
@@ -110,6 +112,7 @@ const importedValues = (orgId: number, employeeId: number, row: ImportedRow, pay
   grossPay: row.grossPay.toFixed(2), basicSalary: row.basicSalary.toFixed(2), netPay: row.netPay.toFixed(2), taxWithheld: row.taxWithheld.toFixed(2),
   sssEmployee: row.sssEmployee.toFixed(2), philHealthEmployee: row.philHealthEmployee.toFixed(2), pagIbigEmployee: row.pagIbigEmployee.toFixed(2),
   thirteenthMonth: row.thirteenthMonth.toFixed(2),
+  ...(row.deMinimisBreakdown ? { deMinimisBreakdown: row.deMinimisBreakdown } : {}),
 });
 
 async function rejects(promise: Promise<unknown>, needle: string) {
@@ -180,6 +183,17 @@ async function runEngine(catalog: Catalog) {
     await db.insert(historicalPayrollEntries).values(importedValues(controlOrg.id, worker.id, goodRow, `${TAX_YEAR}-01-31`, "CTRL-DUP"));
     check(await rejects(db.insert(historicalPayrollEntries).values(importedValues(controlOrg.id, worker.id, goodRow, `${TAX_YEAR}-02-28`, "CTRL-DUP")), control.duplicateSourceRefusal), "a repeated source reference");
     if ((await importedRows()).length !== 1) controlFailures.push("a refused duplicate must not add an imported row");
+
+    // De minimis detail that cannot be proven against its statutory ceiling is refused, never guessed.
+    const refusedDeMinimis = async (breakdown: Record<string, number>, grossPay: number, needle: string, label: string) => {
+      await db.insert(historicalPayrollEntries).values(importedValues(controlOrg.id, worker.id, { ...goodRow, grossPay, deMinimisBreakdown: breakdown }, `${TAX_YEAR}-03-31`, "CTRL-DM"));
+      check(await rejects(runYearEndAnnualization(controlOrg.id, TAX_YEAR, "golden-phase13"), needle), label);
+      if (await settledRows() !== 0) controlFailures.push(`${label}: a refused settlement must leave no adjustment rows`);
+      await db.delete(historicalPayrollEntries).where(and(eq(historicalPayrollEntries.organizationId, controlOrg.id), eq(historicalPayrollEntries.sourceReference, "CTRL-DM")));
+    };
+    await refusedDeMinimis({ monetizedVacationLeaveDays: 5 }, 30000, control.deMinimisLeaveDaysRefusal, "monetized leave days in imported de minimis");
+    await refusedDeMinimis({ madeUpBenefit: 100 }, 30000, control.deMinimisUnknownCategoryRefusal, "an unknown imported de minimis category");
+    await refusedDeMinimis({ riceSubsidy: 2500 }, 2000, control.deMinimisAboveGrossRefusal, "imported de minimis above the row's gross pay");
 
     // A minimum wage earner cannot be annualized from imported totals (no statutory-wage versus taxable-supplementary breakdown).
     await db.update(employees).set({ mwe: true }).where(eq(employees.id, worker.id));

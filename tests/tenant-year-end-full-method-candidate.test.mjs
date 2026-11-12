@@ -1,4 +1,4 @@
-import { verifyYearEndCredits } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -26,12 +26,20 @@ const gitBlob = path => {
 };
 
 test("source-pinned current year-end GET+POST proof receives only provisional #1804 credits", () => {
-  for (const [path, sha] of Object.entries(PINNED)) {
-    assert.equal(gitBlob(path), sha, path + ": changed dependency requires a fresh exact-head PG16 proof");
-  }
   const manifest = JSON.parse(source(MANIFEST));
   const entry = manifest.allApiRouteFiles[ROUTE];
+  const held = isYearEndHeld(manifest);
+  for (const [path, sha] of Object.entries(PINNED)) {
+    // A withdrawn credit (annualization source moved) is verified by its exact hold instead of the old pin.
+    if (held && path === "src/lib/year-end.ts") continue;
+    assert.equal(gitBlob(path), sha, path + ": changed dependency requires a fresh exact-head PG16 proof");
+  }
   assert.equal(entry.gitBlobSha, PINNED[ROUTE]);
+  if (held) {
+    assert.equal(verifyYearEndHold(manifest), 0);
+    assert.deepEqual(entry.methods.map(({ name, status }) => [name, status]), [["GET", "GAP"], ["POST", "GAP"]]);
+    return;
+  }
   assert.deepEqual(entry.methods.map(({ name, status }) => [name, status]),
     [["GET", "COVERED"], ["POST", "COVERED"]],
     "Only source-matched #1804 real-HTTP evidence allows provisional method credit");
