@@ -27,3 +27,9 @@ In a brand-new, empty localhost PostgreSQL 16 database and an actual Next produc
 The PR never edits production routes, marketing helpers, authentication, the manifest, tenant-table rows, shared test suites, migrations, money paths or provider keys. GitHub must confirm the five new paths do not overlap ANY open PR before merging. Exact-head PG16 CI and independent security/privacy approval are still required.
 
 **NOT ACCEPTED. Draft only.** Successful synthetic proof is not deployment permission, a global tenant security certificate or new coverage credit.
+
+## 2026-11-12 candidate upgrade — DO NOT CREDIT YET
+
+The initial merged #1848 proof produced a successful fictional PG16 HTTP run on a historical PR head but expressly granted zero credits. This renewed runner adds a *second real signed-in allowlisted operator success* after proving stale-MFA denial, real higher-ID forged `organizationId`/`employeeId`/`runId` query parameters, and an attempted `format=raw` override. The JSON report must remain byte-consistent except for the generated `since` timestamp. The unallowlisted higher-ID outsider must still be 403, and durable lead/employer/audit/payroll snapshots must remain unchanged.
+
+**Credit gate stays closed** until this candidate passes on its exact final PR head and the separate method-specific source/workflow/CI receipt and shared ledger accounting are reconciled and accepted. The API aggregates platform-wide marketing requests by design. It is not a tenant-private employer read. Free-text UTM/campaign and landing-path values are not fully de-identified by this test; independent privacy/security review remains PENDING. No merge, deployment or production authorization is implied.
