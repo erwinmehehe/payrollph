@@ -5,11 +5,12 @@ on:
     branches: [main]
     paths:
       - "src/app/app/engagement/page.tsx"
-      - "src/proxy.ts"
+      - "src/lib/multi-entity-hcm-hold.ts"
       - "src/app/app/goals-reviews/page.tsx"
       - "src/lib/tenant-people-page-employer.ts"
       - "scripts/qa/tenant-people-pages-*.mjs"
       - "tests/tenant-people-page*.test.*"
+      - "tests/tenant-people-ssr-multi-entity-hold.test.ts"
       - "docs/qa/tenant-people-pages-boundary.md"
       - ".github/workflows/tenant-people-pages-qa.yml"
   workflow_dispatch:
@@ -170,7 +171,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Validate fail-closed proxy routing and guard before any DB work
+      - name: Validate early SSR rollout hold before any DB work
         run: |
           node --check scripts/qa/tenant-people-pages-multi-entity-http.mjs
           node --import tsx --test tests/tenant-people-ssr-multi-entity-hold.test.ts
@@ -199,7 +200,7 @@ jobs:
           done
           tail -n 80 /tmp/tenant-people-pages-hold.log
           exit 1
-      - name: Verify authenticated employer, foreign and prefetch denial, immutable SQL
+      - name: Verify feature-ON 404 denial for own, foreign and prefetch pages; immutable SQL
         env:
           NODE_ENV: production
         run: node --import tsx scripts/qa/tenant-people-pages-multi-entity-http.mjs
