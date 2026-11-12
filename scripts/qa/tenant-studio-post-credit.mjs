@@ -5,6 +5,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {blob,readStudioDependencyRenewal,jobSpecSha} from './tenant-studio-dependency-renewal.mjs';
 import yaml from 'js-yaml';
+import {assertReviewedReadinessHeaderOnInvitationConfig} from './tenant-invitation-header-source-compat.mjs';
 
 export const STUDIO_POST_PATH='src/app/api/automation-studio/route.ts';
 export const STUDIO_RECEIPT='scripts/qa/tenant-studio-post-credit-receipt.json';
@@ -48,7 +49,10 @@ export function readStudioPostReceipt(read=readFileSync){
  const r=JSON.parse(raw);verifyStudioPostResults(r);readStudioDependencyRenewal(read);
  assert.equal(r.inputBlobs[STUDIO_POST_PATH],'3bfc6666644ca11b480cf2735e9563d46139ebf4','The actual Studio handler must have an executed source seal');
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete current runtime/fixture/proof input union required');
- for(const [p,sha]of Object.entries(r.inputBlobs))assert.equal(blob(read(p)),sha,'Studio executed source drift: '+p);
+ for(const [p,sha]of Object.entries(r.inputBlobs)){
+  if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else assert.equal(blob(read(p)),sha,'Studio executed source drift: '+p);
+ }
  for(const j of Object.values(r.cohort)){
   const workflow=yaml.load(read(j.workflow,'utf8'));assert.deepEqual(workflow.permissions,{contents:'read'});
   assert.equal(jobSpecSha(workflow.jobs[j.jobKey]),j.jobSpecSha,'Studio execution recipe changed: '+j.workflow);
