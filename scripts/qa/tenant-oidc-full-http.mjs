@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { createServer } from "node:https";
 import { lookup } from "node:dns/promises";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { APP, CANONICAL_APP, IDP_HOST, IDP_IP, IDP_ORIGIN, TLS_DIR,
   METHOD, requireFullOidcEnv, assertCallbackDenied } from "./tenant-oidc-full-contract.mjs";
@@ -221,9 +222,9 @@ export async function proveCompleteOidcHttp() {
       await db.update(s.identityProviders).set({ enabled: false }).where(eq(s.identityProviders.id, e.provider.id));
       const count = events.length; await reject(disabled, 403); assert.equal(events.length, count);
       await db.update(s.identityProviders).set({ enabled: true }).where(eq(s.identityProviders.id, e.provider.id));
-      const mfa = await begin(e); codes.get(mfa.code).overrides = { amr: ["pwd"] };
+      const singleFactorFlow = await begin(e); codes.get(singleFactorFlow.code).overrides = { amr: ["pwd"] };
       await db.insert(s.organizationSecurityPolicies).values({ organizationId: e.org.id, requireMfa: true });
-      await reject(mfa, 403);
+      await reject(singleFactorFlow, 403);
       await db.delete(s.organizationSecurityPolicies).where(eq(s.organizationSecurityPolicies.organizationId, e.org.id));
       const inherited = await begin(e); codes.get(inherited.code).overrides = { amr: ["pwd"] };
       await db.insert(s.userOrganizations).values({ userId: e.owner.id, organizationId: padding[0].org.id, role: "owner", active: true });
@@ -272,7 +273,8 @@ export async function proveCompleteOidcHttp() {
       tlsVerificationEnabled: true, transportMocks: false, ssrfGuardUnchanged: true,
       onlyLocallyRoutedSyntheticIdp: true, realProviderCalls: 0, coverageCredits: 0,
       independentSecurityReview: "PENDING", productionCertified: false };
-    writeFileSync(process.env.OIDC_FULL_RECEIPT_FILE || "/tmp/payrollph-oidc-full/receipt.json", JSON.stringify(receipt, null, 2));
+    const receiptDirectory = mkdtempSync(join(TLS_DIR, "receipt-"));
+    writeFileSync(join(receiptDirectory, "receipt.json"), JSON.stringify(receipt, null, 2), { flag: "wx", mode: 0o600 });
     console.log("OIDC_FULL_HTTP_PASS " + JSON.stringify(receipt));
   } finally {
     await new Promise(resolve => idp.close(resolve)); await pool.end();

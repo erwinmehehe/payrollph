@@ -66,3 +66,12 @@ test('Node 22 single-address OIDC transport pins the validated IP without weaken
     ]) assert.ok(handler.includes(required), name + ': missing pinned-IP or TLS safeguard ' + required);
   }
 });
+
+test('sanitized execution receipts use an exclusive private file in a unique directory', () => {
+  const source = readFileSync(new URL('../scripts/qa/tenant-oidc-full-http.mjs', import.meta.url), 'utf8');
+  assert.ok(source.includes('mkdtempSync(join(TLS_DIR, "receipt-"))'));
+  assert.ok(source.includes('{ flag: "wx", mode: 0o600 }'));
+  assert.ok(!source.includes('process.env.OIDC_FULL_RECEIPT_FILE'));
+  const workflow = readFileSync(new URL('../.github/workflows/tenant-oidc-full-http.yml', import.meta.url), 'utf8');
+  assert.ok(workflow.includes('path: /tmp/payrollph-oidc-full/receipt-*/receipt.json'));
+});

@@ -124,7 +124,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: tenant-oidc-full-http-receipt
-          path: /tmp/payrollph-oidc-full/receipt.json
+          path: /tmp/payrollph-oidc-full/receipt-*/receipt.json
           if-no-files-found: error
       - name: Bounded synthetic app diagnostics
         if: failure()
