@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const SOURCE_PINS = Object.freeze({
-  "src/app/api/auth/sso/start/route.ts": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+  "src/app/api/auth/sso/start/route.ts": "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
   "src/app/api/auth/sso/callback/route.ts": "a27d855a81751498cc907134e8e9dde7400c9f58",
   "src/lib/oidc-browser-state.ts": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",

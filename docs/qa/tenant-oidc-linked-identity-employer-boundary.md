@@ -26,3 +26,11 @@ This is a preventative source-boundary fix, **not** a report of observed exploit
 - Independent identity/security review, an isolated provider-token full-flow positive, and exact-final-head CI are still needed.
 
 No migrations, deployment, production flags, worker operations, external payment providers or live identities were touched.
+
+## SSO startup selector ambiguity (same draft)
+
+The public `GET /api/auth/sso/start` previously parsed provider IDs with `Number()` and used the first value of repeated provider and login-hint query parameters. The login hint was checked only for an `@` before its domain was verified. A valid provider and first login hint could therefore create a new OIDC state despite conflicting second selectors or a malformed address.
+
+The entrypoint now rejects repeated `providerId` or `loginHint`, noncanonical or unsafe numeric provider IDs, and invalid work emails **before any provider query or login-state write**. Login-hint normalization shares the strict `ssoDiscoveryEmail` validator already used by anonymous provider discovery.
+
+The disposable PG16 HTTP proof includes eight extra 400-denial cases (duplicate same/foreign providers, duplicate login hints, leading-zero/exponent/decimal provider IDs, missing provider and malformed email). Each checks that no new browser-state cookie or OIDC login-state/employer SQL mutation occurs; existing owned redirects remain positive. This is one more zero-credit `GET` source hardening, not a complete SSO security certification.

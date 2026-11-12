@@ -1663,11 +1663,11 @@
             "cookieHelperFile": "src/lib/oidc-browser-state.ts",
             "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
             "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-            "contractBlobSha": "5c4990abfcc7310d893f22a211732a7d484c3033",
+            "contractBlobSha": "80d8278c439251d068584a946e9ef186b654275d",
             "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
-            "proofBlobSha": "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
+            "proofBlobSha": "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
             "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
-            "unitTestBlobSha": "cb79eea24335ee49f5b80c9838f04827c2d28e10",
+            "unitTestBlobSha": "f82c666418c4f0dd5f9f369146ad1748b9f542e6",
             "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
             "negativeTestBlobSha": "b89879de534005a17f4164df51eb1dca647fbb33",
             "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
@@ -1680,7 +1680,7 @@
               "kind": "existing-oidc-provider-subject-must-match-provider-employer",
               "sourceSha": "a27d855a81751498cc907134e8e9dde7400c9f58",
               "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
-              "proofBlobSha": "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
+              "proofBlobSha": "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
               "scope": "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
               "accepted": false,
               "credits": 0,
@@ -1803,27 +1803,27 @@
       "businessIds": []
     },
     "src/app/api/auth/sso/start/route.ts": {
-      "gitBlobSha": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+      "gitBlobSha": "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
       "route": "auth/sso/start",
       "methods": [
         {
           "name": "GET",
-          "line": 16,
+          "line": 17,
           "status": "GAP",
           "reason": "No valid own-object + real victim-only denial was linked to this method",
           "testedBy": null,
           "reviewedUncertified": {
             "kind": "oidc-initiating-browser-state-binding-zero-credit",
             "originalRouteBlobSha": "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
-            "routeBlobSha": "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+            "routeBlobSha": "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
             "cookieHelperFile": "src/lib/oidc-browser-state.ts",
             "cookieHelperBlobSha": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
             "contractFile": "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-            "contractBlobSha": "5c4990abfcc7310d893f22a211732a7d484c3033",
+            "contractBlobSha": "80d8278c439251d068584a946e9ef186b654275d",
             "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
-            "proofBlobSha": "91ca566ff09994421fd6c6436d9df6a0a9e7987b",
+            "proofBlobSha": "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
             "unitTestFile": "tests/tenant-oidc-browser-state.test.ts",
-            "unitTestBlobSha": "cb79eea24335ee49f5b80c9838f04827c2d28e10",
+            "unitTestBlobSha": "f82c666418c4f0dd5f9f369146ad1748b9f542e6",
             "negativeTestFile": "tests/tenant-oidc-browser-state-contract.test.mjs",
             "negativeTestBlobSha": "b89879de534005a17f4164df51eb1dca647fbb33",
             "workflowFile": ".github/workflows/tenant-oidc-browser-state-http.yml",
@@ -1831,7 +1831,17 @@
             "credits": 0,
             "exactHeadPg16Http": "PENDING",
             "independentSecurityReview": "PENDING",
-            "productionCertified": false
+            "productionCertified": false,
+            "selectorBoundary": {
+              "kind": "canonical-singular-provider-and-verified-email",
+              "sourceSha": "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
+              "proofFile": "scripts/qa/tenant-oidc-browser-state-http.mjs",
+              "proofBlobSha": "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+              "testCases": 8,
+              "status": "EXACT_HEAD_PG16_PENDING",
+              "credits": 0,
+              "productionCertified": false
+            }
           }
         }
       ],
@@ -1846,11 +1856,11 @@
       "callerSuppliedIds": [],
       "businessIds": [
         {
-          "line": 37,
+          "line": 45,
           "token": "organizationId"
         },
         {
-          "line": 37,
+          "line": 45,
           "token": "organizationId"
         }
       ]

@@ -107,3 +107,29 @@ test("OIDC linked identities must match the IdP employer before login or audit w
     "linkedIdentitySqlReadOnly: true",
   ]) assert.ok(runner.includes(required), "Missing fake PG16 identity negative: " + required);
 });
+test("OIDC start rejects duplicate and noncanonical selectors before provider lookup or login state", () => {
+  const providerKeys = start.indexOf('url.searchParams.getAll("providerId")');
+  const hintKeys = start.indexOf('url.searchParams.getAll("loginHint")');
+  const canonicalId = start.indexOf('Number.isSafeInteger(Number(providerValue))');
+  const email = start.indexOf('ssoDiscoveryEmail(hintValues[0])');
+  const providerQuery = start.indexOf("db.select().from(identityProviders)");
+  const stateInsert = start.indexOf("await db.insert(oidcLoginStates)");
+  assert.ok(providerKeys >= 0 && hintKeys > providerKeys && canonicalId > hintKeys &&
+    email > canonicalId && providerQuery > email && stateInsert > providerQuery,
+    "Malformed provider and login selectors must not inspect employer/provider DB or create SSO state");
+  assert.match(start, /providerValues\.length === 1/);
+  assert.match(start, /hintValues\.length === 1/);
+  assert.match(start, /\^\[1-9\]/);
+  assert.match(start, /const domain = loginIdentity\.domain/);
+  assert.doesNotMatch(start, /Number\(url\.searchParams\.get\("providerId"\)\)/);
+  const runner = readFileSync("scripts/qa/tenant-oidc-browser-state-http.mjs", "utf8");
+  for (const marker of [
+    '"duplicate provider"',
+    '"duplicate login"',
+    '"leading zero provider"',
+    '"exponent provider"',
+    '"bad email"',
+    'invalidOrAmbiguousStartsDeniedReadOnly: 8',
+    'assert.deepEqual(await snapshot(), afterStarts',
+  ]) assert.ok(runner.includes(marker), "Missing strict real-HTTP start case: " + marker);
+});

@@ -134,6 +134,37 @@ export async function proveOidcBrowserStateIsolation() {
     assert.ok(!forgedStart.headers.get("set-cookie")?.includes("linaw_oidc_browser_state"));
     assert.deepEqual(await snapshot(), afterStarts, "foreign provider start wrote state");
 
+    // Every selector must be singular and canonical. A duplicate/provider
+    // notation and malformed email previously reached a real redirect/state
+    // for the first matched employer; now all are rejected before DB writes.
+    const goodHint = encodeURIComponent("employee@" + A.domain);
+    const victimHint = encodeURIComponent("employee@" + V.domain);
+    const invalidStarts = [
+      ["duplicate provider", "/api/auth/sso/start?providerId=" + A.provider.id +
+        "&providerId=" + V.provider.id + "&loginHint=" + goodHint],
+      ["duplicate identical provider", "/api/auth/sso/start?providerId=" + A.provider.id +
+        "&providerId=" + A.provider.id + "&loginHint=" + goodHint],
+      ["duplicate login", "/api/auth/sso/start?providerId=" + A.provider.id +
+        "&loginHint=" + goodHint + "&loginHint=" + victimHint],
+      ["leading zero provider", "/api/auth/sso/start?providerId=0" + A.provider.id +
+        "&loginHint=" + goodHint],
+      ["exponent provider", "/api/auth/sso/start?providerId=" + A.provider.id +
+        "e0&loginHint=" + goodHint],
+      ["noncanonical numeric provider", "/api/auth/sso/start?providerId=" + A.provider.id +
+        ".0&loginHint=" + goodHint],
+      ["missing provider", "/api/auth/sso/start?loginHint=" + goodHint],
+      ["bad email", "/api/auth/sso/start?providerId=" + A.provider.id +
+        "&loginHint=" + encodeURIComponent("employee@@"+A.domain)],
+    ];
+    for (const [label, path] of invalidStarts) {
+      const denied = await http(path);
+      assert.equal(denied.status, 400, label + ": invalid SSO start must be denied");
+      assert.ok(!denied.headers.get("set-cookie")?.includes("linaw_oidc_browser_state"),
+        label + ": invalid SSO start cannot set browser state");
+      assert.deepEqual(await snapshot(), afterStarts,
+        label + ": malformed SSO start cannot create login state or change tenant SQL");
+    }
+
     async function refused(label, state, cookie) {
       const original = await snapshot();
       const response = await http("/api/auth/sso/callback?state=" + state + "&code=fictional", cookie);
@@ -234,6 +265,7 @@ export async function proveOidcBrowserStateIsolation() {
       family: "OIDC_START_CALLBACK_BROWSER_STATE_TENANT_BOUNDARY",
       proof: "fictional-PG16-real-localhost-HTTP",
       ownStartRedirects: ownStarts,
+      invalidOrAmbiguousStartsDeniedReadOnly: 8,
       otherBrowserDeniedUnconsumed: deniedOtherBrowsers,
       validBrowserStateConsumedWithoutExternalIdp: matchedClaims,
       differentEmployers: 2, realFillerEmployers: fillers.length, highIdPopulatedVictim: true,
