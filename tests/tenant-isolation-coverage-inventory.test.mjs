@@ -6828,7 +6828,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           kind: "public-careers-SSR-GET-PG16-canonical-selector-unaccepted",
           originalPageBlobSha, pageBlobSha,
           proofFile: "scripts/qa/tenant-careers-page-public-boundary-http.mjs",
-          proofBlobSha: "511abfc448d87aadf89515adc29a78f475193434",
+          proofBlobSha: "6efef6eb6965d1deba1fe8d64446936a09553813",
           workflowFile: ".github/workflows/tenant-edg01-careers-public-get-http.yml",
           workflowBlobSha: "c9f89477a1e013d3ae4c7c50b1d737df1d257269",
           pageActionCredits: 0, methodCredits: 0,
