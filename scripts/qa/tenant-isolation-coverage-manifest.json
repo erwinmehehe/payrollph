@@ -41956,7 +41956,12 @@
         "independentAcceptance": "PENDING",
         "pageCredits": 0,
         "methodCredits": 0,
-        "productionCertified": false
+        "productionCertified": false,
+        "featureOffWorkflowCurrentBlobSha": "a87a0a8803ce1ce49a64357fbaf549125ac94344",
+        "featureOnProofCurrentBlobSha": "99ada251c31031821ddef758b7fe06573061bd82",
+        "contractTestCurrentBlobSha": "610df27e1fe07979619c5d67773b0670fe46ad45",
+        "engagementEmployeeContractCurrentBlobSha": "b40729065e7b696292862d8fb299a527c5a95366",
+        "engagementEmployeeWorkflowCurrentBlobSha": "a146cc00a92a0a7b254280fb1f1848f97696746a"
       }
     },
     {
@@ -42161,7 +42166,10 @@
         "independentAcceptance": "PENDING",
         "pageCredits": 0,
         "methodCredits": 0,
-        "productionCertified": false
+        "productionCertified": false,
+        "featureOffWorkflowCurrentBlobSha": "a87a0a8803ce1ce49a64357fbaf549125ac94344",
+        "featureOnProofCurrentBlobSha": "99ada251c31031821ddef758b7fe06573061bd82",
+        "contractTestCurrentBlobSha": "610df27e1fe07979619c5d67773b0670fe46ad45"
       }
     },
     {
