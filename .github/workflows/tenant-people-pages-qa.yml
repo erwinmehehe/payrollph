@@ -80,6 +80,7 @@ jobs:
           node --check scripts/qa/tenant-people-pages-http.mjs
           node --test tests/tenant-people-pages-contract.test.mjs
           node --import tsx --test tests/tenant-people-page-employer.test.ts
+          node --import tsx --test tests/tenant-people-ssr-multi-entity-hold.test.ts
       - name: Generate fictional-only encryption secrets
         shell: bash
         run: |
