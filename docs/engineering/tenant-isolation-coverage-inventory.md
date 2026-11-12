@@ -1,6 +1,6 @@
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 457 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — OIDC callback proposal:** 457 COVERED / 6 API GAP. [Actual HTTPS IdP/PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/43241241290/job/131261892308). Start/resolve remain GAP. Independent and production acceptance PENDING.
+> **SOLO_VERIFIED_DEV_RECOVERY — OIDC callback proposal:** 457 COVERED / 6 API GAP. [Actual HTTPS IdP/PG16 receipt](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274). Start/resolve remain GAP. Independent and production acceptance PENDING.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
@@ -412,7 +412,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`auth/saml/acs/[providerId]` POST](../../src/app/api/auth/saml/acs/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | evidenced disabled SAML no-data 503 #1896; zero tenant-private credits | **PUBLIC-BY-DESIGN** |
 | [`auth/saml/metadata/[providerId]` GET](../../src/app/api/auth/saml/metadata/[providerId]/route.ts#L9) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/saml/start/[providerId]` GET](../../src/app/api/auth/saml/start/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | evidenced disabled SAML no-data 503 #1896; zero tenant-private credits | **PUBLIC-BY-DESIGN** |
-| [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L27) | query | NONE FOUND | none found | [complete HTTPS IdP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43241241290/job/131261892308) | **COVERED** |
+| [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L27) | query | NONE FOUND | none found | [complete HTTPS IdP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274) | **COVERED** |
 | [`auth/sso/resolve` POST](../../src/app/api/auth/sso/resolve/route.ts#L9) | body | enforceSameOriginMutation L4, enforceSameOriginMutation L10 | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/sso/start` GET](../../src/app/api/auth/sso/start/route.ts#L16) | query | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
 | [`auth/totp/setup` GET](../../src/app/api/auth/totp/setup/route.ts#L18) | session, body | getSessionUser L4, enforceSameOriginMutation L8, getSessionUser L19, enforceSameOriginMutation L33 | none found | NO VALID METHOD PROOF | **GAP** |

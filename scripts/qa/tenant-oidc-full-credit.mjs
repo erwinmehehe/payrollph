@@ -3,18 +3,19 @@ import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 export const OIDC_CALLBACK='src/app/api/auth/sso/callback/route.ts';
-export const OIDC_RECEIPT='scripts/qa/tenant-oidc-full-receipt.json';
+export const OIDC_RECEIPT='scripts/qa/tenant-oidc-full-renewal-receipt.json';
 const HARNESS='scripts/qa/tenant-oidc-full-http.mjs';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 const INVENTORY='docs/engineering/tenant-isolation-coverage-inventory.md';
 const digest=x=>createHash('sha256').update(String(x).replaceAll('\r\n','\n')).digest('hex');
 export function oidcFullExecution(read=readFileSync){
+ assert.equal(digest(read('scripts/qa/tenant-oidc-full-receipt.json','utf8')),'26540730ee86fca67a9e01858867a4d854a61b0afc09dd1d892f3fe646428a27','Historical OIDC receipt changed');
  const raw=read(OIDC_RECEIPT,'utf8');
- assert.equal(digest(raw),'26540730ee86fca67a9e01858867a4d854a61b0afc09dd1d892f3fe646428a27','Executed OIDC receipt changed');
+ assert.equal(digest(raw),'833b92c3ac44cbdca519fd2bea5969ad207449242b59e002e0878df49c1cdcbb','Executed OIDC receipt changed');
  const r=JSON.parse(raw);
- assert.equal(r.sourceCommit,'cf71730f01c2841dbba828bd24c7c802c7832b01');
- assert.equal(r.workflowRunId,43241241290);assert.equal(r.workflowJobId,131261892308);assert.equal(r.jobConclusion,'success');
- assert.equal(r.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/43241241290/job/131261892308');
+ assert.equal(r.sourceCommit,'d46ed24b239b47a2182b868f399f3cbb1d706ca0');
+ assert.equal(r.workflowRunId,43251981343);assert.equal(r.workflowJobId,131299924274);assert.equal(r.jobConclusion,'success');
+ assert.equal(r.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274');
  assert.equal(r.method,'GET auth/sso/callback');assert.equal(r.evidenceClassification,'SOLO_VERIFIED_DEV_RECOVERY');
  assert.deepEqual([r.ownLogins,r.refusedCallbacks,r.authenticatedForeignReadsDenied],[2,43,2]);
  for(const k of ['victimOwnLogin','realPkce','realRsaJwks','tlsVerificationEnabled','ssrfGuardUnchanged','onlyLocallyRoutedSyntheticIdp'])assert.equal(r[k],true,k);
@@ -57,7 +58,18 @@ function reconcileClosure(m,write){
 export function creditOidcCallback({write=false}={}){
  const m=JSON.parse(readFileSync(MANIFEST,'utf8')),row=m.allApiRouteFiles[OIDC_CALLBACK].methods.find(x=>x.name==='GET');
  const before={covered:m.metrics.coveredAfter,gap:m.metrics.gap};
- if(row.status==='COVERED'){verifyOidcCallbackCredit(m);reconcileClosure(m,write);return {write,before,after:before,newCredits:0};}
+ if(row.status==='COVERED'){
+  if(write){
+   assert.equal(m.allApiRouteFiles[OIDC_CALLBACK].gitBlobSha,'a27d855a81751498cc907134e8e9dde7400c9f58');
+   assert.ok(['cf71730f01c2841dbba828bd24c7c802c7832b01',oidcFullExecution().sourceCommit].includes(row.testedBy?.sourceHead),'Unknown prior callback proof');
+   const previous=row.testedBy.evidence;row.testedBy=expected();row.reason=row.reason.replaceAll(previous,row.testedBy.evidence);
+   m.acceptanceStatus=m.acceptanceStatus.replaceAll(previous,row.testedBy.evidence);
+   verifyOidcCallbackCredit(m);
+   writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');
+   writeFileSync(INVENTORY,readFileSync(INVENTORY,'utf8').replaceAll(previous,row.testedBy.evidence));
+  }
+  verifyOidcCallbackCredit(m);reconcileClosure(m,write);return {write,before,after:before,newCredits:0};
+ }
  assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
  row.testedBy=expected();row.status='COVERED';delete row.reviewedUncertified;
  row.reason='Provisional complete synthetic IdP HTTPS/PG16 callback proof: two actual own sessions, real victim/browser/code denials, forged selectors and unchanged protected SQL. '+row.testedBy.evidence+'. SOLO_VERIFIED_DEV_RECOVERY; independent review and production acceptance PENDING.';
