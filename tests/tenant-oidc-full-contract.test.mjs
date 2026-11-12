@@ -37,7 +37,7 @@ test('dedicated workflow retains exact head, real PG16, local network containmen
 test('Node 22 single-address OIDC transport pins the validated IP without weakening SSRF or TLS', () => {
   const path = new URL('../src/lib/security-network.ts', import.meta.url);
   const source = readFileSync(path, 'utf8');
-  const opts = '      autoSelectFamily: false,\\n';
+  const opts = '      autoSelectFamily: false,\n';
   assert.equal(source.split(opts).length - 1, 3,
     'Every validated transport must disable unused dual-family selection for its single pinned IP');
   // Ensure the ONLY change to the independently reviewed network boundary is
@@ -45,7 +45,7 @@ test('Node 22 single-address OIDC transport pins the validated IP without weaken
   // source seal to accommodate unreviewed validation, DNS or TLS changes.
   const baseline = source.replaceAll(opts, '');
   const blob = createHash('sha1')
-    .update('blob ' + Buffer.byteLength(baseline) + '\\0' + baseline)
+    .update('blob ' + Buffer.byteLength(baseline) + '\0' + baseline)
     .digest('hex');
   assert.equal(blob, 'f263da3898451ee53c7b3d1490241ea8aa46e0c2',
     'Existing public-IP validation, pinned lookup and TLS checks must remain byte-identical');
