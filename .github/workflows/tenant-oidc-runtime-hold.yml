@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      OIDC_SSO_RUNTIME_ENABLED: 'false'
+      OIDC_SSO_RUNTIME_MODE: 'blocked'
       WORKER_ENABLED: 'false'
       CENTRAL_SCHEDULER_ENABLED: 'false'
       XENDIT_PAYOUTS_ENABLED: 'false'
