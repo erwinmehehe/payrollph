@@ -6862,7 +6862,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           read > schema && filtered > read,
           "Careers SSR must reject coerced employer IDs before published-only SQL");
         assert.match(actual, /organizationId\?: string \| string\[\]/);
-        assert.match(actual, /!\^\[1-9\]\[0-9\]\*\$\/\.test\(raw\)/);
+        assert.ok(actual.includes("!/^[1-9][0-9]*$/.test(raw)"));
         assert.doesNotMatch(actual, /getSessionUser\(|assertOrganizationRole\(/,
           "Careers is a public-by-design published jobs page; do not add private session assumptions");
         const proof = readFileSync(reviewed.proofFile, "utf8");
