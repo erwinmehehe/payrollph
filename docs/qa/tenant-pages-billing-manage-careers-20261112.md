@@ -1,51 +1,63 @@
-# Tenant isolation — billing manage and public careers page selectors
+# Tenant isolation — billing manage redirect-only alias
 
-## Scope
+## Scope and behavior
 
-This bounded page-route patch changes no payroll calculations, subscription
-payments, API authorization, database migrations, published job data, feature
-flags, or production configuration.
+This bounded fix changes no payroll calculations, payment or subscription
+APIs, migrations, provider configuration, public Careers page, or feature flags.
 
-- `/billing/manage`: Authenticate the session, parse one canonical employer
-  ID (or use the authenticated primary-company default only when absent),
-  check the selected employer's active billing-admin permission and company-wide
-  scope, and then issue a **temporary redirect to that exact employer's**
-  `/billing/setup?organizationId=<id>`. A foreign, revoked, unit-scoped,
-  group-HR, duplicate or malformed tenant context is denied before redirecting.
-- `/careers`: The published job board stays public by design. Before any
-  organization or requisition lookup, require a canonical employer ID. Keep
-  the existing privacy activation, schema readiness, published-only and
-  same-employer job/position SQL predicates unchanged.
-- `src/lib/tenant-page-id.ts`: Shared pure parser rejects arrays, coerced
-  values, exponent/decimal IDs, leading zeros, signs, whitespace, zero and
-  integers outside the safe range.
+- `/billing/manage` now authenticates and checks the live billing role,
+  company-wide employer membership and deny-only permission policy.
+- One explicitly selected `organizationId` must be a canonical positive
+  safe integer. Invalid, duplicate, foreign, revoked, group-HR or unit-only
+  scope is denied before redirect. If the ID is truly absent, use the
+  authenticated primary-company default.
+- Authorized users get a **temporary, same-origin** redirect to
+  `/billing/setup?organizationId=<authorized employer ID>` and the setup
+  page independently rechecks permissions. The selected employer is never
+  silently changed to the default employer.
+- `src/lib/tenant-page-id.ts` is a pure, fail-closed selector parser. It
+  rejects arrays, numeric coercions, leading zeros, signs, exponents,
+  decimals, whitespace, zero and unsafe integers.
 
-## Verification
+## Inventory and evidence
 
-- `node --import tsx --test tests/tenant-page-id.test.ts` checks parser
-  edge cases and source ordering: user session and role before billing
-  redirect; public privacy and employer query guards before listing.
-- `node --test tests/tenant-billing-setup-boundary.test.mjs` checks that the
-  existing fictional PG16 HTTP runner and workflow cover the manage alias.
-- Existing `tenant-billing-setup-page-qa.yml` runs production-mode **localhost
-  only** against disposable PostgreSQL 16 with two authenticated independent
-  owners, a higher-ID victim, invalid/duplicate/foreign selectors,
-  non-billing roles, revoked membership, anonymous access, a shared A+B
-  administrator and immutable billing/payroll/audit snapshots.
-- For the A+B administrator, explicit B manage navigation must remain on B.
-  A missing selector may intentionally choose A as the authorized default.
-- Rejects all configured external payments, mail providers, production
-  database URLs and background worker execution.
+The new endpoint is a redirect-only alias, not an SSR data page or API
+resource. Its source hash, business-ID/guard line pins, 0-credit GAP status,
+and CI proof references are recorded in
+`scripts/qa/tenant-isolation-coverage-manifest.json` under
+`scopedRedirectAliases`. The original **21 data-bearing page/action entries**
+and the remaining **16 formal page/action GAPs** are unchanged. The redirect
+alias itself is also **unaccepted** and cannot claim a newly covered page.
 
-## Evidence and limits
+`tests/tenant-isolation-coverage-inventory.test.mjs` requires exactly this
+one source-pinned redirect-only alias, verifies that authorization precedes
+the scoped redirect, disallows direct SQL/data reads, and checks the
+dedicated fictional PG16 HTTP proof. All other new or changed scoped pages
+still require review and their own manifest entries.
 
-Static tests are not proof of running production deployment. The PG16 CI
-workflow must pass against the **exact PR head**, and an independent
-authorization/privacy review is still required. The existing 21-page coverage
-manifest and its unresolved page/action GAP counts are intentionally
-**unchanged**; this patch awards zero new formal proof credits.
+## Verification and non-production limits
 
-The public careers route is not a private tenant page. Public publication
-policy and applicant privacy still require their own review; the selector
-change does not make all recruiting pages private. Other pages and all API
-methods remain out of scope.
+- `node --import tsx --test tests/tenant-page-id.test.ts`: strict selector,
+  session/role/scope ordering and redirect-target checks.
+- `node --test tests/tenant-billing-setup-boundary.test.mjs`: exact proof
+  markers and workflow trigger checks.
+- `node --test tests/tenant-isolation-coverage-inventory.test.mjs`:
+  source-pinned inventory drift guard.
+- The dedicated `tenant-billing-setup-page-qa.yml` executes a production
+  Next build against **disposable localhost PostgreSQL 16 only** with two
+  independently authenticated owners, a third victim employer, shared A+B
+  administrator, role/unit/revocation/anonymous/invalid-selector refusals
+  and immutable victim billing/payroll/audit SQL snapshots.
+- No external payment processors, email delivery, money, public application
+  data, background workers or live database may be used in the test runner.
+
+Prior static and synthetic evidence is not a production guarantee. Require
+an exact-head green CI run and an independent security review before
+promoting the change. No broad tenant-security certification or new page
+coverage credit is asserted.
+
+## Rollback
+
+Revert only the route/parser/tests/alias inventory/workflow changes in this
+PR. The underlying `/billing/setup` authorization and API gates remain
+independent and unchanged.
