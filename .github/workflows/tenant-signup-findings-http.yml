@@ -1,0 +1,327 @@
+name: "Signup findings - exact-source RED then GREEN (fictional PG16, loopback mail)"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-signup-findings-http.yml'
+      - 'scripts/qa/tenant-signup-*.mjs'
+      - 'scripts/qa/tenant-prelogin-*.mjs'
+      - 'tests/signup-*.test.ts'
+      - 'tests/tenant-prelogin-contract.test.mjs'
+      - 'src/app/api/signup/**'
+      - 'src/app/api/setup/**'
+      - 'src/app/api/intake-challenge/**'
+      - 'src/lib/signup-pending-recovery.ts'
+      - 'src/lib/saas-*.ts'
+      - 'src/lib/private-pilot-invite.ts'
+      - 'src/lib/public-intake-proof*.ts'
+      - 'src/lib/rate-limit*.ts'
+      - 'src/lib/mail*.ts'
+      - 'src/lib/security-*.ts'
+      - 'src/lib/auth.ts'
+      - 'src/lib/crypto.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'src/db/**'
+      - 'src/components/marketing/self-serve-signup-form.tsx'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-signup-findings-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [normal, invited]
+    env:
+      SIGNUP_FINDINGS_MODE: ${{ matrix.mode }}
+      GITHUB_HEAD_REVISION: baseline
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TENANT_PRELOGIN_MODE: fictional-pg16-http
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact head and preserve the same regression proof for baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_HEAD_SHA"
+          if [ "$GITHUB_HEAD_REVISION" = baseline ]; then
+            cp scripts/qa/tenant-signup-findings-http.mjs /tmp/signup-findings-exact-proof.mjs
+            git checkout --detach efd875a246bb38345ef805ea64363472af72414f
+            cp /tmp/signup-findings-exact-proof.mjs scripts/qa/tenant-signup-findings-http.mjs
+          fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export only fictional targets, masked throwaway keys, and disabled release flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { randomBytes, createHash } from 'node:crypto';
+          import { TENANT_TABLE_BASE_ENV } from './scripts/qa/tenant-table-env.mjs';
+          const env = { ...TENANT_TABLE_BASE_ENV,
+            TENANT_PRELOGIN_MODE: 'fictional-pg16-http',
+            SMTP_URL: 'smtp://127.0.0.1:2525', PUBLIC_SIGNUP_MODE: 'pilot',
+            PUBLIC_INTAKE_PROOF_ENABLED: 'true', TRUSTED_PROXY_HOPS: '1',
+            PRIVATE_PILOT_INVITE_ENABLED: process.env.SIGNUP_FINDINGS_MODE === 'invited' ? 'true' : 'false' };
+          for (const name of ['FINAL_PAY_SIGNED_REVIEW_ENABLED','EXACT_THIRTEENTH_CENTAVOS_ENABLED',
+            'PAYROLL_CALCULATION_HISTORY_ENABLED','NEXT_CSP_ENABLED','PAYMONGO_DISBURSEMENTS_ENABLED',
+            'XENDIT_PAYOUTS_ENABLED','XENDIT_BILLING_ENABLED','WORKER_ENABLED','CENTRAL_SCHEDULER_ENABLED']) env[name]='false';
+          for (const name of ['PAYMONGO_SECRET_KEY','XENDIT_SECRET_KEY','XENDIT_PAYOUT_SECRET_KEY',
+            'RESEND_API_KEY','POSTMARK_SERVER_TOKEN','STRIPE_SECRET_KEY']) env[name]='';
+          for (const name of ['PUBLIC_INTAKE_PROOF_SECRET','PII_ENCRYPTION_KEY','BANK_DATA_ENCRYPTION_KEY',
+            'TOTP_ENCRYPTION_KEY','SETUP_TOKEN']) env[name]=randomBytes(32).toString('hex');
+          env.RESEND_WEBHOOK_SECRET='whsec_'+randomBytes(32).toString('base64');
+          if (env.PRIVATE_PILOT_INVITE_ENABLED === 'true') {
+            const sha = value => createHash('sha256').update(value).digest('hex');
+            env.PRIVATE_PILOT_INVITE_EMAIL_SHA256=sha('signup-invited-recovery@example.invalid');
+            env.PRIVATE_PILOT_INVITE_CODE_SHA256=sha('fictional-loopback-invite-for-signup-findings-2026-only');
+            env.PRIVATE_PILOT_INVITE_EXPIRES_AT=new Date(Date.now()+3600000).toISOString();
+          }
+          for (const [key,value] of Object.entries(env)) {
+            if (value && /SECRET|TOKEN|KEY|DATABASE_URL/.test(key)) console.log('::add-mask::'+value);
+            appendFileSync(process.env.GITHUB_ENV, key+'='+value+'\n');
+          }
+          NODE
+      - name: Validate fail-closed fixture contracts
+        run: |
+          node --check scripts/qa/tenant-signup-findings-http.mjs
+          node --test tests/tenant-prelogin-contract.test.mjs
+      - name: Focused helper and actual in-memory fallback tests
+        if: env.GITHUB_HEAD_REVISION == 'current'
+        run: npx tsx --test --test-concurrency=1 tests/signup-pending-recovery.test.ts tests/signup-rate-limit-fallback.test.ts tests/registration-entry.test.ts
+      - name: Initialize only this disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only the reviewed disposable PostgreSQL cutover baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build application with provider and release flags OFF
+        run: npm run build
+      - name: Start loopback-only app without exposing raw request or database diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-signup-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then echo 'LOOPBACK_APP_START_FAILED'; exit 1; fi
+            sleep 2
+          done
+          echo 'LOOPBACK_APP_START_TIMED_OUT'
+          exit 1
+      - name: Require named finding failures on baseline or all assertions passing on current
+        run: node --import tsx scripts/qa/tenant-signup-findings-http.mjs
+      - name: Preserve sanitized exact-source evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signup-findings-${{ matrix.mode }}-baseline
+          path: signup-findings-*/signup-findings-${{ matrix.mode }}-baseline.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  current:
+    needs: baseline
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [normal, invited]
+    env:
+      SIGNUP_FINDINGS_MODE: ${{ matrix.mode }}
+      GITHUB_HEAD_REVISION: current
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TENANT_PRELOGIN_MODE: fictional-pg16-http
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact head and preserve the same regression proof for baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_HEAD_SHA"
+          if [ "$GITHUB_HEAD_REVISION" = baseline ]; then
+            cp scripts/qa/tenant-signup-findings-http.mjs /tmp/signup-findings-exact-proof.mjs
+            git checkout --detach efd875a246bb38345ef805ea64363472af72414f
+            cp /tmp/signup-findings-exact-proof.mjs scripts/qa/tenant-signup-findings-http.mjs
+          fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export only fictional targets, masked throwaway keys, and disabled release flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { randomBytes, createHash } from 'node:crypto';
+          import { TENANT_TABLE_BASE_ENV } from './scripts/qa/tenant-table-env.mjs';
+          const env = { ...TENANT_TABLE_BASE_ENV,
+            TENANT_PRELOGIN_MODE: 'fictional-pg16-http',
+            SMTP_URL: 'smtp://127.0.0.1:2525', PUBLIC_SIGNUP_MODE: 'pilot',
+            PUBLIC_INTAKE_PROOF_ENABLED: 'true', TRUSTED_PROXY_HOPS: '1',
+            PRIVATE_PILOT_INVITE_ENABLED: process.env.SIGNUP_FINDINGS_MODE === 'invited' ? 'true' : 'false' };
+          for (const name of ['FINAL_PAY_SIGNED_REVIEW_ENABLED','EXACT_THIRTEENTH_CENTAVOS_ENABLED',
+            'PAYROLL_CALCULATION_HISTORY_ENABLED','NEXT_CSP_ENABLED','PAYMONGO_DISBURSEMENTS_ENABLED',
+            'XENDIT_PAYOUTS_ENABLED','XENDIT_BILLING_ENABLED','WORKER_ENABLED','CENTRAL_SCHEDULER_ENABLED']) env[name]='false';
+          for (const name of ['PAYMONGO_SECRET_KEY','XENDIT_SECRET_KEY','XENDIT_PAYOUT_SECRET_KEY',
+            'RESEND_API_KEY','POSTMARK_SERVER_TOKEN','STRIPE_SECRET_KEY']) env[name]='';
+          for (const name of ['PUBLIC_INTAKE_PROOF_SECRET','PII_ENCRYPTION_KEY','BANK_DATA_ENCRYPTION_KEY',
+            'TOTP_ENCRYPTION_KEY','SETUP_TOKEN']) env[name]=randomBytes(32).toString('hex');
+          env.RESEND_WEBHOOK_SECRET='whsec_'+randomBytes(32).toString('base64');
+          if (env.PRIVATE_PILOT_INVITE_ENABLED === 'true') {
+            const sha = value => createHash('sha256').update(value).digest('hex');
+            env.PRIVATE_PILOT_INVITE_EMAIL_SHA256=sha('signup-invited-recovery@example.invalid');
+            env.PRIVATE_PILOT_INVITE_CODE_SHA256=sha('fictional-loopback-invite-for-signup-findings-2026-only');
+            env.PRIVATE_PILOT_INVITE_EXPIRES_AT=new Date(Date.now()+3600000).toISOString();
+          }
+          for (const [key,value] of Object.entries(env)) {
+            if (value && /SECRET|TOKEN|KEY|DATABASE_URL/.test(key)) console.log('::add-mask::'+value);
+            appendFileSync(process.env.GITHUB_ENV, key+'='+value+'\n');
+          }
+          NODE
+      - name: Validate fail-closed fixture contracts
+        run: |
+          node --check scripts/qa/tenant-signup-findings-http.mjs
+          node --test tests/tenant-prelogin-contract.test.mjs
+      - name: Focused helper and actual in-memory fallback tests
+        if: env.GITHUB_HEAD_REVISION == 'current'
+        run: npx tsx --test --test-concurrency=1 tests/signup-pending-recovery.test.ts tests/signup-rate-limit-fallback.test.ts tests/registration-entry.test.ts
+      - name: Initialize only this disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only the reviewed disposable PostgreSQL cutover baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build application with provider and release flags OFF
+        run: npm run build
+      - name: Start loopback-only app without exposing raw request or database diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-signup-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then echo 'LOOPBACK_APP_START_FAILED'; exit 1; fi
+            sleep 2
+          done
+          echo 'LOOPBACK_APP_START_TIMED_OUT'
+          exit 1
+      - name: Require named finding failures on baseline or all assertions passing on current
+        run: node --import tsx scripts/qa/tenant-signup-findings-http.mjs
+      - name: Preserve sanitized exact-source evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signup-findings-${{ matrix.mode }}-current
+          path: signup-findings-*/signup-findings-${{ matrix.mode }}-current.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  source-guards:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Run tenant guards without a production database or provider
+        shell: bash
+        run: |
+          set +e
+          node --test --test-concurrency=1 tests/tenant-*.test.mjs > /tmp/signup-tenant-guards.tap 2>&1
+          result=$?
+          set -e
+          grep -E '^not ok|^# (tests|pass|fail|skipped|duration_ms)' /tmp/signup-tenant-guards.tap || true
+          exit "$result"
+      - name: Run the repository repin tool and check (no category changes)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-manifest-repin.mjs --base efd875a246bb38345ef805ea64363472af72414f --write
+          node scripts/qa/tenant-manifest-repin.mjs --base efd875a246bb38345ef805ea64363472af72414f
+          git diff --stat

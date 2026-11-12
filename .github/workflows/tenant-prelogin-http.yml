@@ -8,6 +8,7 @@ on:
       - '.github/workflows/tenant-prelogin-http.yml'
       - 'scripts/qa/tenant-prelogin-*.mjs'
       - 'tests/tenant-prelogin-contract.test.mjs'
+      - 'src/lib/signup-pending-recovery.ts'
       - 'src/app/api/setup/**'
       - 'src/app/api/intake-challenge/**'
       - 'src/app/api/signup/**'
@@ -53,6 +54,10 @@ jobs:
       XENDIT_BILLING_ENABLED: 'false'
       WORKER_ENABLED: 'false'
       CENTRAL_SCHEDULER_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
       PAYMONGO_SECRET_KEY: ''
       XENDIT_SECRET_KEY: ''
       RESEND_API_KEY: ''
@@ -74,6 +79,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact PR head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -84,8 +94,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The shared base environment, read from the module rather than copied, so it cannot drift.
-          node -e 'import("./scripts/qa/tenant-table-env.mjs").then((m) => { for (const [k, v] of Object.entries(m.TENANT_TABLE_BASE_ENV)) console.log(k + "=" + v); })' >> "$GITHUB_ENV"
+          # Read the shared synthetic base; mask even fictional credentials before exporting.
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { TENANT_TABLE_BASE_ENV } from './scripts/qa/tenant-table-env.mjs';
+          for (const [key, value] of Object.entries(TENANT_TABLE_BASE_ENV)) {
+            if (value && /SECRET|TOKEN|KEY|DATABASE_URL/.test(key)) console.log('::add-mask::' + value);
+            appendFileSync(process.env.GITHUB_ENV, key + '=' + value + '\n');
+          }
+          NODE
           proof_secret="$(openssl rand -hex 32)"
           echo "::add-mask::$proof_secret"
           {
@@ -95,6 +112,11 @@ jobs:
             echo 'XENDIT_PAYOUTS_ENABLED=false'
             echo 'WORKER_ENABLED=false'
             echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'FINAL_PAY_SIGNED_REVIEW_ENABLED=false'
+            echo 'EXACT_THIRTEENTH_CENTAVOS_ENABLED=false'
+            echo 'PAYROLL_CALCULATION_HISTORY_ENABLED=false'
+            echo 'NEXT_CSP_ENABLED=false'
+            echo 'PRIVATE_PILOT_INVITE_ENABLED=false'
             echo 'PAYMONGO_SECRET_KEY='
             echo 'XENDIT_SECRET_KEY='
             echo 'RESEND_API_KEY='
@@ -135,20 +157,14 @@ jobs:
           nohup npm start -- -H 127.0.0.1 > /tmp/tenant-prelogin-next.log 2>&1 &
           server=$!
           for attempt in $(seq 1 60); do
-            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
-              exit 0
-            fi
-            if ! kill -0 "$server" 2>/dev/null; then
-              cat /tmp/tenant-prelogin-next.log
-              exit 1
-            fi
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then echo 'PRELOGIN_LOOPBACK_START_FAILED'; exit 1; fi
             sleep 2
           done
-          cat /tmp/tenant-prelogin-next.log
+          echo 'PRELOGIN_LOOPBACK_START_TIMED_OUT'
           exit 1
       - name: Verify first-run setup, registration, resend and verification as two independent applicants beside a higher-ID victim (the proof hosts the loopback mail sink)
         run: node --import tsx scripts/qa/tenant-prelogin-http.mjs
-      - name: Show localhost-only diagnostic log on failure
+      - name: Keep request, mailbox and database diagnostics out of public logs
         if: failure()
-        run: |
-          cat /tmp/tenant-prelogin-next.log || true
+        run: echo 'Pre-login check failed; raw application log intentionally not published.'

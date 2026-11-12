@@ -51,8 +51,10 @@ test("real private-invite signup enters onboarding and obeys expiry without fabr
   try{
     const rejected=await POST(request("wrong-invite"));assert.equal(rejected.status,422);
     assert.equal((await db.select().from(users).where(eq(users.email,email))).length,0);
-    const created=await POST(request());assert.equal(created.status,201);
-    assert.equal((await created.json()).activated,true);
+    const created=await POST(request());assert.equal(created.status,202);
+    const accepted=await created.json();
+    assert.deepEqual(Object.keys(accepted).sort(),["message","ok"],"HTTP must not disclose activation or account existence");
+    assert.equal(accepted.ok,true);
     const [owner]=await db.select().from(users).where(eq(users.email,email));assert.ok(owner?.active);userId=owner.id;
     const [membership]=await db.select().from(userOrganizations).where(eq(userOrganizations.userId,userId));
     organizationId=membership.organizationId;assert.equal(membership.role,"owner");
@@ -62,6 +64,10 @@ test("real private-invite signup enters onboarding and obeys expiry without fabr
     assert.equal(await isSelfServeOrganization(organizationId),true,"Invited pilot must enter the same first-payroll journey");
     assert.equal(await requireSaasPaidWrites(organizationId),null,"Active pilot needs no payment");
     const duplicate=await POST(request());assert.equal(duplicate.status,202);
+    assert.deepEqual(await duplicate.json(),accepted,"New and existing invited addresses have the same public answer");
+    assert.deepEqual([...duplicate.headers],[...created.headers]);
+    assert.equal((await db.select().from(users).where(eq(users.email,email)))[0].passwordHash,owner.passwordHash,
+      "Reusing an invitation must not replace an activated owner's password");
     assert.equal((await db.select().from(users).where(eq(users.email,email))).length,1);
     assert.equal((await db.select().from(userOrganizations).where(eq(userOrganizations.userId,userId))).length,1);
     await db.update(subscriptions).set({trialEndsAt:new Date("2000-01-01T00:00:00Z")})

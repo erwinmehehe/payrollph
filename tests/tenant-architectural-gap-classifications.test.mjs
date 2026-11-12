@@ -40,7 +40,7 @@ test("six public pre-login classifications are bound to identical merged PG16 so
     assert.equal(c.sourceBlobSha, hash(item[0]));
     assert.equal(c.proofBlobSha, hash(c.proofFile));
     assert.equal(c.workflowBlobSha, hash(c.workflowFile));
-    assert.equal(c.proofRun, "https://github.com/erwinmehehe/payrollph/actions/runs/42777964271/job/129700836113");
+    assert.equal(c.proofRun, "https://github.com/erwinmehehe/payrollph/actions/runs/43134412313/job/130906150181");
     assert.equal(c.methodCoverageCredits, 0);
     assert.equal(c.productionCertified, false);
     assert.equal(c.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");

@@ -86,8 +86,10 @@ export function SelfServeSignupForm({ mode, plans, initialPlan, privateInviteEna
         return;
       }
       setVerificationEmail(values.email.trim());
-      setActivated(payload.activated === true);
-      setDeliveryConfirmed(payload.delivery === "accepted_by_provider");
+      // The HTTP acknowledgement deliberately cannot reveal account existence.
+      // This UI branch reflects the submitted flow, never a server activation claim.
+      setActivated(isPilot && Boolean(privatePilotInviteCode.trim()));
+      setDeliveryConfirmed(true); // Delivery/account state is never disclosed by signup.
       setSubmitted(true);
       setPrivatePilotInviteCode("");
       setValues({ name: "", email: "", company: "", password: "", confirm: "" });
@@ -134,13 +136,13 @@ export function SelfServeSignupForm({ mode, plans, initialPlan, privateInviteEna
       <section className="rounded-[24px] border border-[#d5e7db] bg-[#f2fff6] p-7" role="status">
         <CheckCircle2 size={32} className="text-[#13805c]" />
         <h2 className="mt-3 font-display text-[26px] font-semibold">
-          {activated ? "Your private pilot account is ready" : "Verify your email to continue"}
+          {activated ? "Private pilot invitation submitted" : "Check your email to continue"}
         </h2>
         {activated ? (
           <p className="mt-3 text-[14px] leading-relaxed text-[#42546d]">
-            Your 14-day Core development pilot is available for <strong>{verificationEmail}</strong>.
-            Sign in with the new password you entered. No email link or payment is required for this
-            invitation. Do not enter real employee, payroll or bank information.
+            If the invitation for <strong>{verificationEmail}</strong> was accepted, you can sign in
+            using your account password. An accepted private invitation does not require a verification
+            email or payment. Use fictional data only; never enter real payroll or bank information.
           </p>
         ) : (
           <>
