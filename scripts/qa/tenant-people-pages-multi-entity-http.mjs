@@ -1,8 +1,8 @@
 /**
  * Read-only, fictional PG16 real-HTTP proof for the two private People page
- * routes while the multi-entity HCM embargo is ON.
+ * routes while the multi-entity HCM embargo is ON (SSR not-found before private reads).
  *
- * Must run ONLY in the dedicated disposable GitHub Actions job. A 403 shell
+ * Must run ONLY in the dedicated disposable GitHub Actions job. A 404 not-found response
  * is NOT tenant-isolation acceptance for the feature-OFF pages.
  */
 import assert from "node:assert/strict";
@@ -40,11 +40,11 @@ async function deniedRead(path, cookie, all, label, prefetch = false) {
     signal: AbortSignal.timeout(30000),
   });
   const body = await response.text();
-  assert.equal(response.status, 403, label + " must be denied before SSR");
-  assert.match(response.headers.get("cache-control") ?? "", /private.*no-store/,
-    label + " must not cache sensitive page denial");
-  assert.equal(JSON.parse(body).code, "ENTITY_HCM_DEFERRED",
-    label + " must be denied by the existing HCM embargo, not a generic error");
+  assert.equal(response.status, 404, label + " must be denied by the page-level HCM embargo");
+  assert.match(response.headers.get("cache-control") ?? "", /no-store/,
+    label + " must not cache a sensitive page denial");
+  assert.ok(!body.includes("ENTITY_HCM_DEFERRED"),
+    label + " must use the SSR not-found boundary without rewriting the global proxy");
   assertNoOtherEmployerMarkers(body, all, label);
 }
 
