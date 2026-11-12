@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { canonicalTenantPageId } from "@/lib/tenant-page-id";
 import {
   assertOrganizationRole,
   BILLING_ADMIN_ROLES,
@@ -31,10 +32,7 @@ export default async function ManageBilling({
   const selected = (await searchParams).organizationId;
   const organizationId = selected === undefined
     ? await primaryCompanyOrganizationId(user.id)
-    : typeof selected === "string" && /^[1-9]\\d*$/.test(selected)
-      && Number.isSafeInteger(Number(selected))
-      ? Number(selected)
-      : null;
+    : canonicalTenantPageId(selected);
   // An explicitly supplied invalid/duplicate employer never falls back.
   if (!organizationId) notFound();
 
