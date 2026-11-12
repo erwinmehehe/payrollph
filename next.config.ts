@@ -66,6 +66,15 @@ const nextConfig: NextConfig = {
           { key: "Pragma", value: "no-cache" },
         ],
       },
+      // Next headers() overrides the route's private response policy on the
+      // actual wire. Employer-specific readiness includes employee/payroll
+      // counts and must remain private even for blocked-launch evidence.
+      {
+        source: "/api/readiness/workspace",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
       // The general API header overrides route-level Cache-Control in Next.
       // Keep sensitive MWE decision denials explicitly private on the wire.
       // This more-specific rule must follow the general /api rule.

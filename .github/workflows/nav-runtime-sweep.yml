@@ -197,6 +197,11 @@ jobs:
         run: node --import tsx scripts/nav-sweep-tenant-edges.mjs
       - name: Focused Settings navigation regression at desktop and 390px
         run: NAV_SWEEP_FOCUS_ROLE=owner NAV_SWEEP_FOCUS_PAGE=Settings node --import tsx --test tests/e2e/nav-sweep.spec.mjs
+      - name: Focused Owner Readiness fail-closed contract at desktop and 390px
+        run: |
+          node --test tests/e2e/nav-sweep-readiness-contract.test.mjs tests/tenant-next-config-readiness-source-compat.test.mjs
+          node --import tsx --test tests/readiness-workspace-cache-control.test.ts
+          NAV_SWEEP_FOCUS_ROLE=owner NAV_SWEEP_FOCUS_PAGE=Readiness node --import tsx --test tests/e2e/nav-sweep.spec.mjs
       - name: Focused 375px role-scoped visual and mobile navigation acceptance
         shell: bash
         run: |
