@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from
+import { assertHistoricalNextConfigPreservedWithInvitationHeaders,
+  assertReviewedReadinessHeaderOnInvitationConfig } from
   "../scripts/qa/tenant-invitation-header-source-compat.mjs";
 
 const historicalSha = "a61ed6eeefbf0795e94982ae3df55223c9e11dfa";
@@ -35,4 +36,28 @@ test("missing, public, broadened, duplicated or reordered rules fail the histori
     assertHistoricalNextConfigPreservedWithInvitationHeaders(Buffer.from(source), "forged"),
     /Only the precise historical Next config receipt/,
   );
+});
+
+const priorInvitationSha = "72fe25fba8c44a20c29eabfd85568114f5c70c6f";
+
+test("the later 300-plus-input PG16 receipts permit only this exact non-overlapping Readiness change", () => {
+  assert.equal(assertReviewedReadinessHeaderOnInvitationConfig(
+    Buffer.from(source), priorInvitationSha), true);
+  assert.throws(() => assertReviewedReadinessHeaderOnInvitationConfig(
+    Buffer.from(source), historicalSha),
+  /Only the precise executed invitation-header config/);
+  for (const changed of [
+    source.replace('source: "/api/readiness/workspace"',
+      'source: "/api/readiness/:path*"'),
+    source.replace('value: "private, no-store, max-age=0"',
+      'value: "public, max-age=3600"'),
+    source.replace('value: "no-store, max-age=0"',
+      'value: "private, max-age=0"'),
+    source + "\n// unreviewed next.config change\n",
+  ]) {
+    assert.notEqual(changed, source);
+    assert.throws(() => assertReviewedReadinessHeaderOnInvitationConfig(
+      Buffer.from(changed), priorInvitationSha),
+    /Next config drift beyond two exact reviewed private-header exceptions/);
+  }
 });
