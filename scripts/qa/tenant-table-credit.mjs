@@ -68,11 +68,14 @@ const catalogKeys = new Set(["read", "write"].flatMap(kind => tenantFamilyCatalo
 // A passing create_worksite action cannot certify other POST worksite actions.
 // Keep this method GAP until a separately reviewed complete proof is accepted.
 const actionScopedMethodHolds = new Set(["POST workforce/worksites"]);
-// The old organization-only row cannot recertify the revised legal-employer
-// identity/history source. Require a separately reviewed new source receipt.
-const retiredSourceMethodHolds = new Set(["GET hcm/worker-360"]);
-if (onlyKeys.some(key => retiredSourceMethodHolds.has(key))) {
-  throw new Error("GET hcm/worker-360 remains GAP: historical organization-only proof was superseded");
+// Superseded shared rows cannot restore withdrawn source-specific credits.
+// Worker 360 and year-end require separately reviewed exact-source renewal,
+// not a caller-supplied label or an older organization-only table receipt.
+const retiredSourceMethodHolds = new Set(["GET hcm/worker-360", "GET year-end", "POST year-end"]);
+const retiredSelection = onlyKeys.find(key => retiredSourceMethodHolds.has(key));
+if (retiredSelection) {
+  const priorProof = retiredSelection === "GET hcm/worker-360" ? "organization-only" : "annualization";
+  throw new Error(retiredSelection + ": historical " + priorProof + " proof was superseded; dedicated exact-source renewal required");
 }
 if (onlyKeys.some(key => actionScopedMethodHolds.has(key))) {
   throw new Error("POST workforce/worksites remains GAP: create_worksite does not prove other POST actions");

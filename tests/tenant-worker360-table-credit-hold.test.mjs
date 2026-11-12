@@ -20,3 +20,27 @@ test("an explicit historical Worker 360 table selection also fails closed", () =
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /historical organization-only proof was superseded/);
 });
+
+for (const key of ["GET year-end", "POST year-end"]) {
+  test("superseded " + key + " cannot bypass the source hold through table selection", () => {
+    const files = ["scripts/qa/tenant-isolation-coverage-manifest.json",
+      "docs/engineering/tenant-isolation-coverage-inventory.md"];
+    const before = files.map(path => readFileSync(path));
+    for (const extra of [
+      ["--check"],
+      ["--run-label", "historical table receipt is not source renewal"],
+      ["--refresh-links", "--check"],
+    ]) {
+      const result = spawnSync(process.execPath,
+        ["scripts/qa/tenant-table-credit.mjs", "--only-key", key, ...extra],
+        { encoding: "utf8" });
+      assert.equal(result.error, undefined);
+      assert.equal(result.signal, null);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /historical annualization proof was superseded/);
+      assert.match(result.stderr, /dedicated exact-source renewal required/);
+      files.forEach((path, i) => assert.deepEqual(readFileSync(path), before[i],
+        "A refused credit selection must not change " + path));
+    }
+  });
+}

@@ -7611,7 +7611,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(workflow, /node --import tsx scripts\/qa\/tenant-hcm-process-monitor-http\.mjs/);
         continue; // Source-pinned feature-ON SSR candidate: still GAP, never certified.
       }
-      // #1888 hire-to-payroll read-only SSR: an exact-source, ZERO-CREDIT
+      // #1888 / #1937 hire-to-payroll read-only SSR: an exact-source, ZERO-CREDIT
       // fictional PG16 candidate for the employer/employee existence gate.
       // A changed page is NOT promoted by source-only tests; exact-head real
       // HTTP, independent security/HR review and a distinct acceptance
@@ -7620,7 +7620,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(entry.status, "GAP");
         assert.equal(entry.testedBy, undefined, "An unaccepted SSR page has no tenant coverage credit");
         assert.equal(baseline.app[path], "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a");
-        assert.equal(current, "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+        assert.equal(current, "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
           "Changed hire-to-payroll page requires renewed source-pinned proof");
         assert.equal(entry.blob, current, "Manifest must pin new exact SSR page SHA");
         assert.match(entry.reason, /^Still GAP: #1888 /);
@@ -7628,11 +7628,11 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.deepEqual(reviewed, {
           "kind": "hire-payroll-employer-worker-SSR-PG16-candidate-unaccepted",
           "originalPageBlobSha": "32dfe6ca009a1b4455b9624be3e1f5a8f26b287a",
-          "pageBlobSha": "5bc150a6ed9e655d074fecefaa4ba662f4ab41a3",
+          "pageBlobSha": "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
           "proofFile": "scripts/qa/tenant-hire-payroll-review-http.mjs",
           "proofBlobSha": "38b87f3f71fd15e93ac096bcc9c16899fb76b0b2",
           "contractFile": "scripts/qa/tenant-hire-payroll-review-contract.mjs",
-          "contractBlobSha": "06f0370a196fc283dee7aa33597aa802841b9993",
+          "contractBlobSha": "188a60edbf47b81e8c471d6cde75a8a11b7c8d28",
           "contractTestFile": "tests/tenant-hire-payroll-review-contract.test.mjs",
           "contractTestBlobSha": "0a437d35f600280aeb29ca89b503bc0052fa9f07",
           "workflowFile": ".github/workflows/tenant-hire-payroll-review-qa.yml",
