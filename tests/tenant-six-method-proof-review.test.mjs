@@ -1339,29 +1339,36 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok([0, architecturePublic.length].includes(baselineArchPublic) && baselineArchPublic === architecturePublic.length * baselineArchToken,
       "The nine architecture classifications are present on origin/main entirely or not at all");
     const baselineArch = baselineArchPublic + baselineArchToken;
-    // Merged #1933 changed Worker 360's route source. Its earlier
-    // organization-only proof must not remain a covered method in current main.
-    // Recognize only the exact, independently unaccepted source supersession;
-    // any other credit/GAP change remains a hard source-review failure.
-    const worker360PathOnMain = "src/app/api/hcm/worker-360/route.ts";
-    const mainWorker360File = baseline.allApiRouteFiles[worker360PathOnMain];
-    const mainWorker360Get = mainWorker360File.methods.find(x => x.name === "GET");
-    const mainWorker360Demotion = mainWorker360Get?.status === "GAP" ? 1 : 0;
-    if (mainWorker360Demotion) {
-      assert.equal(mainWorker360File.gitBlobSha,
-        "19875021d750b722fc69e0fe939e57928a158af9");
-      assert.equal(mainWorker360Get.testedBy, null);
-      assert.equal(mainWorker360Get.reviewedUncertified?.kind,
-        "worker360-legal-employer-source-supersession-zero-credit");
-      assert.equal(mainWorker360Get.reviewedUncertified?.oldSourceBlobSha,
-        "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
-      assert.equal(mainWorker360Get.reviewedUncertified?.coverageCredits, 0);
-      assert.equal(mainWorker360Get.reviewedUncertified?.independentSecurityReview,
-        "PENDING");
-      expectedOriginalMain[worker360PathOnMain].GET = "GAP";
+    // New legal-employer Worker 360 source superseded its historical,
+    // organization-only GET proof on main. This is an intentional, exact-source
+    // COVERED -> GAP withdrawal; treating the old proof as still valid would
+    // falsely certify legal-employer isolation. No other downgrade is allowed.
+    const worker360MainPath = "src/app/api/hcm/worker-360/route.ts";
+    const worker360MainFile = baseline.allApiRouteFiles[worker360MainPath];
+    const worker360MainGet = worker360MainFile?.methods.find(row => row.name === "GET");
+    const worker360MainSourceWithdrawal = worker360MainGet?.status === "GAP" ? 1 : 0;
+    if (worker360MainSourceWithdrawal) {
+      assert.equal(worker360MainFile.gitBlobSha,
+        "19875021d750b722fc69e0fe939e57928a158af9",
+        "Only the reviewed Worker 360 legal-employer source may withdraw this credit");
+      assert.equal(blobSha(worker360MainPath), worker360MainFile.gitBlobSha);
+      assert.equal(worker360MainGet.testedBy, null,
+        "Withdrawn Worker 360 GET must never cite old organization-only proof as current");
+      const withdrawal = worker360MainGet.reviewedUncertified;
+      assert.equal(withdrawal?.kind, "worker360-legal-employer-source-supersession-zero-credit");
+      assert.equal(withdrawal?.oldSourceBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
+      assert.equal(withdrawal?.newSourceBlobSha, worker360MainFile.gitBlobSha);
+      assert.equal(withdrawal?.historicalProof?.file, "scripts/qa/tenant-table-http.mjs");
+      assert.equal(withdrawal?.coverageCredits, 0);
+      assert.equal(withdrawal?.exactHeadPg16Http, "PENDING");
+      assert.equal(withdrawal?.independentSecurityReview, "PENDING");
+      assert.equal(withdrawal?.productionCertified, false);
+      expectedOriginalMain[worker360MainPath].GET = "GAP";
     } else {
-      assert.equal(mainWorker360Get?.status, "COVERED",
-        "Unexpected Worker 360 source or status without exact demotion receipt");
+      assert.equal(worker360MainGet?.status, "COVERED",
+        "Unknown Worker 360 status is not an accepted downgrade");
+      assert.equal(worker360MainFile?.gitBlobSha,
+        "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
@@ -1376,13 +1383,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits - mainWorker360Demotion,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits - worker360MainSourceWithdrawal,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
       GAP: snapshot.counts.GAP - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications + mainWorker360Demotion,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications + worker360MainSourceWithdrawal,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],

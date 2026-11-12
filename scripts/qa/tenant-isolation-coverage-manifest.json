@@ -42449,7 +42449,7 @@
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Still GAP: #1631 adds canonical employer selection, company-wide billing role gating before SSR employer lookup, and an exact-head disposable PG16 two-attacker/real-victim HTTP proof job. Independent security review and completed exact-head CI are pending; this is not tenant-page certification or an accepted coverage credit.",
+      "reason": "Still GAP: #1631 adds canonical employer selection, company-wide billing role gating before SSR employer lookup, and an exact-head disposable PG16 two-attacker/real-victim HTTP proof job. Independent security review and completed exact-head CI are pending; this is not tenant-page certification or an accepted coverage credit. PR #1950 adds a separately source-pinned redirect-only alias and an extended PG16 proof; original #1631 receipt is preserved unchanged and current proof remains a zero-credit source-refresh candidate pending exact final head acceptance.",
       "reviewedUncertified": {
         "kind": "billing-setup-SSR-GET-PG16-unaccepted",
         "originalPageBlobSha": "ee1985ccdde71e9ee7c28b3d0dbe652fa0ea3381",
@@ -42464,6 +42464,32 @@
         "foreignPageLine": 163,
         "revokedPageLine": 208,
         "unchangedDbLine": 212,
+        "credits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      },
+      "sourceRefreshCandidate": {
+        "kind": "billing-setup-plus-manage-redirect-PG16-source-refresh-zero-credit",
+        "historicalProofBlobSha": "87053f4ca7f7a03919b2b4fdbaeaadd41b1e204b",
+        "historicalContractBlobSha": "e5a0d09eec50430f7ea13326e3390998a7de68e9",
+        "historicalWorkflowBlobSha": "dbf0fe76f31df6638a14d9aa9eda1ad7a39f6c0b",
+        "currentProofBlobSha": "c29179b97f7a24f63b2ec44d19e0da68544d4765",
+        "currentContractBlobSha": "2595809bec34048c86a9b5e4fe4e8abc1c213987",
+        "currentWorkflowBlobSha": "e96979a1490200e9acb643de344439185af80f0c",
+        "managePageFile": "src/app/billing/manage/page.tsx",
+        "managePageBlobSha": "a6fb0497204edf98bf0f647cd5caef77455c62e6",
+        "selectorFile": "src/lib/tenant-page-id.ts",
+        "selectorBlobSha": "e47b2332732c7722d792ff92a528158fc8282212",
+        "currentOwnPageLine": 167,
+        "currentForeignPageLine": 179,
+        "currentForeignRequestLine": 178,
+        "currentRevokedPageLine": 237,
+        "currentUnchangedDbLine": 243,
+        "ownManageRedirectLine": 171,
+        "sharedAdminManageRedirectLine": 286,
+        "priorExactHeadPassed": "c941516ebdbac7b0740d9a29dcd8ca405c8a19c6",
+        "priorExactHeadPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/43217920243",
+        "currentExactHeadCi": "PENDING",
         "credits": 0,
         "independentlyAccepted": false,
         "productionCertified": false
@@ -45668,6 +45694,70 @@
         "independentlyAccepted": false,
         "productionCertified": false
       }
+    }
+  ],
+  "scopedRedirectAliases": [
+    {
+      "path": "src/app/billing/manage/page.tsx",
+      "blob": "a6fb0497204edf98bf0f647cd5caef77455c62e6",
+      "kind": "authorized-no-data-redirect-only",
+      "sourceEmployer": "explicit canonical organizationId or active primary-company membership only when absent",
+      "destination": "/billing/setup?organizationId=<authorized employer ID>",
+      "business": [
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 39,
+          "token": "organizationId"
+        },
+        {
+          "line": 45,
+          "token": "organizationId"
+        }
+      ],
+      "guards": [
+        {
+          "line": 29,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 35,
+          "token": "canonicalTenantPageId"
+        },
+        {
+          "line": 37,
+          "token": "notFound"
+        },
+        {
+          "line": 39,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 40,
+          "token": "getAccess"
+        },
+        {
+          "line": 41,
+          "token": "companyWide"
+        }
+      ],
+      "status": "GAP",
+      "reason": "Redirect-only alias with no data query or client mount. New source-pinned billing-admin and company-wide employer gate preserves the explicit employer; fictional PG16 HTTP proof runs in dedicated billing page QA. Not a separately certified page or a new COVERED credit; independent security review and production acceptance pending.",
+      "proofFile": "scripts/qa/tenant-billing-setup-page-http.mjs",
+      "workflowFile": ".github/workflows/tenant-billing-setup-page-qa.yml",
+      "credits": 0,
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false,
+      "parserFile": "src/lib/tenant-page-id.ts",
+      "parserBlobSha": "e47b2332732c7722d792ff92a528158fc8282212",
+      "proofBlobSha": "c29179b97f7a24f63b2ec44d19e0da68544d4765",
+      "workflowBlobSha": "e96979a1490200e9acb643de344439185af80f0c"
     }
   ],
   "sourceTraceCandidates": [
