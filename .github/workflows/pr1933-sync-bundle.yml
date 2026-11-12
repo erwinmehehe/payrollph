@@ -1,0 +1,34 @@
+name: PR 1933 pinned source bundle for conflict resolution
+on:
+  push:
+    branches: [qa/pr1933-sync-bundle-20261112]
+permissions:
+  contents: read
+jobs:
+  bundle:
+    if: github.repository == 'erwinmehehe/payrollph' && github.ref == 'refs/heads/qa/pr1933-sync-bundle-20261112'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact reviewed source commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f:refs/heads/exact-pr1933
+          git fetch --no-tags origin f359902ee3aa39079cebafaa1ba6573e646049da:refs/heads/exact-main
+          test "$(git rev-parse refs/heads/exact-pr1933)" = 0a56aeb2721b46ccaf7a160e05d3c5090dadd69f
+          test "$(git rev-parse refs/heads/exact-main)" = f359902ee3aa39079cebafaa1ba6573e646049da
+          git bundle create /tmp/pr1933-sync.bundle refs/heads/exact-pr1933 refs/heads/exact-main
+          git bundle verify /tmp/pr1933-sync.bundle
+          git log -1 --format="%H %s" refs/heads/exact-main
+          git log -1 --format="%H %s" refs/heads/exact-pr1933
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr1933-two-pinned-commit-source
+          path: /tmp/pr1933-sync.bundle
+          retention-days: 1
+          if-no-files-found: error
