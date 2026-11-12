@@ -6768,6 +6768,65 @@ test("all credited proof links point to the claimed route and every recertified 
 test("page and server-action inventory cannot silently omit new or changed business-ID entrypoints", () => {
   const files = appFiles();
   const scoped = new Map(manifest.scopedPages.map((entry) => [entry.path, entry]));
+  // Redirect-only aliases have no employer data read, so they are tracked
+  // separately from the fixed 21 data-bearing SSR/action surfaces. This is a
+  // source-pinned, UNACCEPTED exception for one actual inspected route, not a
+  // blanket exemption for newly edited pages.
+  const aliases = manifest.scopedRedirectAliases ?? [];
+  assert.deepEqual(aliases.map((entry) => entry.path),
+    ["src/app/billing/manage/page.tsx"], "No undeclared page alias is permitted");
+  for (const alias of aliases) {
+    assert.ok(files.includes(alias.path), "Redirect alias file missing");
+    const src = readFileSync(alias.path, "utf8");
+    assert.equal(gitBlobSha(Buffer.from(src)), alias.blob,
+      "Redirect alias source changed: independently recheck tenant isolation");
+    assert.equal(alias.kind, "authorized-no-data-redirect-only");
+    assert.equal(alias.status, "GAP", "Redirect alone never proves page isolation");
+    assert.equal(alias.credits, 0);
+    assert.equal(alias.independentSecurityReview, "PENDING");
+    assert.equal(alias.productionCertified, false);
+    assert.equal(alias.destination, "/billing/setup?organizationId=<authorized employer ID>");
+    for (const field of ["business", "guards"]) {
+      assert.ok(Array.isArray(alias[field]) && alias[field].length > 0);
+      for (const pin of alias[field]) {
+        assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+          src.split("\\n")[pin.line - 1]?.includes(pin.token),
+          alias.path + ": invalid source pin " + pin.line);
+      }
+    }
+    const session = src.indexOf("await getSessionUser()");
+    const selected = src.indexOf("(await searchParams).organizationId");
+    const parsed = src.indexOf("canonicalTenantPageId(selected)");
+    const role = src.indexOf("await assertOrganizationRole(user.id, organizationId, BILLING_ADMIN_ROLES)");
+    const scope = src.indexOf("await getAccess(user.id, organizationId)");
+    const denied = src.indexOf("if (denied || !access?.companyWide) notFound()");
+    const target = src.indexOf("redirect(`/billing/setup?organizationId=${organizationId}`)");
+    assert.ok(session > 0 && selected > session && parsed > selected &&
+      role > parsed && scope > role && denied > scope && target > denied,
+      "Only an active authorized company-wide billing user may reach the selected employer");
+    assert.match(src, /selected === undefined[\\s\\S]*primaryCompanyOrganizationId\\(user\\.id\\)/);
+    assert.match(src, /if \\(!organizationId\\) notFound\\(\\);/);
+    assert.doesNotMatch(src, /permanentRedirect|db\\.select|db\\.execute|from ["']@\\/db/,
+      "Alias must remain redirect-only with no employer data read");
+    const proof = readFileSync(alias.proofFile, "utf8");
+    const workflow = readFileSync(alias.workflowFile, "utf8");
+    for (const marker of [
+      'requireDisposableBillingPageEnv();',
+      'path.startsWith("/billing/manage?")',
+      "function assertManageRedirect(",
+      "shared administrator B",
+      "shared administrator foreign manage",
+      "revoked membership / manage redirect",
+      "cannot enter billing manage",
+      "duplicate manage employer",
+      "anonymous manage response",
+    ]) assert.ok(proof.includes(marker),
+      "Redirect-only page cannot omit adversarial PG16 proof: " + marker);
+    assert.match(workflow, /image: postgres:16/);
+    assert.ok(workflow.includes('"src/app/billing/manage/**"'));
+    assert.match(workflow, /node --import tsx scripts\\/qa\\/tenant-billing-setup-page-http\\.mjs/);
+    assert.match(workflow, /ref: \\$\\{\\{ github\\.event\\.pull_request\\.head\\.sha \\|\\| github\\.sha \\}\\}/);
+  }
   assert.equal(Object.keys(baseline.app).length, 92,
     "original app/module baseline scope is pinned to the audited 92-file snapshot");
   for (const [path, entry] of scoped) {
@@ -6788,6 +6847,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
       if (!changed) assert.equal(entry.blob, current, path + ": pinned page SHA mismatch");
     }
     if (scopedCandidate && changed) {
+      if (aliases.some((alias) => alias.path === path)) continue;
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
       // #1876 People/HR pages: exact-source, feature-ON, disposable
