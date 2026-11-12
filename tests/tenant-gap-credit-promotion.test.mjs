@@ -246,7 +246,7 @@ test("already credited and partial-action methods are not double-counted", () =>
       assert.equal(verifyYearEndCredits(manifest), 2);
       assert.equal(method?.status, "COVERED", key);
       assert.equal(method?.testedBy?.proofPullRequest, 1804);
-      assert.equal(method?.testedBy?.workflowRunId, 42254117862);
+      assert.equal(method?.testedBy?.workflowRunId, 43178709246);
       assert.equal(method?.reviewedUncertified, undefined);
       continue;
     }

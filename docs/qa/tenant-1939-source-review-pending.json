@@ -1,0 +1,53 @@
+{
+  "schema": "payrollph-tenant-source-revalidation-proposal-v1",
+  "status": "PENDING_OWNER_REVIEW",
+  "pr": 1939,
+  "reviewedSourceHead": "f0a005e4ef7a35672b5b3986556d9f2c4e1fca7e",
+  "originalClassificationApproval": {
+    "file": "docs/qa/tenant-1921-owner-approval.json",
+    "blobSha": "455769a992caba1ebcaa04b0999625db6ead07ce",
+    "immutable": true,
+    "appliesToOriginalSourceOnly": true
+  },
+  "proposedRuntimeSourcePins": [
+    {
+      "path": "src/app/api/signup/route.ts",
+      "old": "97d6f05372bf7b88dd46c10fa46b2e50c4b76ccc",
+      "now": "46fe376db0951fb9851aa52d22f0e8dcc8c9750b"
+    },
+    {
+      "path": "src/app/api/signup/resend/route.ts",
+      "old": "7cc8bc50eddc1ab2e17692e4d32e0058f66926c3",
+      "now": "c38d3b1541704899369bf4189a58a14cbf6cf1e0"
+    },
+    {
+      "path": "src/app/api/signup/verify/route.ts",
+      "old": "6a4315e9f34039dee5929d34269c07156d32a906",
+      "now": "db03e7d6ded190cfb937818b52219e1e4a87bf97"
+    }
+  ],
+  "preloginProof": {
+    "path": "scripts/qa/tenant-prelogin-http.mjs",
+    "blobSha": "71bf01cf03caefbb2caf6c7c23a97cb53bd636c0",
+    "workflowPath": ".github/workflows/tenant-prelogin-http.yml",
+    "workflowBlobSha": "d382490efdbf19efd0a06aa233b7181b2d7c40d8",
+    "passedHead": "f0a005e4ef7a35672b5b3986556d9f2c4e1fca7e",
+    "passedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/43134412313/job/130906150181"
+  },
+  "signupFindingProof": {
+    "baselineNormal": "https://github.com/erwinmehehe/payrollph/actions/runs/43134412042/job/130906149697",
+    "baselineInvited": "https://github.com/erwinmehehe/payrollph/actions/runs/43134412042/job/130906149291",
+    "currentNormal": "https://github.com/erwinmehehe/payrollph/actions/runs/43134412042/job/130908226501",
+    "currentInvited": "https://github.com/erwinmehehe/payrollph/actions/runs/43134412042/job/130908226506"
+  },
+  "nonclaims": {
+    "ownerApprovedChangedSources": false,
+    "independentSecurityReview": false,
+    "productionCertified": false,
+    "tenantCoveredCreditsGranted": 0,
+    "releaseFlagsChanged": false,
+    "productionDatabaseTouched": false,
+    "providerTraffic": false
+  },
+  "nextRequiredStep": "Repository owner must explicitly review and approve the three changed runtime sources and refreshed exact-head source/proof pins. Historical #1921 authorization does not cover changed source bytes; no owner approval is asserted or implied by this proposal."
+}

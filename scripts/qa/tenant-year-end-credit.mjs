@@ -9,20 +9,22 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-const HEAD = "d79db85b2a2ca0276810634dccaf904fd4469099";
+// Renewed 2026-11-12: proof run on the push-to-main merge commit of #1945 (workflow gained push/dispatch triggers),
+// against the annualization source that applies imported de minimis (#1944). Supersedes #1804 run 42254117862.
+const HEAD = "d4317f4d71a5ac88874e3e48c273d9d9af9b91e8";
 const ROUTE = "src/app/api/year-end/route.ts";
 const PROOF = "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs";
 const WORKFLOW = ".github/workflows/tenant-year-end-post-candidate.yml";
-const RUN = 42254117862;
-const JOB = 128016606342;
+const RUN = 43178709246;
+const JOB = 131049135150;
 export const YEAR_END_SOURCE_PINS = Object.freeze({
   [ROUTE]: "f040f5bbbc3df275d32d23f1728b1b0345f77814",
   [PROOF]: "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",
-  [WORKFLOW]: "7acd794545ba36febdc7877306fc4021999cb739",
+  [WORKFLOW]: "4f6be5303581ed5538b1ccb15f7d7f49a19ca576",
   "scripts/qa/tenant-batches/year-end-json-http.mjs": "0b778aea9d1e66f508a54f3c63cf43a2342f9e55",
   "scripts/qa/tenant-write-table-http.mjs": "c9db7e9f1b0f7035836b4f599e82c51384a0f127",
   "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
-  "src/lib/year-end.ts": "7194658c42b9ef33c84acd84ab356c28c6303883",
+  "src/lib/year-end.ts": "a2bafdb9d961e888cacf7353c2094a661df4484e",
   "src/lib/payroll-engine.ts": "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
   "tests/year-end-binding-transaction-contract.test.mjs": "9562442c4d9e7d820027630cead6d753c0fc3767",
 });
@@ -77,7 +79,9 @@ export function verifyYearEndCredits(manifest, read = readFileSync) {
     assert.equal(p?.proofBlobSha, YEAR_END_SOURCE_PINS[PROOF]);
     assert.equal(p?.workflowBlobSha, YEAR_END_SOURCE_PINS[WORKFLOW]);
     assert.equal(p?.verifiedPrHeadSha, HEAD);
-    assert.equal(p?.mergedProofCommit, "9022010d76b656b48d2e2640cf90bbe5fe7c16e8");
+    assert.equal(p?.mergedProofCommit, HEAD, "the renewed proof ran on the main commit itself");
+    assert.equal(p?.proofEvent, "push-to-main");
+    assert.equal(p?.annualizationBlobSha, YEAR_END_SOURCE_PINS["src/lib/year-end.ts"]);
     assert.equal(p?.proofPullRequest, 1804);
     assert.equal(p?.workflowRunId, RUN);
     assert.equal(p?.workflowJobId, JOB);
@@ -137,11 +141,11 @@ export function verifyYearEndCredits(manifest, read = readFileSync) {
  * receipt, the annualization source it ran against and the source that replaced it.
  */
 export const YEAR_END_HOLD_KIND = "year-end-imported-de-minimis-source-moved-zero-credit";
-export const YEAR_END_HOLD_REASON = "Held, zero credit: src/lib/year-end.ts now applies imported de minimis to the year-end settlement, so the #1804 fictional PG16 proof (run 42254117862, verified head d79db85b) ran against a previous annualization source (blob 7194658c). The method credit is withdrawn until a fresh exact-head PG16 proof on main renews it. Not a security finding; no independent payroll/security review yet.";
+export const YEAR_END_HOLD_REASON = "Held, zero credit: src/lib/year-end.ts changed after the fictional PG16 proof (run " + RUN + ", verified head " + HEAD.slice(0, 8) + "), which ran against a previous annualization source (blob " + YEAR_END_SOURCE_PINS["src/lib/year-end.ts"].slice(0, 8) + "). The method credit is withdrawn until a fresh exact-head PG16 proof on main renews it. Not a security finding; no independent payroll/security review yet.";
 export function yearEndHoldRecord(routeBlobSha, annualizationBlobSha) {
   return {
     kind: YEAR_END_HOLD_KIND,
-    priorCreditPullRequest: 1804,
+    priorCreditPullRequest: 1804, // the proof harness PR; the current run is cited by priorWorkflowRunId
     priorVerifiedPrHeadSha: HEAD,
     priorWorkflowRunId: RUN,
     priorAnnualizationBlobSha: YEAR_END_SOURCE_PINS["src/lib/year-end.ts"],

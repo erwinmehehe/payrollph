@@ -8,6 +8,7 @@ import { sha256 } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
+import { PENDING_SIGNUP_MAX_AGE_MS } from "@/lib/signup-pending-recovery";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
         eq(saasSignupVerifications.tokenHash, sha256(token)),
         isNull(saasSignupVerifications.verifiedAt),
         gt(saasSignupVerifications.expiresAt, new Date()),
+        gt(saasSignupVerifications.createdAt, new Date(Date.now() - PENDING_SIGNUP_MAX_AGE_MS)),
       ))
       .returning({ userId: saasSignupVerifications.userId, organizationId: saasSignupVerifications.organizationId });
     if (!pending) return null;
