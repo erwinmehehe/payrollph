@@ -10,7 +10,7 @@ function requireDisposableEnvironment(env = process.env) {
     NODE_ENV: "production",
     DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
     SECURITY_SMOKE_URL: "http://127.0.0.1:3000",
-    OIDC_SSO_RUNTIME_ENABLED: "false",
+    OIDC_SSO_RUNTIME_MODE: "blocked",
     WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
     XENDIT_PAYOUTS_ENABLED: "false", PAYMONGO_DISBURSEMENTS_ENABLED: "false",
   };
