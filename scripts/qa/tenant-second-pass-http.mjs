@@ -345,7 +345,7 @@ async function baselineProbeAllMethods(f) {
         // Both extension release flags are intentionally ON in the localhost process.
         expectStatus(result, 401, "Anonymous API key boundary " + key);
       } else if (publicCases.has(key)) {
-        expectStatus(result, 200, "Intentionally public/auth-status endpoint " + key);
+        expectStatus(result, key === "POST auth/sso/resolve" && process.env.OIDC_SSO_RUNTIME_MODE !== "enabled" ? 503 : 200, "Public/auth-status or held SSO endpoint " + key);
       } else if (route.startsWith("webhooks/") && route !== "webhooks/drain") {
         expectStatus(result, 401, "Bad provider signature must be denied " + key);
       } else {
