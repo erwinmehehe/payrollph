@@ -9,6 +9,7 @@ import { singleLegalEntityForTenant } from "@/lib/hcm-single-entity-scope";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { multiEntityHcmDeferred } from "@/lib/multi-entity-hcm-hold";
 import { employeeBoundToEngagementEmployer } from "@/lib/tenant-engagement-employee-scope";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,8 @@ export const metadata: Metadata = { title: "Engagement Survey | Linaw", robots: 
 export default async function Page({ searchParams }: {
   searchParams: Promise<{ organizationId?: string | string[] }>;
 }) {
+  // These People pages are outside /hcm/* but inherit its global rollout embargo.
+  if (multiEntityHcmDeferred()) notFound();
   if (!criticalReleaseFlagEnabled("engagementSurvey")) notFound();
   const session = await getSessionUser();
   if (!session) redirect("/login");
