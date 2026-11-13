@@ -27,7 +27,14 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
   const candidate = Object.values(manifest.allApiRouteFiles ?? {}).some(file =>
     file.methods?.some(row => row.reviewedUncertified?.kind === "payroll-run-membership-oracle-source-withdrawal"));
   if (!candidate) return new Set();
-  const historical = JSON.parse(sourceAtBase(MANIFEST));
+  // CI consumers can have shallow clones. This immutable projection was copied
+  // from ORACLE_BASE; its digest seals the original route blobs and method
+  // receipts without requiring a network fetch or trusting candidate metadata.
+  const historicalText = read("scripts/qa/payroll-run-oracle-historical-proofs.json", "utf8").replaceAll("\r\n", "\n");
+  assert.equal(createHash("sha256").update(historicalText).digest("hex"),
+    "b2d575453d9321b64f0d545f184fb62514520d38fc65b6c944e954c5bbf9bc00", "historical source-withdrawal receipts changed");
+  const historical = JSON.parse(historicalText);
+  assert.equal(historical.base, ORACLE_BASE);
   const paths = Object.keys(historical.allApiRouteFiles).filter(path => path.startsWith("src/app/api/payroll-runs/")).sort((a, b) => a.localeCompare(b));
   const pins = {};
   for (const path of paths) {
@@ -69,6 +76,13 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
 }
 export function withdrawRunOracleCredits({ write = false } = {}) {
   const original = JSON.parse(sourceAtBase(MANIFEST));
+  const archived = JSON.parse(readFileSync("scripts/qa/payroll-run-oracle-historical-proofs.json", "utf8"));
+  const projection = Object.fromEntries(Object.entries(original.allApiRouteFiles)
+    .filter(([path]) => path.startsWith("src/app/api/payroll-runs/"))
+    .map(([path, file]) => [path, { gitBlobSha: file.gitBlobSha,
+      methods: file.methods.map(({ name, status, testedBy }) => ({ name, status, testedBy })) }]));
+  assert.deepEqual(archived, { base: ORACLE_BASE, allApiRouteFiles: projection },
+    "archived receipts must be an exact projection of the original Git manifest");
   const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
   const paths = Object.keys(original.allApiRouteFiles).filter(path => path.startsWith("src/app/api/payroll-runs/"));
   assert.equal(paths.length, 15, "full root + fourteen addressed routes required");

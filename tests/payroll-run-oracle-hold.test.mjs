@@ -14,7 +14,7 @@ test("forged hold receipts, changed route/helper code and false acceptance are r
     const m = read(); Object.assign(m.allApiRouteFiles[path].methods[0].reviewedUncertified, patch);
     assert.throws(() => verifyOracleSourceHolds(m));
   }
-  for (const changed of [path, "src/lib/payroll-run-membership.ts"])
+  for (const changed of [path, "src/lib/payroll-run-membership.ts", "scripts/qa/payroll-run-oracle-historical-proofs.json"])
     assert.throws(() => verifyOracleSourceHolds(read(), null, (p, ...args) => p === changed ? readFileSync(p, ...args) + "\n// drift" : readFileSync(p, ...args)));
   const promoted = read(); promoted.allApiRouteFiles[path].methods[0].status = "COVERED";
   assert.throws(() => verifyOracleSourceHolds(promoted), "a stale hold cannot become a method credit");
