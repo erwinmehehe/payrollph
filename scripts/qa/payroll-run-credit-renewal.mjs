@@ -95,8 +95,16 @@ function documents(m){
   const banner='> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; '+m.metrics.coveredAfter+' COVERED / '+m.metrics.gap+' GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.';
   for(const key of ['inventory','plan']){
     let text=key==='inventory'?inventory:plan;
+    // Keep the separate, zero-credit SSO hold before this accounting banner.
+    // Removing/reinserting only our banner must remain idempotent with Studio.
+    let preceding='';
+    const ssoPrefix='> **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** ';
+    if(text.startsWith(ssoPrefix)){
+      const end=text.indexOf('\n\n');assert.ok(end>=0);
+      preceding=text.slice(0,end+2);text=text.slice(end+2);
+    }
     text=text.replace(/^> \*\*PAYROLL RUN ORACLE — (?:SOURCE HOLD|RENEWED):\*\*[^\n]*\n\n/,'');
-    text=banner+'\n\n'+text;
+    text=preceding+banner+'\n\n'+text;
     text=text.replace(/^(> \*\*(?:RELEASE BLOCKER|NOT ACCEPTED)\*\*:? )\d+ (?:API )?(?:methods|method gaps)/gm,
       '$1'+m.metrics.gap+' API methods');
     text=text.replace(/(complete Studio POST proposal:\*\* )\d+ methods = \d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP\./g,

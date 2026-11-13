@@ -1,6 +1,6 @@
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** The changed employer-scoped OIDC callback source supersedes its earlier provisional receipt; callback GET stays GAP until fresh enabled and default-OFF source-current proof. Combined proposal after preserving nineteen separately renewed payroll methods: **498 methods = 457 COVERED / 23 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 6 GAP**; 16 page/action GAPs remain. No independent acceptance or production SSO authorization.
 
-> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; nineteen source-sealed payroll method renewals. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
+> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 457 COVERED / 6 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 457 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 

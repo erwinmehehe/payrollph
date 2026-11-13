@@ -10,6 +10,7 @@ import {load} from 'js-yaml';
 import {assertHistoricalHttpWorkflowCheckout} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa/payroll-run-credit-renewal-contract.mjs';
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
+import {reconcilePayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
 
 test('fresh execution cannot rewrite either original job archive or its accounting projection',()=>{
@@ -125,4 +126,15 @@ test('renewed citations identify actual jobs without pretending independent acce
   assert.equal(proof.cohorts.find(x=>x.name==='creation').jobId,131745203827);
   assert.equal(proof.independentlyAccepted,false);assert.equal(proof.productionCertified,false);
   assert.throws(()=>payrollRenewalProof('POST payroll-runs/[id]/xendit-payout'),/not renewed/);
+});
+
+test('payroll documents reconcile without duplicating or moving the separate SSO hold banner',()=>{
+  const result=reconcilePayrollRenewal({write:false});
+  assert.equal(result.credited,0);
+  assert.deepEqual(result.before,result.after);
+  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
+    const text=readFileSync(file,'utf8');
+    assert.match(text,/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
+    assert.match(text.split('\n\n')[1],/^> \*\*PAYROLL RUN ORACLE — RENEWED:/);
+  }
 });
