@@ -26,15 +26,15 @@ export default async function HrCasesPage({
   const organizationId = Number(raw);
   if (!Number.isSafeInteger(organizationId)) notFound();
 
+  // Validate the active employer role and deny-only permission overlay first.
+  // A foreign employer must not reach even the staff access lookup.
+  const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES);
+  if (denied) notFound();
   const access = await getAccess(user.id, organizationId);
   if (!access || (
     !hrCaseRoleCanWork(access.role, "hr") &&
     !hrCaseRoleCanWork(access.role, "payroll")
   )) notFound();
-  // Canonical role-gate also enforces the organization's custom permission sets
-  // and session security policy, not just the displayed membership role.
-  const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES);
-  if (denied) notFound();
 
   const canApproveCoe = access.companyWide && ["owner", "admin", "hr"].includes(access.role);
   return <main className="mx-auto max-w-6xl px-5 py-8">

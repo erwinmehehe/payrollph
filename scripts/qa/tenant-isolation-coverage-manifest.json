@@ -44149,7 +44149,7 @@
     },
     {
       "path": "src/app/hcm/hr-cases/page.tsx",
-      "blob": "93ef058a785606fd00921b23b47c73436e308fbb",
+      "blob": "0d384a61699a9183bfd4fa55665a0d1154031442",
       "ids": [
         {
           "line": 17,
@@ -44180,11 +44180,11 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 36,
+          "line": 33,
           "token": "organizationId"
         },
         {
@@ -44223,12 +44223,12 @@
           "token": "getSessionUser"
         },
         {
-          "line": 29,
-          "token": "getAccess"
+          "line": 31,
+          "token": "assertOrganizationRole"
         },
         {
-          "line": 36,
-          "token": "assertOrganizationRole"
+          "line": 33,
+          "token": "getAccess"
         }
       ],
       "business": [
@@ -44249,11 +44249,11 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
+          "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 36,
+          "line": 33,
           "token": "organizationId"
         },
         {
@@ -44275,7 +44275,23 @@
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: the HR Cases SSR now runs the employer role, active-session and custom-permission gate before staff access lookup and client mount. Source-identical fictional PG16 own/foreign/role/revoked read-only HTTP proof passed on PR #1959, but hydrated staff-case actions, multi-entity scope and independent security/HR privacy acceptance remain PENDING; zero page/action credits.",
+      "reviewedUncertified": {
+        "kind": "hr-cases-SSR-guard-order-PG16-unaccepted",
+        "originalPageBlobSha": "93ef058a785606fd00921b23b47c73436e308fbb",
+        "pageBlobSha": "0d384a61699a9183bfd4fa55665a0d1154031442",
+        "contractFile": "scripts/qa/tenant-hr-cases-page-contract.mjs",
+        "contractBlobSha": "044be9f247cf8f4a55e6a68f47d5cf1ad669a7f5",
+        "proofFile": "scripts/qa/tenant-hr-cases-page-http.mjs",
+        "proofBlobSha": "b5c930b19db80f78d889273e41fb442205c6ad9f",
+        "workflowFile": ".github/workflows/tenant-hr-cases-page-qa.yml",
+        "workflowBlobSha": "8e0077fb00786df18bcf492afddb034474aa9ad8",
+        "provisionalSourceHead": "2176df8e0cd8d9bd9ee73650ca4d2d29e709e4cb",
+        "provisionalSourceJob": "https://github.com/erwinmehehe/payrollph/actions/runs/43353976715/job/131651456563",
+        "pageActionCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/hcm/manager-decision-inbox/page.tsx",
@@ -46371,7 +46387,7 @@
     },
     {
       "path": "src/app/workspace/report-builder/page.tsx",
-      "blob": "4415282df5e859e004ae26662815d7b5f087657d",
+      "blob": "24512c4c9f727ca02589e53da81cf38ffed264c9",
       "ids": [
         {
           "line": 14,
@@ -46390,19 +46406,19 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
-          "token": "organizationId"
-        },
-        {
           "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 35,
+          "line": 33,
           "token": "organizationId"
         },
         {
-          "line": 42,
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
           "token": "organizationId"
         }
       ],
@@ -46425,24 +46441,24 @@
           "token": "notFound"
         },
         {
-          "line": 29,
-          "token": "getAccess"
-        },
-        {
-          "line": 30,
-          "token": "companyWide"
-        },
-        {
-          "line": 30,
-          "token": "roleAllowed"
-        },
-        {
           "line": 31,
           "token": "assertOrganizationRole"
         },
         {
           "line": 32,
           "token": "notFound"
+        },
+        {
+          "line": 33,
+          "token": "getAccess"
+        },
+        {
+          "line": 34,
+          "token": "companyWide"
+        },
+        {
+          "line": 34,
+          "token": "roleAllowed"
         }
       ],
       "business": [
@@ -46455,29 +46471,29 @@
           "token": "organizationId"
         },
         {
-          "line": 29,
-          "token": "organizationId"
-        },
-        {
           "line": 31,
           "token": "organizationId"
         },
         {
-          "line": 35,
+          "line": 33,
           "token": "organizationId"
         },
         {
-          "line": 42,
+          "line": 37,
+          "token": "organizationId"
+        },
+        {
+          "line": 44,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Still GAP: #1557 feature-ON report builder SSR now rejects malformed/cross-employer selectors and enforces active company-wide membership plus a deny-only role gate before client mount. Prior exact-head synthetic PG16 three-employer own-page/API and foreign/peer denial, unit scope, revoked grant and read-only SQL proof passed; independent security review, client interactions, API POST/CSV and multi-entity attribution remain unaccepted. Zero new page or method credits.",
+      "reason": "Still GAP: #1557 feature-ON Report Builder SSR now runs the active employer role/session/custom-permission gate before access and employer-name SQL. Earlier fictional PG16 own/foreign/role/revoked GET and protected-SQL proof was renewed on PR #1959's exact changed page source. Client interactions, API POST/CSV, multi-entity attribution and independent security/privacy acceptance remain PENDING; zero page/action or API credits.",
       "reviewedUncertified": {
         "kind": "feature-on-report-builder-SSR-GET-PG16-unaccepted",
         "originalPageBlobSha": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
-        "pageBlobSha": "4415282df5e859e004ae26662815d7b5f087657d",
+        "pageBlobSha": "24512c4c9f727ca02589e53da81cf38ffed264c9",
         "helperFile": "src/lib/tenant-report-builder.ts",
         "helperBlobSha": "5d315afc085baad9ce2fc14946a34a6d738a773b",
         "proofFile": "scripts/qa/tenant-report-builder-page-http.mjs",
@@ -46502,7 +46518,10 @@
         "unchangedDbLine": 131,
         "credits": 0,
         "independentlyAccepted": false,
-        "productionCertified": false
+        "productionCertified": false,
+        "priorSourcePageBlobSha": "4415282df5e859e004ae26662815d7b5f087657d",
+        "provisionalSourceHead": "2176df8e0cd8d9bd9ee73650ca4d2d29e709e4cb",
+        "provisionalSourceJob": "https://github.com/erwinmehehe/payrollph/actions/runs/43353976706/job/131651456593"
       }
     }
   ],
