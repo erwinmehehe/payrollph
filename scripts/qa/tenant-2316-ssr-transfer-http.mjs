@@ -90,6 +90,11 @@ export async function prove2316SsrTransferBoundary() {
       legalEntityId: victim.entity.id,
     });
     const subjects = [a, b, victim];
+    // The same-parent ungranted worker is a separate private discriminator.
+    // Include its real employee number in denial-response leak checks.
+    const deniedSubjects = [...subjects, {
+      org: a.org, worker: otherWorker, marker: otherWorker.employeeNo,
+    }];
     assert.equal(new Set(subjects.map(x => x.cookie)).size, 3,
       "Two attackers and victim require real independent sessions");
     for (const actor of [a, b]) for (const key of
@@ -168,7 +173,7 @@ export async function prove2316SsrTransferBoundary() {
     let ownReleased = 0, ownGuidance = 0, denied = 0;
     async function deny(path, cookie, label) {
       const response = await getLocal(path, cookie);
-      assertDenied2316(response, subjects, label);
+      assertDenied2316(response, deniedSubjects, label);
       denied++;
       await unchanged(label);
       return response;
