@@ -1,4 +1,3 @@
-import {xenditPostCreditDelta,verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { oracleWithdrawalDelta,oracleRenewalDelta,reviewedOidcSourceSupersession } from './helpers/tenant-counts.mjs';
@@ -98,7 +97,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     if(callback.status==='GAP')verifyOidcCallbackHold(m);
     const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' && callback.status==='COVERED' ? verifyOidcCallbackCredit(m) : 0;
     const oidcWithdrawal=reviewedOidcSourceSupersession(base.manifest,m).size;
-    const expectedNetCredits=xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -121,7 +120,6 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
       assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
     }
     if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
-    if(route==='payroll-runs/[id]/xendit-payout'){assert.equal(verifyXenditPostCredit(m),1);continue;}
     if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}
     if(route==='approvals/[id]'){assert.equal(verifyApprovalsCredit(m),1);continue;}

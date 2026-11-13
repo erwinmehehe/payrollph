@@ -40,6 +40,11 @@ test('every selected handler, payout guard and fixture input rejects source drif
       Buffer.concat([readFileSync(p),Buffer.from('\n// unexecuted')]):readFileSync(p)),/SOURCE_DRIFT/);
 });
 test('CI precreates real fixture identities with gates OFF, scopes three servers and uploads no session file',()=>{
+  const runner=readFileSync('scripts/qa/tenant-xendit-post-proof-http.mjs','utf8');
+  const seed=readFileSync('scripts/qa/tenant-xendit-post-proof-seed.mjs','utf8');
+  assert.ok(!runner.includes('readFileSync')&&!runner.includes('statSync'),'No file-to-network session handoff or check/read race');
+  assert.ok(!seed.includes('xendit-post-fixture.json'),'Never persist session credentials in the seed handoff');
+  assert.ok(runner.includes('loadXenditPostFixtures(db,s,eq,fixture)'));
   const workflow=load(readFileSync('.github/workflows/tenant-xendit-post-proof.yml','utf8'));
   assert.deepEqual(workflow.permissions,{contents:'read'});
   const job=workflow.jobs['four-operation-pg16'];

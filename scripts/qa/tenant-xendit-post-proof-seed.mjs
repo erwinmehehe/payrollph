@@ -58,7 +58,6 @@ try{
   for(const name of ['normal','ambiguous','provider-changed'])assert.ok(victim.runs[name].run.id>
     Math.max(a.runs[name].run.id,b.runs[name].run.id,6));
   mkdirSync('qa-artifacts',{recursive:true});
-  writeFileSync('qa-artifacts/xendit-post-fixture.json',JSON.stringify({a,b,victim},null,2)+'\n',{mode:0o600});
   const envLines=[a,b,victim].flatMap((e,i)=>[
     'XENDIT_PROOF_ORG_'+i+'='+e.org.id,'XENDIT_PROOF_ENTITY_'+i+'='+e.entity.id]);
   writeFileSync('qa-artifacts/xendit-post-identities.env',envLines.join('\n')+'\n',{mode:0o600});

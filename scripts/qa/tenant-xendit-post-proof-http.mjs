@@ -1,25 +1,28 @@
 /** Full four-operation real HTTP / PG16 tenant candidate. Never a live payout. */
 import assert from 'node:assert/strict';
-import {readFileSync,statSync,writeFileSync} from 'node:fs';
+import {writeFileSync} from 'node:fs';
+import {loadXenditPostFixtures} from './tenant-xendit-post-proof-fixtures.mjs';
 import {assertXenditPostProofTarget} from './tenant-xendit-post-proof-target.mjs';
 import {verifyXenditPostSourcePins,assertOwnedXenditPreflight,assertOwnedXenditLedger,
   assertXenditPostRefusal,assertXenditProtectedUnchanged,XENDIT_POST_ACTIONS} from './tenant-xendit-post-proof-contract.mjs';
 import {startXenditProviderFixture} from './tenant-xendit-post-provider-fixture.mjs';
 assertXenditPostProofTarget(process.env);
 verifyXenditPostSourcePins();
-const file='qa-artifacts/xendit-post-fixture.json',stat=statSync(file);
-assert.ok(stat.isFile()&&(stat.mode&0o077)===0,'Private runner-owned fictional fixture required');
-const {a,b,victim}=JSON.parse(readFileSync(file,'utf8')),employers=[a,b,victim];
-assert.deepEqual(employers.map(e=>e.port),[3000,3001,3002]);
-const [{db,pool},s,{and,eq}]=await Promise.all([
-  import('../../src/db/index.ts'),import('../../src/db/schema.ts'),import('drizzle-orm'),
+const [{db,pool},s,{and,eq},fixture]=await Promise.all([
+  import('../../src/db/index.ts'),import('../../src/db/schema.ts'),import('drizzle-orm'),import('./tenant-table-http.mjs'),
 ]);
+assert.equal(Math.floor(Number((await pool.query('show server_version_num')).rows[0].server_version_num)/10000),16);
+const {a,b,victim}=await loadXenditPostFixtures(db,s,eq,fixture),employers=[a,b,victim];
 const provider=await startXenditProviderFixture(employers);
 const own=[],refusals=[],recoveries=[];
 let missingComparisons=0;
 const url=(run)=>'/api/payroll-runs/'+run.id+'/xendit-payout';
 async function request(e,run,body,cookie=e.cookie,origin='https://payroll.example.test'){
-  const response=await fetch('http://127.0.0.1:'+e.port+url(run),{method:'POST',
+  const origins={3000:'http://127.0.0.1:3000',3001:'http://127.0.0.1:3001',
+    3002:'http://127.0.0.1:3002',3003:'http://127.0.0.1:3003'};
+  assert.ok(Object.hasOwn(origins,e.port),'Only registered localhost app origins are allowed');
+  assert.ok(Number.isSafeInteger(run.id)&&run.id>0,'Canonical fictional run ID required');
+  const response=await fetch(origins[e.port]+url(run),{method:'POST',
     headers:{...(cookie?{cookie}:{}),origin,'sec-fetch-site':origin==='https://payroll.example.test'?'same-origin':'cross-site',
       'content-type':'application/json'},body:JSON.stringify(body),redirect:'manual',cache:'no-store',
     signal:AbortSignal.timeout(30000)});

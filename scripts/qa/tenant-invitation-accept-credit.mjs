@@ -1,4 +1,3 @@
-import {verifyXenditPostCredit,XENDIT_POST_PATH} from './tenant-xendit-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from './tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from './tenant-workspace-readiness-credit.mjs';
@@ -223,9 +222,7 @@ export function verifyInvitationAcceptCredits(m) {
       }
       const oidcPromotions = promoted.filter(key => key === 'GET ' + OIDC_CALLBACK);
       if (oidcPromotions.length) assert.equal(verifyOidcCallbackCredit(m), 1);
-      const xenditPromotions=promoted.filter(key=>key==='POST '+XENDIT_POST_PATH);
-      if(xenditPromotions.length)assert.equal(verifyXenditPostCredit(m),1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...xenditPromotions,...payrollRenewals].sort(),
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...payrollRenewals].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.

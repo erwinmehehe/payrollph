@@ -52,25 +52,16 @@ Unexecuted or failing pathways stay GAP. Evidence is
 SOLO_VERIFIED_DEV_RECOVERY; independent security/treasury and production
 acceptance remain pending. No real provider call, deployment or money movement.
 
-## Executed evidence and proposed promotion
+## Security correction and reproof
 
-[The actual PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/43440091136/job/131935148448)
-passed on `5c5294b9dc203550ac70f481e747a42685a23269`: twelve successful own
-operations across employers 8, 9 and victim 10; 58 protected refusals; eight
-missing-versus-foreign comparisons; three persisted uncertain-outcome recoveries;
-seven synthetic provider POSTs and ten GETs. Repeated submit never resent an
-instruction. Historical reconciliation/recovery passed with both payout flags
-OFF, and no real provider was contacted.
+The original four-operation PG16 job passed, but CodeQL identified a check/read
+race and file-to-network credential flow in its fixture handoff. The HTTP runner
+now reads no fixture file. It verifies the exact ten-employer PG16 seed cohort,
+loads persisted employer/run/worker identities directly from that database, and
+creates its fictional sessions in memory. The seed writes only numeric allowlist
+IDs, never session credentials. Application origins are four literal loopback
+URLs. No alert is suppressed or dismissed.
 
-The inspected result and all 70 executed local-module/build/workflow inputs are
-sealed in `tenant-xendit-post-executed-receipt.json`. All remain byte-identical
-after integrating main's separate default-OFF SSO change. The restricted writer
-`node scripts/qa/tenant-xendit-post-credit.mjs --write` promotes only this POST;
-`--check` verifies the sealed receipt, source bytes and exact method citations.
-It refuses another job, altered receipt, missing operation, changed route or
-borrowed GET proof. Mutation tests preserve those failures.
-
-Proposed ledger: **457 COVERED / 6 GAP → 458 COVERED / 5 GAP** of 498 methods.
-The four operations are one API method, never four credits. No route, deployment
-setting or real-money authorization changes. Final-head CI remains a merge gate;
-this PR stays draft pending review.
+The earlier proposed credit is withdrawn while this changed proof is rerun.
+Xendit POST remains GAP until a new successful real-HTTP receipt seals these
+corrected inputs. The original result remains historical, not current proof.

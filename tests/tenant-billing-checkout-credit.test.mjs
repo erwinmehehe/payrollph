@@ -1,4 +1,3 @@
-import {verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -47,7 +46,6 @@ test('partial exports and unrelated GAPs receive zero credits from this verifier
       continue;
     }
     if(path==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
-    if(path==='payroll-runs/[id]/xendit-payout'){assert.equal(verifyXenditPostCredit(m),1);continue;}
     if(path==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     assert.equal(m.allApiRouteFiles['src/app/api/' + path + '/route.ts'].methods.find(x => x.name === 'POST').status, 'GAP');
   }

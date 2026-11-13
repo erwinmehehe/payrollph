@@ -1,4 +1,3 @@
-import {verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from 'node:assert/strict';
@@ -40,7 +39,6 @@ test('filing pass preserves six independent holds and the distinct BIR and billi
  for(const [route,verb]of [['payroll-runs/[id]/exports','POST'],['payroll-runs/[id]/xendit-payout','POST'],['hcm/work-items/escalate','POST'],['marketing/leads','GET'],['automation-studio','POST']]){
   if(isVerifiedOracleSupersession(m,'src/app/api/'+route+'/route.ts',verb)) continue;
   if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
-  if(route==='payroll-runs/[id]/xendit-payout'){assert.equal(verifyXenditPostCredit(m),1);continue;}
   if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
   const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);
    if(route==='hcm/work-items/escalate') {
