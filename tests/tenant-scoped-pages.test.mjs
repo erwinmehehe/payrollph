@@ -2,31 +2,46 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const pageProbe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", () => {
   assert.equal(m.scopedPages.length, 21);
-  const covered = m.scopedPages.filter((p) => p.status === "COVERED");
-  assert.deepEqual(covered.map((p) => p.path),
-    ["src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx",
-      "src/app/hcm/manager-decision-inbox/page.tsx",
-      "src/app/hcm/manager-direct-reports/page.tsx",
-      "src/app/hcm/worker-360/page.tsx"]);
-  assert.equal(covered[1].testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
-  assert.equal(covered[2].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
-  assert.equal(covered[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
-  assert.equal(covered[3].testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
-  assert.equal(covered[4].testedBy?.file, "scripts/qa/tenant-hcm-worker360-entity-http.mjs");
-  assert.equal(covered[4].testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  const covered = m.scopedPages.filter(p => p.status === "COVERED");
+  assert.deepEqual(covered.map(p => p.path), [
+    "src/app/app/engagement/page.tsx",
+    "src/app/app/goals-reviews/page.tsx",
+    "src/app/app/page.tsx",
+    "src/app/hcm/command-center/page.tsx",
+    "src/app/hcm/manager-decision-inbox/page.tsx",
+    "src/app/hcm/manager-direct-reports/page.tsx",
+    "src/app/hcm/my-team/page.tsx",
+    "src/app/hcm/team-leave-calendar/page.tsx",
+    "src/app/hcm/work-items/page.tsx",
+    "src/app/hcm/worker-360/page.tsx",
+  ], "Only five new exact-current-source page proofs may be added");
+  const byPath = new Map(covered.map(x => [x.path, x]));
+  for (const [page, proof] of [
+    ["src/app/app/page.tsx", "scripts/qa/tenant-scoped-page-probes.mjs"],
+    ["src/app/hcm/command-center/page.tsx", "scripts/qa/hcm-people-home-page-http.mjs"],
+    ["src/app/hcm/manager-decision-inbox/page.tsx", "scripts/qa/hcm-manager-inbox-page-http.mjs"],
+    ["src/app/hcm/manager-direct-reports/page.tsx", "scripts/qa/hcm-manager-direct-reports-http.mjs"],
+    ["src/app/hcm/worker-360/page.tsx", "scripts/qa/tenant-hcm-worker360-entity-http.mjs"],
+  ]) assert.equal(byPath.get(page)?.testedBy?.file, proof,
+    "Historical page evidence must remain unchanged: " + page);
+  assert.equal(byPath.get("src/app/hcm/worker-360/page.tsx").testedBy.evidenceLabel,
+    "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(verifyFivePageCredits(m), 5,
+    "All five new source-current page proof anchors and statuses are required");
   assert.match(harness, /verifyHcmManagerDirectReports\(f, \{ makeSession \}\)/);
   assert.match(pageProbe, /expectStatus\(ownRes, 200,/);
   assert.match(pageProbe, /ownRes\.text\.includes\(f\.ownedEmployees\[idx - 1\]\.employeeNo\)/);
   assert.match(pageProbe, /expectStatus\(foreignRes, 404,/);
   assert.match(pageProbe, /!ownRes\.text\.includes\("Workspace unavailable"\)/);
-  assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 16);
-  assert.equal(verifyWorker360PageCredit(m), 16,
+  assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 11);
+  assert.equal(verifyWorker360PageCredit(m), 11,
     "Current-source Worker 360 GET and SSR must have separately pinned PG16 credits");
   assert.match(harness, /await \(await import\("\.\/tenant-scoped-page-probes\.mjs"\)\)\.probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\);/);
   assert.match(pageProbe, /for \(const page of pages\)/);
