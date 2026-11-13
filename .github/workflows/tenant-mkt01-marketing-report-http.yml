@@ -16,6 +16,8 @@ on:
       - 'src/db/**'
       - 'scripts/qa/apply-isolated-baseline.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -27,7 +29,7 @@ concurrency:
 
 jobs:
   fictional-marketing-operator-read:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
