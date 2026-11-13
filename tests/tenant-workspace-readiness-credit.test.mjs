@@ -1,3 +1,5 @@
+import {xenditPostCreditDelta} from '../scripts/qa/tenant-xendit-post-credit.mjs';
+import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -41,9 +43,11 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
     const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
-    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
+    const callback=m.allApiRouteFiles[OIDC_CALLBACK].methods[0];
+    if(callback.status==='GAP')verifyOidcCallbackHold(m);
+    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' && callback.status==='COVERED' ? verifyOidcCallbackCredit(m) : 0;
     const oidcWithdrawal=reviewedOidcSourceSupersession(base.manifest,m).size;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
+    const expectedNetCredits=xenditPostCreditDelta(base.manifest,m)+delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);

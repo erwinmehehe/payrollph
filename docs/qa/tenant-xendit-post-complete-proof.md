@@ -51,3 +51,26 @@ forged-reference rejection, unchanged victim SQL and the exact executed inputs.
 Unexecuted or failing pathways stay GAP. Evidence is
 SOLO_VERIFIED_DEV_RECOVERY; independent security/treasury and production
 acceptance remain pending. No real provider call, deployment or money movement.
+
+## Executed evidence and proposed promotion
+
+[The actual PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/43440091136/job/131935148448)
+passed on `5c5294b9dc203550ac70f481e747a42685a23269`: twelve successful own
+operations across employers 8, 9 and victim 10; 58 protected refusals; eight
+missing-versus-foreign comparisons; three persisted uncertain-outcome recoveries;
+seven synthetic provider POSTs and ten GETs. Repeated submit never resent an
+instruction. Historical reconciliation/recovery passed with both payout flags
+OFF, and no real provider was contacted.
+
+The inspected result and all 70 executed local-module/build/workflow inputs are
+sealed in `tenant-xendit-post-executed-receipt.json`. All remain byte-identical
+after integrating main's separate default-OFF SSO change. The restricted writer
+`node scripts/qa/tenant-xendit-post-credit.mjs --write` promotes only this POST;
+`--check` verifies the sealed receipt, source bytes and exact method citations.
+It refuses another job, altered receipt, missing operation, changed route or
+borrowed GET proof. Mutation tests preserve those failures.
+
+Proposed ledger: **457 COVERED / 6 GAP → 458 COVERED / 5 GAP** of 498 methods.
+The four operations are one API method, never four credits. No route, deployment
+setting or real-money authorization changes. Final-head CI remains a merge gate;
+this PR stays draft pending review.
