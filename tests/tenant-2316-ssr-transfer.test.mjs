@@ -66,7 +66,7 @@ test("proof uses actual seeded two attackers, higher-ID victim and transactional
     'seedEmployer("ATTA"', 'seedEmployer("ATTB"',
     'seedEmployer("VICTIM"', "victim[key].id > actor[key].id",
     "userLegalEntityGrants", "otherEntity", "otherWorker",
-    "frozen historical employer", "status: \"released\"",
+    "frozen employer grant", "status: \"released\"",
     "sourceFingerprint: { employeeLegalEntityId: actor.entity.id }",
     "same-parent foreign worker-only existence",
     "same-parent foreign historical separation",
