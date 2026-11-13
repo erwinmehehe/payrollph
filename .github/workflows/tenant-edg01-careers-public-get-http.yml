@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/tenant-edg01-careers-public-get-http.yml'
       - 'scripts/qa/tenant-edg01-careers-public-get-http.mjs'
+      - 'scripts/qa/tenant-careers-page-public-boundary-http.mjs'
+      - 'tests/tenant-careers-page-public-boundary.test.mjs'
+      - 'src/app/careers/page.tsx'
       - 'tests/tenant-edg01-careers-public-get-contract.test.mjs'
       - 'docs/qa/tenant-edg01-careers-get-review-20261108.md'
       - 'scripts/qa/tenant-edg01-careers-publication-*.mjs'
@@ -58,6 +61,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -74,6 +83,8 @@ jobs:
           node --test tests/tenant-edg01-careers-publication-contract.test.mjs
           node --check scripts/qa/tenant-edg01-careers-public-get-http.mjs
           node --test tests/tenant-edg01-careers-public-get-contract.test.mjs
+          node --check scripts/qa/tenant-careers-page-public-boundary-http.mjs
+          node --test tests/tenant-careers-page-public-boundary.test.mjs
       - name: One-time synthetic encryption keys only
         shell: bash
         run: |
@@ -114,6 +125,8 @@ jobs:
         run: node --import tsx scripts/qa/tenant-edg01-careers-publication-http.mjs --prove
       - name: Verify public Careers GET against signed-in publication and immutable fictional SQL
         run: node --import tsx scripts/qa/tenant-edg01-careers-public-get-http.mjs
+      - name: Verify public Careers page selector and unpublished/foreign employer denial
+        run: node --import tsx scripts/qa/tenant-careers-page-public-boundary-http.mjs
       - name: Synthetic server diagnostics on failure
         if: failure()
         run: cat /tmp/edg01-careers-next.log || true

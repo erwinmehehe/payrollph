@@ -25,6 +25,7 @@ import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verif
 import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -253,9 +254,9 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
-  if(key===OIDC_CALLBACK+' GET'&&method.status==='COVERED'){
-    assert.equal(verifyOidcCallbackCredit(manifest),1);
-    assert.equal(currentBlob,method.testedBy.routeBlobSha);
+  if (key === OIDC_CALLBACK + ' GET' && method.status === 'COVERED') {
+    assert.equal(verifyOidcCallbackCredit(manifest), 1);
+    assert.equal(currentBlob, method.testedBy.routeBlobSha);
     return true;
   }
 
@@ -4095,24 +4096,15 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     return true;
   }
 
-  // Worker 360's changed legal-employer authorization and history projection
-  // invalidate its organization-only GET receipt. Permit exactly this
-  // source-pinned, zero-credit GAP; never promote it from a denial-only proof.
+  // Worker 360's current legal-employer read has a dedicated exact-source
+  // fictional PG16 real-HTTP receipt. Historical org-only proof remains retired.
   if (isNewOrChanged && key === "src/app/api/hcm/worker-360/route.ts GET") {
     assert.equal(currentBlob, "19875021d750b722fc69e0fe939e57928a158af9");
-    assert.equal(method.status, "GAP");
-    assert.equal(method.testedBy, null);
-    assert.match(method.reason, /^LEGAL_EMPLOYER_SOURCE_CHANGE:/);
-    const hold = method.reviewedUncertified;
-    assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
-    assert.equal(hold?.oldSourceBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
-    assert.equal(hold?.newSourceBlobSha, currentBlob);
-    assert.equal(hold?.historicalProof?.file, "scripts/qa/tenant-table-http.mjs");
-    assert.equal(hold?.coverageCredits, 0);
-    assert.equal(hold?.exactHeadPg16Http, "PENDING");
-    assert.equal(hold?.independentSecurityReview, "PENDING");
-    assert.equal(hold?.productionCertified, false);
-    assert.equal(verifyWorker360PageCredit(manifest), 17);
+    assert.equal(method.status, "COVERED");
+    assert.equal(method.reviewedUncertified, undefined);
+    assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
+    assert.equal(verifyWorker360PageCredit(manifest), 16);
     return;
   }
   // This route changed the *within-company legal-employer* boundary, which
@@ -4745,7 +4737,14 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
-      if(path===OIDC_CALLBACK&&method.name==='GET'){assert.equal(verifyOidcCallbackCredit(manifest),1);continue;}
+      if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
+        assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
+        continue;
+      }
+      if (path === OIDC_CALLBACK && method.name === 'GET') {
+        assert.equal(verifyOidcCallbackCredit(manifest), 1);
+        continue;
+      }
       if (path === CHECKOUT_PATH && method.name === "POST") {
         assert.equal(verifyCheckoutCredit(manifest), 1);
         continue;
@@ -6907,6 +6906,83 @@ test("page and server-action inventory cannot silently omit new or changed busin
       if (aliases.some((alias) => alias.path === path)) continue;
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
+      // Public Careers is deliberately anonymous; being public does NOT make
+      // a caller-controlled employer selector safe or confer private tenant
+      // authorization. Preserve the original source receipt and the 17
+      // outstanding page/action GAPs. This exact version has uncredited
+      // fictional PG16 published-only SSR proof, pending independent review.
+      if (path === "src/app/careers/page.tsx") {
+        const originalPageBlobSha = "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3";
+        const pageBlobSha = "8e56412c909b7d70a5c33a21d3df52a79a693d4f";
+        const reviewed = entry.reviewedUncertified;
+        assert.equal(entry.status, "GAP", "Public Careers is not a private method-coverage credit");
+        assert.equal(entry.testedBy, undefined, "Unaccepted synthetic proof cannot certify a page");
+        assert.equal(baseline.app[path], originalPageBlobSha);
+        assert.equal(current, pageBlobSha, "Careers page changed: renew real SSR+privacy evidence");
+        assert.equal(entry.blob, current);
+        assert.deepEqual(reviewed, {
+          kind: "public-careers-SSR-GET-PG16-canonical-selector-unaccepted",
+          originalPageBlobSha, pageBlobSha,
+          proofFile: "scripts/qa/tenant-careers-page-public-boundary-http.mjs",
+          proofBlobSha: "6efef6eb6965d1deba1fe8d64446936a09553813",
+          workflowFile: ".github/workflows/tenant-edg01-careers-public-get-http.yml",
+          workflowBlobSha: "c9f89477a1e013d3ae4c7c50b1d737df1d257269",
+          pageActionCredits: 0, methodCredits: 0,
+          independentlyAccepted: false, productionCertified: false,
+        }, "Only the exact uncredited public Careers SSR proof is recorded");
+        assert.match(entry.reason, /^Still GAP: public Careers/);
+        for (const [file, sha] of [
+          [reviewed.proofFile, reviewed.proofBlobSha],
+          [reviewed.workflowFile, reviewed.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "Public Careers proof or workflow changed without a renewed source review");
+        const sourceLines = actual.split("\n");
+        for (const field of ["ids", "business", "guards"]) {
+          assert.ok(Array.isArray(entry[field]) && entry[field].length > 0);
+          for (const pin of entry[field]) {
+            assert.ok(Number.isSafeInteger(pin.line) && pin.line > 0 &&
+              sourceLines[pin.line - 1]?.includes(pin.token),
+              path + " " + field + ": missing reviewed source-line anchor " + pin.line);
+          }
+        }
+        const notice = actual.indexOf("const notice = careersNoticeConfig()");
+        const denied = actual.indexOf("if (!notice) notFound()");
+        const selector = actual.indexOf('typeof raw !== "string"');
+        const parse = actual.indexOf("const organizationId = Number(raw)");
+        const safe = actual.indexOf("Number.isSafeInteger(organizationId)");
+        const schema = actual.indexOf("await careersSchemaReady()");
+        const read = actual.indexOf("await db.select(");
+        const filtered = actual.indexOf("publishedCareersPredicate(organizationId)");
+        assert.ok(notice >= 0 && denied > notice && selector > denied &&
+          parse > selector && safe > parse && schema > safe &&
+          read > schema && filtered > read,
+          "Careers SSR must reject coerced employer IDs before published-only SQL");
+        assert.match(actual, /organizationId\?: string \| string\[\]/);
+        assert.ok(actual.includes("!/^[1-9][0-9]*$/.test(raw)"));
+        assert.doesNotMatch(actual, /getSessionUser\(|assertOrganizationRole\(/,
+          "Careers is a public-by-design published jobs page; do not add private session assumptions");
+        const proof = readFileSync(reviewed.proofFile, "utf8");
+        assert.ok(proof.indexOf("requireDisposableCareersEnv();") > 0 &&
+          proof.indexOf("requireDisposableCareersEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "CI-only PostgreSQL gate must refuse unsafe targets before DB imports");
+        for (const marker of [
+          "fixture.requireTenantTableDisposable()",
+          '"TTBL-ATTA-"', '"TTBL-ATTB-"', '"TTBL-VICTIM-"',
+          "victimPublic.length, 1", "fixture.standaloneRequest(ownPath(employer.id))",
+          "res.status, 200", "denied.status, 404",
+          "malformedDenials, invalid.length", "assert.deepEqual(await snapshot(), before",
+          "pageActionCredits: 0", "productionCertified: false",
+        ]) assert.ok(proof.includes(marker),
+          "Public Careers PG16 negative control missing: " + marker);
+        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-careers-page-public-boundary-http\.mjs/);
+        assert.ok(workflow.includes("'src/app/careers/page.tsx'"));
+        continue; // Public page is a pinned unaccepted GAP, not a new COVERED page.
+      }
+
       // #1876 People/HR pages: exact-source, feature-ON, disposable
       // PG16/HTTP *provisional* evidence. Preserve both page/action GAPs:
       // this GET-only proof does not certify interactive survey writes or
@@ -7602,7 +7678,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ? "a6c4642f9e651eb616de6e301a832ac2d471a33e"
           : "82327e4d8580af2abe503e7a104321e854dc84f7";
         const pageBlobSha = certificate
-          ? "f5e2ed9e6e2b3fef38bd5551e3894fc586bda3ad"
+          ? "f4badb3f1782812aab672665340e967911cff2cb"
           : "e55809f26075c142240675826a0c353d403a20e6";
         assert.equal(entry.status, "GAP", "Unaccepted tax-review SSR remains a GAP");
         assert.equal(entry.testedBy, undefined, "No page/action proof may be credited");
@@ -7628,14 +7704,25 @@ test("page and server-action inventory cannot silently omit new or changed busin
           ownPositiveLine: 123, foreignDenialLine: 129, unchangedDbLine: 155,
           previouslyPassingHead: "13e77283b83597738803afa843f3feea831080e8",
           previouslyPassingJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42622354364/job/129177441243",
-          ...(certificate ? {} : { workerBinding: {
+          ...(certificate ? { workerWithoutSeparationBoundary: {
+            kind: "form2316-worker-only-same-parent-ungranted-legal-employer-existence-denial",
+            sourceBlobSha: "f4badb3f1782812aab672665340e967911cff2cb",
+            proofFile: "scripts/qa/tenant-prior-review-worker-http.mjs",
+            proofBlobSha: "db38b5ce9e33c42feb81a69929849c2c52a6d004",
+            workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
+            workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+            unitTestFile: "tests/tenant-2316-legal-employer-worker.test.ts",
+            unitTestBlobSha: "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7",
+            exactFinalHeadPg16: "PENDING",
+            pageActionCredits: 0, independentlyAccepted: false, productionCertified: false,
+          }} : { workerBinding: {
             kind: "prior-employer-selected-worker-legal-entity-SSR-PG16-uncredited",
             originalPageBlobSha: "622fbbba4ecdaaa386a3df6ba7365fc90493e5ff",
             pageBlobSha: "e55809f26075c142240675826a0c353d403a20e6",
             helperFile: "src/lib/tenant-prior-review-worker.ts",
             helperBlobSha: "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
             proofFile: "scripts/qa/tenant-prior-review-worker-http.mjs",
-            proofBlobSha: "b4c55c0d9dceb77364a330ebc5222d0c49c1158d",
+            proofBlobSha: "db38b5ce9e33c42feb81a69929849c2c52a6d004",
             contractFile: "scripts/qa/tenant-prior-review-worker-contract.mjs",
             contractBlobSha: "428b115e1814942fdfbb43f799010745af55f3de",
             testFile: "tests/tenant-prior-review-worker.test.ts",
@@ -7643,7 +7730,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
             contractTestFile: "tests/tenant-prior-review-worker-contract.test.mjs",
             contractTestBlobSha: "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
             workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-            workflowBlobSha: "beda36c25495f84d0cbc85030f9cce47f9faa32a",
+            workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
             proofStatus: "EXACT_PR_HEAD_PG16_PENDING",
             pageActionCredits: 0, apiMethodCredits: 0,
             independentlyAccepted: false, productionCertified: false,
@@ -7673,6 +7760,39 @@ test("page and server-action inventory cannot silently omit new or changed busin
         ]) {
           assert.equal(gitBlobSha(readFileSync(file)), sha,
             "Tax-review evidence changed without renewed independent test: " + file);
+        }
+        if (certificate) {
+          const boundary = reviewed.workerWithoutSeparationBoundary;
+          assert.equal(boundary.sourceBlobSha, current);
+          assert.equal(boundary.exactFinalHeadPg16, "PENDING");
+          assert.equal(boundary.pageActionCredits, 0);
+          assert.equal(boundary.independentlyAccepted, false);
+          assert.equal(boundary.productionCertified, false);
+          for (const [file, sha] of [
+            [boundary.proofFile, boundary.proofBlobSha],
+            [boundary.workflowFile, boundary.workflowBlobSha],
+            [boundary.unitTestFile, boundary.unitTestBlobSha],
+          ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Uncredited 2316 worker boundary proof changed; re-pin and rerun: " + file);
+          const workerRead = actual.indexOf("legalEntityId: employees.legalEntityId");
+          const workerGrant = actual.indexOf("assertEntityResource(entityScope.context, worker.legalEntityId)");
+          const separationQuery = actual.indexOf("const [separation] = await db.select(");
+          const guidance = actual.indexOf("Select a released final-pay separation");
+          const mount = actual.indexOf("<Certificate2316Review");
+          assert.ok(workerRead > 0 && workerGrant > workerRead &&
+            separationQuery > workerGrant && guidance > separationQuery && mount > guidance,
+            "2316 must deny ungranted worker IDs before guidance or private form mount");
+          const proof = readFileSync(boundary.proofFile, "utf8");
+          for (const required of [
+            "certPath(actor.org.id, actor.worker.id)",
+            "certPath(actor.org.id, actor.worker.id, actor.certificateSeparationId)",
+            "certPath(a.org.id, otherWorker.id)",
+            "certPath(a.org.id, otherWorker.id, otherSep.id)",
+            "certPath(a.org.id, victim.worker.id)",
+            "certPath(b.org.id, a.worker.id)",
+            "revoked2316.status, 404",
+          ]) assert.ok(proof.includes(required),
+            "2316 fictional PG16 proof must include own, foreign, cross-tenant and revoked cases: " + required);
         }
         if (!certificate) {
           const binding = reviewed.workerBinding;
@@ -7940,25 +8060,16 @@ test("page and server-action inventory cannot silently omit new or changed busin
         }), true);
         continue;
       }
-      // Exact-source revised Worker 360 SSR has lost its historical page
-      // credit; the new legal-employer acceptance is still independent-review
-      // pending. Never require a false "COVERED" state to appease inventory.
+      // Revised Worker 360 SSR is credited only through its own real-HTTP
+      // legal-employer proof, not the historical parent-employer shell receipt.
       if (path === "src/app/hcm/worker-360/page.tsx") {
         assert.equal(current, "3b506b27e0af73ec370c448c6a0ad02a80c8f75c");
         assert.equal(entry.blob, current);
-        assert.equal(entry.status, "GAP");
-        assert.equal(entry.testedBy, undefined);
-        assert.match(entry.reason, /^LEGAL_EMPLOYER_SOURCE_CHANGE:/);
-        const hold = entry.reviewedUncertified;
-        assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
-        assert.equal(hold?.oldSourceBlobSha, "337034f839c17a30077e2cfe5991c640e0c6a5e9");
-        assert.equal(hold?.newSourceBlobSha, current);
-        assert.equal(hold?.historicalProof?.file, "scripts/qa/tenant-hcm-worker360-http.mjs");
-        assert.equal(hold?.coverageCredits, 0);
-        assert.equal(hold?.exactHeadPg16Http, "PENDING");
-        assert.equal(hold?.independentSecurityReview, "PENDING");
-        assert.equal(hold?.productionCertified, false);
-        assert.equal(verifyWorker360PageCredit(manifest), 17);
+        assert.equal(entry.status, "COVERED");
+        assert.equal(entry.reviewedUncertified, undefined);
+        assert.equal(entry.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
+        assert.equal(verifyWorker360PageCredit(manifest), 16);
         continue;
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
@@ -9140,4 +9251,5 @@ test("payroll exports POST credit requires the exact passing run, byte-pinned in
     assert.ok(route.includes(bound), routePath + " lost a bound the proof exercises: " + bound);
   assert.ok(!/body\.(?:organizationId|orgId|legalEntityId)/.test(route), "the route must never read the employer from the request body");
 });
-import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

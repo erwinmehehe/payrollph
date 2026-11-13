@@ -1,5 +1,15 @@
 name: Worker 360 legal-employer history isolation (fictional PG16 HTTP)
 on:
+  # Temporary proof-only branch trigger: establishes a passing PG16 real-HTTP
+  # receipt before credit is committed or a draft PR is opened.
+  push:
+    branches: [qa/tenant-worker360-legal-employer-recredit-20261112]
+    paths:
+      - "scripts/qa/tenant-hcm-worker360-entity-*.mjs"
+      - "tests/tenant-hcm-worker360-entity-contract.test.mjs"
+      - ".github/workflows/tenant-hcm-worker360-entity-http.yml"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "scripts/qa/tenant-worker360-legal-employer-credit.mjs"
   pull_request:
     branches: [main]
     paths:

@@ -36,12 +36,12 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
     const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
     const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
-    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must remain uncredited");
-    assert.equal(currentWorker.testedBy, null);
+    assert.equal(verifyWorker360LegalEmployerCredits(m),2);
+    assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
-    const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
-    const oidcDelta=base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status==='GAP'?verifyOidcCallbackCredit(m):0;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+oidcDelta-revokedWorkerCredit-yearEndHold;
+    const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
+    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+restoredWorkerCredit+oidcDelta-yearEndHold;
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
@@ -104,4 +104,6 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.productionTested, false);
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.launchApproved, false);
 });
-import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

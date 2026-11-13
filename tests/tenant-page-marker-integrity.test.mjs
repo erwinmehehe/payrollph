@@ -28,9 +28,9 @@ test("foreign employer HTML must continue to reject real victim markers", () => 
     "The page probe must enforce the exact Worker 360 source/receipt verifier");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  assert.equal(verifyWorker360PageCredit(manifest), 17,
-    "Worker 360's revised legal-employer source must retire stale page credit");
-  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 17);
+  assert.equal(verifyWorker360PageCredit(manifest), 16,
+    "Worker 360 revised legal-employer source requires renewed PG16 HTTP credit");
+  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 16);
   // Previously credited SSR pages must retain owned-success and victim-denial proof.
   assert.match(probe, /expectStatus\(ownRes, 200, "Owned workspace SSR must load the verified snapshot"\)/);
   assert.match(probe, /expectStatus\(foreignRes, 404, "Foreign employer workspace must be denied before snapshot loading"\)/);

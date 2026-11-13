@@ -8,6 +8,7 @@ import { assertLiveTenantCounts, baseTenantManifest } from "../../tests/helpers/
 import {verifyFilingPatchCredit,FILING_PATH} from "./tenant-filing-patch-credit.mjs";
 import { verifyCheckoutCredit, CHECKOUT_PATH } from './tenant-billing-checkout-credit.mjs';
 import { verifyYearEndCredits } from "./tenant-year-end-credit.mjs";
+import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -203,10 +204,23 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(yearEndPromotions.length, 2, "The year-end renewal is an atomic GET/POST pair");
         assert.equal(verifyYearEndCredits(m), 2, "Only the renewed, source-matched year-end proof can authorize its credit");
       }
-      const oidcPromotions=promoted.filter(key=>key==='GET '+OIDC_CALLBACK);
-      if(oidcPromotions.length)assert.equal(verifyOidcCallbackCredit(m),1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...oidcPromotions].sort(),
-        "Merged invitation receipts permit only separately verified BIR, filing PATCH and checkout credits");
+      // Worker 360's source-revoked GET may return to COVERED only with its
+      // own passed disposable PG16 real-HTTP legal-employer GET + SSR receipts.
+      // This is not an invitation credit or a transfer of its historical proof.
+      const worker360Path = "src/app/api/hcm/worker-360/route.ts";
+      const worker360Promotions = promoted.filter(key => key === "GET " + worker360Path);
+      if (worker360Promotions.length) {
+        assert.equal(worker360Promotions.length, 1);
+        assert.equal(verifyWorker360LegalEmployerCredits(m), 2,
+          "Worker 360 must have its separate exact-source GET and SSR legal-employer proof");
+        const worker360 = m.allApiRouteFiles[worker360Path].methods.find(row => row.name === "GET");
+        assert.equal(worker360.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        assert.equal(worker360.testedBy.independentlyAccepted, false);
+      }
+      const oidcPromotions = promoted.filter(key => key === 'GET ' + OIDC_CALLBACK);
+      if (oidcPromotions.length) assert.equal(verifyOidcCallbackCredit(m), 1);
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions].sort(),
+        "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
       const source = baseTenantManifest();
@@ -221,4 +235,5 @@ export function verifyInvitationAcceptCredits(m) {
   }
   return 2;
 }
-import {verifyOidcCallbackCredit,OIDC_CALLBACK} from './tenant-oidc-full-credit.mjs';
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from './tenant-oidc-full-credit.mjs';
