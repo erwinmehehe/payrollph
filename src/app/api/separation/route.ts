@@ -41,6 +41,7 @@ import {
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
+import { assertFinalPayPriorSnapshot, loadReviewedPriorForFinalPay, priorEvidenceSnapshot } from "@/lib/final-pay-prior-employer-server";
 import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
@@ -654,6 +655,16 @@ export async function POST(request: Request) {
     // unrecovered, visible in the finance review and unchanged at release.
     const loanDeductions = deductOutstandingLoans ? loanAuthority.eligibleBalance : 0;
 
+    // RR 11-2018: a previous employer\u0027s approved 2316 income/withholding must
+    // participate in separation annualization. Do not accept browser-supplied
+    // amounts, infer an absent record as zero, or change default-OFF behavior.
+    const priorEvidenceScope = {
+      organizationId, employeeId, taxYear: Number(lastDay.slice(0, 4)), actorUserId: user.id,
+    };
+    const priorEvidence = criticalReleaseFlagEnabled("yearEndPriorEvidence")
+      ? await db.transaction((tx) => loadReviewedPriorForFinalPay(priorEvidenceScope, tx), { isolationLevel: "serializable" })
+      : null;
+
     const result = computeFinalPay({
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicYtd: historicalBasicSalaryEarned,
@@ -677,6 +688,7 @@ export async function POST(request: Request) {
       otherBenefits,
       finalStatutoryDeductions,
       loanDeductions,
+      ...(priorEvidence ? { priorEmployerEvidence: { evidence: priorEvidence.evidence, taxYear: priorEvidenceScope.taxYear } } : {}),
     });
 
     const dueDate = finalPayDueDate(lastDay);
@@ -690,6 +702,7 @@ export async function POST(request: Request) {
       rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
       taxRuleVersion: "PH-2026.03",
       sourceFingerprint,
+      ...(priorEvidence ? { priorEmployerEvidence: priorEvidenceSnapshot(priorEvidence) } : {}),
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicSalaryEarned,
       historicalBasicStored: Number(money(storedHistoricalBasic)),
@@ -918,6 +931,10 @@ export async function POST(request: Request) {
         if (livePackage && livePackage.status !== "released") {
           throw new Error("A competing Separation package was created before this intent could be applied.");
         }
+      }
+
+      if (criticalReleaseFlagEnabled("yearEndPriorEvidence")) {
+        await assertFinalPayPriorSnapshot(priorEvidenceScope, computationSnapshot.priorEmployerEvidence, tx);
       }
 
       const financialValues = {
@@ -1721,6 +1738,12 @@ export async function PATCH(request: Request) {
           if (legacyFinalPayExemptionNeedsRecompute(frozen)) {
             throw new Error("FINAL_PAY_LEGACY_TAX_REVIEW_REQUIRED");
           }
+          if (criticalReleaseFlagEnabled("yearEndPriorEvidence") || frozen.priorEmployerEvidence !== undefined) {
+            await assertFinalPayPriorSnapshot({
+              organizationId: fresh.organizationId, employeeId: fresh.employeeId,
+              taxYear: Number(String(fresh.lastDay).slice(0, 4)), actorUserId: user.id,
+            }, frozen.priorEmployerEvidence, tx);
+          }
           const transactionSources = await loadFinalPaySources(
             { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
             { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
@@ -1886,6 +1909,12 @@ export async function PATCH(request: Request) {
         freshSnapshot.taxClassification, body.actualLeavePayoutDate, todayPh(),
       )) {
         throw new Error("FINAL_PAY_LEAVE_PAYOUT_DATE_REVIEW_REQUIRED");
+      }
+      if (criticalReleaseFlagEnabled("yearEndPriorEvidence") || freshSnapshot.priorEmployerEvidence !== undefined) {
+        await assertFinalPayPriorSnapshot({
+          organizationId: fresh.organizationId, employeeId: fresh.employeeId,
+          taxYear: Number(String(fresh.lastDay).slice(0, 4)), actorUserId: user.id,
+        }, freshSnapshot.priorEmployerEvidence, tx);
       }
       const transactionSources = await loadFinalPaySources(
         { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
