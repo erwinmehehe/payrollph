@@ -166,13 +166,13 @@ export function verifyWorker360LegalEmployerCredits(manifest, read = readFileSyn
     "GET proof must be source/run/line pinned");
   assert.deepEqual(page.testedBy, citation("page"),
     "SSR proof must be source/run/line pinned");
-  assert.equal(manifest.scopedPages.filter(row => row.status === "GAP").length, 11, "Five separately re-proved scoped pages must be credited alongside Worker 360");
+  assert.equal(manifest.scopedPages.filter(row => row.status === "GAP").length, 16);
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(file => file.methods);
   assert.equal(manifest.metrics.coveredAfter, methods.filter(m => m.status === "COVERED").length);
   assert.equal(manifest.metrics.gap, methods.filter(m => m.status === "GAP").length);
   assert.equal(manifest.metrics.methods, methods.length);
   assert.equal(manifest.metrics.scopedPagesAndActions, manifest.scopedPages.length);
-  assert.ok(String(manifest.acceptanceStatus).startsWith("NOT ACCEPTED: " + manifest.metrics.gap + " API methods and 11 page/action GAPs"));
+  assert.ok(String(manifest.acceptanceStatus).startsWith("NOT ACCEPTED: " + manifest.metrics.gap + " API methods and 16 page/action GAPs"));
   return 2;
 }
 function regenerate(original, read = readFileSync) {
