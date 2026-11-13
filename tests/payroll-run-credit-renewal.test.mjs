@@ -1,11 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
+import {verifyFreshPayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal-fresh-contract.mjs';
 import {load} from 'js-yaml';
 import {assertHistoricalHttpWorkflowCheckout} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa/payroll-run-credit-renewal-contract.mjs';
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
+
+test('fresh execution cannot rewrite either original job archive or its accounting projection',()=>{
+  const history=readHistoricalPayrollRenewal();
+  assert.equal(Object.keys(history.receipt.cohorts).length,9);
+  assert.equal(history.receipt.cohorts.creation.jobId,131691175894);
+  assert.throws(()=>verifyFreshPayrollRenewal(history.receipt,history.receipt,history.receipt.methods),
+    'An unchanged archived result cannot masquerade as a fresh execution');
+  for(const target of [HISTORICAL_RENEWAL_RECEIPT,history.receipt.historicalFullInputReceipt.file]){
+    assert.throws(()=>readHistoricalPayrollRenewal((file,...args)=>file===target?
+      readFileSync(file,...args).replace('131691175894','131691175895'):readFileSync(file,...args)),
+      /Historical executed receipt changed/);
+  }
+});
 
 test('fresh HTTP reproof checks out the exact proposed head with no persisted credentials',()=>{
   const workflow=load(readFileSync('.github/workflows/security-http-smoke.yml','utf8'));
@@ -22,10 +37,22 @@ test('historical unaccepted page evidence permits only the source-sealed checkou
   assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>readFileSync(p,...args)+'\n# unreviewed change'));
 });
 
-test('historical nine-cohort counters cover nineteen methods; changed shared accounting runner requires a fresh PG16 execution',()=>{
+test('nine fresh source-matched PG16 cohorts renew exactly nineteen methods',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
-  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
-  assert.throws(()=>readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']),/Executed input closure drift:/);
+  assert.equal(readVerifiedPayrollRenewal().methods.length,19);
+  assert.equal(readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']).methods.length,19);
+});
+
+test('fresh jobs cannot drop proof roots, borrow historical executions or omit the synthetic-provider preload',()=>{
+  const history=readHistoricalPayrollRenewal().receipt;
+  for(const mutate of [
+    r=>{r.cohorts.creation.historicalExecution.jobId++;},
+    r=>{r.cohorts.creation.jobId=r.cohorts.creation.historicalExecution.jobId;},
+    r=>{r.cohorts.boundary.roots.pop();},
+    r=>{r.cohorts.paymongo.roots=r.cohorts.paymongo.roots.filter(p=>!p.endsWith('paymongo-http-proof-preload.mjs'));},
+    r=>{delete r.cohorts.secondPass.sourcePins['scripts/qa/tenant-second-pass-http.mjs'];},
+    r=>{r.cohorts.paymongo.result.scope='unverified provider traffic';},
+  ]){const r=receipt();mutate(r);assert.throws(()=>verifyFreshPayrollRenewal(r,history,r.methods));}
 });
 test('failed, borrowed, wrong-source, missing or production-accepted cohorts earn no renewal',()=>{
   for(const mutate of [
@@ -48,6 +75,7 @@ test('empty own success, foreign acceptance, altered victim SQL and fake provide
     r=>{r.cohorts.readTable.result.discriminatingProofs=0;},
     r=>{r.cohorts.actions.result.forgedSelectorsIgnored=false;},
     r=>{r.cohorts.paymongo.result.realProviderContacted=true;},
+    r=>{r.cohorts.paymongo.result.providerCalls[0].url='https://unreviewed.invalid/provider';},
     r=>{r.cohorts.paymongo.result.successes.find(x=>x.freshRetry).syntheticPosts=2;},
   ]){const r=receipt();mutate(r);assert.throws(()=>verifyPayrollRenewalResults(r));}
 });
@@ -62,9 +90,8 @@ test('receipt seal rejects invented results and exact executed source drift',()=
   }
 });
 test('renewed citations identify actual jobs without pretending independent acceptance',()=>{
-  const historical=receipt();
-  assert.equal(historical.cohorts.creation.jobId,131691175894);
-  assert.equal(historical.independentlyAccepted,false);assert.equal(historical.productionCertified,false);
-  assert.throws(()=>payrollRenewalProof('POST payroll-runs'),/Executed input closure drift:/);
+  const proof=payrollRenewalProof('POST payroll-runs');
+  assert.equal(proof.cohorts.find(x=>x.name==='creation').jobId,131745203827);
+  assert.equal(proof.independentlyAccepted,false);assert.equal(proof.productionCertified,false);
   assert.throws(()=>payrollRenewalProof('POST payroll-runs/[id]/xendit-payout'),/not renewed/);
 });

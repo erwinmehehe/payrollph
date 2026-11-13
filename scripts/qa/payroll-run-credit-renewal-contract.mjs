@@ -107,8 +107,22 @@ function money(result, exactLinks) {
 
 function paymongo(result) {
   assert.equal(result.status, "PASS"); assert.equal(result.transport, "real-http"); assert.ok(result.assertions >= 558);
-  assert.equal(result.syntheticProviderOnly,true);
-  off(result,['realProviderContacted','realMoneyMoved','productionAccepted']);
+  if(Object.hasOwn(result,'scope')){
+    assert.equal(result.scope,'Local investigation only; all provider GET/POST intercepted; no HTTP acceptance, external calls or coverage credits');
+    assert.ok(Array.isArray(result.providerCalls)&&result.providerCalls.length>0);
+    for(const call of result.providerCalls){
+      assert.equal(new URL(call.url).origin,'https://api.paymongo.com');
+      assert.ok(['GET','POST'].includes(call.method));
+    }
+    // Preserve the raw artifact; do not invent booleans absent from its output.
+    // The fresh source closure separately pins the guarded loopback preload.
+    for(const key of ['realProviderContacted','realMoneyMoved','productionAccepted'])
+      if(Object.hasOwn(result,key))assert.equal(result[key],false);
+    if(Object.hasOwn(result,'syntheticProviderOnly'))assert.equal(result.syntheticProviderOnly,true);
+  }else{
+    assert.equal(result.syntheticProviderOnly,true);
+    off(result,['realProviderContacted','realMoneyMoved','productionAccepted']);
+  }
   const own = result.successes.filter(row => row.ownProviderReconcile === true);
   assert.equal(own.length, 2); assert.ok(unique(own.map(row => row.organizationId)));
   const retry = result.successes.filter(row => row.freshRetry === true);
