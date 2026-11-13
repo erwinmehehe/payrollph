@@ -8,6 +8,7 @@ on:
       - "src/app/api/auth/sso/start/route.ts"
       - "src/app/api/auth/sso/callback/route.ts"
       - "src/lib/oidc-browser-state.ts"
+      - "src/lib/oidc-identity-binding.ts"
       - "scripts/qa/tenant-oidc-browser-state-*.mjs"
       - "tests/tenant-oidc-browser-state*"
       - "docs/qa/tenant-oidc-browser-state-boundary.md"
