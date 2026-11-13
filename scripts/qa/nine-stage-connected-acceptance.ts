@@ -213,7 +213,9 @@ async function main() {
         email:"owner.nine@linaw.test",password,acceptTerms:true,
         privatePilotInviteCode:process.env.PRIVATE_PILOT_QA_INVITE_CODE,
       });
-      assert.equal(registered.activated,true);
+      // The signup response is deliberately equalized (no activation flag, #1939), so activation is proven by what follows:
+      // the owner row and membership exist and the owner can sign in below.
+      assert.ok(registered);
       const [identity]=await db.select({organizationId:userOrganizations.organizationId})
         .from(userOrganizations).innerJoin(users,eq(users.id,userOrganizations.userId))
         .where(eq(users.email,"owner.nine@linaw.test"));
