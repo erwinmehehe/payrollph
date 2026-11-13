@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { varianceRosterMatchesRunEmployer } from "../src/lib/payroll-variance-entity-boundary";
-import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { isVerifiedOracleRenewal, verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const base = {
   organizationId: 10, legalEntityId: 101,
@@ -89,7 +89,9 @@ test("disposable HTTPS proof is wired into the original multi-entity acceptance 
     assert.equal(proof.reviewedUncertified.priorProof.file, "scripts/qa/tenant-high-risk-01-http.mjs");
   } else {
     assert.equal(proof?.status, "COVERED", "retain separately source-proven prior credit");
-    assert.equal(proof?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+    if(proof?.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+      assert.ok(isVerifiedOracleRenewal(manifest,route,'GET'),'complete source-matched renewed PG16 proof required');
+    }else assert.equal(proof?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
   }
   assertLiveTenantCounts(assert, manifest);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);

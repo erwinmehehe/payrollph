@@ -1,5 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
-import {isVerifiedOracleHold,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {ORACLE_HELD_METHODS,isVerifiedOracleSupersession,isVerifiedOracleRenewal,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -75,6 +75,10 @@ function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus, snapsh
     label + ": a status promotion without its verified proof is forbidden");
   if (row.status === "COVERED") {
     const proof = row.testedBy;
+    if(proof?.kind==='payroll-run-source-renewal-real-http-pg16'){
+      assert.ok(isVerifiedOracleRenewal(manifest,path,verb),label+': complete current-source PG16 renewal required');
+      return row.status;
+    }
     assert.ok(proof && typeof proof.file === "string" && proof.file.startsWith("scripts/qa/"),
       label + ": COVERED requires a source-pinned proof citation");
     // These are citation *shapes*, not a whitelist of PRs or an acceptance
@@ -616,7 +620,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutReconciliationPath = "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts";
   assert.equal(expectedStatuses[payoutReconciliationPath]?.POST, "GAP", "payout-reconciliation POST must start GAP in the reviewed snapshot");
   const payoutReconciliation = m.allApiRouteFiles[payoutReconciliationPath].methods.find(row => row.name === "POST");
-  if(!isVerifiedOracleHold(m,payoutReconciliationPath,"POST")) {
+  if(!isVerifiedOracleSupersession(m,payoutReconciliationPath,"POST")) {
   assert.equal(payoutReconciliation?.status, "COVERED");
   assert.equal(payoutReconciliation.testedBy?.file, "scripts/qa/paymongo-export-isolation-local.mjs");
   assert.equal(payoutReconciliation.testedBy.providerMode, "loopback-synthetic-paymongo");
@@ -630,7 +634,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const exportsPostPath = "src/app/api/payroll-runs/[id]/exports/route.ts";
   assert.equal(expectedStatuses[exportsPostPath]?.POST, "GAP", "exports POST must start GAP in the reviewed snapshot");
   const exportsPost = m.allApiRouteFiles[exportsPostPath].methods.find(row => row.name === "POST");
-  if(!isVerifiedOracleHold(m,exportsPostPath,"POST")) {
+  if(!isVerifiedOracleSupersession(m,exportsPostPath,"POST")) {
   assert.equal(exportsPost?.status, "COVERED");
   assert.equal(exportsPost.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs");
   assert.equal(exportsPost.testedBy.providerMode, "loopback-synthetic-paymongo");
@@ -647,7 +651,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(expectedStatuses[xenditPayoutPath]?.GET, "GAP", "xendit-payout GET must start GAP in the reviewed snapshot");
   for (const [path, name] of [[pilotSignoffPath, "POST"], [xenditPayoutPath, "GET"]]) {
     const credited = m.allApiRouteFiles[path].methods.find(row => row.name === name);
-    if(!isVerifiedOracleHold(m,path,name)) {
+    if(!isVerifiedOracleSupersession(m,path,name)) {
     assert.equal(credited?.status, "COVERED");
     assert.equal(credited.testedBy?.file, "scripts/qa/tenant-payroll-run-actions-http.mjs");
     assert.equal(credited.testedBy.independentSecurityReview, "PENDING");
@@ -750,7 +754,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   for (const path of reviewReleasePaths) {
     assert.equal(expectedStatuses[path]?.POST, "GAP", path + " POST must start GAP in the reviewed snapshot");
     const method = m.allApiRouteFiles[path].methods.find(row => row.name === "POST");
-    if(!isVerifiedOracleHold(m,path,"POST")) {
+    if(!isVerifiedOracleSupersession(m,path,"POST")) {
     assert.equal(method?.status, "COVERED");
     assert.equal(method.testedBy?.file, "scripts/qa/tenant-money-lifecycle-http.mjs");
     assert.equal(method.testedBy.workflowRunId, 42063867383);
@@ -953,6 +957,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
+    const mainSourceCache = new Map();
+    const readMainSource = (path, encoding) => {
+      if (!mainSourceCache.has(path)) mainSourceCache.set(path, execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 }));
+      const bytes = mainSourceCache.get(path);
+      return encoding ? bytes.toString(encoding) : bytes;
+    };
+    const mainOracleHolds = verifyOracleSourceHolds(baseline, null, readMainSource);
     const payoutMethod = baseline.allApiRouteFiles["src/app/api/payout-profiles/route.ts"]
       .methods.find(method => method.name === "PATCH");
     const baselineHasPayout = payoutMethod?.status === "COVERED";
@@ -1053,6 +1064,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     ].filter(([path, receipt, verb = "POST"]) => {
       const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === verb);
       if (row?.status !== "COVERED") return false;
+      if(row.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+        // mainOracleHolds above validates the entire generated nineteen-method
+        // receipt against main's own source bytes, including historical holds.
+        assert.ok(ORACLE_HELD_METHODS.includes(verb+' '+baseline.allApiRouteFiles[path].route));
+        assert.equal(row.testedBy.independentSecurityReview,'PENDING');
+        assert.equal(row.testedBy.productionCertified,false);
+        return true;
+      }
       assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
       assert.equal(row.testedBy.independentSecurityReview, "PENDING");
       assert.equal(row.testedBy.productionTested, false);
@@ -1370,20 +1389,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(mainWorkerGet.reviewedUncertified?.coverageCredits,0);
       expectedOriginalMain[mainWorkerPath].GET='GAP';
     }
-    const mainSourceCache = new Map();
-    const readMainSource = (path, encoding) => {
-      if (!mainSourceCache.has(path)) mainSourceCache.set(path, execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 }));
-      const bytes = mainSourceCache.get(path);
-      return encoding ? bytes.toString(encoding) : bytes;
-    };
-    // Once the OIDC callback GET credit is on origin/main it is an independently sealed baseline credit, verified against main's own files.
-    const baselineOidcMethod = baseline.allApiRouteFiles[OIDC_CALLBACK].methods.find(item => item.name === "GET");
-    const baselineOidcCredits = baselineOidcMethod.status === "COVERED" ? 1 : 0;
-    if (baselineOidcCredits) {
-      assert.equal(verifyOidcCallbackCredit(baseline, readMainSource), 1);
-      expectedOriginalMain[OIDC_CALLBACK].GET = "COVERED";
-    }
-    const mainOracleHolds = verifyOracleSourceHolds(baseline, null, readMainSource);
+    const mainOidcRow=baseline.allApiRouteFiles[OIDC_CALLBACK].methods.find(row=>row.name==='GET');
+    const mainOidcCredits=mainOidcRow.status==='COVERED'?verifyOidcCallbackCredit(baseline,readMainSource):0;
+    if(mainOidcCredits)expectedOriginalMain[OIDC_CALLBACK].GET='COVERED';
     let mainExpectedOracleWithdrawals = 0;
     for (const key of mainOracleHolds) {
       const at = key.indexOf(" "), verb = key.slice(0, at), path = key.slice(at + 1);
@@ -1400,13 +1408,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineOidcCredits + baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion - mainExpectedOracleWithdrawals + compliancePostCredits.length +
+      COVERED: mainOidcCredits + baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion - mainExpectedOracleWithdrawals + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
-      GAP: snapshot.counts.GAP - baselineOidcCredits + mainWorkerDemotion + mainExpectedOracleWithdrawals - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP - mainOidcCredits + mainWorkerDemotion + mainExpectedOracleWithdrawals - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,

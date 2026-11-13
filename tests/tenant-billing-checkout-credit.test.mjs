@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { CHECKOUT_INPUT_BLOBS } from '../scripts/qa/tenant-billing-checkout-credit-pins.mjs';
 import { CHECKOUT_PATH, CHECKOUT_RECEIPT, checkoutEvidence, verifyCheckoutCredit } from '../scripts/qa/tenant-billing-checkout-credit.mjs';
-import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 const manifest = () => JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 
 test('only the merged real-PG16 two-employer checkout receipt earns one method', () => {
@@ -39,6 +39,7 @@ test('partial exports and unrelated GAPs receive zero credits from this verifier
   const oracleHolds = verifyOracleSourceHolds(m);
   for (const path of ['payroll-runs/[id]/exports', 'payroll-runs/[id]/xendit-payout', 'automation-studio']) {
     const route = 'src/app/api/' + path + '/route.ts';
+    if(isVerifiedOracleRenewal(m,route,'POST'))continue;
     if (oracleHolds.has('POST ' + route)) {
       const held = m.allApiRouteFiles[route].methods.find(x => x.name === 'POST');
       assert.equal(held.status, 'GAP'); assert.equal(held.testedBy, null);

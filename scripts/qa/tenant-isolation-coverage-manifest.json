@@ -2,14 +2,14 @@
   "schema": "payrollph-tenant-isolation-method-coverage-v1",
   "baseCommit": "8c2a62135fd6e23db4603197822339cc1020ec27",
   "generated": "2026-11-04",
-  "acceptanceStatus": "NOT ACCEPTED: 24 API methods and 16 page/action GAPs remain. 2026-11-11 source-evidenced architecture classification only: six public pre-login routes and two disabled SAML 503 refusal routes are PUBLIC-BY-DESIGN; one HCM global scheduler is PRIVILEGED-OPERATIONS-TOKEN-ONLY. Zero additional tenant-private COVERED credits; production and complete tenant isolation are NOT ACCEPTED. Historical checkpoints follow. Worker 360 SSR and GET previously held GAP when parent-employer-only receipts were superseded by legal-employer-scoped fixes; separate exact-source fictional PG16 HTTP reproof now supports one provisional GET credit and one SSR shell credit, with independent HR/privacy/security review PENDING. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. Tenant-table proofs add 3 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 259 COVERED / 10 PUBLIC-BY-DESIGN / 225 GAP; no global tenant-isolation acceptance. PR #1402 adds 11 distinct provisional People/platform write-method credits from exact-head disposable PG16/localhost HTTP run 40200060037 (head 1fd16ee304a896072560fd86ff06915e7bce159c): default 28 write rows/56 attacker-victim pairs/28 discriminating/30 forged and unchanged victim database. A twelfth create_worksite action-level scenario passed but POST workforce/worksites remains GAP because other POST actions were not proven; the unchanged legacy guard prohibits blanket credit. The multi-entity and flagged-reads profiles passed their configured table checks, without write rows. Combined 270 COVERED / 10 PUBLIC-BY-DESIGN / 214 GAP, plus 18 page/action GAPs. These are not production, full tenant-isolation certification or independent reviewer approval. Fresh final-head CI remains required. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 214 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1427 adds three provisional, local-disposable-PG16 Compliance Evidence POST method proofs (filing validations, labor-inspection drills and compliance validation) only. They remain subject to exact-head CI and independent reviewer acceptance; 203 API and 18 page/action GAPs remain NOT ACCEPTED. No production payroll or statutory release is authorized. PR #1429's People Home page has provisional two-attacker real-Chromium/PG16 source-pinned proof only; 17 page/action GAPs and 203 API method GAPs remain NOT ACCEPTED. No production pilot activation or security certification. PR #1433's labor-costing POST is provisionally source-pinned with separate synthetic PG16 HTTP evidence for three actions. 202 API method GAPs and 17 page/action GAPs remain; independent security acceptance and migration approval are still required. No production payroll, posting or SQL execution is authorized. PR #1437 adds exactly three provisional seeded path-ID GET/POST proofs for MWE classifications and connected-impact; these local-disposable-PG16 receipts are not a production certification and require fresh exact-head CI plus independent security review. Tenant-table proofs add 12 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 306 COVERED / 10 PUBLIC-BY-DESIGN / 182 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 5 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 311 COVERED / 10 PUBLIC-BY-DESIGN / 177 GAP; no global tenant-isolation acceptance. Self-development adds 3 source-bound provisional local HTTP method credits; exact-head PG16 CI and review pending. PR #1526 adds exactly one distinct provisional manager-attestation POST credit from two-attacker/victim localhost PostgreSQL 18.6 HTTP proof, separate from main's independently source-pinned PG16 GET evidence. Final merged-branch PG16 real-HTTP CI and independent privacy/security/owner review remain mandatory; no employer decision, provider, payout, production or global tenant-isolation acceptance. Current proposal: 337 COVERED / 10 PUBLIC-BY-DESIGN / 151 GAP out of 498 methods, 17 page/action GAPs. Three additional exact-merged-source provisional PG16/localhost HTTP method credits from #1520 GET/POST schedule receipts and #1514 issued-demand GET; unchanged #1524 atomic self-profile PATCH remains GAP pending independent privacy/security/coverage-owner review and source-current receipt reconciliation. No production, provider or payroll acceptance. PR #1537 separately proposes one provisional, source-pinned four-action HMO POST method credit from fictional PG16 localhost HTTP; HMO GET retains its independent earlier proof. Combined pending-review proposal: 341 COVERED / 10 PUBLIC-BY-DESIGN / 147 GAP out of 498 methods, plus 17 page/action GAPs. No production carrier enrolment, payroll, provider or blanket tenant-isolation acceptance; independent review required. Tenant-table proofs add 6 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 347 COVERED / 10 PUBLIC-BY-DESIGN / 141 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 2 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 349 COVERED / 10 PUBLIC-BY-DESIGN / 139 GAP; no global tenant-isolation acceptance. PR #1597 corrects a source-identified WFM baseline POST scenario existence/status oracle by checking active exact-employer membership and People admin access before inspecting scenario state. POST workforce-planning/baselines stays GAP with zero new credit: only source-contract assertions, not independent real-HTTP own/victim proof. GET is unchanged and retains its earlier provisional proof. No production deployment or payroll authorization; exact-head CI and separate privacy/security approval required. 2026-10-29 review-only promotion of the two WRK-01 staffing-policy writes (POST create/replay; PATCH submit/approve/reject) from merged #1522's passing fictional PG16 run 40647378457 on unchanged route, proof, contract and workflow blobs: 354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP of 498. The route's GET stays GAP (manage mode unproven). Independent security/coverage-owner review is still required and this is not production activation. 2026-10-29 review-only promotion of POST workforce/demand-observations/import, POST self/photo and GET web-bundy/evidence from the passing DL-02 whole-batch dispatch run 40859482784 (head 5a3c209df; all proof inputs blob-identical on the promotion base, not an exact-head pass): 357 COVERED / 10 PUBLIC-BY-DESIGN / 131 GAP of 498. Idempotent replay is not exercised; POST web-bundy/evidence stays GAP (one of four punch actions proven). Independent security/coverage-owner review is still required and this is not production activation. Roster POST has one provisional complete stage/replay/approve/reject PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/40915010977/job/123592788790 (merged #1596 head fdfd1059e; every proof input is byte-identical on the promotion base). Independent security review PENDING. No production activation. Draft PR #1602 proposes four distinct Performance POST/PATCH method proofs in addition to main's separate roster-batches POST proof. Combined 362 COVERED / 10 PUBLIC-BY-DESIGN / 126 GAP of 498; 17 page/action GAPs, exact-head CI and independent security review required; NOT ACCEPTED. Draft #1626 adds five exact-source-bound Web Bundy lifecycle credits using a separate fictional PG16 proof; all 17 page/action gaps, security/maintainer review and release restrictions remain. PR #1616 adds one separately source-pinned loans PATCH provisional method credit in a fictional flag-enabled PG16 test; combined 368 COVERED / 10 PUBLIC-BY-DESIGN / 120 GAP of 498. Exact-head CI and independent security/financial-owner review remain required, with no money, provider, production or tenant-wide authorization. PR #1615 contributes two separately proven HCM business-process definitions and employment-term decision methods; provisional combined ledger 370 COVERED / 10 PUBLIC-BY-DESIGN / 118 GAP of 498. Independent security/coverage-owner review and exact-head CI remain required; no production payroll or tenant-wide authorization. POST workforce/worksites has one provisional complete ten-action PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/41067962478/job/124104301803 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. PR #1612 contributes only four distinct, source-bound onboarding POST/PATCH provisional method proofs; legacy/preview PG16 HTTP action receipts were replayed against head 3323cc3 with exactly identical output. The merged head requires fresh CI and independent payroll/security/coverage review. All 17 page/action GAPs remain. No real-money release or tenant-wide certification. Draft PR #1642 reconciled with main@ca47c31c adds three distinct provisional WRK-02 credits: transfer POST, forecast-plan POST, scenarios PATCH submit. 378 COVERED / 10 PUBLIC-BY-DESIGN / 110 GAP of 498; 17 page/action gaps. Scenarios POST remains GAP with an unresolved cross-employer org-unit existence oracle and raw SQL-error disclosure. Exact-head CI and independent security review remain pending; no production or global certification. Tenant-table proofs add 1 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 379 COVERED / 10 PUBLIC-BY-DESIGN / 109 GAP; no global tenant-isolation acceptance. Draft source-only issue #1644 fix on scenarios POST blocks foreign org-unit IDs and sanitizes SQL errors. POST remains GAP, with no new method credits pending authenticated PG16 HTTP proof and independent security review. The existing PATCH submission credit is historical evidence for the unchanged PATCH handler, not for the modified POST. WRK-02 Batch 2 (baselines POST, position-executions POST and PATCH) has one provisional PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/41161613307/job/124420445717 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. workforce-planning/allocations POST and PATCH have one provisional PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/41272751903/job/124748701503 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. webhooks/xendit-payout POST has one provisional PG16 proof under proofPolicy.providerCallback at https://github.com/erwinmehehe/payrollph/actions/runs/41367679707/job/125031218758 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. webhooks/paymongo/transfers POST has one provisional PG16 proof under proofPolicy.providerCallback at https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. On 2026-11-03 PR #1727 reconciles six new method credits (POST leave/conversion, payroll/overpayment-preflight, outbox, treasury-controls, compliance/labor-inspection and earned-wage) with exact matching route/proof/workflow hashes and originally successful PG16 HTTP proof. Main's already-covered POST leave and POST governed-handoffs retain newer #1736 source-matched solo verification run 41452144006; old #1735 evidence is dropped, no double count. SOLO_VERIFIED_DEV_RECOVERY, not independent signoff. Current integration-head CI required. No production SQL/Neon, real data, money, payout, provider or CSP release.\n2026-11-03 #1728 serial integration: three additional GAP->COVERED owner-only SOLO_VERIFIED_DEV_RECOVERY compliance POST credits backed by exact-source disposable-PG16/real-HTTP run 41446327305 from proof head d3cdcf020a559ae85c813d656620832dd0a46d4e. POST compliance/contribution-issues uses its already reviewed referral SQL event constraint route SHA 8c2ac7e8d59c862295f44023ed3d12b1d900f26a with guard/reconstruction checks. Existing main #1727 and #1736 receipts are unchanged. Combined merge-head CI must pass. 17 page/action GAPs, no independent approval and no production, provider, payout, money, CSP, Neon, or deployment authorization.\n2026-11-04 #1744 exact-source supersession hold: two original provisional year-end GET/POST credits are now GAP / zero current credits on changed handler SHA e4741d98, after source 7572c611. Prior-evidence year-end methods and separately proven payout-profile PATCH remain credited. New exact-final-head full-method PG16/HTTP evidence and independent payroll/security review are mandatory before re-crediting. This draft is NOT accepted or production approved. webhooks/resend POST has one provisional PG16 proof under proofPolicy.providerCallback at https://github.com/erwinmehehe/payrollph/actions/runs/41829420219/job/126572429402 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. webhooks/xendit/subscriptions POST has one provisional PG16 proof under proofPolicy.providerCallback (counting its documented retry refusal only under that bounded exception) at https://github.com/erwinmehehe/payrollph/actions/runs/41979854009/job/127087199194 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST hcm/effective-changes has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42029419930/job/127251740192 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. PR #1761 adds one separate provisional source-pinned staffing-policy GET credit with both manage and approved PG16 evidence; no independent or production certification. Draft PR #1784 adds exactly two separate provisional payroll submit-review/release method receipts from the money-lifecycle HTTP proof alongside main's staffing-policy GET receipt. All three remain subject to exact-head CI and independent security/payroll owner acceptance. No production deployment, payroll release or funds movement. PR #1766 adds one provisional, source-pinned MWE classification PATCH receipt on top of the merged staffing-policy GET receipt; both remain unaccepted pending exact-head CI and independent security/tax review. No production activation, deployment, or payroll money movement. POST account/password has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST auth/logout has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST payroll-runs/[id]/payout-reconciliation has one provisional PG16 proof against a loopback-synthetic PayMongo at https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST payroll-runs/[id]/pilot-signoff and GET payroll-runs/[id]/xendit-payout have one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42253150229/job/128013254082 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. GET/POST workforce/demand-observations/loyverse and square-sandbox have one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42241996122/job/127974379036 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. 2026-11-08 PR #1826 separate billing POST start/cancel provisional method credit reconciliation: 2 source-matched fictional PostgreSQL 16/localhost HTTP methods from merged #1804 run 42254118161/job 128016607991, with verified higher-ID victim denials, victim SQL/audit non-mutation and fake Xendit only. No real charges, providers, subscriptions or production tests; current-head CI and independent billing, financial, privacy and security reviews PENDING. This does not authorize global tenant security acceptance or any production financial activation. POST/PATCH multi-entity/transfers have one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42480658953/job/128731654457 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. PR #1846 separately proposes one source-pinned enterprise administration POST credit; independent identity/security review pending and no production activation. PR #1862 proposes one source-pinned account email request POST credit on this PR only; independent identity/security review pending, no production activation. Distinct account-email-request POST historical proof receipt (fictional PostgreSQL, localhost SMTP, independent reviewer PENDING): https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810. This receipt does not certify tenant-wide security or production use. Eleven explicitly owner-approved token-only operations are not tenant-private proof credits. Account/email request POST remains provisionally COVERED from main; identity/security review and current-head CI still PENDING. No production authorization. Four owner-approved non-session methods (careers GET/POST, demo request POST, outsourcing quote POST) remain PUBLIC-BY-DESIGN, with zero new tenant-private COVERED credits. Independent security/privacy review remains PENDING. Two invitation acceptance GET/POST provisional fictional PG16 HTTP receipts from main are preserved (runs 42569443256 and 42569443187). Eleven token-only operations remain zero-credit classifications; independently reviewed tenant-wide and production acceptance remain PENDING. POST bir/annual-employer/candidate has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42738761756/job/129574359597 (every proof input byte-identical on the credit base). Independent security and tax review PENDING. No production activation. SOLO_VERIFIED_DEV_RECOVERY filing PATCH credit: 452 COVERED / 20 GAP; source-sealed three-leg PG16 proof, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY: merged #1900 checkout receipt promoted; no production acceptance. SOLO_VERIFIED_DEV_RECOVERY approvals PATCH credit: 455 COVERED / 17 GAP; source-sealed combined-family PG16 proof, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 456 COVERED / 7 GAP; complete current-source action cohort, no production acceptance. POST payroll-runs/[id]/exports has one provisional PG16 proof against a loopback-synthetic PayMongo at https://github.com/erwinmehehe/payrollph/actions/runs/43124297782/job/130872336062 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. Worker 360 legal-employer source supersession: original API/SSR evidence is historical only; revised runtime remains GAP with zero new credit. Year-end GET and POST retain distinct current-source provisional main push proof; independent reviewer and production acceptance are PENDING. Worker 360 exact-source reproof: one GET and one SSR shell provisional SOLO_VERIFIED_DEV_RECOVERY credit linked to https://github.com/erwinmehehe/payrollph/actions/runs/43219788230/job/131188072874; independent HR/privacy/security review PENDING, production and overall tenant isolation NOT ACCEPTED. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 457 COVERED / 6 GAP; complete current-source action cohort, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 438 COVERED / 25 GAP; complete current-source action cohort, no production acceptance. PR #1952 synchronized OIDC callback GET is bound to separately executed synthetic HTTPS IdP/PostgreSQL 16 proof and adds one distinct provisional method credit; SSO start and resolve remain GAP. The 19 payroll-run source withdrawals from merged #1956 remain GAP until full current-source method reproof. Independent security, identity, payroll/privacy and production acceptance remain PENDING. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 439 COVERED / 24 GAP; complete current-source action cohort, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 437 COVERED / 26 GAP; complete current-source action cohort, no production acceptance.",
+  "acceptanceStatus": "NOT ACCEPTED: 5 API methods and 16 page/action GAPs remain. 2026-11-11 source-evidenced architecture classification only: six public pre-login routes and two disabled SAML 503 refusal routes are PUBLIC-BY-DESIGN; one HCM global scheduler is PRIVILEGED-OPERATIONS-TOKEN-ONLY. Zero additional tenant-private COVERED credits; production and complete tenant isolation are NOT ACCEPTED. Historical checkpoints follow. Worker 360 SSR and GET previously held GAP when parent-employer-only receipts were superseded by legal-employer-scoped fixes; separate exact-source fictional PG16 HTTP reproof now supports one provisional GET credit and one SSR shell credit, with independent HR/privacy/security review PENDING. Authenticated own/foreign PG16 HTTP proof now covers first-payroll preview/progress and legal-employer POST/PATCH in dedicated synthetic CI, in addition to employee pay explanation and payout-state GET. Payout reconciliation POST remains a GAP: provider-disabled 501 own and foreign 403 demonstrate only access control, not successful provider reconciliation or movement of funds. Workspace readiness is separately contained by a no-store 503 and foreign-tenant 403; it is NOT counted as positive method coverage. Five workforce attendance GET/POST methods now have scoped disposable-PG16 own/victim HTTP evidence with unchanged victim DB rows; they do not certify the remaining API or page/action GAPs. Four HCM work/lifecycle GET/POST/PATCH methods now have synthetic PG16 own/foreign HTTP evidence with unchanged victim tasks; remaining HCM surfaces are not certified. No production DB, provider secrets or live transfers. Exact-head CI, owner decisions and independent reviewer acceptance are still required. Two synthetic payment-evidence GET surfaces have first-batch four-part source-pinned proof with real victim IDs exceeding both attackers; the fixed static employee template is PUBLIC-BY-DESIGN, not a tenant-private download. Exact-head CI and independent owner review remain required. Statutory posting-import GET is a fixed PUBLIC-BY-DESIGN template and its POST has source-pinned #1330 two-attacker HTTP proof. PR1322 closeout links executed four-part proof for import history, filing-file download and posting-evidence download; it neither waives remaining GAPs nor accepts tenant isolation. DL-02 separately verifies 19 source-pinned authenticated HTTP methods in disposable PostgreSQL; for four session-derived self endpoints the negative control is same-session 403 after active membership revocation, not forged foreign-ID access. This does not certify full tenant isolation. Government-loan GET/POST own/foreign proofs are retained alongside DL-02; no blanket certification. Legacy DOLE GET/POST proof retained; multi-employer historical reporting remains unavailable and uncertified. PR #1326 additionally claims three provisional HCM probation GET/POST/PATCH real own/foreign synthetic HTTP proofs and one manager decision-inbox feature-ON localhost SSR page proof; wrong/malformed read envelopes remain unavailable and write state stays blocked. Exact-head CI and human review remain required. Complete tenant isolation, production activation, statutory filing and payout are NOT ACCEPTED. PR #1330 already merged into main adds four independently evidenced, provisionally COVERED DL-01 batch-2 methods: bi-exports, contribution-evidence, labor-inspection evidence-pack and posting-import POST. GET /api/exports is not double-counted. Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP; all remaining tenant-isolation GAPs remain NOT ACCEPTED. PR #1303 separately credits one MFA-scoped source-pinned statutory payment-evidence POST with two-employer denial and one-active receipt proof. Protected migration 0136 remains unapplied. Fresh exact-head CI is required; global tenant isolation remains NOT ACCEPTED. PR #1325 adds two provisional source-pinned BIR annual employer module GET/POST synthetic PG16 HTTP method proofs. Main's separate #1303 payment POST proof remains unchanged, all unproven methods remain GAP; NO global tenant-isolation acceptance. Merged PR #1336 adds two distinct provisional synthetic-PG16 source-pinned employee-vault GET/DELETE proofs (nonempty own 200, owned DELETE 204, real victim 403/404, forged selector containment, unchanged victim DB/audit); production vault remains OFF. PR #1325 additionally contributes distinct BIR module GET/POST; remaining 344 methods and 19 page/action entries are GAP, not whole-system acceptance. PR #1339 adds eight separately source-linked real-HTTP PG16 methods (four holidays, three earnings, payroll process). Combined 139 COVERED / 10 PUBLIC-BY-DESIGN / 344 GAP. This is partial MNY-01 work; remaining methods/pages and real-money acceptance stay open. MNY-02 contractor/EWT six-method partial sub-batch on this PR adds direct own/foreign and forged-selector PG16/HTTP test assertions, including a fictional cross-employer FK read integrity check. Six additional methods are PROVISIONAL until exact-head CI and independent security reviewer approval: 145 COVERED / 10 PUBLIC-BY-DESIGN / 338 GAP, 19 page/action GAPs. No production data, funds, provider or statutory filing touched. Additional two provisional underpayment POST/PATCH owned-success and victim-denial PG16 HTTP proof links are preserved from draft PR #1348; no provider payouts or production approval are implied. PR #1350 additionally credits a read-only pre-calculation readiness GET (authenticated own-employer 200, real foreign 403) and updates payroll process POST to explicitly block unverified statutory packs (own HTTP 422, foreign 403, unchanged fictional run). Combined provisional source-linked inventory: 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494 API methods plus 19 page/action GAPs. This remains an authorization/source-evidence inventory, NOT a passed positive payroll calculation, release, provider payout, or statutory verification. Exact-head CI, official-agency evidence review, and independent security/financial approvals remain required. Merged main #1341 independently credits one provisional, source-pinned multi-entity group report GET with own/foreign/cross-employer-attribution denials; total now 149 COVERED / 10 PUBLIC-BY-DESIGN / 335 GAP among 494. No overall tenant-isolation, statutory or money acceptance; exact-head HTTP CI and security review are still required. #1363 workspace SSR proof is provisional until exact-head CI: owned nonempty employer/worker HTML and foreign-victim 404 are enforced in the guarded page harness; current page/action GAP count is 18. Current combined source-linked ledger provisionally credits three distinct BIR 2316 HTTP methods from main and six independent legacy Spend flag-OFF expenses/de minimis methods from PR #1355: 158 COVERED / 10 PUBLIC-BY-DESIGN / 326 GAP, with 18 page/action GAPs. Exact-head CI and independent security review remain mandatory; no production or global tenant-isolation acceptance is implied. Tenant-table proof adds 19 provisional organization-selector GET credits (own-marker 200, victim denial, unchanged victim DB, two attackers): 177 COVERED / 10 PUBLIC-BY-DESIGN / 307 GAP; no global tenant-isolation acceptance. Synced branch-specific method evidence is retained without double-counting existing main coverage. Synced branch-specific method evidence is retained without double-counting existing main coverage. Tenant-table proofs add 3 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 259 COVERED / 10 PUBLIC-BY-DESIGN / 225 GAP; no global tenant-isolation acceptance. PR #1402 adds 11 distinct provisional People/platform write-method credits from exact-head disposable PG16/localhost HTTP run 40200060037 (head 1fd16ee304a896072560fd86ff06915e7bce159c): default 28 write rows/56 attacker-victim pairs/28 discriminating/30 forged and unchanged victim database. A twelfth create_worksite action-level scenario passed but POST workforce/worksites remains GAP because other POST actions were not proven; the unchanged legacy guard prohibits blanket credit. The multi-entity and flagged-reads profiles passed their configured table checks, without write rows. Combined 270 COVERED / 10 PUBLIC-BY-DESIGN / 214 GAP, plus 18 page/action GAPs. These are not production, full tenant-isolation certification or independent reviewer approval. Fresh final-head CI remains required. PR #1405 adds exactly one separately gated manager-of-record GET and one provisional exact-unit SSR page (two actual signed-in manager employers, populated current primary assignments, foreign-victim denial, unchanged victim DB) in new disposable localhost-only HTTP proof. Its status remains provisional pending exact-head CI and independent security/privacy reviewer acceptance; all 214 API and 18 existing page/action GAPs remain open, no production enablement or broader tenant-isolation certification. PR #1427 adds three provisional, local-disposable-PG16 Compliance Evidence POST method proofs (filing validations, labor-inspection drills and compliance validation) only. They remain subject to exact-head CI and independent reviewer acceptance; 203 API and 18 page/action GAPs remain NOT ACCEPTED. No production payroll or statutory release is authorized. PR #1429's People Home page has provisional two-attacker real-Chromium/PG16 source-pinned proof only; 17 page/action GAPs and 203 API method GAPs remain NOT ACCEPTED. No production pilot activation or security certification. PR #1433's labor-costing POST is provisionally source-pinned with separate synthetic PG16 HTTP evidence for three actions. 202 API method GAPs and 17 page/action GAPs remain; independent security acceptance and migration approval are still required. No production payroll, posting or SQL execution is authorized. PR #1437 adds exactly three provisional seeded path-ID GET/POST proofs for MWE classifications and connected-impact; these local-disposable-PG16 receipts are not a production certification and require fresh exact-head CI plus independent security review. Tenant-table proofs add 12 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 306 COVERED / 10 PUBLIC-BY-DESIGN / 182 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 5 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 311 COVERED / 10 PUBLIC-BY-DESIGN / 177 GAP; no global tenant-isolation acceptance. Self-development adds 3 source-bound provisional local HTTP method credits; exact-head PG16 CI and review pending. PR #1526 adds exactly one distinct provisional manager-attestation POST credit from two-attacker/victim localhost PostgreSQL 18.6 HTTP proof, separate from main's independently source-pinned PG16 GET evidence. Final merged-branch PG16 real-HTTP CI and independent privacy/security/owner review remain mandatory; no employer decision, provider, payout, production or global tenant-isolation acceptance. Current proposal: 337 COVERED / 10 PUBLIC-BY-DESIGN / 151 GAP out of 498 methods, 17 page/action GAPs. Three additional exact-merged-source provisional PG16/localhost HTTP method credits from #1520 GET/POST schedule receipts and #1514 issued-demand GET; unchanged #1524 atomic self-profile PATCH remains GAP pending independent privacy/security/coverage-owner review and source-current receipt reconciliation. No production, provider or payroll acceptance. PR #1537 separately proposes one provisional, source-pinned four-action HMO POST method credit from fictional PG16 localhost HTTP; HMO GET retains its independent earlier proof. Combined pending-review proposal: 341 COVERED / 10 PUBLIC-BY-DESIGN / 147 GAP out of 498 methods, plus 17 page/action GAPs. No production carrier enrolment, payroll, provider or blanket tenant-isolation acceptance; independent review required. Tenant-table proofs add 6 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 347 COVERED / 10 PUBLIC-BY-DESIGN / 141 GAP; no global tenant-isolation acceptance. Tenant-table proofs add 2 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 349 COVERED / 10 PUBLIC-BY-DESIGN / 139 GAP; no global tenant-isolation acceptance. PR #1597 corrects a source-identified WFM baseline POST scenario existence/status oracle by checking active exact-employer membership and People admin access before inspecting scenario state. POST workforce-planning/baselines stays GAP with zero new credit: only source-contract assertions, not independent real-HTTP own/victim proof. GET is unchanged and retains its earlier provisional proof. No production deployment or payroll authorization; exact-head CI and separate privacy/security approval required. 2026-10-29 review-only promotion of the two WRK-01 staffing-policy writes (POST create/replay; PATCH submit/approve/reject) from merged #1522's passing fictional PG16 run 40647378457 on unchanged route, proof, contract and workflow blobs: 354 COVERED / 10 PUBLIC-BY-DESIGN / 134 GAP of 498. The route's GET stays GAP (manage mode unproven). Independent security/coverage-owner review is still required and this is not production activation. 2026-10-29 review-only promotion of POST workforce/demand-observations/import, POST self/photo and GET web-bundy/evidence from the passing DL-02 whole-batch dispatch run 40859482784 (head 5a3c209df; all proof inputs blob-identical on the promotion base, not an exact-head pass): 357 COVERED / 10 PUBLIC-BY-DESIGN / 131 GAP of 498. Idempotent replay is not exercised; POST web-bundy/evidence stays GAP (one of four punch actions proven). Independent security/coverage-owner review is still required and this is not production activation. Roster POST has one provisional complete stage/replay/approve/reject PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/40915010977/job/123592788790 (merged #1596 head fdfd1059e; every proof input is byte-identical on the promotion base). Independent security review PENDING. No production activation. Draft PR #1602 proposes four distinct Performance POST/PATCH method proofs in addition to main's separate roster-batches POST proof. Combined 362 COVERED / 10 PUBLIC-BY-DESIGN / 126 GAP of 498; 17 page/action GAPs, exact-head CI and independent security review required; NOT ACCEPTED. Draft #1626 adds five exact-source-bound Web Bundy lifecycle credits using a separate fictional PG16 proof; all 17 page/action gaps, security/maintainer review and release restrictions remain. PR #1616 adds one separately source-pinned loans PATCH provisional method credit in a fictional flag-enabled PG16 test; combined 368 COVERED / 10 PUBLIC-BY-DESIGN / 120 GAP of 498. Exact-head CI and independent security/financial-owner review remain required, with no money, provider, production or tenant-wide authorization. PR #1615 contributes two separately proven HCM business-process definitions and employment-term decision methods; provisional combined ledger 370 COVERED / 10 PUBLIC-BY-DESIGN / 118 GAP of 498. Independent security/coverage-owner review and exact-head CI remain required; no production payroll or tenant-wide authorization. POST workforce/worksites has one provisional complete ten-action PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/41067962478/job/124104301803 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. PR #1612 contributes only four distinct, source-bound onboarding POST/PATCH provisional method proofs; legacy/preview PG16 HTTP action receipts were replayed against head 3323cc3 with exactly identical output. The merged head requires fresh CI and independent payroll/security/coverage review. All 17 page/action GAPs remain. No real-money release or tenant-wide certification. Draft PR #1642 reconciled with main@ca47c31c adds three distinct provisional WRK-02 credits: transfer POST, forecast-plan POST, scenarios PATCH submit. 378 COVERED / 10 PUBLIC-BY-DESIGN / 110 GAP of 498; 17 page/action gaps. Scenarios POST remains GAP with an unresolved cross-employer org-unit existence oracle and raw SQL-error disclosure. Exact-head CI and independent security review remain pending; no production or global certification. Tenant-table proofs add 1 provisional organization-scoped read and write credits (own-data 200 or own write read back from PostgreSQL, victim denial, unchanged victim DB, two attackers): 379 COVERED / 10 PUBLIC-BY-DESIGN / 109 GAP; no global tenant-isolation acceptance. Draft source-only issue #1644 fix on scenarios POST blocks foreign org-unit IDs and sanitizes SQL errors. POST remains GAP, with no new method credits pending authenticated PG16 HTTP proof and independent security review. The existing PATCH submission credit is historical evidence for the unchanged PATCH handler, not for the modified POST. WRK-02 Batch 2 (baselines POST, position-executions POST and PATCH) has one provisional PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/41161613307/job/124420445717 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. workforce-planning/allocations POST and PATCH have one provisional PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/41272751903/job/124748701503 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. webhooks/xendit-payout POST has one provisional PG16 proof under proofPolicy.providerCallback at https://github.com/erwinmehehe/payrollph/actions/runs/41367679707/job/125031218758 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. webhooks/paymongo/transfers POST has one provisional PG16 proof under proofPolicy.providerCallback at https://github.com/erwinmehehe/payrollph/actions/runs/41402106010/job/125135951277 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. On 2026-11-03 PR #1727 reconciles six new method credits (POST leave/conversion, payroll/overpayment-preflight, outbox, treasury-controls, compliance/labor-inspection and earned-wage) with exact matching route/proof/workflow hashes and originally successful PG16 HTTP proof. Main's already-covered POST leave and POST governed-handoffs retain newer #1736 source-matched solo verification run 41452144006; old #1735 evidence is dropped, no double count. SOLO_VERIFIED_DEV_RECOVERY, not independent signoff. Current integration-head CI required. No production SQL/Neon, real data, money, payout, provider or CSP release.\n2026-11-03 #1728 serial integration: three additional GAP->COVERED owner-only SOLO_VERIFIED_DEV_RECOVERY compliance POST credits backed by exact-source disposable-PG16/real-HTTP run 41446327305 from proof head d3cdcf020a559ae85c813d656620832dd0a46d4e. POST compliance/contribution-issues uses its already reviewed referral SQL event constraint route SHA 8c2ac7e8d59c862295f44023ed3d12b1d900f26a with guard/reconstruction checks. Existing main #1727 and #1736 receipts are unchanged. Combined merge-head CI must pass. 17 page/action GAPs, no independent approval and no production, provider, payout, money, CSP, Neon, or deployment authorization.\n2026-11-04 #1744 exact-source supersession hold: two original provisional year-end GET/POST credits are now GAP / zero current credits on changed handler SHA e4741d98, after source 7572c611. Prior-evidence year-end methods and separately proven payout-profile PATCH remain credited. New exact-final-head full-method PG16/HTTP evidence and independent payroll/security review are mandatory before re-crediting. This draft is NOT accepted or production approved. webhooks/resend POST has one provisional PG16 proof under proofPolicy.providerCallback at https://github.com/erwinmehehe/payrollph/actions/runs/41829420219/job/126572429402 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. webhooks/xendit/subscriptions POST has one provisional PG16 proof under proofPolicy.providerCallback (counting its documented retry refusal only under that bounded exception) at https://github.com/erwinmehehe/payrollph/actions/runs/41979854009/job/127087199194 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST hcm/effective-changes has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42029419930/job/127251740192 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. PR #1761 adds one separate provisional source-pinned staffing-policy GET credit with both manage and approved PG16 evidence; no independent or production certification. Draft PR #1784 adds exactly two separate provisional payroll submit-review/release method receipts from the money-lifecycle HTTP proof alongside main's staffing-policy GET receipt. All three remain subject to exact-head CI and independent security/payroll owner acceptance. No production deployment, payroll release or funds movement. PR #1766 adds one provisional, source-pinned MWE classification PATCH receipt on top of the merged staffing-policy GET receipt; both remain unaccepted pending exact-head CI and independent security/tax review. No production activation, deployment, or payroll money movement. POST account/password has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42183409095/job/127778007531 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST auth/logout has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42203481558/job/127844239303 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST payroll-runs/[id]/payout-reconciliation has one provisional PG16 proof against a loopback-synthetic PayMongo at https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. POST payroll-runs/[id]/pilot-signoff and GET payroll-runs/[id]/xendit-payout have one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42253150229/job/128013254082 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. GET/POST workforce/demand-observations/loyverse and square-sandbox have one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42241996122/job/127974379036 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. 2026-11-08 PR #1826 separate billing POST start/cancel provisional method credit reconciliation: 2 source-matched fictional PostgreSQL 16/localhost HTTP methods from merged #1804 run 42254118161/job 128016607991, with verified higher-ID victim denials, victim SQL/audit non-mutation and fake Xendit only. No real charges, providers, subscriptions or production tests; current-head CI and independent billing, financial, privacy and security reviews PENDING. This does not authorize global tenant security acceptance or any production financial activation. POST/PATCH multi-entity/transfers have one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42480658953/job/128731654457 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. PR #1846 separately proposes one source-pinned enterprise administration POST credit; independent identity/security review pending and no production activation. PR #1862 proposes one source-pinned account email request POST credit on this PR only; independent identity/security review pending, no production activation. Distinct account-email-request POST historical proof receipt (fictional PostgreSQL, localhost SMTP, independent reviewer PENDING): https://github.com/erwinmehehe/payrollph/actions/runs/42480663360/job/128731667810. This receipt does not certify tenant-wide security or production use. Eleven explicitly owner-approved token-only operations are not tenant-private proof credits. Account/email request POST remains provisionally COVERED from main; identity/security review and current-head CI still PENDING. No production authorization. Four owner-approved non-session methods (careers GET/POST, demo request POST, outsourcing quote POST) remain PUBLIC-BY-DESIGN, with zero new tenant-private COVERED credits. Independent security/privacy review remains PENDING. Two invitation acceptance GET/POST provisional fictional PG16 HTTP receipts from main are preserved (runs 42569443256 and 42569443187). Eleven token-only operations remain zero-credit classifications; independently reviewed tenant-wide and production acceptance remain PENDING. POST bir/annual-employer/candidate has one provisional dedicated PG16 proof at https://github.com/erwinmehehe/payrollph/actions/runs/42738761756/job/129574359597 (every proof input byte-identical on the credit base). Independent security and tax review PENDING. No production activation. SOLO_VERIFIED_DEV_RECOVERY filing PATCH credit: 452 COVERED / 20 GAP; source-sealed three-leg PG16 proof, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY: merged #1900 checkout receipt promoted; no production acceptance. SOLO_VERIFIED_DEV_RECOVERY approvals PATCH credit: 455 COVERED / 17 GAP; source-sealed combined-family PG16 proof, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 456 COVERED / 7 GAP; complete current-source action cohort, no production acceptance. POST payroll-runs/[id]/exports has one provisional PG16 proof against a loopback-synthetic PayMongo at https://github.com/erwinmehehe/payrollph/actions/runs/43124297782/job/130872336062 (every proof input byte-identical on the credit base). Independent security review PENDING. No production activation. Worker 360 legal-employer source supersession: original API/SSR evidence is historical only; revised runtime remains GAP with zero new credit. Year-end GET and POST retain distinct current-source provisional main push proof; independent reviewer and production acceptance are PENDING. Worker 360 exact-source reproof: one GET and one SSR shell provisional SOLO_VERIFIED_DEV_RECOVERY credit linked to https://github.com/erwinmehehe/payrollph/actions/runs/43219788230/job/131188072874; independent HR/privacy/security review PENDING, production and overall tenant isolation NOT ACCEPTED. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 457 COVERED / 6 GAP; complete current-source action cohort, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 438 COVERED / 25 GAP; complete current-source action cohort, no production acceptance. PR #1952 synchronized OIDC callback GET is bound to separately executed synthetic HTTPS IdP/PostgreSQL 16 proof and adds one distinct provisional method credit; SSO start and resolve remain GAP. The 19 payroll-run source withdrawals from merged #1956 remain GAP until full current-source method reproof. Independent security, identity, payroll/privacy and production acceptance remain PENDING. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 439 COVERED / 24 GAP; complete current-source action cohort, no production acceptance. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 437 COVERED / 26 GAP; complete current-source action cohort, no production acceptance. Nineteen payroll-run source withdrawals are now provisionally renewed from sealed real-HTTP PG16 cohorts; their original source-withdrawal receipts stay historical. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance remain PENDING. SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 458 COVERED / 5 GAP; complete current-source action cohort, no production acceptance.",
   "metrics": {
     "routeFiles": 295,
     "methods": 498,
     "coveredBefore": 20,
-    "coveredAfter": 439,
+    "coveredAfter": 458,
     "publicByDesign": 23,
-    "gap": 24,
+    "gap": 5,
     "scopedPagesAndActions": 21,
     "confirmedLeaksFound": 0,
     "confirmedLeaksFixed": 0,
@@ -22999,10 +22999,37 @@
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/assurance",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "033efd5f84319b510ce7551305dcbdc319eb98ea",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "79306e2c73c1ab8aa94ee67a7127ccc18b52a385",
@@ -23095,10 +23122,37 @@
         {
           "name": "GET",
           "line": 143,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/close",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "d68c65bc5698bdc218ba8af8d7c3fc9c7e3ed2cb",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "7459073bd5bb741e7232a29be77da145282e2413",
@@ -23122,10 +23176,37 @@
         {
           "name": "POST",
           "line": 156,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/close",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "d68c65bc5698bdc218ba8af8d7c3fc9c7e3ed2cb",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "7459073bd5bb741e7232a29be77da145282e2413",
@@ -23266,10 +23347,37 @@
         {
           "name": "GET",
           "line": 27,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684737/job/131711900155. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/connected-impact",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "aa24eb2a52832a46c82b4b95da029bc588178798",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "readTable",
+                "sourceHead": "7bfaad05bb62e013aa121c049c649861a6ad36b0",
+                "runId": 43372684737,
+                "jobId": 131711900155,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684737/job/131711900155"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "d91560c385b7375975bd9319220b0b8df7f13c8f",
@@ -23400,10 +23508,37 @@
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/explain/[employeeId]",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "0739651c720d30128c4ff8a99c03671c3b18e44d",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "a86813cd36150f04ffcfc2d4d6479300e719391e",
@@ -23531,9 +23666,36 @@
         {
           "name": "GET",
           "line": 54,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/exports",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "351b98e9b45e3a92422828297a8379afbe105ad3",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
           "sourceRevalidation": {
             "priorSourceBlobSha": "cc48189634bdd200a3d7f9408e3bf8d540086bce",
             "currentSourceBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
@@ -23543,7 +23705,7 @@
             "newMethodCredits": 0,
             "accepted": false
           },
-          "reviewedUncertified": {
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
@@ -23567,10 +23729,37 @@
         {
           "name": "POST",
           "line": 342,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684840/job/131711901362. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/exports",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "351b98e9b45e3a92422828297a8379afbe105ad3",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "exportsPost",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684840,
+                "jobId": 131711901362,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684840/job/131711901362"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
@@ -23746,10 +23935,37 @@
         {
           "name": "GET",
           "line": 141,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/payout-reconciliation",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "6711f3b8a5857d52135fc9f10143fab3cec6d39b",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "8a08081eb1ede1f24809d496804c9874ab1b46a7",
@@ -23772,10 +23988,37 @@
         {
           "name": "POST",
           "line": 220,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684718/job/131711901187. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/payout-reconciliation",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "6711f3b8a5857d52135fc9f10143fab3cec6d39b",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "paymongo",
+                "sourceHead": "7bfaad05bb62e013aa121c049c649861a6ad36b0",
+                "runId": 43372684718,
+                "jobId": 131711901187,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684718/job/131711901187"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "8a08081eb1ede1f24809d496804c9874ab1b46a7",
@@ -23952,10 +24195,37 @@
         {
           "name": "POST",
           "line": 76,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064270/job/131745204186. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/pilot-signoff",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "cd1a4de480c5d25cbf46a4c8330450634c30d16f",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "actions",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064270,
+                "jobId": 131745204186,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064270/job/131745204186"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "18390e65b137a0e73d5c5c78e3368dbd18a26af4",
@@ -24131,10 +24401,44 @@
         {
           "name": "POST",
           "line": 18,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055228 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055352. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/process",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "80baab6504c4d5d685dacdbdcf0d03eacdddec2f",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "moneyOff",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684749,
+                "jobId": 131721055228,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055228"
+              },
+              {
+                "name": "moneyOn",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684749,
+                "jobId": 131721055352,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055352"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "45c4a91a43138919cd01b2899d309b669a3a3861",
@@ -24239,10 +24543,37 @@
         {
           "name": "GET",
           "line": 10,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/release-checklist",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "299d177cc1afbf8788d73ae54ff14e60c672a294",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "6ccf72327e632adfcb070ee807b424e6941bce55",
@@ -24343,10 +24674,44 @@
         {
           "name": "POST",
           "line": 30,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055228 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055352. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/release",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "db0b6ceeeae0f2793b26f848aed7c768487e14f5",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "moneyOff",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684749,
+                "jobId": 131721055228,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055228"
+              },
+              {
+                "name": "moneyOn",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684749,
+                "jobId": 131721055352,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055352"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "87fb97879aa19473a67ff9815c9db2e4b9f5d0b9",
@@ -24500,10 +24865,44 @@
         {
           "name": "POST",
           "line": 21,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055228 ; https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055352. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs/[id]/submit-review",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "1b358a63f2f415caf4b593dfc347b3ebf0e7fa63",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "moneyOff",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684749,
+                "jobId": 131721055228,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055228"
+              },
+              {
+                "name": "moneyOn",
+                "sourceHead": "bcaa52b80571c7141f1e10562b3dc754a85c5339",
+                "runId": 43372684749,
+                "jobId": 131721055352,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372684749/job/131721055352"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "98abed695eee9462a233f3da78b794e60f40c581",
@@ -24665,10 +25064,37 @@
         {
           "name": "GET",
           "line": 57,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/variance",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "6f924e52e12f9e763ed3af77abd07fdad1682492",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "c11a0a144162a69f0e886e9fe1c7dfd6dfa9b54b",
@@ -24802,10 +25228,37 @@
         {
           "name": "GET",
           "line": 69,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064270/job/131745204186. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/xendit-payout",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "b7d8aa1dc83959ec4516b5a65cc62999c79ebfda",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "actions",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064270,
+                "jobId": 131745204186,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064270/job/131745204186"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "c100c146ce1373c1526bae90dd77667d6ed6aaad",
@@ -24992,9 +25445,36 @@
         {
           "name": "GET",
           "line": 32,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "a9405cd0e0dbfe7650e8fb24900cda5afc2e77c2",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
           "historyReadProof": {
             "file": "scripts/qa/tenant-second-pass-http.mjs",
             "seedLine": 254,
@@ -25005,7 +25485,7 @@
             "foreignStatus": 403,
             "scope": "Only synthetic PG16 security smoke with PAYROLL_CALCULATION_HISTORY_ENABLED=true. Real history rows for victim and both attackers; own positive nonempty result and direct real victim history denial."
           },
-          "reviewedUncertified": {
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "a901d65d9a513be5474b1df3474ce172567efe64",
@@ -25027,10 +25507,37 @@
         {
           "name": "POST",
           "line": 133,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064270/job/131745203827. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "POST payroll-runs",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "a9405cd0e0dbfe7650e8fb24900cda5afc2e77c2",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "creation",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064270,
+                "jobId": 131745203827,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064270/job/131745203827"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "a901d65d9a513be5474b1df3474ce172567efe64",
@@ -41659,10 +42166,37 @@
         {
           "name": "GET",
           "line": 12,
-          "status": "GAP",
-          "reason": "HELD: employer-membership run lookup changes this route source. Prior proof is historical only; fresh source-pinned PG16 real HTTP legitimate-positive, foreign/missing indistinguishability, forged selectors and unchanged-victim SQL are required. NOT_RUN; zero new credits.",
-          "testedBy": null,
-          "reviewedUncertified": {
+          "status": "COVERED",
+          "reason": "Provisional current-source real-HTTP/disposable-PG16 renewal after the membership-oracle fix: two attacker employers, populated genuine victim, successful own action/read, forged selectors, uniform foreign/missing refusals and unchanged victim SQL/audit. Executed cohorts: https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021 ; https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062. SOLO_VERIFIED_DEV_RECOVERY; independent security review PENDING; no production/provider acceptance.",
+          "testedBy": {
+            "kind": "payroll-run-source-renewal-real-http-pg16",
+            "method": "GET payroll-runs/[id]/pre-run-readiness",
+            "receiptFile": "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json",
+            "receiptSha256": "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9",
+            "routeBlobSha": "4921ff7d07d98242604a69c05c5ae2dd02a5fc67",
+            "postgresMajor": 16,
+            "cohorts": [
+              {
+                "name": "boundary",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064348,
+                "jobId": 131745111021,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064348/job/131745111021"
+              },
+              {
+                "name": "secondPass",
+                "sourceHead": "e0e9ce48206adbdddee42a5975eb821b9e8c68c4",
+                "runId": 43383064321,
+                "jobId": 131748343062,
+                "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43383064321/job/131748343062"
+              }
+            ],
+            "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+            "independentlyAccepted": false,
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false
+          },
+          "historicalOracleSourceWithdrawal": {
             "kind": "payroll-run-membership-oracle-source-withdrawal",
             "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
             "oldSourceBlobSha": "e95ad70f19d52b5f689a6370cebb396e50b1d0ee",
