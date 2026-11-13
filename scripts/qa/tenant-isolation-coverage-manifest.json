@@ -29212,14 +29212,14 @@
       ]
     },
     "src/app/api/reports/builder/route.ts": {
-      "gitBlobSha": "67088912f8fc54016d886a4954fa55a607ec176b",
+      "gitBlobSha": "be4ea656c312590df3122c491a05dfd063632718",
       "route": "reports/builder",
       "methods": [
         {
           "name": "GET",
           "line": 69,
           "status": "COVERED",
-          "reason": "DL-02: two independent signed-in employers receive a real nonempty authorized field catalog (metadata, not an own-object export) and foreign-employer HTTP 403. Separate POST report proof validates persisted owned rows. Victim DB remains unchanged.",
+          "reason": "DL-02: two independent signed-in employers receive a real nonempty authorized field catalog (metadata, not an own-object export) and foreign-employer HTTP 403. Separate POST report proof validates persisted owned rows. Victim DB remains unchanged. The stricter GET tenant selector has a current-source two-attacker PG16 proof on run 43442210530; no new method credits.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
             "line": 216,
@@ -29233,9 +29233,9 @@
         },
         {
           "name": "POST",
-          "line": 80,
+          "line": 85,
           "status": "COVERED",
-          "reason": "DL-02: owner report POST returns actual seeded own-worker rows/counts for two distinct attacker employers (2 and 3 employees vs victim's 4); exact foreign-org 403 and unchanged victim PostgreSQL snapshot are tested.",
+          "reason": "DL-02: owner report POST returns actual seeded own-worker rows/counts for two distinct attacker employers (2 and 3 employees vs victim's 4); exact foreign-org 403 and unchanged victim PostgreSQL snapshot are tested. Strict JSON numeric employer parsing has current-source fictional PG16 own/foreign JSON and CSV proof on run 43442209949; historical DL-02 receipt is retained and no new credits are granted.",
           "testedBy": {
             "file": "scripts/qa/tenant-dl02-http.mjs",
             "line": 224,
@@ -29286,17 +29286,17 @@
           "token": "getAccess"
         },
         {
-          "line": 81,
+          "line": 86,
           "token": "enforceSameOriginMutation"
         }
       ],
       "callerSuppliedIds": [
         {
-          "line": 71,
-          "token": "params.get(\"organizationId\")"
+          "line": 70,
+          "token": "searchParams.getAll(\"organizationId\")"
         },
         {
-          "line": 84,
+          "line": 93,
           "token": "payload.organizationId"
         }
       ],
@@ -29361,7 +29361,27 @@
           "line": 53,
           "token": "legalEntityId"
         }
-      ]
+      ],
+      "sourceCurrentRenewal": {
+        "kind": "canonical-GET-and-noncoercing-POST-report-builder-PG16-provisional",
+        "priorRouteBlobSha": "67088912f8fc54016d886a4954fa55a607ec176b",
+        "currentRouteBlobSha": "be4ea656c312590df3122c491a05dfd063632718",
+        "priorCreditedMethods": [
+          "GET",
+          "POST"
+        ],
+        "currentSourceHead": "f896bb65be73e7fcd8a25ced258e90d1cd7c39c9",
+        "getRun": "https://github.com/erwinmehehe/payrollph/actions/runs/43442210530",
+        "postRun": "https://github.com/erwinmehehe/payrollph/actions/runs/43442209949",
+        "getProofScope": "Two signed-in attacker employers, owned nonempty field catalog, victim foreign 403 and unchanged PostgreSQL proof. Added direct malformed/duplicate selector denial passed its page HTTP step; complete browser job previously failed.",
+        "postProofScope": "Real owned JSON and CSV, two signed-in employers, victim foreign 403, malformed ID denial, own audit and unchanged victim SQL.",
+        "newCredits": 0,
+        "pageCredits": 0,
+        "overallGateAtRecordedHead": "NOT GREEN: Chromium cookie fixture and pinned inventory needed changes, reproof required on final head",
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     "src/app/api/reports/route.ts": {
       "gitBlobSha": "92e63ae4e2251b5d9461d70224da7ac5d2222ccc",
@@ -46498,7 +46518,7 @@
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Still GAP: #1557 feature-ON Report Builder SSR now runs the active employer role/session/custom-permission gate before access and employer-name SQL. Earlier fictional PG16 own/foreign/role/revoked GET and protected-SQL proof was renewed on PR #1959's exact changed page source. Client interactions, API POST/CSV, multi-entity attribution and independent security/privacy acceptance remain PENDING; zero page/action or API credits.",
+      "reason": "Still GAP: #1557 feature-ON Report Builder SSR now runs the active employer role/session/custom-permission gate before access and employer-name SQL. Earlier fictional PG16 own/foreign/role/revoked GET and protected-SQL proof was renewed on PR #1959's exact changed page source. Client interactions, API POST/CSV, multi-entity attribution and independent security/privacy acceptance remain PENDING; zero page/action or API credits. New canonical GET denial and A-B-A Chromium candidate is pending complete exact-head proof; page remains GAP.",
       "reviewedUncertified": {
         "kind": "feature-on-report-builder-SSR-GET-PG16-unaccepted",
         "originalPageBlobSha": "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4",
@@ -46506,15 +46526,15 @@
         "helperFile": "src/lib/tenant-report-builder.ts",
         "helperBlobSha": "5d315afc085baad9ce2fc14946a34a6d738a773b",
         "proofFile": "scripts/qa/tenant-report-builder-page-http.mjs",
-        "proofBlobSha": "48cc244d97e6b376c06be018d6a06e06dbc5d1f9",
+        "proofBlobSha": "c4861818882fd4782a2eac383824e84336890a71",
         "contractFile": "scripts/qa/tenant-report-builder-page-contract.mjs",
         "contractBlobSha": "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
         "contractTestFile": "tests/tenant-report-builder-page-contract.test.mjs",
-        "contractTestBlobSha": "6d88df59ca8bfc058bbc86004a3447a236d1ac19",
+        "contractTestBlobSha": "5bc277a20661a404a459d8276bfb6ebf06c4d771",
         "unitTestFile": "tests/tenant-report-builder.test.ts",
         "unitTestBlobSha": "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
         "workflowFile": ".github/workflows/tenant-report-builder-page-qa.yml",
-        "workflowBlobSha": "2dbb81d60581fda30f9e8e77d31079ccf7cc32f5",
+        "workflowBlobSha": "1c21e70dfa55510ed0139c1c167871d123dff3c8",
         "priorPassedHead": "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
         "priorPassedJob": "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
         "ownPageLine": 106,

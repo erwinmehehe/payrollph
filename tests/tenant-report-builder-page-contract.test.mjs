@@ -142,7 +142,7 @@ test("browser A-B-A proof runs on real isolated Chromium and verifies stale resp
   const workflow = readFileSync(".github/workflows/tenant-report-builder-page-qa.yml", "utf8");
   for (const text of [
     "requireDisposableReportPageEnv();", "verifyExportSourcePins();",
-    'import("playwright")', "seedEmployer", "context.addCookies",
+    'import("playwright")', "seedEmployer", "context.setExtraHTTPHeaders",
     "delayedRealResponseHeldAcrossEmployerSwitch: true",
     "realBrowserCsvDownload: true", "protectedForeignSnapshotsUnchanged: true",
     "addedPageCredits: 0", "addedApiCredits: 0",

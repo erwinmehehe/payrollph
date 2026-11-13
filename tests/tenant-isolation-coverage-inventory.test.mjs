@@ -369,6 +369,47 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(verifyCareersPatchCredit(manifest), 1);
     return true;
   }
+  if (key.startsWith("src/app/api/reports/builder/route.ts ")) {
+    const row = manifest.allApiRouteFiles["src/app/api/reports/builder/route.ts"];
+    const renewal = row.sourceCurrentRenewal;
+    assert.equal(currentBlob, "be4ea656c312590df3122c491a05dfd063632718");
+    assert.equal(row.gitBlobSha, currentBlob);
+    assert.equal(method.status, "COVERED",
+      "Current-source authorization must retain genuine provisional evidence for existing credit");
+    assert.equal(method.testedBy?.file, "scripts/qa/tenant-dl02-http.mjs",
+      "Keep the exact original DL-02 method evidence");
+    assert.equal(renewal.kind, "canonical-GET-and-noncoercing-POST-report-builder-PG16-provisional");
+    assert.equal(renewal.priorRouteBlobSha, "67088912f8fc54016d886a4954fa55a607ec176b");
+    assert.equal(renewal.currentRouteBlobSha, currentBlob);
+    assert.deepEqual(renewal.priorCreditedMethods, ["GET", "POST"]);
+    assert.equal(renewal.currentSourceHead, "f896bb65be73e7fcd8a25ced258e90d1cd7c39c9");
+    assert.equal(renewal.getRun, "https://github.com/erwinmehehe/payrollph/actions/runs/43442210530");
+    assert.equal(renewal.postRun, "https://github.com/erwinmehehe/payrollph/actions/runs/43442209949");
+    assert.equal(renewal.newCredits, 0);
+    assert.equal(renewal.pageCredits, 0);
+    assert.equal(renewal.independentlyAccepted, false);
+    assert.equal(renewal.productionCertified, false);
+    const actual = readFileSync("src/app/api/reports/builder/route.ts", "utf8");
+    const get = actual.slice(actual.indexOf("export async function GET("),actual.indexOf("export async function POST("));
+    const post = actual.slice(actual.indexOf("export async function POST("));
+    for (const token of [
+      'searchParams.getAll("organizationId")', 'selectors.length === 1',
+      'explicitReportBuilderEmployerId(selectors[0])', 'await authorize(organizationId)',
+    ]) assert.ok(get.includes(token), "Canonical GET must authorize the one parsed ID: " + token);
+    for (const token of [
+      'enforceSameOriginMutation(request)', 'typeof rawOrganizationId === "number"',
+      'Number.isSafeInteger(rawOrganizationId)', 'rawOrganizationId > 0',
+      'await authorize(organizationId)', 'requireSensitiveActionMfa(auth.user!)',
+    ]) assert.ok(post.includes(token), "POST must not weaken existing security gates: " + token);
+    assert.ok(get.indexOf("explicitReportBuilderEmployerId(selectors[0])") <
+      get.indexOf("await authorize(organizationId)"));
+    assert.ok(post.indexOf('enforceSameOriginMutation(request)') <
+      post.indexOf('await authorize(organizationId)'));
+    assert.ok(post.indexOf('await authorize(organizationId)') <
+      post.indexOf('requireSensitiveActionMfa(auth.user!)'));
+    assert.ok(!actual.includes('Number(params.get("organizationId"))'));
+    assert.ok(!actual.includes("Number(payload.organizationId)"));
+  }
   if (method.status === "COVERED" && [
       "src/app/api/billing/subscription/start/route.ts POST",
       "src/app/api/billing/subscription/cancel/route.ts POST",
@@ -7266,15 +7307,15 @@ test("page and server-action inventory cannot silently omit new or changed busin
           helperFile: "src/lib/tenant-report-builder.ts",
           helperBlobSha: "5d315afc085baad9ce2fc14946a34a6d738a773b",
           proofFile: "scripts/qa/tenant-report-builder-page-http.mjs",
-          proofBlobSha: "48cc244d97e6b376c06be018d6a06e06dbc5d1f9",
+          proofBlobSha: "c4861818882fd4782a2eac383824e84336890a71",
           contractFile: "scripts/qa/tenant-report-builder-page-contract.mjs",
           contractBlobSha: "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
           contractTestFile: "tests/tenant-report-builder-page-contract.test.mjs",
-          contractTestBlobSha: "6d88df59ca8bfc058bbc86004a3447a236d1ac19",
+          contractTestBlobSha: "5bc277a20661a404a459d8276bfb6ebf06c4d771",
           unitTestFile: "tests/tenant-report-builder.test.ts",
           unitTestBlobSha: "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
           workflowFile: ".github/workflows/tenant-report-builder-page-qa.yml",
-          workflowBlobSha: "2dbb81d60581fda30f9e8e77d31079ccf7cc32f5",
+          workflowBlobSha: "1c21e70dfa55510ed0139c1c167871d123dff3c8",
           priorPassedHead: "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
           priorPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
           ownPageLine: 106, ownApiLine: 107, foreignPageLine: 112,
