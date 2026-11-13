@@ -43,7 +43,9 @@ test("forged hold receipts, changed route/helper code and false acceptance are r
   assert.throws(()=>verifyOracleSourceHolds(erased),"erasing every hold cannot disable the source-bound verifier");
 });
 test("an unrelated downgrade remains a hard failure", () => {
-  const m = read(), file = m.allApiRouteFiles["src/app/api/employees/route.ts"];
+  // Mutate only the unrelated employee method. Rewinding all nineteen genuine
+  // renewals would fail the earlier source guard before exercising this check.
+  const m = live(), file = m.allApiRouteFiles["src/app/api/employees/route.ts"];
   file.methods.find(row => row.status === "COVERED").status = "GAP";
   m.metrics.coveredAfter--; m.metrics.gap++;
   m.acceptanceStatus = m.acceptanceStatus.replace((m.metrics.gap - 1) + " API methods", m.metrics.gap + " API methods");
