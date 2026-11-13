@@ -131,7 +131,7 @@ test("MKT-01 runner is isolated, DB-backed, adversarial and read-only", () => {
     "marketing_leads", "user_organizations", "mfa_verified_at",
     "revoked_at", "assertMkt01Denied", "assertMkt01Aggregate",
     "assertMkt01Unchanged", "newCoverageCredits: 0",
-    "const authorizedB = await realGet(", "const forgedUrl = PATH +",
+    "const authorizedB = await auditedGet(", "const forgedUrl = PATH +",
     "assert.deepEqual(stableAggregate(forgedReport)",
     "twoIndependentOperatorSuccesses: true",
     "forgedHigherIdSelectorsIgnored: true",
