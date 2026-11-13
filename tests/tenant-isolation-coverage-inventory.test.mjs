@@ -3916,7 +3916,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(review.exactHeadPg16Http, "PENDING");
     assert.equal(review.independentSecurityReview, "PENDING");
     assert.equal(review.productionCertified, false);
-    assert.equal(review.contractBlobSha, "8e0534925f6092748af9337e5fae227876388530");
+    assert.equal(review.contractBlobSha, "bcc897476b4737942077023015c4654ce81705cc");
     assert.equal(review.workflowBlobSha, "f02241ffc3e16cf79c9ef67d1cc35c3681501194");
     for (const [file, sha] of [
       [review.cookieHelperFile, review.cookieHelperBlobSha],
