@@ -7159,6 +7159,53 @@ test("page and server-action inventory cannot silently omit new or changed busin
         continue; // Strict, source-pinned, zero-credit exception for exactly two pages.
       }
 
+      // #1959 HR Cases page: only the source-sealed guard-order repair is
+      // allowed to remain a zero-credit GAP. The old-source SSR receipt
+      // cannot be silently reused, and the new PG16 job is not an acceptance.
+      if (path === "src/app/hcm/hr-cases/page.tsx") {
+        const oldPage = "93ef058a785606fd00921b23b47c73436e308fbb";
+        const newPage = "0d384a61699a9183bfd4fa55665a0d1154031442";
+        assert.equal(current, newPage,
+          "HR Cases changed again: renew exact-source isolation proof");
+        assert.equal(entry.blob, newPage, "Changed page manifest pin required");
+        assert.equal(entry.status, "GAP", "HR privacy page is not certified");
+        assert.equal(entry.testedBy, undefined, "No unaccepted page credit");
+        assert.match(entry.reason, /^Still GAP:/);
+        const review = entry.reviewedUncertified;
+        assert.deepEqual(review, {
+          kind: "hr-cases-SSR-guard-order-PG16-unaccepted",
+          originalPageBlobSha: oldPage,
+          pageBlobSha: newPage,
+          contractFile: "scripts/qa/tenant-hr-cases-page-contract.mjs",
+          contractBlobSha: "044be9f247cf8f4a55e6a68f47d5cf1ad669a7f5",
+          proofFile: "scripts/qa/tenant-hr-cases-page-http.mjs",
+          proofBlobSha: "b5c930b19db80f78d889273e41fb442205c6ad9f",
+          workflowFile: ".github/workflows/tenant-hr-cases-page-qa.yml",
+          workflowBlobSha: "8e0077fb00786df18bcf492afddb034474aa9ad8",
+          provisionalSourceHead: "2176df8e0cd8d9bd9ee73650ca4d2d29e709e4cb",
+          provisionalSourceJob: "https://github.com/erwinmehehe/payrollph/actions/runs/43353976715/job/131651456563",
+          pageActionCredits: 0, independentlyAccepted: false,
+          productionCertified: false,
+        }, "Only source-verified HR guard ordering with zero credits is permitted");
+        for (const [file, sha] of [
+          [review.contractFile, review.contractBlobSha],
+          [review.proofFile, review.proofBlobSha],
+          [review.workflowFile, review.workflowBlobSha],
+        ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
+          "HR Cases proof/contract/workflow drift requires fresh PG16: " + file);
+        const role = actual.indexOf("const denied = await assertOrganizationRole(");
+        const refused = actual.indexOf("if (denied) notFound()", role);
+        const access = actual.indexOf("const access = await getAccess(", refused);
+        const mount = actual.indexOf("<EmployeeHrCaseStaffQueue", access);
+        assert.ok(role > 0 && refused > role && access > refused && mount > access,
+          "HR Cases must deny unauthorized employer before access lookup or client mount");
+        const unitAndRole = actual.slice(access, mount);
+        assert.match(unitAndRole, /hrCaseRoleCanWork\(access\.role, "hr"\)/);
+        assert.match(unitAndRole, /hrCaseRoleCanWork\(access\.role, "payroll"\)/);
+        assert.match(actual, /canApproveCoe = access\.companyWide/);
+        continue; // This SSR source fix does not establish an accepted page.
+      }
+
       // #1557 report builder PAGE: exact-source, GET-only, feature-ON
       // disposable PG16 evidence. A passing synthetic job does not certify
       // interactive reporting, private POST/CSV, or whole-page tenant coverage.
@@ -7168,12 +7215,15 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(entry.testedBy, undefined, "Unreviewed synthetic GET is not a coverage credit");
         const reviewed = entry.reviewedUncertified;
         const oldSha = "68f7e1c72d5bd8b4187d6303b8f4ed02df2008a4";
-        const pageSha = "4415282df5e859e004ae26662815d7b5f087657d";
+        const pageSha = "24512c4c9f727ca02589e53da81cf38ffed264c9";
         assert.equal(current, pageSha, "Report builder page changed; renew tenant review");
         assert.deepEqual(reviewed, {
           kind: "feature-on-report-builder-SSR-GET-PG16-unaccepted",
           originalPageBlobSha: oldSha,
           pageBlobSha: pageSha,
+          priorSourcePageBlobSha: "4415282df5e859e004ae26662815d7b5f087657d",
+          provisionalSourceHead: "2176df8e0cd8d9bd9ee73650ca4d2d29e709e4cb",
+          provisionalSourceJob: "https://github.com/erwinmehehe/payrollph/actions/runs/43353976706/job/131651456593",
           helperFile: "src/lib/tenant-report-builder.ts",
           helperBlobSha: "5d315afc085baad9ce2fc14946a34a6d738a773b",
           proofFile: "scripts/qa/tenant-report-builder-page-http.mjs",
