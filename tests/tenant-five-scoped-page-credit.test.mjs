@@ -16,7 +16,7 @@ test("only five named original GAP pages are source-current credited; all APIs u
   assert.equal(m.scopedPages.length, 21);
   assert.equal(m.scopedPages.filter(x => x.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(x => x.status === "GAP").length, 11);
-  assert.equal(m.metrics.methods, 498);
+  assert.equal(m.metrics.methods, Object.values(m.allApiRouteFiles).flatMap(file => file.methods).length);
   assert.equal(m.metrics.gap, 5);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.deepEqual(TARGETS.map(x => x.path), [

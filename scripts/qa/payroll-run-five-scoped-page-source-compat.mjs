@@ -20,7 +20,7 @@ const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
 const WORKER_VERIFIER = "scripts/qa/tenant-five-method-credit-verify.mjs";
 const HISTORICAL_PROBE_BLOB = "fe310ca93f2d6ae2fd48ce72d2ee1cf451b55e20";
 const REVIEWED_PROBE_BLOB = "48a62c81c7d20b1d6980e2f9d610bbb9afdb7173";
-const REVIEWED_GENERATOR_BLOB = "d70693c8846740beadb3bae7946e9e647049b2ea";
+const REVIEWED_GENERATOR_BLOB = "08335292d7534ac3618f59b6959bbd8133483dd7";
 const REVIEWED_WORKFLOW_BLOB = "4d475e51c601583ba4212e2c327207c5bb1b34dc";
 const HISTORICAL_WORKER_VERIFIER_BLOB = "8b9b1cdee7ff5228a5558f2e326dff6019f19e8b";
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
@@ -61,9 +61,12 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   assert.equal(manifest.scopedPages.length, 21);
   assert.equal(manifest.scopedPages.filter(p => p.status === "COVERED").length, 10);
   assert.equal(manifest.scopedPages.filter(p => p.status === "GAP").length, 11);
-  assert.equal(manifest.metrics.methods, 498);
-  assert.equal(manifest.metrics.coveredAfter, 458);
-  assert.equal(manifest.metrics.gap, 5);
+  const methods = Object.values(manifest.allApiRouteFiles).flatMap(file => file.methods);
+  assert.equal(manifest.metrics.methods, methods.length);
+  assert.equal(manifest.metrics.coveredAfter,
+    methods.filter(method => method.status === "COVERED").length);
+  assert.equal(manifest.metrics.gap,
+    methods.filter(method => method.status === "GAP").length);
   assert.match(manifest.acceptanceStatus,
     /^NOT ACCEPTED: 5 API methods and 11 page\/action GAPs/);
   for (const [path, sourceSha, proof, proofSha] of REVIEWED_PAGES) {

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
+import {isReviewedFiveScopedPageProbeInput} from '../scripts/qa/payroll-run-five-scoped-page-source-compat.mjs';
 import {isReviewedHeldSsoSecondPassInput} from '../scripts/qa/payroll-run-sso-source-reproof.mjs';
 import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
 import {verifyFreshPayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal-fresh-contract.mjs';
@@ -54,9 +55,29 @@ test('each sealed fresh input set equals the full locked-compiler import closure
       if(actual[file]===expected)continue;
       // Only two exact, reviewed default-OFF SSO probe changes may borrow
       // the earlier source pin after a current-source fictional PG16 reproof.
-      assert.equal(isReviewedHeldSsoSecondPassInput(name,file,expected),true,
+      assert.ok(isReviewedHeldSsoSecondPassInput(name,file,expected) ||
+        isReviewedFiveScopedPageProbeInput(name,file,expected),
         'Unreviewed execution input or import drift: '+name+': '+file);
       actual[file]=expected;
+    }
+    // The changed page probe imports two new, separately source-sealed,
+    // page-only accounting modules. They cannot retroactively enter an
+    // immutable payroll execution receipt or extend its method credits.
+    if(name==='secondPass'){
+      assert.ok(isReviewedFiveScopedPageProbeInput(name,
+        'scripts/qa/tenant-scoped-page-probes.mjs',
+        cohort.sourcePins['scripts/qa/tenant-scoped-page-probes.mjs']));
+      const reviewedPageOnlyImports = new Map([
+        ['scripts/qa/tenant-five-scoped-page-credit.mjs',
+          '08335292d7534ac3618f59b6959bbd8133483dd7'],
+        ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
+          '7a373c60e33f9f276cf1c3f3007795b3fe3e1715'],
+      ]);
+      for(const [path,expectedSha] of reviewedPageOnlyImports){
+        if(!Object.hasOwn(actual,path))continue;
+        assert.equal(actual[path],expectedSha,'Unreviewed new page-only import: '+path);
+        delete actual[path];
+      }
     }
     assert.deepEqual(actual,cohort.sourcePins,'No unreviewed input may join or leave the executed closure');
   }

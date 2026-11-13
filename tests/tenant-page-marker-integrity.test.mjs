@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 const probe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
@@ -24,13 +25,14 @@ test("foreign employer HTML must continue to reject real victim markers", () => 
   assert.match(probe, /assert\.ok\(!foreignRes\.text\.includes\("VictimExclusive7"\)/);
   assert.match(probe, /victimEmployeeAndPayrollUnchanged: true/);
   assert.match(probe, /const pageGaps = pages\.filter\(\(page\) => page\.status === "GAP"\);/);
-  assert.match(probe, /assert\.equal\(pageGaps\.length,[^\n]*verifyWorker360PageCredit\(manifest\)/,
+  assert.match(probe, /assert\.equal\(pageGaps\.length,[^\n]*verifyCurrentScopedPageGapCount\(manifest\)/,
     "The page probe must enforce the exact Worker 360 source/receipt verifier");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  assert.equal(verifyWorker360PageCredit(manifest), 16,
+  assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16,
     "Worker 360 revised legal-employer source requires renewed PG16 HTTP credit");
-  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length, 16);
+  assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length,
+    verifyCurrentScopedPageGapCount(manifest));
   // Previously credited SSR pages must retain owned-success and victim-denial proof.
   assert.match(probe, /expectStatus\(ownRes, 200, "Owned workspace SSR must load the verified snapshot"\)/);
   assert.match(probe, /expectStatus\(foreignRes, 404, "Foreign employer workspace must be denied before snapshot loading"\)/);

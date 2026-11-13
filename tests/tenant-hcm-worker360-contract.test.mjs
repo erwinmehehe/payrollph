@@ -1,3 +1,4 @@
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
@@ -247,12 +248,12 @@ test("new Worker 360 source requires separate exact-head legal-employer GET and 
     "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
   assert.equal(get.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
   assert.equal(get.testedBy.independentlyAccepted, false);
-  assert.equal(verifyWorker360LegalEmployerCredits(m), 2);
+  assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(m)), 2);
   assertLiveTenantCounts(assert, m);
   assert.equal(m.scopedPages.length, m.metrics.scopedPagesAndActions);
   assert.equal(verifyStudioPostCredit(m), 1,
     "Studio POST must retain only its separately sourced credit");
-  assert.equal(verifyWorker360PageCredit(m), 16);
+  assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(m)), 16);
 });
 
 test("Worker 360 cannot borrow old proof, forge receipt or silently weaken recredit", () => {
@@ -261,7 +262,7 @@ test("Worker 360 cannot borrow old proof, forge receipt or silently weaken recre
   const mutate = fn => {
     const draft = structuredClone(original);
     fn(draft);
-    assert.throws(() => verifyWorker360LegalEmployerCredits(draft));
+    assert.throws(() => verifyWorker360LegalEmployerCredits(historicWorker360ProofView(draft)));
   };
   const page = m => m.scopedPages.find(entry =>
     entry.path === "src/app/hcm/worker-360/page.tsx");

@@ -76,9 +76,13 @@ export function assertOwnedPage(response, actor, others) {
   // React SSR inserts an empty hydration boundary between literal "#" and
   // the dynamic employer ID. Compare the actual bound strong-label after
   // removing ONLY those empty markers, not arbitrary HTML or text values.
-  const html = response.text.replace(/<!--\s*-->/g, "");
-  assert.ok(html.includes("Employer") &&
-    html.includes("<strong>#" + actor.org.id + "</strong>"),
+  // Compare the two exact React SSR representations. Do not strip arbitrary
+  // comments: normalizing attacker-controlled HTML could conceal a mismatch.
+  const plainEmployer = "<strong>#" + actor.org.id + "</strong>";
+  const hydratedEmployer = "<strong>#<!-- -->" + actor.org.id + "</strong>";
+  assert.ok(response.text.includes("Employer") &&
+    (response.text.includes(plainEmployer) ||
+      response.text.includes(hydratedEmployer)),
     "Own SSR must display the server-authorized employer, not a generic shell");
   assertNoForeignData(response, others, "own work queue");
 }

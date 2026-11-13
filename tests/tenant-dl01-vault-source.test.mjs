@@ -1,3 +1,4 @@
+import { verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 /**
  * Static source guard only. Actual proof requires the same exact-head GitHub
  * Security HTTP Smoke PG16/localhost run; this cannot certify a GAP by itself.
@@ -160,6 +161,6 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   // Worker 360 retired its historical page credit after the legal-employer
   // source change. Validate that exact source/hold instead of assuming 16 GAPs.
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length,
-    verifyWorker360PageCredit(manifest));
+    verifyCurrentScopedPageGapCount(manifest));
 });
 import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";

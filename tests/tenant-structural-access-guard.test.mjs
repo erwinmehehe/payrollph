@@ -1,3 +1,4 @@
+import { TARGETS, verifyFivePageCredits, verifyCurrentScopedPageGapCount, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 /**
  * All-API structural check: every direct/delegated route-to-DB call must show
  * an employer-scoped access mechanism OR a source-SHA-pinned exception with a
@@ -134,10 +135,15 @@ test("all scoped pages stay source-pinned; only five source-proved pages may be 
   const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
   const workerPath = "src/app/hcm/worker-360/page.tsx";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
-  assert.deepEqual(covered.map((page) => page.path), ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath, workerPath],
+  assert.equal(verifyFivePageCredits(manifest), TARGETS.length,
+    "The five additional page receipts must be exact-current-source");
+  assert.deepEqual(covered.map((page) => page.path).sort(),
+    ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath,
+      workerPath, ...TARGETS.map(target => target.path)].sort(),
     "Static route analysis cannot silently certify any additional page");
-  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length, verifyWorker360PageCredit(manifest),
-    "Other 16 employer-scoped page/action entries remain uncertified");
+  assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length,
+    verifyCurrentScopedPageGapCount(manifest),
+    "All uncredited employer pages must remain GAP");
   for (const page of manifest.scopedPages) {
     const bytes = readFileSync(page.path);
     assert.equal(blobSha(bytes), page.blob,
@@ -145,6 +151,13 @@ test("all scoped pages stay source-pinned; only five source-proved pages may be 
     assert.ok(page.business.length > 0 && page.reason.length > 22);
     if (page.status === "GAP") {
       assert.ok(!page.testedBy, page.path + ": a GAP must not claim accepted HTTP evidence");
+      continue;
+    }
+    if (TARGETS.some(target => target.path === page.path)) {
+      // verifyFivePageCredits above validates exact page/proof blobs, denial
+      // anchors, exclusions and the no-independent-acceptance boundary.
+      assert.equal(page.testedBy?.methodCredits, 0);
+      assert.equal(page.testedBy?.independentlyAccepted, false);
       continue;
     }
     if (page.path === "src/app/app/page.tsx") {
@@ -225,7 +238,7 @@ test("all scoped pages stay source-pinned; only five source-proved pages may be 
       assert.equal(page.testedBy?.independentSecurityReview, "PENDING");
       assert.equal(page.testedBy?.independentlyAccepted, false);
       assert.equal(page.testedBy?.productionCertified, false);
-      assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2,
+      assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)), 2,
         "Worker 360 must have both exact-current-source GET and SSR legal-employer receipts");
       continue;
     }

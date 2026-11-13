@@ -1,33 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { TARGETS, verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { readFileSync } from "node:fs";
 
 // Source-order regression only; this is not a real HTTP/PG16 isolation receipt.
 const read = path => readFileSync(path, "utf8");
 const gapPaths = Object.freeze([
-  "src/app/app/engagement/page.tsx",
-  "src/app/app/goals-reviews/page.tsx",
   "src/app/billing/setup/page.tsx",
   "src/app/careers/page.tsx",
   "src/app/hcm/action-center/page.tsx",
   "src/app/hcm/hire-payroll-review/page.tsx",
   "src/app/hcm/hr-cases/page.tsx",
-  "src/app/hcm/my-team/page.tsx",
   "src/app/hcm/org-explorer/page.tsx",
   "src/app/hcm/process-monitor/page.tsx",
-  "src/app/hcm/team-leave-calendar/page.tsx",
-  "src/app/hcm/work-items/page.tsx",
   "src/app/self/schedule-receipts/page.tsx",
   "src/app/workspace/2316/page.tsx",
   "src/app/workspace/prior-employer/page.tsx",
   "src/app/workspace/report-builder/page.tsx",
 ]);
 
-test("all 16 page/action gaps remain explicit and uncredited", () => {
+test("only uncredited page/action gaps remain explicit", () => {
   const manifest = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
   assert.deepEqual(manifest.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), [...gapPaths].sort());
   assert.equal(manifest.scopedPages.length, 21);
+  assert.equal(verifyFivePageCredits(manifest), TARGETS.length,
+    "All five removed GAP entries require their own exact-source page receipts");
   assert.ok(manifest.scopedPages.every(row => row.status === "GAP" || row.status === "COVERED"));
 });
 

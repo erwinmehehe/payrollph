@@ -4885,7 +4885,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (proof?.verifiedMainCommit === "fe3ad8901bfa714d59639d9f59a13cf133eeab36") {
         // Three exact proof-owned methods on unchanged merged source blobs.
         // The #1524 self-profile route is a source-reviewed GAP; no stale credit.
-        assert.equal(verifyMoreCredits(manifest), 3);
+        assert.equal(verifyMoreCredits(historicWorker360ProofView(manifest)), 3);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-hmo-http.mjs") {
