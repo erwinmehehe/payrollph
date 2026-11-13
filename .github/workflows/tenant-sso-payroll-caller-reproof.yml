@@ -1,0 +1,169 @@
+name: SSO payroll caller reproof (zero credits)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sso-payroll-caller-reproof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# Fictional disposable PostgreSQL 16 only. No deployment, live flag or provider.
+# All ordinary CI and ledger gates remain required and are never bypassed.
+jobs:
+  sso-payroll-caller-reproof:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Exercise the strict opt-in gate only against disposable CI fixtures.
+      PAYROLL_PRE_RUN_READINESS_ENABLED: "true"
+      LOCAL_LOGIN_AUDIT_ENABLED: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: "true"
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact proposed HTTP-proof source
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      # Ledger acceptance stays a separate required merge gate. This job executes
+      # the changed shared caller first, awarding zero credits, so a new sealed
+      # receipt can reconcile the intentionally stale historical caller pins.
+      - name: Check executable proof syntax without granting ledger acceptance
+        run: |
+          node --check scripts/qa/tenant-second-pass-http.mjs
+          node --check scripts/qa/tenant-high-risk-01-http.mjs
+          node --check scripts/qa/payroll-read-sweep-http.mjs
+      - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
+        run: |
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$pii_key"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Validate production security configuration contract
+        env:
+          APP_BASE_URL: https://payroll.example.test
+          MALWARE_SCAN_URL: https://scanner.example.test/scan
+        run: npm run security:preflight
+      - name: Validate scanner service syntax
+        run: node --check services/malware-scanner/server.mjs
+      - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+
+      - name: Start production server
+        # ONLY this isolated localhost CI process exercises normally default-OFF API
+        # extension/provider signature branches. Does not change any deployed flag.
+        env:
+          PUBLIC_API_V1_EXTENDED_ENABLED: "true"
+          API_V1_EXTENDED_READS_ENABLED: "true"
+          EMPLOYEE_HR_CASES_ENABLED: "true"
+          # Exercise A-5 only on this disposable localhost three-employer server.
+          # Never enable or change the corresponding Vercel production flag.
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
+          OWNER_PRACTICE_PAYROLL_ENABLED: "true"
+          # F-04 read authorization verified only on this disposable PG16 server.
+          # Production remains explicitly default-OFF until 0137 is approved.
+          PAYROLL_CALCULATION_HISTORY_ENABLED: "true"
+          # Only the disposable localhost three-employer HTTP fixture; never deployed.
+          HCM_GOVERNANCE_READINESS_ENABLED: "true"
+          BIR_1604C_DAT_CANDIDATE_ENABLED: "true"
+          PAYMONGO_WEBHOOK_SECRET: "ci-fake-paymongo-webhook-signing-secret"
+          XENDIT_PAYOUT_CALLBACK_TOKEN: "ci-fake-xendit-payout-callback"
+          XENDIT_CALLBACK_TOKEN: "ci-fake-xendit-subscription-callback"
+          XENDIT_BUSINESS_ID: "ci-fictional-merchant"
+          XENDIT_BILLING_ENABLED: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only the disposable PG16 QA server may accept synthetic fixture uploads.
+          # This is NOT malware-scanner acceptance and never changes deployed settings.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-ci-scanner.key -out /tmp/tenant-ci-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          export TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only
+          export MALWARE_SCAN_URL=https://127.0.0.1:8443/scan
+          export MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs > /tmp/tenant-ci-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health
+          # Generate a fresh signing key only for this localhost CI server.
+          # A real-looking whsec value must never be committed as source text.
+          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$resend_webhook_secret"
+          export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-security.log 2>&1 &
+          echo $! > /tmp/payrollph-security.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/payrollph-security.log
+          exit 1
+
+      - name: Run adversarial HTTP and two-employer Workforce/BI acceptance
+        env:
+          CI: "true"
+          WORKFORCE_BI_HTTP_ACCEPTANCE_MODE: isolated-ci-only
+        run: npx tsx scripts/security-http-smoke.ts
+
+      - name: Real-HTTP second-pass tenant isolation (victim + two attacker organizations)
+        env:
+          CI: "true"
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          # Match the isolated server flag for positive seeded F-04 SQL evidence.
+          PAYROLL_CALCULATION_HISTORY_ENABLED: "true"
+          TENANT_DL01_VAULT_PROOF: isolated-ci-only
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
+        run: npx tsx scripts/qa/tenant-second-pass-http.mjs
+
+      - name: Show bounded localhost diagnostics on failure
+        if: failure()
+        run: tail -n 60 /tmp/payrollph-security.log || true
+

@@ -81,7 +81,7 @@ export function verifyOidcCallbackHold(manifest, read = readFileSync) {
     ["cookieHelperFile", "cookieHelperBlobSha",
       "src/lib/oidc-browser-state.ts", "cd772e6bed14633cc4fc7546140e16770ff54c3f"],
     ["contractFile", "contractBlobSha",
-      "scripts/qa/tenant-oidc-browser-state-contract.mjs", "8e0534925f6092748af9337e5fae227876388530"],
+      "scripts/qa/tenant-oidc-browser-state-contract.mjs", "bcc897476b4737942077023015c4654ce81705cc"],
     ["proofFile", "proofBlobSha",
       "scripts/qa/tenant-oidc-browser-state-http.mjs", "edaff42c189e48daf7560f1ae8e9784fbc2810b1"],
     ["unitTestFile", "unitTestBlobSha",
