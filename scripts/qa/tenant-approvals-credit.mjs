@@ -140,6 +140,7 @@ export function approvalEvidence(read=readFileSync){const raw=read(RECEIPT);asse
     assert.equal(s,HISTORIC_AUTOMATION_SHA,'Original immutable receipt pin changed');
     verifyNarrowStudioAutomationSource(read);
   } else if (p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),s);
+  else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),s,read);
   else if(p==='scripts/qa/tenant-money-lifecycle-http.mjs') assertOracleCallerCompatible(p,s,read);
   else assert.equal(blob(read(p)),s,'Fresh HTTP proof needed: '+p);
  }return r;}
@@ -187,6 +188,7 @@ export function reconcileApprovalsCredit({write=false}={}){
  else {assert.equal(row.status,'COVERED');assert.deepEqual(JSON.parse(readFileSync(MANIFEST,'utf8')),m,'Run this reviewed credit writer with --write first');assert.equal(readFileSync(INVENTORY,'utf8'),overview,'Inventory must be generated from the same credit');assert.equal(readFileSync(PLAN,'utf8'),plan,'Frozen queue must reconcile with the credited method');}
  return {methodsCredited:before.gap-m.metrics.gap,before,after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap},write};
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const args=process.argv.slice(2);assert.ok(args.length===1&&['--write','--check'].includes(args[0]));
  execFileSync('git',['merge-base','--is-ancestor','6f1a193f8b56eb52174c33e7caf4335d8a8c95e7','HEAD']);

@@ -16,6 +16,7 @@ import { decryptEnterpriseSecret } from "@/lib/enterprise-secret";
 import { exchangeOidcCode, verifyOidcIdToken } from "@/lib/oidc";
 import { requestMeta } from "@/lib/rate-limit";
 import { effectiveSessionPolicyForUser } from "@/lib/enterprise-session";
+import { persistVerifiedOidcIdentity } from "@/lib/oidc-identity-binding";
 import { sha256 } from "@/lib/crypto";
 import {
   OIDC_BROWSER_STATE_COOKIE, OIDC_BROWSER_STATE_PATH,
@@ -119,7 +120,11 @@ export async function GET(request: Request) {
     }, { status: 403 });
   }
 
+  // Provider IDs are global, but an inconsistent/migrated identity row must
+  // never be trusted for a different legal organization. A foreign link with
+  // the same provider and subject fails closed instead of authenticating.
   const [existingIdentity] = await db.select().from(externalIdentities).where(and(
+    eq(externalIdentities.organizationId, provider.organizationId),
     eq(externalIdentities.providerId, provider.id),
     eq(externalIdentities.subject, identity.subject),
   )).limit(1);
@@ -131,33 +136,12 @@ export async function GET(request: Request) {
     if (user.email.toLowerCase() !== identity.email) {
       return Response.json({ error: "The identity-provider email changed. Sync the account through SCIM before signing in again." }, { status: 409 });
     }
-    await db.update(externalIdentities).set({ email: identity.email, lastLoginAt: new Date() })
-      .where(eq(externalIdentities.id, existingIdentity.id));
   } else {
     [user] = await db.select().from(users).where(eq(users.email, identity.email)).limit(1);
     if (!user || !user.active) {
       return Response.json({
         error: "This identity is valid, but the user has not been provisioned in Linaw. Provision the account through SCIM or create the membership first.",
       }, { status: 403 });
-    }
-    const [membership] = await db.select({ id: userOrganizations.id }).from(userOrganizations).where(and(
-      eq(userOrganizations.userId, user.id),
-      eq(userOrganizations.organizationId, provider.organizationId),
-      eq(userOrganizations.active, true),
-    )).limit(1);
-    if (!membership) return Response.json({ error: "The user is not a member of this SSO workspace." }, { status: 403 });
-
-    try {
-      await db.insert(externalIdentities).values({
-        organizationId: provider.organizationId,
-        providerId: provider.id,
-        userId: user.id,
-        subject: identity.subject,
-        email: identity.email,
-        lastLoginAt: new Date(),
-      });
-    } catch {
-      return Response.json({ error: "The OIDC identity could not be linked safely. Retry sign-in." }, { status: 409 });
     }
   }
 
@@ -174,6 +158,19 @@ export async function GET(request: Request) {
       error: "One of this user's active Linaw workspaces requires MFA, but the identity provider did not assert an MFA authentication method.",
       code: "MFA_REQUIRED",
     }, { status: 403 });
+  }
+
+  // Recheck and lock live provider/account/membership authority in the same
+  // transaction as identity persistence, after inherited MFA acceptance.
+  try {
+    const linked = await persistVerifiedOidcIdentity({
+      organizationId: provider.organizationId, providerId: provider.id,
+      userId: user.id, subject: identity.subject, email: identity.email,
+      existingIdentityId: existingIdentity?.id ?? null,
+    });
+    if (!linked) return Response.json({ error: "The OIDC identity no longer has workspace access." }, { status: 403 });
+  } catch {
+    return Response.json({ error: "The OIDC identity could not be linked safely. Retry sign-in." }, { status: 409 });
   }
 
   const session = await createSession(user.id, requestMeta(request), {

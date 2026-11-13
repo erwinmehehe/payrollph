@@ -43,6 +43,10 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   let reviewedUncreditedPageCount = 0;
   let reviewedStudioScopeCount = 0;
   for (const [file, pinned] of Object.entries(receipt.pins)) {
+    if(file==='src/lib/security-network.ts') {
+      assertHistoricalPinnedNetworkPreserved(read(file),pinned,read);
+      continue;
+    }
     if (file === "next.config.ts") {
       assertHistoricalNextConfigPreservedWithInvitationHeaders(read(file, "utf8"), pinned);
       continue;
@@ -77,3 +81,4 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   assert.ok(reviewedUncreditedPageCount <= 1, "Only the explicitly pinned uncredited HR queue page may differ");
   return receipt;
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';
