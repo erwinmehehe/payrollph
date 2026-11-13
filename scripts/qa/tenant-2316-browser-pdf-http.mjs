@@ -99,9 +99,8 @@ export async function prove2316BrowserPdf() {
   // Fail before ANY DB/Next/Playwright module import.
   requireDisposableBrowserPdf();
   verifyBrowserPdfSources();
-  const [{db,pool},s,orm,fixture,{chromium},{hashPassword},{generateTotp,generateTotpSecret},
-    {encryptTotpSecret},{encryptGovernmentId},{certificateReview},
-    {prepare2316Certificate},{load2316CertificateSource}]=await Promise.all([
+  const [database,s,orm,browserModule,cryptoModule,totpModule,secretModule,
+    governmentIdModule,fixture,certificateModule,certificateServer]=await Promise.all([
       import("../../src/db/index.ts"),
       import("../../src/db/schema.ts"),
       import("drizzle-orm"),
@@ -114,6 +113,15 @@ export async function prove2316BrowserPdf() {
       import("../../src/lib/bir-2316-certificate.ts"),
       import("../../src/lib/bir-2316-certificate-server.ts"),
     ]);
+  const {db,pool}=database;
+  const {chromium}=browserModule;
+  const {hashPassword}=cryptoModule;
+  const {generateTotp,generateTotpSecret}=totpModule;
+  const {encryptTotpSecret}=secretModule;
+  const {encryptGovernmentId}=governmentIdModule;
+  const {certificateReview}=fixture;
+  const {prepare2316Certificate}=certificateModule;
+  const {load2316CertificateSource}=certificateServer;
   let browser;
   try {
     const pg16=Number((await pool.query("SHOW server_version_num")).rows[0].server_version_num);
