@@ -9,7 +9,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import {
   BUILDER_FIELD_CATALOG, canUseBuilderField, validateBuilderSpec, runWhitelistedBuilder,
-  builderRowsToCsv, builderRequiresEntityRole,
+  builderRowsToCsv, builderRequiresEntityRole, explicitReportBuilderEmployerId,
 } from "@/lib/tenant-report-builder";
 import { getBuilderFacts } from "@/lib/tenant-report-builder-server";
 
@@ -67,8 +67,13 @@ async function authorize(organizationId: number) {
 }
 
 export async function GET(request: Request) {
-  const params = new URL(request.url).searchParams;
-  const auth = await authorize(Number(params.get("organizationId")));
+  const selectors = new URL(request.url).searchParams.getAll("organizationId");
+  const organizationId = selectors.length === 1
+    ? explicitReportBuilderEmployerId(selectors[0]) : null;
+  if (organizationId === null) return Response.json({
+    error: "One canonical organizationId is required.",
+  }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+  const auth = await authorize(organizationId);
   if (auth.error) return auth.error;
   return Response.json({
     fields: Object.fromEntries(Object.entries(BUILDER_FIELD_CATALOG).map(([dataset, fields]) =>
@@ -80,8 +85,18 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
-  const payload = await request.json().catch(() => ({}));
-  const organizationId = Number(payload.organizationId);
+  const body: unknown = await request.json().catch(() => null);
+  const payload = body && typeof body === "object" && !Array.isArray(body)
+    ? body as Record<string, unknown> : {};
+  // POST accepts an actual positive, safe JSON integer only. Never coerce
+  // strings, booleans, null or scientific notation into an employer selector.
+  const rawOrganizationId = payload.organizationId;
+  const organizationId = typeof rawOrganizationId === "number"
+    && Number.isSafeInteger(rawOrganizationId) && rawOrganizationId > 0
+    ? rawOrganizationId : null;
+  if (organizationId === null) return Response.json({
+    error: "A canonical numeric organizationId is required.",
+  }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   const auth = await authorize(organizationId);
   if (auth.error) return auth.error;
   const mfa = requireSensitiveActionMfa(auth.user!);

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const SOURCE_PINS = Object.freeze({
-  "src/app/api/reports/builder/route.ts": "67088912f8fc54016d886a4954fa55a607ec176b",
+  "src/app/api/reports/builder/route.ts": "be4ea656c312590df3122c491a05dfd063632718",
   "src/lib/tenant-report-builder.ts": "5d315afc085baad9ce2fc14946a34a6d738a773b",
   "src/lib/tenant-report-builder-server.ts": "8cdd745742579aab2e73749527ce64db248dec6b",
   "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",

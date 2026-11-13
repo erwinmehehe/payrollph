@@ -168,3 +168,27 @@ test("report export CI reruns on shared dependencies and every source-pinned aut
       "Source-pinned report dependency must trigger its own proof on change: " + pinnedPath);
   }
 });
+
+test("Report Builder route and HTTP proof enforce canonical tenant IDs", () => {
+  const route = readFileSync("src/app/api/reports/builder/route.ts", "utf8");
+  const pageRunner = readFileSync("scripts/qa/tenant-report-builder-page-http.mjs", "utf8");
+  const exportRunner = readFileSync("scripts/qa/tenant-report-builder-export-http.mjs", "utf8");
+  for (const marker of [
+    'searchParams.getAll("organizationId")',
+    'selectors.length === 1',
+    'explicitReportBuilderEmployerId(selectors[0])',
+    'typeof rawOrganizationId === "number"',
+    'Number.isSafeInteger(rawOrganizationId)',
+    'rawOrganizationId > 0',
+    'body && typeof body === "object" && !Array.isArray(body)',
+  ]) assert.ok(route.includes(marker), "Missing canonical API employer validation: " + marker);
+  assert.ok(!route.includes('Number(params.get("organizationId"))'),
+    "Number() silently accepts blank, noncanonical and ambiguous query selectors");
+  assert.ok(!route.includes("Number(payload.organizationId)"),
+    "POST must not coerce unaudited JSON employer selectors");
+  for (const marker of [
+    'malformed direct GET', 'missing employer direct GET',
+    'duplicate employer direct GET', 'assertDeniedReportCapabilities',
+  ]) assert.ok(pageRunner.includes(marker), "Missing direct GET negative: " + marker);
+  assert.ok(exportRunner.includes("noncanonical or nonnumeric POST employer"));
+});
