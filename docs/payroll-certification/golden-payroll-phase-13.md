@@ -31,7 +31,7 @@ Five more cover imported de minimis: the breakdown not used (the worker is then 
 
 The importer stores an optional `deMinimisBreakdown` per imported row (amount by statutory category). Year-end annualization used to ignore it, so imported pay was treated as fully taxable while the engine's own de minimis benefits were exempt; a worker whose previous provider paid, for example, a rice subsidy was over-collected (2,250.00 in the first de minimis case above). `importedDeMinimisTreatment()` in `src/lib/year-end.ts` now caps each category at its RR 29-2025 ceiling per statutory period (month, semester or year by pay date): the part inside the ceiling is exempt and the excess joins the shared 90,000 pool, as for the engine's own lines. Cases it cannot prove are refused, not guessed: monetized leave days and the daily overtime meal allowance (their ceilings are not peso amounts per period), unknown categories, and de minimis larger than the row's gross pay.
 
-Imported de minimis is not combined with de minimis grants the engine calculates for the same worker; the payroll run already flags that combination for review.
+Imported de minimis shares its statutory ceiling with de minimis grants the engine calculates for the same worker in the year-end settlement (certified in Phase 14); the engine’s own payslip lines for the calculated months still apply the ceiling to calculated pay only, and the payroll run flags that combination for review.
 
 ## Not covered
 

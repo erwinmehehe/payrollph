@@ -30,7 +30,7 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
   const base=baseTenantManifest();
-  if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
+  if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=(base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'&&m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED')?1:0;
     const yearEndHold=yearEndHoldDelta(base.manifest,m)-yearEndRenewalDelta(base.manifest,m);
     // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
     const workerPath = "src/app/api/hcm/worker-360/route.ts";

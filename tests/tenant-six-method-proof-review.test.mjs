@@ -10,7 +10,7 @@ import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admi
 import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits,RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { YEAR_END_PROOF, YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
 /**
  * Non-credentialled, source-only guard on six merged proof candidates.
  * Keeps historical coverage + live metrics unchanged until the exact four-part
@@ -974,8 +974,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       for (const method of mainYearEnd.methods) {
         assert.equal(method.status, "COVERED");
         assert.equal(method.testedBy?.proofPullRequest, 1804);
-        assert.equal(method.testedBy?.workflowRunId, 42254117862);
-        assert.equal(method.testedBy?.verifiedPrHeadSha, "d79db85b2a2ca0276810634dccaf904fd4469099");
+        assert.equal(method.testedBy?.workflowRunId, YEAR_END_PROOF.run);
+        assert.equal(method.testedBy?.verifiedPrHeadSha, YEAR_END_PROOF.head);
       }
       assert.equal(verifyYearEndHold(m), 0);
     } else if (baselineHasCurrentRoute) {
@@ -1366,6 +1366,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(mainWorkerGet.reviewedUncertified?.coverageCredits,0);
       expectedOriginalMain[mainWorkerPath].GET='GAP';
     }
+    // After the payroll-run oracle source hold merged, origin/main carries those exact withdrawals; verified against the files, never assumed.
+    let baselineOracleWithdrawn = 0;
+    for (const key of verifyOracleSourceHolds(baseline)) {
+      const at = key.indexOf(" ");
+      const path = key.slice(at + 1), verb = key.slice(0, at);
+      if (expectedOriginalMain[path][verb] === "COVERED") baselineOracleWithdrawn++;
+      expectedOriginalMain[path][verb] = "GAP";
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1376,13 +1384,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion + compliancePostCredits.length +
+      COVERED: -baselineOracleWithdrawn + baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
-      GAP: snapshot.counts.GAP + mainWorkerDemotion - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: baselineOracleWithdrawn + snapshot.counts.GAP + mainWorkerDemotion - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
