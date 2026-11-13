@@ -31,7 +31,7 @@ import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-ver
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
-import { verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -4155,8 +4155,8 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(method.status, "COVERED");
     assert.equal(method.reviewedUncertified, undefined);
     assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
-    assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
-    assert.equal(verifyWorker360PageCredit(manifest), 11, "Worker 360 credit preserved alongside exactly five re-proved pages");
+    assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)), 2);
+    assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16, "Original Worker 360 evidence remains source-pinned; five new pages checked separately");
     return;
   }
   // This route changed the *within-company legal-employer* boundary, which
@@ -4796,7 +4796,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       if(isVerifiedOracleRenewal(manifest,path,method.name))continue; // Separate complete executed/source-sealed cohort.
       if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
-        assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
+        assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)),2);
         continue;
       }
       if (path === OIDC_CALLBACK && method.name === 'GET') {
@@ -8201,8 +8201,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(entry.status, "COVERED");
         assert.equal(entry.reviewedUncertified, undefined);
         assert.equal(entry.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
-        assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
-        assert.equal(verifyWorker360PageCredit(manifest), 16);
+        assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)), 2);
+        assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16);
         continue;
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),
