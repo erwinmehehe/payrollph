@@ -7319,8 +7319,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
           priorPassedHead: "fbeb54d07c394826c3bcf29cf34a7a69303b6eac",
           priorPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/40804067228/job/123218683191",
           ownPageLine: 106, ownApiLine: 107, foreignPageLine: 112,
-          foreignApiLine: 114, unitScopeLine: 138, revokedPageLine: 169,
-          revokedApiLine: 171, unchangedDbLine: 131,
+          foreignApiLine: 114, unitScopeLine: 160, revokedPageLine: 191,
+          revokedApiLine: 193, unchangedDbLine: 153,
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited PG16 page review is allowed");
         assert.match(entry.reason, /^Still GAP: #1557/);
