@@ -4,6 +4,7 @@ import {PAYROLL_RENEWAL_COHORTS,verifyPayrollRenewalResults} from './payroll-run
 import {renewalBlob,RENEWAL_LEDGER_INPUTS} from './payroll-run-renewal-inputs.mjs';
 import {HISTORICAL_RENEWAL_RECEIPT,HISTORICAL_RENEWAL_SEAL} from './payroll-run-credit-renewal-history.mjs';
 import { isReviewedHeldSsoSecondPassInput } from './payroll-run-sso-source-reproof.mjs';
+import { isReviewedFiveScopedPageProbeInput } from './payroll-run-five-scoped-page-source-compat.mjs';
 
 /** Called only after the fresh receipt seal and both historical archives verify. */
 export function verifyFreshPayrollRenewal(receipt,historical,methods,read=readFileSync,exists=existsSync){
@@ -41,7 +42,8 @@ export function verifyFreshPayrollRenewal(receipt,historical,methods,read=readFi
       // current-source fictional PG16 replay; everything else fails closed.
       const actual = renewalBlob(read(file));
       if (actual !== sha) assert.ok(
-        isReviewedHeldSsoSecondPassInput(name, file, sha, read),
+        isReviewedHeldSsoSecondPassInput(name, file, sha, read) ||
+        isReviewedFiveScopedPageProbeInput(name, file, sha, read),
         'Executed input closure drift: '+name+': '+file,
       );
     }
