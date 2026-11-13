@@ -1,0 +1,125 @@
+name: Tenant Form 2316 Browser, API and Unsigned PDF (Fictional PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/workspace/2316/**"
+      - "src/components/workspace/certificate-2316-review.tsx"
+      - "src/app/api/year-end/2316-certificate/**"
+      - "src/lib/bir-2316-*.ts"
+      - "src/lib/multi-entity-server.ts"
+      - "scripts/qa/tenant-2316-browser-pdf-*.mjs"
+      - "scripts/qa/tenant-2316-ssr-transfer-*.mjs"
+      - "tests/tenant-2316-browser-pdf-contract.test.mjs"
+      - ".github/workflows/tenant-2316-browser-pdf-qa.yml"
+      - "docs/qa/tenant-2316-browser-pdf.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  form2316-browser-pdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_2316_SSR_TRANSFER_PROOF: fictional-pg16-only
+      TENANT_2316_BROWSER_PDF_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: "true"
+      BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
+      BIR_2316_RECONCILIATION_ENABLED: "true"
+      BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
+      MULTI_ENTITY_ENABLED: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact proposed head, not merge-generated source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Source seals, unsafe-target rejection and anti-false-pass tests
+        run: |
+          node --check scripts/qa/tenant-2316-browser-pdf-contract.mjs
+          node --check scripts/qa/tenant-2316-browser-pdf-http.mjs
+          node --test tests/tenant-2316-browser-pdf-contract.test.mjs
+          node --import tsx --test tests/tenant-2316-legal-employer-worker.test.ts
+      - name: Generate unique disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create fresh PostgreSQL 16 application schema
+        run: npm run db:push
+      - name: Apply reviewed fictional schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next with synthetic feature flags
+        run: npm run build
+      # An isolated headless Chromium install, never a remote/deployed browser.
+      - name: Install version-pinned Chromium headless shell
+        shell: bash
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
+      - name: Start isolated Next on loopback only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-2316-browser-pdf.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-2316-browser-pdf.log
+          exit 1
+      - name: Run real password+TOTP browser, PG16 API, source-digest and PDF proof
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-2316-browser-pdf-http.mjs
+      - name: Bounded server logs only on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-2316-browser-pdf.log || true
