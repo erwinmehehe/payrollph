@@ -1,0 +1,812 @@
+{
+  "schema": "xendit-post-executed-pg16-v1",
+  "sourceCommit": "5fcff5d201fbfe510842c2b755cdac7f764ca30a",
+  "workflowRunId": 43445170899,
+  "workflowJobId": 131952613984,
+  "jobConclusion": "success",
+  "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43445170899/job/131952613984",
+  "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+  "independentSecurityReview": "PENDING",
+  "productionTested": false,
+  "profileApproval": "synthetic-only-user-approved",
+  "roots": [
+    "src/app/api/payroll-runs/[id]/xendit-payout/route.ts",
+    "scripts/qa/tenant-xendit-post-proof-http.mjs",
+    "scripts/qa/tenant-xendit-post-proof-seed.mjs",
+    "scripts/qa/tenant-xendit-post-proof-preload.mjs",
+    ".github/workflows/tenant-xendit-post-proof.yml",
+    "tests/tenant-xendit-post-proof-target.test.mjs",
+    "tests/tenant-xendit-post-proof-contract.test.mjs",
+    "scripts/qa/apply-isolated-baseline.mjs",
+    "package.json",
+    "package-lock.json",
+    "next.config.ts",
+    "tsconfig.json"
+  ],
+  "inputs": {
+    ".github/workflows/tenant-xendit-post-proof.yml": "ee6feb7be7bbaf945f89d5e41ba743c19d31e54a",
+    "next.config.ts": "3e79ee0460883938173d31349a6b62146e97fdcf",
+    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2",
+    "package.json": "7078c01f09c85f79dd79ba5517a80e80cdb72ae3",
+    "scripts/lib/migration-only-objects.mjs": "07ed3903f0aa2f482c34ff79a7c0e487ba49976d",
+    "scripts/qa/apply-isolated-baseline.mjs": "75b9e7f1b39a6ca5b2253086e519ae7d71229255",
+    "scripts/qa/tenant-legal-employer-admin-proof.mjs": "b47226154e683f384f01528777204e251465c63d",
+    "scripts/qa/tenant-read-recovery-snapshot.mjs": "89c1976d3fce5842bce84a87754d830e54c675a6",
+    "scripts/qa/tenant-table-catalog.mjs": "77a8814d522fa89a9ac890f2b4725a4259847ad4",
+    "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
+    "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+    "scripts/qa/tenant-table-invariants.mjs": "52f9acded7750a722cb663b9eeb6ea0a709ecd9b",
+    "scripts/qa/tenant-table-loader.mjs": "86660dc3b55b655d75429d04ef22c4d50a7df7fe",
+    "scripts/qa/tenant-table-path.mjs": "aa84a05716961b2b01e4ab4d1e5e5dfd5a31d6f1",
+    "scripts/qa/tenant-xendit-post-proof-contract.mjs": "07fb975cdd389d535e883decb0266ebc14b50f8f",
+    "scripts/qa/tenant-xendit-post-proof-fixtures.mjs": "37812228780433964c01c1d68d0cbf1d5729b4e9",
+    "scripts/qa/tenant-xendit-post-proof-http.mjs": "dd8724698f46b840dd5c263049409774b2dd1047",
+    "scripts/qa/tenant-xendit-post-proof-preload.mjs": "2a49c4e4a3d6886501663a81335fea02a69b8091",
+    "scripts/qa/tenant-xendit-post-proof-seed.mjs": "4d0ed18cb0f0dd40f5f0b618fe8db3c2ef4b4df9",
+    "scripts/qa/tenant-xendit-post-proof-target.mjs": "1695df5944b4f68ae898c5aced97a078ab43a2df",
+    "scripts/qa/tenant-xendit-post-provider-fixture.mjs": "b2f93152165fe7fe09955b8b49d91f3e59c3b7de",
+    "src/app/api/payroll-runs/[id]/xendit-payout/route.ts": "b7d8aa1dc83959ec4516b5a65cc62999c79ebfda",
+    "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+    "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02",
+    "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
+    "src/lib/account.ts": "e9fd7448970b49fa10d97c67478a71ceb0b91c75",
+    "src/lib/audit.ts": "3aa8f2c627884072c0c294dbf7861980b302927c",
+    "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+    "src/lib/bank-account-crypto.ts": "350ab8def720f4c69a6e9a41e2b85d5b708affa5",
+    "src/lib/critical-release-flags.ts": "aa9867f795bbcbe9cfe42c6df7f64d0f0c4a9671",
+    "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+    "src/lib/demo-security.ts": "10f8fa0a7894a66d902ebde5ac4a4e7dee5c1590",
+    "src/lib/dynamic-group-authorization.ts": "8e0fc03182c0936571c7d0e16610d3658c8cec4d",
+    "src/lib/dynamic-worker-group-conditions.ts": "d00a3315a3c4f7fe815fdff5108d8affdfd2c552",
+    "src/lib/enterprise-session.ts": "1d3b4d6746a3a1c12fb220299eea7df3e54f29e5",
+    "src/lib/ess-profile-schema.ts": "18f5ad183844efde757c12ea74b8ce7e742e3d4d",
+    "src/lib/government-id-crypto.ts": "2b24f55aba6f4032416e5557b3527d3519fafe88",
+    "src/lib/multi-entity-policy.ts": "9aacd6cd3c7147d383608d162e89be7e822cc044",
+    "src/lib/multi-entity-registration-storage.ts": "57364cd16ac51c5d22fac7f8bb1688dbeb2659b2",
+    "src/lib/multi-entity-run-guard.ts": "cbc620684196298a8716bfc7d799e96fef8fc374",
+    "src/lib/multi-entity-selector-boundary.ts": "690e773e2b5d3e89d7747a095b5d5f0717844d13",
+    "src/lib/multi-entity-server.ts": "f38a8bb77a5026d581d4a92b22533fc879ea7e00",
+    "src/lib/organization-auth-policy.ts": "b38486fda78ac0da767bf79d7b9b6e9f4cfec08e",
+    "src/lib/paymongo-disbursements.ts": "d12b2553944dd426afd8be45e3fdfbe06822cc02",
+    "src/lib/paymongo.ts": "99518f549c67eb2317c90f5a771229b0617a0f36",
+    "src/lib/payout-destination-controls.ts": "b481a0fb710359b5d46b3a48b6b5e64558376f8c",
+    "src/lib/payout-ledger-rules.ts": "04e07c2609ec5ad46ff761075e6b3bfe2a19c7bb",
+    "src/lib/payout-ledger.ts": "4381ea70b4ce80420419d3389cff12c44fdeec9b",
+    "src/lib/payroll-payout-provider.ts": "8baf1b147c1f359dd2303341701c7df0506c53bd",
+    "src/lib/payroll-payout-snapshot.ts": "6ad8fc04defe76b65b3fe5b149dd64e4695e6d29",
+    "src/lib/payroll-period-ui.ts": "69809c7ab56618b5b2299439654007e41e40b0d1",
+    "src/lib/payroll-period-validation.ts": "bc67f500ed47f47e093d3265639de1b852914423",
+    "src/lib/payroll-run-membership.ts": "75f5a40afd1ee4f608a2fe38be9971f4bc8bed47",
+    "src/lib/payroll-run-payout-lock.ts": "fd2295fa3473f10492d521599fcaccc550b89853",
+    "src/lib/permission-overlay-absence.ts": "ad995a329485ccabd23cddbf0c56a8a0b3de2673",
+    "src/lib/permissions.ts": "9878a2ab0afb6f0b14a0e9c0e24a095a3f2e0288",
+    "src/lib/pg-tls-policy.ts": "d78604400731d75c5c50912d981402d611d06e60",
+    "src/lib/rate-limit-memory.ts": "04e8d2c464aeba483132e60f80ec6f766d7ab218",
+    "src/lib/rate-limit.ts": "05d7be3acb385e3542cf0ec3904a74796f0647b5",
+    "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+    "src/lib/tenant-module-storage.ts": "b2d303007f8a3a383cb44e0d2cb8f17e4cdfa3ea",
+    "src/lib/tenant-modules.ts": "c82266f63fbe8b00f1aa92025f06cc4ec62951d9",
+    "src/lib/treasury-controls.ts": "54b280339e316ec9aa14bc39c7636c6adf5a32b4",
+    "src/lib/validation.ts": "3f96d328ab20f5eda147d14f214257f8044958ac",
+    "src/lib/worker-attribute-context.ts": "f28ed9b3e3cbb198cc593dd13136515393e86c93",
+    "src/lib/xendit-payout-ledger.ts": "6552b234f738b400dc3e9be39e34be74071d7248",
+    "src/lib/xendit-payroll-operations.ts": "4c6b19bb3cf6e8478b128310f1f3c66925e21f5c",
+    "src/lib/xendit-payroll-payouts.ts": "58e573a89d7677a560ebad3fd56671d60386e5a8",
+    "tests/tenant-xendit-post-proof-contract.test.mjs": "69bbc0b3cd5c77bf32729929c6b1e6a6e63ebf66",
+    "tests/tenant-xendit-post-proof-target.test.mjs": "64de7af6f276daedd1fa8b24ff0651ee3dfb5778",
+    "tsconfig.json": "51b2236817d4f86d64198a483b0207941862d212"
+  },
+  "result": {
+    "kind": "xendit-post-four-operation-real-http-pg16",
+    "sourceHead": "5fcff5d201fbfe510842c2b755cdac7f764ca30a",
+    "actions": [
+      "preflight",
+      "submit",
+      "reconcile",
+      "resolve-unknown"
+    ],
+    "attackerEmployers": 2,
+    "attackerOrganizationIds": [
+      8,
+      9
+    ],
+    "victimOrganizationId": 10,
+    "victimOwnPositive": true,
+    "own": [
+      {
+        "employerId": 10,
+        "action": "preflight",
+        "ownSuccess": true,
+        "persistedAudit": true
+      },
+      {
+        "employerId": 10,
+        "action": "submit",
+        "ownSuccess": true,
+        "persistedTransfer": true
+      },
+      {
+        "employerId": 10,
+        "action": "reconcile",
+        "ownSuccess": true,
+        "persistedSettlement": true
+      },
+      {
+        "employerId": 10,
+        "action": "resolve-unknown",
+        "ownSuccess": true,
+        "persistedSameTransfer": true
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "ownSuccess": true,
+        "persistedAudit": true
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "ownSuccess": true,
+        "persistedTransfer": true
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "ownSuccess": true,
+        "persistedSettlement": true
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "ownSuccess": true,
+        "persistedSameTransfer": true
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "ownSuccess": true,
+        "persistedAudit": true
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "ownSuccess": true,
+        "persistedTransfer": true
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "ownSuccess": true,
+        "persistedSettlement": true
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "ownSuccess": true,
+        "persistedSameTransfer": true
+      }
+    ],
+    "refusals": [
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 404,
+        "targetRunId": 7,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 401,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 404,
+        "targetRunId": 7,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign submit"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run submit"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 401,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous submit"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role submit"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA submit"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site submit"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "release/treasury separation submit"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 404,
+        "targetRunId": 7,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 401,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 404,
+        "targetRunId": 8,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 401,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "release/treasury separation resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "status": 404,
+        "targetRunId": 7,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign preflight"
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run preflight"
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "status": 401,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous preflight"
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role preflight"
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA preflight"
+      },
+      {
+        "employerId": 9,
+        "action": "preflight",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site preflight"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 404,
+        "targetRunId": 7,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign submit"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run submit"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 401,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous submit"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role submit"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA submit"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site submit"
+      },
+      {
+        "employerId": 9,
+        "action": "submit",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "release/treasury separation submit"
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "status": 404,
+        "targetRunId": 7,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign reconcile"
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run reconcile"
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "status": 401,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous reconcile"
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role reconcile"
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA reconcile"
+      },
+      {
+        "employerId": 9,
+        "action": "reconcile",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site reconcile"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 404,
+        "targetRunId": 8,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "genuine foreign resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 404,
+        "targetRunId": 1000008,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing run resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 401,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "anonymous resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "non-treasury role resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "missing recent MFA resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "cross-site resolve-unknown"
+      },
+      {
+        "employerId": 9,
+        "action": "resolve-unknown",
+        "status": 403,
+        "targetRunId": 4,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "release/treasury separation resolve-unknown"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 409,
+        "targetRunId": 3,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "provider-OFF preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 409,
+        "targetRunId": 3,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "provider-OFF submit"
+      },
+      {
+        "employerId": 8,
+        "action": "preflight",
+        "status": 404,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "revoked employer preflight"
+      },
+      {
+        "employerId": 8,
+        "action": "submit",
+        "status": 404,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "revoked employer submit"
+      },
+      {
+        "employerId": 8,
+        "action": "reconcile",
+        "status": 404,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "revoked employer reconcile"
+      },
+      {
+        "employerId": 8,
+        "action": "resolve-unknown",
+        "status": 404,
+        "targetRunId": 1,
+        "unchangedProtectedSql": true,
+        "providerCalls": 0,
+        "label": "revoked employer resolve-unknown"
+      }
+    ],
+    "recoveries": [
+      {
+        "employerId": 10,
+        "unknownWasPersisted": true,
+        "duplicateSendBlocked": true,
+        "readOnlyRecovery": true
+      },
+      {
+        "employerId": 8,
+        "unknownWasPersisted": true,
+        "duplicateSendBlocked": true,
+        "readOnlyRecovery": true
+      },
+      {
+        "employerId": 9,
+        "unknownWasPersisted": true,
+        "duplicateSendBlocked": true,
+        "readOnlyRecovery": true
+      }
+    ],
+    "missingComparisons": 8,
+    "providerOffSendsBlocked": true,
+    "providerOffHistoricalRecovery": true,
+    "syntheticProviderRequests": [
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000007"
+      },
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000008"
+      },
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000001"
+      },
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000008"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000002"
+      },
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000004"
+      },
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000008"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000005"
+      },
+      {
+        "method": "POST",
+        "path": "/v3/payouts"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000001"
+      },
+      {
+        "method": "GET",
+        "path": "/v3/payouts/po-fictional-00000003"
+      }
+    ],
+    "realProviderCalls": 0,
+    "coverageCredits": 0,
+    "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+    "independentlyAccepted": false,
+    "productionCertified": false
+  }
+}

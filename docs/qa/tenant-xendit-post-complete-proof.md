@@ -62,6 +62,17 @@ creates its fictional sessions in memory. The seed writes only numeric allowlist
 IDs, never session credentials. Application origins are four literal loopback
 URLs. No alert is suppressed or dismissed.
 
-The earlier proposed credit is withdrawn while this changed proof is rerun.
-Xendit POST remains GAP until a new successful real-HTTP receipt seals these
-corrected inputs. The original result remains historical, not current proof.
+The earlier proposed credit was withdrawn while this changed proof was rerun.
+[The corrected PG16 job](https://github.com/erwinmehehe/payrollph/actions/runs/43445170899/job/131952613984)
+passed on `5fcff5d201fbfe510842c2b755cdac7f764ca30a`: twelve successful own
+operations, 58 protected refusals, eight missing/foreign comparisons, three
+persisted unknown-outcome recoveries, seven synthetic POSTs and ten GETs.
+Every operation retained both attacker employers and the genuine victim positive.
+There were zero real provider calls. All 71 executed local-module, build and
+workflow inputs are sealed in `tenant-xendit-post-executed-receipt.json`.
+
+The restricted `tenant-xendit-post-credit.mjs --write` command now proposes
+exactly one source-current method: **457 COVERED / 6 GAP → 458 COVERED / 5 GAP**.
+Its `--check` verifier rejects altered execution, source drift, missing modes,
+borrowed GET proof or false independent acceptance. Final-head CI and CodeQL
+must pass before merge. The original file-handoff result is historical only.
