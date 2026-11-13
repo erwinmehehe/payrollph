@@ -10,7 +10,9 @@ separately when a method is renewed; an arbitrary truthy receipt cannot promote 
 
 ## Fresh evidence: nineteen provisional renewals
 
-The current proposal derives **437 COVERED / 26 GAP → 456 COVERED / 7 GAP**.
+After preserving #1962's two separate year-end credits, the current proposal
+derives **439 COVERED / 24 GAP → 458 COVERED / 5 GAP**. This PR still adds exactly
+nineteen payroll-run credits; it does not count the year-end pair again.
 All nineteen methods pass the source-bound verifier before the restricted writer
 can promote any of them. The fresh receipt is
 `scripts/qa/payroll-run-credit-renewal-fresh-receipt.json`, SHA-256

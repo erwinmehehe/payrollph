@@ -3107,7 +3107,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     } else {
       assert.equal(method.status, "COVERED");
       assert.equal(method.testedBy?.proofPullRequest, 1804);
-      assert.equal(method.testedBy?.workflowRunId, 43178709246);
+      assert.equal(method.testedBy?.workflowRunId, 43372002300);
       assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
       assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
       assert.equal(method.testedBy?.productionCertified, false);
@@ -3117,7 +3117,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     for (const [file, hash] of [
       ["tests/year-end-binding-transaction-contract.test.mjs",
         "9562442c4d9e7d820027630cead6d753c0fc3767"],
-      ...(yearEndHeld ? [] : [["src/lib/year-end.ts", "a2bafdb9d961e888cacf7353c2094a661df4484e"]]),
+      ...(yearEndHeld ? [] : [["src/lib/year-end.ts", "b2b52a7913be85eb70c507d26e730fc366852237"]]),
       ["src/lib/payroll-engine.ts", "dc5719a2c34094b5449bf4ecacb198ab0d74a313"],
     ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
       "Financial binding dependency changed; require new PG16 proof");
