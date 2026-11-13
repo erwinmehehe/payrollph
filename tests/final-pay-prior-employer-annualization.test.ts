@@ -113,7 +113,7 @@ test("Flag-OFF legacy calculation does not silently apply outside prior-employer
 test("Separation route reads approved evidence and rechecks its digest during prepare, approve and release", () => {
   const route = readFileSync("src/app/api/separation/route.ts", "utf8");
   assert.match(route, /loadReviewedPriorForFinalPay\(/);
-  assert.match(route, /priorEmployerEvidence: priorEvidence \?/);
+  assert.match(route, /priorEmployerEvidence: \{ evidence: priorEvidence\.evidence, taxYear: priorEvidenceScope\.taxYear \}/);
   assert.match(route, /priorEmployerEvidence: priorEvidenceSnapshot\(/);
   assert.ok((route.match(/assertFinalPayPriorSnapshot\(/g) ?? []).length >= 3,
     "initiation, approval and release each recheck the encrypted evidence digest under transaction");
