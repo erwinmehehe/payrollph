@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   TARGETS, verifyFivePageProofInputs, verifyFivePageCredits,
   expectedFivePageCreditManifest, gitBlobSha,
+  historicWorker360ProofView, verifyCurrentScopedPageGapCount,
 } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -61,5 +62,24 @@ test("never accept a missing, retagged, forged or unpinned page receipt", () => 
   ]) {
     const x = copy(); mutate(x);
     assert.throws(() => verifyFivePageCredits(x), /FIVE_PAGE_CREDIT_REFUSED|Failed|Expected|unexpected|exact|only|21|10|11/i);
+  }
+});
+
+test("page probes preserve original Worker 360 checks while accepting exactly five verified new pages", () => {
+  assert.equal(verifyCurrentScopedPageGapCount(m), 11);
+  const original = historicWorker360ProofView(m);
+  assert.equal(verifyCurrentScopedPageGapCount(original), 16);
+  const noWorker360 = structuredClone(original);
+  noWorker360.scopedPages.find(p => p.path === "src/app/hcm/worker-360/page.tsx").status = "GAP";
+  assert.throws(() => verifyCurrentScopedPageGapCount(noWorker360), /Only Worker 360|Only this Worker 360|GAP|expected|Expected|worker/i);
+  for (const mutate of [
+    x => { x.scopedPages.find(p => p.path === TARGETS[0].path).testedBy = null; },
+    x => { x.scopedPages.find(p => p.path === TARGETS[1].path).testedBy.proofBlobSha = "0".repeat(40); },
+    x => { x.scopedPages.find(p => p.path === TARGETS[2].path).status = "GAP"; },
+    x => { x.scopedPages.find(p => p.path === TARGETS[3].path).testedBy.independentlyAccepted = true; },
+  ]) {
+    const corrupted = copy(); mutate(corrupted);
+    assert.throws(() => verifyCurrentScopedPageGapCount(corrupted),
+      /FIVE_PAGE_CREDIT_REFUSED|SCOPED_PAGE_REFUSED|Worker 360|GAP|Expected|expected/i);
   }
 });

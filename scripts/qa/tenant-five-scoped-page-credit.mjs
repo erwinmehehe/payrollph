@@ -243,6 +243,25 @@ export function verifyFivePageCredits(m, read = readFileSync) {
   return TARGETS.length;
 }
 
+/**
+ * Accept a new 11-GAP page ledger only after validating precisely the five
+ * source-current page receipts AND the original Worker 360 proof. Preserve
+ * the preexisting 16-/17-GAP verifier for historical evidence.
+ */
+export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {
+  const gaps = m.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps !== 11) {
+    assert.equal(verifyWorker360PageCredit(m, read), gaps,
+      "SCOPED_PAGE_REFUSED: historical Worker 360 gap verification failed");
+    return gaps;
+  }
+  assert.equal(verifyFivePageCredits(m, read), 5,
+    "SCOPED_PAGE_REFUSED: all five exact-source page receipts required");
+  assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(m), read), 16,
+    "SCOPED_PAGE_REFUSED: original Worker 360 proof must remain valid");
+  return gaps;
+}
+
 function main() {
   assert.ok(process.argv.length === 3 &&
     ["--write", "--check", "--verify-historical-worker360"].includes(process.argv[2]),
