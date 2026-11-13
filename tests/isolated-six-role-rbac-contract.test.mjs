@@ -77,6 +77,9 @@ test("cross-employer proof requires existing seeded records and actual second-ow
   assert.match(local, /duplicate-demo-label-workers-unchanged/);
   assert.match(local, /const foreign = await seedForeignEmployer\(\)/);
   assert.match(local, /cross-tenant-existing-run/);
+  assert.ok(local.includes('["cross-tenant-existing-run", "/api/payroll-runs?runId=" + foreign.run + "&include=entries", 404]'));
+  assert.ok(local.includes('[name, path, expectedStatus = 403]'));
+  assert.ok(local.includes('await probe("owner", name, path, expectedStatus, demoOwner.cookie, demoOwner.org)'));
   assert.match(local, /isDeepStrictEqual\(after, snapshot\)/);
   assert.match(local, /await verifyExistingForeignEmployerDenials\(demoOwner\)/);
   assert.doesNotMatch(local, /org\s*\+\s*1000000/,

@@ -7,6 +7,7 @@ on:
       - "scripts/qa/579-synthetic-no-money-journey.mjs"
       - ".github/workflows/579-no-money-rehearsal.yml"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/approvals/**"
       - "src/app/api/workforce/timesheets/**"
       - "src/app/api/workforce/attendance-locks/**"

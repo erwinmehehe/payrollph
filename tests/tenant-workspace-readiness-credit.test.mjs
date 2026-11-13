@@ -40,7 +40,7 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold;
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
@@ -92,6 +92,10 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
     ["src/app/api/approvals/[id]/route.ts", "PATCH"],
     ["src/app/api/payroll-runs/[id]/exports/route.ts", "POST"],
   ]) {
+    if(verifyOracleSourceHolds(m).has(verb+' '+route)){
+      const held=m.allApiRouteFiles[route].methods.find(x=>x.name===verb);
+      assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
+    }
     if(route===STUDIO_POST_PATH){assert.equal(verifyStudioPostCredit(m),1);continue;}
     if(route==='src/app/api/billing/route.ts'){assert.equal(verifyCheckoutCredit(m),1);continue;}
     if(route===APPROVALS_PATH){assert.equal(verifyApprovalsCredit(m),1);continue;}
@@ -103,4 +107,6 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.productionTested, false);
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.launchApproved, false);
 });
+import { oracleWithdrawalDelta } from './helpers/tenant-counts.mjs';
+import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';

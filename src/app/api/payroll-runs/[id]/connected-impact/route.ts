@@ -40,7 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     });
   }
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   const denied = await assertOrganizationRole(
     user.id, run.organizationId, PAYROLL_OPERATOR_ROLES,
@@ -215,3 +215,4 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

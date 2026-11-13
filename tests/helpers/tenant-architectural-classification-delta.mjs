@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
 import { reviewedWorker360LegalEmployerSupersession } from "./tenant-counts.mjs";
+import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const PUBLIC = [
   ["src/app/api/setup/route.ts", "GET"],
@@ -174,10 +175,13 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
   const pending = pendingSignupProofForSource(assert, read);
   const before = rows(beforeManifest), after = rows(afterManifest);
   const retiredWorkerCredit = reviewedWorker360LegalEmployerSupersession(beforeManifest, afterManifest);
+  const oracleHolds = verifyOracleSourceHolds(afterManifest, beforeManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
     const current = after.get(key);
     assert.ok(current, "API method disappeared: " + key);
+    // Exact source withdrawals are neither public classifications nor credits.
+    if (old.method.status === "COVERED" && current.method.status === "GAP" && oracleHolds.has(key)) continue;
     if (YEAR_END_KEYS.has(key) && old.method.status === "COVERED" && current.method.status === "GAP" && yearEndHoldDelta(beforeManifest, afterManifest) === 2) continue;
     const target = allowed.has(key) ? "PUBLIC-BY-DESIGN"
       : key === WORKER ? "PRIVILEGED-OPERATIONS-TOKEN-ONLY" : null;

@@ -89,7 +89,7 @@ async function readPayrollExport(
     if (mfaDenied) return mfaDenied;
   }
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
   const deniedExports = await assertOrganizationRole(
     user.id,
@@ -352,7 +352,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const demoDenied = publicDemoMutationDenied(user.email, "Live payroll disbursement");
   if (demoDenied) return demoDenied;
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
   const body = await request.json().catch(() => ({}));
   const mode =
@@ -795,3 +795,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
   }
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

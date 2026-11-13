@@ -7,6 +7,7 @@ import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
@@ -390,5 +391,14 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   assert.equal(subtotalLines.length, 1, "Exactly one live frozen-batch subtotal must be documented");
   assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${total.GAP} GAP = 406**`),
     "The frozen queue subtotal must reflect the actual source-linked statuses");
-  assert.equal(total.GAP, manifest.metrics.gap, "Every live method GAP must remain in the frozen closure queue");
+  const supplementary=doc.split("\n").filter(line=>line.startsWith("- HELD `"));
+  const sourceHolds=verifyOracleSourceHolds(manifest),outside=new Set();
+  for(const line of supplementary){
+    const identity=line.split("`")[1],[verb,url]=identity.split(" "),path="src/app"+url+"/route.ts";
+    assert.ok(!seen.has(identity)&&!outside.has(identity),"Supplemental renewal must not duplicate a frozen method");
+    assert.ok(sourceHolds.has(verb+" "+path),"Only an exact verified source withdrawal can extend the queue");
+    assert.equal(manifest.allApiRouteFiles[path].methods.find(row=>row.name===verb).status,"GAP");
+    outside.add(identity);
+  }
+  assert.equal(total.GAP+outside.size, manifest.metrics.gap, "Every live GAP belongs to the frozen or exact supplemental renewal queue");
 });

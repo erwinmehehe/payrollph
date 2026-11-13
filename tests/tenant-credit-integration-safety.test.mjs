@@ -55,6 +55,11 @@ function checkExistingPayout(data) {
   const method = getMethod(
     data, "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "POST"
   );
+  if (method.status === "GAP") {
+    assert.ok(verifyOracleSourceHolds(data).has("POST src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts"));
+    assert.equal(method.testedBy, null, "withdrawn provider proof cannot remain a current credit");
+    return;
+  }
   assert.equal(method.status, "COVERED", "merged #1807 payout credit must remain COVERED");
   const proof = method.testedBy;
   assert.ok(proof && typeof proof === "object", "payout credit requires its existing receipt");
@@ -102,8 +107,10 @@ test("main and future #1805 merge preserve tenant ledger integrity and distinct 
 
 test("merge guard refuses accidental loss of the #1807 payout credit", () => {
   const altered = structuredClone(manifest);
-  getMethod(altered, "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "POST").status = "GAP";
-  assert.throws(() => validate(altered), /metric drift|payout credit must remain COVERED/);
+  const method=getMethod(altered, "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "POST");
+  if(method.status==='GAP') delete method.reviewedUncertified;
+  else method.status='GAP';
+  assert.throws(() => validate(altered));
 });
 
 test("merge guard refuses unproved promotion of an independent #1805 method", () => {
@@ -118,3 +125,4 @@ test("merge guard refuses unproved promotion of an independent #1805 method", ()
   method.testedBy=null;
   assert.throws(() => validate(altered), /requires source-pinned proof/);
 });
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";

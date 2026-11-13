@@ -276,9 +276,15 @@ export async function verifyHighRiskBatchOne(f, { request, expectStatus, makeSes
           item.key + " real own resource");
         item.prove(owned);
         ownPositive[idx - 1]++;
+        if (item.foreign.startsWith("/api/payroll-runs/")) {
+          const concealedRun = expectStatus(await request(item.foreign, { cookie: ownerCookie }), 404,
+            item.key + " real victim resource");
+          assertNoVictimBytes(concealedRun, victimMarker);
+        } else {
         const foreign = expectStatus(await request(item.foreign, { cookie: ownerCookie }), 403,
           item.key + " real victim resource");
         assertNoVictimBytes(foreign, victimMarker);
+        }
         deniedForeign[idx - 1]++;
       });
     }
@@ -458,7 +464,7 @@ async function verifyPayrollClosePostIsolation(f, { request, expectStatus, makeS
         confirmed: true, acknowledgeFilingEvidenceGaps: true,
         organizationId: org.id, legalEntityId: f.entities[idx].id,
       },
-    }), 403, "Real populated victim-only payroll close POST must be denied to attacker owner");
+    }), 404, "Real populated victim-only payroll close POST must be denied to attacker owner");
     assert.ok(!foreignPost.text.includes("VictimExclusive"));
   }
   const victimAfter = await takeVictimSnapshot(victimId);
@@ -467,7 +473,7 @@ async function verifyPayrollClosePostIsolation(f, { request, expectStatus, makeS
   assert.equal(closeProofIds.length, 2);
   console.log(JSON.stringify({
     kind: "payroll-close-post-real-http-isolation",
-    own200: 2, victim403: 2, victimUnchanged: true,
+    own200: 2, victim404: 2, victimUnchanged: true,
     syntheticAuditPrerequisitesOnly: true, actualPayments: false,
     providerCalls: false, productionAccepted: false,
   }));
