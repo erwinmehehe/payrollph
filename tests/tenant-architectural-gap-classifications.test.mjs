@@ -4,34 +4,85 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { verifyArchitecturalRelabelDelta, readArchitecturalOwnerApproval, OWNER_APPROVAL_FILE } from "./helpers/tenant-architectural-classification-delta.mjs";
 import { reviewedWorker360LegalEmployerSupersession } from "./helpers/tenant-counts.mjs";
+import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 
-test("classification reconciliation composes only the exact source-sealed Worker 360 retirement", () => {
-  const path = "src/app/api/hcm/worker-360/route.ts";
+test("Worker 360 legal-employer reproof is credited, never a public/token-only relabel", () => {
   const before = structuredClone(manifest);
-  const prior = before.allApiRouteFiles[path];
-  const hold = prior.methods[0].reviewedUncertified;
-  prior.gitBlobSha = hold.oldSourceBlobSha;
-  prior.methods[0].status = "COVERED";
-  prior.methods[0].testedBy = structuredClone(hold.historicalProof);
-  const page = before.scopedPages.find(row => row.path === "src/app/hcm/worker-360/page.tsx");
-  page.blob = "337034f839c17a30077e2cfe5991c640e0c6a5e9";
-  page.status = "COVERED";
-  assert.deepEqual([...reviewedWorker360LegalEmployerSupersession(before, manifest)], ["GET " + path]);
+  const api = manifest.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
+  const page = manifest.scopedPages.find(row => row.path ===
+    "src/app/hcm/worker-360/page.tsx");
+  assert.equal(api.methods[0].status, "COVERED");
+  assert.equal(page.status, "COVERED");
+  assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
+  assert.deepEqual([...reviewedWorker360LegalEmployerSupersession(before, manifest)], []);
   assert.deepEqual(verifyArchitecturalRelabelDelta(assert, before, manifest),
     { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 });
   for (const mutate of [
-    m => { m.allApiRouteFiles[path].gitBlobSha = "0".repeat(40); },
-    m => { m.allApiRouteFiles[path].methods[0].reviewedUncertified.coverageCredits = 1; },
-    m => { m.allApiRouteFiles[path].methods[0].reviewedUncertified.historicalProof = {}; },
+    m => { m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"].methods[0].status = "PUBLIC-BY-DESIGN"; },
+    m => { m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"].methods[0].testedBy.workflowRunId = 0; },
     m => { m.scopedPages.find(row => row.path === page.path).blob = "0".repeat(40); },
+    m => { m.scopedPages.find(row => row.path === page.path).testedBy.independentlyAccepted = true; },
     m => { m.allApiRouteFiles["src/app/api/discipline/route.ts"].methods[0].status = "GAP"; },
   ]) {
-    const forged = structuredClone(manifest); mutate(forged);
-    assert.throws(() => verifyArchitecturalRelabelDelta(assert, before, forged), { name: "AssertionError" });
+    const forged = structuredClone(manifest);
+    mutate(forged);
+    assert.throws(() => verifyWorker360LegalEmployerCredits(forged));
   }
 });
+test("historical source supersession still refuses forged Worker 360 GAP retirement", () => {
+  // Construct the same exact former -> changed-source zero-credit transition
+  // independently of the now-credited live manifest. Keep the old protections.
+  const changed = structuredClone(manifest);
+  const file = "src/app/api/hcm/worker-360/route.ts";
+  const pageFile = "src/app/hcm/worker-360/page.tsx";
+  const route = changed.allApiRouteFiles[file];
+  const current = route.methods.find(method => method.name === "GET");
+  const oldReceipt = { file: "scripts/qa/tenant-table-http.mjs" };
+  const hold = {
+    kind: "worker360-legal-employer-source-supersession-zero-credit",
+    oldSourceBlobSha: "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62",
+    newSourceBlobSha: "19875021d750b722fc69e0fe939e57928a158af9",
+    historicalProof: oldReceipt, coverageCredits: 0,
+    exactHeadPg16Http: "PENDING", independentSecurityReview: "PENDING",
+    productionCertified: false,
+  };
+  current.status = "GAP";
+  current.testedBy = null;
+  current.reviewedUncertified = structuredClone(hold);
+  const page = changed.scopedPages.find(row => row.path === pageFile);
+  page.status = "GAP";
+  delete page.testedBy;
+  page.reviewedUncertified = {
+    kind: hold.kind, coverageCredits: 0,
+    independentSecurityReview: "PENDING", productionCertified: false,
+  };
+  const before = structuredClone(changed);
+  const prior = before.allApiRouteFiles[file];
+  prior.gitBlobSha = hold.oldSourceBlobSha;
+  prior.methods[0].status = "COVERED";
+  prior.methods[0].testedBy = structuredClone(oldReceipt);
+  const olderPage = before.scopedPages.find(row => row.path === pageFile);
+  olderPage.blob = "337034f839c17a30077e2cfe5991c640e0c6a5e9";
+  olderPage.status = "COVERED";
+  assert.deepEqual([...reviewedWorker360LegalEmployerSupersession(before, changed)], ["GET " + file]);
+  assert.deepEqual(verifyArchitecturalRelabelDelta(assert, before, changed),
+    { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 });
+  for (const mutate of [
+    m => { m.allApiRouteFiles[file].gitBlobSha = "0".repeat(40); },
+    m => { m.allApiRouteFiles[file].methods[0].reviewedUncertified.coverageCredits = 1; },
+    m => { m.allApiRouteFiles[file].methods[0].reviewedUncertified.historicalProof = {}; },
+    m => { m.scopedPages.find(row => row.path === pageFile).blob = "0".repeat(40); },
+    m => { m.allApiRouteFiles["src/app/api/discipline/route.ts"].methods[0].status = "GAP"; },
+  ]) {
+    const forged = structuredClone(changed);
+    mutate(forged);
+    assert.throws(() => verifyArchitecturalRelabelDelta(assert, before, forged),
+      { name: "AssertionError" });
+  }
+});
+
 const prelogin = [
   ["src/app/api/setup/route.ts", "GET"],
   ["src/app/api/setup/route.ts", "POST"],

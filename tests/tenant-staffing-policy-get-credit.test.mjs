@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_ROUTE, STAFFING_GET_HELPER_BLOBS } from
   "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 const load = () => JSON.parse(readFileSync(
@@ -15,9 +16,10 @@ test("source-current dual-mode PG16 proves one provisional staffing GET method o
   assert.equal(m.metrics.coveredAfter + m.metrics.publicByDesign + (m.metrics.privilegedOperationsTokenOnly ?? 0) + m.metrics.gap,
     liveMethodCount);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
-  // Revised Worker 360 runtime cannot borrow its original 16-GAP provisional
-  // page credit. The strict verifier pins the exact source and zero-credit GAP.
-  assert.equal(verifyWorker360PageCredit(m), 17);
+  // Only the separate executed legal-employer proof may restore this page;
+  // the historic organization-only receipt still cannot be borrowed.
+  assert.equal(verifyWorker360LegalEmployerCredits(m),2);
+  assert.equal(verifyWorker360PageCredit(m), 16);
 });
 test("no invented review, stale source, empty modes, duplicated or borrowed receipts", () => {
   const m = load();
