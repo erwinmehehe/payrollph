@@ -1,4 +1,4 @@
-name: MKT-01 marketing operator report privacy (fictional PG16 HTTP; no credit)
+name: MKT-01 operator GET source-head PG16 HTTP proof
 
 on:
   pull_request:
@@ -9,6 +9,9 @@ on:
       - 'scripts/qa/tenant-mkt01-marketing-report-*.mjs'
       - 'tests/tenant-mkt01-marketing-report.test.mjs'
       - 'docs/qa/tenant-mkt01-marketing-report.md'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+      - 'scripts/qa/tenant-mkt01-marketing-credit.mjs'
+      - 'docs/engineering/tenant-isolation-coverage-inventory.md'
       - 'src/app/api/marketing/leads/route.ts'
       - 'src/lib/marketing-report.ts'
       - 'src/lib/auth.ts'
@@ -17,7 +20,7 @@ on:
       - 'scripts/qa/apply-isolated-baseline.mjs'
       - 'scripts/qa/tenant-table-env.mjs'
   push:
-    branches: [main]
+    branches: [main, 'qa/mkt01-operator-get-exact-head-20261114']
 
 permissions:
   contents: read
@@ -40,6 +43,13 @@ jobs:
       XENDIT_BILLING_ENABLED: 'false'
       WORKER_ENABLED: 'false'
       CENTRAL_SCHEDULER_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: 'false'
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: 'false'
+      PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: 'false'
+      CALCULATION_HISTORY_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
       PAYMONGO_SECRET_KEY: ''
       XENDIT_SECRET_KEY: ''
       XENDIT_PAYOUT_SECRET_KEY: ''
@@ -64,7 +74,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify exact GitHub head and source blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git hash-object src/app/api/marketing/leads/route.ts)" = "69a046c25fb59ccc75c47b41d44c26b585e898b3"
+          test "$(git hash-object src/lib/marketing-report.ts)" = "7371a252be449829b09e7a0ff501d77eb6d811fd"
+          printf 'MKT01_EXACT_SOURCE_HEAD=%s\n' "$(git rev-parse HEAD)"
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -84,6 +103,13 @@ jobs:
             echo 'XENDIT_BILLING_ENABLED=false'
             echo 'WORKER_ENABLED=false'
             echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'NEXT_CSP_ENABLED=false'
+            echo 'MULTI_ENTITY_ENABLED=false'
+            echo 'HCM_OVERPAYMENT_PREVIEW_ENABLED=false'
+            echo 'PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false'
+            echo 'PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED=false'
+            echo 'CALCULATION_HISTORY_ENABLED=false'
+            echo 'PAYROLL_CALCULATION_HISTORY_ENABLED=false'
             echo 'PAYMONGO_SECRET_KEY='
             echo 'XENDIT_SECRET_KEY='
             echo 'XENDIT_PAYOUT_SECRET_KEY='
@@ -98,7 +124,7 @@ jobs:
           node --check scripts/qa/tenant-mkt01-marketing-report-http.mjs
           node --check tests/tenant-mkt01-marketing-report.test.mjs
           node --test tests/tenant-mkt01-marketing-report.test.mjs
-      - name: Generate disposable independent at-rest keys
+      - name: Generate disposable at-rest keys
         shell: bash
         run: |
           set -euo pipefail
@@ -131,7 +157,7 @@ jobs:
           done
           cat /tmp/tenant-mkt01-next.log
           exit 1
-      - name: Prove real HTTP allowlist, MFA, anonymity, aggregates, no PII and session revocation
+      - name: Prove exact-head HTTP access, empty/unset allowlist, forged selectors and per-request SQL immutability
         run: node --import tsx scripts/qa/tenant-mkt01-marketing-report-http.mjs
       - name: Show sanitized server diagnostics on failure
         if: failure()

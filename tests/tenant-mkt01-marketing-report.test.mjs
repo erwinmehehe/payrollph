@@ -28,6 +28,12 @@ function safeEnv() {
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
     XENDIT_PAYOUTS_ENABLED: "false", XENDIT_BILLING_ENABLED: "false",
     WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
+    NEXT_CSP_ENABLED: "false", MULTI_ENTITY_ENABLED: "false",
+    HCM_OVERPAYMENT_PREVIEW_ENABLED: "false",
+    PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
+    PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false",
+    CALCULATION_HISTORY_ENABLED: "false",
+    PAYROLL_CALCULATION_HISTORY_ENABLED: "false",
     PAYMONGO_SECRET_KEY: "", XENDIT_SECRET_KEY: "",
     XENDIT_PAYOUT_SECRET_KEY: "", RESEND_API_KEY: "",
     POSTMARK_SERVER_TOKEN: "", SMTP_URL: "", STRIPE_SECRET_KEY: "",
@@ -51,6 +57,9 @@ test("MKT-01 refuses external databases, alternate mailboxes and live providers 
     ["XENDIT_PAYOUTS_ENABLED", "true"],
     ["XENDIT_BILLING_ENABLED", "true"],
     ["WORKER_ENABLED", "true"], ["CENTRAL_SCHEDULER_ENABLED", "true"],
+    ["NEXT_CSP_ENABLED", "true"], ["MULTI_ENTITY_ENABLED", "true"],
+    ["CALCULATION_HISTORY_ENABLED", "true"],
+    ["PAYROLL_CALCULATION_HISTORY_ENABLED", "true"],
     ["RESEND_API_KEY", "live"], ["STRIPE_SECRET_KEY", "live"],
     ["SMTP_URL", "smtp://remote.example"],
   ]) assert.throws(() => requireDisposableMkt01({ ...good, [key]: value }),
@@ -112,7 +121,7 @@ test("MKT-01 targets precisely the existing platform marketing report, not a ten
   assert.match(ledger.acceptanceStatus, /^NOT ACCEPTED:/);
 });
 
-test("MKT-01 runner is independent, DB-backed, adversarial and read-only", () => {
+test("MKT-01 runner is isolated, DB-backed, adversarial and read-only", () => {
   const source = readFileSync(runnerPath, "utf8");
   assert.ok(source.indexOf("requireDisposableMkt01();") <
     source.indexOf('import("../../src/db/index.ts")'),
@@ -126,8 +135,20 @@ test("MKT-01 runner is independent, DB-backed, adversarial and read-only", () =>
     "assert.deepEqual(stableAggregate(forgedReport)",
     "twoIndependentOperatorSuccesses: true",
     "forgedHigherIdSelectorsIgnored: true",
+    "forgedQueryHeaderCookieEmployerBusinessLegalEmployerEmailIgnored: true",
+    "emptyAndUnsetAllowlist503: true",
+    "perRequestDurableRowsUnchanged: true",
     "independentSecurityReview: \"PENDING\"",
   ]) assert.ok(source.includes(marker), "MKT-01 proof check missing: " + marker);
+  for (const marker of [
+    "employerId:", "businessId:", "legalEmployerId:", "email: victim.email",
+    "forgedHeaders", "forgedCookie", '["-999", 1, 0]',
+    '["NaN", 90, 3]', '["1000000000000", 365, 3]',
+    'disabledAllowlistServer("empty", 3001)',
+    'disabledAllowlistServer("unset", 3002)',
+    "const justBefore = await state();",
+    "assertMkt01Unchanged(justBefore, await state()",
+  ]) assert.ok(source.includes(marker), "missing adversarial probe: " + marker);
   assert.ok(!source.includes("https://api."), "no external provider calls allowed");
 });
 

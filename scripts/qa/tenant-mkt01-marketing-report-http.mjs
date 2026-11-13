@@ -1,11 +1,12 @@
 /**
- * MKT-01 independent, platform-only marketing report proof.
+ * MKT-01 SOLO_VERIFIED_DEV_RECOVERY platform-only marketing report proof.
  * Real HTTP -> production-mode Next -> fictional disposable PostgreSQL 16.
  * MKT-01 is not an employer-scoped API: email allowlist + recent MFA is its boundary.
- * No provider calls, worker jobs, customer data, payroll or method credit.
+ * No provider calls, worker jobs, customer data, payroll or proof-run method credit.
  */
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 import {
   MKT01_OPERATOR, MKT01_STALE, requireDisposableMkt01,
   assertMkt01Aggregate, assertMkt01Denied, assertMkt01Unchanged,
@@ -16,10 +17,10 @@ const PATH = "/api/marketing/leads";
 function sha256(s) { return createHash("sha256").update(s).digest("hex"); }
 const jsonCopy = value => JSON.parse(JSON.stringify(value));
 
-async function realGet(url, cookie) {
-  const response = await fetch(BASE + url, {
+async function realGet(url, cookie, options = {}) {
+  const response = await fetch((options.base ?? BASE) + url, {
     method: "GET", redirect: "manual", cache: "no-store",
-    headers: cookie ? { cookie } : {},
+    headers: { ...(cookie ? { cookie } : {}), ...(options.headers ?? {}) },
   });
   const text = await response.text();
   let json;
@@ -107,29 +108,56 @@ async function proveMarketingReport() {
     assert.ok(prospects[2].id > prospects[0].id && prospects[2].id > prospects[1].id,
       "private higher-ID prospect must be persisted, not merely simulated");
 
+    // Capture every durable table with an employer or actor ownership field,
+    // as well as the entire lead, organization, audit, payroll and user tables.
+    // Sessions are auth credentials and are deliberately mutated for MFA/revocation.
+    const boundTables = (await query(
+      "SELECT DISTINCT c.table_name FROM information_schema.columns c " +
+      "JOIN information_schema.tables t ON t.table_schema = c.table_schema " +
+      "AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE' " +
+      "WHERE c.table_schema = 'public' " +
+      "AND c.column_name = ANY($1::text[]) ORDER BY c.table_name",
+      [["organization_id", "legal_employer_id", "employer_id",
+        "business_id", "company_id", "user_id"]]
+    )).rows.map(row => row.table_name);
+    const protectedTables = [...new Set([...boundTables, "marketing_leads",
+      "audit_events", "payroll_runs", "organizations",
+      "user_organizations", "users"])].filter(table => table !== "sessions").sort();
+    assert.ok(protectedTables.length >= 6, "missing durable employer-owned table snapshots");
     async function state() {
-      const tables = ["marketing_leads", "audit_events", "payroll_runs",
-        "organizations", "user_organizations"];
       const result = {};
-      for (const table of tables) {
-        const rows = (await query("SELECT * FROM " + table + " ORDER BY id")).rows;
-        result[table] = jsonCopy(rows);
+      for (const table of protectedTables) {
+        const safeTable = table.replaceAll('"', '""');
+        const rows = (await query(
+          'SELECT row_to_json(t)::text AS snapshot FROM "' + safeTable + '" AS t'
+        )).rows;
+        result[table] = rows.map(row => row.snapshot).sort();
       }
       return result;
     }
     const before = await state();
+    // Every HTTP request gets its OWN before/after database comparison.
+    async function auditedGet(url, cookie, options = {}) {
+      const justBefore = await state();
+      const response = await realGet(url, cookie, options);
+      lastHttp = { request: url, base: options.base ?? BASE,
+        status: response.status, body: response.text };
+      assertMkt01Unchanged(justBefore, await state(),
+        "durable marketing and employer rows after " + url);
+      return response;
+    }
     const privateFields = prospects.flatMap(p => [p.name, p.email, p.company, p.notes]);
 
-    const anonymous = await realGet(PATH + "?days=7");
+    const anonymous = await auditedGet(PATH + "?days=7");
     assertMkt01Denied(anonymous, 401, privateFields);
-    const outsider = await realGet(PATH + "?days=7", victim.cookie);
+    const outsider = await auditedGet(PATH + "?days=7", victim.cookie);
     assertMkt01Denied(outsider, 403, privateFields);
-    const stale = await realGet(PATH + "?days=7", attackerB.cookie);
+    const stale = await auditedGet(PATH + "?days=7", attackerB.cookie);
     assertMkt01Denied(stale, 403, privateFields);
     assert.equal(stale.json?.code, "MFA_REQUIRED",
       "a configured TOTP factor is insufficient without session-level recent MFA");
 
-    const authorized = await realGet(PATH + "?days=7", attackerA.cookie);
+    const authorized = await auditedGet(PATH + "?days=7", attackerA.cookie);
     const report = assertMkt01Aggregate(authorized,
       { days: 7, total: 3, attributed: 3 }, privateFields);
     assert.deepEqual(report.byRequestType,
@@ -138,12 +166,12 @@ async function proveMarketingReport() {
     assert.equal(report.byCampaign.length, 3,
       "fictional campaign attribution must be count-only, no prospect fields");
 
-    // Second independent allowlisted user: a stale session must first fail,
+    // Second separately signed-in allowlisted user: a stale session must first fail,
     // then the same persisted fictional session can succeed only after its MFA
     // freshness is advanced. This is a CI-only session state change, not TOTP UAT.
     await query("UPDATE sessions SET mfa_verified_at = NOW() WHERE id = $1",
       [attackerB.sessionId]);
-    const authorizedB = await realGet(PATH + "?days=7", attackerB.cookie);
+    const authorizedB = await auditedGet(PATH + "?days=7", attackerB.cookie);
     const secondReport = assertMkt01Aggregate(authorizedB,
       { days: 7, total: 3, attributed: 3 }, privateFields);
     const stableAggregate = ({ since, ...fields }) => fields;
@@ -153,39 +181,99 @@ async function proveMarketingReport() {
     // This global report has no employer/object selector. Inject real higher-ID
     // victim IDs and an attempted raw format in a valid operator request:
     // they must never expose a row or alter the fixed aggregate contract.
-    const forgedUrl = PATH + "?days=7&organizationId=" + victim.orgId +
-      "&employeeId=" + victim.userId + "&runId=" + prospects[2].id + "&format=raw";
-    const forgedAuthorized = await realGet(forgedUrl, attackerA.cookie);
-    const forgedReport = assertMkt01Aggregate(forgedAuthorized,
-      { days: 7, total: 3, attributed: 3 }, privateFields);
-    assert.deepEqual(stableAggregate(forgedReport), stableAggregate(report),
-      "forged object selectors and raw format must not change the report");
-    assertMkt01Denied(await realGet(forgedUrl, victim.cookie), 403, privateFields);
+    const selectors = new URLSearchParams({
+      days: "7", organizationId: String(victim.orgId),
+      employerId: String(victim.orgId), businessId: String(victim.orgId),
+      legalEmployerId: String(victim.orgId), employeeId: String(victim.userId),
+      runId: String(prospects[2].id), email: victim.email, format: "raw",
+    });
+    const forgedUrl = PATH + "?" + selectors.toString();
+    const forgedHeaders = {
+      employerId: String(victim.orgId), businessId: String(victim.orgId),
+      legalEmployerId: String(victim.orgId), email: victim.email,
+      "x-employer-id": String(victim.orgId), "x-business-id": String(victim.orgId),
+      "x-legal-employer-id": String(victim.orgId), "x-email": victim.email,
+    };
+    const forgedCookie = attackerA.cookie + "; employerId=" + victim.orgId +
+      "; businessId=" + victim.orgId + "; legalEmployerId=" + victim.orgId +
+      "; email=" + victim.email;
+    for (const probe of [
+      { name: "query", url: forgedUrl, cookie: attackerA.cookie },
+      { name: "headers", url: PATH + "?days=7", cookie: attackerA.cookie,
+        options: { headers: forgedHeaders } },
+      { name: "cookie", url: PATH + "?days=7", cookie: forgedCookie },
+      { name: "all surfaces", url: forgedUrl, cookie: forgedCookie,
+        options: { headers: forgedHeaders } },
+    ]) {
+      const forgedAuthorized = await auditedGet(probe.url, probe.cookie, probe.options);
+      const forgedReport = assertMkt01Aggregate(forgedAuthorized,
+        { days: 7, total: 3, attributed: 3 }, privateFields);
+      assert.deepEqual(stableAggregate(forgedReport), stableAggregate(report),
+        probe.name + ": forged selector must not change the operator aggregate");
+    }
+    assertMkt01Denied(await auditedGet(forgedUrl, victim.cookie), 403, privateFields);
 
-    assertMkt01Aggregate(await realGet(PATH + "?days=1", attackerA.cookie),
-      { days: 1, total: 0, attributed: 0 }, privateFields);
-    assertMkt01Aggregate(await realGet(PATH + "?days=9999", attackerA.cookie),
-      { days: 365, total: 3, attributed: 3 }, privateFields);
-    assertMkt01Aggregate(await realGet(PATH + "?days=not-a-number", attackerA.cookie),
-      { days: 90, total: 3, attributed: 3 }, privateFields);
+    for (const [value, days, total] of [
+      ["1", 1, 0], ["-999", 1, 0], ["0", 1, 0],
+      ["9999", 365, 3], ["1000000000000", 365, 3],
+      ["NaN", 90, 3], ["not-a-number", 90, 3], ["Infinity", 90, 3],
+    ]) {
+      assertMkt01Aggregate(
+        await auditedGet(PATH + "?days=" + encodeURIComponent(value), attackerA.cookie),
+        { days, total, attributed: total }, privateFields);
+    }
+
+    // Two actual production-mode loopback servers test the empty and ABSENT
+    // allowlist, not a mocked guard or a removed variable in the test runner.
+    async function disabledAllowlistServer(mode, port) {
+      const env = { ...process.env };
+      if (mode === "unset") delete env.MARKETING_REPORT_EMAILS;
+      else env.MARKETING_REPORT_EMAILS = "";
+      const server = spawn(process.execPath,
+        ["node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1",
+          "-p", String(port)], { env, stdio: "ignore" });
+      const base = "http://127.0.0.1:" + port;
+      try {
+        let ready = false;
+        for (let attempt = 0; attempt < 90; attempt++) {
+          assert.equal(server.exitCode, null, "disabled allowlist server exited early");
+          try {
+            const response = await fetch(base + "/login", { cache: "no-store" });
+            if (response.status === 200) { ready = true; break; }
+          } catch { /* wait for loopback only */ }
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        assert.ok(ready, "disabled allowlist server must be ready on localhost");
+        const disabled = await auditedGet(PATH + "?days=7", attackerA.cookie,
+          { base });
+        assertMkt01Denied(disabled, 503, privateFields);
+      } finally {
+        server.kill("SIGTERM");
+      }
+    }
+    await disabledAllowlistServer("empty", 3001);
+    await disabledAllowlistServer("unset", 3002);
     assertMkt01Unchanged(before, await state(),
-      "four authenticated/untrusted HTTP report reads");
+      "all HTTP probes preserve every employer-owned and lead row");
 
     // A syntactically valid cookie ceases to be a platform credential after revocation.
     await query("UPDATE sessions SET revoked_at = NOW() WHERE id = $1",
       [attackerA.sessionId]);
-    const revoked = await realGet(PATH + "?days=7", attackerA.cookie);
+    const revoked = await auditedGet(PATH + "?days=7", attackerA.cookie);
     assertMkt01Denied(revoked, 401, privateFields);
     assertMkt01Unchanged(before, await state(),
       "revoking a synthetic operator session must never mutate lead or payroll data");
 
     console.log(JSON.stringify({
-      family: "MKT-01", source: "production-built localhost",
+      family: "MKT-01", evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
+      source: "production-built localhost",
       postgresMajor: 16, operatorOwnedReport: true,
       deniedAnonymous: true, deniedUnallowlistedHigherIdUser: true,
       deniedStaleMfaSession: true, deniedRevokedSession: true,
       twoIndependentOperatorSuccesses: true,
       forgedHigherIdSelectorsIgnored: true,
+      forgedQueryHeaderCookieEmployerBusinessLegalEmployerEmailIgnored: true,
+      emptyAndUnsetAllowlist503: true, perRequestDurableRowsUnchanged: true,
       privateProspectFieldsExcluded: true, boundedReportDays: true,
       snapshotRowsUnchanged: true, newCoverageCredits: 0,
       independentSecurityReview: "PENDING", productionCertified: false,
@@ -195,8 +283,13 @@ async function proveMarketingReport() {
   }
 }
 
+let lastHttp = null;
 proveMarketingReport().catch(error => {
-  // Never print SQL parameters, cookies or fictional PII on failure.
-  console.error("MKT01_PROOF_FAILED: " + (error?.code ?? error?.name ?? "proof failure"));
+  // Never print SQL parameters or bearer session cookies. The response body
+  // here is from fictional localhost fixtures only; identify actual leaks.
+  console.error("MKT01_PROOF_FAILED: " + (error?.code ?? error?.name ?? "proof failure") +
+    " " + String(error?.message ?? "").slice(0, 300));
+  if (lastHttp) console.error("MKT01_LAST_HTTP_REQUEST_RESPONSE: " +
+    JSON.stringify(lastHttp).slice(0, 7000));
   process.exitCode = 1;
 });
