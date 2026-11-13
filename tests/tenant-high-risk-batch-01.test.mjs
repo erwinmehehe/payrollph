@@ -795,7 +795,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const careersPatchCredits = verifyCareersPatchCredit(manifest);
   const migrationCredits = verifyMigrationPostCredit(manifest);
   const billingCredits = verifyBillingSubscriptionCredits(manifest);
-  const approvalsCredits=verifyApprovalsCredit(manifest);
+  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(manifest)/2);
   const checkoutCredits = verifyCheckoutCredit(manifest);
   const readinessCredits=verifyWorkspaceReadinessCredit(manifest);
   const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==="PATCH").status==="COVERED" ? verifyFilingPatchCredit(manifest) : 0;
@@ -843,3 +843,4 @@ test("fictional payroll accounting close and pre-run readiness cannot share an o
   assert.ok(closeCall >= 0 && readinessCall > closeCall,
     "The close fixture persists before the readiness proof; their periods must stay isolated");
 });
+import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';

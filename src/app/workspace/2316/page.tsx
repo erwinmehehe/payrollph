@@ -57,12 +57,20 @@ export default async function CertificatePage({ searchParams }: {
   if (selectedWorkerId !== null) {
     // A caller-supplied employeeId is not proof of tenancy. Prove persisted
     // employer + worker binding before reflecting it into the private client.
-    const [worker] = await db.select({ id: employees.id }).from(employees)
-      .where(and(
-        eq(employees.organizationId, organizationId),
-        eq(employees.id, selectedWorkerId),
-      )).limit(1);
+    const [worker] = await db.select({
+      id: employees.id, legalEntityId: employees.legalEntityId,
+    }).from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      eq(employees.id, selectedWorkerId),
+    )).limit(1);
     if (!worker) notFound();
+    // Without a released separation, a worker from another legal employer
+    // must 404 just like an unknown worker. Otherwise the guidance response
+    // could reveal that the caller guessed a real foreign employee ID.
+    // With a released separation, its frozen historical employer (checked
+    // below) is authoritative even when the worker later transferred.
+    if (selectedSeparationId === null && entityScope.context.enabled &&
+        assertEntityResource(entityScope.context, worker.legalEntityId)) notFound();
   }
 
   if (selectedSeparationId !== null) {
