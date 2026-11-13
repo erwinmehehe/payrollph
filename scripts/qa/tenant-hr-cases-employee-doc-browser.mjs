@@ -43,8 +43,34 @@ export async function proveHrEmployeeDocumentsBrowser() {
     const version = Number((await pool.query("SHOW server_version_num")).rows[0].server_version_num);
     assert.ok(version >= 160000 && version < 170000, "PostgreSQL 16 required");
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
+    const fillerEmployers = [];
     for (let i = 0; i < 7; i++)
-      await fixture.seedEmployer("HPOST-FILL" + i, nonce, fixture.standaloneMakeSession);
+      fillerEmployers.push(await fixture.seedEmployer(
+        "HPOST-FILL" + i, nonce, fixture.standaloneMakeSession));
+    // Real populated filler case/document rows keep the victim's case and COE
+    // IDs above both attackers AND above the small-ID control floor. Never
+    // fabricate high IDs or advance sequences without persisted records.
+    for (const filler of fillerEmployers) {
+      const [caseRow] = await db.insert(s.employeeHrCases).values({
+        organizationId: filler.org.id, employeeId: filler.worker.id,
+        createdByUserId: filler.owner.id, caseType: "coe",
+        subject: "Synthetic filler COE " + filler.marker,
+        description: "Fictional HR case evidence only",
+        assignedRole: "hr", status: "resolved",
+        slaDueAt: new Date(Date.now() + 86400000),
+      }).returning({ id: s.employeeHrCases.id });
+      const bytes = Buffer.from("FICTIONAL_FILLER_COE_" + filler.marker);
+      await db.insert(s.documents).values({
+        organizationId: filler.org.id, employeeId: filler.worker.id,
+        kind: "coe", fileName: "filler-" + filler.marker + ".txt",
+        mimeType: "text/plain; charset=utf-8", byteSize: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        scannedClean: true, scanNote: "PG16-only local filler",
+        sourceType: "generated", sourceKey: "hr-case-coe:" + caseRow.id,
+        uploadedBy: filler.owner.name, uploadedByUserId: filler.owner.id,
+        content: bytes.toString("base64"), objectStorageKey: null,
+      });
+    }
     const actors = [];
     for (const label of ["HPOST-A", "HPOST-B", "HPOST-VICTIM"]) {
       const actor = await fixture.seedEmployer(label, nonce, fixture.standaloneMakeSession);

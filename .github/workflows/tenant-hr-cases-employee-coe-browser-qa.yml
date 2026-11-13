@@ -1,0 +1,158 @@
+name: Tenant HR Cases Employee COE Chromium (Fictional PG16, Zero Credits)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-hr-cases-employee-coe-browser-qa.yml"
+      - ".github/workflows/tenant-hr-cases-page-qa.yml"
+      - "docs/qa/tenant-hr-cases-page-isolation.md"
+      - "scripts/qa/tenant-hr-cases-page-contract.mjs"
+      - "scripts/qa/tenant-hr-cases-page-http.mjs"
+      - "tests/tenant-hr-cases-page-contract.test.mjs"
+      - "src/app/hcm/hr-cases/page.tsx"
+      - "src/app/api/hr-cases/route.ts"
+      - "src/lib/hr-case-activation.ts"
+      - "src/lib/hr-case-policy.ts"
+      - "src/lib/hr-case-tenant-scope.ts"
+      - "src/lib/hr-case-queue-read.ts"
+      - "src/components/employee-hr-case-staff-queue.tsx"
+      - "src/app/api/documents/[id]/route.ts"
+      - "src/lib/private-document-tenant-lookup.ts"
+      - "src/lib/employee-document-vault.ts"
+      - "src/lib/security-request.ts"
+      - "src/db/schema.ts"
+      - "src/db/index.ts"
+      - "src/lib/audit.ts"
+      - "scripts/qa/tenant-hr-cases-employee-doc-*.mjs"
+      - "tests/tenant-hr-cases-employee-doc-contract.test.mjs"
+      - "docs/qa/tenant-hr-cases-employee-coe-browser-isolation.md"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "scripts/qa/tenant-table-http.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tenant-hr-cases-page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_HR_CASE_PAGE_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      EMPLOYEE_HR_CASES_ENABLED: "true"
+      MULTI_ENTITY_ENABLED: "false"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "false"
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      CRON_SECRET: ""
+      WORKER_TOKEN: ""
+      SMTP_PASSWORD: ""
+      RESEND_API_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Confirm checked-out exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify safe environment, source pins and negative controls
+        run: |
+          node --check scripts/qa/tenant-hr-cases-page-contract.mjs
+          node --check scripts/qa/tenant-hr-cases-page-http.mjs
+          node --test tests/tenant-hr-cases-page-contract.test.mjs
+          node --check scripts/qa/tenant-hr-cases-employee-doc-contract.mjs
+          node --check scripts/qa/tenant-hr-cases-employee-doc-browser.mjs
+          node --test tests/tenant-hr-cases-employee-doc-contract.test.mjs
+      - name: Generate ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated test-only baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build feature-ON production-mode localhost app
+        run: npm run build
+      - name: Install version-pinned local Chromium for real hydrated staff actions
+        shell: bash
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
+      - name: Start restricted localhost Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-hr-cases-page.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-hr-cases-page.log
+          exit 1
+      - name: Prove read-only employer, unit-role, revocation and victim isolation
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-hr-cases-page-http.mjs
+      - name: Verify linked-employee POST, owned COE bytes, foreign/revoked denial and Chromium UI
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-hr-cases-employee-doc-browser.mjs
+      - name: Show bounded synthetic server log on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-hr-cases-page.log || true

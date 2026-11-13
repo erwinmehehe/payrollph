@@ -70,7 +70,7 @@ test("document positives must contain exact own bytes and denials must not leak"
 
 test("the real fixture tests linked employee POST, COE GET, hydrated UI and revocation", () => {
   const script = readFileSync("scripts/qa/tenant-hr-cases-employee-doc-browser.mjs", "utf8");
-  const workflow = readFileSync(".github/workflows/tenant-hr-cases-page-qa.yml", "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-hr-cases-employee-coe-browser-qa.yml", "utf8");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   assert.equal(manifest.scopedPages.find(row =>
