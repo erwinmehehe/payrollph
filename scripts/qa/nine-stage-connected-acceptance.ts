@@ -213,7 +213,9 @@ async function main() {
         email:"owner.nine@linaw.test",password,acceptTerms:true,
         privatePilotInviteCode:process.env.PRIVATE_PILOT_QA_INVITE_CODE,
       });
-      assert.equal(registered.activated,true);
+      // The signup response is deliberately equalized (no activation flag, #1939), so activation is proven by what follows:
+      // the owner row and membership exist and the owner can sign in below.
+      assert.ok(registered);
       const [identity]=await db.select({organizationId:userOrganizations.organizationId})
         .from(userOrganizations).innerJoin(users,eq(users.id,userOrganizations.userId))
         .where(eq(users.email,"owner.nine@linaw.test"));
@@ -594,7 +596,7 @@ async function main() {
     });
     denied(409, duplicate.status, "duplicate record release rejected");
     const otherTenant = await tenantB.json("/api/payroll-runs?runId=" + runId + "&include=entries");
-    denied(403, otherTenant.status, "tenant B cannot inspect the released tenant A payroll");
+    denied(404, otherTenant.status, "tenant B cannot inspect the released tenant A payroll");
     const events = await db.select({ action: auditEvents.action }).from(auditEvents)
       .where(eq(auditEvents.organizationId, orgA));
     assert.ok(events.some(event => event.action === "Payroll released"),
@@ -868,7 +870,7 @@ async function main() {
     assert.equal(stored.periodStart, periodStart);
     assert.equal(stored.periodEnd, periodEnd);
     const aDenied = await payroll.json("/api/payroll-runs?runId=" + bRunId + "&include=entries");
-    denied(403, aDenied.status, "A-only payroll cannot read B calculated register");
+    denied(404, aDenied.status, "A-only payroll cannot read B calculated register");
     bLineage.payrollRunId = bRunId;
     bLineage.timesheetId = bTimesheetId;
     bLineage.scheduleAssignmentId = bAssignmentId;
@@ -911,7 +913,7 @@ async function main() {
       { acknowledgeExceptions: false });
     denied(409, again.status, "duplicate B record release denied");
     const deniedA = await tenantB.json("/api/payroll-runs?runId=" + runId + "&include=entries");
-    denied(403, deniedA.status, "B-only owner cannot read A released payroll");
+    denied(404, deniedA.status, "B-only owner cannot read A released payroll");
     const events = await db.select({ action: auditEvents.action }).from(auditEvents)
       .where(eq(auditEvents.organizationId, orgB));
     assert.ok(events.some(item => item.action === "Payroll released"));

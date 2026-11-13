@@ -43,7 +43,7 @@ test("actual payout export route denies foreign employer before revealing its Xe
     assert.equal((await POST(request(), { params: Promise.resolve({ id: String(run.id) }) })).status, 401);
     caller = user;
     const denied = await POST(request(), { params: Promise.resolve({ id: String(run.id) }) });
-    assert.equal(denied.status, 403);
+    assert.equal(denied.status, 404);
     const body = await denied.text();
     assert.doesNotMatch(body, /xendit|ledger|providerConfigured|blockers/i);
     const [batch] = await db.select().from(payoutBatches).where(eq(payoutBatches.payrollRunId, run.id));
