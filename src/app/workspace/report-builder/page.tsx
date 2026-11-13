@@ -26,10 +26,12 @@ export default async function ReportBuilderPage({
   // Never hand a caller-selected employer to the client report controls until
   // server-side active membership, company-wide role and deny-only permissions
   // have all passed. The API independently repeats its own report-data checks.
-  const access = await getAccess(user.id, organizationId);
-  if (!access?.companyWide || !roleAllowed(access.role, PEOPLE_PAYROLL_ROLES)) notFound();
+  // Authorize the selected employer, active session and custom permissions
+  // before reading its access scope or resolving the employer's identity.
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES);
   if (denied) notFound();
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide || !roleAllowed(access.role, PEOPLE_PAYROLL_ROLES)) notFound();
 
   const [employer] = await db.select({ name: organizations.name })
     .from(organizations).where(eq(organizations.id, organizationId)).limit(1);
