@@ -51,3 +51,10 @@ test("payroll proof workflows rerun when their shared membership boundary change
       assert.ok(paths.includes("src/lib/payroll-run-membership.ts"), file + ": missing shared authorization dependency");
   }
 });
+
+test("multi-entity preflight has Git history for exact source-withdrawal receipts", () => {
+  const workflow = load(read(".github/workflows/multi-entity-browser-qa.yml"));
+  const checkout = workflow.jobs["multi-entity-browser"].steps.find(step => step.uses?.startsWith("actions/checkout@"));
+  assert.equal(checkout.with["fetch-depth"], 0);
+  assert.equal(checkout.with["persist-credentials"], false);
+});

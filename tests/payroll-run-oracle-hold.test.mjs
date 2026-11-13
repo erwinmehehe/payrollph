@@ -26,3 +26,12 @@ test("an unrelated downgrade remains a hard failure", () => {
   m.acceptanceStatus = m.acceptanceStatus.replace("26 API methods", "27 API methods");
   assert.throws(() => assertLiveTenantCounts(assert, m), /downgraded|no proven method/);
 });
+
+test("manifest HTTP acceptance distinguishes exact source holds from renewed method credit", () => {
+  const source = readFileSync("scripts/qa/tenant-manifest-driven-http.mjs", "utf8");
+  assert.match(source, /const sourceWithdrawals = verifyOracleSourceHolds\(manifest\)/);
+  assert.match(source, /sourceWithdrawals\.has\("POST src\/app\/api\/payroll-runs\/\[id\]\/close\/route\.ts"\)/);
+  assert.match(source, /complete credit renewal still required/);
+  assert.match(source, /assert\.equal\(closePost\?\.status, "COVERED"/);
+  assert.match(source, /verifyMergedProofCredits\(manifest\)/);
+});
