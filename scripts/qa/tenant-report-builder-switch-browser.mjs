@@ -74,12 +74,12 @@ export async function proveReportBuilderSwitchBrowser() {
       const requested = new URL(route.request().url());
       return requested.origin === ORIGIN ? route.continue() : route.abort();
     });
-    const cookie = session.cookie.split("=");
-    assert.equal(cookie[0], "__Host-linaw_session");
-    await context.addCookies([{
-      name: cookie[0], value: cookie.slice(1).join("="), url: ORIGIN,
-      secure: true, httpOnly: true, sameSite: "Lax",
-    }]);
+    // The signed-in fixture uses a secure __Host- cookie. Chromium correctly
+    // rejects installing one on this HTTP loopback test origin; inject the
+    // actual signed session header ONLY into this single-origin QA context.
+    // Production browser cookie policy is tested in its separate login proof.
+    assert.ok(session.cookie.startsWith("__Host-linaw_session="));
+    await context.setExtraHTTPHeaders({ Cookie: session.cookie });
     const account = await context.request.get(ORIGIN + "/api/account");
     assert.equal(account.status(), 200, "Real authenticated browser session required");
     assert.equal((await account.json()).profile?.id, switcher.id);
