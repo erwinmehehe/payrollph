@@ -1,5 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
-import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { isVerifiedOracleRenewal, isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -199,17 +199,24 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
     methods: Array<{ status: string; testedBy?: { file: string } }>;
   }>).flatMap(route => route.methods).filter(method =>
     method.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
+  let renewedReviewReleaseCredits=0;
   const reviewReleaseCredits = ["submit-review", "release"].map(action => {
     const method = manifest.allApiRouteFiles[`src/app/api/payroll-runs/[id]/${action}/route.ts`]
       .methods.find((item: { name: string }) => item.name === "POST");
     if (method.status !== "COVERED") return 0;
+    if(method.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+      assert.ok(isVerifiedOracleRenewal(manifest,`src/app/api/payroll-runs/[id]/${action}/route.ts`,'POST'),
+        'renewed lifecycle credit requires complete current-source PG16 evidence');
+      renewedReviewReleaseCredits++;
+      return 1;
+    }
     assert.equal(method.testedBy.file, "scripts/qa/tenant-money-lifecycle-http.mjs");
     assert.equal(method.testedBy.workflowRunId, 42063867383);
     assert.equal(method.testedBy.productionTested, false);
     assert.equal(method.testedBy.independentSecurityReview, "PENDING");
     return 1;
   }).reduce<number>((sum, credit) => sum + credit, 0);
-  assert.equal(moneyMethods.length, 7 + reviewReleaseCredits,
+  assert.equal(moneyMethods.length+renewedReviewReleaseCredits, 7 + reviewReleaseCredits,
     "Seven legacy money inputs plus only the two separately receipted payroll lifecycle credits");
   assert.ok(moneyMethods.every(method => method.status === "COVERED"));
   const underpaymentFile = "scripts/qa/underpayment-posting-http.mjs";
