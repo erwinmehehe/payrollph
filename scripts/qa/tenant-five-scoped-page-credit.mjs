@@ -173,9 +173,9 @@ export function historicWorker360ProofView(manifest) {
     page.reason = "Historical Worker 360 count verification only; current separate proof retained";
     delete page.testedBy;
   }
-  assert.match(old.acceptanceStatus, /^NOT ACCEPTED: 5 API methods and 11 page\\/action GAPs/);
+  assert.match(old.acceptanceStatus, /^NOT ACCEPTED: 5 API methods and 11 page\/action GAPs/);
   old.acceptanceStatus = old.acceptanceStatus.replace(
-    /^NOT ACCEPTED: 5 API methods and 11 page\\/action GAPs/,
+    /^NOT ACCEPTED: 5 API methods and 11 page\/action GAPs/,
     "NOT ACCEPTED: 5 API methods and 16 page/action GAPs");
   assert.equal(old.scopedPages.filter(p => p.status === "GAP").length, 16);
   return old;
