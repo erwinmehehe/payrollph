@@ -84,6 +84,93 @@ const suites = [
   },
 ];
 
+/**
+ * Source-order guard complements the existing real HTTP proof: a future edit
+ * must not move private SQL/client mounting ahead of selected-employer checks.
+ * These assertions do not replace runtime role, revoked-session or SQL proofs.
+ */
+const authorizationOrder = [
+  ["Action Center SSR", "src/app/hcm/action-center/page.tsx", [
+    "const user = await getSessionUser()",
+    "explicitHcmEmployerId(requested)",
+    "await assertOrganizationRole(user.id, organizationId",
+    "await getAccess(user.id, organizationId)",
+    "await db.select({ name: organizations.name })",
+    "await loadPeopleHomeWorklist(organizationId",
+  ]],
+  ["My Team SSR", "src/app/hcm/my-team/page.tsx", [
+    "const user = await getSessionUser()",
+    "positiveId(params.organizationId)",
+    "await assertOrganizationRole(",
+    "await getAccess(user.id, organizationId)",
+    "deriveMyTeamScope(access)",
+    "<HcmMyTeamClient",
+  ]],
+  ["My Team API", "src/app/api/hcm/my-team/route.ts", [
+    "const user = await getSessionUser()",
+    'parseId(params.get("organizationId"))',
+    "await assertOrganizationRole(",
+    "await getAccess(user.id, organizationId)",
+    "deriveMyTeamScope(access)",
+    "await loadHcmMyTeam({",
+  ]],
+  ["Org Explorer SSR", "src/app/hcm/org-explorer/page.tsx", [
+    "const user = await getSessionUser()",
+    "hcmOrgExplorerPositiveId(",
+    "await denyHcmOrgExplorer(user.id, organizationId)",
+    "await getAccess(user.id, organizationId)",
+    "<HcmOrgExplorerClient",
+  ]],
+  ["Org Explorer API", "src/app/api/hcm/org-explorer/route.ts", [
+    "const user = await getSessionUser()",
+    'hcmOrgExplorerSingleQueryId(params, "organizationId")',
+    "await denyHcmOrgExplorer(user.id, organizationId)",
+    "await loadHcmOrgExplorer(organizationId)",
+  ]],
+  ["Position History API", "src/app/api/hcm/position-history/route.ts", [
+    "const user = await getSessionUser()",
+    'hcmOrgExplorerSingleQueryId(params, "organizationId")',
+    'hcmOrgExplorerSingleQueryId(params, "positionId")',
+    "await denyHcmOrgExplorer(user.id, organizationId)",
+    "await loadHcmPositionHistory(organizationId, positionId)",
+  ]],
+  ["Team Leave SSR", "src/app/hcm/team-leave-calendar/page.tsx", [
+    "const user = await getSessionUser()",
+    "positiveId((await searchParams).organizationId)",
+    "await assertOrganizationRole(",
+    "await getAccess(user.id, organizationId)",
+    "deriveTeamLeaveScope(access)",
+    "<HcmTeamLeaveCalendar",
+  ]],
+  ["Team Leave API", "src/app/api/hcm/team-leave-calendar/route.ts", [
+    "const user = await getSessionUser()",
+    'positiveId(params.get("organizationId"))',
+    "await assertOrganizationRole(",
+    "await getAccess(user.id, organizationId)",
+    "deriveTeamLeaveScope(access)",
+    "await loadTeamLeaveMonth({",
+  ]],
+  ["Action Center Inbox API", "src/app/api/hcm/business-processes/inbox/route.ts", [
+    "const user = await getSessionUser()",
+    "getAccess(user.id, organizationId)",
+    "await db.select({",
+    "eq(hcmBusinessProcessInstances.organizationId, organizationId)",
+  ]],
+];
+
+for (const [label, path, ordered] of authorizationOrder) {
+  test(label + " keeps session, tenant and role checks ahead of private data", () => {
+    const source = readFileSync(path, "utf8");
+    let previous = -1;
+    for (const marker of ordered) {
+      const next = source.indexOf(marker, previous + 1);
+      assert.ok(next > previous,
+        label + ": authorization/data order drift at " + marker);
+      previous = next;
+    }
+  });
+}
+
 function workflowPaths(source) {
   const match = source.match(/^    paths:\n((?:      - [^\n]+\n)+)/m);
   assert.ok(match, "Missing path-scoped pull_request trigger");
