@@ -73,8 +73,9 @@ export function assertNoForeignData(response, actors, label) {
 export function assertOwnedPage(response, actor, others) {
   assert.equal(response.status, 200, "Own work-items page must return actual SSR 200");
   assert.ok(response.text.includes("HR Work Queue"), "Wrong/placeholder SSR page");
-  assert.ok(response.text.includes("organizationId=" + actor.org.id),
-    "Own SSR must contain real selected employer");
+  assert.ok(response.text.includes("Employer") &&
+    response.text.includes("<strong>#" + actor.org.id + "</strong>"),
+    "Own SSR must display the server-authorized employer, not a generic shell");
   assertNoForeignData(response, others, "own work queue");
 }
 export function assertOwnedApi(response, actor, others, caseId) {
