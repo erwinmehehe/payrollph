@@ -46,7 +46,7 @@ test("fake own 200 or foreign data are never evidence", () => {
     { id: 17, organizationId: 8, title: a.marker + " protected HR case" },
   ] });
   assert.doesNotThrow(() => assertOwnedPage(result(200, null,
-    "<h1>HR Work Queue</h1>organizationId=8"), a, [b]));
+    "<h1>HR Work Queue</h1>Employer <strong>#8</strong>"), a, [b]));
   assert.doesNotThrow(() => assertOwnedApi(owned, a, [b], 17));
   for (const bad of [
     result(200, { items: [] }),
@@ -56,7 +56,7 @@ test("fake own 200 or foreign data are never evidence", () => {
   ]) assert.throws(() => assertOwnedApi(bad, a, [b], 17));
   assert.throws(() => assertOwnedPage(result(200, null, "<div>Generic shell</div>"), a, [b]));
   assert.throws(() => assertOwnedPage(result(200, null,
-    "<h1>HR Work Queue</h1>organizationId=8 " + b.marker), a, [b]));
+    "<h1>HR Work Queue</h1>Employer <strong>#8</strong> " + b.marker), a, [b]));
 });
 test("a denied page can never carry protected victim/owned data", () => {
   assert.doesNotThrow(() => assertDenied(result(404, { error: "Not found" }), 404, [a,b], "foreign"));
