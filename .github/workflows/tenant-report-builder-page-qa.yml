@@ -7,6 +7,25 @@ on:
       - "src/app/workspace/report-builder/**"
       - "src/app/api/reports/builder/**"
       - "src/lib/tenant-report-builder*.ts"
+      - "src/components/workspace/tenant-report-builder.tsx"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/security-request.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/organization-auth-policy.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "src/db/schema.ts"
+      - "src/db/index.ts"
+      - "src/lib/bi-exports.ts"
+      - "src/lib/audit.ts"
+      - "src/lib/csv.ts"
+      - "src/lib/rate-limit.ts"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/tenant-report-builder-switch-browser.mjs"
+      - "scripts/qa/tenant-report-builder-export-contract.mjs"
+      - "package.json"
+      - "package-lock.json"
       - "scripts/qa/tenant-report-builder-page-*.mjs"
       - "tests/tenant-report-builder*.test.*"
       - ".github/workflows/tenant-report-builder-page-qa.yml"
@@ -73,6 +92,7 @@ jobs:
         run: |
           node --check scripts/qa/tenant-report-builder-page-contract.mjs
           node --check scripts/qa/tenant-report-builder-page-http.mjs
+          node --check scripts/qa/tenant-report-builder-switch-browser.mjs
           node --test tests/tenant-report-builder-page-contract.test.mjs
           node --import tsx --test tests/tenant-report-builder.test.ts
       - name: Create ephemeral fiction-only encryption keys
@@ -89,6 +109,11 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build feature-ON synthetic-only Next application
         run: npm run build
+      - name: Install pinned localhost-only Chromium
+        shell: bash
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
       - name: Start localhost-only app
         shell: bash
         run: |
@@ -104,6 +129,10 @@ jobs:
         env:
           NODE_ENV: production
         run: node --import tsx scripts/qa/tenant-report-builder-page-http.mjs
+      - name: Prove real Chromium A-to-B-to-A scoped reports, delayed preview and CSV
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-report-builder-switch-browser.mjs
       - name: Show bounded localhost server log on failure
         if: failure()
         run: tail -n 80 /tmp/tenant-report-builder-page.log || true

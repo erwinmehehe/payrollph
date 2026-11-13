@@ -136,3 +136,22 @@ test("the feature-ON page gate precedes client render and its runner is exact-he
     "apply-isolated-baseline.mjs", "npm run build",
   ]) assert.ok(workflow.includes(marker), "Missing synthetic CI proof: " + marker);
 });
+
+test("browser A-B-A proof runs on real isolated Chromium and verifies stale response and download", () => {
+  const script = readFileSync("scripts/qa/tenant-report-builder-switch-browser.mjs", "utf8");
+  const workflow = readFileSync(".github/workflows/tenant-report-builder-page-qa.yml", "utf8");
+  for (const text of [
+    "requireDisposableReportPageEnv();", "verifyExportSourcePins();",
+    'import("playwright")', "seedEmployer", "context.addCookies",
+    "delayedRealResponseHeldAcrossEmployerSwitch: true",
+    "realBrowserCsvDownload: true", "protectedForeignSnapshotsUnchanged: true",
+    "addedPageCredits: 0", "addedApiCredits: 0",
+  ]) assert.ok(script.includes(text), "Missing actual A-B-A browser proof: " + text);
+  assert.ok(script.indexOf("requireDisposableReportPageEnv();") <
+    script.indexOf('import("../../src/db/index.ts")'),
+  "Browser proof must guard target before DB import");
+  for (const text of [
+    "playwright@1.55.0", "npx playwright install --only-shell chromium",
+    "tenant-report-builder-switch-browser.mjs",
+  ]) assert.ok(workflow.includes(text), "Missing real Chromium workflow step: " + text);
+});
