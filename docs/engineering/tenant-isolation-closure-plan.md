@@ -1,6 +1,6 @@
 > **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 payroll-run source-current methods still need renewed positive proofs. The separate OIDC callback provisional credit does not reinstate them.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 437 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 26 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **PR #1952 OIDC CALLBACK SOURCE PROOF — NOT ACCEPTED:** 498 API methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP; 16 page/action GAPs. [Synthetic HTTPS IdP / PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274) supports one distinct provisional callback GET. Merged #1956 keeps 19 separate payroll-run methods on source hold. SSO start/resolve and all other unproved surfaces stay GAP. Independent security, identity, payroll/privacy and production acceptance remain PENDING.
 
@@ -242,7 +242,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 |---:|---|---:|---:|---:|---:|---:|---|
 | 1 | **DL-01** | 26 | 22 | 2 | 0 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 20 | 0 | 0 | 13 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 22 | 0 | 0 | 11 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -253,7 +253,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 14 | 9 | 6 | 4 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **360 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 19 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **77 COVERED + 8 PUBLIC-BY-DESIGN + 7 GAP**. 3 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **362 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **77 COVERED + 8 PUBLIC-BY-DESIGN + 7 GAP**. 3 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

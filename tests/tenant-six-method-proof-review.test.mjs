@@ -488,7 +488,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       }
       assert.equal(held?.status, "COVERED", label + " needs distinct current-source #1804 proof");
       assert.equal(held?.testedBy?.proofPullRequest, 1804);
-      assert.equal(held?.testedBy?.workflowRunId, 43178709246);
+      assert.equal(held?.testedBy?.workflowRunId, 43372002300);
       assert.equal(held?.testedBy?.independentlyAccepted, false);
       assert.equal(held?.reviewedUncertified, undefined);
       assert.equal(blobSha(pin.path), "f040f5bbbc3df275d32d23f1728b1b0345f77814");
@@ -1376,6 +1376,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const bytes = mainSourceCache.get(path);
       return encoding ? bytes.toString(encoding) : bytes;
     };
+    // Once the OIDC callback GET credit is on origin/main it is an independently sealed baseline credit, verified against main's own files.
+    const baselineOidcMethod = baseline.allApiRouteFiles[OIDC_CALLBACK].methods.find(item => item.name === "GET");
+    const baselineOidcCredits = baselineOidcMethod.status === "COVERED" ? 1 : 0;
+    if (baselineOidcCredits) {
+      assert.equal(verifyOidcCallbackCredit(baseline, readMainSource), 1);
+      expectedOriginalMain[OIDC_CALLBACK].GET = "COVERED";
+    }
     const mainOracleHolds = verifyOracleSourceHolds(baseline, null, readMainSource);
     let mainExpectedOracleWithdrawals = 0;
     for (const key of mainOracleHolds) {
@@ -1393,13 +1400,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion - mainExpectedOracleWithdrawals + compliancePostCredits.length +
+      COVERED: baselineOidcCredits + baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion - mainExpectedOracleWithdrawals + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
-      GAP: snapshot.counts.GAP + mainWorkerDemotion + mainExpectedOracleWithdrawals - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP - baselineOidcCredits + mainWorkerDemotion + mainExpectedOracleWithdrawals - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
