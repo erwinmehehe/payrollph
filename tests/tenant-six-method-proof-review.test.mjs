@@ -1,4 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
+import { verifyOidcCallbackHold } from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import {isVerifiedOracleHold,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
@@ -880,9 +881,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(worker360Get.reviewedUncertified, undefined);
   assert.equal(worker360Get.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
   assert.equal(worker360Get.testedBy?.independentlyAccepted, false);
-  const oidcCallbackCredits = verifyOidcCallbackCredit(m);
+  const oidcCallbackCredits = verifyOidcCallbackHold(m);
   assert.equal(expectedStatuses[OIDC_CALLBACK].GET, 'GAP');
-  expectedStatuses[OIDC_CALLBACK].GET = 'COVERED';
+  // The changed default-OFF callback must stay GAP; old full-IdP proof is superseded.
   // Historical additions above retain their original arithmetic. Withdraw
   // exactly the sealed changed-source credits, never unrelated methods.
   const oracleHolds=verifyOracleSourceHolds(m);
@@ -892,7 +893,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     expectedStatuses[path][verb]='GAP';
   }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves inherited receipts, separately source-pinned Worker 360 recovery and OIDC callback proof");
+    "Preserves inherited receipts, Worker 360 recovery and the zero-credit OIDC callback hold");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + exportsPostCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + birCandidateCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits + invitationAcceptCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,

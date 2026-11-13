@@ -73,6 +73,10 @@ function harness(options = {}) {
     "@/lib/crypto": { sha256: () => "hash-state" },
     "@/lib/oidc-browser-state": { OIDC_BROWSER_STATE_COOKIE: "browser_state", OIDC_BROWSER_STATE_PATH: "/api/auth/sso/callback",
       oidcBrowserStateMatches: (a, b) => a === b },
+    "@/lib/oidc-sso-runtime": {
+      oidcSsoRuntimeEnabled: () => true,
+      oidcSsoDisabledResponse: () => { throw new Error("Enabled-only fixture entered disabled SSO path"); },
+    },
     "@/lib/oidc-identity-binding": { persistVerifiedOidcIdentity: async value => {
       calls.push("persist"); links.push(value);
       if (options.foreignLink && value.existingIdentityId === null) throw new Error("Synthetic provider/subject unique conflict");
@@ -82,7 +86,7 @@ function harness(options = {}) {
   };
   const handlerModule = { exports: {} };
   runInNewContext(compiled, { module: handlerModule, exports: handlerModule.exports, Response, URL,
-    process: { env: { NODE_ENV: "production" } },
+    process: { env: { NODE_ENV: "production", OIDC_SSO_RUNTIME_MODE: "enabled" } },
     require: name => { assert.ok(Object.hasOwn(dependencies, name), name); return dependencies[name]; } }, { timeout: 1000 });
   const run = () => handlerModule.exports.GET(new Request("https://payroll.example.test/api/auth/sso/callback?code=synthetic&state=state&organizationId=900&userId=999"));
   return { run, calls, links, sessions, writes, rows };

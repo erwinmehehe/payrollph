@@ -14,6 +14,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_PROOF, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
+import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Count only the sealed oracle withdrawals newly introduced over this base. */
 export function oracleWithdrawalDelta(before, current) {
@@ -193,6 +194,28 @@ export function reviewedWorker360LegalEmployerSupersession(beforeManifest, liveM
   return new Set(["GET " + file]);
 }
 
+/** Exactly one previously credited callback may be withdrawn after this
+ * default-OFF source change. No other OIDC or tenant-method downgrade is allowed. */
+export function reviewedOidcSourceSupersession(beforeManifest, liveManifest) {
+  const old = beforeManifest.allApiRouteFiles?.[OIDC_CALLBACK];
+  const now = liveManifest.allApiRouteFiles?.[OIDC_CALLBACK];
+  const prior = old?.methods?.find(row => row.name === "GET");
+  const proof = prior?.testedBy;
+  if (old?.gitBlobSha !== "a27d855a81751498cc907134e8e9dde7400c9f58" ||
+      old.methods.length !== 1 || prior?.status !== "COVERED" ||
+      prior.reviewedUncertified !== undefined ||
+      proof?.file !== "scripts/qa/tenant-oidc-full-http.mjs" ||
+      proof.routeBlobSha !== old.gitBlobSha ||
+      proof.sourceHead !== "d46ed24b239b47a2182b868f399f3cbb1d706ca0" ||
+      proof.workflowRunId !== 43251981343 || proof.workflowJobId !== 131299924274 ||
+      proof.independentlyAccepted !== false || proof.independentSecurityReview !== "PENDING" ||
+      proof.productionCertified !== false ||
+      now?.gitBlobSha !== "9cb02f681ae8128c8b9c661b057c5591891bdc9e" ||
+      now.methods?.length !== 1) return new Set();
+  verifyOidcCallbackHold(liveManifest);
+  return new Set(["GET " + OIDC_CALLBACK]);
+}
+
 /** The manifest at the PR's base, or null when no base is available outside CI. */
 export function baseTenantManifest(env = process.env) {
   const refs = [env.FAIL_CLOSED_GUARD_BASE_REF, env.TENANT_COUNTS_BASE_REF, "origin/main"].filter(Boolean);
@@ -233,6 +256,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedYearEndSourceSupersession(base.manifest, manifest),
     ...yearEndAnnualizationSourceHold(base.manifest, manifest),
     ...reviewedWorker360LegalEmployerSupersession(base.manifest, manifest),
+    ...reviewedOidcSourceSupersession(base.manifest, manifest),
     ...verifyOracleSourceHolds(manifest, base.manifest),
   ]);
   const regressions = [];
