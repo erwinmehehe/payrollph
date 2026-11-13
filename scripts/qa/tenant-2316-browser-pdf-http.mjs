@@ -285,7 +285,10 @@ export async function prove2316BrowserPdf() {
       const response=await api(actor.context,bodyUrl(actor));
       assert.equal(response.status,200,"Each owner must load own nonempty PG16 2316 source");
       assert.match(response.contentType,/application\/json/);
-      assert.equal(response.headers["cache-control"],"private, no-store");
+      assert.match(response.headers["cache-control"]??"",/(?:^|,\s*)no-store(?:,|$)/i,
+        "2316 source response must forbid caching even when Next.js normalizes Cache-Control");
+      assert.doesNotMatch(response.headers["cache-control"]??"",/\bpublic\b/i,
+        "Private certificate source must never be marked publicly cacheable");
       assert.equal(response.json?.source?.scope.organizationId,actor.org.id);
       assert.equal(response.json?.source?.scope.employeeId,actor.worker.id);
       assert.equal(response.json?.source?.employerName,actor.entity.legalName);
