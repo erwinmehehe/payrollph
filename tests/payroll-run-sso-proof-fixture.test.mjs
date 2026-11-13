@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {zeroCreditSsoProofFixture} from '../scripts/qa/payroll-run-sso-proof-fixture.mjs';
-import {verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 const read=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
 test('disposable bootstrap removes exactly nineteen stale credits without weakening or editing their guards',()=>{
   const m=read(),copy=structuredClone(m),f=zeroCreditSsoProofFixture(m);
   assert.deepEqual(m,copy);
-  assert.equal(m.metrics.coveredAfter-f.metrics.coveredAfter,19);
-  assert.equal(f.metrics.gap-m.metrics.gap,19);
+  const heldCount=ORACLE_HELD_METHODS.length;
+  assert.equal(heldCount,19,'Only the exact historical payroll cohort may be held');
+  assert.equal(m.metrics.coveredAfter-f.metrics.coveredAfter,heldCount);
+  assert.equal(f.metrics.gap-m.metrics.gap,heldCount);
   assert.equal(verifyOracleSourceHolds(f).size,19);
   for(const[path,entry]of Object.entries(m.allApiRouteFiles)){
     const next=f.allApiRouteFiles[path];

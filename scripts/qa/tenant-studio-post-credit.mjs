@@ -99,13 +99,19 @@ function reconcileDocs(m,write){
  const banner=prefix+m.metrics.methods+' methods = '+m.metrics.coveredAfter+' COVERED + '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+m.metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+m.metrics.gap+' GAP. Eleven actions, eight executed proof jobs and all six source families; '+pageGaps+' separate page/action gaps remain. No production or external-provider acceptance.\n\n';
  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
   const original=readFileSync(file,'utf8');let doc=original;
-  let sourceHold='';
-  if(doc.startsWith('> **PAYROLL RUN ORACLE — SOURCE HOLD:** ')||doc.startsWith('> **PAYROLL RUN ORACLE — RENEWED:** ')){
+  // Preserve reviewed pilot SSO and payroll-run banners above Studio in
+  // their original order. Only this Studio banner may be recomputed.
+  let preceding='';
+  while([
+   '> **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** ',
+   '> **PAYROLL RUN ORACLE — SOURCE HOLD:** ',
+   '> **PAYROLL RUN ORACLE — RENEWED:** ',
+  ].some(x=>doc.startsWith(x))){
    const end=doc.indexOf('\n\n');assert.ok(end>=0);
-   sourceHold=doc.slice(0,end+2);doc=doc.slice(end+2);
+   preceding+=doc.slice(0,end+2);doc=doc.slice(end+2);
   }
   while(doc.startsWith(prefix)){const end=doc.indexOf('\n');doc=end<0?'':doc.slice(end+1).replace(/^\n+/,'');}
-  doc=sourceHold+banner+doc;
+  doc=preceding+banner+doc;
   if(file.includes('inventory')){
    for(const key of ['coveredAfter','gap'])doc=doc.replace(new RegExp('^\\| '+key+' \\| \\d+ \\|$','m'),'| '+key+' | '+m.metrics[key]+' |');
    doc=doc.replace(/\*\*RELEASE BLOCKER:\*\* \d+ API methods and \d+ business-ID page entries/,'**RELEASE BLOCKER:** '+m.metrics.gap+' API methods and '+pageGaps+' business-ID page entries')

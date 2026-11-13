@@ -2,6 +2,7 @@ import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-stud
 import {verifyOracleSourceHolds,isVerifiedOracleSupersession} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifiedOracleRenewalKeys} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
+import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
 import { verifyCheckoutCredit } from '../scripts/qa/tenant-billing-checkout-credit.mjs';
@@ -825,7 +826,12 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const careersPatchCredits = verifyCareersPatchCredit(manifest);
   const migrationCredits = verifyMigrationPostCredit(manifest);
   const billingCredits = verifyBillingSubscriptionCredits(manifest);
-  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(manifest)/2)+verifyOidcCallbackCredit(manifest);
+  const callback=manifest.allApiRouteFiles[OIDC_CALLBACK].methods.find(row=>row.name==='GET');
+  // Source-changed default-OFF callback is still GAP; verify the exact held
+  // blob and prior historical receipt rather than borrowing its old credit.
+  const oidcCredits=callback.status==='COVERED'
+    ? verifyOidcCallbackCredit(manifest) : verifyOidcCallbackHold(manifest);
+  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(manifest)/2)+oidcCredits;
   const checkoutCredits = verifyCheckoutCredit(manifest);
   const readinessCredits=verifyWorkspaceReadinessCredit(manifest);
   const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==="PATCH").status==="COVERED" ? verifyFilingPatchCredit(manifest) : 0;

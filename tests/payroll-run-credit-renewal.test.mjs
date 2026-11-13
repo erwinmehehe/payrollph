@@ -3,6 +3,7 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
+import {isReviewedHeldSsoSecondPassInput} from '../scripts/qa/payroll-run-sso-source-reproof.mjs';
 import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
 import {verifyFreshPayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal-fresh-contract.mjs';
 import {load} from 'js-yaml';
@@ -46,8 +47,18 @@ test('nine fresh source-matched PG16 cohorts renew exactly nineteen methods',()=
 });
 
 test('each sealed fresh input set equals the full locked-compiler import closure',()=>{
-  for(const cohort of Object.values(receipt().cohorts))
-    assert.deepEqual(collectRenewalInputs(cohort.roots,undefined,undefined,true),cohort.sourcePins);
+  for(const [name,cohort] of Object.entries(receipt().cohorts)){
+    const actual=collectRenewalInputs(cohort.roots,undefined,undefined,true);
+    for(const [file,expected] of Object.entries(cohort.sourcePins)){
+      if(actual[file]===expected)continue;
+      // Only two exact, reviewed default-OFF SSO probe changes may borrow
+      // the earlier source pin after a current-source fictional PG16 reproof.
+      assert.equal(isReviewedHeldSsoSecondPassInput(name,file,expected),true,
+        'Unreviewed execution input or import drift: '+name+': '+file);
+      actual[file]=expected;
+    }
+    assert.deepEqual(actual,cohort.sourcePins,'No unreviewed input may join or leave the executed closure');
+  }
 });
 
 test('fast source guards verify the complete sealed graph without loading TypeScript',()=>{

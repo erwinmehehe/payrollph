@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
-import { reviewedWorker360LegalEmployerSupersession } from "./tenant-counts.mjs";
+import { reviewedWorker360LegalEmployerSupersession,reviewedOidcSourceSupersession } from "./tenant-counts.mjs";
 import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const PUBLIC = [
@@ -175,6 +175,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
   const pending = pendingSignupProofForSource(assert, read);
   const before = rows(beforeManifest), after = rows(afterManifest);
   const retiredWorkerCredit = reviewedWorker360LegalEmployerSupersession(beforeManifest, afterManifest);
+  const retiredOidcCredit = reviewedOidcSourceSupersession(beforeManifest, afterManifest);
   const oracleHolds = verifyOracleSourceHolds(afterManifest, beforeManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
@@ -190,7 +191,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
       if (current.method.status === old.method.status || current.method.status === "COVERED") continue;
       // This exact source-sealed retirement is not an owner classification or
       // a new credit; all other downgrades still fail the existing check.
-      if (!target && retiredWorkerCredit.has(key)) continue;
+      if (!target && (retiredWorkerCredit.has(key)||retiredOidcCredit.has(key))) continue;
       assert.equal(old.method.status, "GAP", "Unapproved status downgrade: " + key);
     }
     assert.ok(target, "No unrelated GAP may disappear: " + key);
