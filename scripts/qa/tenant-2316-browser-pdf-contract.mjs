@@ -24,7 +24,8 @@ export function requireDisposableBrowserPdf(env = process.env) {
   requireDisposable2316Env(env);
   assert.equal(env.TENANT_2316_BROWSER_PDF_PROOF, "fictional-pg16-only",
     "2316 browser/PDF runner is restricted to the dedicated fictional PG16 job");
-  assert.equal(env.NEXT_TELEMETRY_DISABLED, "1");
+  assert.equal(env.NEXT_TELEMETRY_DISABLED, "1",
+    "2316 browser/PDF runner requires NEXT_TELEMETRY_DISABLED=1");
   for (const key of [
     "DATABASE_URL_REPLICA", "NEON_DATABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
     "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY", "STRIPE_SECRET_KEY",
