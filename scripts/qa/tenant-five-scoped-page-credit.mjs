@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
-import { verifyWorker360PageCredit } from "./tenant-five-method-credit-verify.mjs";
+import { verifyWorker360PageCredit, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -256,6 +256,10 @@ function main() {
       "Immutable Worker360 GET/SSR receipt failed source validation");
     assert.equal(verifyWorker360PageCredit(original), 16,
       "Immutable Worker360 source verifier must retain its historical 16-gap view");
+    const legacy = verifyFiveMethodCredits(original);
+    assert.equal(legacy.status, "PASS", "Three historical API credit receipts must remain valid");
+    assert.equal(legacy.methodsCredited, 3, "No historical method credit may be lost");
+    assert.equal(legacy.pageActionGaps, 16, "Historical receipt page boundary must remain unchanged");
     console.log(JSON.stringify({
       check: "immutable-worker360-with-five-new-pages",
       originalHistoricGapCount: 16, currentPageGapCount: 11,
