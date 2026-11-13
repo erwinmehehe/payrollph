@@ -28,7 +28,7 @@ import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-cre
 import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
-import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -858,27 +858,19 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const checkoutCredits = verifyCheckoutCredit(m);
   assert.equal(expectedStatuses[CHECKOUT_PATH].POST, 'GAP');
   expectedStatuses[CHECKOUT_PATH].POST = 'COVERED';
-  // The Worker 360 GET was formerly credited only for parent-organization
-  // isolation. Its source now adds legal-employer checks, so that historical
-  // method receipt may not certify the new route until exact-head PG16 proof.
+  // Worker 360 GET is in the frozen source ledger. Revised legal-employer
+  // source has now regained exactly its original method credit via new PG16
+  // real-HTTP evidence, without inheriting the older parent-employer proof.
   const worker360Path = "src/app/api/hcm/worker-360/route.ts";
-  assert.equal(expectedStatuses[worker360Path].GET, "COVERED",
-    "Frozen main snapshot must preserve the previously credited GET");
+  assert.equal(expectedStatuses[worker360Path].GET, "COVERED");
   const worker360File = m.allApiRouteFiles[worker360Path];
   const worker360Get = worker360File.methods.find(entry => entry.name === "GET");
   assert.equal(worker360File.gitBlobSha, "19875021d750b722fc69e0fe939e57928a158af9");
   assert.equal(blobSha(worker360Path), worker360File.gitBlobSha);
-  assert.equal(worker360Get.status, "GAP");
-  assert.equal(worker360Get.testedBy, null);
-  assert.equal(worker360Get.reviewedUncertified?.kind,
-    "worker360-legal-employer-source-supersession-zero-credit");
-  assert.equal(worker360Get.reviewedUncertified?.oldSourceBlobSha,
-    "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
-  assert.equal(worker360Get.reviewedUncertified?.historicalProof?.file,
-    "scripts/qa/tenant-table-http.mjs");
-  assert.equal(worker360Get.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(worker360Get.reviewedUncertified?.independentSecurityReview, "PENDING");
-  expectedStatuses[worker360Path].GET = "GAP";
+  assert.equal(worker360Get.status, "COVERED");
+  assert.equal(worker360Get.reviewedUncertified, undefined);
+  assert.equal(worker360Get.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(worker360Get.testedBy?.independentlyAccepted, false);
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited receipts and newer exports credit, with only source-pinned Worker 360 demoted");
   const expectedCounts = {
@@ -887,9 +879,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     GAP: snapshot.counts.GAP - compliancePostCredits.length - creditedYearEndPromotions.length - issuedPromotions.length - payoutCredits - recovery.methodsCredited - resendCredits - subscriptionsCredits - staffingGetCredits - effectiveChangeCredits - reviewReleaseCredits - mweDecisionCredits - accountPasswordCredits - authLogoutCredits - receiptCredits - rootCredits - payoutReconciliationCredits - exportsPostCredits - payrollRunActionsCredits - emailCredits - careersPatchCredits - billingCredits - posDemandCredits - transfersCredits - birCandidateCredits - yearEndCredits - spendManagedCredits - migrationCredits - mergedRecoveryCredits - securityCredits - enterpriseCredits - accountEmailRequestCredits - invitationAcceptCredits - 1,
   };
   expectedCounts.COVERED += studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
-  expectedCounts.COVERED -= 1; // Revised Worker 360 source invalidates old organization-only GET credit.
   expectedCounts.GAP -= studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits;
-  expectedCounts.GAP += 1; // No worker 360 legal-employer method acceptance is claimed.
   expectedCounts.GAP -= ownerClassifications.length;
   expectedCounts["PUBLIC-BY-DESIGN"] += ownerClassifications.length;
   expectedCounts.GAP -= ownerTokenClassifications.length;
@@ -908,11 +898,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   const yearEndHeldMethods = 2 - yearEndCredits;
-  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits - 1;
+  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
   const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
-    - architecturePublic.length - 1 + 1; // Revoke historical Worker 360 GET credit.
+    - architecturePublic.length - 1; // New GET proof restores the frozen credit.
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
   assert.equal(frozenGaps, m.metrics.gap, "The classification may not hide other remaining method GAPs");
@@ -1339,32 +1329,20 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.ok([0, architecturePublic.length].includes(baselineArchPublic) && baselineArchPublic === architecturePublic.length * baselineArchToken,
       "The nine architecture classifications are present on origin/main entirely or not at all");
     const baselineArch = baselineArchPublic + baselineArchToken;
-    // Merged #1933 superseded Worker 360's old organization-only proof.
-    // Accept only its precisely pinned GAP downgrade on main, with zero new
-    // credits. Do not silently treat changed legal-employer reads as COVERED.
-    const mainWorker360File = baseline.allApiRouteFiles[worker360Path];
-    const mainWorker360Get = mainWorker360File?.methods.find(row => row.name === "GET");
-    let mainWorker360Supersession = 0;
-    if (mainWorker360Get?.status === "GAP") {
-      assert.equal(mainWorker360File.gitBlobSha,
-        "19875021d750b722fc69e0fe939e57928a158af9");
-      assert.equal(mainWorker360Get.testedBy, null);
-      const hold = mainWorker360Get.reviewedUncertified;
-      assert.equal(hold?.kind, "worker360-legal-employer-source-supersession-zero-credit");
-      assert.equal(hold?.oldSourceBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
-      assert.equal(hold?.newSourceBlobSha, mainWorker360File.gitBlobSha);
-      assert.equal(hold?.coverageCredits, 0);
-      assert.equal(hold?.independentSecurityReview, "PENDING");
-      assert.equal(hold?.productionCertified, false);
-      expectedOriginalMain[worker360Path].GET = "GAP";
-      mainWorker360Supersession = 1;
-    } else {
-      assert.equal(mainWorker360Get?.status, "COVERED",
-        "Historical receipt or exact zero-credit supersession required");
-      assert.equal(mainWorker360File.gitBlobSha, "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62",
-        "An unreviewed Worker 360 source cannot inherit the original GET credit");
-      assert.equal(mainWorker360Get.testedBy?.file, "scripts/qa/tenant-table-http.mjs",
-        "Historical credit must retain its actual own/victim proof source");
+    // The PR's new Worker 360 credit cannot retroactively credit main's
+    // independently source-sealed #1933 withdrawal. Verify main's own files.
+    const mainWorkerPath='src/app/api/hcm/worker-360/route.ts';
+    const mainWorkerFile=baseline.allApiRouteFiles[mainWorkerPath];
+    const mainWorkerGet=mainWorkerFile.methods.find(x=>x.name==='GET');
+    const mainWorkerDemotion=mainWorkerGet.status==='GAP'?1:0;
+    if(mainWorkerDemotion){
+      assert.equal(verifyWorker360PageCredit(baseline,p=>execFileSync('git',['show','origin/main:'+p],{maxBuffer:16*1024*1024})),17);
+      assert.equal(mainWorkerFile.gitBlobSha,'19875021d750b722fc69e0fe939e57928a158af9');
+      assert.equal(mainWorkerGet.testedBy,null);
+      assert.equal(mainWorkerGet.reviewedUncertified?.kind,'worker360-legal-employer-source-supersession-zero-credit');
+      assert.equal(mainWorkerGet.reviewedUncertified?.oldSourceBlobSha,'78874e3800c9648b2e9e8895a4c0f1b2db9e2e62');
+      assert.equal(mainWorkerGet.reviewedUncertified?.coverageCredits,0);
+      expectedOriginalMain[mainWorkerPath].GET='GAP';
     }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
@@ -1376,13 +1354,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baseline.metrics.privilegedOperationsTokenOnly ?? 0,
       GAP: baseline.metrics.gap,
     }, {
-      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorker360Supersession + compliancePostCredits.length +
+      COVERED: baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
-      GAP: snapshot.counts.GAP + mainWorker360Supersession - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
+      GAP: snapshot.counts.GAP + mainWorkerDemotion - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
         (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,

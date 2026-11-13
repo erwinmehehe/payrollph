@@ -190,6 +190,28 @@ export async function proveWorker360EntityIsolation() {
       a.cookie,404,[a.marker,secondaryMarker]);
     await deny("A duplicate worker ID",url(a.org.id,a.worker.id,{
       duplicateWorker:worker2.id}),a.cookie,400,[secondaryMarker]);
+    // Foreign records must be refused even if the caller supplies an otherwise
+    // legitimate own employer and an apparently valid legal-employer grant.
+    // Neither surface accepts an employee or legal-employer ID in a path segment:
+    // both identifiers are exclusively query parameters on these static routes.
+    await deny("A victim worker forged inside own employer GET",
+      url(a.org.id,victim.worker.id,{entity:a.entity.id}),
+      a.cookie,404,[victim.marker]);
+    await deny("A victim worker forged inside own employer SSR",
+      url(a.org.id,victim.worker.id,{page:true,entity:a.entity.id}),
+      a.cookie,404,[victim.marker]);
+    await deny("B victim worker forged inside own employer GET",
+      url(b.org.id,victim.worker.id,{entity:b.entity.id}),
+      b.cookie,404,[victim.marker]);
+    await deny("A foreign victim legal employer forged query",
+      url(a.org.id,a.worker.id,{entity:victim.entity.id}),
+      a.cookie,404,[a.marker,victim.marker]);
+    await deny("A foreign victim legal employer forged SSR query",
+      url(a.org.id,a.worker.id,{page:true,entity:victim.entity.id}),
+      a.cookie,404,[a.marker,victim.marker]);
+    await deny("A foreign victim legal employer forged header",
+      url(a.org.id,a.worker.id),a.cookie,404,
+      [a.marker,victim.marker],victim.entity.id);
     await deny("A foreign victim org",url(victim.org.id,victim.worker.id),
       a.cookie,403,[victim.marker]);
     await deny("B foreign A org",url(a.org.id,a.worker.id),
@@ -223,7 +245,7 @@ export async function proveWorker360EntityIsolation() {
       eq(s.userLegalEntityGrants.legalEntityId,entity2.id)));
     await deny("all grants revoked",
       url(a.org.id,worker2.id,{entity:entity2.id}),a.cookie,404,[secondaryMarker]);
-    assert.equal(ownApi,5);assert.equal(ownPages,5);assert.equal(denials,15);
+    assert.equal(ownApi,5);assert.equal(ownPages,5);assert.equal(denials,21);
     console.log(JSON.stringify({
       family:"WORKER360_LEGAL_EMPLOYER_HISTORY",
       evidence:"real-authenticated-localhost-next-and-fictional-PG16",
