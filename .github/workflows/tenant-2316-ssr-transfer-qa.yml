@@ -1,0 +1,114 @@
+name: Tenant Form 2316 SSR Transfer and Revocation (Fictional PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/workspace/2316/page.tsx"
+      - "src/lib/multi-entity-server.ts"
+      - "src/lib/bir-2316-employer.ts"
+      - "scripts/qa/tenant-2316-ssr-transfer-*.mjs"
+      - "tests/tenant-2316-ssr-transfer.test.mjs"
+      - "docs/qa/tenant-2316-ssr-transfer.md"
+      - ".github/workflows/tenant-2316-ssr-transfer-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  form2316-ssr-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_2316_SSR_TRANSFER_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: "true"
+      BIR_2316_CERTIFICATE_DRAFT_ENABLED: "true"
+      BIR_2316_RECONCILIATION_ENABLED: "true"
+      BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: "true"
+      MULTI_ENTITY_ENABLED: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact proposed head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Strict synthetic environment, source and negative tests
+        run: |
+          node --check scripts/qa/tenant-2316-ssr-transfer-contract.mjs
+          node --check scripts/qa/tenant-2316-ssr-transfer-http.mjs
+          node --test tests/tenant-2316-ssr-transfer.test.mjs
+          node --import tsx --test tests/tenant-2316-legal-employer-worker.test.ts
+      - name: Generate disposable encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PG16 application schema
+        run: npm run db:push
+      - name: Apply reviewed fictional isolation baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build synthetic feature-ON Next app
+        run: npm run build
+      - name: Start localhost-only application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-2316-ssr-transfer.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-prior-worker-ssr.log
+          exit 1
+      - name: Prove actual 2316 same-parent isolation and transfer/revocation with fictional PG16
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-2316-ssr-transfer-http.mjs
+      - name: Bounded server log on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-prior-worker-ssr.log || true
