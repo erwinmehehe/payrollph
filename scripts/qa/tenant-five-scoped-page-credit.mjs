@@ -7,6 +7,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
+import { verifyWorker360PageCredit } from "./tenant-five-method-credit-verify.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -242,9 +244,26 @@ export function verifyFivePageCredits(m, read = readFileSync) {
 }
 
 function main() {
-  assert.ok(process.argv.length === 3 && ["--write","--check"].includes(process.argv[2]),
+  assert.ok(process.argv.length === 3 &&
+    ["--write", "--check", "--verify-historical-worker360"].includes(process.argv[2]),
     "FIVE_PAGE_CREDIT_REFUSED: --write or --check required");
   const raw = readFileSync(MANIFEST, "utf8");
+  if (process.argv[2] === "--verify-historical-worker360") {
+    const m = JSON.parse(raw);
+    assert.equal(verifyFivePageCredits(m), 5, "Five new page proofs must be independently pinned");
+    const original = historicWorker360ProofView(m);
+    assert.equal(verifyWorker360LegalEmployerCredits(original), 2,
+      "Immutable Worker360 GET/SSR receipt failed source validation");
+    assert.equal(verifyWorker360PageCredit(original), 16,
+      "Immutable Worker360 source verifier must retain its historical 16-gap view");
+    console.log(JSON.stringify({
+      check: "immutable-worker360-with-five-new-pages",
+      originalHistoricGapCount: 16, currentPageGapCount: 11,
+      newPageCredits: 5, apiMethodCredits: 0,
+      evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY", productionCertified: false,
+    }));
+    return;
+  }
   const updated = expectedFivePageCreditManifest(JSON.parse(raw));
   const generated = JSON.stringify(updated, null, 2) + "\n";
   if (process.argv[2] === "--write") writeFileSync(MANIFEST, generated);
