@@ -1,3 +1,4 @@
+import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
@@ -699,6 +700,9 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   }
 
   // Finance-path tenant boundary hardening: 4 GAP methods receive NO credit.
+  if(key===XENDIT_POST_PATH+' POST'&&method.status==='COVERED'){
+    assert.equal(verifyXenditPostCredit(manifest),1);return;
+  }
   // The real localhost test covers exact IDs and safe read/denial paths, but
   // intentionally never submits a payroll, pays an employee or signs a pilot.
   const payrollPathReview = {
@@ -4773,6 +4777,7 @@ test("all credited proof links point to the claimed route and every recertified 
       }
       if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
+      if(path===XENDIT_POST_PATH&&method.name==='POST'){assert.equal(verifyXenditPostCredit(manifest),1);continue;}
       if (SECURITY_TARGETS.some(t=>t.path===path&&t.method===method.name)) {assert.equal(verifySecurityCredits(manifest),3);continue;}
       if (RECOVERY_TARGETS.some(t => t.path === path && t.method === method.name)) {
         assert.equal(verifyRecoveryCredits(manifest), 3);
@@ -9016,7 +9021,8 @@ test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) require
   }
   // xendit-payout POST must remain GAP: the harness proves it only as refusals (no provider, rail OFF).
   const xenditPost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/xendit-payout/route.ts"].methods.find(entry => entry.name === "POST");
-  assert.equal(xenditPost.status, "GAP", "xendit-payout POST must not borrow this credit");
+  if(xenditPost.status==='COVERED')assert.equal(verifyXenditPostCredit(manifest),1);
+  else assert.equal(xenditPost.status, "GAP", "xendit-payout POST must not borrow this credit");
   // The credited routes must keep the authorization gates the proof exercises, and never take an identity from the request body.
   const pilotSource = readFileSync(targets[0][0], "utf8");
   const pilotPost = pilotSource.slice(pilotSource.indexOf("export async function POST("));
