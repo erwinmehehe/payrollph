@@ -153,6 +153,10 @@ jobs:
           WORKFORCE_BI_HTTP_ACCEPTANCE_MODE: isolated-ci-only
         run: npx tsx scripts/security-http-smoke.ts
 
+      - name: Remove stale credits only in the disposable proof workspace
+        env:
+          TENANT_SSO_REPROOF_MANIFEST: zero-credit-fictional-only
+        run: node scripts/qa/payroll-run-sso-proof-fixture.mjs
       - name: Real-HTTP second-pass tenant isolation (victim + two attacker organizations)
         env:
           CI: "true"
