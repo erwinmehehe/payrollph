@@ -6,7 +6,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { gitBlobSha, requireDisposable2316Env, verify2316Sources } from "./tenant-2316-ssr-transfer-contract.mjs";
 
-export const ORIGIN = "http://127.0.0.1:3000";
+// Literal localhost allows Chromium to retain production-style __Host- Secure cookies
+// over an isolated HTTP test server. The environment gate still pins 127.0.0.1.
+export const ORIGIN = "http://localhost:3000";
 export const PAGE = "/workspace/2316";
 export const API = "/api/year-end/2316-certificate";
 export const CURRENT_SOURCE = Object.freeze({
