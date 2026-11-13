@@ -140,13 +140,13 @@ export function verifyWorker360PageCredit(
   }
   if (row.status === "COVERED" &&
       row.testedBy?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY") {
-    assert.equal(gaps, 16, "Only this Worker 360 page may regain one source-pinned credit");
+    assert.equal(gaps, 11, "Worker 360 remains credited alongside exactly five new source-current scoped-page credits");
     assert.equal(verifyWorker360LegalEmployerCredits(manifest, read), 2,
       "GET and SSR page require their distinct current-source PG16 proof anchors");
     return gaps;
   }
   assert.equal(row.status, "COVERED", "No unreviewed alternate page classification");
-  assert.equal(gaps, 16, "Only the exact Worker 360 page GAP may close");
+  assert.equal(gaps, 11, "Only the five separately re-proved page credits may reduce the Worker 360 baseline");
   const pageSha = "337034f839c17a30077e2cfe5991c640e0c6a5e9";
   const proofSha = "7a342f1499399f0209a98e845ca3fe21b8db39b3";
   const proofFile = "scripts/qa/tenant-hcm-worker360-http.mjs";
