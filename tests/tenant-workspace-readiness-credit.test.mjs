@@ -40,7 +40,8 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
+    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
@@ -110,3 +111,5 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
 import { oracleWithdrawalDelta } from './helpers/tenant-counts.mjs';
 import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

@@ -6,6 +6,7 @@ import { canonicalAppOrigin } from "@/lib/security-request";
 import { encryptEnterpriseSecret } from "@/lib/enterprise-secret";
 import { oidcPkceChallenge } from "@/lib/oidc";
 import { randomToken, sha256 } from "@/lib/crypto";
+import { ssoDiscoveryEmail } from "@/lib/tenant-sso-discovery";
 import {
   OIDC_BROWSER_STATE_COOKIE, OIDC_BROWSER_STATE_PATH,
   OIDC_BROWSER_STATE_MAX_AGE_SECONDS,
@@ -18,11 +19,18 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();
   const url = new URL(request.url);
-  const providerId = Number(url.searchParams.get("providerId"));
-  const loginHint = String(url.searchParams.get("loginHint") ?? "").trim().toLowerCase();
-  if (!Number.isInteger(providerId) || !loginHint.includes("@")) {
+  // Do not let duplicate query keys or Number() coercion choose one employer
+  // while the user/browser supplied conflicting provider or login selectors.
+  const providerValues = url.searchParams.getAll("providerId");
+  const hintValues = url.searchParams.getAll("loginHint");
+  const providerValue = providerValues.length === 1 ? providerValues[0] : "";
+  const providerId = /^[1-9]\d*$/.test(providerValue)
+    && Number.isSafeInteger(Number(providerValue)) ? Number(providerValue) : null;
+  const loginIdentity = hintValues.length === 1 ? ssoDiscoveryEmail(hintValues[0]) : null;
+  if (!providerId || !loginIdentity) {
     return Response.json({ error: "A valid SSO provider and work email are required." }, { status: 400 });
   }
+  const loginHint = loginIdentity.email;
 
   const [provider] = await db.select().from(identityProviders).where(and(
     eq(identityProviders.id, providerId),
@@ -34,7 +42,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "OIDC provider configuration is incomplete." }, { status: 409 });
   }
 
-  const domain = loginHint.split("@").pop() ?? "";
+  const domain = loginIdentity.domain;
   const [verifiedDomain] = await db.select({ id: identityDomains.id }).from(identityDomains).where(and(
     eq(identityDomains.providerId, provider.id),
     eq(identityDomains.organizationId, provider.organizationId),

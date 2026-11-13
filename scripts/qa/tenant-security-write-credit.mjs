@@ -48,7 +48,8 @@ export function readSecurityEvidence(read=readFileSync){
         assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Original security-write receipt source seal changed');
         verifyNarrowStudioAutomationSource(read);
       } catch(cause){throw new Error('Security source/proof drift: '+file,{cause});}
-    } else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
+    } else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(file),sha,read);
+    else assert.equal(blob(read(file)),sha,'Security source/proof drift: '+file);
   }
   for(const t of r.targets){assert.equal(t.evidence.routeBlobSha,r.pins[t.path]);assert.equal(t.evidence.proofBlobSha,r.pins[t.evidence.file]);
     assert.equal(t.evidence.sourceHead,r.sourceHead);assert.equal(t.evidence.runLabel,r.runLabel);
@@ -99,3 +100,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     }console.log(JSON.stringify({credited:3,before:{covered:before.coveredAfter,gap:before.gap},after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap}}));
   }
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

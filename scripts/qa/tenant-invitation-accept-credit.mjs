@@ -217,7 +217,9 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(worker360.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
         assert.equal(worker360.testedBy.independentlyAccepted, false);
       }
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions].sort(),
+      const oidcPromotions = promoted.filter(key => key === 'GET ' + OIDC_CALLBACK);
+      if (oidcPromotions.length) assert.equal(verifyOidcCallbackCredit(m), 1);
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
@@ -233,3 +235,5 @@ export function verifyInvitationAcceptCredits(m) {
   }
   return 2;
 }
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from './tenant-oidc-full-credit.mjs';
