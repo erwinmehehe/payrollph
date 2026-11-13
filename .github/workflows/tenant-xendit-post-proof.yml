@@ -1,0 +1,166 @@
+name: Xendit payout POST full tenant proof (synthetic PG16 only)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/payroll-runs/**"
+      - "src/lib/xendit-*.ts"
+      - "src/lib/payroll-payout*.ts"
+      - "src/lib/payroll-run-membership.ts"
+      - "src/lib/treasury-controls.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/access.ts"
+      - "src/lib/security-request.ts"
+      - "src/db/**"
+      - "scripts/qa/tenant-xendit-post-*.mjs"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "tests/tenant-xendit-post-*.test.mjs"
+      - ".github/workflows/tenant-xendit-post-proof.yml"
+      - "package-lock.json"
+permissions:
+  contents: read
+concurrency:
+  group: xendit-post-tenant-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  four-operation-pg16:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: https://payroll.example.test
+      TRUSTED_APP_ORIGINS: https://payroll.example.test
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      PAYROLL_PAYOUT_PROVIDER: paymongo
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      PAYMONGO_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      TENANT_XENDIT_POST_PROOF: fictional-loopback-pg16-only
+      TENANT_XENDIT_PROFILE_APPROVAL: synthetic-only-user-approved
+      XENDIT_TENANT_LOOPBACK_ORIGIN: http://127.0.0.1:3013
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed proof source
+        run: test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify guards before database or provider setup
+        run: |
+          node --test tests/tenant-xendit-post-proof-target.test.mjs tests/tenant-xendit-post-proof-contract.test.mjs
+          node --check scripts/qa/tenant-xendit-post-proof-http.mjs
+          node --check scripts/qa/tenant-xendit-post-proof-seed.mjs
+      - name: Generate ephemeral encryption keys
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply only the reviewed isolated baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Seed fixture identities with every payout flag OFF
+        env:
+          TENANT_XENDIT_SEED: empty-fictional-pg16-only
+        run: node --import tsx scripts/qa/tenant-xendit-post-proof-seed.mjs
+      - name: Build once with payout submission OFF
+        run: npm run build
+      - name: Start three strictly scoped synthetic servers and one provider-OFF server
+        shell: bash
+        run: |
+          set -euo pipefail
+          source qa-artifacts/xendit-post-identities.env
+          export NODE_ENV=production
+          export XENDIT_PAYOUT_SECRET_KEY=xnd_synthetic_loopback_no_network
+          export XENDIT_PAYOUT_CALLBACK_TOKEN=fictional-xendit-callback-no-network
+          export XENDIT_PAYOUT_BUSINESS_ID=biz_fictional_tenant_proof
+          for index in 0 1 2 3; do
+            org_var="XENDIT_PROOF_ORG_$((index == 3 ? 0 : index))"
+            entity_var="XENDIT_PROOF_ENTITY_$((index == 3 ? 0 : index))"
+            export XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID="${!org_var}"
+            export XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID="${!entity_var}"
+            port=$((3000 + index))
+            export SECURITY_SMOKE_URL="http://127.0.0.1:$port"
+            if [ "$index" = 3 ]; then
+              export TENANT_XENDIT_PROFILE=blocked PAYROLL_PAYOUT_PROVIDER=paymongo
+              export XENDIT_PAYOUTS_ENABLED=false XENDIT_PAYOUTS_LIVE_APPROVED=false
+            else
+              # User approved ONLY these disposable, loopback-guarded test profiles.
+              # This is not independent live approval and changes no deployed flag.
+              export TENANT_XENDIT_PROFILE=enabled PAYROLL_PAYOUT_PROVIDER=xendit
+              export XENDIT_PAYOUTS_ENABLED=true XENDIT_PAYOUTS_LIVE_APPROVED=true
+            fi
+            node --import ./scripts/qa/tenant-xendit-post-proof-preload.mjs node_modules/next/dist/bin/next start -H 127.0.0.1 -p "$port" > "/tmp/xendit-proof-$port.log" 2>&1 &
+          done
+          for port in 3000 3001 3002 3003; do
+            ready=false
+            for attempt in $(seq 1 90); do
+              if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 2
+            done
+            if [ "$ready" != true ]; then tail -n 50 "/tmp/xendit-proof-$port.log"; exit 1; fi
+          done
+      - name: Execute every payout operation, genuine victim refusals and unchanged SQL over real HTTP
+        shell: bash
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          source qa-artifacts/xendit-post-identities.env
+          export TENANT_XENDIT_PROFILE=enabled PAYROLL_PAYOUT_PROVIDER=xendit
+          export XENDIT_PAYOUTS_ENABLED=true XENDIT_PAYOUTS_LIVE_APPROVED=true
+          export XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID="$XENDIT_PROOF_ORG_0"
+          export XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID="$XENDIT_PROOF_ENTITY_0"
+          export XENDIT_PAYOUT_SECRET_KEY=xnd_synthetic_loopback_no_network
+          export XENDIT_PAYOUT_CALLBACK_TOKEN=fictional-xendit-callback-no-network
+          export XENDIT_PAYOUT_BUSINESS_ID=biz_fictional_tenant_proof
+          node --import tsx scripts/qa/tenant-xendit-post-proof-http.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: xendit-post-proof-${{ github.event.pull_request.head.sha }}
+          path: qa-artifacts/xendit-post-result.json
+          if-no-files-found: error
+      - name: Bounded localhost diagnostics
+        if: failure()
+        run: |
+          for port in 3000 3001 3002 3003; do
+            if [ -f "/tmp/xendit-proof-$port.log" ]; then tail -n 40 "/tmp/xendit-proof-$port.log"; fi
+          done
