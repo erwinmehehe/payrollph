@@ -201,11 +201,11 @@ export async function proveHrEmployeeDocumentsBrowser() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await context.route("**/*", route =>
       new URL(route.request().url()).origin === ORIGIN ? route.continue() : route.abort());
-    const raw = a.cookie.split("=");
-    await context.addCookies([{
-      name: raw[0], value: raw.slice(1).join("="), url: ORIGIN,
-      secure: true, sameSite: "Lax", httpOnly: true,
-    }]);
+    // Chromium refuses to set a secure __Host- cookie against loopback HTTP.
+    // Exercise the genuine signed fixture session on this localhost-only
+    // test context; separate login/browser proofs cover cookie policy.
+    assert.ok(a.cookie.startsWith("__Host-linaw_session="));
+    await context.setExtraHTTPHeaders({ Cookie: a.cookie });
     const account = await context.request.get(ORIGIN + "/api/account");
     assert.equal(account.status(), 200);
     assert.equal((await account.json()).profile?.id, a.owner.id);
