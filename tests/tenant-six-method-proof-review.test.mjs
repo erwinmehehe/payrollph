@@ -488,7 +488,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       }
       assert.equal(held?.status, "COVERED", label + " needs distinct current-source #1804 proof");
       assert.equal(held?.testedBy?.proofPullRequest, 1804);
-      assert.equal(held?.testedBy?.workflowRunId, 43178709246);
+      assert.equal(held?.testedBy?.workflowRunId, 43372002300);
       assert.equal(held?.testedBy?.independentlyAccepted, false);
       assert.equal(held?.reviewedUncertified, undefined);
       assert.equal(blobSha(pin.path), "f040f5bbbc3df275d32d23f1728b1b0345f77814");

@@ -16,7 +16,7 @@ const PINNED = {
   [READ]: "0b778aea9d1e66f508a54f3c63cf43a2342f9e55",
   [WRITE]: "c9db7e9f1b0f7035836b4f599e82c51384a0f127",
   "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
-  "src/lib/year-end.ts": "a2bafdb9d961e888cacf7353c2094a661df4484e",
+  "src/lib/year-end.ts": "b2b52a7913be85eb70c507d26e730fc366852237",
   "src/lib/payroll-engine.ts": "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
 };
 const source = path => readFileSync(path, "utf8");
@@ -45,9 +45,9 @@ test("source-pinned current year-end GET+POST proof receives only provisional #1
     "Only source-matched #1804 real-HTTP evidence allows provisional method credit");
   assert.equal(verifyYearEndCredits(manifest), 2);
   for (const method of entry.methods) {
-    assert.equal(method.testedBy?.verifiedPrHeadSha, "d4317f4d71a5ac88874e3e48c273d9d9af9b91e8");
+    assert.equal(method.testedBy?.verifiedPrHeadSha, "ba70678f30e24436dcaac853e0b047adbbe3f96a");
     assert.equal(method.testedBy?.proofPullRequest, 1804);
-    assert.equal(method.testedBy?.workflowRunId, 43178709246);
+    assert.equal(method.testedBy?.workflowRunId, 43372002300);
     assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
     assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
     assert.equal(method.testedBy?.independentlyAccepted, false);
