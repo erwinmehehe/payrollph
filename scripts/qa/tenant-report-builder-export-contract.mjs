@@ -81,15 +81,20 @@ export function assertOwnCsv(response, actor, victim) {
   assert.match(response.headers.get("content-type") ?? "", /^text\/csv/);
   assert.match(response.headers.get("cache-control") ?? "", /no-store/);
   assert.match(response.headers.get("content-disposition") ?? "", /attachment/);
-  assert.ok(response.text.length > 25 && response.text.includes("department,headcount"),
+  // The production serializer quotes EVERY CSV cell, including the header.
+  // Match its exact shape, plus a populated distinct employer unit row.
+  assert.ok(response.text.startsWith('"department","headcount"\n') &&
+    response.text.length > '"department","headcount"\n'.length,
     "A successful but empty/fake CSV header is not an export");
-  assert.ok(response.text.includes(actor.unit.code), "Export must include real own department");
+  assert.ok(response.text.includes('"' + actor.unit.code + '"'),
+    "Export must include real own department");
   assertNoVictimMaterial(response, victim, "own CSV");
 }
 export function assertDeniedExport(response, victim, context, allowed = [401, 403, 404]) {
   assert.ok(allowed.includes(response.status), context + ": unexpected HTTP " + response.status);
   assertNoVictimMaterial(response, victim, context);
-  assert.ok(!response.text.includes("department,headcount"),
+  assert.ok(!response.text.includes('"department","headcount"') &&
+    !response.text.includes("department,headcount"),
     context + ": denial cannot contain CSV source columns");
   assert.ok(!response.json?.rows && !response.json?.columns,
     context + ": denial cannot include report facts");

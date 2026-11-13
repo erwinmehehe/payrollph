@@ -69,12 +69,12 @@ test("only populated own-tenant JSON and real CSV bytes can count as positives",
     response(200, JSON.stringify({ source: "people", columns: ["department", "headcount"],
       rows: [["OWN-DEPT", "2"], [victim.marker, "1"]] }), "application/json"),
   ]) assert.throws(() => assertOwnPreview(bad, actor, victim));
-  assertOwnCsv(response(200, "department,headcount\nOWN-DEPT,2\n",
+  assertOwnCsv(response(200, '"department","headcount"\n"OWN-DEPT","2"\n',
     "text/csv; charset=utf-8", { "content-disposition": "attachment; filename=report.csv" }), actor, victim);
   for (const bad of [
-    response(200, "department,headcount\n", "text/csv",
+    response(200, '"department","headcount"\n', "text/csv",
       { "content-disposition": "attachment" }),
-    response(200, "department,headcount\n" + victim.marker, "text/csv",
+    response(200, '"department","headcount"\n' + victim.marker, "text/csv",
       { "content-disposition": "attachment" }),
     response(200, "<html>OWN-DEPT</html>", "text/html",
       { "content-disposition": "attachment" }),
