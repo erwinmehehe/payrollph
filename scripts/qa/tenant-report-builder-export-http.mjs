@@ -143,6 +143,14 @@ export async function proveReportBuilderExports() {
         assertDeniedExport(denied, victim, "invalid identifier " + String(malformed), [400]);
         badRequests++;
       }
+      for (const malformedOrganizationId of [
+        String(actor.org.id), "01", "1e0", "+1", " 1", "1 ", true, [], {}, undefined,
+      ]) {
+        const denied = await http(path, actor.cookie, payload(malformedOrganizationId));
+        assertDeniedExport(denied, victim,
+          "noncanonical or nonnumeric POST employer " + String(malformedOrganizationId), [400]);
+        badRequests++;
+      }
       for (const input of [
         payload(actor.org.id, "xml"),
         payload(actor.org.id, "json", { dataset: "payroll", fields: ["payrollCost"] }),

@@ -17,8 +17,9 @@ membership**, company-wide People/payroll role and deny-only custom permission
 overlay before mounting the client report controls. It then displays the
 persisted, authorized employer name so a real own-page positive is distinguishable
 from a generic shell. Direct foreign, revoked, unit-only, duplicate and malformed
-selectors return a not-found page. The API retains its independent gate and
-report-data/legal-entity preflight.
+selectors return a not-found page. The API independently rejects duplicate, blank and noncanonical employer selectors
+on GET and refuses coerced string/boolean/object POST employer IDs; the
+existing report-data/legal-entity preflight remains in force.
 
 ## Disposable proof only
 
@@ -47,8 +48,11 @@ calculation, pay run, transfer or protected database.
 
 - [ ] Exact PR-head synthetic PG16 and standard CI pass.
 - [ ] Independent security/privacy owner evaluates own/foreign/revoked HTTP results.
-- [ ] Interactive client/browser controls, API POST/CSV, multi-legal-employer
-      attribution and broader tenant switching require separate evidence.
+- [ ] Real Chromium A→B→A navigation, deliberately delayed authorized response,
+      client preview scope and audited browser CSV must pass on the final source;
+      full SPA router transitions and every race timing are not automatically certified.
+- [ ] API POST/CSV financial-field, MFA, origin/rate limits and multi-legal-employer
+      historical attribution need their own complete review (see #1968).
 - [ ] No page/method credit until a later source-pinned, reviewer-approved
       authorization and action acceptance decision.
 

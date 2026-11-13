@@ -126,6 +126,28 @@ export async function verifyReportBuilderPageTenantIsolation() {
       const duplicate = await readLocal(pagePath(actor.org.id) +
         "&organizationId=" + actor.org.id, actor.cookie);
       assert.equal(duplicate.status, 404, "Duplicated employer selector must be rejected");
+      // The direct GET API must reject duplicated, malformed, noncanonical or
+      // missing selectors even if the browser/page itself handles them correctly.
+      for (const selector of [
+        "", "0", "-1", "01", "1e0", "+1", " 1", "1 ", "bad",
+        "9007199254740992",
+      ]) {
+        const malformedApi = await readLocal(
+          "/api/reports/builder?organizationId=" + encodeURIComponent(selector), actor.cookie);
+        assertDeniedReportCapabilities(malformedApi, 400, victim,
+          actor.label + " malformed direct GET " + JSON.stringify(selector));
+      }
+      const missingApi = await readLocal("/api/reports/builder?", actor.cookie);
+      assertDeniedReportCapabilities(missingApi, 400, victim,
+        actor.label + " missing employer direct GET");
+      for (const duplicateQuery of [
+        "organizationId=" + actor.org.id + "&organizationId=" + actor.org.id,
+        "organizationId=" + actor.org.id + "&organizationId=" + victim.org.id,
+      ]) {
+        const duplicateApi = await readLocal("/api/reports/builder?" + duplicateQuery, actor.cookie);
+        assertDeniedReportCapabilities(duplicateApi, 400, victim,
+          actor.label + " duplicate employer direct GET");
+      }
 
       for (const employer of trio) {
         assertReadOnlyReportSnapshot(before.get(employer.org.id),
