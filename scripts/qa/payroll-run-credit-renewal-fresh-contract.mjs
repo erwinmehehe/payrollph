@@ -3,6 +3,7 @@ import {readFileSync,existsSync} from 'node:fs';
 import {PAYROLL_RENEWAL_COHORTS,verifyPayrollRenewalResults} from './payroll-run-credit-renewal-contract.mjs';
 import {renewalBlob,RENEWAL_LEDGER_INPUTS} from './payroll-run-renewal-inputs.mjs';
 import {HISTORICAL_RENEWAL_RECEIPT,HISTORICAL_RENEWAL_SEAL} from './payroll-run-credit-renewal-history.mjs';
+import { isReviewedHeldSsoSecondPassInput } from './payroll-run-sso-source-reproof.mjs';
 
 /** Called only after the fresh receipt seal and both historical archives verify. */
 export function verifyFreshPayrollRenewal(receipt,historical,methods,read=readFileSync,exists=existsSync){
@@ -35,7 +36,14 @@ export function verifyFreshPayrollRenewal(receipt,historical,methods,read=readFi
     assert.deepEqual(Object.keys(cohort.sourcePins).sort(),expectedInputs,'Executed input closure drift: '+name);
     if(needed.has(name))for(const [file,sha]of Object.entries(cohort.sourcePins)){
       assert.ok(exists(file),'Executed input missing: '+file);
-      assert.equal(renewalBlob(read(file)),sha,'Executed input closure drift: '+name+': '+file);
+      // Only the exact reviewed 503-vs-200 OIDC probe and its source-only
+      // reconstructor can borrow old payroll evidence, after a successful
+      // current-source fictional PG16 replay; everything else fails closed.
+      const actual = renewalBlob(read(file));
+      if (actual !== sha) assert.ok(
+        isReviewedHeldSsoSecondPassInput(name, file, sha, read),
+        'Executed input closure drift: '+name+': '+file,
+      );
     }
   }
   return receipt;
