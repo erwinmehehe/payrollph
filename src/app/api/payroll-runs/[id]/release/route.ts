@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const sharedDemo = isPublicDemoIdentity(user.email);
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   const deniedOrg = await assertOrganizationRole(
     user.id,
@@ -492,3 +492,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     receipt,
   });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

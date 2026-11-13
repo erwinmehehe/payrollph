@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import yaml from 'js-yaml';
+import {assertOracleCallerCompatible} from './payroll-run-oracle-source-compat.mjs';
 import {assertReviewedReadinessHeaderOnInvitationConfig} from './tenant-invitation-header-source-compat.mjs';
 
 export const RENEWAL_FILE='scripts/qa/tenant-studio-dependency-renewal-receipt.json';
@@ -65,6 +66,7 @@ export function readStudioDependencyRenewal(read=readFileSync){
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete transitive source union required');
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else if(p==='scripts/qa/tenant-money-lifecycle-http.mjs'||p==='scripts/qa/tenant-table-rows/read/path-id.mjs') assertOracleCallerCompatible(p,sha,read);
   else assert.equal(blob(read(p)),sha,'Renewed runtime/proof source drift: '+p);
  }
  for(const f of Object.values(r.families))for(const job of f.jobs){

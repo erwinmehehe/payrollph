@@ -118,16 +118,19 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   const processGate = manifest.allApiRouteFiles[
     "src/app/api/payroll-runs/[id]/process/route.ts"
   ]?.methods.find(row => row.name === "POST");
+  if(!isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts","GET")) {
   assert.equal(readiness?.status, "COVERED");
   assert.equal(processGate?.status, "COVERED");
   assert.equal(readiness?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.equal(processGate?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   assert.match(processGate?.reason ?? "", /422.*403/, 
     "Old positive calculation acceptance must not be credited for an unverified rate table");
+  } else assert.ok(isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/process/route.ts","POST"));
   // #1361 adds exactly one *different* method: authorized accounting-close POST.
   // Its proof must not borrow either DL-01 vault method or the payroll-close GET.
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(row => row.name === "POST");
+  if(!isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/close/route.ts","POST")) {
   assert.equal(closePost?.status, "COVERED",
     "The added count requires a real authenticated payroll-close POST own/victim proof");
   assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
@@ -151,6 +154,7 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.match(closeEvidence,
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/,
     "The additional payroll-close proof must run in the real PG16 HTTP harness");
+  }
   assertLiveTenantCounts(assert, manifest);
   assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
   // Worker 360 retired its historical page credit after the legal-employer
@@ -158,3 +162,4 @@ test("DL-01 GET and DELETE credits cannot float without exact three-tenant HTTP 
   assert.equal(manifest.scopedPages.filter(page => page.status === "GAP").length,
     verifyWorker360PageCredit(manifest));
 });
+import { isVerifiedOracleHold } from "../scripts/qa/payroll-run-oracle-hold.mjs";

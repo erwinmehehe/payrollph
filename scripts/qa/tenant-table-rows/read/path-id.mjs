@@ -15,7 +15,7 @@ export function createRows({ assert, db, employeeMweClassifications, payrollRuns
         assert.equal(row.status, "rejected"); assert.equal(row.isMwe, false); assert.equal(row.requestedByUserId, c.owner.id);
         assert.equal(Number(row.employeeDailyWage), 1000 + c.rank);
       } },
-    { key: "GET payroll-runs/[id]/connected-impact", pathIds: { id: "id" }, profile: "flagged-reads", flags: ["PAYROLL_CONNECTED_IMPACT_ENABLED"],
+    { key: "GET payroll-runs/[id]/connected-impact", pathIds: { id: "id" }, deny: 404, profile: "flagged-reads", flags: ["PAYROLL_CONNECTED_IMPACT_ENABLED"],
       seed: async e => {
         const [run] = await db.insert(payrollRuns).values({ organizationId: e.org.id, legalEntityId: null, scopeOrgUnitId: null,
           periodLabel: e.marker, periodStart: "2026-06-01", periodEnd: "2026-06-15", payDate: "2026-06-15", status: "Draft" }).returning();

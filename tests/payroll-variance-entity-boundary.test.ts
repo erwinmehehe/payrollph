@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { varianceRosterMatchesRunEmployer } from "../src/lib/payroll-variance-entity-boundary";
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const base = {
   organizationId: 10, legalEntityId: 101,
@@ -82,8 +83,14 @@ test("disposable HTTPS proof is wired into the original multi-entity acceptance 
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const route = "src/app/api/payroll-runs/[id]/variance/route.ts";
   const proof = manifest.allApiRouteFiles[route]?.methods.find((method: { name: string }) => method.name === "GET");
-  assert.equal(proof?.status, "COVERED", "Retain prior independent own/foreign high-risk proof, not a new method credit");
-  assert.equal(proof?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  if (proof?.status === "GAP") {
+    assert.ok(verifyOracleSourceHolds(manifest).has("GET " + route), "only the exact reviewed oracle source withdrawal may hold this credit");
+    assert.equal(proof.testedBy, null);
+    assert.equal(proof.reviewedUncertified.priorProof.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  } else {
+    assert.equal(proof?.status, "COVERED", "retain separately source-proven prior credit");
+    assert.equal(proof?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+  }
   assertLiveTenantCounts(assert, manifest);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.match(browser, /import \{ verifyPayrollVarianceEmployerIsolation \} from "\.\/qa\/payroll-variance-entity-http\.mjs"/);
@@ -103,7 +110,8 @@ test("disposable HTTPS proof is wired into the original multi-entity acceptance 
     /const actors = \[/,
     /for \(const actor of actors\)/,
     /assert\.equal\(own\.status, 200/,
-    /assert\.equal\(victim\.status, 403/,
+    /assert\.equal\(victim\.status, 404/,
+    /assert\.equal\(other\.status, 404/,
     /assert\.equal\(wrongSelection\.status, 403/,
     /assert\.equal\(wrongPrior\.status, 409/,
     /assert\.equal\(moved\.status, 409/,

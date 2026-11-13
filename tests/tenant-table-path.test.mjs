@@ -6,6 +6,7 @@ import { bindTenantPath, validateTenantPathBinding, selectTenantPathRows } from 
 import { bindTenantReadRequests, validateTenantRow } from "../scripts/qa/tenant-table-loader.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 import { createRows } from "../scripts/qa/tenant-table-rows/read/path-id.mjs";
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const definition = { key: "GET employees/[id]/mwe-classifications", pathIds: { id: "employeeId" } };
 const ctx = { seeded: { employeeId: 11 }, victimSeeded: { employeeId: 91 } };
@@ -54,7 +55,8 @@ test("new GET proofs bind nonempty exact worker/classification and run/finding i
 test("path-only credit dry-run selects no unrelated pending methods and never edits the ledger", () => {
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", before = readFileSync(file, "utf8"), manifest = JSON.parse(before);
   const methods = [...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].filter(row => row.pathIds);
-  const expected = methods.filter(row => { const [verb, route] = row.key.split(" "); return manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb).status === "GAP"; }).length;
+  const held=verifyOracleSourceHolds(manifest);
+  const expected = methods.filter(row => { const [verb, route] = row.key.split(" "),path="src/app/api/"+route+"/route.ts"; return !held.has(verb+" "+path)&&manifest.allApiRouteFiles[path].methods.find(method => method.name === verb).status === "GAP"; }).length;
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--only-path-ids", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, expected); assert.equal(readFileSync(file, "utf8"), before);
 });

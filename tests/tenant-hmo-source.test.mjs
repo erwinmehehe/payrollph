@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { verifyDocumentCallerReproof } from "../scripts/qa/tenant-document-caller-reproof-verify.mjs";
+import { originalOracleCallerSource } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 
 const suite = readFileSync("scripts/qa/tenant-hmo-http.mjs", "utf8");
 const route = readFileSync("src/app/api/benefits/hmo/route.ts", "utf8");
@@ -120,9 +121,10 @@ test("HMO POST credit is pinned to the executed source, real victim denials and 
       "foreign document download and absent ID must have the same generic response");
     assert.deepEqual(deniedInline.json, missingDocument.json,
       "foreign inline document and absent ID must have the same generic response");`;
-  assert.equal(runner.split(newDocumentAssertions).length, 2,
+  const historicalRunner = originalOracleCallerSource("scripts/qa/tenant-second-pass-http.mjs");
+  assert.equal(historicalRunner.split(newDocumentAssertions).length, 2,
     "The revised private-document HTTP checks must occur exactly once");
-  assert.equal(gitBlobSha(runner.replace(newDocumentAssertions, oldDocumentAssertions)),
+  assert.equal(gitBlobSha(historicalRunner.replace(newDocumentAssertions, oldDocumentAssertions)),
     proof.runnerBlobSha,
     "Any shared-runner change outside the exact document-ID checks requires new executed HMO acceptance");
   // This separate executed PG16 receipt reran the full HMO actions against

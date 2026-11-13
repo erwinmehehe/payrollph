@@ -460,7 +460,7 @@ async function verifyCrossTenant(f) {
     expectStatus(await request("/api/payroll-runs?organizationId=" + victim.id, { cookie: attackerCookie }), 403,
       "Attacker " + idx + " must not list victim payroll runs");
     expectStatus(await request("/api/payroll-runs?organizationId=" + attacker.id +
-      "&runId=" + f.victimRun.id + "&include=entries", { cookie: attackerCookie }), 403,
+      "&runId=" + f.victimRun.id + "&include=entries", { cookie: attackerCookie }), 404,
       "Attacker " + idx + " must not read a victim-only run register through a forged employer ID");
 
     // F-04 exact-head HTTP proof: positive non-empty own history must return
@@ -479,7 +479,7 @@ async function verifyCrossTenant(f) {
       expectStatus(await request(
         "/api/payroll-runs?organizationId=" + attacker.id + "&runId=" +
           f.victimRun.id + "&include=history",
-        { cookie: attackerCookie }), 403, "Attacker " + idx + " denied victim-only F-04 history");
+        { cookie: attackerCookie }), 404, "Attacker " + idx + " denied victim-only F-04 history");
     }
 
     // Every additional GET requires a real own row, plus a foreign-org denial.
@@ -1088,10 +1088,10 @@ async function verifyNewMainRouteIsolation(f) {
     const cookie = f.ownerSessions[idx].cookie;
     const ownAssurance = expectStatus(await request("/api/payroll-runs/" + f.ownRuns[idx].id + "/assurance", { cookie }), 200, "Own assurance is readable");
     assert.equal(ownAssurance.json?.organizationId, org.id);
-    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/assurance", { cookie }), 403, "Real victim assurance denied");
+    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/assurance", { cookie }), 404, "Real victim assurance denied");
     const ownChecklist = expectStatus(await request("/api/payroll-runs/" + f.ownRuns[idx].id + "/release-checklist", { cookie }), 200, "Own release checklist is readable");
     assert.equal(ownChecklist.json?.runId, f.ownRuns[idx].id);
-    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/release-checklist", { cookie }), 403, "Real victim checklist denied");
+    expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/release-checklist", { cookie }), 404, "Real victim checklist denied");
 
     const [ess] = await db.insert(users).values({ email: "case-qa-" + randomUUID() + "@example.invalid", name: "Fictional case employee", passwordHash: "fixture-no-login", role: "employee", employeeId: f.ownedEmployees[idx - 1].id }).returning();
     await db.insert(userOrganizations).values({ userId: ess.id, organizationId: org.id, role: "employee", active: true });
@@ -1374,7 +1374,7 @@ async function verifyPayoutStatusTenantRead(f) {
     assert.equal(ownPayout.json?.organizationId, ownOrg.id, "Payout GET must echo owned employer");
     assert.equal(ownPayout.json?.runId, run.id, "Payout GET must echo owned payroll run");
     assert.ok(ownPayout.json?.reconciliation, "Nonempty authoritative own payout state required");
-    const foreignPayout = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation?view=payout", { cookie: session }), 403,
+    const foreignPayout = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation?view=payout", { cookie: session }), 404,
       "Actual victim-only payroll payout state must not be available to another owner");
     assert.ok(!foreignPayout.text.includes("VICTIM-ONLY"), "Victim payroll evidence must not leak");
     // Owned POST reaches the provider-disabled 501 boundary; victim POST is
@@ -1386,7 +1386,7 @@ async function verifyPayoutStatusTenantRead(f) {
     assert.match(ownDisabledPayoutPost.text, /credentials are not configured/i);
     expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/payout-reconciliation", {
       cookie: session, method: "POST", body: { action: "reconcile" },
-    }), 403, "Payout reconciliation POST for a victim-only run must be forbidden");
+    }), 404, "Payout reconciliation POST for a victim-only run must be forbidden");
   }
   const victimAfter = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
@@ -1446,7 +1446,7 @@ async function verifyPreRunReadinessTenantRead(f) {
     assert.equal(ownPreRun.json?.legalEntityId, f.entities[idx].id, "Own pre-run must bind the run's legal employer");
     assert.ok(ownPreRun.json?.findings?.some(row => row.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"),
       "Owned response must contain real rule-watch findings, not a fake empty 200");
-    const foreignPreRun = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/pre-run-readiness", { cookie }), 403,
+    const foreignPreRun = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/pre-run-readiness", { cookie }), 404,
       "Real victim-only pre-run readiness denied to a different signed-in employer");
     assert.ok(!foreignPreRun.text.includes("VictimExclusive"), "No victim employee readiness evidence may leak");
     // Create & process must fail before it inserts any draft, not only when
@@ -1483,7 +1483,7 @@ async function verifyPreRunReadinessTenantRead(f) {
       row.code === "PRERUN_STATUTORY_VERIFICATION_UNRECORDED"));
     const foreignBlockedProcess = expectStatus(await request("/api/payroll-runs/" + f.victimRun.id + "/process", {
       method: "POST", cookie, body: {},
-    }), 403, "Other employer's calculation must be rejected BEFORE the pre-run gate");
+    }), 404, "Other employer's calculation must be rejected BEFORE the pre-run gate");
     const ownedAfter = await db.select().from(payrollRuns).where(eq(payrollRuns.id, draft.id));
     assert.deepEqual(ownedAfter, ownedBefore, "Rejected owned calculation must not claim a run or supersede approval");
   }

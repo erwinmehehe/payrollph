@@ -39,8 +39,7 @@ export async function GET(request: Request) {
   // Job-status and register lookups are resource-addressed, so they are checked
   // against the run's own organization rather than trusting the query string.
   if (runId > 0) {
-    const [target] = await db.select({ organizationId: payrollRuns.organizationId, scopeOrgUnitId: payrollRuns.scopeOrgUnitId, legalEntityId: payrollRuns.legalEntityId })
-      .from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+    const target = await findPayrollRunForMember(sessionUser.id, runId);
     if (!target) return Response.json({ error: "Payroll run not found" }, { status: 404 });
     const deniedJob = await assertOrganizationRole(
       sessionUser.id,
@@ -498,3 +497,4 @@ export async function POST(request: Request) {
   }, { status: 201 });
 }
 
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";
