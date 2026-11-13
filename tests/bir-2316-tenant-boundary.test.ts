@@ -1,5 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
-import { isVerifiedOracleHold } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 /**
  * Regression controls for the offboarding BIR 2316 and unsigned certificate
  * source/PDF paths. Source/pure-policy tests are not HTTP acceptance:
@@ -160,7 +160,7 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   // plus #1361's *distinct* real HTTP accounting-close POST. No other GAP is waived.
   const closePost = inventory.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find((method: { name: string }) => method.name === "POST");
-  if (!isVerifiedOracleHold(inventory, "src/app/api/payroll-runs/[id]/close/route.ts", "POST")) {
+  if (!isVerifiedOracleSupersession(inventory, "src/app/api/payroll-runs/[id]/close/route.ts", "POST")) {
     assert.equal(closePost?.status, "COVERED",
       "Accounting-close POST requires separate own-success and foreign-victim proof");
     assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");

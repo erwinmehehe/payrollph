@@ -1,5 +1,6 @@
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
-import { oracleWithdrawalDelta } from './helpers/tenant-counts.mjs';
+import { oracleWithdrawalDelta,oracleRenewalDelta } from './helpers/tenant-counts.mjs';
+import {isVerifiedOracleRenewal} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -90,8 +91,9 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
+    const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
     const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
-    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -108,6 +110,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["GET", "readiness/workspace"],
   ]) {
     const path='src/app/api/'+route+'/route.ts';
+    if(isVerifiedOracleRenewal(m,path,verb))continue;
     if(verifyOracleSourceHolds(m).has(verb+' '+path)){
       const held=m.allApiRouteFiles[path].methods.find(x=>x.name===verb);
       assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;

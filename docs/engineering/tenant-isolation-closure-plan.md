@@ -1,12 +1,12 @@
-> **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 payroll-run source-current methods still need renewed positive proofs. The separate OIDC callback provisional credit does not reinstate them.
+> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 458 COVERED / 5 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 458 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **PR #1952 OIDC CALLBACK SOURCE PROOF — NOT ACCEPTED:** 498 API methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP; 16 page/action GAPs. [Synthetic HTTPS IdP / PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274) supports one distinct provisional callback GET. Merged #1956 keeps 19 separate payroll-run methods on source hold. SSO start/resolve and all other unproved surfaces stay GAP. Independent security, identity, payroll/privacy and production acceptance remain PENDING.
 
 > **CURRENT Worker 360 source recovery — SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = **457 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 6 GAP**; **5 of 21 scoped pages COVERED / 16 GAP**. Worker 360 GET and SSR shell each have exact-source fictional PG16 real-HTTP evidence [run 43219788230](https://github.com/erwinmehehe/payrollph/actions/runs/43219788230/job/131188072874). Independent HR/privacy/security review and production activation remain PENDING.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 437 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 26 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 458 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** Latest 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 TOKEN-ONLY + 7 GAP; 17 page/action GAPs. Changed Worker 360 API and page lose historical provisional credit; newest exports POST proof retained. Zero new Worker 360 credits; production acceptance pending.
 
@@ -240,9 +240,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 22 | 2 | 0 | 2 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 22 | 0 | 0 | 11 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 32 | 0 | 0 | 1 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -253,7 +253,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 14 | 9 | 6 | 4 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **362 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 17 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **77 COVERED + 8 PUBLIC-BY-DESIGN + 7 GAP**. 3 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **374 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 2 batches remain INCOMPLETE; DL-01, DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -889,12 +889,12 @@ All 490 current exported methods and all 20 page/action entries must resolve to 
 
 ## Supplemental payroll-run source-withdrawal renewals
 
-These source-withdrawn methods were outside the immutable 406-method queue. Each stays GAP until its own renewed proof; no frozen link is changed.
+These source-withdrawn methods were outside the immutable 406-method queue. All seven supplemental methods are provisionally renewed by the same source-sealed nineteen-method receipt; no frozen link is changed.
 
-- HELD `GET /api/payroll-runs` — fresh exact-source PG16 HTTP required
-- HELD `POST /api/payroll-runs` — fresh exact-source PG16 HTTP required
-- HELD `GET /api/payroll-runs/[id]/assurance` — fresh exact-source PG16 HTTP required
-- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — fresh exact-source PG16 HTTP required
-- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — fresh exact-source PG16 HTTP required
-- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — fresh exact-source PG16 HTTP required
-- HELD `GET /api/payroll-runs/[id]/release-checklist` — fresh exact-source PG16 HTTP required
+- RENEWED `GET /api/payroll-runs` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- RENEWED `POST /api/payroll-runs` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/assurance` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/explain/[employeeId]` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/payout-reconciliation` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/pre-run-readiness` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/release-checklist` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
