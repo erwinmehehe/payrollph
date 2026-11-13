@@ -1,0 +1,116 @@
+name: OIDC SSO default-off pilot boundary (fictional PG16 HTTP)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/tenant-oidc-runtime-hold.yml'
+      - 'src/app/api/auth/sso/**'
+      - 'src/lib/oidc-sso-runtime.ts'
+      - 'src/lib/critical-release-flags.ts'
+      - 'tests/oidc-sso-runtime*'
+      - 'scripts/qa/tenant-oidc-runtime-hold-http.mjs'
+      - 'scripts/qa/tenant-isolation-coverage-manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oidc-held-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  held-oidc-http:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OIDC_SSO_RUNTIME_MODE: 'blocked'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      OPENAI_API_KEY: ''
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      WORKER_TOKEN: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out proof head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Set fictional loopback-only environment
+        run: |
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          # The shared fixture exports a fake worker token for other workflows.
+          # This OIDC hold must prove refusal with NO worker credential at all.
+          echo 'WORKER_TOKEN=' >> "$GITHUB_ENV"
+      - name: Verify default-OFF policy, source ordering and actual-handler isolation
+        run: |
+          node --check tests/oidc-sso-runtime-off-contract.test.mjs
+          node --test tests/oidc-sso-runtime-off-contract.test.mjs
+          node --import tsx --test tests/oidc-sso-runtime.test.ts
+          node --check scripts/qa/tenant-oidc-runtime-hold-http.mjs
+      - name: Create ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Push fresh disposable PG16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Typecheck and build production-mode Next on fictional flags
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- --hostname 127.0.0.1 --port 3000 > /tmp/oidc-held-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 50 /tmp/oidc-held-next.log || true
+          exit 1
+      - name: Prove all routes refuse without cookie, identity or payroll SQL writes
+        run: node --import tsx scripts/qa/tenant-oidc-runtime-hold-http.mjs
+      - name: Restricted synthetic diagnostics on failure
+        if: failure()
+        run: tail -n 50 /tmp/oidc-held-next.log || true

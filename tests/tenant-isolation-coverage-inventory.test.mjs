@@ -3814,7 +3814,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   if (isNewOrChanged && key === "src/app/api/auth/sso/resolve/route.ts POST") {
     const routePath = "src/app/api/auth/sso/resolve/route.ts";
     const originalRouteBlobSha = "ecf9eb2ff759a4b39300abea5193356038aaad71";
-    const routeBlobSha = "740e3dbb4325a55f5556ea14e04b6ec1f3c99137";
+    const routeBlobSha = "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299";
     assert.equal(baseline.api[routePath], originalRouteBlobSha,
       "SSO discovery baseline was redefined");
     assert.equal(currentBlob, routeBlobSha,
@@ -3837,7 +3837,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       unitTestFile: "tests/tenant-sso-discovery.test.ts",
       unitTestBlobSha: "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
       workflowFile: ".github/workflows/tenant-sso-discovery-http.yml",
-      workflowBlobSha: "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
+      workflowBlobSha: "d917ba748c8deba27bdeaff766504d92a986c1a0",
       coverageCredits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
     }, "SSO review remains zero-credit and exact-source-pinned");
@@ -3878,73 +3878,46 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const workflow = readFileSync(reviewed.workflowFile, "utf8");
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /node --import tsx scripts\/qa\/tenant-sso-discovery-http\.mjs/);
+    assert.match(workflow, /OIDC_SSO_RUNTIME_MODE: 'enabled'/);
+    const disabledGate = route.indexOf("if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();");
+    assert.ok(disabledGate > 0 && disabledGate < route.indexOf("enforceSameOriginMutation(request)"),
+      "Default-off SSO guard must precede provider discovery and caller parsing");
     return true; // explicit unaccepted GAP; NOT blanket reclassification
   }
 
-  // OIDC login-CSRF hardening is a two-route, exact-source, ZERO-CREDIT
-  // review. An initiating-browser cookie probe cannot certify complete SSO
-  // account linking or satisfy the two-owned-login whole-method standard.
-  // Keep BOTH methods GAP until full IdP success and tenant checks are proven.
+  // Exact-source first-pilot SSO default-off composition: preserve #1952's
+  // employer-scoped identity binding while withholding the prior callback
+  // provisional credit until this changed source receives fresh enabled proof.
   if (isNewOrChanged && [
     "src/app/api/auth/sso/start/route.ts GET",
     "src/app/api/auth/sso/callback/route.ts GET",
   ].includes(key)) {
     const routePath = key.slice(0, key.lastIndexOf(" "));
-    const seals = {
+    const expected = {
       "src/app/api/auth/sso/start/route.ts": {
-        before: "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
-        after: "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
+        previous: "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
+        current: "b87bf8eee223ac57c6a76535731ba64e492b03aa",
       },
       "src/app/api/auth/sso/callback/route.ts": {
-        before: "b18ac853e93155478474d02466617298d6773275",
-        after: "a27d855a81751498cc907134e8e9dde7400c9f58",
+        previous: "a27d855a81751498cc907134e8e9dde7400c9f58",
+        current: "9cb02f681ae8128c8b9c661b057c5591891bdc9e",
       },
-    };
-    const seal = seals[routePath];
-    assert.ok(seal, "Unrecognized OIDC route is not exempt from GAP review");
-    assert.equal(currentBlob, seal.after,
-      "OIDC browser binding changed: renewed identity security review required");
-    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, seal.after);
-    assert.equal(method.status, "GAP", "Browser binding is not complete SSO login coverage");
-    assert.equal(method.testedBy, null, "No unproven OIDC method credit");
-    assert.deepEqual(method.reviewedUncertified, {
-      kind: "oidc-initiating-browser-state-binding-zero-credit",
-      originalRouteBlobSha: seal.before,
-      routeBlobSha: seal.after,
-      cookieHelperFile: "src/lib/oidc-browser-state.ts",
-      cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
-      contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-      contractBlobSha: "80d8278c439251d068584a946e9ef186b654275d",
-      proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-      proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-      unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
-      unitTestBlobSha: "f82c666418c4f0dd5f9f369146ad1748b9f542e6",
-      negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
-      negativeTestBlobSha: "b89879de534005a17f4164df51eb1dca647fbb33",
-      workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
-      workflowBlobSha: "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
-      credits: 0, exactHeadPg16Http: "PENDING",
-      independentSecurityReview: "PENDING", productionCertified: false,
-      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
-        linkedIdentityBoundary: {
-          kind: "existing-oidc-provider-subject-must-match-provider-employer",
-          sourceSha: seal.after,
-          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
-          accepted: false, credits: 0, productionCertified: false,
-        },
-      } : {
-        selectorBoundary: {
-          kind: "canonical-singular-provider-and-verified-email",
-          sourceSha: seal.after,
-          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
-        },
-      }),
-    }, "OIDC cookie review must preserve all source pins and zero-credit gates");
+    }[routePath];
+    assert.ok(expected, "Only the two exact OIDC entrypoints may use this hold");
+    assert.equal(currentBlob, expected.current, "SSO runtime changed; renew actual proof");
+    assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, expected.current);
+    assert.equal(method.status, "GAP", "Changed OIDC source cannot borrow an old credit");
+    assert.equal(method.testedBy, null, "Old callback IdP receipt must not be credited");
     const review = method.reviewedUncertified;
+    assert.equal(review?.kind, "oidc-initiating-browser-state-binding-zero-credit");
+    assert.equal(review.originalRouteBlobSha, expected.previous);
+    assert.equal(review.routeBlobSha, expected.current);
+    assert.equal(review.credits, 0);
+    assert.equal(review.exactHeadPg16Http, "PENDING");
+    assert.equal(review.independentSecurityReview, "PENDING");
+    assert.equal(review.productionCertified, false);
+    assert.equal(review.contractBlobSha, "bcc897476b4737942077023015c4654ce81705cc");
+    assert.equal(review.workflowBlobSha, "f02241ffc3e16cf79c9ef67d1cc35c3681501194");
     for (const [file, sha] of [
       [review.cookieHelperFile, review.cookieHelperBlobSha],
       [review.contractFile, review.contractBlobSha],
@@ -3953,30 +3926,30 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       [review.negativeTestFile, review.negativeTestBlobSha],
       [review.workflowFile, review.workflowBlobSha],
     ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
-      "OIDC review source drift: " + file);
+      "Uncredited SSO source/contract/proof drift: " + file);
     const start = readFileSync("src/app/api/auth/sso/start/route.ts", "utf8");
     const callback = readFileSync("src/app/api/auth/sso/callback/route.ts", "utf8");
     const workflow = readFileSync(review.workflowFile, "utf8");
-    assert.ok(start.indexOf("await db.insert(oidcLoginStates)") >= 0 &&
-      start.indexOf("await db.insert(oidcLoginStates)") <
-        start.indexOf("response.cookies.set(OIDC_BROWSER_STATE_COOKIE"),
-      "OIDC state must be durably stored before returning browser cookie");
-    for (const marker of [
-      'httpOnly: true', 'sameSite: "lax"',
-      'secure: process.env.NODE_ENV === "production"',
-      "path: OIDC_BROWSER_STATE_PATH",
-    ]) assert.ok(start.includes(marker), "Missing browser-cookie policy: " + marker);
-    const match = callback.indexOf("if (!oidcBrowserStateMatches(state");
-    const dbRead = callback.indexOf("db.select().from(oidcLoginStates)");
-    const claim = callback.indexOf("db.update(oidcLoginStates)");
-    assert.ok(match > 0 && match < dbRead && dbRead < claim,
-      "Refuse a foreign browser before even reading or consuming login state");
-    assert.match(callback, /browserCookies\.set\(OIDC_BROWSER_STATE_COOKIE, "",/);
     assert.match(workflow, /image: postgres:16/);
-    assert.match(workflow,
-      /for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY ENTERPRISE_IDENTITY_ENCRYPTION_KEY; do/);
-    assert.match(workflow, /node --import tsx scripts\/qa\/tenant-oidc-browser-state-http\.mjs/);
-    return true; // Source-repaired GAP, NOT whole-method COVERED.
+    assert.match(workflow, /OIDC_SSO_RUNTIME_MODE: 'enabled'/);
+    for (const body of [start, callback]) {
+      const gate = body.indexOf("if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();");
+      assert.ok(gate > 0 && gate < body.indexOf("new URL(request.url)"),
+        "Default-off pilot gate must execute before any caller input or DB read");
+    }
+    assert.ok(start.includes("ssoDiscoveryEmail("), "Canonical email selector is retained");
+    assert.ok(callback.includes("persistVerifiedOidcIdentity("),
+      "Merged #1952 employer-scoped identity linking must not be removed");
+    if (routePath.endsWith("/callback/route.ts")) {
+      assert.equal(review.linkedIdentityBoundary?.sourceSha, expected.current);
+      assert.equal(review.linkedIdentityBoundary?.priorCreditedRouteBlobSha, expected.previous);
+      assert.equal(review.linkedIdentityBoundary?.priorProofSuperseded, true);
+      assert.equal(review.linkedIdentityBoundary?.credits, 0);
+    } else {
+      assert.equal(review.selectorBoundary?.sourceSha, expected.current);
+      assert.equal(review.selectorBoundary?.credits, 0);
+    }
+    return true;
   }
 
   // Deliberately disabled SAML login endpoints must not enumerate provider IDs.

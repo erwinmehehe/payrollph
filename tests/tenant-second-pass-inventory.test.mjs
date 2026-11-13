@@ -62,3 +62,13 @@ test("second-pass CI must not source-control Resend signing secrets", () => {
   assert.match(workflow, /export RESEND_WEBHOOK_SECRET="\$resend_webhook_secret"/,
     "The synthetic signing secret must be supplied to the localhost server only");
 });
+
+test("shared second-pass HTTP probe honors the default-off SSO hold without earning tenant credits", () => {
+  const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
+  const policy = readFileSync("src/lib/oidc-sso-runtime.ts", "utf8");
+  assert.match(runner, /key === "POST auth\/sso\/resolve" && process\.env\.OIDC_SSO_RUNTIME_MODE !== "enabled" \? 503 : 200/,
+    "Default-off SSO must be expected to refuse, not made temporarily available for unrelated payroll tests");
+  assert.match(policy, /OIDC_SSO_RUNTIME_MODE/);
+  assert.match(policy, /enabledValue: "enabled"/);
+  assert.match(policy, /return env\[OIDC_SSO_RUNTIME_POLICY\.env\] === OIDC_SSO_RUNTIME_POLICY\.enabledValue/);
+});

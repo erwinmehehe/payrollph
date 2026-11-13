@@ -25,3 +25,16 @@ test("every runtime, proof, workflow, receipt and caller edit input rejects unre
     assert.throws(() => originalOracleCallerSource(caller, read), undefined, path);
   }
 });
+
+test("disabled SSO and oracle caller edits compose only as the exact reviewed source", () => {
+  const file = "scripts/qa/tenant-second-pass-http.mjs";
+  const source = readFileSync(file, "utf8");
+  assert.ok(source.includes('OIDC_SSO_RUNTIME_MODE !== "enabled" ? 503 : 200'));
+  assert.equal(blob(originalOracleCallerSource(file)), edits.callers[file].historicalBlob);
+  for (const replacement of [
+    'OIDC_SSO_RUNTIME_MODE !== "enabled" ? 404 : 200',
+    'OIDC_SSO_RUNTIME_MODE !== "enabled" ? 503 : 201',
+  ]) assert.throws(() => originalOracleCallerSource(file, (p,...args) => p === file ?
+    source.replace('OIDC_SSO_RUNTIME_MODE !== "enabled" ? 503 : 200', replacement) : readFileSync(p,...args)),
+    /unreviewed oracle caller revision/);
+});

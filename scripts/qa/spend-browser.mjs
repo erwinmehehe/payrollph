@@ -22,6 +22,25 @@ await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const base = "http://127.0.0.1:" + server.address().port;
 const browser = await chromium.launch({ headless: true,
   ...(process.env.QA_CHROMIUM_EXECUTABLE ? { executablePath: process.env.QA_CHROMIUM_EXECUTABLE } : {}) });
+// GitHub-hosted Chromium can transiently fail Page.captureScreenshot after
+// rendering the component, even with all fonts loaded. Do not omit screenshots
+// or accept a viewport-only substitute: retry only this transport error and
+// require the real full-page PNG bytes from the same live browser page.
+async function captureVerifiedFullPage(page, path) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const png = await page.screenshot({ path, fullPage: true });
+      assert.ok(png.length > 100, "Empty component screenshot: " + path);
+      assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a",
+        "Screenshot is not a PNG: " + path);
+      return;
+    } catch (error) {
+      if (!String(error).includes("Unable to capture screenshot") || attempt === 2)
+        throw error;
+      await page.waitForTimeout(250);
+    }
+  }
+}
 const report = { result: "FAIL", sourceSha: process.env.PR_HEAD_SHA ?? "local", widths: [1440,390], checks: [],
   boundary: "Actual ExpensesPanel and application CSS with fictional API responses; component coverage, not authenticated app E2E. Actual route/DB security is tested separately." };
 try {
@@ -63,7 +82,7 @@ try {
       assert.equal(await page.getByText("View scanned receipt", { exact: true }).count(), 0);
     }
     if (mode !== "off") await page.getByRole("region", { name: "Expense claims register" }).evaluate(element => { element.scrollLeft = 0; });
-    await page.screenshot({ path: `qa-artifacts/spend-${mode}-${width}.png`, fullPage: true });
+    await captureVerifiedFullPage(page, `qa-artifacts/spend-${mode}-${width}.png`);
     if (mode !== "off") assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, mode + " page overflow at " + width);
     if (mode === "checker") {
       await page.getByRole("button", { name: "Approve claim 10", exact: true }).click();
@@ -73,7 +92,7 @@ try {
       await retry.waitFor();
       assert.equal(await page.getByText("No claims yet.", { exact: true }).count(), 0,
         "a failed reviewed-claims request must not masquerade as an empty successful response");
-      await page.screenshot({ path: `qa-artifacts/spend-error-${width}.png`, fullPage: true });
+      await captureVerifiedFullPage(page, `qa-artifacts/spend-error-${width}.png`);
       fail = false; empty = true; await retry.click();
       await retry.waitFor({ state: "hidden" });
       const emptyMessage = page.getByText("No claims yet.", { exact: true });
@@ -92,7 +111,7 @@ try {
       });
       assert.equal(emptyTextVisible, true,
         "successful empty-state text must fit inside the visible table scroller without scrolling at " + width);
-      await page.screenshot({ path: `qa-artifacts/spend-empty-${width}.png`, fullPage: true });
+      await captureVerifiedFullPage(page, `qa-artifacts/spend-empty-${width}.png`);
       report.checks.push("Loading, exact approval, receipt-required disabled state, error/retry and empty state at " + width);
     }
     assert.deepEqual(errors, []); report.checks.push(mode + " component controls and layout at " + width);

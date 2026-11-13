@@ -12,9 +12,12 @@ import {
   OIDC_BROWSER_STATE_MAX_AGE_SECONDS,
 } from "@/lib/oidc-browser-state";
 
+import { oidcSsoRuntimeEnabled, oidcSsoDisabledResponse } from "@/lib/oidc-sso-runtime";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();
   const url = new URL(request.url);
   // Do not let duplicate query keys or Number() coercion choose one employer
   // while the user/browser supplied conflicting provider or login selectors.

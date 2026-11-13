@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {oidcFullExecution} from './tenant-oidc-full-credit.mjs';
+import {verifyOidcHistoricalReceipt} from './tenant-oidc-source-supersession.mjs';
 export function assertHistoricalPinnedNetworkPreserved(bytes,expected,read=readFileSync){
  assert.equal(expected,'f263da3898451ee53c7b3d1490241ea8aa46e0c2','Only the exact original network receipt is eligible');
  const source=bytes.toString().replaceAll('\r\n','\n');
@@ -14,5 +14,5 @@ export function assertHistoricalPinnedNetworkPreserved(bytes,expected,read=readF
  assert.equal(blob(source),'bb82ff473655683e28621e6a8745c5ec0d9d9ef5','Network source/proof drift: unreviewed transport edit needs fresh proof');
  const addition='      ...{ autoSelectFamily: false },\n';assert.equal(source.split(addition).length,4);
  assert.equal(blob(source.replaceAll(addition,'')),expected,'Historical security logic changed');
- oidcFullExecution(read);return {newCredits:0,historicalReexecution:false,productionAccepted:false};
+ verifyOidcHistoricalReceipt(read);return {newCredits:0,historicalReexecution:false,productionAccepted:false};
 }

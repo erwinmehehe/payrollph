@@ -48,6 +48,17 @@ export function originalOracleCallerSource(path, read = readFileSync) {
   assert.deepEqual(Object.keys(reviewed.callers).sort(), [...CALLERS].sort());
   const record = reviewed.callers[path];
   let source = textOf(read(path));
+  // Compose the separate default-OFF SSO expectation with the oracle edits.
+  // Both full source hashes and the exact reconstructed intermediate hash are
+  // required. This neither changes an HMO assertion nor renews a payroll credit.
+  if (path === "scripts/qa/tenant-second-pass-http.mjs" &&
+      blob(source) === "1f4c7cf87104d0fdc7d6362310827a7935afeeb1") {
+    const held = '        expectStatus(result, key === "POST auth/sso/resolve" && process.env.OIDC_SSO_RUNTIME_MODE !== "enabled" ? 503 : 200, "Public/auth-status or held SSO endpoint " + key);';
+    const original = '        expectStatus(result, 200, "Intentionally public/auth-status endpoint " + key);';
+    assert.equal(source.split(held).length, 2, "Exactly one reviewed disabled-SSO expectation");
+    source = source.replace(held, original);
+    assert.equal(blob(source), record.currentBlob, "SSO/oracle composition must reconstruct the sealed intermediate caller");
+  }
   // Immutable historical source remains valid without relabeling its execution.
   if (blob(source) === record.historicalBlob) return source;
   assert.equal(blob(source), record.currentBlob, "unreviewed oracle caller revision: " + path);

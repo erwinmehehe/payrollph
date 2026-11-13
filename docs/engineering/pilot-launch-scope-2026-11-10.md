@@ -46,3 +46,15 @@ Not decided here.
 ## What this file is not
 
 It does not accept any GAP, does not move any method to COVERED or PUBLIC-BY-DESIGN, and does not change `scripts/qa/tenant-isolation-coverage-manifest.json`. The excluded methods stay GAP in the ledger.
+
+## Subsequent pilot SSO hold draft — November 12
+
+The review candidate `fix/tenant-oidc-sso-runtime-hold-20261112` adds a typed
+`OIDC_SSO_RUNTIME_MODE` exact-`enabled` runtime gate across SSO start, callback
+and discovery. The first pilot must keep this **unset/OFF**. Unlike the earlier
+workaround of withholding the enterprise identity encryption key, this is a
+server-side route-level hold that also blocks previously configured providers.
+The three methods retain GAP/zero-credit classifications; independently
+accepted enabled-mode security and any production rollout are still pending.
+See `docs/qa/tenant-oidc-sso-runtime-hold-20261112.md`. This does not override
+the Automation Studio scope decision or other pilot release blockers.
