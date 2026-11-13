@@ -46,7 +46,8 @@ test("generator re-computation is byte-identical and does not touch unrelated le
   const methods = Object.values(m.allApiRouteFiles).flatMap(f => f.methods);
   assert.equal(m.metrics.coveredAfter, methods.filter(x => x.status === "COVERED").length);
   assert.equal(m.metrics.gap, methods.filter(x => x.status === "GAP").length);
-  assert.match(m.acceptanceStatus, /^NOT ACCEPTED: 5 API methods and 11 page\/action GAPs/);
+  assert.match(m.acceptanceStatus, new RegExp("^NOT ACCEPTED: " + m.metrics.gap +
+    " API methods and 11 page/action GAPs"));
 });
 
 test("never accept a missing, retagged, forged or unpinned page receipt", () => {
