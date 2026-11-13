@@ -148,7 +148,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
   const treasury = await authorizeTreasuryOperation({
@@ -233,7 +233,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const demoDenied = publicDemoMutationDenied(user.email, "Payroll payout reconciliation");
   if (demoDenied) return demoDenied;
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
   const body = await request.json().catch(() => ({}));
@@ -508,3 +508,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: conflict ? 409 : 502 });
   }
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

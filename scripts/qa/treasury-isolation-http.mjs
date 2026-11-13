@@ -185,9 +185,9 @@ async function journey(v, a) {
   await deny(a, a.checker, `/api/payout-destination-changes/${a.change.id}`, 'PATCH', decide(a.change.id, a.org.id), 409, 'decision replay unchanged');
   const path = id => `/api/payroll-runs/${id}/xendit-payout`;
   status(await request(path(a.source.id), a.checker.cookie), 200, 'own treasury payout status');
-  await deny(v, a.checker, path(v.source.id), 'GET', undefined, 403, 'foreign payout status');
+  await deny(v, a.checker, path(v.source.id), 'GET', undefined, 404, 'foreign payout status');
   for (const action of ['preflight', 'submit', 'reconcile', 'resolve-unknown']) {
-    await deny(v, a.checker, path(v.source.id), 'POST', { action, confirm: true }, 403, 'foreign payout ' + action);
+    await deny(v, a.checker, path(v.source.id), 'POST', { action, confirm: true }, 404, 'foreign payout ' + action);
     await deny(a, a.checker, path(a.source.id), 'POST', { action, confirm: true }, 409, 'own provider-disabled payout ' + action);
   }
   await deny(a, a.employeeUser, '/api/payout-profiles', 'PATCH', {

@@ -25,6 +25,7 @@ on:
       - "src/lib/xendit-payroll-operations.ts"
       - "src/lib/xendit-payout-ledger.ts"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "tests/payroll-run-payout-lock.test.ts"
       - "tests/paymongo-bank-file-http-race.test.ts"
       - "tests/paymongo-disbursements.test.ts"

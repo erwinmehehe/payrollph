@@ -253,10 +253,10 @@ async function lifecycle(v, a) {
     { organizationId: a.org.id, payrollRunId: null, title: "Legacy linked approval", detail: `Payroll run #${a.run.id} · legacy`, approver: a.checker.user.name, dueLabel: "Synthetic" },
   ]).returning();
   await pool.query("UPDATE user_organizations SET active=false WHERE user_id=$1 AND organization_id=$2", [a.maker.user.id, a.org.id]);
-  await deny(a, a.maker, `/api/payroll-runs/${a.run.id}/process`, "POST", {}, 403, "revoked membership cannot process with an existing session");
+  await deny(a, a.maker, `/api/payroll-runs/${a.run.id}/process`, "POST", {}, 404, "revoked membership cannot process with an existing session");
   await pool.query("UPDATE user_organizations SET active=true WHERE user_id=$1 AND organization_id=$2", [a.maker.user.id, a.org.id]);
   for (const suffix of ["process", "submit-review", "release"]) {
-    await deny(v, a.maker, `/api/payroll-runs/${v.run.id}/${suffix}`, "POST", { ...forged, organizationId: a.org.id, approverUserId: a.checker.user.id }, 403, "foreign run " + suffix);
+    await deny(v, a.maker, `/api/payroll-runs/${v.run.id}/${suffix}`, "POST", { ...forged, organizationId: a.org.id, approverUserId: a.checker.user.id }, 404, "foreign run " + suffix);
   }
   await deny(v, a.checker, `/api/approvals/${v.task.id}`, "PATCH", { status: "Approved", organizationId: a.org.id }, 404, "foreign payroll approval with forged own organization");
   status(await request(`/api/payroll-runs/${a.run.id}/process`, a.employeeUser.cookie, "POST", {}), 403, "employee cannot calculate");

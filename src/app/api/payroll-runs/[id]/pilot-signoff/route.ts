@@ -96,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const demoDenied = publicDemoMutationDenied(user.email, "Production payroll pilot sign-off");
   if (demoDenied) return demoDenied;
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
   const denied = await assertOrganizationRole(
@@ -353,3 +353,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     verifiedFigures,
   });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

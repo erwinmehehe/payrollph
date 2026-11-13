@@ -51,6 +51,7 @@ export function readStudioPostReceipt(read=readFileSync){
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete current runtime/fixture/proof input union required');
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else if(p==='scripts/qa/tenant-money-lifecycle-http.mjs'||p==='scripts/qa/tenant-table-rows/read/path-id.mjs') assertOracleCallerCompatible(p,sha,read);
   else assert.equal(blob(read(p)),sha,'Studio executed source drift: '+p);
  }
  for(const j of Object.values(r.cohort)){
@@ -97,8 +98,13 @@ function reconcileDocs(m,write){
  const banner=prefix+m.metrics.methods+' methods = '+m.metrics.coveredAfter+' COVERED + '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+m.metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+m.metrics.gap+' GAP. Eleven actions, eight executed proof jobs and all six source families; '+pageGaps+' separate page/action gaps remain. No production or external-provider acceptance.\n\n';
  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
   const original=readFileSync(file,'utf8');let doc=original;
+  let sourceHold='';
+  if(doc.startsWith('> **PAYROLL RUN ORACLE — SOURCE HOLD:** ')){
+   const end=doc.indexOf('\n\n');assert.ok(end>=0);
+   sourceHold=doc.slice(0,end+2);doc=doc.slice(end+2);
+  }
   while(doc.startsWith(prefix)){const end=doc.indexOf('\n');doc=end<0?'':doc.slice(end+1).replace(/^\n+/,'');}
-  doc=banner+doc;
+  doc=sourceHold+banner+doc;
   if(file.includes('inventory')){
    for(const key of ['coveredAfter','gap'])doc=doc.replace(new RegExp('^\\| '+key+' \\| \\d+ \\|$','m'),'| '+key+' | '+m.metrics[key]+' |');
    doc=doc.replace(/\*\*RELEASE BLOCKER:\*\* \d+ API methods and \d+ business-ID page entries/,'**RELEASE BLOCKER:** '+m.metrics.gap+' API methods and '+pageGaps+' business-ID page entries')
@@ -150,3 +156,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  assert.ok(process.argv.length===3&&['--check','--write'].includes(process.argv[2]));
  console.log(JSON.stringify(reconcileStudioPostCredit({write:process.argv[2]==='--write'})));
 }
+import {assertOracleCallerCompatible} from './payroll-run-oracle-source-compat.mjs';

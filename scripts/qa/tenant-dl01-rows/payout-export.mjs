@@ -125,12 +125,12 @@ export async function verify(ctx) {
       "Fictional manual confirmation must bind exactly to own UAT validation");
 
     for (const mode of ["preflight", "disburse", "complete-manual"]) {
-      // A REAL, released higher-ID victim run must return 403 BEFORE any
+      // A REAL, released higher-ID victim run must return 404 BEFORE any
       // provider lookup, money state disclosure or audit write.
       const victimResponse = ctx.exact(await action(ctx, e,
         ctx.victim.payoutRun.id, mode,
         { organizationId: e.org.id, employeeId: e.worker.id,
-          confirmed: true, reference: "CI_FOREIGN_DENY" }), 403,
+          confirmed: true, reference: "CI_FOREIGN_DENY" }), 404,
       "DL-01 " + mode + " victim run denies genuine cross-tenant actor");
       ctx.noVictim(victimResponse, ctx.victim, mode + " foreign victim denial");
     }

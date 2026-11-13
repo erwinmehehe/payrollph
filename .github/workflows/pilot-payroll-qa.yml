@@ -18,6 +18,7 @@ on:
       - "src/lib/filing-evidence*.ts"
       - "src/app/api/invitations/**"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/compliance/bank-validations/**"
       - "src/app/api/payout-destination-changes/**"
       - "src/app/api/payout-profiles/**"

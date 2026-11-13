@@ -35,8 +35,7 @@ async function context(request: Request, params: Promise<{ id: string }>, mutati
     const denied = publicDemoMutationDenied(user.email, "Xendit payroll disbursement");
     if (denied) return { response: denied } as const;
   }
-  const [run] = await db.select().from(payrollRuns)
-    .where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return { response: Response.json({ error: "Payroll run not found." }, { status: 404 }) } as const;
   const treasury = await authorizeTreasuryOperation({
     organizationId: run.organizationId, runId: run.id,
@@ -143,3 +142,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

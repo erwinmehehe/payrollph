@@ -134,7 +134,7 @@ test("real guarded pre-run GET: flag-off bytes unchanged, consent denied, opt-in
       assert.ok(!data.explanation.includes("Fictional Explanation Foreign"));
 
       const foreignAttempt = await GET(request(victimRun.id, "?explain=true"), params(victimRun.id));
-      assert.equal(foreignAttempt.status, 403,
+      assert.equal(foreignAttempt.status, 404,
         "tenant access denial runs before explanation consent or source reads");
       caller = null;
       assert.equal((await GET(request(run.id, "?explain=true"), params(run.id))).status, 401);

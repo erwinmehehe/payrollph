@@ -13,6 +13,7 @@ on:
       - 'src/lib/critical-release-flags.ts'
       - 'src/lib/payroll-draft-payout-readiness.ts'
       - 'src/app/api/payroll-runs/route.ts'
+      - 'src/lib/payroll-run-membership.ts'
       - 'src/lib/payroll-assurance*.ts'
       - 'src/lib/payroll-release-checklist.ts'
       - 'src/app/api/payroll-runs/*/submit-review/route.ts'

@@ -71,7 +71,7 @@ const actionScopedMethodHolds = new Set(["POST workforce/worksites"]);
 // Superseded shared rows cannot restore withdrawn source-specific credits.
 // Worker 360 and year-end require separately reviewed exact-source renewal,
 // not a caller-supplied label or an older organization-only table receipt.
-const retiredSourceMethodHolds = new Set(["GET hcm/worker-360", "GET year-end", "POST year-end"]);
+const retiredSourceMethodHolds = new Set(["GET hcm/worker-360", "GET year-end", "POST year-end", "GET payroll-runs/[id]/connected-impact"]);
 const retiredSelection = onlyKeys.find(key => retiredSourceMethodHolds.has(key));
 if (retiredSelection) {
   const priorProof = retiredSelection === "GET hcm/worker-360" ? "organization-only" : "annualization";

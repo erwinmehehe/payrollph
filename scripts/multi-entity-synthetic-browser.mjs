@@ -330,7 +330,7 @@ try {
     const wrongExport = await request(owner, on, "/api/payroll-runs/" + foreignRunId + "/exports?kind=journal");
     assert.equal(wrongExport.status, 403);
     const foreignTenantExport = await request(foreign, on, "/api/payroll-runs/" + foreignRunId + "/exports?kind=journal");
-    assert.equal(foreignTenantExport.status, 403);
+    assert.equal(foreignTenantExport.status, 404);
     await scopedPayroll.close();
     const runs = await request(owner, on, "/api/payroll-runs?organizationId=1");
     assert.equal(runs.status, 200);

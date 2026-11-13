@@ -14,6 +14,7 @@ on:
       - 'src/app/api/hcm/**'
       - 'src/app/api/recruitment/**'
       - 'src/app/api/payroll-runs/**'
+      - 'src/lib/payroll-run-membership.ts'
       - 'src/app/api/self/**'
       - 'src/lib/*navigation*.ts'
       - 'src/lib/dashboard-*.ts'

@@ -10,6 +10,7 @@ on:
       - 'scripts/qa/tenant-approval-task-contract.mjs'
       - 'tests/tenant-payroll-run-actions-contract.test.mjs'
       - 'src/app/api/payroll-runs/**'
+      - 'src/lib/payroll-run-membership.ts'
       - 'src/lib/auth.ts'
       - 'src/lib/access.ts'
       - 'src/lib/treasury-controls.ts'
