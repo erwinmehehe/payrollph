@@ -53,8 +53,8 @@ test("browser-state runner refuses hosted databases, providers, workers and prod
   );
 });
 
-test("source pins cover both OIDC routes, cookie validator, session and fixture", () => {
-  assert.equal(Object.keys(SOURCE_PINS).length, 5);
+test("source pins cover both OIDC routes, browser/session controls and identity-write regressions", () => {
+  assert.equal(Object.keys(SOURCE_PINS).length, 10);
   for (const [path, sha] of Object.entries(SOURCE_PINS)) {
     assert.match(sha, /^[a-f0-9]{40}$/, path);
     assert.equal(gitBlobSha(readFileSync(path)), sha, path);

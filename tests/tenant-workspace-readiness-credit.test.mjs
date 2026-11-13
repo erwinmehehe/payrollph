@@ -41,7 +41,8 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
     const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
+    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
@@ -113,3 +114,5 @@ import { oracleWithdrawalDelta,oracleRenewalDelta } from './helpers/tenant-count
 import {isVerifiedOracleRenewal} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

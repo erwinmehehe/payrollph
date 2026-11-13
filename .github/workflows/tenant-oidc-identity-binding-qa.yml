@@ -1,0 +1,63 @@
+name: OIDC identity writes (fictional PG16 membership and revocation)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'src/app/api/auth/sso/callback/route.ts'
+      - 'src/lib/oidc-identity-binding.ts'
+      - 'src/db/**'
+      - 'scripts/qa/tenant-oidc-identity-binding-contract.mjs'
+      - 'tests/tenant-oidc-callback-identity-writes.test.mjs'
+      - 'tests/tenant-oidc-identity-binding*'
+      - '.github/workflows/tenant-oidc-identity-binding-qa.yml'
+permissions:
+  contents: read
+concurrency:
+  group: oidc-identity-binding-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  oidc-identity-membership-pg16:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tenant_oidc_membership_test
+      OIDC_IDENTITY_BINDING_PROOF: fictional-pg16-only
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tenant_oidc_membership_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tenant_oidc_membership_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Actual callback regression and fail-closed fixture contract
+        run: node --test tests/tenant-oidc-callback-identity-writes.test.mjs tests/tenant-oidc-identity-binding-contract.test.mjs
+      - name: Real PG16 own writes, forged targets and concurrent revocation
+        run: node --import tsx --test tests/tenant-oidc-identity-binding-postgres.test.ts

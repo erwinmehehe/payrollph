@@ -24,8 +24,8 @@ test('historical unaccepted page evidence permits only the source-sealed checkou
 
 test('historical nine-cohort counters cover nineteen methods; changed shared accounting runner requires a fresh PG16 execution',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
-  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift: secondPass/);
-  assert.equal(readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']).methods.length,19);
+  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
+  assert.throws(()=>readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']),/Executed input closure drift:/);
 });
 test('failed, borrowed, wrong-source, missing or production-accepted cohorts earn no renewal',()=>{
   for(const mutate of [
@@ -62,8 +62,9 @@ test('receipt seal rejects invented results and exact executed source drift',()=
   }
 });
 test('renewed citations identify actual jobs without pretending independent acceptance',()=>{
-  const proof=payrollRenewalProof('POST payroll-runs');
-  assert.equal(proof.cohorts.find(x=>x.name==='creation').jobId,131691175894);
-  assert.equal(proof.independentlyAccepted,false);assert.equal(proof.productionCertified,false);
+  const historical=receipt();
+  assert.equal(historical.cohorts.creation.jobId,131691175894);
+  assert.equal(historical.independentlyAccepted,false);assert.equal(historical.productionCertified,false);
+  assert.throws(()=>payrollRenewalProof('POST payroll-runs'),/Executed input closure drift:/);
   assert.throws(()=>payrollRenewalProof('POST payroll-runs/[id]/xendit-payout'),/not renewed/);
 });

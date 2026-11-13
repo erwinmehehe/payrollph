@@ -71,3 +71,65 @@ test("callback checks browser binding BEFORE reading or consuming shared state",
   assert.match(callback, /browserCookies\.set\(SESSION_COOKIE, session\.token/);
   assert.match(callback, /eq\(identityProviders\.protocol, "oidc"\)/);
 });
+
+test("OIDC linked identities must match the IdP employer before login or audit writes", () => {
+  const lookup = callback.indexOf("const [existingIdentity]");
+  const scopedOrg = callback.indexOf(
+    "eq(externalIdentities.organizationId, provider.organizationId)", lookup);
+  const scopedProvider = callback.indexOf("eq(externalIdentities.providerId, provider.id)", lookup);
+  const scopedSubject = callback.indexOf("eq(externalIdentities.subject, identity.subject)", lookup);
+  const userMembership = callback.indexOf("const [membership]");
+  const policy = callback.indexOf("const effectivePolicy");
+  const persist = callback.indexOf("await persistVerifiedOidcIdentity(");
+  const session = callback.indexOf("await createSession(");
+
+  assert.ok(lookup >= 0 && scopedOrg > lookup && scopedProvider > scopedOrg &&
+    scopedSubject > scopedProvider && userMembership > scopedSubject &&
+    policy > userMembership && persist > policy && session > persist,
+    "Foreign links, revoked membership and MFA failures must not write a login link or session");
+  const persistence = readFileSync("src/lib/oidc-identity-binding.ts", "utf8");
+  assert.match(persistence, /eq\(externalIdentities\.id, input\.existingIdentityId\)/);
+  for (const key of ["organizationId", "providerId", "userId", "subject"])
+    assert.ok(persistence.includes("eq(externalIdentities." + key + ", input." + key + ")"));
+  assert.equal((persistence.match(/\.for\("share"\)/g) ?? []).length, 3);
+  assert.doesNotMatch(callback, /db\.(update|insert)\(externalIdentities\)/);
+  assert.match(callback, /eq\(externalIdentities\.organizationId, provider\.organizationId\)/);
+  assert.match(callback, /eq\(externalIdentities\.providerId, provider\.id\)/);
+  assert.match(callback, /eq\(externalIdentities\.subject, identity\.subject\)/);
+
+  const runner = readFileSync("scripts/qa/tenant-oidc-browser-state-http.mjs", "utf8");
+  for (const required of [
+    "Negative control: provider+subject alone",
+    "Foreign-employer identity must not be accepted",
+    "Positive control: own-employer identity must still be found",
+    "Cross-employer identity lookup may not change sessions",
+    "crossEmployerLinkedIdentityRejected: true",
+    "linkedIdentitySqlReadOnly: true",
+  ]) assert.ok(runner.includes(required), "Missing fake PG16 identity negative: " + required);
+});
+test("OIDC start rejects duplicate and noncanonical selectors before provider lookup or login state", () => {
+  const providerKeys = start.indexOf('url.searchParams.getAll("providerId")');
+  const hintKeys = start.indexOf('url.searchParams.getAll("loginHint")');
+  const canonicalId = start.indexOf('Number.isSafeInteger(Number(providerValue))');
+  const email = start.indexOf('ssoDiscoveryEmail(hintValues[0])');
+  const providerQuery = start.indexOf("db.select().from(identityProviders)");
+  const stateInsert = start.indexOf("await db.insert(oidcLoginStates)");
+  assert.ok(providerKeys >= 0 && hintKeys > providerKeys && canonicalId > hintKeys &&
+    email > canonicalId && providerQuery > email && stateInsert > providerQuery,
+    "Malformed provider and login selectors must not inspect employer/provider DB or create SSO state");
+  assert.match(start, /providerValues\.length === 1/);
+  assert.match(start, /hintValues\.length === 1/);
+  assert.match(start, /\^\[1-9\]/);
+  assert.match(start, /const domain = loginIdentity\.domain/);
+  assert.doesNotMatch(start, /Number\(url\.searchParams\.get\("providerId"\)\)/);
+  const runner = readFileSync("scripts/qa/tenant-oidc-browser-state-http.mjs", "utf8");
+  for (const marker of [
+    '"duplicate provider"',
+    '"duplicate login"',
+    '"leading zero provider"',
+    '"exponent provider"',
+    '"bad email"',
+    'invalidOrAmbiguousStartsDeniedReadOnly: 8',
+    'assert.deepEqual(await snapshot(), afterStarts',
+  ]) assert.ok(runner.includes(marker), "Missing strict real-HTTP start case: " + marker);
+});
