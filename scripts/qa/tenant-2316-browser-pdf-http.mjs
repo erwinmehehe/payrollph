@@ -54,7 +54,6 @@ async function login(context,actor,generateTotp) {
 }
 
 async function seedReleased(db,s,actor,worker,entity,reviewActors,nominal) {
-  const { eq }=await import("drizzle-orm");
   const [run]=await db.insert(s.payrollRuns).values({
     organizationId:actor.org.id,legalEntityId:entity.id,
     periodLabel:"Synthetic Aug 2026 "+actor.label,
