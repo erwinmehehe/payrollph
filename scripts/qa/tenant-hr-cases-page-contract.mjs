@@ -14,7 +14,7 @@ export const ORIGIN = "http://127.0.0.1:3000";
 export const PAGE_PATH = "/hcm/hr-cases";
 export const API_PATH = "/api/hr-cases";
 export const SOURCE_PINS = Object.freeze({
-  "src/app/hcm/hr-cases/page.tsx": "93ef058a785606fd00921b23b47c73436e308fbb",
+  "src/app/hcm/hr-cases/page.tsx": "0d384a61699a9183bfd4fa55665a0d1154031442",
   "src/app/api/hr-cases/route.ts": "2cd3e59558d6a6ae6946b3a7f0f3685b5ddf7cd1",
   "src/lib/hr-case-activation.ts": "005c1edfada672f79deecb6f6d9370ea3ccbdee2",
   "src/lib/hr-case-policy.ts": "f54464dd7a001cf8a38be65a8ac1289d61dc2693",
