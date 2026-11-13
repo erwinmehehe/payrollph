@@ -358,16 +358,16 @@ async function verifyExistingForeignEmployerDenials(demoOwner) {
 
   // Use the SAME real victim organization ID (and actual existing run ID) that
   // the other owner just accessed, not a fabricated ID with a canned denial.
-  for (const [name, path] of [
+  for (const [name, path, expectedStatus = 403] of [
     ["cross-tenant-dashboard", "/api/dashboard?organizationId=" + foreign.org],
     ["cross-tenant-bi", "/api/bi-exports?organizationId=" + foreign.org],
     ["cross-tenant-workforce", "/api/workforce-planning?organizationId=" + foreign.org],
     ["cross-tenant-payroll", "/api/payroll-runs?organizationId=" + foreign.org],
-    ["cross-tenant-existing-run", "/api/payroll-runs?runId=" + foreign.run + "&include=entries"],
+    ["cross-tenant-existing-run", "/api/payroll-runs?runId=" + foreign.run + "&include=entries", 404],
     ["cross-tenant-attendance", "/api/workforce/attendance-exception-events?organizationId=" +
       foreign.org + "&" + ATTENDANCE_DATES],
   ]) {
-    await probe("owner", name, path, 403, demoOwner.cookie, demoOwner.org);
+    await probe("owner", name, path, expectedStatus, demoOwner.cookie, demoOwner.org);
   }
 
   const after = await db.select().from(payrollRuns).where(eq(payrollRuns.id, foreign.run)).limit(1);
