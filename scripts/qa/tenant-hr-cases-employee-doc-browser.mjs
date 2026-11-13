@@ -199,6 +199,10 @@ export async function proveHrEmployeeDocumentsBrowser() {
       assert.equal(persisted.employeeHrCaseMessages.at(-1).caseId, forged.json.case.id);
       assert.equal(persisted.employeeHrCaseMessages.at(-1).visibility, "employee");
       employeePosts++;
+      // The authorized own POST legitimately appends a case, message and audit.
+      // Future foreign denials must preserve this post-success snapshot, not the
+      // pre-POST snapshot, without weakening the untouched victim comparator.
+      baseline.set(actor.org.id, persisted);
       assertUnchanged(victimBefore, await snapshot(victim.org.id),
         "Victim untouched after employee POST with forged selectors");
       const employeeRead = await http("/api/hr-cases", actor.employee.cookie);
