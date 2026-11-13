@@ -42497,7 +42497,7 @@
     },
     {
       "path": "src/app/careers/page.tsx",
-      "blob": "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3",
+      "blob": "8e56412c909b7d70a5c33a21d3df52a79a693d4f",
       "ids": [
         {
           "line": 12,
@@ -42505,10 +42505,6 @@
         },
         {
           "line": 13,
-          "token": "searchParams"
-        },
-        {
-          "line": 13,
           "token": "organizationId"
         },
         {
@@ -42520,15 +42516,7 @@
           "token": "searchParams"
         },
         {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
+          "line": 23,
           "token": "organizationId"
         },
         {
@@ -42536,20 +42524,49 @@
           "token": "organizationId"
         },
         {
-          "line": 30,
+          "line": 28,
           "token": "organizationId"
         },
         {
-          "line": 31,
+          "line": 34,
           "token": "organizationId"
         },
         {
-          "line": 31,
+          "line": 35,
           "token": "organizationId"
         }
       ],
       "actions": [],
-      "guards": [],
+      "guards": [
+        {
+          "line": 15,
+          "token": "careersNoticeConfig"
+        },
+        {
+          "line": 17,
+          "token": "notFound"
+        },
+        {
+          "line": 22,
+          "token": "typeof raw"
+        },
+        {
+          "line": 24,
+          "token": "Number.isSafeInteger"
+        },
+        {
+          "line": 25,
+          "token": "careersSchemaReady"
+        },
+        {
+          "line": 29,
+          "token": "notFound"
+        },
+        {
+          "line": 34,
+          "token": "publishedCareersPredicate"
+        }
+      ],
       "business": [
         {
           "line": 13,
@@ -42560,15 +42577,7 @@
           "token": "organizationId"
         },
         {
-          "line": 19,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
-          "token": "organizationId"
-        },
-        {
-          "line": 20,
+          "line": 23,
           "token": "organizationId"
         },
         {
@@ -42576,21 +42585,34 @@
           "token": "organizationId"
         },
         {
-          "line": 30,
+          "line": 28,
           "token": "organizationId"
         },
         {
-          "line": 31,
+          "line": 34,
           "token": "organizationId"
         },
         {
-          "line": 31,
+          "line": 35,
           "token": "organizationId"
         }
       ],
       "hasAction": false,
       "status": "GAP",
-      "reason": "Page/server action takes business ID; valid same-employer and foreign-employer request proof not linked"
+      "reason": "Still GAP: public Careers is deliberately anonymous and publication-only, not a private tenant grant. The SSR employer selector now rejects duplicate, coerced and noncanonical IDs before schema/SQL. A dedicated real localhost PG16 three-employer positive/negative proof is attached but unaccepted pending exact-head passing CI and independent security/privacy review. No page/action or API method coverage credits.",
+      "reviewedUncertified": {
+        "kind": "public-careers-SSR-GET-PG16-canonical-selector-unaccepted",
+        "originalPageBlobSha": "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3",
+        "pageBlobSha": "8e56412c909b7d70a5c33a21d3df52a79a693d4f",
+        "proofFile": "scripts/qa/tenant-careers-page-public-boundary-http.mjs",
+        "proofBlobSha": "6efef6eb6965d1deba1fe8d64446936a09553813",
+        "workflowFile": ".github/workflows/tenant-edg01-careers-public-get-http.yml",
+        "workflowBlobSha": "c9f89477a1e013d3ae4c7c50b1d737df1d257269",
+        "pageActionCredits": 0,
+        "methodCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     {
       "path": "src/app/hcm/action-center/page.tsx",
