@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import {
   ORIGIN, API_PATH, requireDisposableHrWriteEnv, verifyHrWriteSourcePins,
   assertCreatedEmployeeCase, assertOwnCasePatch, assertDeniedCaseMutation,
-  assertForeignSqlUnchanged,
+  assertForeignSqlUnchanged, allProtectedEmployers,
 } from "./tenant-hr-cases-write-contract.mjs";
 
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -87,14 +87,16 @@ export async function proveHrCasesWriteIsolation() {
       }
       return values;
     }
-    // No negative request is allowed to modify the actor OR the victim.
+    // Compare all three populated employers, not merely the actor/target pair.
+    // Otherwise a foreign denial could silently mutate an unrelated victim.
     async function deny(method, cookie, body, status, label, actors, protectedEmployers) {
-      const baselines = await Promise.all(protectedEmployers.map(actor => snapshot(actor.org.id)));
+      const checked = allProtectedEmployers(actors, protectedEmployers);
+      const baselines = await Promise.all(checked.map(actor => snapshot(actor.org.id)));
       const response = await http(method, cookie, body);
       assertDeniedCaseMutation(response, status, actors, label);
-      for (let i = 0; i < protectedEmployers.length; i++) {
-        assertForeignSqlUnchanged(baselines[i], await snapshot(protectedEmployers[i].org.id),
-          label + " / " + protectedEmployers[i].label);
+      for (let i = 0; i < checked.length; i++) {
+        assertForeignSqlUnchanged(baselines[i], await snapshot(checked[i].org.id),
+          label + " / " + checked[i].label);
       }
       deniedWrites++;
     }
@@ -251,13 +253,16 @@ export async function proveHrCasesWriteIsolation() {
       422, "malformed case ID", actors, [a, victim]);
 
     // Cross-site origin refusal occurs before any membership or case lookup.
-    const beforeOrigin = await snapshot(victim.org.id);
+    const originChecked = allProtectedEmployers(actors, [a, victim]);
+    const beforeOrigin = await Promise.all(originChecked.map(actor => snapshot(actor.org.id)));
     const crossSite = await http("PATCH", a.cookie,
       { id: victim.cases.hr.id, action: "reply", message: "cross-origin" },
       "https://untrusted.invalid");
     assertDeniedCaseMutation(crossSite, 403, actors, "cross-site request");
-    assertForeignSqlUnchanged(beforeOrigin, await snapshot(victim.org.id),
-      "cross-site refusal");
+    for (let i = 0; i < originChecked.length; i++) {
+      assertForeignSqlUnchanged(beforeOrigin[i], await snapshot(originChecked[i].org.id),
+        "cross-site refusal / " + originChecked[i].label);
+    }
     deniedWrites++;
 
     // A revoked employee retains the same account login but loses the

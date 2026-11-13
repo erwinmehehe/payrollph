@@ -12,7 +12,7 @@ rows, without changing the live handlers, source authorization policy,
 coverage inventory, existing proof receipts or employer-data schema.
 
 Review against the open post-merge acceptance queue #1966 and parent #1740.
-Report Builder remains separately owned by open #1970.
+Report Builder's related isolation fix has been merged via #1970; this PR separately tests HR Cases writes.
 
 ## What this PR adds
 
@@ -47,7 +47,9 @@ Report Builder remains separately owned by open #1970.
 3. A/B each attempts **reply, internal note, status update, COE approval**
    against the other attacker and victim's actual case IDs. Each must return
    404. Snapshot ten employer-owned tables (including case messages and
-   audit) immediately before/after each refusal, for both attacker and target.
+   audit) immediately before/after each refusal, for **A, B and the victim**
+   regardless of the requested target. Cross-origin refusals use the same
+   three-employer immutable comparison.
 4. A/B linked employee accounts create genuine cases via HTTP POST. Include
    forged foreign `organizationId` and `employeeId` body values, and
    verify the persisted case and audit are bound to the *authenticated*

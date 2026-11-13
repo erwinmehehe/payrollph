@@ -65,6 +65,16 @@ export function verifyHrWriteSourcePins(root = process.cwd()) {
 }
 
 const id = value => Number.isSafeInteger(value) && value > 0;
+// Every refusal must protect ALL populated employers, including bystanders.
+// A denial against B must not silently mutate the separate victim's data.
+export function allProtectedEmployers(actors, selected = []) {
+  const byId = new Map();
+  for (const actor of [...actors, ...selected]) {
+    assert.ok(id(actor?.org?.id), "Protected comparator requires a real employer ID");
+    byId.set(actor.org.id, actor);
+  }
+  return [...byId.values()];
+}
 export function assertCreatedEmployeeCase(response, actor, employeeUserId, expectedType) {
   assert.equal(response.status, 201, "Owned employee case must be created by real HTTP");
   const row = response.json?.case;

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ORIGIN, WRITE_SOURCE_PINS, requireDisposableHrWriteEnv,
   verifyHrWriteSourcePins, assertCreatedEmployeeCase, assertOwnCasePatch,
-  assertDeniedCaseMutation, assertForeignSqlUnchanged,
+  assertDeniedCaseMutation, assertForeignSqlUnchanged, allProtectedEmployers,
 } from "../scripts/qa/tenant-hr-cases-write-contract.mjs";
 
 const safe = {
@@ -87,6 +87,17 @@ test("foreign denials reject false positives, private case and leaked victim mar
     wrap(403, { error: "Case not found." }),
   ]) assert.throws(() => assertDeniedCaseMutation(response, 404,
     [actor, victim], "forged denial"));
+});
+
+test("all three populated employers are protected even when only actor and target are selected", () => {
+  const otherAttacker = { label: "ATTB", org: { id: 9 } };
+  const everyone = [actor, otherAttacker, victim];
+  const selected = allProtectedEmployers(everyone, [actor, victim]);
+  assert.deepEqual(selected.map(item => item.org.id), [8, 9, 10],
+    "Never drop unrelated victim or second attacker from a denial comparator");
+  assert.equal(allProtectedEmployers(everyone, [otherAttacker]).length, 3);
+  assert.throws(() => allProtectedEmployers([actor, { org: { id: 0 } }, victim]),
+    /real employer ID/);
 });
 
 test("protect exact SQL snapshots, including audit and private messages", () => {
