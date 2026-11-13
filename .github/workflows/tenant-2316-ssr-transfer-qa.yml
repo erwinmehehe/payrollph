@@ -103,7 +103,7 @@ jobs:
             if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
             sleep 2
           done
-          tail -n 80 /tmp/tenant-prior-worker-ssr.log
+          tail -n 80 /tmp/tenant-2316-ssr-transfer.log
           exit 1
       - name: Prove actual 2316 same-parent isolation and transfer/revocation with fictional PG16
         env:
@@ -111,4 +111,4 @@ jobs:
         run: node --import tsx scripts/qa/tenant-2316-ssr-transfer-http.mjs
       - name: Bounded server log on failure
         if: failure()
-        run: tail -n 80 /tmp/tenant-prior-worker-ssr.log || true
+        run: tail -n 80 /tmp/tenant-2316-ssr-transfer.log || true
