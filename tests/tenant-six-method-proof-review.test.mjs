@@ -10,7 +10,7 @@ import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admi
 import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits,RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { YEAR_END_PROOF, YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
 /**
  * Non-credentialled, source-only guard on six merged proof candidates.
  * Keeps historical coverage + live metrics unchanged until the exact four-part
@@ -974,8 +974,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       for (const method of mainYearEnd.methods) {
         assert.equal(method.status, "COVERED");
         assert.equal(method.testedBy?.proofPullRequest, 1804);
-        assert.equal(method.testedBy?.workflowRunId, 42254117862);
-        assert.equal(method.testedBy?.verifiedPrHeadSha, "d79db85b2a2ca0276810634dccaf904fd4469099");
+        assert.equal(method.testedBy?.workflowRunId, YEAR_END_PROOF.run);
+        assert.equal(method.testedBy?.verifiedPrHeadSha, YEAR_END_PROOF.head);
       }
       assert.equal(verifyYearEndHold(m), 0);
     } else if (baselineHasCurrentRoute) {

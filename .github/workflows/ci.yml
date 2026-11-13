@@ -378,6 +378,15 @@ jobs:
           name: payrollph-golden-payroll-phase13
           path: qa-artifacts/golden-payroll-phase13-reconciliation.json
           retention-days: 14
+      - name: Run shared de minimis ceiling golden reconciliation (Phase 14)
+        run: npx tsx scripts/golden-payroll-phase14.ts
+      - name: Upload Phase 14 shared de minimis ceiling reconciliation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase14
+          path: qa-artifacts/golden-payroll-phase14-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links

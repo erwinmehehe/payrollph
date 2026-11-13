@@ -19,14 +19,24 @@ import { DE_MINIMIS_2026, deMinimisStatutoryPeriodStart, type DeMinimisType } fr
  * enters the shared 90,000 benefit pool, exactly as the engine treats its own de minimis lines.
  * Categories whose ceiling is not a peso amount per period (days of monetized leave, a daily meal allowance
  * that depends on eligible days and the wage order) cannot be proven from imported totals and are refused.
+ *
+ * A worker whose previous provider's months are imported and whose later months the engine calculated shares
+ * ONE statutory ceiling per category and period across both sources. The engine's own de minimis lines for the same
+ * worker are therefore passed in (engineLines) and counted in the same period totals: the ceiling is applied once to
+ * the union, never once per source.
  */
 export function importedDeMinimisTreatment(rows: ReadonlyArray<{
   id: number;
   payDate: string;
   grossPay: number | string;
   deMinimisBreakdown: unknown;
-}>) {
+}>, engineLines: ReadonlyArray<{ category: DeMinimisType; payDate: string; amount: number }> = []) {
   const paid = new Map<string, number>();
+  for (const line of engineLines) {
+    if (!(line.amount > 0)) continue;
+    const periodKey = `${line.category}|${deMinimisStatutoryPeriodStart(line.category, line.payDate)}`;
+    paid.set(periodKey, (paid.get(periodKey) ?? 0) + line.amount);
+  }
   for (const row of rows) {
     const breakdown = row.deMinimisBreakdown;
     if (breakdown === null || breakdown === undefined) continue;
@@ -362,17 +372,47 @@ export async function runYearEndAnnualization(
   for (const entry of importedHistory) {
     importedByEmployee.set(entry.employeeId, [...(importedByEmployee.get(entry.employeeId) ?? []), entry]);
   }
+  const runPayDate = new Map(runs.map((run) => [run.id, String(run.payDate)]));
   for (const [employeeId, employeeRows] of importedByEmployee) {
-    const treatment = importedDeMinimisTreatment(employeeRows.map((row) => ({
+    const importedRowsForTreatment = employeeRows.map((row) => ({
       id: row.id,
       payDate: String(row.payDate),
       grossPay: row.grossPay,
       deMinimisBreakdown: row.deMinimisBreakdown,
-    })));
+    }));
     const bucket = totals.get(employeeId);
+    // Without any imported de minimis amount there is nothing to share a ceiling with; the engine's own accounting stands.
+    const importedTreatment = importedDeMinimisTreatment(importedRowsForTreatment);
     if (!bucket) continue;
-    bucket.deMinimisExempt += treatment.exempt;
-    bucket.deMinimisExcess += treatment.excess;
+    const hasImportedDeMinimis = importedTreatment.exempt + importedTreatment.excess > 0;
+    // The engine's fixed-ceiling de minimis lines for the same worker join the imported ones in ONE statutory ceiling.
+    const engineLines: Array<{ category: DeMinimisType; payDate: string; amount: number }> = [];
+    let engineExempt = 0;
+    let engineExcess = 0;
+    if (hasImportedDeMinimis) {
+      for (const entry of entries) {
+        if (entry.employeeId !== employeeId || !Array.isArray(entry.lineItems)) continue;
+        const payDate = runPayDate.get(entry.payrollRunId);
+        if (!payDate) continue;
+        for (const item of entry.lineItems as LineItem[]) {
+          const code = String(item.code ?? "");
+          if (!code.startsWith("DM-")) continue;
+          const category = code.slice(3);
+          const rule = (DE_MINIMIS_2026 as Record<string, { ceiling?: number }>)[category];
+          // Meal allowance (a daily, wage-order based ceiling) and leave days stay exactly as the engine accounted them.
+          if (!rule || typeof rule.ceiling !== "number" || category === "monetizedVacationLeaveDays") continue;
+          const amount = Math.max(0, Number(item.amount ?? 0));
+          const pool = Math.max(0, Number(item.periodOtherBenefitsPool ?? 0));
+          engineExempt += Math.max(0, amount - pool);
+          engineExcess += pool;
+          engineLines.push({ category: category as DeMinimisType, payDate, amount });
+        }
+      }
+    }
+    const treatment = importedDeMinimisTreatment(importedRowsForTreatment, engineLines);
+    // The union replaces the engine's separately capped figures for these categories.
+    bucket.deMinimisExempt += treatment.exempt - round2(engineExempt);
+    bucket.deMinimisExcess += treatment.excess - round2(engineExcess);
   }
 
   const existingAdjustments = await tx.select().from(yearEndAdjustments).where(and(
