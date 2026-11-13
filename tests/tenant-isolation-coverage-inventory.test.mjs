@@ -1,7 +1,8 @@
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
-import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import {assertHistoricalHttpWorkflowCheckout,historicalHttpWorkflowCheckoutSource} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -115,6 +116,7 @@ function readableLines(path) {
   return readFileSync(path, "utf8").split("\n");
 }
 function isVerifiedRunWithdrawal(path, verb, data = manifest) {
+  if(isVerifiedOracleRenewal(data,path,verb))return true; // New executed cohort replaces the historical receipt check.
   const row=data.allApiRouteFiles[path]?.methods.find(item=>item.name===verb);
   if(row?.status!=="GAP" || row.reviewedUncertified?.kind!=="payroll-run-membership-oracle-source-withdrawal") return false;
   assert.ok(verifyOracleSourceHolds(data).has(verb+" "+path));
@@ -264,6 +266,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status==='COVERED'&&method.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+    const at=key.lastIndexOf(' '),path=key.slice(0,at),verb=key.slice(at+1);
+    assert.ok(isVerifiedOracleRenewal(manifest,path,verb));return true;
+  }
   if (key === OIDC_CALLBACK + ' GET' && method.status === 'COVERED') {
     assert.equal(verifyOidcCallbackCredit(manifest), 1);
     assert.equal(currentBlob, method.testedBy.routeBlobSha);
@@ -4742,6 +4748,7 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if(isVerifiedOracleRenewal(manifest,path,method.name))continue; // Separate complete executed/source-sealed cohort.
       if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
         assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
         continue;
@@ -7588,6 +7595,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
             file === reviewed.unitTestFile ? serverGate.migratedSummaryTestBlobSha :
             file === reviewed.workflowFile ? workflowAddition.workflowBlobSha : sha;
+          if(file==='.github/workflows/security-http-smoke.yml'){
+            assertHistoricalHttpWorkflowCheckout(file,expected);continue;
+          }
           assert.equal(gitBlobSha(readFileSync(file)), expected,
             "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
         }
@@ -7639,7 +7649,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const runner = readFileSync(callerFile, "utf8");
         assert.equal(gitBlobSha(Buffer.from(runner)), callerReceipt.pins[callerFile]);
         assert.match(runner, /verifyHcmWorkQueueIsolation\(f,\{request,expectStatus\}\)/);
-        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        // This is the exact historical workflow reconstructed from the reviewed
+        // checkout-only hardening, not a claim that the old page proof reran.
+        const workflow = historicalHttpWorkflowCheckoutSource(reviewed.workflowFile,workflowAddition.workflowBlobSha);
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
         // The legacy HR Work Queue evidence stays tied to the original workflow.
         // Verify the new version differs ONLY by the bounded, disposable managed
@@ -8942,6 +8954,7 @@ test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) require
   // exports POST must not borrow this credit: it stays GAP, or is COVERED only by its own dedicated loopback-synthetic proof.
   const exportsMethods = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/exports/route.ts"].methods;
   for (const entry of exportsMethods.filter(item => item.name === "POST")) {
+    if(isVerifiedOracleRenewal(manifest,'src/app/api/payroll-runs/[id]/exports/route.ts','POST'))continue;
     if (entry.status === "COVERED") assert.equal(entry.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs", "exports POST must not borrow this credit");
     else assert.equal(entry.status, "GAP", "exports POST must not borrow this credit");
   }

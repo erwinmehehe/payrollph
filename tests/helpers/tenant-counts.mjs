@@ -13,8 +13,16 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_PROOF, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
-import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
+
+/** Newly restored methods only, backed by the sealed executed renewal. */
+export function oracleRenewalDelta(before,current){
+  return [...verifiedOracleRenewalKeys(current)].filter(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+    return before.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='GAP';
+  }).length;
+}
 
 /** Count only the sealed oracle withdrawals newly introduced over this base. */
 export function oracleWithdrawalDelta(before, current) {
