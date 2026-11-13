@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { ORACLE_METHODS, assertRunIndistinguishable } from "../scripts/qa/payroll-run-oracle-contract.mjs";
 
 const reply = (status = 404, error = "Payroll run not found.", headers = {}) => ({
@@ -19,4 +20,11 @@ test("every addressed method, including root and both modes of shared contexts, 
     for (const verb of ["GET", "POST"])
       assert.ok(ORACLE_METHODS.some(([method, path]) => method === verb && (path === suffix || path.startsWith(suffix + "?"))));
   assert.ok(ORACLE_METHODS.some(([method, path]) => method === "GET" && path === "ROOT"));
+});
+
+test("real oracle fixture puts the victim beyond early employer, run and worker IDs", () => {
+  const source = readFileSync("scripts/qa/payroll-run-oracle-http.mjs", "utf8");
+  assert.match(source, /Array\.from\(\{ length: 7 \}/);
+  assert.match(source, /victim\.org\.id > 6 && victim\.run\.id > 6 && victim\.worker\.id > 6/);
+  assert.match(source, /if \(!label\.startsWith\("FILL"\)\) employers\.push\(e\)/);
 });

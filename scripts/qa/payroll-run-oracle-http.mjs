@@ -13,7 +13,9 @@ try {
   assert.ok(version >= 160000 && version < 170000, "disposable PG16 only");
   assert.equal((await db.select().from(s.users).limit(1)).length, 0, "fresh empty disposable database required");
   const employers = [], nonce = randomUUID().slice(0, 8);
-  for (const label of ["ATTA", "ATTB", "VICTIM"]) {
+  // Genuine victim IDs must exceed early fixture IDs in every addressed table.
+  // Otherwise a hard-coded low-ID authorization check could accidentally pass.
+  for (const label of ["ATTA", "ATTB", ...Array.from({ length: 7 }, (_, i) => "FILL" + i), "VICTIM"]) {
     const e = await fixture.seedEmployer(label, nonce, fixture.standaloneMakeSession);
     [e.run] = await db.insert(s.payrollRuns).values({
       organizationId: e.org.id, legalEntityId: e.entity.id, scopeOrgUnitId: e.unit.id,
@@ -22,11 +24,12 @@ try {
     }).returning();
     await db.insert(s.payrollEntries).values({ payrollRunId: e.run.id, employeeId: e.worker.id,
       grossPay: "20000.00", deductions: "2000.00", netPay: "18000.00", lineItems: [] });
-    employers.push(e);
+    if (!label.startsWith("FILL")) employers.push(e);
   }
   const [a, b, victim] = employers;
   assert.ok(victim.run.id > a.run.id && victim.run.id > b.run.id);
   assert.ok(victim.org.id > a.org.id && victim.org.id > b.org.id);
+  assert.ok(victim.org.id > 6 && victim.run.id > 6 && victim.worker.id > 6);
   const missingId = victim.run.id + 1000000;
   assert.equal((await db.select().from(s.payrollRuns).where(eq(s.payrollRuns.id, missingId))).length, 0);
   // Snapshot every organization/run-owned table, not a guessed subset. Identifiers
