@@ -28,6 +28,17 @@
 
 ## Explicit remaining gates
 
+### Caller-only audit allowance
+
+Successful source/PDF calls may append only the caller employer's expected audit
+records. All other employers' complete audit snapshots remain immutable during
+each positive; every protected table and every audit snapshot remains immutable
+on denial. The comparison rejects blanket boolean exemptions and never mutates
+the stored baseline. Both the second attacker and genuine victim must generate
+their own actual PDF before serving as negative comparators: three distinct
+employers and four PDFs total, including the browser download and historical
+post-transfer PDF. These extra controls do not grant any page or API credit.
+
 - This is an integration test, not an independent security, privacy or Philippine tax-law assessment. It does not automatically establish filing correctness or BIR validation, substituted filing eligibility, full prior-employer source reconciliation, every document delivery option, or real operational readiness.
 - The PDF must remain a draft/unsigned preparer preview, with no filing, certificate signature, government submission or payroll release performed.
 - The source/API code and existing owner authorization must remain untouched; any new app source change requires full reinspection of all source pins.

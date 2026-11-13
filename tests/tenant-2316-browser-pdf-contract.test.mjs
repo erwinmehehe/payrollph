@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   requireDisposableBrowserPdf, verifyBrowserPdfSources, CURRENT_SOURCE,
-  assertNoProtectedMarkers, assertDeniedResult, assertUnsignedPdf,
+  assertNoProtectedMarkers, assertDeniedResult, assertUnsignedPdf, assert2316SnapshotUnchanged,
 } from "../scripts/qa/tenant-2316-browser-pdf-contract.mjs";
 
 function syntheticEnv() {
@@ -28,6 +28,19 @@ function syntheticEnv() {
     NEXT_TELEMETRY_DISABLED:"1",
   };
 }
+
+test('own PDF audit allowance never hides changes to another employer or protected payroll SQL',()=>{
+  const before={organizations:[{id:10}],payrollRuns:[{id:11,netPay:'10000.00'}],auditEvents:[]};
+  const auditChange={...structuredClone(before),auditEvents:[{id:12,organizationId:10}]};
+  assert.doesNotThrow(()=>assert2316SnapshotUnchanged(before,auditChange,10,10,'own audit'));
+  assert.throws(()=>assert2316SnapshotUnchanged(before,auditChange,10,20,'foreign audit'),/foreign audit SQL changed/);
+  assert.throws(()=>assert2316SnapshotUnchanged(before,auditChange,10,null,'denied audit'),/foreign audit SQL changed/);
+  assert.throws(()=>assert2316SnapshotUnchanged(before,auditChange,10,true,'blanket audit'),/never a blanket boolean/);
+  const payrollChange=structuredClone(auditChange);payrollChange.payrollRuns[0].netPay='10001.00';
+  assert.throws(()=>assert2316SnapshotUnchanged(before,payrollChange,10,10,'own payroll'),/payroll/);
+  assert.throws(()=>assert2316SnapshotUnchanged(before,before,20,20,'wrong employer'));
+  assert.deepEqual(before.auditEvents,[],'Checking must not mutate the baseline');
+});
 test("only a dedicated, provider-off disposable PostgreSQL 16 job may run",()=>{
   const base=syntheticEnv();
   assert.equal(requireDisposableBrowserPdf(base),true);
@@ -92,7 +105,9 @@ test("actual Playwright, PostgreSQL, digest-revocation, and PDF paths may not be
     'assert.equal(staleResponse.json?.code,"CERTIFICATE_SOURCE_CHANGED")',
     'await db.delete(s.userLegalEntityGrants)',
     'await db.update(s.userOrganizations).set({active:false})',
-    "assert.deepEqual(after,prior",
+    "assert2316SnapshotUnchanged(prior,after,actor.org.id,allowedAuditEmployerId,label)",
+    "assert.equal(pdfEmployers.size,3",
+    "assert.equal(ownPdf,4)",
     'TENANT_2316_BROWSER_PDF_COMPLETE',
     "pageCredits:0,apiMethodCredits:0",
   ];

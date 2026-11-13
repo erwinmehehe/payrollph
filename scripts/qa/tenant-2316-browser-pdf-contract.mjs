@@ -107,6 +107,21 @@ export function assertNoProtectedMarkers(text, subjects, label) {
   }
 }
 
+export function assert2316SnapshotUnchanged(before,after,employerId,allowedAuditEmployerId,label){
+  assert.ok(Number.isSafeInteger(employerId)&&employerId>0);
+  assert.ok(allowedAuditEmployerId===null||
+    (Number.isSafeInteger(allowedAuditEmployerId)&&allowedAuditEmployerId>0),
+    'Audit allowance must identify one caller employer, never a blanket boolean');
+  assert.deepEqual(before.organizations.map(row=>row.id),[employerId]);
+  assert.deepEqual(after.organizations.map(row=>row.id),[employerId]);
+  const prior=structuredClone(before),current=structuredClone(after);
+  if(employerId===allowedAuditEmployerId){
+    delete prior.auditEvents;
+    delete current.auditEvents;
+  }
+  assert.deepEqual(current,prior,label+': protected employer, payroll, worker or foreign audit SQL changed');
+}
+
 export async function assertUnsignedPdf(bytes, expectedEmployer) {
   assert.ok(Buffer.isBuffer(bytes) && bytes.byteLength > 10000,
     "Real nonempty unsigned PDF required, not an error JSON or fixture stub");

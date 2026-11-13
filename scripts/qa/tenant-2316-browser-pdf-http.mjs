@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import {
   ORIGIN, PAGE, API, certificateUrl, assertUnsignedPdf, assertNoProtectedMarkers,
-  assertDeniedResult, requireDisposableBrowserPdf, verifyBrowserPdfSources,
+  assertDeniedResult, assert2316SnapshotUnchanged, requireDisposableBrowserPdf, verifyBrowserPdfSources,
 } from "./tenant-2316-browser-pdf-contract.mjs";
 
 const plain = x => JSON.parse(JSON.stringify(x));
@@ -253,16 +253,13 @@ export async function prove2316BrowserPdf() {
         [actor.org.id,await snapshot(actor.org.id)])));
     }
     let baseline=await freeze();
-    async function unchanged(label,allowOwnAudit=false) {
+    async function unchanged(label,allowedAuditEmployerId=null) {
       for(const actor of actors){
-        const prior=plain(baseline.get(actor.org.id));
+        const prior=baseline.get(actor.org.id);
         const after=await snapshot(actor.org.id);
-        if(allowOwnAudit) {
-          delete prior.auditEvents;
-          delete after.auditEvents;
-        }
-        assert.deepEqual(after,prior,label+": protected employer, payroll or worker SQL changed");
+        assert2316SnapshotUnchanged(prior,after,actor.org.id,allowedAuditEmployerId,label);
       }
+      if(allowedAuditEmployerId!==null)baseline=await freeze();
     }
     browser=await chromium.launch({headless:true});
     const contexts=[];
@@ -281,6 +278,7 @@ export async function prove2316BrowserPdf() {
     // Logins deliberately write their own session/audit events.
     baseline=await freeze();
     let ownSource=0,ownPdf=0,apiDenials=0,pageDenials=0,stale=0;
+    const pdfEmployers=new Set();
     for(const actor of actors) {
       const response=await api(actor.context,bodyUrl(actor));
       assert.equal(response.status,200,"Each owner must load own nonempty PG16 2316 source");
@@ -301,7 +299,19 @@ export async function prove2316BrowserPdf() {
       assertNoProtectedMarkers(response.text,secrets.filter(s=>
         s.org.id!==actor.org.id || s.worker.id!==actor.worker.id),
         "own API only");
-      await unchanged("Own source GET",true);
+      await unchanged("Own source GET",actor.org.id);
+    }
+    // Both the second attacker and genuine victim must generate their own real
+    // PDF before either identity is used as a negative comparator.
+    for(const actor of [b,victim]){
+      const response=await api(actor.context,bodyUrl(actor),"POST",{
+        sourceDigest:actor.digest,review:formReview,
+      });
+      assert.equal(response.status,200,'Own employer PDF positive required');
+      assert.match(response.contentType,/application\/pdf/);
+      await assertUnsignedPdf(response.bytes,actor.entity.legalName);
+      ownPdf++;pdfEmployers.add(actor.org.id);
+      await unchanged('Own PDF comparator',actor.org.id);
     }
     // Real browser navigation, hydration, source fetch, keyboard/form controls.
     const page=await a.context.newPage();
@@ -348,7 +358,8 @@ export async function prove2316BrowserPdf() {
     const downloadedBytes=Buffer.concat(buffers);
     await assertUnsignedPdf(downloadedBytes,a.entity.legalName);
     ownPdf++;
-    await unchanged("Hydrated browser own PDF",true);
+    pdfEmployers.add(a.org.id);
+    await unchanged("Hydrated browser own PDF",a.org.id);
     const audit=await db.select().from(s.auditEvents).where(orm.and(
       orm.eq(s.auditEvents.organizationId,a.org.id),
       orm.eq(s.auditEvents.action,"Unsigned BIR 2316 preparer preview generated"),
@@ -393,7 +404,7 @@ export async function prove2316BrowserPdf() {
     assert.match(transferredPdf.contentType,/application\/pdf/);
     await assertUnsignedPdf(transferredPdf.bytes,a.entity.legalName);
     ownPdf++;
-    await unchanged("Historical PDF after transfer",true);
+    await unchanged("Historical PDF after transfer",a.org.id);
     const deferred=await api(a.context,ORIGIN+API+
       "?organizationId="+a.org.id+"&employeeId="+a.worker.id+"&taxYear=2026");
     assert.equal(deferred.status,409,"Multi-entity worker-only API must defer annual certificate");
@@ -490,10 +501,13 @@ export async function prove2316BrowserPdf() {
     pageDenials++;
     await unchanged("Revoked membership browser denial");
 
+    assert.equal(pdfEmployers.size,3,'Three different employers must have real own PDF positives');
+    assert.equal(ownPdf,4);
     const result={
       kind:"form2316-hydrated-browser-api-unsigned-pdf",
       fictionalEmployerOwners:3,realPasswordTotpLogins:3,
       ownApiSources:ownSource,ownPdfDownloads:ownPdf,
+      distinctPdfEmployers:pdfEmployers.size,
       browserDownloadedPdf:true,completeMappedForm:true,
       realNonzeroPayrollItem39:true,
       forgedOrForeignApiDenials:apiDenials,
