@@ -1,6 +1,6 @@
 /** Real signed-session JSON and CSV export proof; all data fictional, zero credits. */
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   ORIGIN, requireDisposableExportEnv, verifyExportSourcePins,
   assertOwnPreview, assertOwnCsv, assertDeniedExport,
@@ -77,9 +77,19 @@ export async function proveReportBuilderExports() {
     }
     const baseline = new Map(await Promise.all(trio.map(async person =>
       [person.org.id, await snapshot(person.org.id)])));
+    for (const person of trio) {
+      const workers = baseline.get(person.org.id).employees;
+      assert.equal(workers.length, 1, "Fixture must have exactly one persisted worker");
+      assert.equal(workers[0].id, person.worker.id);
+      assert.equal(workers[0].orgUnitId, person.unit.id);
+      assert.equal(workers[0].status, "Active");
+      person.expectedHeadcount = 1;
+    }
     let ownPreviews = 0, ownCsvExports = 0, foreignDenials = 0, badRequests = 0;
     let firstPreview = null;
     for (const actor of actors) {
+      const foreignBefore = new Map(await Promise.all(trio.filter(p => p.org.id !== actor.org.id)
+        .map(async p => [p.org.id, await snapshot(p.org.id)])));
       const session = await http("/api/account", actor.cookie);
       assert.equal(session.status, 200, "A real signed-in account session is required");
       assert.equal(session.json?.profile?.id, actor.owner.id);
@@ -91,8 +101,10 @@ export async function proveReportBuilderExports() {
           "The other attacker's real data must not pass own-employer evidence");
       } else firstPreview = preview;
       ownPreviews++;
-      assertProtectedUnchanged(baseline.get(victim.org.id),
-        await snapshot(victim.org.id), "Victim after own preview");
+      assertProtectedUnchanged(baseline.get(actor.org.id), await snapshot(actor.org.id),
+        "JSON preview cannot mutate own protected SQL or audit");
+      for (const [id, before] of foreignBefore)
+        assertProtectedUnchanged(before, await snapshot(id), "Every foreign employer after own preview");
 
       const csv = await http(path, actor.cookie, payload(actor.org.id, "csv"));
       assertOwnCsv(csv, actor, victim);
@@ -106,6 +118,15 @@ export async function proveReportBuilderExports() {
         "Only one own-employer CSV audit event is expected");
       assert.equal(ownAfter.auditEvents.at(-1).action,
         "Tenant report builder CSV exported");
+      assert.deepEqual(ownAfter.auditEvents.slice(0, -1), baseline.get(actor.org.id).auditEvents,
+        "Owned export must not rewrite existing audit evidence");
+      const audit = ownAfter.auditEvents.at(-1);
+      assert.equal(audit.organizationId, actor.org.id);
+      assert.equal(audit.actor, actor.owner.name);
+      assert.equal(audit.resource, "people");
+      assert.equal(audit.metadata?.sha256, createHash("sha256").update(csv.text).digest("hex"));
+      for (const [id, before] of foreignBefore)
+        assertProtectedUnchanged(before, await snapshot(id), "Every foreign employer after own CSV audit");
 
       for (const foreign of trio.filter(person => person.org.id !== actor.org.id)) {
         const before = await snapshot(foreign.org.id);
@@ -152,8 +173,11 @@ export async function proveReportBuilderExports() {
     const scoped = await fixture.standaloneMakeSession(scopedUser.id);
     await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
       .where(eq(s.sessions.id, scoped.id));
+    const beforeScoped = await snapshot(a.org.id);
     assertDeniedExport(await http(path, scoped.cookie, payload(a.org.id)),
-      victim, "unit-scoped HR export", [403]);
+      a, "unit-scoped HR export", [403]);
+    assertProtectedUnchanged(beforeScoped, await snapshot(a.org.id),
+      "Unit-scoped denial cannot change the addressed employer");
     assertProtectedUnchanged(baseline.get(victim.org.id),
       await snapshot(victim.org.id), "Victim after unit-scoped denial");
 
@@ -165,9 +189,12 @@ export async function proveReportBuilderExports() {
     assert.equal(changed.length, 1);
     assert.equal((await http("/api/account", a.cookie)).status, 200);
     const victimBeforeRevoked = await snapshot(victim.org.id);
+    const addressedBeforeRevoked = await snapshot(a.org.id);
     for (const format of ["json", "csv"]) {
       assertDeniedExport(await http(path, a.cookie, payload(a.org.id, format)),
-        victim, "revoked employer access " + format, [403, 404]);
+        a, "revoked employer access " + format, [403, 404]);
+      assertProtectedUnchanged(addressedBeforeRevoked, await snapshot(a.org.id),
+        "Revoked request cannot change the addressed employer");
       assertProtectedUnchanged(victimBeforeRevoked, await snapshot(victim.org.id),
         "Victim after revoked session request");
     }

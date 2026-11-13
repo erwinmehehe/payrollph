@@ -7,8 +7,10 @@ Scope: the actual /api/reports/builder POST JSON preview and CSV export, not the
 - The job checks out the exact PR head, verifies eleven immutable production/fixture source blob hashes, refuses non-disposable targets and provider credentials, and requires empty PostgreSQL 16 localhost data.
 - Six fictional filler employers, two independent signed-in attacker employers, and a higher-ID populated victim are seeded using the existing tenant fixture helper.
 - Two nonempty own-employer JSON previews and two actual CSV export responses must include the persisted own unit and headcount, with exactly one own-employer CSV audit row each.
+- Positives require exactly the persisted department and headcount, rejecting appended rows from the other attacker as well as the victim. All foreign business/audit snapshots stay unchanged during own previews and exports; existing own audit rows remain immutable and the appended audit binds the actor and CSV digest.
 - Both attackers request JSON and CSV exports from each foreign employer; all eight requests must deny without victim markers or a changed foreign database/audit snapshot.
 - Invalid IDs, unsupported output modes/fields, anonymous access, a unit-scoped HR account and a revoked active employer grant must refuse without unrelated data.
+- Unit-limited and revoked requests also preserve the addressed employer's complete protected snapshot and may not disclose its markers in their denial body.
 - Negative contract tests reject fake success payloads, blank CSV, missing provenance, unsafe environments and modified source pins.
 
 ## Deliberate limits

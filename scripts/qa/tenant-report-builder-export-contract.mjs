@@ -71,9 +71,10 @@ export function assertOwnPreview(response, actor, victim) {
   assert.deepEqual(response.json?.columns, ["department", "headcount"]);
   assert.ok(Array.isArray(response.json?.rows) && response.json.rows.length > 0,
     "An empty response cannot prove an own-employer report");
-  assert.ok(response.json.rows.some(row =>
-    Array.isArray(row) && row[0] === actor.unit.code && Number(row[1]) > 0),
-  "The response must include the real persisted own employer unit and headcount");
+  assert.ok(Number.isSafeInteger(actor.expectedHeadcount) && actor.expectedHeadcount > 0,
+    "Expected headcount must come from the persisted fictional fixture");
+  assert.deepEqual(response.json.rows, [[actor.unit.code, String(actor.expectedHeadcount)]],
+    "Own report must contain exactly the persisted department/headcount, with no foreign or duplicate rows");
   assertNoVictimMaterial(response, victim, "own preview");
 }
 export function assertOwnCsv(response, actor, victim) {
@@ -86,8 +87,9 @@ export function assertOwnCsv(response, actor, victim) {
   assert.ok(response.text.startsWith('"department","headcount"\n') &&
     response.text.length > '"department","headcount"\n'.length,
     "A successful but empty/fake CSV header is not an export");
-  assert.ok(response.text.includes('"' + actor.unit.code + '"'),
-    "Export must include real own department");
+  assert.ok(Number.isSafeInteger(actor.expectedHeadcount) && actor.expectedHeadcount > 0);
+  assert.equal(response.text, '"department","headcount"\n"' + actor.unit.code + '","' + actor.expectedHeadcount + '"',
+    "CSV bytes must contain exactly the persisted own department/headcount and no additional data");
   assertNoVictimMaterial(response, victim, "own CSV");
 }
 export function assertDeniedExport(response, victim, context, allowed = [401, 403, 404]) {

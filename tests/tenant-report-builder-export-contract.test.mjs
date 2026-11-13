@@ -19,7 +19,7 @@ const safe = {
   PAYMONGO_DISBURSEMENTS_ENABLED: "false",
   XENDIT_PAYOUTS_ENABLED: "false", XENDIT_BILLING_ENABLED: "false",
 };
-const actor = { unit: { code: "OWN-DEPT" } };
+const actor = { unit: { code: "OWN-DEPT" }, expectedHeadcount: 2 };
 const victim = {
   marker: "SECRET-VICTIM",
   org: { name: "PRIVATE VICTIM INC" }, worker: { employeeNo: "V-123" },
@@ -68,8 +68,12 @@ test("only populated own-tenant JSON and real CSV bytes can count as positives",
       rows: [["OTHER-DEPT", "2"]] }), "application/json"),
     response(200, JSON.stringify({ source: "people", columns: ["department", "headcount"],
       rows: [["OWN-DEPT", "2"], [victim.marker, "1"]] }), "application/json"),
+    response(200, JSON.stringify({ source: "people", columns: ["department", "headcount"],
+      rows: [["OWN-DEPT", "2"], ["OTHER-ATTACKER-DEPT", "1"]] }), "application/json"),
+    response(200, JSON.stringify({ source: "people", columns: ["department", "headcount"],
+      rows: [["OWN-DEPT", "999"]] }), "application/json"),
   ]) assert.throws(() => assertOwnPreview(bad, actor, victim));
-  assertOwnCsv(response(200, '"department","headcount"\n"OWN-DEPT","2"\n',
+  assertOwnCsv(response(200, '"department","headcount"\n"OWN-DEPT","2"',
     "text/csv; charset=utf-8", { "content-disposition": "attachment; filename=report.csv" }), actor, victim);
   for (const bad of [
     response(200, '"department","headcount"\n', "text/csv",
@@ -77,6 +81,10 @@ test("only populated own-tenant JSON and real CSV bytes can count as positives",
     response(200, '"department","headcount"\n' + victim.marker, "text/csv",
       { "content-disposition": "attachment" }),
     response(200, "<html>OWN-DEPT</html>", "text/html",
+      { "content-disposition": "attachment" }),
+    response(200, '"department","headcount"\n"OWN-DEPT","999"', "text/csv",
+      { "content-disposition": "attachment" }),
+    response(200, '"department","headcount"\n"OWN-DEPT","2"\n"OTHER-ATTACKER-DEPT","1"', "text/csv",
       { "content-disposition": "attachment" }),
   ]) assert.throws(() => assertOwnCsv(bad, actor, victim));
 });
