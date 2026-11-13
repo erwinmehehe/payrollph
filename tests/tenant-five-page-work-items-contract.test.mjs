@@ -47,6 +47,15 @@ test("fake own 200 or foreign data are never evidence", () => {
   ] });
   assert.doesNotThrow(() => assertOwnedPage(result(200, null,
     "<h1>HR Work Queue</h1>Employer <strong>#8</strong>"), a, [b]));
+  // React/Next SSR can split static "#" and dynamic employer ID.
+  assert.doesNotThrow(() => assertOwnedPage(result(200, null,
+    "<h1>HR Work Queue</h1>Employer <strong>#<!-- -->8</strong>"), a, [b]));
+  for (const forged of [
+    "<h1>HR Work Queue</h1>Employer <strong>#<!-- -->10</strong>",
+    "<h1>HR Work Queue</h1>Employer <strong>#<!-- -->88</strong>",
+    "<h1>HR Work Queue</h1>Employer <strong>#<!-- -->8</strong> " + b.marker,
+    "<h1>HR Work Queue</h1>Employer <strong>8</strong>",
+  ]) assert.throws(() => assertOwnedPage(result(200, null, forged), a, [b]));
   assert.doesNotThrow(() => assertOwnedApi(owned, a, [b], 17));
   for (const bad of [
     result(200, { items: [] }),

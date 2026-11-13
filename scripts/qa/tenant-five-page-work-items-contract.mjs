@@ -73,8 +73,12 @@ export function assertNoForeignData(response, actors, label) {
 export function assertOwnedPage(response, actor, others) {
   assert.equal(response.status, 200, "Own work-items page must return actual SSR 200");
   assert.ok(response.text.includes("HR Work Queue"), "Wrong/placeholder SSR page");
-  assert.ok(response.text.includes("Employer") &&
-    response.text.includes("<strong>#" + actor.org.id + "</strong>"),
+  // React SSR inserts an empty hydration boundary between literal "#" and
+  // the dynamic employer ID. Compare the actual bound strong-label after
+  // removing ONLY those empty markers, not arbitrary HTML or text values.
+  const html = response.text.replace(/<!--\s*-->/g, "");
+  assert.ok(html.includes("Employer") &&
+    html.includes("<strong>#" + actor.org.id + "</strong>"),
     "Own SSR must display the server-authorized employer, not a generic shell");
   assertNoForeignData(response, others, "own work queue");
 }
