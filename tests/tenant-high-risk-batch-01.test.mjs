@@ -881,4 +881,4 @@ test("fictional payroll accounting close and pre-run readiness cannot share an o
 });
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
 
-import {verifyOidcCallbackCredit} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+import {verifyOidcCallbackCredit,OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
