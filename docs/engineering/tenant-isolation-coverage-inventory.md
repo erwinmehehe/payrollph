@@ -1,4 +1,4 @@
-> **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 prior credits held; 437 COVERED / 26 GAP. New source is NOT_RUN until fresh PG16 proof; historical receipts do not certify it.
+> **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 prior credits held; 437 COVERED / 26 GAP. Complete method-positive renewal remains NOT_RUN; the separate boundary regression grants zero credits.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 437 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 26 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 

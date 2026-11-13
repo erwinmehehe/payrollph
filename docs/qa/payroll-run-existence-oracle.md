@@ -34,7 +34,25 @@ GAP**, with no change to 498 total methods or any page/action classification.
    victim denial, forged-selector and unchanged-victim proof. Do not repin old
    source receipts as if they ran on this source.
 
-Current execution: **NOT_RUN**. Source checks/TypeScript are not PG16 proof.
+Stage 1 execution: **PASS**, actual production Next + disposable PostgreSQL 16,
+[run43336550655 / job131594069195](https://github.com/erwinmehehe/payrollph/actions/runs/43336550655/job/131594069195),
+exact source `32190c57869706aa70201d5551a68316982f0e6f`. All nineteen addressed
+methods passed 76 foreign/missing comparisons, 38 own wrong-role403 checks,
+38 revoked-membership comparisons, three populated owner-register controls,
+and unchanged victim SQL. Genuine victim employer/run/worker IDs exceed6;
+seven fictional fillers prevent accidental low-ID fixture acceptance. No provider
+calls and zero method credits. The sealed regression receipt is separate from
+the nineteen historical method receipts.
+
+The reviewed shared-caller compatibility check verifies that exact regression,
+all executed source pins, each complete changed caller blob, the literal reviewed
+edit list and byte-for-byte reconstruction of the original caller. It preserves
+unrelated historical evidence; it does not claim those historical jobs reran or
+renew the nineteen withdrawn method credits. Only payroll foreign/revoked denial
+expectations and the workflow's dependency/history configuration may reconstruct.
+
+Complete method-positive renewal: **NOT_RUN** until each full cohort succeeds.
+Source checks/TypeScript are not PG16 proof.
 Existing source-credit guards may remain red during withdrawal/renewal; no
 check is bypassed, and this draft must not merge in that state.
 

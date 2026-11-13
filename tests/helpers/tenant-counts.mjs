@@ -15,6 +15,15 @@ import { readFileSync } from "node:fs";
 import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
 
+/** Count only the sealed oracle withdrawals newly introduced over this base. */
+export function oracleWithdrawalDelta(before, current) {
+  const held = verifyOracleSourceHolds(current, before);
+  return [...held].filter(key => {
+    const at = key.indexOf(" "), verb = key.slice(0, at), path = key.slice(at + 1);
+    return before.allApiRouteFiles[path]?.methods.find(row => row.name === verb)?.status === "COVERED";
+  }).length;
+}
+
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const RANK = { GAP: 0, "PUBLIC-BY-DESIGN": 1, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 1, COVERED: 1 };
 

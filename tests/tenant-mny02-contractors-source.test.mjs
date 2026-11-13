@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const path = "scripts/qa/tenant-mny02-contractors-http.mjs";
 const suite = readFileSync(path, "utf8");
@@ -117,8 +118,14 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
     Number.isInteger(method.testedBy?.ownPositiveLine) &&
     Number.isInteger(method.testedBy?.foreignDenialLine)));
   const preRun = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"]?.methods.find(m => m.name === "GET");
+  const oracleHolds = verifyOracleSourceHolds(manifest);
+  if (preRun?.status === "GAP") {
+    assert.ok(oracleHolds.has("GET src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts"));
+    assert.equal(preRun.testedBy, null, "withdrawn readiness proof is historical, not current credit");
+  } else {
   assert.equal(preRun?.status, "COVERED", "Main source-pinned readiness GET must retain its independent credit");
   assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
+  }
   const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
   assert.deepEqual(actionMethods.map(method => method.name), ["GET", "POST"]);
   assert.ok(actionMethods.every(method => method.status === "COVERED" &&
@@ -151,6 +158,10 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   const preRunCredit = 1;
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
+  if (closePost?.status === "GAP") {
+    assert.ok(oracleHolds.has("POST src/app/api/payroll-runs/[id]/close/route.ts"));
+    assert.equal(closePost.testedBy, null, "withdrawn close proof cannot count as a successful credit");
+  } else {
   assert.equal(closePost?.status, "COVERED",
     "Only separately source-pinned successful close POST can add a provisional credit");
   assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
@@ -171,6 +182,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   assert.match(closeSource,
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
   const closePostCredits = 1;
+  }
   assertLiveTenantCounts(assert, manifest);
 });
 

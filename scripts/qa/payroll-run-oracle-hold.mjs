@@ -24,7 +24,7 @@ const sourceAtBase = path => execFileSync("git", ["show", ORACLE_BASE + ":" + pa
  * Historical receipts are compared against trusted Git, not caller-provided
  * metadata. All fifteen route sources and the shared boundary stay sealed. */
 export function verifyOracleSourceHolds(manifest, before = null, read = readFileSync) {
-  const candidate = Object.values(manifest.allApiRouteFiles ?? {}).some(file =>
+  const candidate = manifest.allApiRouteFiles?.["src/app/api/payroll-runs/[id]/assurance/route.ts"]?.gitBlobSha === "033efd5f84319b510ce7551305dcbdc319eb98ea" || Object.values(manifest.allApiRouteFiles ?? {}).some(file =>
     file.methods?.some(row => row.reviewedUncertified?.kind === "payroll-run-membership-oracle-source-withdrawal"));
   if (!candidate) return new Set();
   // CI consumers can have shallow clones. This immutable projection was copied
@@ -48,14 +48,10 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
   const allowed = new Set();
   for (const path of paths) for (const old of historical.allApiRouteFiles[path].methods.filter(row => row.status === "COVERED")) {
     const row = manifest.allApiRouteFiles[path].methods.find(row => row.name === old.name);
-    if (row.status !== "GAP") {
-      // Actual new credits are checked by their dedicated proof guards; an old
-      // hold cannot silently turn into an accepted or public method.
-      assert.equal(row.status, "COVERED");
-      assert.equal(row.reviewedUncertified, undefined);
-      assert.ok(row.testedBy && typeof row.testedBy === "object");
-      continue;
-    }
+    // This stage has no method-renewal writer. Removing the hold and supplying
+    // any truthy receipt object must not silently restore a changed-source credit.
+    // A later renewal stage must add its own executed-receipt verifier here.
+    assert.equal(row.status,"GAP","Changed payroll-run source requires a separately reviewed method renewal");
     const hold = row.reviewedUncertified;
     assert.equal(row.testedBy, null);
     assert.deepEqual(hold, {
@@ -74,6 +70,13 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
   assert.ok(allowed.size > 0 && allowed.size <= ORACLE_HELD_METHODS.length);
   return allowed;
 }
+export function isVerifiedOracleHold(manifest, path, verb) {
+  const row=manifest.allApiRouteFiles[path]?.methods.find(method=>method.name===verb);
+  if(row?.status!=="GAP" || row.reviewedUncertified?.kind!=="payroll-run-membership-oracle-source-withdrawal") return false;
+  assert.ok(verifyOracleSourceHolds(manifest).has(verb+" "+path));
+  return true;
+}
+
 export function withdrawRunOracleCredits({ write = false } = {}) {
   const original = JSON.parse(sourceAtBase(MANIFEST));
   const archived = JSON.parse(readFileSync("scripts/qa/payroll-run-oracle-historical-proofs.json", "utf8"));
@@ -137,7 +140,7 @@ export function withdrawRunOracleCredits({ write = false } = {}) {
     .replace(/(\*\*NOT ACCEPTED\*\*: )\d+ method gaps/g, "$1" + manifest.metrics.gap + " method gaps");
   const prefix = "> **PAYROLL RUN ORACLE — SOURCE HOLD:** ";
   if (doc.startsWith(prefix)) doc = doc.slice(doc.indexOf("\n") + 1).replace(/^\n+/, "");
-  doc = prefix + held.length + " prior credits held; " + manifest.metrics.coveredAfter + " COVERED / " + manifest.metrics.gap + " GAP. New source is NOT_RUN until fresh PG16 proof; historical receipts do not certify it.\n\n" + doc;
+  doc = prefix + held.length + " prior credits held; " + manifest.metrics.coveredAfter + " COVERED / " + manifest.metrics.gap + " GAP. Complete method-positive renewal remains NOT_RUN; the separate boundary regression grants zero credits.\n\n" + doc;
   if (write) {
     writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + "\n"); writeFileSync(inventory, doc);
     const file = "docs/engineering/tenant-isolation-closure-plan.md";

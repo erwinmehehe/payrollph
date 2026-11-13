@@ -881,7 +881,6 @@ If a real HTTP cross-employer leak is reproduced, create a stand-alone security 
 
 All 490 current exported methods and all 20 page/action entries must resolve to **COVERED with executed four-part proof**, **PUBLIC-BY-DESIGN with an explicit method-level reason**, or **NEEDS OWNER with a concrete owner question**. Every case has a source- and CI-line-pinned evidence record. The manifest must remain **NOT ACCEPTED** until independent reviewer/owner acceptance. As of baseline: **406 API method GAPs and 20 page/action GAPs remain; 0 confirmed live exploits, no new fixes in this planning PR.**
 
-
 ## Supplemental payroll-run source-withdrawal renewals
 
 These source-withdrawn methods were outside the immutable 406-method queue. Each stays GAP until its own renewed proof; no frozen link is changed.

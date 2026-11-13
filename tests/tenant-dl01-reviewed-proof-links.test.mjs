@@ -88,10 +88,12 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
     ?.methods.find(m => m.name === 'GET');
   const changedProcess = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/process/route.ts']
     ?.methods.find(m => m.name === 'POST');
+  if(!isVerifiedOracleHold(manifest,'src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts','GET')) {
   assert.equal(readiness?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.equal(changedProcess?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.match(changedProcess?.reason ?? '', /422.*403/,
     'Pre-run fail-closed proof must not be presented as successful money computation');
+  } else assert.ok(isVerifiedOracleHold(manifest,'src/app/api/payroll-runs/[id]/process/route.ts','POST'));
   assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
   const coveredPage = manifest.scopedPages.find(p =>
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
@@ -113,6 +115,7 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.equal(verifyOnboardingCredit('POST employees/import', importPost), true);
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
+  if(!isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/close/route.ts","POST")) {
   assert.equal(closePost?.status, "COVERED",
     "Only separately source-pinned successful close POST can add a provisional credit");
   assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
@@ -134,6 +137,8 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
     /await verifyPayrollClosePostIsolation\(f, \{ request, expectStatus, makeSession \}\);/);
   assert.ok(overview.includes('(../../scripts/qa/tenant-high-risk-01-http.mjs#L444)'),
     'The independently credited close POST must have its exact own-200 proof link in the inventory');
+  }
   assert.ok(overview.includes('| coveredAfter | ' + manifest.metrics.coveredAfter + ' |'));
   assert.ok(overview.includes('| gap | ' + manifest.metrics.gap + ' |'));
 });
+import { isVerifiedOracleHold } from "../scripts/qa/payroll-run-oracle-hold.mjs";

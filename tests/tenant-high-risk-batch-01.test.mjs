@@ -1,4 +1,5 @@
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
+import {verifyOracleSourceHolds,isVerifiedOracleHold} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -93,6 +94,14 @@ test("self-service routes use real employee sessions and revoke real memberships
 
 test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant proofs", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const oracleHolds=verifyOracleSourceHolds(manifest);
+  // Preserve this historical baseline arithmetic, then subtract the exact
+  // source withdrawals once at the end. These are NOT live method credits.
+  const heldProofs=[...oracleHolds].map(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+    return manifest.allApiRouteFiles[path].methods.find(row=>row.name===verb).reviewedUncertified.priorProof;
+  });
+  const historicalHeldCount=file=>heldProofs.filter(proof=>proof.file===file).length;
   const mergedProofCredits = verifyMergedProofCredits(manifest);
   // The five-method review credits exactly three methods, while both transfer methods remain GAP.
   // Only subtract these from the historical 124/359 baseline when the full fail-closed
@@ -103,9 +112,14 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(cases.length, 16, "Never silently narrow the tested Batch 01 method set");
   assert.equal(new Set(cases).size, 16);
   const pendingReview = [];
+  let heldHighRisk=0;
   for (const spec of cases) {
     const route = spec.slice("GET ".length);
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]?.methods.find((m) => m.name === "GET");
+    if(isVerifiedOracleHold(manifest,"src/app/api/"+route+"/route.ts","GET")) {
+      if(method.reviewedUncertified.priorProof.file==="scripts/qa/tenant-high-risk-01-http.mjs") heldHighRisk++;
+      continue;
+    }
     assert.equal(method?.status, "COVERED", spec + " must have actual executed own/victim evidence");
     if (method.testedBy.file !== "scripts/qa/tenant-high-risk-01-http.mjs") continue;
     pendingReview.push(spec);
@@ -121,7 +135,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     assert.match(method.reason, /^Provisional:/);
     assert.match(proof.scope, /independent|Two independent/);
   }
-  assert.equal(pendingReview.length, 12, "The thirteenth GET has newer independent current-main proof; never double-credit it");
+  assert.equal(pendingReview.length+heldHighRisk, 12, "Historical receipts and explicitly withdrawn sources must not be double-credited");
   const payExplain = manifest.allApiRouteFiles["src/app/api/self/payslips/[id]/explain/route.ts"]
     ?.methods.find((m) => m.name === "GET");
   assert.equal(payExplain?.status, "COVERED");
@@ -163,6 +177,8 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     const statuses = suite.methods.map((key) => {
       const method = methodsByKey.get(key);
       assert.ok(method, key + ": reviewed route and method must still exist");
+      const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';
+      if(isVerifiedOracleHold(manifest,path,verb)&&method.reviewedUncertified.priorProof.file===suite.file) return "HELD";
       const inheritedMainSources = new Map([
         ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
         ["POST compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
@@ -179,7 +195,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       if (method.status === "GAP") assert.equal(method.testedBy, null);
       return method.status === "COVERED" && method.testedBy?.file !== suite.file ? "INHERITED" : method.status;
     });
-    const added = statuses.filter((status) => status === "COVERED").length;
+    const added = statuses.filter((status) => status === "COVERED"||status==="HELD").length;
     const inherited = statuses.filter((status) => status === "INHERITED").length;
     assert.ok(added === 0 || added + inherited === suite.methods.length,
       suite.file + ": an incomplete/partial proof suite cannot silently receive credit");
@@ -192,6 +208,8 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     const proofLines = runner.split("\n");
     for (const key of suite.methods) {
       const method = methodsByKey.get(key);
+      const at=key.indexOf(' ');
+      if(isVerifiedOracleHold(manifest,'src/app/api/'+key.slice(at+1)+'/route.ts',key.slice(0,at))) continue;
       if (method.testedBy?.file !== suite.file) {
         assert.ok(["scripts/qa/tenant-manifest-driven-http.mjs",
           "scripts/qa/dole-13th-month-http.mjs",
@@ -255,11 +273,12 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(vaultSourcePinnedMethods, 2, "No partial or double-credited vault closeout");
   const moneyMethods = Object.values(manifest.allApiRouteFiles).flatMap(r => r.methods)
     .filter(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs");
-  assert.equal(moneyMethods.length, 9,
+  const historicalMoneyCount=moneyMethods.length+historicalHeldCount("scripts/qa/tenant-money-lifecycle-http.mjs");
+  assert.equal(historicalMoneyCount, 9,
     "The seven non-process money methods plus payroll submit-review and release retain their exact own-success/foreign-denial proofs");
   assert.deepEqual(Object.values(manifest.allApiRouteFiles)
     .filter(r => r.methods.some(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs") && r.route.startsWith("payroll-runs/"))
-    .map(r => r.route).sort(), ["payroll-runs/[id]/release", "payroll-runs/[id]/submit-review"],
+    .map(r => r.route).sort(), ["payroll-runs/[id]/release", "payroll-runs/[id]/submit-review"].filter(route=>!isVerifiedOracleHold(manifest,'src/app/api/'+route+'/route.ts','POST')),
     "Only submit-review and release borrow the money-lifecycle payroll journey");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
@@ -272,6 +291,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const preRunMethod = methodsByKey.get("GET payroll-runs/[id]/pre-run-readiness");
   const preRunProofFile = "scripts/qa/tenant-second-pass-http.mjs";
   const preRunLines = readFileSync(preRunProofFile, "utf8").split("\n");
+  if(!isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/process/route.ts","POST")) {
   assert.equal(processMethod?.status, "COVERED", "Calculation entry must retain method-specific tenant authorization");
   assert.equal(preRunMethod?.status, "COVERED", "Readiness GET must retain method-specific tenant authorization");
   assert.equal(processMethod?.testedBy?.file, preRunProofFile);
@@ -301,6 +321,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.match(preRunLines[preRunMethod.testedBy.unchangedDbLine - 1] ?? "",
     /assert\.deepEqual\(victimAfter, victimBefore/,
     "Denied cross-tenant pre-run read must leave victim rows unchanged");
+  } else assert.ok(isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts","GET"));
   assert.match(harness, /PRERUN_STATUTORY_VERIFICATION_UNRECORDED/,
     "No source-only test may invent official verification to pass money CI");
 
@@ -438,6 +459,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // These three separately reviewed multi-action POST receipts use sourceRowFile,
   // not the generic one-action table rowFile contract. The inventory guard also
   // validates their route/proof/workflow blob pins and four-part PG16 assertions.
+  const historicalTableCount=tableMethods.length+historicalHeldCount("scripts/qa/tenant-table-http.mjs")+historicalHeldCount("scripts/qa/tenant-write-table-http.mjs");
   const reviewedComplianceRows = new Map([
     ["POST compliance/contribution-issues", { file: "scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs", line: 43, sha: "dfcf1615be01bb151e13a5d74c080299575ce53a", actions: ["start_review", "add_update", "refer_to_agency", "resolve"] }],
     ["POST compliance/payroll-month-close", { file: "scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs", line: 49, sha: "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193", actions: ["certify_ready_month"] }],
@@ -613,15 +635,15 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.equal(authLogoutCredits, 1, "exactly the auth logout POST is credited by its dedicated receipt");
   // payout-reconciliation POST: loopback-synthetic PayMongo receipt, guarded by its own inventory test.
   const payoutReconciliationCredits = [...methodsByKey.values()].filter(method =>
-    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/paymongo-export-isolation-local.mjs").length;
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/paymongo-export-isolation-local.mjs").length+historicalHeldCount("scripts/qa/paymongo-export-isolation-local.mjs");
   assert.equal(payoutReconciliationCredits, 1, "exactly the payout reconciliation POST is credited by its dedicated receipt");
   // exports POST: dedicated loopback-synthetic PayMongo three-mode receipt, guarded by its own inventory test.
   const exportsPostCredits = [...methodsByKey.values()].filter(method =>
-    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-payroll-exports-post-http.mjs").length;
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-payroll-exports-post-http.mjs").length+historicalHeldCount("scripts/qa/tenant-payroll-exports-post-http.mjs");
   assert.equal(exportsPostCredits, 1, "exactly the payroll exports POST is credited by its dedicated receipt");
   // pilot-signoff POST and xendit-payout GET: dedicated payroll-run-actions receipt, guarded by its own inventory test.
   const payrollRunActionsCredits = [...methodsByKey.values()].filter(method =>
-    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-payroll-run-actions-http.mjs").length;
+    method.status === "COVERED" && method.testedBy?.file === "scripts/qa/tenant-payroll-run-actions-http.mjs").length+historicalHeldCount("scripts/qa/tenant-payroll-run-actions-http.mjs");
   assert.equal(payrollRunActionsCredits, 2, "exactly pilot-signoff POST and xendit-payout GET are credited by the dedicated receipt");
   // loyverse / square-sandbox GET and POST: dedicated POS-demand receipt, guarded by its own inventory test.
   const posDemandCredits = [...methodsByKey.values()].filter(method =>
@@ -799,16 +821,16 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const checkoutCredits = verifyCheckoutCredit(manifest);
   const readinessCredits=verifyWorkspaceReadinessCredit(manifest);
   const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==="PATCH").status==="COVERED" ? verifyFilingPatchCredit(manifest) : 0;
-  assert.equal(manifest.metrics.coveredAfter - verifyStudioPostCredit(manifest) - approvalsCredits - readinessCredits - checkoutCredits - filingPatchCredits - verifySecurityCredits(manifest) - verifyEnterprisePostCredit(manifest) - verifyRecoveryCredits(manifest) - emailCredits - accountEmailRequestCredits - invitationAcceptCredits - careersPatchCredits - billingCredits - migrationCredits - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
-    moneyMethods.length - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
-    tableMethods.length - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - accountPasswordCredits - authLogoutCredits - verifyReceiptCredits(manifest) - payoutReconciliationCredits - exportsPostCredits - payrollRunActionsCredits - posDemandCredits - transfersCredits - birCandidateCredits - verifySpendManaged(manifest) - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits - yearEndCredits, 124,
+  assert.equal(manifest.metrics.coveredAfter+oracleHolds.size - verifyStudioPostCredit(manifest) - approvalsCredits - readinessCredits - checkoutCredits - filingPatchCredits - verifySecurityCredits(manifest) - verifyEnterprisePostCredit(manifest) - verifyRecoveryCredits(manifest) - emailCredits - accountEmailRequestCredits - invitationAcceptCredits - careersPatchCredits - billingCredits - migrationCredits - newDisjointCredits - promotionCredits - selfDevelopmentCredits - managerDirectReportCredits - additionalSourcePinnedMethods - vaultSourcePinnedMethods -
+    historicalMoneyCount - contractorMethods - underpaymentMethods.length - 2 - groupReportCredits - expenseBenefitMethods - bir2316Methods.length -
+    historicalTableCount - mergedProofCredits - essContributionCredits - 7 - followOnCredits - hmoPostCredits - worksitesPostCredits - rosterPostCredits - post1523Credits - staffingPolicyCredits - dl02ImportCredits - performanceCoreCredits - clockCredits - onboardingCredits - wrk02Batch2Credits - allocationCredits - xenditPayoutWebhookCredits - paymongoTransferWebhookCredits - resendWebhookCredits - xenditSubscriptionsWebhookCredits - staffingGetCredit - effectiveChangePostCredits - accountPasswordCredits - authLogoutCredits - verifyReceiptCredits(manifest) - payoutReconciliationCredits - exportsPostCredits - payrollRunActionsCredits - posDemandCredits - transfersCredits - birCandidateCredits - verifySpendManaged(manifest) - mwePatchCredits - finalHeadPromotionCredits - workflowSoloCredits - wfmProvisionalCredits - greedySoloCredits - yearEndSoloCredits - issuedDemandSoloCredits - payoutProfilePatchCredits - fiveMethodCredits - yearEndCredits, 124,
     "Preserve historical source-pinned covered receipts, tracking pre-run GET and blocked process separately");
   const publicV1 = methodsByKey.get("GET v1");
   assert.equal(publicV1?.status, "PUBLIC-BY-DESIGN", "Only static v1 catalog consumes historical GAP");
   assert.equal(publicV1?.testedBy, null, "Public catalog cannot claim tenant-scoped evidence");
-  assert.equal(manifest.metrics.gap + verifyStudioPostCredit(manifest) + approvalsCredits + readinessCredits + checkoutCredits + filingPatchCredits + (manifest.metrics.publicByDesign - 11) + manifest.metrics.privilegedOperationsTokenOnly + verifySecurityCredits(manifest) + verifyEnterprisePostCredit(manifest) + verifyRecoveryCredits(manifest) + emailCredits + accountEmailRequestCredits + invitationAcceptCredits + careersPatchCredits + billingCredits + migrationCredits + 1 + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
-    vaultSourcePinnedMethods + moneyMethods.length + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
-    tableMethods.length + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + accountPasswordCredits + authLogoutCredits + verifyReceiptCredits(manifest) + payoutReconciliationCredits + exportsPostCredits + payrollRunActionsCredits + posDemandCredits + transfersCredits + birCandidateCredits + verifySpendManaged(manifest) + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits + yearEndCredits - newCorrectionMethods.length, 359,
+  assert.equal(manifest.metrics.gap-oracleHolds.size + verifyStudioPostCredit(manifest) + approvalsCredits + readinessCredits + checkoutCredits + filingPatchCredits + (manifest.metrics.publicByDesign - 11) + manifest.metrics.privilegedOperationsTokenOnly + verifySecurityCredits(manifest) + verifyEnterprisePostCredit(manifest) + verifyRecoveryCredits(manifest) + emailCredits + accountEmailRequestCredits + invitationAcceptCredits + careersPatchCredits + billingCredits + migrationCredits + 1 + newDisjointCredits + promotionCredits + selfDevelopmentCredits + additionalSourcePinnedMethods +
+    vaultSourcePinnedMethods + historicalMoneyCount + 1 + contractorMethods + underpaymentMethods.length + groupReportCredits + expenseBenefitMethods + bir2316Methods.length +
+    historicalTableCount + mergedProofCredits + essContributionCredits + 7 + followOnCredits + hmoPostCredits + worksitesPostCredits + rosterPostCredits + post1523Credits + staffingPolicyCredits + dl02ImportCredits + performanceCoreCredits + clockCredits + onboardingCredits + wrk02Batch2Credits + allocationCredits + xenditPayoutWebhookCredits + paymongoTransferWebhookCredits + resendWebhookCredits + xenditSubscriptionsWebhookCredits + staffingGetCredit + effectiveChangePostCredits + accountPasswordCredits + authLogoutCredits + verifyReceiptCredits(manifest) + payoutReconciliationCredits + exportsPostCredits + payrollRunActionsCredits + posDemandCredits + transfersCredits + birCandidateCredits + verifySpendManaged(manifest) + mwePatchCredits + finalHeadPromotionCredits + workflowSoloCredits + wfmProvisionalCredits + greedySoloCredits + yearEndSoloCredits + issuedDemandSoloCredits + payoutProfilePatchCredits + fiveMethodCredits + yearEndCredits - newCorrectionMethods.length, 359,
     "No historical GAP may silently disappear when an old process positive becomes an intentional blocker");
   assert.match(harness, /await \(await import\("\.\/tenant-high-risk-01-http\.mjs"\)\)\.verifyHighRiskBatchOne\(f, \{ request, expectStatus, makeSession \}\)/);
   assert.match(source, /for \(const idx of \[1, 2\]\)/);

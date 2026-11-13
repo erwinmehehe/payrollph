@@ -18,6 +18,15 @@ test("forged hold receipts, changed route/helper code and false acceptance are r
     assert.throws(() => verifyOracleSourceHolds(read(), null, (p, ...args) => p === changed ? readFileSync(p, ...args) + "\n// drift" : readFileSync(p, ...args)));
   const promoted = read(); promoted.allApiRouteFiles[path].methods[0].status = "COVERED";
   assert.throws(() => verifyOracleSourceHolds(promoted), "a stale hold cannot become a method credit");
+  const fabricated=read(),row=fabricated.allApiRouteFiles[path].methods[0];
+  row.status="COVERED";delete row.reviewedUncertified;row.testedBy={file:"scripts/qa/fabricated.mjs"};
+  assert.throws(()=>verifyOracleSourceHolds(fabricated),"removing the hold cannot turn a fake receipt into renewal");
+  const erased=read();
+  for(const file of Object.values(erased.allApiRouteFiles))for(const method of file.methods)
+    if(method.reviewedUncertified?.kind==="payroll-run-membership-oracle-source-withdrawal"){
+      method.status="COVERED";delete method.reviewedUncertified;method.testedBy={file:"scripts/qa/fabricated.mjs"};
+    }
+  assert.throws(()=>verifyOracleSourceHolds(erased),"erasing every hold cannot disable the source-bound verifier");
 });
 test("an unrelated downgrade remains a hard failure", () => {
   const m = read(), file = m.allApiRouteFiles["src/app/api/employees/route.ts"];
