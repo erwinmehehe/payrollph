@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
-import { verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const pageProbe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
@@ -41,7 +41,7 @@ test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", 
   assert.match(pageProbe, /expectStatus\(foreignRes, 404,/);
   assert.match(pageProbe, /!ownRes\.text\.includes\("Workspace unavailable"\)/);
   assert.equal(m.scopedPages.filter((p) => p.status === "GAP").length, 11);
-  assert.equal(verifyWorker360PageCredit(m), 11,
+  assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(m)), 16,
     "Current-source Worker 360 GET and SSR must have separately pinned PG16 credits");
   assert.match(harness, /await \(await import\("\.\/tenant-scoped-page-probes\.mjs"\)\)\.probeManifestBusinessPages\(f, \{ request, makeSession, expectStatus \}\);/);
   assert.match(pageProbe, /for \(const page of pages\)/);
