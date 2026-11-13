@@ -1,4 +1,8 @@
-> **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 prior credits held; 438 COVERED / 25 GAP. Complete method-positive renewal remains NOT_RUN; the separate boundary regression grants zero credits.
+> **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 prior credits held; 438 COVERED / 25 GAP before the year-end hold below; 436 COVERED / 27 GAP after it. Complete method-positive renewal remains NOT_RUN; the separate boundary regression grants zero credits.
+
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 436 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 27 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+
+> **Year-end GET and POST held at zero credit (annualization source moved again):** 436 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 27 GAP. `src/lib/year-end.ts` now applies one de minimis ceiling per category and statutory period across a worker's imported prior-provider months and the engine's own de minimis lines (golden Phase 14), so the fictional PG16 proof of [run 43178709246](https://github.com/erwinmehehe/payrollph/actions/runs/43178709246/job/131049135150) on main commit `d4317f4d7` ran against a previous annualization source (blob `a2bafdb9`). The method credit is withdrawn to an exact zero-credit hold until a fresh exact-head PG16 proof on main renews it. Not a security finding; independent payroll/security review remains PENDING.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 438 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 25 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
 
@@ -158,9 +162,9 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 25 API methods and 16 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 27 API methods and 16 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
-> **NOT ACCEPTED**: 25 method gaps and 16 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
+> **NOT ACCEPTED**: 27 method gaps and 16 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
 > **PR #1433 partial Labor Costing isolation (provisional, NOT ACCEPTED):** The changed GET/POST route source hash is repinned. Its existing organization-selector GET remains backed by the independently authenticated two-employer read family. The newly changed `POST /api/workforce/labor-costing` has [one dedicated fictional allocation write row](../../scripts/qa/tenant-table-rows/write/labor-vertical-costing.mjs#L51) asserting persisted future-dated vertical codes, historical allocation closure, audit evidence, no payroll/release changes, both attacker employers' own 201 and victim-employer 403, forged victim-worker 404, and unchanged victim PG16 tables. **The same PG16 fixture also performs separate own 201s for `create_cost_center` and `set_gl_mapping`, explicit higher-ID victim-organization 403s for both, and forged victim cost-center 422.** Classification is provisional and must not be used for whole-POST acceptance until all action branches are reviewed; exact-head PG16 job and independent security review must pass. Overall release remains NO-GO.
 
@@ -188,7 +192,7 @@ Current provisional ledger including the separate #1427 Compliance Evidence, #14
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 25 method gaps and 17 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 27 method gaps and 17 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
@@ -269,10 +273,10 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 438 |
+| coveredAfter | 436 |
 | publicByDesign | 23 |
 | privilegedOperationsTokenOnly | 12 |
-| gap | 25 |
+| gap | 27 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
