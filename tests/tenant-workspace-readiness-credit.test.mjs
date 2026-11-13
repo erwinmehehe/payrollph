@@ -41,7 +41,10 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
     const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
-    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
+    // Source-superseded OIDC callback must remain uncredited, with its default-OFF hold verified.
+    const callback = m.allApiRouteFiles[OIDC_CALLBACK].methods.find(x => x.name === 'GET');
+    if (callback.status === 'GAP') verifyOidcCallbackHold(m);
+    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' && callback.status === 'COVERED' ? verifyOidcCallbackCredit(m) : 0;
     const oidcWithdrawal=reviewedOidcSourceSupersession(base.manifest,m).size;
     const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
@@ -117,3 +120,4 @@ import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.m
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
 
 import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
