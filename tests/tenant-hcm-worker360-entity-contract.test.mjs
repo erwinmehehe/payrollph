@@ -68,11 +68,18 @@ test("real HTTP runner has owned, foreign, revoked and historical source control
   for(const phrase of [
     "SHOW server_version_num","W3-PRIVATE-SECOND-",
     "A second entity forged query","A second entity forged header",
+    "A victim worker forged inside own employer GET",
+    "A victim worker forged inside own employer SSR",
+    "B victim worker forged inside own employer GET",
+    "A foreign victim legal employer forged query",
+    "A foreign victim legal employer forged SSR query",
+    "A foreign victim legal employer forged header",
     "A foreign entity SSR","A duplicate entity selector",
     "A duplicate worker ID","revoked primary entity SSR",
     "all grants revoked","foreignTransfer","unknownLegacy",
     "assertReadOnly(before,await snapshot(),label)",
     "assert.equal(ownApi,5)","assert.equal(ownPages,5)",
+    "assert.equal(denials,21)",
     "sourceCredits:0,productionActivated:false",
   ])assert.ok(s.includes(phrase),"Missing real negative proof: "+phrase);
   assert.ok(s.includes("api.json.employmentEvents.preview.items[0].id"));

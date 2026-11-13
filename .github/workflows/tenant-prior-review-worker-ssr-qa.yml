@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "src/app/workspace/prior-employer/page.tsx"
+      - "src/app/workspace/2316/page.tsx"
+      - "tests/tenant-2316-legal-employer-worker.test.ts"
       - "src/lib/tenant-prior-review-worker.ts"
       - "scripts/qa/tenant-prior-review-worker-*.mjs"
       - "tests/tenant-prior-review-worker*.test.*"
@@ -79,6 +81,7 @@ jobs:
           node --check scripts/qa/tenant-prior-review-worker-http.mjs
           node --test tests/tenant-prior-review-worker-contract.test.mjs
           node --import tsx --test tests/tenant-prior-review-worker.test.ts
+          node --import tsx --test tests/tenant-2316-legal-employer-worker.test.ts
       - name: Generate disposable encryption keys
         shell: bash
         run: |

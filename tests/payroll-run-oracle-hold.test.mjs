@@ -32,7 +32,7 @@ test("an unrelated downgrade remains a hard failure", () => {
   const m = read(), file = m.allApiRouteFiles["src/app/api/employees/route.ts"];
   file.methods.find(row => row.status === "COVERED").status = "GAP";
   m.metrics.coveredAfter--; m.metrics.gap++;
-  m.acceptanceStatus = m.acceptanceStatus.replace("26 API methods", "27 API methods");
+  m.acceptanceStatus = m.acceptanceStatus.replace((m.metrics.gap - 1) + " API methods", m.metrics.gap + " API methods");
   assert.throws(() => assertLiveTenantCounts(assert, m), /downgraded|no proven method/);
 });
 

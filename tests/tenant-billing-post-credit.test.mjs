@@ -86,11 +86,11 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
     const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
     const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
-    assert.equal(currentWorker.status, "GAP", "Changed Worker 360 GET must remain uncredited");
-    assert.equal(currentWorker.testedBy, null);
+    assert.equal(verifyWorker360LegalEmployerCredits(m),2);
+    assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
-    const revokedWorkerCredit = formerWorker.status === "COVERED" ? 1 : 0;
-    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-revokedWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
+    const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -130,3 +130,4 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     .methods[0].status, "COVERED", "Filing evidence is not this credit");
   assert.equal(m.acceptanceStatus.startsWith('NOT ACCEPTED: ' + counts.gap + ' API methods'), true);
 });
+import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';

@@ -1,6 +1,10 @@
 > **PAYROLL RUN ORACLE — SOURCE HOLD:** 19 current-source methods need renewed proof. No fresh credit claimed.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 437 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 26 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 438 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 25 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+
+> **CURRENT Worker 360 source recovery — SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = **457 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 6 GAP**; **5 of 21 scoped pages COVERED / 16 GAP**. Worker 360 GET and SSR shell each have exact-source fictional PG16 real-HTTP evidence [run 43219788230](https://github.com/erwinmehehe/payrollph/actions/runs/43219788230/job/131188072874). Independent HR/privacy/security review and production activation remain PENDING.
+
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 438 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 25 GAP. Eleven actions, eight executed proof jobs and all six source families; 17 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **SOLO_VERIFIED_DEV_RECOVERY Worker 360 source supersession:** Latest 498 methods = 456 COVERED + 23 PUBLIC-BY-DESIGN + 12 TOKEN-ONLY + 7 GAP; 17 page/action GAPs. Changed Worker 360 API and page lose historical provisional credit; newest exports POST proof retained. Zero new Worker 360 credits; production acceptance pending.
 
@@ -239,7 +243,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 2 | **MNY-01** | 33 | 22 | 0 | 0 | 11 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 4 | **PII-01** | 39 | 37 | 0 | 1 | 1 | INCOMPLETE |
+| 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -247,7 +251,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 13 | 9 | 6 | 5 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **360 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 19 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **77 COVERED + 8 PUBLIC-BY-DESIGN + 7 GAP**. 4 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **361 COVERED + 15 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 18 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **77 COVERED + 8 PUBLIC-BY-DESIGN + 7 GAP**. 3 batches remain INCOMPLETE; DL-02, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -880,6 +884,7 @@ If a real HTTP cross-employer leak is reproduced, create a stand-alone security 
 ## Completion criterion
 
 All 490 current exported methods and all 20 page/action entries must resolve to **COVERED with executed four-part proof**, **PUBLIC-BY-DESIGN with an explicit method-level reason**, or **NEEDS OWNER with a concrete owner question**. Every case has a source- and CI-line-pinned evidence record. The manifest must remain **NOT ACCEPTED** until independent reviewer/owner acceptance. As of baseline: **406 API method GAPs and 20 page/action GAPs remain; 0 confirmed live exploits, no new fixes in this planning PR.**
+
 
 ## Supplemental payroll-run source-withdrawal renewals
 

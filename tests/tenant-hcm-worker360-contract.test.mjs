@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
-import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs"; import { verifyStudioPostCredit } from "../scripts/qa/tenant-studio-post-credit.mjs";
+import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs"; import { verifyStudioPostCredit } from "../scripts/qa/tenant-studio-post-credit.mjs";
 import {
   ORIGIN, AS_OF, SOURCE_PINS, gitBlobSha, verifyWorker360SourcePins,
   requireDisposableWorker360Env, assertOwnPage, assertOwnWorkerApi,
@@ -225,52 +226,54 @@ test("SSR foreign-worker denial is independently exercised for BOTH legitimate e
     "No database or fixture import may precede local-only PG16 guard");
 });
 
-test("new Worker 360 source demotes stale historic page/API credits without erasing receipts", () => {
+test("new Worker 360 source requires separate exact-head legal-employer GET and SSR credits", () => {
   const m = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const path = "src/app/hcm/worker-360/page.tsx";
-  const page = m.scopedPages.find(entry => entry.path === path);
+  const page = m.scopedPages.find(entry =>
+    entry.path === "src/app/hcm/worker-360/page.tsx");
   const api = m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
-  const get = api?.methods?.find(entry => entry.name === "GET");
-  assert.equal(page?.status, "GAP");
-  assert.equal(page?.blob, SOURCE_PINS[path]);
-  assert.equal(page?.testedBy, undefined);
-  assert.equal(page?.reviewedUncertified?.historicalProof?.sourceBlobSha,
+  const get = api.methods.find(entry => entry.name === "GET");
+  assert.equal(page.status, "COVERED");
+  assert.equal(page.blob, SOURCE_PINS["src/app/hcm/worker-360/page.tsx"]);
+  assert.equal(page.reviewedUncertified, undefined);
+  assert.equal(page.testedBy.priorSourceBlobSha,
     "337034f839c17a30077e2cfe5991c640e0c6a5e9");
-  assert.equal(page?.reviewedUncertified?.independentSecurityReview, "PENDING");
-  assert.equal(page?.reviewedUncertified?.coverageCredits, 0);
-  assert.equal(api?.gitBlobSha, SOURCE_PINS["src/app/api/hcm/worker-360/route.ts"]);
-  assert.equal(get?.status, "GAP");
-  assert.equal(get?.testedBy, null);
-  assert.equal(get?.reviewedUncertified?.oldSourceBlobSha,
+  assert.equal(page.testedBy.independentSecurityReview, "PENDING");
+  assert.equal(page.testedBy.independentlyAccepted, false);
+  assert.equal(api.gitBlobSha, SOURCE_PINS["src/app/api/hcm/worker-360/route.ts"]);
+  assert.equal(get.status, "COVERED");
+  assert.equal(get.reviewedUncertified, undefined);
+  assert.equal(get.testedBy.priorSourceBlobSha,
     "78874e3800c9648b2e9e8895a4c0f1b2db9e2e62");
-  assert.equal(get?.reviewedUncertified?.coverageCredits, 0);
+  assert.equal(get.testedBy.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(get.testedBy.independentlyAccepted, false);
+  assert.equal(verifyWorker360LegalEmployerCredits(m), 2);
   assertLiveTenantCounts(assert, m);
   assert.equal(m.scopedPages.length, m.metrics.scopedPagesAndActions);
   assert.equal(verifyStudioPostCredit(m), 1,
     "Studio POST must retain only its separately sourced credit");
-  assert.equal(verifyWorker360PageCredit(m),
-    m.scopedPages.filter(entry => entry.status === "GAP").length);
+  assert.equal(verifyWorker360PageCredit(m), 16);
 });
 
-test("changed Worker 360 cannot borrow historical page or API proof", () => {
+test("Worker 360 cannot borrow old proof, forge receipt or silently weaken recredit", () => {
   const original = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const page = original.scopedPages.find(entry =>
+  const mutate = fn => {
+    const draft = structuredClone(original);
+    fn(draft);
+    assert.throws(() => verifyWorker360LegalEmployerCredits(draft));
+  };
+  const page = m => m.scopedPages.find(entry =>
     entry.path === "src/app/hcm/worker-360/page.tsx");
-  const uncovered = structuredClone(original);
-  const forgedPage = uncovered.scopedPages.find(entry => entry.path === page.path);
-  forgedPage.status = "COVERED";
-  assert.throws(() => verifyWorker360PageCredit(uncovered),
-    /Only the exact Worker 360 page GAP may close|strictly equal/);
-  const forgedApi = structuredClone(original);
-  const entry = forgedApi.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"];
-  entry.methods.find(row => row.name === "GET").status = "COVERED";
-  assert.throws(() => verifyWorker360PageCredit(forgedApi),
-    /Changed API GET cannot inherit old PG16 receipt/);
-  const forgedReceipt = structuredClone(original);
-  forgedReceipt.scopedPages.find(row => row.path === page.path)
-    .reviewedUncertified.coverageCredits = 1;
-  assert.throws(() => verifyWorker360PageCredit(forgedReceipt),
-    /strictly equal/);
+  const get = m => m.allApiRouteFiles["src/app/api/hcm/worker-360/route.ts"]
+    .methods.find(entry => entry.name === "GET");
+  mutate(m => { page(m).status = "GAP"; page(m).testedBy = undefined; });
+  mutate(m => { get(m).status = "GAP"; get(m).testedBy = null; });
+  mutate(m => { page(m).testedBy.proofBlobSha = "0".repeat(40); });
+  mutate(m => { get(m).testedBy.workflowRunId = 0; });
+  mutate(m => { page(m).testedBy.independentlyAccepted = true; });
+  mutate(m => { get(m).testedBy.ownerReviewer = "unverified-reviewer"; });
+  mutate(m => { page(m).reviewedUncertified = {coverageCredits: 0}; });
+  mutate(m => { page(m).blob = "0".repeat(40); });
+  mutate(m => { get(m).testedBy.priorSourceBlobSha = "0".repeat(40); });
 });

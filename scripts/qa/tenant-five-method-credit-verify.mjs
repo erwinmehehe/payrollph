@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
+import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const ROOT = "src/app/api/";
@@ -135,6 +136,13 @@ export function verifyWorker360PageCredit(
       assert.ok(source.includes("authorizedLegalEntityId"),
         "Selected legal employer must bind the worker query");
     }
+    return gaps;
+  }
+  if (row.status === "COVERED" &&
+      row.testedBy?.evidenceLabel === "SOLO_VERIFIED_DEV_RECOVERY") {
+    assert.equal(gaps, 16, "Only this Worker 360 page may regain one source-pinned credit");
+    assert.equal(verifyWorker360LegalEmployerCredits(manifest, read), 2,
+      "GET and SSR page require their distinct current-source PG16 proof anchors");
     return gaps;
   }
   assert.equal(row.status, "COVERED", "No unreviewed alternate page classification");
