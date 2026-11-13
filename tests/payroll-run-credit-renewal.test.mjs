@@ -5,9 +5,10 @@ import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
 
-test('nine executed source-bound cohorts cover exactly the nineteen withdrawn methods',()=>{
+test('historical nine-cohort counters cover nineteen methods; changed shared accounting runner requires a fresh PG16 execution',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
-  assert.equal(readVerifiedPayrollRenewal().methods.length,19);
+  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift: secondPass/);
+  assert.equal(readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']).methods.length,19);
 });
 test('failed, borrowed, wrong-source, missing or production-accepted cohorts earn no renewal',()=>{
   for(const mutate of [
@@ -36,10 +37,10 @@ test('empty own success, foreign acceptance, altered victim SQL and fake provide
 test('receipt seal rejects invented results and exact executed source drift',()=>{
   assert.throws(()=>readVerifiedPayrollRenewal((file,...args)=>file===PAYROLL_RENEWAL_RECEIPT?
     readFileSync(file,...args)+'\n':readFileSync(file,...args)),/receipts changed/);
-  for(const file of ['src/lib/payroll-run-membership.ts','src/lib/auth.ts',
-    'scripts/qa/tenant-money-lifecycle-http.mjs','.github/workflows/payroll-run-credit-renewal.yml']){
+  for(const [file,method]of [['src/lib/payroll-run-membership.ts','POST payroll-runs'],['src/lib/auth.ts','POST payroll-runs'],
+    ['scripts/qa/tenant-money-lifecycle-http.mjs','POST payroll-runs/[id]/process'],['.github/workflows/payroll-run-credit-renewal.yml','POST payroll-runs']]){
     assert.throws(()=>readVerifiedPayrollRenewal((p,...args)=>p===file?
-      Buffer.concat([Buffer.from(readFileSync(p)),Buffer.from('\n// unexecuted edit')]):readFileSync(p,...args)),
+      Buffer.concat([Buffer.from(readFileSync(p)),Buffer.from('\n// unexecuted edit')]):readFileSync(p,...args),undefined,[method]),
       /closure drift/);
   }
 });

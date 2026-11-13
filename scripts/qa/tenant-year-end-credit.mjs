@@ -17,6 +17,8 @@ const PROOF = "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mj
 const WORKFLOW = ".github/workflows/tenant-year-end-post-candidate.yml";
 const RUN = 43178709246;
 const JOB = 131049135150;
+/** The current credited year-end proof (identifiers only); a hold records exactly this as the receipt it withdraws. */
+export const YEAR_END_PROOF = Object.freeze({ head: HEAD, run: RUN, job: JOB });
 export const YEAR_END_SOURCE_PINS = Object.freeze({
   [ROUTE]: "f040f5bbbc3df275d32d23f1728b1b0345f77814",
   [PROOF]: "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",

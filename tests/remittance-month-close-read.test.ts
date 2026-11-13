@@ -1,5 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
-import { isVerifiedOracleHold } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -263,7 +263,7 @@ test("new method-level tenant proof survives CI/source drift (GET and POST)", ()
   const actionCredits = actionMethods.length;
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find((method: { name: string }) => method.name === "POST");
-  if (!isVerifiedOracleHold(manifest, "src/app/api/payroll-runs/[id]/close/route.ts", "POST")) {
+  if (!isVerifiedOracleSupersession(manifest, "src/app/api/payroll-runs/[id]/close/route.ts", "POST")) {
     assert.equal(closePost?.status, "COVERED",
       "One additional credit requires its own successful close POST proof");
     assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs",

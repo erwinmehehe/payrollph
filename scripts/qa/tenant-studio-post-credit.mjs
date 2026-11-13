@@ -99,7 +99,7 @@ function reconcileDocs(m,write){
  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
   const original=readFileSync(file,'utf8');let doc=original;
   let sourceHold='';
-  if(doc.startsWith('> **PAYROLL RUN ORACLE — SOURCE HOLD:** ')){
+  if(doc.startsWith('> **PAYROLL RUN ORACLE — SOURCE HOLD:** ')||doc.startsWith('> **PAYROLL RUN ORACLE — RENEWED:** ')){
    const end=doc.indexOf('\n\n');assert.ok(end>=0);
    sourceHold=doc.slice(0,end+2);doc=doc.slice(end+2);
   }

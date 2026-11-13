@@ -11,12 +11,24 @@ import ts from 'typescript';
 export const renewalBlob = bytes => createHash('sha1')
   .update(Buffer.from('blob '+Buffer.byteLength(bytes)+'\0')).update(bytes).digest('hex');
 
-export function collectRenewalInputs(roots, read=readFileSync, exists=existsSync) {
+// These five files describe the ledger, not the application or HTTP assertions.
+// Credit integration necessarily changes its own accounting. Record their
+// historical executed hashes separately; final-head CI must review new accounting.
+export const RENEWAL_LEDGER_INPUTS=Object.freeze([
+  'scripts/qa/payroll-run-oracle-hold.mjs',
+  'scripts/qa/tenant-staffing-policy-get-credit.mjs',
+  'scripts/qa/tenant-worker360-legal-employer-credit.mjs',
+  'scripts/qa/tenant-year-end-credit.mjs',
+  'tests/helpers/tenant-counts.mjs',
+]);
+
+export function collectRenewalInputs(roots, read=readFileSync, exists=existsSync, separateLedger=false) {
   const pins={}, visiting=new Set();
   function visit(file) {
     file=file.replaceAll('\\','/');
     assert.ok(!file.startsWith('../')&&!path.isAbsolute(file),'Repository-local input required');
     if(visiting.has(file))return;visiting.add(file);
+    if(separateLedger&&RENEWAL_LEDGER_INPUTS.includes(file))return;
     const raw=read(file);pins[file]=renewalBlob(raw);
     if(!/\.(?:[cm]?[jt]sx?)$/.test(file))return;
     const source=raw.toString('utf8');

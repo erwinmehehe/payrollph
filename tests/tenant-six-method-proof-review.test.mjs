@@ -1,5 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
-import {isVerifiedOracleHold,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {isVerifiedOracleSupersession,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -10,7 +10,7 @@ import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admi
 import { verifyAccountEmailRequestCredit } from "../scripts/qa/tenant-account-email-request-credit.mjs";
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits,RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
-import { YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { YEAR_END_PROOF, YEAR_END_RECEIPTS, isYearEndHeld, verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState } from "../scripts/qa/tenant-year-end-credit.mjs";
 /**
  * Non-credentialled, source-only guard on six merged proof candidates.
  * Keeps historical coverage + live metrics unchanged until the exact four-part
@@ -616,7 +616,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutReconciliationPath = "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts";
   assert.equal(expectedStatuses[payoutReconciliationPath]?.POST, "GAP", "payout-reconciliation POST must start GAP in the reviewed snapshot");
   const payoutReconciliation = m.allApiRouteFiles[payoutReconciliationPath].methods.find(row => row.name === "POST");
-  if(!isVerifiedOracleHold(m,payoutReconciliationPath,"POST")) {
+  if(!isVerifiedOracleSupersession(m,payoutReconciliationPath,"POST")) {
   assert.equal(payoutReconciliation?.status, "COVERED");
   assert.equal(payoutReconciliation.testedBy?.file, "scripts/qa/paymongo-export-isolation-local.mjs");
   assert.equal(payoutReconciliation.testedBy.providerMode, "loopback-synthetic-paymongo");
@@ -630,7 +630,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const exportsPostPath = "src/app/api/payroll-runs/[id]/exports/route.ts";
   assert.equal(expectedStatuses[exportsPostPath]?.POST, "GAP", "exports POST must start GAP in the reviewed snapshot");
   const exportsPost = m.allApiRouteFiles[exportsPostPath].methods.find(row => row.name === "POST");
-  if(!isVerifiedOracleHold(m,exportsPostPath,"POST")) {
+  if(!isVerifiedOracleSupersession(m,exportsPostPath,"POST")) {
   assert.equal(exportsPost?.status, "COVERED");
   assert.equal(exportsPost.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs");
   assert.equal(exportsPost.testedBy.providerMode, "loopback-synthetic-paymongo");
@@ -647,7 +647,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(expectedStatuses[xenditPayoutPath]?.GET, "GAP", "xendit-payout GET must start GAP in the reviewed snapshot");
   for (const [path, name] of [[pilotSignoffPath, "POST"], [xenditPayoutPath, "GET"]]) {
     const credited = m.allApiRouteFiles[path].methods.find(row => row.name === name);
-    if(!isVerifiedOracleHold(m,path,name)) {
+    if(!isVerifiedOracleSupersession(m,path,name)) {
     assert.equal(credited?.status, "COVERED");
     assert.equal(credited.testedBy?.file, "scripts/qa/tenant-payroll-run-actions-http.mjs");
     assert.equal(credited.testedBy.independentSecurityReview, "PENDING");
@@ -750,7 +750,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   for (const path of reviewReleasePaths) {
     assert.equal(expectedStatuses[path]?.POST, "GAP", path + " POST must start GAP in the reviewed snapshot");
     const method = m.allApiRouteFiles[path].methods.find(row => row.name === "POST");
-    if(!isVerifiedOracleHold(m,path,"POST")) {
+    if(!isVerifiedOracleSupersession(m,path,"POST")) {
     assert.equal(method?.status, "COVERED");
     assert.equal(method.testedBy?.file, "scripts/qa/tenant-money-lifecycle-http.mjs");
     assert.equal(method.testedBy.workflowRunId, 42063867383);
@@ -974,8 +974,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       for (const method of mainYearEnd.methods) {
         assert.equal(method.status, "COVERED");
         assert.equal(method.testedBy?.proofPullRequest, 1804);
-        assert.equal(method.testedBy?.workflowRunId, 42254117862);
-        assert.equal(method.testedBy?.verifiedPrHeadSha, "d79db85b2a2ca0276810634dccaf904fd4469099");
+        assert.equal(method.testedBy?.workflowRunId, YEAR_END_PROOF.run);
+        assert.equal(method.testedBy?.verifiedPrHeadSha, YEAR_END_PROOF.head);
       }
       assert.equal(verifyYearEndHold(m), 0);
     } else if (baselineHasCurrentRoute) {

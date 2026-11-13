@@ -12,8 +12,16 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
-import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
+import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_PROOF, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
+import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
+
+/** Newly restored methods only, backed by the sealed executed renewal. */
+export function oracleRenewalDelta(before,current){
+  return [...verifiedOracleRenewalKeys(current)].filter(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+    return before.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='GAP';
+  }).length;
+}
 
 /** Count only the sealed oracle withdrawals newly introduced over this base. */
 export function oracleWithdrawalDelta(before, current) {
@@ -135,8 +143,8 @@ function yearEndAnnualizationSourceHold(beforeManifest, liveManifest) {
     const current = after.methods.find(m => m.name === verb);
     const proof = prior?.testedBy;
     if (prior?.status !== "COVERED" || proof?.proofPullRequest !== 1804 ||
-        proof?.verifiedPrHeadSha !== "d79db85b2a2ca0276810634dccaf904fd4469099" ||
-        proof?.workflowRunId !== 42254117862 ||
+        proof?.verifiedPrHeadSha !== YEAR_END_PROOF.head ||
+        proof?.workflowRunId !== YEAR_END_PROOF.run ||
         current?.status !== "GAP" || current.testedBy !== null ||
         current.reason !== YEAR_END_HOLD_REASON ||
         current.reviewedUncertified?.kind !== YEAR_END_HOLD_KIND ||
