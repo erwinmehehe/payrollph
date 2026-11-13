@@ -125,3 +125,46 @@ test("proof requires real POST, own/foreign/revoked/audit controls and zero new 
     p.path === "src/app/workspace/report-builder/page.tsx")?.status, "GAP",
   "Page must remain uncredited pending complete independent review");
 });
+
+test("report export CI reruns on shared dependencies and every source-pinned authorization path", () => {
+  const workflow = readFileSync(".github/workflows/tenant-report-builder-export-qa.yml", "utf8");
+  const list = workflow.match(/^    paths:\n((?:      - "[^"\n]+"\n)+)/m);
+  assert.ok(list, "The PR must use an explicit fail-closed watched-path list");
+  const watched = new Set([...list[1].matchAll(/^      - "([^"\n]+)"$/gm)].map(row => row[1]));
+  for (const dependency of [
+    "src/lib/bi-exports.ts",
+    "src/lib/csv.ts",
+    "src/lib/audit.ts",
+    "src/lib/rate-limit.ts",
+    "src/db/index.ts",
+    "src/lib/pg-tls-policy.ts",
+    "scripts/qa/apply-isolated-baseline.mjs",
+    "scripts/qa/tenant-isolation-coverage-manifest.json",
+    "package.json",
+    "package-lock.json"
+]) {
+    assert.ok(watched.has(dependency), "Missing required report-export CI trigger: " + dependency);
+  }
+  for (const original of [
+    "src/app/api/reports/builder/**",
+    "src/lib/tenant-report-builder*.ts",
+    "src/lib/access.ts",
+    "src/lib/auth.ts",
+    "src/lib/permissions.ts",
+    "src/lib/organization-auth-policy.ts",
+    "src/lib/security-request.ts",
+    "src/lib/critical-release-flags.ts",
+    "src/db/schema.ts",
+    "scripts/qa/tenant-table-http.mjs",
+    "scripts/qa/tenant-report-builder-export-*.mjs",
+    "tests/tenant-report-builder-export-contract.test.mjs",
+    ".github/workflows/tenant-report-builder-export-qa.yml",
+  ]) assert.ok(watched.has(original), "Original critical watch path was removed: " + original);
+  const matched = (path, pattern) => pattern === path
+    || (pattern.endsWith("/**") && path.startsWith(pattern.slice(0, -2)))
+    || (pattern.endsWith("*.ts") && path.startsWith(pattern.slice(0, -4)) && path.endsWith(".ts"));
+  for (const pinnedPath of Object.keys(SOURCE_PINS)) {
+    assert.ok([...watched].some(pattern => matched(pinnedPath, pattern)),
+      "Source-pinned report dependency must trigger its own proof on change: " + pinnedPath);
+  }
+});
