@@ -33,7 +33,7 @@ export async function proveConnectedPayrollOutputs(input:{organizationId:number;
   assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString(),"%PDF-");
   if(input.foreignEmployee)assert.equal((await input.foreignEmployee.request("/api/self/payslips/"+entry.id)).status,404);
   const journalPath=`/api/payroll-runs/${run.id}/exports?kind=journal`;
-  assert.equal((await input.foreignOwner.request(journalPath)).status,403);
+  assert.equal((await input.foreignOwner.request(journalPath)).status,404);
   const journal=await input.owner.request(journalPath);assert.equal(journal.status,200);
   const cacheControl=journal.headers.get("cache-control")??"";
   // The framework/proxy may normalize the route's private/no-store header.
