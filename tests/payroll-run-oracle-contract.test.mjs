@@ -28,3 +28,9 @@ test("real oracle fixture puts the victim beyond early employer, run and worker 
   assert.match(source, /victim\.org\.id > 6 && victim\.run\.id > 6 && victim\.worker\.id > 6/);
   assert.match(source, /if \(!label\.startsWith\("FILL"\)\) employers\.push\(e\)/);
 });
+
+test("Actions Docker service keeps the health command a single CLI argument", () => {
+  const workflow = readFileSync(".github/workflows/payroll-run-oracle.yml", "utf8");
+  assert.ok(workflow.includes('--health-cmd "pg_isready -U postgres -d app_db"'));
+  assert.ok(!workflow.includes("--health-cmd 'pg_isready"));
+});
