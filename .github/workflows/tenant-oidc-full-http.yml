@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 40
     env:
       OIDC_FULL_HTTP_PROOF: isolated-pg16-real-https-idp-only
+      OIDC_SSO_RUNTIME_MODE: 'enabled'
       BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: https://payroll.example.test

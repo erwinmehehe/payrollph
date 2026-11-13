@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { requireFullOidcEnv, assertCallbackDenied, APP, CANONICAL_APP, TLS_DIR } from '../scripts/qa/tenant-oidc-full-contract.mjs';
 const env = { CI:'true', GITHUB_ACTIONS:'true', RUNNER_OS:'Linux', NODE_ENV:'production',
   OIDC_FULL_HTTP_PROOF:'isolated-pg16-real-https-idp-only',
+  OIDC_SSO_RUNTIME_MODE:'enabled',
   DATABASE_URL:'postgresql://postgres:postgres@127.0.0.1:5432/app_db',
   SECURITY_SMOKE_URL:APP, APP_BASE_URL:CANONICAL_APP, NODE_EXTRA_CA_CERTS:TLS_DIR+'/ca.crt' };
 for (const key of ['WORKER_ENABLED','CENTRAL_SCHEDULER_ENABLED','XENDIT_BILLING_ENABLED',

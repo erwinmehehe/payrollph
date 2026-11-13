@@ -5,8 +5,16 @@ import {oidcFullExecution,verifyOidcCallbackCredit,OIDC_CALLBACK,OIDC_RECEIPT} f
 import {assertHistoricalPinnedNetworkPreserved} from '../scripts/qa/tenant-node22-pinned-source-compat.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
 const replaceRead=(path,value)=>(p,...args)=>p===path?value:readFileSync(p,...args);
-test('callback credit has a successful exact-source real HTTPS/PG16 execution',()=>{
- const r=oidcFullExecution();assert.equal(r.ownLogins,2);assert.equal(r.refusedCallbacks,43);assert.equal(verifyOidcCallbackCredit(manifest()),1);
+test('historical HTTPS/PG16 evidence remains real but is not a current callback credit after default-off source change',()=>{
+ const r=JSON.parse(readFileSync(OIDC_RECEIPT,'utf8'));
+ assert.equal(r.ownLogins,2);assert.equal(r.refusedCallbacks,43);
+ assert.equal(r.jobConclusion,'success');
+ const m=manifest(),row=m.allApiRouteFiles[OIDC_CALLBACK].methods.find(x=>x.name==='GET');
+ assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
+ assert.equal(row.reviewedUncertified?.linkedIdentityBoundary?.priorProofSuperseded,true);
+ assert.equal(row.reviewedUncertified?.linkedIdentityBoundary?.credits,0);
+ assert.throws(()=>oidcFullExecution(),/source.*drift/i);
+ assert.throws(()=>verifyOidcCallbackCredit(m));
 });
 test('partial, forged or pending receipts cannot grant callback credit',()=>{
  const raw=JSON.parse(readFileSync(OIDC_RECEIPT,'utf8'));
@@ -18,9 +26,11 @@ test('source drift invalidates execution, including real network security and MF
   'scripts/qa/tenant-oidc-full-http.mjs','.github/workflows/tenant-oidc-full-http.yml'])
   assert.throws(()=>oidcFullExecution(replaceRead(p,readFileSync(p,'utf8')+'\n// changed')),/source.*drift/);
 });
-test('forged method citation or false production/independent acceptance is refused',()=>{
+test('forged callback promotion or false production acceptance cannot restore a superseded credit',()=>{
  for(const patch of [{workflowRunId:1},{foreignDenialLine:1},{independentlyAccepted:true},{productionCertified:true},{file:'scripts/qa/tenant-table-http.mjs'}]){
-  const m=manifest();Object.assign(m.allApiRouteFiles[OIDC_CALLBACK].methods[0].testedBy,patch);assert.throws(()=>verifyOidcCallbackCredit(m));
+  const m=manifest(),row=m.allApiRouteFiles[OIDC_CALLBACK].methods[0];
+  row.status='COVERED';row.testedBy=patch;
+  assert.throws(()=>verifyOidcCallbackCredit(m));
  }
 });
 test('network compatibility retains the exact historic logic and never rewrites its receipt',()=>{

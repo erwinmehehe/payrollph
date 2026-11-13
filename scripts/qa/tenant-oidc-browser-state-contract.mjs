@@ -8,12 +8,12 @@ import { readFileSync } from "node:fs";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const SOURCE_PINS = Object.freeze({
-  "src/app/api/auth/sso/start/route.ts": "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
-  "src/app/api/auth/sso/callback/route.ts": "a27d855a81751498cc907134e8e9dde7400c9f58",
+  "src/app/api/auth/sso/start/route.ts": "b87bf8eee223ac57c6a76535731ba64e492b03aa",
+  "src/app/api/auth/sso/callback/route.ts": "9cb02f681ae8128c8b9c661b057c5591891bdc9e",
   "src/lib/oidc-browser-state.ts": "cd772e6bed14633cc4fc7546140e16770ff54c3f",
   "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
   "src/lib/oidc-identity-binding.ts": "519337e0fe60544b9d5e6a6c17c6d00923e72b73",
-  "tests/tenant-oidc-callback-identity-writes.test.mjs": "c676a042814a9fd2261362fbc780ed7ee77bbba7",
+  "tests/tenant-oidc-callback-identity-writes.test.mjs": "30f3049081bbcdf95d7196c0a5b6b7aef9d7002c",
   "tests/tenant-oidc-identity-binding-postgres.test.ts": "d4601b051c3698a42c6bd90907eb4ff6ee6f2d0a",
   "scripts/qa/tenant-oidc-identity-binding-contract.mjs": "b161976203a61dfa128813397556efff8997871e",
   ".github/workflows/tenant-oidc-identity-binding-qa.yml": "48bccaa2df76f0fa2dc6f7114204ad5570dc9241",

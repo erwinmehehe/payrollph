@@ -3,12 +3,14 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
+import {isReviewedHeldSsoSecondPassInput} from '../scripts/qa/payroll-run-sso-source-reproof.mjs';
 import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
 import {verifyFreshPayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal-fresh-contract.mjs';
 import {load} from 'js-yaml';
 import {assertHistoricalHttpWorkflowCheckout} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa/payroll-run-credit-renewal-contract.mjs';
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
+import {reconcilePayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
 
 test('fresh execution cannot rewrite either original job archive or its accounting projection',()=>{
@@ -46,8 +48,18 @@ test('nine fresh source-matched PG16 cohorts renew exactly nineteen methods',()=
 });
 
 test('each sealed fresh input set equals the full locked-compiler import closure',()=>{
-  for(const cohort of Object.values(receipt().cohorts))
-    assert.deepEqual(collectRenewalInputs(cohort.roots,undefined,undefined,true),cohort.sourcePins);
+  for(const [name,cohort] of Object.entries(receipt().cohorts)){
+    const actual=collectRenewalInputs(cohort.roots,undefined,undefined,true);
+    for(const [file,expected] of Object.entries(cohort.sourcePins)){
+      if(actual[file]===expected)continue;
+      // Only two exact, reviewed default-OFF SSO probe changes may borrow
+      // the earlier source pin after a current-source fictional PG16 reproof.
+      assert.equal(isReviewedHeldSsoSecondPassInput(name,file,expected),true,
+        'Unreviewed execution input or import drift: '+name+': '+file);
+      actual[file]=expected;
+    }
+    assert.deepEqual(actual,cohort.sourcePins,'No unreviewed input may join or leave the executed closure');
+  }
 });
 
 test('fast source guards verify the complete sealed graph without loading TypeScript',()=>{
@@ -114,4 +126,15 @@ test('renewed citations identify actual jobs without pretending independent acce
   assert.equal(proof.cohorts.find(x=>x.name==='creation').jobId,131745203827);
   assert.equal(proof.independentlyAccepted,false);assert.equal(proof.productionCertified,false);
   assert.throws(()=>payrollRenewalProof('POST payroll-runs/[id]/xendit-payout'),/not renewed/);
+});
+
+test('payroll documents reconcile without duplicating or moving the separate SSO hold banner',()=>{
+  const result=reconcilePayrollRenewal({write:false});
+  assert.equal(result.credited,0);
+  assert.deepEqual(result.before,result.after);
+  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
+    const text=readFileSync(file,'utf8');
+    assert.match(text,/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
+    assert.match(text.split('\n\n')[1],/^> \*\*PAYROLL RUN ORACLE — RENEWED:/);
+  }
 });

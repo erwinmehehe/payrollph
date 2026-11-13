@@ -5,11 +5,14 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { rateLimitDistributed, clientIp } from "@/lib/rate-limit";
 import { ssoDiscoveryEmail } from "@/lib/tenant-sso-discovery";
 
+import { oidcSsoRuntimeEnabled, oidcSsoDisabledResponse } from "@/lib/oidc-sso-runtime";
+
 export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 export async function POST(request: Request) {
+  if (!oidcSsoRuntimeEnabled()) return oidcSsoDisabledResponse();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
