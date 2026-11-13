@@ -51,6 +51,7 @@ export function readStudioPostReceipt(read=readFileSync){
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete current runtime/fixture/proof input union required');
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),sha,read);
   else if(p==='scripts/qa/tenant-money-lifecycle-http.mjs'||p==='scripts/qa/tenant-table-rows/read/path-id.mjs') assertOracleCallerCompatible(p,sha,read);
   else assert.equal(blob(read(p)),sha,'Studio executed source drift: '+p);
  }
@@ -99,7 +100,7 @@ function reconcileDocs(m,write){
  for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
   const original=readFileSync(file,'utf8');let doc=original;
   let sourceHold='';
-  if(doc.startsWith('> **PAYROLL RUN ORACLE — SOURCE HOLD:** ')){
+  if(doc.startsWith('> **PAYROLL RUN ORACLE — SOURCE HOLD:** ')||doc.startsWith('> **PAYROLL RUN ORACLE — RENEWED:** ')){
    const end=doc.indexOf('\n\n');assert.ok(end>=0);
    sourceHold=doc.slice(0,end+2);doc=doc.slice(end+2);
   }
@@ -152,6 +153,7 @@ export function reconcileStudioPostCredit({write=false}={}){
  else assert.deepEqual(JSON.parse(readFileSync(path,'utf8')),m,'Run the reviewed Studio credit writer with --write first');
  return {credited:m.metrics.coveredAfter-before.covered,before,after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap},write};
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  assert.ok(process.argv.length===3&&['--check','--write'].includes(process.argv[2]));
  console.log(JSON.stringify(reconcileStudioPostCredit({write:process.argv[2]==='--write'})));

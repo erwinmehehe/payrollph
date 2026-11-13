@@ -540,6 +540,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
       "Only the exact verified oracle withdrawal may suspend historical close credit");
     console.log("HELD accounting-close POST: current HTTP executed; complete credit renewal still required");
   } else {
+  if (!isVerifiedOracleRenewal(manifest, "src/app/api/payroll-runs/[id]/close/route.ts", "POST")) { // Renewed receipts have a separate executed/source-sealed verifier.
   assert.equal(closePost?.status, "COVERED",
     "Additional close POST credit requires separate executed positive/negative evidence");
   assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
@@ -565,6 +566,7 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   assert.match(closeSource, /event\.action === "Payroll close completed"/,
     "Own close POST must persist a matching accounting audit receipt");
   const closePostCredits = 1;
+  } // End historical accounting-receipt validation; HTTP probes above are unchanged.
   }
   // Totals are invariants (tallies add up; nothing proven regresses against the base), not pinned
   // numbers that every later credit would have to edit.
@@ -575,3 +577,4 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
 import { verifyMergedProofCredits } from "./tenant-merged-proof-credits.mjs";
 import { verifyOracleSourceHolds } from "./payroll-run-oracle-hold.mjs";
 verifyMergedProofCredits(manifest);
+import { isVerifiedOracleRenewal } from "./payroll-run-oracle-hold.mjs";

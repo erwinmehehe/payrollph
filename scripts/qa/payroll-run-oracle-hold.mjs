@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { payrollRenewalProofBuilder } from './payroll-run-credit-renewal-verify.mjs';
 
 export const ORACLE_BASE = "e2999240e5ee2d820841de5e10193ce9cbc39e6a";
 export const ORACLE_HELD_METHODS = Object.freeze([
@@ -45,21 +46,29 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
     "d5517d81ac09acd825cec137be432adee850de267c29cda8b9c9ff3746446115", "unreviewed payroll oracle route revision");
   assert.equal(blob(read("src/lib/payroll-run-membership.ts", "utf8").replaceAll("\r\n", "\n")),
     "75f5a40afd1ee4f608a2fe38be9971f4bc8bed47", "unreviewed shared membership boundary");
-  const allowed = new Set();
+  const allowed = new Set();let renewed=0,renewalProof;
   for (const path of paths) for (const old of historical.allApiRouteFiles[path].methods.filter(row => row.status === "COVERED")) {
     const row = manifest.allApiRouteFiles[path].methods.find(row => row.name === old.name);
-    // This stage has no method-renewal writer. Removing the hold and supplying
-    // any truthy receipt object must not silently restore a changed-source credit.
-    // A later renewal stage must add its own executed-receipt verifier here.
-    assert.equal(row.status,"GAP","Changed payroll-run source requires a separately reviewed method renewal");
-    const hold = row.reviewedUncertified;
-    assert.equal(row.testedBy, null);
-    assert.deepEqual(hold, {
+    const exactWithdrawal={
       kind: "payroll-run-membership-oracle-source-withdrawal", base: ORACLE_BASE,
       oldSourceBlobSha: historical.allApiRouteFiles[path].gitBlobSha, currentSourceBlobSha: pins[path],
       priorProof: old.testedBy, coverageCredits: 0, evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
       execution: "NOT_RUN", independentSecurityReview: "PENDING", productionCertified: false,
-    });
+    };
+    if(row.status==='COVERED'){
+      // A truthy receipt or removed hold never suffices. All actual job results,
+      // executed application/assertion inputs and the original withdrawal must
+      // verify before accepting this exact, separately generated renewal.
+      renewalProof??=payrollRenewalProofBuilder(read);
+      assert.deepEqual(row.testedBy,renewalProof(old.name+' '+manifest.allApiRouteFiles[path].route));
+      assert.equal(row.reviewedUncertified,undefined);
+      assert.deepEqual(row.historicalOracleSourceWithdrawal,exactWithdrawal);
+      renewed++;continue;
+    }
+    assert.equal(row.status,"GAP","Changed payroll-run source requires a separately reviewed method renewal");
+    const hold = row.reviewedUncertified;
+    assert.equal(row.testedBy, null);
+    assert.deepEqual(hold, exactWithdrawal);
     const prior = before?.allApiRouteFiles?.[path]?.methods.find(method => method.name === old.name);
     if (prior?.status === "COVERED") {
       assert.equal(before.allApiRouteFiles[path].gitBlobSha, historical.allApiRouteFiles[path].gitBlobSha);
@@ -67,7 +76,7 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
     }
     allowed.add(old.name + " " + path);
   }
-  assert.ok(allowed.size > 0 && allowed.size <= ORACLE_HELD_METHODS.length);
+  assert.equal(allowed.size+renewed,ORACLE_HELD_METHODS.length,'Every original withdrawal must be held or separately execution-verified');
   return allowed;
 }
 export function isVerifiedOracleHold(manifest, path, verb) {
@@ -76,8 +85,35 @@ export function isVerifiedOracleHold(manifest, path, verb) {
   assert.ok(verifyOracleSourceHolds(manifest).has(verb+" "+path));
   return true;
 }
+export function isVerifiedOracleRenewal(manifest,path,verb){
+  const row=manifest.allApiRouteFiles[path]?.methods.find(method=>method.name===verb);
+  if(row?.status!=='COVERED'||row.testedBy?.kind!=='payroll-run-source-renewal-real-http-pg16')return false;
+  assert.ok(ORACLE_HELD_METHODS.includes(verb+' '+manifest.allApiRouteFiles[path].route));
+  verifyOracleSourceHolds(manifest);return true;
+}
+/** Historical receipt checks may be replaced only by a fully verified source
+ * withdrawal OR the distinct new executed renewal, never a truthy receipt. */
+export function isVerifiedOracleSupersession(manifest,path,verb){
+  return isVerifiedOracleHold(manifest,path,verb)||isVerifiedOracleRenewal(manifest,path,verb);
+}
+export function verifiedOracleRenewalKeys(manifest){
+  verifyOracleSourceHolds(manifest);
+  return new Set(ORACLE_HELD_METHODS.flatMap(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';
+    const row=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
+    return row.status==='COVERED'&&row.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'?[verb+' '+path]:[];
+  }));
+}
 
 export function withdrawRunOracleCredits({ write = false } = {}) {
+  const currentManifest=JSON.parse(readFileSync(MANIFEST,'utf8'));
+  if(Object.values(currentManifest.allApiRouteFiles).some(file=>file.methods.some(row=>
+    row.status==='COVERED'&&row.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'))){
+    const remaining=verifyOracleSourceHolds(currentManifest);
+    assert.equal(write,false,'The original withdrawal writer cannot overwrite verified renewals');
+    return {write,sourceBase:ORACLE_BASE,held:remaining.size,covered:currentManifest.metrics.coveredAfter,
+      gap:currentManifest.metrics.gap,newCredits:0,execution:'SOURCE_RENEWALS_VERIFIED'};
+  }
   const original = JSON.parse(sourceAtBase(MANIFEST));
   const archived = JSON.parse(readFileSync("scripts/qa/payroll-run-oracle-historical-proofs.json", "utf8"));
   const projection = Object.fromEntries(Object.entries(original.allApiRouteFiles)

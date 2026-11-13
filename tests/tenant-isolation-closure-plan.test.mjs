@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import test from "node:test";
-import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const plan = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
@@ -148,6 +148,8 @@ test("frozen 20-page closure slots remain exact while a newly verified manager p
 test("all preexisting COVERED references have real, checked-in own/victim and write snapshots", () => {
   for (const [key, method] of allMethods()) {
     if (method.status !== "COVERED") continue;
+    const at=key.indexOf(' ');
+    if(isVerifiedOracleRenewal(manifest,'src/app/api/'+key.slice(at+1)+'/route.ts',key.slice(0,at)))continue;
     const evidence = method.testedBy;
     assert.ok(evidence && typeof evidence.file === "string", key + ": no proof file");
     assert.match(evidence.file, /^(tests|scripts\/qa)\//);

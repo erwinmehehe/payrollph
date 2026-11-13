@@ -1,7 +1,8 @@
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
-import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import {assertHistoricalHttpWorkflowCheckout,historicalHttpWorkflowCheckoutSource} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -115,6 +116,7 @@ function readableLines(path) {
   return readFileSync(path, "utf8").split("\n");
 }
 function isVerifiedRunWithdrawal(path, verb, data = manifest) {
+  if(isVerifiedOracleRenewal(data,path,verb))return true; // New executed cohort replaces the historical receipt check.
   const row=data.allApiRouteFiles[path]?.methods.find(item=>item.name===verb);
   if(row?.status!=="GAP" || row.reviewedUncertified?.kind!=="payroll-run-membership-oracle-source-withdrawal") return false;
   assert.ok(verifyOracleSourceHolds(data).has(verb+" "+path));
@@ -264,6 +266,15 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status==='COVERED'&&method.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+    const at=key.lastIndexOf(' '),path=key.slice(0,at),verb=key.slice(at+1);
+    assert.ok(isVerifiedOracleRenewal(manifest,path,verb));return true;
+  }
+  if (key === OIDC_CALLBACK + ' GET' && method.status === 'COVERED') {
+    assert.equal(verifyOidcCallbackCredit(manifest), 1);
+    assert.equal(currentBlob, method.testedBy.routeBlobSha);
+    return true;
+  }
   if (method.status === "GAP" && key.startsWith("src/app/api/payroll-runs/")) {
     const at=key.lastIndexOf(" "), path=key.slice(0,at), verb=key.slice(at+1);
     const held=verifyOracleSourceHolds(manifest);
@@ -3096,7 +3107,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     } else {
       assert.equal(method.status, "COVERED");
       assert.equal(method.testedBy?.proofPullRequest, 1804);
-      assert.equal(method.testedBy?.workflowRunId, 43178709246);
+      assert.equal(method.testedBy?.workflowRunId, 43372002300);
       assert.equal(method.testedBy?.independentSecurityReview, "PENDING");
       assert.equal(method.testedBy?.independentPayrollReview, "PENDING");
       assert.equal(method.testedBy?.productionCertified, false);
@@ -3106,7 +3117,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     for (const [file, hash] of [
       ["tests/year-end-binding-transaction-contract.test.mjs",
         "9562442c4d9e7d820027630cead6d753c0fc3767"],
-      ...(yearEndHeld ? [] : [["src/lib/year-end.ts", "a2bafdb9d961e888cacf7353c2094a661df4484e"]]),
+      ...(yearEndHeld ? [] : [["src/lib/year-end.ts", "b2b52a7913be85eb70c507d26e730fc366852237"]]),
       ["src/lib/payroll-engine.ts", "dc5719a2c34094b5449bf4ecacb198ab0d74a313"],
     ]) assert.equal(gitBlobSha(readFileSync(file)), hash,
       "Financial binding dependency changed; require new PG16 proof");
@@ -3882,11 +3893,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const seals = {
       "src/app/api/auth/sso/start/route.ts": {
         before: "0d97d9f8c8d0f69920a1d05b8071bc76198c59b6",
-        after: "e955a785be36c1152fa5e9f7f0ac7348729e1924",
+        after: "0b3574ef00f183f48013ee0c4f81293d0b2ef88b",
       },
       "src/app/api/auth/sso/callback/route.ts": {
         before: "b18ac853e93155478474d02466617298d6773275",
-        after: "25116ab157ede52128a1ccbe189773104361f2d3",
+        after: "a27d855a81751498cc907134e8e9dde7400c9f58",
       },
     };
     const seal = seals[routePath];
@@ -3903,17 +3914,35 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       cookieHelperFile: "src/lib/oidc-browser-state.ts",
       cookieHelperBlobSha: "cd772e6bed14633cc4fc7546140e16770ff54c3f",
       contractFile: "scripts/qa/tenant-oidc-browser-state-contract.mjs",
-      contractBlobSha: "fe81db6d5273b6d6288e2d9361f7f2ef95be9eb8",
+      contractBlobSha: "80d8278c439251d068584a946e9ef186b654275d",
       proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-      proofBlobSha: "626b6ae5afae1348b26ed0baa1e6d10157f1f285",
+      proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
       unitTestFile: "tests/tenant-oidc-browser-state.test.ts",
-      unitTestBlobSha: "926d45d242bbfe9672a95f02c3eef7dc27366815",
+      unitTestBlobSha: "f82c666418c4f0dd5f9f369146ad1748b9f542e6",
       negativeTestFile: "tests/tenant-oidc-browser-state-contract.test.mjs",
-      negativeTestBlobSha: "3a83ebae04ef3b735f9159c8b3a0f76a2f59dd24",
+      negativeTestBlobSha: "b89879de534005a17f4164df51eb1dca647fbb33",
       workflowFile: ".github/workflows/tenant-oidc-browser-state-http.yml",
-      workflowBlobSha: "b7479504956c98e08932241b71f16b49bfc9891b",
+      workflowBlobSha: "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
+      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
+        linkedIdentityBoundary: {
+          kind: "existing-oidc-provider-subject-must-match-provider-employer",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
+          accepted: false, credits: 0, productionCertified: false,
+        },
+      } : {
+        selectorBoundary: {
+          kind: "canonical-singular-provider-and-verified-email",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
+        },
+      }),
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
     const review = method.reviewedUncertified;
     for (const [file, sha] of [
@@ -4746,8 +4775,13 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if(isVerifiedOracleRenewal(manifest,path,method.name))continue; // Separate complete executed/source-sealed cohort.
       if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
         assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
+        continue;
+      }
+      if (path === OIDC_CALLBACK && method.name === 'GET') {
+        assert.equal(verifyOidcCallbackCredit(manifest), 1);
         continue;
       }
       if (path === CHECKOUT_PATH && method.name === "POST") {
@@ -7588,6 +7622,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
             file === reviewed.unitTestFile ? serverGate.migratedSummaryTestBlobSha :
             file === reviewed.workflowFile ? workflowAddition.workflowBlobSha : sha;
+          if(file==='.github/workflows/security-http-smoke.yml'){
+            assertHistoricalHttpWorkflowCheckout(file,expected);continue;
+          }
           assert.equal(gitBlobSha(readFileSync(file)), expected,
             "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
         }
@@ -7639,7 +7676,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const runner = readFileSync(callerFile, "utf8");
         assert.equal(gitBlobSha(Buffer.from(runner)), callerReceipt.pins[callerFile]);
         assert.match(runner, /verifyHcmWorkQueueIsolation\(f,\{request,expectStatus\}\)/);
-        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        // This is the exact historical workflow reconstructed from the reviewed
+        // checkout-only hardening, not a claim that the old page proof reran.
+        const workflow = historicalHttpWorkflowCheckoutSource(reviewed.workflowFile,workflowAddition.workflowBlobSha);
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
         // The legacy HR Work Queue evidence stays tied to the original workflow.
         // Verify the new version differs ONLY by the bounded, disposable managed
@@ -8942,6 +8981,7 @@ test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) require
   // exports POST must not borrow this credit: it stays GAP, or is COVERED only by its own dedicated loopback-synthetic proof.
   const exportsMethods = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/exports/route.ts"].methods;
   for (const entry of exportsMethods.filter(item => item.name === "POST")) {
+    if(isVerifiedOracleRenewal(manifest,'src/app/api/payroll-runs/[id]/exports/route.ts','POST'))continue;
     if (entry.status === "COVERED") assert.equal(entry.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs", "exports POST must not borrow this credit");
     else assert.equal(entry.status, "GAP", "exports POST must not borrow this credit");
   }
@@ -9202,6 +9242,8 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
   for (const token of ["enforceSameOriginMutation(request)", "getSessionUser()", "requireSensitiveActionMfa(user)", "assertOrganizationRole(", "access?.companyWide",
     "assertBirAnnualEntityAccess(", "loadBirAnnualEmployerSource("]) assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
 });
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
 
 test("payroll exports POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
   const routePath = "src/app/api/payroll-runs/[id]/exports/route.ts";

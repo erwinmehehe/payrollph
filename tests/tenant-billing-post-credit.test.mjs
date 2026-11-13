@@ -1,5 +1,6 @@
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
-import { oracleWithdrawalDelta } from './helpers/tenant-counts.mjs';
+import { oracleWithdrawalDelta,oracleRenewalDelta } from './helpers/tenant-counts.mjs';
+import {isVerifiedOracleRenewal} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -79,7 +80,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
     const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
-    const exportsDelta=(base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'&&m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED')?1:0;
+    const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP' && m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED'?1:0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
     const yearEndHold = yearEndHoldDelta(base.manifest, m) - yearEndRenewalDelta(base.manifest, m);
     // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
@@ -90,7 +91,9 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
-    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
+    const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
+    const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -107,6 +110,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["GET", "readiness/workspace"],
   ]) {
     const path='src/app/api/'+route+'/route.ts';
+    if(isVerifiedOracleRenewal(m,path,verb))continue;
     if(verifyOracleSourceHolds(m).has(verb+' '+path)){
       const held=m.allApiRouteFiles[path].methods.find(x=>x.name===verb);
       assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
@@ -131,3 +135,5 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
   assert.equal(m.acceptanceStatus.startsWith('NOT ACCEPTED: ' + counts.gap + ' API methods'), true);
 });
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
+
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

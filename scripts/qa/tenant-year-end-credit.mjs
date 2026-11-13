@@ -9,14 +9,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-// Renewed 2026-11-12: proof run on the push-to-main merge commit of #1945 (workflow gained push/dispatch triggers),
-// against the annualization source that applies imported de minimis (#1944). Supersedes #1804 run 42254117862.
-const HEAD = "d4317f4d71a5ac88874e3e48c273d9d9af9b91e8";
+// Renewed 2026-11-13: proof run on the push-to-main merge commit of #1957 (one de minimis ceiling shared by imported and
+// calculated pay in the year-end settlement). Supersedes run 43178709246 (#1945) and the original #1804 run 42254117862.
+const HEAD = "ba70678f30e24436dcaac853e0b047adbbe3f96a";
 const ROUTE = "src/app/api/year-end/route.ts";
 const PROOF = "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs";
 const WORKFLOW = ".github/workflows/tenant-year-end-post-candidate.yml";
-const RUN = 43178709246;
-const JOB = 131049135150;
+const RUN = 43372002300;
+const JOB = 131709669757;
 /** The current credited year-end proof (identifiers only); a hold records exactly this as the receipt it withdraws. */
 export const YEAR_END_PROOF = Object.freeze({ head: HEAD, run: RUN, job: JOB });
 export const YEAR_END_SOURCE_PINS = Object.freeze({
@@ -26,7 +26,7 @@ export const YEAR_END_SOURCE_PINS = Object.freeze({
   "scripts/qa/tenant-batches/year-end-json-http.mjs": "0b778aea9d1e66f508a54f3c63cf43a2342f9e55",
   "scripts/qa/tenant-write-table-http.mjs": "c9db7e9f1b0f7035836b4f599e82c51384a0f127",
   "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
-  "src/lib/year-end.ts": "a2bafdb9d961e888cacf7353c2094a661df4484e",
+  "src/lib/year-end.ts": "b2b52a7913be85eb70c507d26e730fc366852237",
   "src/lib/payroll-engine.ts": "dc5719a2c34094b5449bf4ecacb198ab0d74a313",
   "tests/year-end-binding-transaction-contract.test.mjs": "9562442c4d9e7d820027630cead6d753c0fc3767",
 });
