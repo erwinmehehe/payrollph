@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import ts from 'typescript';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
 
 export const renewalBlob = bytes => createHash('sha1')
   .update(Buffer.from('blob '+Buffer.byteLength(bytes)+'\0')).update(bytes).digest('hex');
@@ -23,6 +24,10 @@ export const RENEWAL_LEDGER_INPUTS=Object.freeze([
 ]);
 
 export function collectRenewalInputs(roots, read=readFileSync, exists=existsSync, separateLedger=false) {
+  // Generation parses imports with the locked TypeScript compiler. Verification
+  // checks the sealed closure's complete membership and every input hash; fast
+  // source-only CI guards therefore need no installed compiler dependency.
+  const ts=require('typescript');
   const pins={}, visiting=new Set();
   function visit(file) {
     file=file.replaceAll('\\','/');

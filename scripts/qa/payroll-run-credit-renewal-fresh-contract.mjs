@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {PAYROLL_RENEWAL_COHORTS,verifyPayrollRenewalResults} from './payroll-run-credit-renewal-contract.mjs';
-import {collectRenewalInputs,RENEWAL_LEDGER_INPUTS} from './payroll-run-renewal-inputs.mjs';
+import {renewalBlob,RENEWAL_LEDGER_INPUTS} from './payroll-run-renewal-inputs.mjs';
 import {HISTORICAL_RENEWAL_RECEIPT,HISTORICAL_RENEWAL_SEAL} from './payroll-run-credit-renewal-history.mjs';
 
 /** Called only after the fresh receipt seal and both historical archives verify. */
@@ -28,8 +28,15 @@ export function verifyFreshPayrollRenewal(receipt,historical,methods,read=readFi
     assert.equal(cohort.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/'+cohort.runId+'/job/'+cohort.jobId);
     assert.deepEqual(Object.keys(cohort.executedAccountingInputs),Object.keys(old.executedAccountingInputs));
     for(const sha of Object.values(cohort.executedAccountingInputs))assert.match(sha,/^[a-f0-9]{40}$/);
-    if(needed.has(name))assert.deepEqual(collectRenewalInputs(cohort.roots,read,exists,true),cohort.sourcePins,
-      'Executed input closure drift: '+name);
+    // The immutable prior closure plus these two explicit extra roots is the
+    // complete compiler-generated fresh closure. A new import would change its
+    // pinned parent bytes; dropping any member fails even in custom readers.
+    const expectedInputs=[...new Set([...Object.keys(old.sourcePins),workflow,...additional])].sort();
+    assert.deepEqual(Object.keys(cohort.sourcePins).sort(),expectedInputs,'Executed input closure drift: '+name);
+    if(needed.has(name))for(const [file,sha]of Object.entries(cohort.sourcePins)){
+      assert.ok(exists(file),'Executed input missing: '+file);
+      assert.equal(renewalBlob(read(file)),sha,'Executed input closure drift: '+name+': '+file);
+    }
   }
   return receipt;
 }

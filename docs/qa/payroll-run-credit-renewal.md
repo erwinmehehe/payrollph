@@ -78,6 +78,13 @@ include subprocess entrypoints, the fifteen payroll route files, proxy, baseline
 environment helper and package/configuration inputs. Locked packages remain
 pinned. This closure tool is not an automatic proof or source-acceptance grant.
 
+The locked TypeScript compiler generates the complete closure. Fast source guards
+verify its exact sealed membership and every file hash without loading that
+compiler. The only additions to historical closure membership are the new actions
+workflow root and the explicit PayMongo loopback preload. Adding an import changes
+its pinned parent; removing any dependency pin or root is rejected. A nine-cohort
+compiler-parity test and a compiler-unavailable guard test enforce both paths.
+
 ## Fail-closed controls
 
 - Actual own success, two distinct attackers, genuine populated higher-ID victim,

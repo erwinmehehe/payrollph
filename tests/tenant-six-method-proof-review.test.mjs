@@ -1,5 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
-import {isVerifiedOracleSupersession,isVerifiedOracleRenewal,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {ORACLE_HELD_METHODS,isVerifiedOracleSupersession,isVerifiedOracleRenewal,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -957,6 +957,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const baseline = JSON.parse(execFileSync("git",
       ["show", "origin/main:scripts/qa/tenant-isolation-coverage-manifest.json"],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
+    const mainSourceCache = new Map();
+    const readMainSource = (path, encoding) => {
+      if (!mainSourceCache.has(path)) mainSourceCache.set(path, execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 }));
+      const bytes = mainSourceCache.get(path);
+      return encoding ? bytes.toString(encoding) : bytes;
+    };
+    const mainOracleHolds = verifyOracleSourceHolds(baseline, null, readMainSource);
     const payoutMethod = baseline.allApiRouteFiles["src/app/api/payout-profiles/route.ts"]
       .methods.find(method => method.name === "PATCH");
     const baselineHasPayout = payoutMethod?.status === "COVERED";
@@ -1057,6 +1064,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     ].filter(([path, receipt, verb = "POST"]) => {
       const row = baseline.allApiRouteFiles[path]?.methods.find(item => item.name === verb);
       if (row?.status !== "COVERED") return false;
+      if(row.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+        // mainOracleHolds above validates the entire generated nineteen-method
+        // receipt against main's own source bytes, including historical holds.
+        assert.ok(ORACLE_HELD_METHODS.includes(verb+' '+baseline.allApiRouteFiles[path].route));
+        assert.equal(row.testedBy.independentSecurityReview,'PENDING');
+        assert.equal(row.testedBy.productionCertified,false);
+        return true;
+      }
       assert.equal(row.testedBy?.file, receipt, path + ": main credit must carry its own receipt");
       assert.equal(row.testedBy.independentSecurityReview, "PENDING");
       assert.equal(row.testedBy.productionTested, false);
@@ -1374,13 +1389,6 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(mainWorkerGet.reviewedUncertified?.coverageCredits,0);
       expectedOriginalMain[mainWorkerPath].GET='GAP';
     }
-    const mainSourceCache = new Map();
-    const readMainSource = (path, encoding) => {
-      if (!mainSourceCache.has(path)) mainSourceCache.set(path, execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 }));
-      const bytes = mainSourceCache.get(path);
-      return encoding ? bytes.toString(encoding) : bytes;
-    };
-    const mainOracleHolds = verifyOracleSourceHolds(baseline, null, readMainSource);
     const mainOidcRow=baseline.allApiRouteFiles[OIDC_CALLBACK].methods.find(row=>row.name==='GET');
     const mainOidcCredits=mainOidcRow.status==='COVERED'?verifyOidcCallbackCredit(baseline,readMainSource):0;
     if(mainOidcCredits)expectedOriginalMain[OIDC_CALLBACK].GET='COVERED';

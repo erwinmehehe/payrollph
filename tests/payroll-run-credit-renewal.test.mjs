@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
 import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
 import {verifyFreshPayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal-fresh-contract.mjs';
 import {load} from 'js-yaml';
@@ -41,6 +43,24 @@ test('nine fresh source-matched PG16 cohorts renew exactly nineteen methods',()=
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
   assert.equal(readVerifiedPayrollRenewal().methods.length,19);
   assert.equal(readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']).methods.length,19);
+});
+
+test('each sealed fresh input set equals the full locked-compiler import closure',()=>{
+  for(const cohort of Object.values(receipt().cohorts))
+    assert.deepEqual(collectRenewalInputs(cohort.roots,undefined,undefined,true),cohort.sourcePins);
+});
+
+test('fast source guards verify the complete sealed graph without loading TypeScript',()=>{
+  const script=`import {registerHooks} from 'node:module';
+    registerHooks({resolve(specifier,context,next){
+      if(specifier==='typescript')throw new Error('Compiler unavailable in fast source-only CI');
+      return next(specifier,context);
+    }});
+    const {readVerifiedPayrollRenewal}=await import('./scripts/qa/payroll-run-credit-renewal-verify.mjs');
+    if(readVerifiedPayrollRenewal().methods.length!==19)throw new Error('Incomplete renewal');
+    console.log('verified nineteen without compiler');`;
+  assert.match(execFileSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'}),
+    /verified nineteen without compiler/);
 });
 
 test('fresh jobs cannot drop proof roots, borrow historical executions or omit the synthetic-provider preload',()=>{
