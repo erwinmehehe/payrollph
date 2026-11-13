@@ -3834,24 +3834,6 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       workflowBlobSha: "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
       coverageCredits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
-      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
-        linkedIdentityBoundary: {
-          kind: "existing-oidc-provider-subject-must-match-provider-employer",
-          sourceSha: seal.after,
-          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
-          accepted: false, credits: 0, productionCertified: false,
-        },
-      } : {
-        selectorBoundary: {
-          kind: "canonical-singular-provider-and-verified-email",
-          sourceSha: seal.after,
-          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
-        },
-      }),
     }, "SSO review remains zero-credit and exact-source-pinned");
     for (const [file, hash] of [
       [reviewed.helperFile, reviewed.helperBlobSha],
@@ -3937,6 +3919,24 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       workflowBlobSha: "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
+      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
+        linkedIdentityBoundary: {
+          kind: "existing-oidc-provider-subject-must-match-provider-employer",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
+          accepted: false, credits: 0, productionCertified: false,
+        },
+      } : {
+        selectorBoundary: {
+          kind: "canonical-singular-provider-and-verified-email",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
+        },
+      }),
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
     const review = method.reviewedUncertified;
     for (const [file, sha] of [

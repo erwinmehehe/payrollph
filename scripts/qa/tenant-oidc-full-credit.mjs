@@ -45,8 +45,16 @@ function reconcileClosure(m,write){
  const path='docs/engineering/tenant-isolation-closure-plan.md';let doc=readFileSync(path,'utf8');
  const begin=doc.indexOf('### Current 406-method frozen batch queue'),end=doc.indexOf('### Three narrowly promoted API methods',begin);
  assert.ok(begin>=0&&end>begin);const section=doc.slice(begin,end),rows=section.split('\n');
- const outside=/other \*\*(\d+) methods\*\* are \*\*(\d+) COVERED and (\d+) PUBLIC-BY-DESIGN\*\*/.exec(section);assert.ok(outside);
- const totals=[m.metrics.coveredAfter-Number(outside[2]),m.metrics.publicByDesign-Number(outside[3]),m.metrics.privilegedOperationsTokenOnly,m.metrics.gap];
+ // Count the immutable source-linked queue itself: supplemental methods can
+ // legitimately be GAP after a source withdrawal, independently of this credit.
+ const frozen=[...doc.matchAll(/^- `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — \[source\]/gm)].map(x=>[x[1],x[2]]);
+ assert.equal(frozen.length,406);assert.equal(new Set(frozen.map(x=>x.join(' '))).size,406);
+ const statuses=['COVERED','PUBLIC-BY-DESIGN','PRIVILEGED-OPERATIONS-TOKEN-ONLY','GAP'];
+ const totals=[0,0,0,0];for(const [method,path]of frozen){
+  const entry=m.allApiRouteFiles['src/app/api/'+path+'/route.ts'];
+  const row=entry?.methods.find(x=>x.name===method);assert.ok(row,'Missing frozen method: '+method+' '+path);
+  const index=statuses.indexOf(row.status);assert.ok(index>=0);totals[index]++;
+ }
  assert.equal(totals.reduce((a,b)=>a+b,0),406);
  const other=[0,0,0,0];for(const line of rows.filter(x=>x.startsWith('| ')&&/\*\*[A-Z]+-\d+\*\*/.test(x)&&!x.includes('**EDG-01**'))){const cells=line.split('|');for(let i=0;i<4;i++)other[i]+=Number(cells[i+4]);}
  const at=rows.findIndex(x=>x.includes('**EDG-01**'));assert.ok(at>=0);const cells=rows[at].split('|');
