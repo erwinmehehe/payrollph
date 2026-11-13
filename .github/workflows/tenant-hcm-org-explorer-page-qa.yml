@@ -18,6 +18,15 @@ on:
       - "src/lib/auth.ts"
       - "src/components/hcm-org-explorer.tsx"
       - "src/db/schema.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/organization-auth-policy.ts"
+      - "src/lib/hcm-scoped-read-validation.ts"
+      - "src/lib/hcm-scoped-read-failure.ts"
+      - "src/lib/hcm-enterprise-plan-policy.ts"
+      - "src/components/hcm-context-navigation.tsx"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "src/lib/critical-release-flags.ts"
+      - "tests/tenant-hcm-page-api-ci-coverage.test.mjs"
   workflow_dispatch:
 
 permissions:
@@ -90,6 +99,7 @@ jobs:
           node --check scripts/qa/tenant-hcm-org-explorer-page-contract.mjs
           node --check scripts/qa/tenant-hcm-org-explorer-page-http.mjs
           node --test tests/tenant-hcm-org-explorer-page-contract.test.mjs
+          node --test tests/tenant-hcm-page-api-ci-coverage.test.mjs
       - name: Generate ephemeral-only encryption keys
         shell: bash
         run: |

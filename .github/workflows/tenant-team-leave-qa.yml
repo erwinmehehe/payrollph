@@ -13,6 +13,18 @@ on:
       - "src/app/api/hcm/team-leave-calendar/route.ts"
       - "src/lib/hcm-team-leave-calendar-server.ts"
       - "src/lib/hcm-team-leave-calendar-contract.ts"
+      - "src/components/hcm-team-leave-calendar.tsx"
+      - "src/lib/hcm-scoped-read-validation.ts"
+      - "src/lib/hcm-scoped-read-failure.ts"
+      - "src/lib/hcm-read-scope-validation.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/organization-auth-policy.ts"
+      - "src/db/schema.ts"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "src/lib/critical-release-flags.ts"
+      - "tests/tenant-hcm-page-api-ci-coverage.test.mjs"
   workflow_dispatch:
 
 permissions:
@@ -84,6 +96,7 @@ jobs:
           node --check scripts/qa/tenant-team-leave-contract.mjs
           node --check scripts/qa/tenant-team-leave-http.mjs
           node --test tests/tenant-team-leave-contract.test.mjs
+          node --test tests/tenant-hcm-page-api-ci-coverage.test.mjs
       - name: Create ephemeral encryption keys for fictional schema only
         shell: bash
         run: |
