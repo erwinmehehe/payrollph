@@ -128,3 +128,43 @@ test("actual Playwright, PostgreSQL, digest-revocation, and PDF paths may not be
   assert.match(workflow,/node-version: "22"/);
   assert.doesNotMatch(workflow,/PAYMONGO_DISBURSEMENTS_ENABLED: "true"/);
 });
+
+test("2316 browser proof reruns for shared auth, data, test-fixture and dependency changes",()=>{
+  const workflow=readFileSync(".github/workflows/tenant-2316-browser-pdf-qa.yml","utf8");
+  const block=workflow.match(/^    paths:\n((?:      - "[^"\n]+"\n)+)/m);
+  assert.ok(block,"PR path filters must be present and explicit");
+  const watched=new Set([...block[1].matchAll(/^      - "([^"\n]+)"$/gm)].map(m=>m[1]));
+  for(const dependency of [
+    "src/lib/auth.ts",
+    "src/lib/access.ts",
+    "src/lib/permissions.ts",
+    "src/lib/organization-auth-policy.ts",
+    "src/lib/security-request.ts",
+    "src/lib/audit.ts",
+    "src/lib/critical-release-flags.ts",
+    "src/lib/crypto.ts",
+    "src/lib/government-id-crypto.ts",
+    "src/lib/security-secret.ts",
+    "src/lib/totp.ts",
+    "src/db/schema.ts",
+    "src/db/index.ts",
+    "scripts/qa/tenant-table-http.mjs",
+    "scripts/qa/apply-isolated-baseline.mjs",
+    "tests/fixtures/bir-2316-certificate.ts",
+    "tests/tenant-2316-legal-employer-worker.test.ts",
+    "package.json",
+    "package-lock.json"
+]){
+    assert.ok(watched.has(dependency),"Missing 2316 CI trigger for "+dependency);
+  }
+  for(const pattern of [
+    "src/app/workspace/2316/**",
+    "src/app/api/year-end/2316-certificate/**",
+    "src/lib/bir-2316-*.ts",
+    "src/lib/multi-entity-server.ts",
+    "scripts/qa/tenant-2316-browser-pdf-*.mjs",
+    "scripts/qa/tenant-2316-ssr-transfer-*.mjs",
+    "tests/tenant-2316-browser-pdf-contract.test.mjs",
+    ".github/workflows/tenant-2316-browser-pdf-qa.yml",
+  ])assert.ok(watched.has(pattern),"Missing existing critical 2316 watch pattern: "+pattern);
+});
