@@ -7286,14 +7286,20 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const auth = actual.indexOf("getSessionUser()");
         const flag = actual.indexOf('criticalReleaseFlagEnabled("tenantReportBuilder")');
         const selector = actual.indexOf("explicitReportBuilderEmployerId(params.organizationId)");
-        const scope = actual.indexOf("getAccess(user.id, organizationId)");
-        const permission = actual.indexOf("assertOrganizationRole(user.id, organizationId");
+        const permission = actual.indexOf("const denied = await assertOrganizationRole(");
+        const refused = actual.indexOf("if (denied) notFound();", permission);
+        const scope = actual.indexOf("const access = await getAccess(", refused);
+        const companyWide = actual.indexOf(
+          "if (!access?.companyWide || !roleAllowed(access.role, PEOPLE_PAYROLL_ROLES)) notFound();",
+          scope);
         const employer = actual.indexOf("where(eq(organizations.id, organizationId))");
+        const employerFound = actual.indexOf("if (!employer) notFound();", employer);
         const render = actual.indexOf("<TenantReportBuilder organizationId={organizationId} />");
         assert.ok(0 < auth && auth < flag && flag < selector &&
-          selector < scope && scope < permission && permission < employer &&
-          employer < render,
-          "Report controls must never mount before active employer scope checks");
+          selector < permission && permission < refused && refused < scope &&
+          scope < companyWide && companyWide < employer &&
+          employer < employerFound && employerFound < render,
+          "Report controls must authorize employer, reject denied role, then check active company-wide scope before SQL or client mount");
 
         const proof = readFileSync(reviewed.proofFile, "utf8");
         const proofLines = proof.split("\n");
