@@ -1,4 +1,5 @@
 import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
+import {assertOracleCallerCompatible} from './payroll-run-oracle-source-compat.mjs';
 import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
@@ -33,6 +34,7 @@ function evidence(read=readFileSync){const raw=read(RECEIPT,'utf8').toString().r
      assert.equal(sha,HISTORIC_AUTOMATION_SHA,'Historical enterprise source seal changed');
      verifyNarrowStudioAutomationSource(read);
    } else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(file),sha,read);
+   else if(file==='scripts/qa/tenant-table-rows/read/path-id.mjs') assertOracleCallerCompatible(file,sha,read);
    else assert.equal(blob(read(file)),sha,'Enterprise proof/runtime drift: '+file);
  }
  assert.equal(r.result.routeBlobSha,r.pins[ENTERPRISE_POST_PATH]);assert.equal(r.result.proofBlobSha,r.pins[r.method.file]);assert.equal(r.result.stateBlobSha,r.pins['scripts/qa/tenant-enterprise-admin-state.mjs']);

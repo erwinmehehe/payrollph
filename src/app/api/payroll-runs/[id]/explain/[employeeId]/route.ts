@@ -16,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   const denied = await assertOrganizationRole(user.id, run.organizationId, PAYROLL_VIEW_ROLES, "Your role cannot inspect payroll explanations.");
   if (denied) return denied;
@@ -48,3 +48,4 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     explanation: buildPayExplanation(entry, previousEntry ?? null),
   });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

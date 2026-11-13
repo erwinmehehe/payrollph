@@ -1,4 +1,5 @@
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
+import {isVerifiedOracleHold,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -615,11 +616,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const payoutReconciliationPath = "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts";
   assert.equal(expectedStatuses[payoutReconciliationPath]?.POST, "GAP", "payout-reconciliation POST must start GAP in the reviewed snapshot");
   const payoutReconciliation = m.allApiRouteFiles[payoutReconciliationPath].methods.find(row => row.name === "POST");
+  if(!isVerifiedOracleHold(m,payoutReconciliationPath,"POST")) {
   assert.equal(payoutReconciliation?.status, "COVERED");
   assert.equal(payoutReconciliation.testedBy?.file, "scripts/qa/paymongo-export-isolation-local.mjs");
   assert.equal(payoutReconciliation.testedBy.providerMode, "loopback-synthetic-paymongo");
   assert.equal(payoutReconciliation.testedBy.independentSecurityReview, "PENDING");
   assert.equal(payoutReconciliation.testedBy.productionTested, false);
+  }
   expectedStatuses[payoutReconciliationPath].POST = "COVERED";
   const payoutReconciliationCredits = 1;
   // Credit after the snapshot: POST payroll-runs/[id]/exports, from its dedicated three-mode proof on a loopback-synthetic PayMongo
@@ -627,11 +630,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const exportsPostPath = "src/app/api/payroll-runs/[id]/exports/route.ts";
   assert.equal(expectedStatuses[exportsPostPath]?.POST, "GAP", "exports POST must start GAP in the reviewed snapshot");
   const exportsPost = m.allApiRouteFiles[exportsPostPath].methods.find(row => row.name === "POST");
+  if(!isVerifiedOracleHold(m,exportsPostPath,"POST")) {
   assert.equal(exportsPost?.status, "COVERED");
   assert.equal(exportsPost.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs");
   assert.equal(exportsPost.testedBy.providerMode, "loopback-synthetic-paymongo");
   assert.equal(exportsPost.testedBy.independentSecurityReview, "PENDING");
   assert.equal(exportsPost.testedBy.productionTested, false);
+  }
   expectedStatuses[exportsPostPath].POST = "COVERED";
   const exportsPostCredits = 1;
   // Credit after the snapshot: POST pilot-signoff and GET xendit-payout, from the dedicated payroll-run-actions harness (merged proof #1803).
@@ -642,10 +647,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.equal(expectedStatuses[xenditPayoutPath]?.GET, "GAP", "xendit-payout GET must start GAP in the reviewed snapshot");
   for (const [path, name] of [[pilotSignoffPath, "POST"], [xenditPayoutPath, "GET"]]) {
     const credited = m.allApiRouteFiles[path].methods.find(row => row.name === name);
+    if(!isVerifiedOracleHold(m,path,name)) {
     assert.equal(credited?.status, "COVERED");
     assert.equal(credited.testedBy?.file, "scripts/qa/tenant-payroll-run-actions-http.mjs");
     assert.equal(credited.testedBy.independentSecurityReview, "PENDING");
     assert.equal(credited.testedBy.productionTested, false);
+    }
     expectedStatuses[path][name] = "COVERED";
   }
   assert.equal(m.allApiRouteFiles[xenditPayoutPath].methods.find(row => row.name === "POST").status, "GAP", "xendit-payout POST stays GAP");
@@ -743,11 +750,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   for (const path of reviewReleasePaths) {
     assert.equal(expectedStatuses[path]?.POST, "GAP", path + " POST must start GAP in the reviewed snapshot");
     const method = m.allApiRouteFiles[path].methods.find(row => row.name === "POST");
+    if(!isVerifiedOracleHold(m,path,"POST")) {
     assert.equal(method?.status, "COVERED");
     assert.equal(method.testedBy?.file, "scripts/qa/tenant-money-lifecycle-http.mjs");
     assert.equal(method.testedBy.workflowRunId, 42063867383);
     assert.equal(method.testedBy.independentSecurityReview, "PENDING");
     assert.equal(method.testedBy.productionTested, false);
+    }
     expectedStatuses[path].POST = "COVERED";
   }
   const reviewReleaseCredits = reviewReleasePaths.length;
@@ -874,6 +883,14 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const oidcCallbackCredits = verifyOidcCallbackCredit(m);
   assert.equal(expectedStatuses[OIDC_CALLBACK].GET, 'GAP');
   expectedStatuses[OIDC_CALLBACK].GET = 'COVERED';
+  // Historical additions above retain their original arithmetic. Withdraw
+  // exactly the sealed changed-source credits, never unrelated methods.
+  const oracleHolds=verifyOracleSourceHolds(m);
+  for(const key of oracleHolds){
+    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+    assert.equal(expectedStatuses[path][verb],'COVERED','Only an actually inherited credit may be withdrawn');
+    expectedStatuses[path][verb]='GAP';
+  }
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited receipts, separately source-pinned Worker 360 recovery and OIDC callback proof");
   const expectedCounts = {
@@ -891,6 +908,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   expectedCounts.GAP -= architecturePublic.length + 1;
   expectedCounts["PUBLIC-BY-DESIGN"] += architecturePublic.length;
   expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] += 1;
+  expectedCounts.COVERED-=oracleHolds.size;expectedCounts.GAP+=oracleHolds.size;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
@@ -902,14 +920,18 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   assert.ok(inventory.includes(String(counts.COVERED) + " COVERED"));
   const yearEndHeldMethods = 2 - yearEndCredits;
-  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits + oidcCallbackCredits;
+  const frozenOracleHolds=[...oracleHolds].filter(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+    return plan.includes('- `'+verb+' /api/'+m.allApiRouteFiles[path].route+'` — [source]');
+  }).length;
+  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits + oidcCallbackCredits - frozenOracleHolds;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
   const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
-    - architecturePublic.length - 1 - oidcCallbackCredits; // Worker 360 source-current credit and separate OIDC callback proof.
+    - architecturePublic.length - 1 - oidcCallbackCredits + frozenOracleHolds; // Exact oracle withdrawals; Worker 360 and OIDC retain separate sealed proofs.
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
-  assert.equal(frozenGaps, m.metrics.gap, "The classification may not hide other remaining method GAPs");
+  assert.equal(frozenGaps+oracleHolds.size-frozenOracleHolds, m.metrics.gap, "Frozen and supplementary renewals cannot hide GAPs");
   assert.ok(plan.includes(
     "Frozen subtotal (2026-11-11 classification proposal): **" + frozenCovered + " COVERED + "
     + frozenPublic + " PUBLIC-BY-DESIGN + " + frozenPrivileged
@@ -1476,6 +1498,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   }
 });
 
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+
 test("frozen credit guard rejects an uncited or unproved method", () => {
   const creditedPath = "src/app/api/billing/route.ts";
   const uncited = structuredClone(m);
@@ -1494,5 +1518,3 @@ test("frozen credit guard rejects an uncited or unproved method", () => {
   assert.throws(() => verifiedFrozenMethodStatus(unproved, uncoveredPath, "POST", "GAP"),
     /status promotion without its verified proof is forbidden/);
 });
-
-import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

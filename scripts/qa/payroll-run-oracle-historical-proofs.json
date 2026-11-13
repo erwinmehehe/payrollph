@@ -1,0 +1,482 @@
+{
+  "base": "e2999240e5ee2d820841de5e10193ce9cbc39e6a",
+  "allApiRouteFiles": {
+    "src/app/api/payroll-runs/[id]/assurance/route.ts": {
+      "gitBlobSha": "79306e2c73c1ab8aa94ee67a7127ccc18b52a385",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1089,
+            "ownPositiveLine": 1089,
+            "foreignDenialLine": 1091,
+            "unchangedDbLine": 1132,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/close/route.ts": {
+      "gitBlobSha": "7459073bd5bb741e7232a29be77da145282e2413",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 173,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
+        },
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 444,
+            "ownPositiveLine": 444,
+            "foreignDenialLine": 456,
+            "unchangedDbLine": 465,
+            "scope": "Two independent authenticated privileged real-HTTP payroll-close POST positives, real victim 403 negatives and exact immutable victim snapshot on disposable PostgreSQL 16; only synthetic audit event preconditions, no payment provider or money."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/connected-impact/route.ts": {
+      "gitBlobSha": "d91560c385b7375975bd9319220b0b8df7f13c8f",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 251,
+            "rowFile": "scripts/qa/tenant-table-rows/read/path-id.mjs",
+            "rowLine": 18,
+            "ownPositiveLine": 251,
+            "foreignDenialLine": 260,
+            "unchangedDbLine": 280,
+            "pathIds": {
+              "id": "id"
+            },
+            "scope": "Explicit path-bound Owner/default or flagged-read HTTP proof using genuine higher-ID victim seeds; no payroll release, tax classification approval, agency acceptance or production certification; exact-head CI NOT_RUN.",
+            "evidence": "Local shared path-bound runner; local PG16 main-f9ea path-ID receipts: default GET+POST and flagged-read GET; two attackers each; own/victim/discrimination unchanged DB; mutation rejected; CI NOT_RUN"
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/explain/[employeeId]/route.ts": {
+      "gitBlobSha": "a86813cd36150f04ffcfc2d4d6479300e719391e",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/payroll-read-sweep-http.mjs",
+            "line": 135,
+            "ownPositiveLine": 135,
+            "foreignDenialLine": 141,
+            "unchangedDbLine": 173,
+            "ownStatus": 200,
+            "foreignStatus": 403,
+            "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+            "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/exports/route.ts": {
+      "gitBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 201,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
+        },
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-payroll-exports-post-http.mjs",
+            "line": 246,
+            "ownPositiveLine": 246,
+            "ownPreflightLine": 236,
+            "ownManualCompletionLine": 269,
+            "foreignDenialLine": 203,
+            "forgedSelectorLine": 227,
+            "unchangedDbLine": 289,
+            "victimIdOrderingLine": 141,
+            "secondAttackerLine": 229,
+            "borrowedValidationLine": 184,
+            "loopbackProviderLine": 60,
+            "methodActions": [
+              "preflight",
+              "disburse",
+              "complete-manual"
+            ],
+            "proofBlobSha": "c53b27d3124db565d84f3ffccf4e1f73d0a305ae",
+            "workflowFile": ".github/workflows/tenant-payroll-exports-post-http.yml",
+            "workflowBlobSha": "591377d3ccf280d30a7de5ab232f7b3f51a6a094",
+            "routeBlobSha": "6d4397c1ef98df82fa4917d6241b44e14b3ae96f",
+            "providerMode": "loopback-synthetic-paymongo",
+            "scope": "Real HTTP on disposable PG16 against a production build, with PayMongo replaced by a loopback-only synthetic server (no real provider is contacted and no real money can move). Own successes in all three modes for two independent employers: preflight (provider reads only), disbursement (exactly one synthetic batch bound to the own run, worker, amount, account and idempotency key; replay refused) and manual completion (bound to a real bank export and the employer's own accepted validation). Refusals: every attacker actor on the real higher-ID victim's two released runs in all three modes (403), no refusal reaches the provider, victim rows byte-identical; an employer without its own accepted validation cannot borrow another's. Known finding not closed: foreign run 403 versus missing run 404.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43124297782/job/130872336062",
+            "runLabel": "GitHub Actions 43124297782/130872336062 PG16 payroll-exports-post PASS",
+            "postgresMajor": 16,
+            "workflowRunId": 43124297782,
+            "workflowJobId": 130872336062,
+            "verifiedMainHeadSha": "efd875a246bb38345ef805ea64363472af72414f",
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "moneyMovedByLinaw": false
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts": {
+      "gitBlobSha": "8a08081eb1ede1f24809d496804c9874ab1b46a7",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1372,
+            "ownPositiveLine": 1372,
+            "foreignDenialLine": 1377,
+            "unchangedDbLine": 1393,
+            "scope": "Disposable PG16 actual seeded payroll runs, two signed-in employer owners, read-only view=payout, foreign existing run denied and unchanged victim DB"
+          }
+        },
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/paymongo-export-isolation-local.mjs",
+            "line": 207,
+            "ownPositiveLine": 207,
+            "ownRetryLine": 267,
+            "foreignDenialLine": 215,
+            "unchangedDbLine": 477,
+            "victimIdOrderingLine": 456,
+            "secondAttackerLine": 458,
+            "retryActorsLine": 459,
+            "loopbackProviderLine": 446,
+            "methodActions": [
+              "reconcile",
+              "retry-failed"
+            ],
+            "proofBlobSha": "dc5cf70073fdc73ae1f9429a5c4513b64399f8e4",
+            "workflowFile": ".github/workflows/paymongo-export-isolation.yml",
+            "workflowBlobSha": "6fd55960a96731b03e9ec2cc505a9e4a9bfee5d7",
+            "routeBlobSha": "8a08081eb1ede1f24809d496804c9874ab1b46a7",
+            "providerMode": "loopback-synthetic-paymongo",
+            "scope": "Real HTTP on disposable PG16 against a production build, with PayMongo replaced by a loopback-only synthetic server (no real provider is contacted and no real money can move). Own successes: the reconcile action answers 200 bound to the own employer, run and exactly one worker for two independent employers; the retry-failed action answers 200 after a fresh preflight and a confirmed-failed transfer for two further employers, sending exactly one synthetic instruction, with a missing or stale preflight, a changed destination, a replay and overlapping requests all refused or sent once. Refusals: both actions on the real higher-ID victim run (seven padding employers) answer 403, never reach the synthetic provider and leave the victim's payroll, payout and audit state unchanged through the whole investigation; a same-employer other-unit retry, a session without MFA and a revoked membership with a retained session are refused. Not proven: any real PayMongo behavior, a real payout, the 5-per-10-minute throttle, or the legacy exports mode paths beyond their foreign refusal.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42229558806/job/127931638957",
+            "runLabel": "GitHub Actions 42229558806/127931638957 PG16 paymongo-export-isolation PASS",
+            "postgresMajor": 16,
+            "workflowRunId": 42229558806,
+            "workflowJobId": 127931638957,
+            "verifiedMainHeadSha": "9c9f0ad789ad83d4c7df526155550f61b0db9c20",
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "moneyMovedByLinaw": false
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/pilot-signoff/route.ts": {
+      "gitBlobSha": "18390e65b137a0e73d5c5c78e3368dbd18a26af4",
+      "methods": [
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-payroll-run-actions-http.mjs",
+            "testFile": "tests/tenant-payroll-run-actions-contract.test.mjs",
+            "pilotOwnLine": 169,
+            "pilotReplayLine": 178,
+            "pilotRefusedWritesNothingLine": 168,
+            "ledgerOwnLine": 149,
+            "ledgerOnlyOwnLine": 155,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 221,
+            "victimIdOrderingLine": 95,
+            "anonymousLine": 213,
+            "proofBlobSha": "deab603deceb12352ad1218a671902a28ddb588a",
+            "contractBlobSha": "2ebf57175b2040ce4218f1a21c5238484d138e34",
+            "testBlobSha": "d367f9b9752ba281ae8d3222bc5220307863a3c3",
+            "workflowFile": ".github/workflows/tenant-payroll-run-actions-http.yml",
+            "workflowBlobSha": "b3fe26350318a19c15c9fbb9cac1c5cbaf8abe53",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42253150229/job/128013254082",
+            "runLabel": "GitHub Actions 42253150229/128013254082 PG16 payroll-run-actions PASS",
+            "postgresMajor": 16,
+            "workflowRunId": 42253150229,
+            "workflowJobId": 128013254082,
+            "verifiedPrHeadSha": "02cfd9445d7fe67a8a63b156c037005d531f832a",
+            "mergedProofCommit": "79da483eebf674ab44d3838adc36daa2df3201c8",
+            "proofPullRequest": 1803,
+            "moneyMovedByLinaw": false,
+            "providerCalled": false,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "line": 169,
+            "methodActions": [
+              "own_signoff_with_system_derived_figures",
+              "replay_is_one_record",
+              "unconfirmed_400",
+              "mismatching_figure_409",
+              "forged_body_ids_ignored",
+              "foreign_run_403_victim_byte_identical",
+              "anonymous_401"
+            ],
+            "scope": "Real HTTP on disposable PG16 against a production build, two independent attacker employers, seven fillers and a higher-ID victim, with no payout provider configured or called. Each attacker's own pilot sign-off on its own Released run answers 200 with the system-derived register figures, writes exactly one own audit row (completed-payout evidence mode) and ignores forged organizationId/runId/legalEntityId/userId in the body; a replay returns the same single record and writes nothing; an unconfirmed attestation (400) and a mismatching independent figure (409, named) write nothing. The attacker's body carries figures equal to the VICTIM's register totals, so a missing gate would really sign off the victim's run. The same call aimed at the victim's real higher-ID run is refused 403 with no victim marker, and the victim's complete organization rows are byte-identical (and the other attacker's); anonymous is 401. A local mutation removing the role, unit-scope and legal-employer gates made the harness fail with the victim run signed off. Not proven: bank or statutory correctness of the signed-off figures, or any provider.",
+            "ownPositiveLine": 169,
+            "routeBlobSha": "18390e65b137a0e73d5c5c78e3368dbd18a26af4"
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/process/route.ts": {
+      "gitBlobSha": "45c4a91a43138919cd01b2899d309b669a3a3861",
+      "methods": [
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1478,
+            "ownPositiveLine": 1478,
+            "foreignDenialLine": 1484,
+            "unchangedDbLine": 1488,
+            "scope": "Explicit own-422 fail-closed policy and authenticated victim-403, not certification of successful calculation."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/release-checklist/route.ts": {
+      "gitBlobSha": "6ccf72327e632adfcb070ee807b424e6941bce55",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1092,
+            "ownPositiveLine": 1092,
+            "foreignDenialLine": 1094,
+            "unchangedDbLine": 1132,
+            "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/release/route.ts": {
+      "gitBlobSha": "87fb97879aa19473a67ff9815c9db2e4b9f5d0b9",
+      "methods": [
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 292,
+            "ownPositiveLine": 292,
+            "foreignDenialLine": 259,
+            "forgedSelectorLine": 259,
+            "unchangedDbLine": 126,
+            "ownConfirmationLine": 294,
+            "twoAttackerLoopLine": 323,
+            "victimIdOrderingLine": 310,
+            "victimUnchangedAfterBothLine": 324,
+            "proofBlobSha": "7ef27a2cac748fca42b85b8e083851bcea6d95f3",
+            "workflowFile": ".github/workflows/tenant-money-lifecycle.yml",
+            "workflowBlobSha": "9e3cafc24925aa1bd2c4ebb0f0155e0f9d7729cf",
+            "routeBlobSha": "87fb97879aa19473a67ff9815c9db2e4b9f5d0b9",
+            "scope": "Real HTTP on disposable PG16 against a production build (both exact-approval-link flag states), two independent attacker employers, seven fillers and a higher-ID victim. Each attacker's own run, after an independent checker approved it, is released by a separate MFA-verified releaser (200; forged victim body selectors ignored; SQL confirms the own run is Released and exactly one payslip exists, for the own worker). Refusals: release on the real victim run (403, victim payroll/payout/approval/audit SQL unchanged, no victim marker), release by the checker (403) and release without recent MFA (403 MFA_REQUIRED, own financial state unchanged). No payout provider is configured or called.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42063867383/job/127372516860",
+            "secondEvidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42063867383/job/127372517320",
+            "runLabel": "GitHub Actions 42063867383/127372516860+127372517320 PG16 money-lifecycle PASS",
+            "postgresMajor": 16,
+            "workflowRunId": 42063867383,
+            "workflowJobIds": {
+              "exactLinksFalse": 127372516860,
+              "exactLinksTrue": 127372517320
+            },
+            "verifiedHeadSha": "53ae6fa31a41c104a4f509f6a3446f3aa05a28c6",
+            "independentSecurityReview": "PENDING",
+            "productionTested": false
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/submit-review/route.ts": {
+      "gitBlobSha": "98abed695eee9462a233f3da78b794e60f40c581",
+      "methods": [
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-money-lifecycle-http.mjs",
+            "line": 277,
+            "ownPositiveLine": 277,
+            "foreignDenialLine": 259,
+            "forgedSelectorLine": 259,
+            "unchangedDbLine": 126,
+            "ownConfirmationLine": 278,
+            "twoAttackerLoopLine": 323,
+            "victimIdOrderingLine": 310,
+            "victimUnchangedAfterBothLine": 324,
+            "proofBlobSha": "7ef27a2cac748fca42b85b8e083851bcea6d95f3",
+            "workflowFile": ".github/workflows/tenant-money-lifecycle.yml",
+            "workflowBlobSha": "9e3cafc24925aa1bd2c4ebb0f0155e0f9d7729cf",
+            "routeBlobSha": "98abed695eee9462a233f3da78b794e60f40c581",
+            "scope": "Real HTTP on disposable PG16 against a production build (both exact-approval-link flag states), two independent attacker employers, seven fillers and a higher-ID victim. Each attacker calculates its own run, then submits it for review to its own independent checker (201; the forged victim organization, entity and employee in the body are ignored; the task and SQL name the own run, own employer and own checker). Refusals: submit-review on the real victim run (403, victim payroll/payout/approval/audit SQL unchanged, no victim marker), self as checker (409) and the victim employer's checker (422). Both attackers' journeys run; the victim is compared again after both.",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42063867383/job/127372516860",
+            "secondEvidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42063867383/job/127372517320",
+            "runLabel": "GitHub Actions 42063867383/127372516860+127372517320 PG16 money-lifecycle PASS",
+            "postgresMajor": 16,
+            "workflowRunId": 42063867383,
+            "workflowJobIds": {
+              "exactLinksFalse": 127372516860,
+              "exactLinksTrue": 127372517320
+            },
+            "verifiedHeadSha": "53ae6fa31a41c104a4f509f6a3446f3aa05a28c6",
+            "independentSecurityReview": "PENDING",
+            "productionTested": false
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/variance/route.ts": {
+      "gitBlobSha": "c11a0a144162a69f0e886e9fe1c7dfd6dfa9b54b",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+            "line": 180,
+            "ownPositiveLine": 275,
+            "foreignDenialLine": 279,
+            "unchangedDbLine": 349,
+            "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+            "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/xendit-payout/route.ts": {
+      "gitBlobSha": "c100c146ce1373c1526bae90dd77667d6ed6aaad",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-payroll-run-actions-http.mjs",
+            "testFile": "tests/tenant-payroll-run-actions-contract.test.mjs",
+            "pilotOwnLine": 169,
+            "pilotReplayLine": 178,
+            "pilotRefusedWritesNothingLine": 168,
+            "ledgerOwnLine": 149,
+            "ledgerOnlyOwnLine": 155,
+            "foreignDenialLine": 210,
+            "unchangedDbLine": 221,
+            "victimIdOrderingLine": 95,
+            "anonymousLine": 213,
+            "proofBlobSha": "deab603deceb12352ad1218a671902a28ddb588a",
+            "contractBlobSha": "2ebf57175b2040ce4218f1a21c5238484d138e34",
+            "testBlobSha": "d367f9b9752ba281ae8d3222bc5220307863a3c3",
+            "workflowFile": ".github/workflows/tenant-payroll-run-actions-http.yml",
+            "workflowBlobSha": "b3fe26350318a19c15c9fbb9cac1c5cbaf8abe53",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42253150229/job/128013254082",
+            "runLabel": "GitHub Actions 42253150229/128013254082 PG16 payroll-run-actions PASS",
+            "postgresMajor": 16,
+            "workflowRunId": 42253150229,
+            "workflowJobId": 128013254082,
+            "verifiedPrHeadSha": "02cfd9445d7fe67a8a63b156c037005d531f832a",
+            "mergedProofCommit": "79da483eebf674ab44d3838adc36daa2df3201c8",
+            "proofPullRequest": 1803,
+            "moneyMovedByLinaw": false,
+            "providerCalled": false,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "line": 149,
+            "methodActions": [
+              "own_ledger_read_only_own_row",
+              "forged_org_and_run_query_ignored",
+              "foreign_run_403_victim_byte_identical",
+              "anonymous_401"
+            ],
+            "scope": "Real HTTP on disposable PG16 against a production build, two independent attacker employers, seven fillers and a higher-ID victim. Each attacker's own Xendit status read on its own Released run answers 200 with exactly its own batch and its single seeded own row (own employee number, own -UNSENT reference, prepared), ignoring a forged organizationId and a forged victim runId in the query, and the response names neither the victim nor the other attacker. The same read aimed at the victim's real higher-ID run is refused 403 with the victim's complete organization rows byte-identical (and the other attacker's); anonymous is 401. A local mutation removing the treasury, unit-scope and legal-employer gates let the attacker read the victim's ledger and made the harness fail. Nothing is submitted to Xendit and no provider is configured; the rows are pre-populated fictional data. Not proven: POST xendit-payout (needs the Xendit rail and live approval).",
+            "ownPositiveLine": 149,
+            "routeBlobSha": "c100c146ce1373c1526bae90dd77667d6ed6aaad"
+          }
+        },
+        {
+          "name": "POST",
+          "status": "GAP",
+          "testedBy": null
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/route.ts": {
+      "gitBlobSha": "a901d65d9a513be5474b1df3474ce172567efe64",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 460,
+            "ownPositiveLine": 453,
+            "foreignDenialLine": 460,
+            "scope": "Actual seeded payroll-run list 200 for two independent attacker employers and victim 403; separately same harness verifies F-04 populated own history 200 and foreign history 403 under isolated PG16 flag"
+          }
+        },
+        {
+          "name": "POST",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/payroll-approved-exit-http.mjs",
+            "line": 87,
+            "ownPositiveLine": 87,
+            "foreignDenialLine": 82,
+            "unchangedDbLine": 84,
+            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+          }
+        }
+      ]
+    },
+    "src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts": {
+      "gitBlobSha": "e95ad70f19d52b5f689a6370cebb396e50b1d0ee",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "COVERED",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 1442,
+            "ownPositiveLine": 1442,
+            "foreignDenialLine": 1449,
+            "unchangedDbLine": 1492,
+            "scope": "Real localhost PG16 HTTP, two attacker tenants and >6 victim ID, no money."
+          }
+        }
+      ]
+    }
+  }
+}

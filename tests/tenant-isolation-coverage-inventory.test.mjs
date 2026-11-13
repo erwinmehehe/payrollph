@@ -1,4 +1,7 @@
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
+import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
+import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -110,6 +113,13 @@ function restoreIssuedDemandPostPilotOrder(source) {
 
 function readableLines(path) {
   return readFileSync(path, "utf8").split("\n");
+}
+function isVerifiedRunWithdrawal(path, verb, data = manifest) {
+  const row=data.allApiRouteFiles[path]?.methods.find(item=>item.name===verb);
+  if(row?.status!=="GAP" || row.reviewedUncertified?.kind!=="payroll-run-membership-oracle-source-withdrawal") return false;
+  assert.ok(verifyOracleSourceHolds(data).has(verb+" "+path));
+  assert.equal(row.testedBy,null);
+  return true;
 }
 function evidenceLine(path, number, subject) {
   assert.equal(typeof path, "string", subject + ": test path required");
@@ -258,6 +268,20 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(verifyOidcCallbackCredit(manifest), 1);
     assert.equal(currentBlob, method.testedBy.routeBlobSha);
     return true;
+  }
+  if (method.status === "GAP" && key.startsWith("src/app/api/payroll-runs/")) {
+    const at=key.lastIndexOf(" "), path=key.slice(0,at), verb=key.slice(at+1);
+    const held=verifyOracleSourceHolds(manifest);
+    if(held.has(verb+" "+path)) {
+      assert.equal(method.testedBy,null);
+      return true; // Precisely verified withdrawal, not a method credit.
+    }
+    if(key==="src/app/api/payroll-runs/[id]/xendit-payout/route.ts POST") {
+      const receipt=verifyOracleRegressionReceipt();
+      assert.equal(currentBlob,receipt.sourceBlobs[path]);assert.equal(method.testedBy,null);
+      assert.equal(method.reviewedUncertified.coverageCredits,0);
+      return true; // Already GAP; the denial regression proves no successful payout.
+    }
   }
 
   // Exact-source uncredited privacy repair; this permits no coverage promotion.
@@ -576,8 +600,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
       ["tests/tenant-multi-entity-transfers-write-candidate.test.mjs", "6c552aa240f537c54db74815b44a5b66339d6649"],
       ["scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "f628eb48ac5bd0064c7da5915d8b51c990ab3a32"],
       [".github/workflows/multi-entity-browser-qa.yml", "ae71b132c1e495f58a0589a5fc44a956e85fc924"],
-    ]) assert.equal(gitBlobSha(readFileSync(file)), sha,
-      "A changed transfer security test must receive new exact-source review: " + file);
+    ]) {
+      if (file === ".github/workflows/multi-entity-browser-qa.yml") assertOracleCallerCompatible(file, sha);
+      else assert.equal(gitBlobSha(readFileSync(file)), sha,
+        "A changed transfer security test must receive new exact-source review: " + file);
+    }
     const proof = readFileSync("scripts/qa/tenant-multi-entity-transfers-write-http.mjs", "utf8");
     assert.match(proof, /CREATE TRIGGER ci_transfer_post_error/);
     assert.match(proof, /CREATE TRIGGER ci_transfer_patch_error/);
@@ -629,7 +656,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.equal(method.testedBy.file, "scripts/qa/tenant-high-risk-01-http.mjs",
       "Historical owned/victim HTTP proof must remain traceable");
     assert.equal(method.testedBy.ownPositiveLine, 275);
-    assert.equal(method.testedBy.foreignDenialLine, 279);
+    assert.equal(method.testedBy.foreignDenialLine, 284);
     const source = readFileSync(routeFile, "utf8");
     for (const guard of [
       'Number.isSafeInteger(organizationId)',
@@ -3807,6 +3834,24 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       workflowBlobSha: "0124d4818ca1f6335b8c7dd27f7300016ff8b176",
       coverageCredits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
+      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
+        linkedIdentityBoundary: {
+          kind: "existing-oidc-provider-subject-must-match-provider-employer",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
+          accepted: false, credits: 0, productionCertified: false,
+        },
+      } : {
+        selectorBoundary: {
+          kind: "canonical-singular-provider-and-verified-email",
+          sourceSha: seal.after,
+          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
+          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
+          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
+        },
+      }),
     }, "SSO review remains zero-credit and exact-source-pinned");
     for (const [file, hash] of [
       [reviewed.helperFile, reviewed.helperBlobSha],
@@ -3892,24 +3937,6 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       workflowBlobSha: "c2cbc61f80a00c95be314737ba8ff9b81be6d36a",
       credits: 0, exactHeadPg16Http: "PENDING",
       independentSecurityReview: "PENDING", productionCertified: false,
-      ...(routePath === "src/app/api/auth/sso/callback/route.ts" ? {
-        linkedIdentityBoundary: {
-          kind: "existing-oidc-provider-subject-must-match-provider-employer",
-          sourceSha: seal.after,
-          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-          scope: "disposable-PG16-schema-link-lookup-negative-and-positive; callback ID token exchange not exercised",
-          accepted: false, credits: 0, productionCertified: false,
-        },
-      } : {
-        selectorBoundary: {
-          kind: "canonical-singular-provider-and-verified-email",
-          sourceSha: seal.after,
-          proofFile: "scripts/qa/tenant-oidc-browser-state-http.mjs",
-          proofBlobSha: "edaff42c189e48daf7560f1ae8e9784fbc2810b1",
-          testCases: 8, status: "EXACT_HEAD_PG16_PENDING", credits: 0, productionCertified: false,
-        },
-      }),
     }, "OIDC cookie review must preserve all source pins and zero-credit gates");
     const review = method.reviewedUncertified;
     for (const [file, sha] of [
@@ -4306,11 +4333,13 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     .methods.find((item) => item.name === "POST");
   // The earlier provider-disabled 501 hold is superseded, not weakened: that 501 evidence is not used. The method may be COVERED only by
   // the loopback-synthetic PG16 receipt pinned by the dedicated test at the end of this file; it never certifies a real payout.
+  if (!isVerifiedRunWithdrawal("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts","POST")) {
   assert.equal(payout?.status, "COVERED");
   assert.equal(payout.testedBy?.file, "scripts/qa/paymongo-export-isolation-local.mjs");
   assert.equal(payout.testedBy.providerMode, "loopback-synthetic-paymongo");
   assert.equal(payout.testedBy.moneyMovedByLinaw, false);
   assert.equal(payout.reviewedUncertified, undefined);
+  }
   // PII-01 must contribute only two distinct, source-pinned identifier review methods.
   // Its method evidence is independently checked in tenant-pii01-identifiers-source.test.mjs
   // and executed over real isolated PostgreSQL/HTTP; it cannot borrow BIR proof credit.
@@ -4511,6 +4540,7 @@ test("new dashboard, employee-directory and payroll-list coverage cites executab
   ]) {
     const key = "src/app/api/" + route + "/route.ts";
     const method = manifest.allApiRouteFiles[key]?.methods.find((item) => item.name === "GET");
+    if(isVerifiedRunWithdrawal(key,"GET")) continue;
     assert.equal(method?.status, "COVERED", key + ": proof must remain classified");
     const proof = method.testedBy;
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs", key + ": not a real HTTP harness");
@@ -4523,7 +4553,7 @@ test("new dashboard, employee-directory and payroll-list coverage cites executab
       key + ": missing actual victim-tenant denied HTTP request");
   }
   const source = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
-  assert.match(source, /f\.victimRun\.id \+ "&include=entries".*\{ cookie: attackerCookie \}\), 403/,
+  assert.match(source, /f\.victimRun\.id \+ "&include=entries".*\{ cookie: attackerCookie \}\), 404/,
     "The payroll run read must also deny a direct victim-only register ID");
 });
 
@@ -4540,10 +4570,12 @@ test("reconciled main hashes retain documented GAPs without inventing authorizat
   assert.ok(hr.methods.every((method) => method.status === "COVERED" && method.testedBy),
     "HR methods require the new executed HTTP controls, not hash refresh alone");
   const payroll = manifest.allApiRouteFiles["src/app/api/payroll-runs/route.ts"];
+  if(!isVerifiedRunWithdrawal("src/app/api/payroll-runs/route.ts","POST")) {
   assert.equal(payroll.methods.find((method) => method.name === "POST")?.status, "COVERED",
     "Payroll draft creation requires executed own/foreign HTTP and unchanged-victim proof");
   assert.equal(payroll.methods.find((method) => method.name === "GET")?.status, "COVERED",
     "Retain the real three-employer HTTP GET proof, subject to current-head CI");
+  } else assert.ok(isVerifiedRunWithdrawal("src/app/api/payroll-runs/route.ts","GET"));
   const bundy = manifest.allApiRouteFiles["src/app/api/web-bundy/review/route.ts"];
   assert.equal(bundy.methods.length, 2);
   for (const method of bundy.methods) verifyClockCredit(method.name + " web-bundy/review", method);
@@ -8838,6 +8870,9 @@ test("payout reconciliation POST credit requires the exact passing run, byte-pin
   assert.ok(harness.includes("providerServer.listen(3012, '127.0.0.1', resolve)"), "the synthetic provider must listen on loopback only");
   assert.ok(harness.indexOf("assertPaymongoHttpProofTarget(process.env)") < harness.indexOf('await import("../../src/db/index.ts")'), "fail-closed target guard must precede database imports");
   const api = manifest.allApiRouteFiles[routePath];
+  if(isVerifiedRunWithdrawal(routePath,"POST",manifest)) {
+    assert.ok(isVerifiedRunWithdrawal(routePath,"GET",manifest));return;
+  }
   assert.deepEqual(api.methods.map(entry => [entry.name, entry.status]), [["GET", "COVERED"], ["POST", "COVERED"]]);
   const post = api.methods[1];
   assert.equal(post.reviewedUncertified, undefined, "the superseded provider-disabled hold must be gone");
@@ -8900,6 +8935,7 @@ test("payroll-run actions credit (pilot-signoff POST, xendit-payout GET) require
     const route = readFileSync(routePath, "utf8");
     const api = manifest.allApiRouteFiles[routePath];
     const method = api.methods.find(entry => entry.name === methodName);
+    if(isVerifiedRunWithdrawal(routePath,methodName,manifest)) continue;
     assert.equal(method.status, "COVERED");
     assert.equal(method.reviewedUncertified, undefined, "the zero-credit negative-only hold must be gone for the credited method");
     const proof = method.testedBy;
@@ -9194,6 +9230,8 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
     "assertBirAnnualEntityAccess(", "loadBirAnnualEmployerSource("]) assert.ok(route.includes(token), routePath + " lost a bound the proof exercises: " + token);
 });
 
+import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+
 test("payroll exports POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
   const routePath = "src/app/api/payroll-runs/[id]/exports/route.ts";
   const harnessFile = "scripts/qa/tenant-payroll-exports-post-http.mjs";
@@ -9208,6 +9246,9 @@ test("payroll exports POST credit requires the exact passing run, byte-pinned in
   const api = manifest.allApiRouteFiles[routePath];
   const get = api.methods.find(entry => entry.name === "GET");
   const method = api.methods.find(entry => entry.name === "POST");
+  if(isVerifiedRunWithdrawal(routePath,"POST",manifest)) {
+    assert.ok(isVerifiedRunWithdrawal(routePath,"GET",manifest));return;
+  }
   assert.equal(get.status, "COVERED", "the GET credit is unrelated and must be untouched");
   assert.equal(get.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
   assert.equal(method.status, "COVERED");
@@ -9251,5 +9292,3 @@ test("payroll exports POST credit requires the exact passing run, byte-pinned in
     assert.ok(route.includes(bound), routePath + " lost a bound the proof exercises: " + bound);
   assert.ok(!/body\.(?:organizationId|orgId|legalEntityId)/.test(route), "the route must never read the employer from the request body");
 });
-
-import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';

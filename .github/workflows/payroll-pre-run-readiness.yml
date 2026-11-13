@@ -11,6 +11,7 @@ on:
       - "tests/payroll-draft-payout-postgres.test.ts"
       - "src/lib/payroll-pre-run-readiness-server.ts"
       - "src/app/api/payroll-runs/*/pre-run-readiness/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/payroll-runs/*/process/**"
       - "src/app/api/payroll-runs/route.ts"
       - "src/components/workspace/payroll-run.tsx"

@@ -190,9 +190,9 @@ async function journey(v, a) {
   const payoutPath = id => `/api/payroll-runs/${id}/xendit-payout`;
   const own = status(await request(payoutPath(a.source.id), a.releaser.cookie), 200, 'own payout status readable');
   check(own.provider === 'xendit' && own.ledger === null, 'own empty provider ledger explicitly returned');
-  await deny(v, a.releaser, payoutPath(v.source.id), 'GET', undefined, 403, 'foreign payout status');
+  await deny(v, a.releaser, payoutPath(v.source.id), 'GET', undefined, 404, 'foreign payout status');
   for (const action of ['preflight', 'submit', 'reconcile', 'resolve-unknown']) {
-    await deny(v, a.releaser, payoutPath(v.source.id), 'POST', { action, confirm: true, organizationId: a.org.id }, 403, `foreign payout ${action}`);
+    await deny(v, a.releaser, payoutPath(v.source.id), 'POST', { action, confirm: true, organizationId: a.org.id }, 404, `foreign payout ${action}`);
   }
   await deny(a, a.employeeUser, payoutPath(a.source.id), 'POST', { action: 'submit', confirm: true }, 403, 'employee cannot submit payout');
   const payoutBefore = await snapshot(a);

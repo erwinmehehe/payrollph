@@ -201,7 +201,7 @@ export async function verifyPayrollPathBoundary() {
       const foreign = standaloneExpectStatus(await standaloneRequest(
         "/api/payroll-runs/" + foreignId + "/" + item.route + (item.query?.(victim) ?? ""),
         { method: item.method, cookie: attacker.cookie, body: item.body?.(attacker) }
-      ), 403, item.key + " real higher-ID foreign employer");
+      ), 404, item.key + " real higher-ID foreign employer");
       assert.ok(!own.text.includes(victim.marker) && !foreign.text.includes(victim.marker),
         item.key + ": a response exposed victim employer data");
       assert.deepEqual(await businessState(victim.org.id), victimBefore,

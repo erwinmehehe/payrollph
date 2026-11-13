@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { isVerifiedOracleHold } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import { verifyWorkspaceReadinessCredit } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 /**
  * Method-adapter integrity: any "covered" assertion must be based on a
@@ -27,6 +28,7 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
     Number.isInteger(method.testedBy?.foreignDenialLine)));
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
+  if(!isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/close/route.ts","POST")) {
   assert.equal(closePost?.status, "COVERED",
     "Do not lower the GAP count unless the accounting-close POST has its own evidence");
   assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
@@ -43,6 +45,7 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
     /cookie, method: "POST"[\s\S]*\}\), 403,/);
   assert.match(closeLines[closePost.testedBy.unchangedDbLine - 1] ?? "",
     /assert\.deepEqual\(victimAfter, victimBefore/);
+  }
 test("single table-driven test reads every manifest method without claiming precovered GET as a new GAP", () => {
   assertLiveTenantCounts(assert, manifest);
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");

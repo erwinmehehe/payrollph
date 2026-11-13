@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import yaml from 'js-yaml';
+import {assertOracleCallerCompatible} from './payroll-run-oracle-source-compat.mjs';
 import {assertReviewedReadinessHeaderOnInvitationConfig} from './tenant-invitation-header-source-compat.mjs';
 
 export const RENEWAL_FILE='scripts/qa/tenant-studio-dependency-renewal-receipt.json';
@@ -66,6 +67,7 @@ export function readStudioDependencyRenewal(read=readFileSync){
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
   else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),sha,read);
+  else if(p==='scripts/qa/tenant-money-lifecycle-http.mjs'||p==='scripts/qa/tenant-table-rows/read/path-id.mjs') assertOracleCallerCompatible(p,sha,read);
   else assert.equal(blob(read(p)),sha,'Renewed runtime/proof source drift: '+p);
  }
  for(const f of Object.values(r.families))for(const job of f.jobs){
@@ -78,9 +80,9 @@ export function assertReciptedStudioEngine(family,p,historicalSha,read=readFileS
  assert.equal(p,ENGINE);assert.equal(historicalSha,OLD_ENGINE);
  const r=readStudioDependencyRenewal(read);assert.ok(r.families[family],'Unproved dependency family');return true;
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';
 export function studioDependencyRenewalRef(family,read=readFileSync){
  const r=readStudioDependencyRenewal(read);assert.ok(r.families[family]);return {receiptFile:RENEWAL_FILE,receiptBlobSha:SEALED,family,
   jobs:r.families[family].jobs.map(j=>({id:j.job,run:j.run,sourceHead:j.head})),engineBlob:CURRENT_ENGINE,scopeBlob:SCOPE_SHA,
   evidenceLabel:r.label,productionAccepted:false,independentlyAccepted:false};
 }
-import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';

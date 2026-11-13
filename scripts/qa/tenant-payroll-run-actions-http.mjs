@@ -206,7 +206,7 @@ export async function verifyPayrollRunActionsTenantIsolation() {
       for (const [label, id, method, body] of denials) {
         const route = label.startsWith("pilot") ? "pilot-signoff" : label.startsWith("exports") ? "exports" : "xendit-payout";
         const refused = await standaloneRequest(run(id, route), { method, cookie: attacker.cookie, body });
-        assertRefusal(refused, 403, forbidden);
+        assertRefusal(refused, 404, forbidden);
         assertRowsUnchanged(victimBefore, await snapshot(victim), "victim after " + key + "'s " + label + " refusal");
       }
       // No session and a cross-site request with a valid cookie are refused before anything is read or written.
