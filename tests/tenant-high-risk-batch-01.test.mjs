@@ -1,5 +1,6 @@
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
-import {verifyOracleSourceHolds,isVerifiedOracleHold} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {verifyOracleSourceHolds,isVerifiedOracleSupersession} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {verifiedOracleRenewalKeys} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -97,9 +98,12 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const oracleHolds=verifyOracleSourceHolds(manifest);
   // Preserve this historical baseline arithmetic, then subtract the exact
   // source withdrawals once at the end. These are NOT live method credits.
-  const heldProofs=[...oracleHolds].map(key=>{
+  // Historical attribution only: newly executed renewals have their own strict
+  // verifier, while immutable prior receipts preserve this vintage arithmetic.
+  const heldProofs=[...new Set([...oracleHolds,...verifiedOracleRenewalKeys(manifest)])].map(key=>{
     const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
-    return manifest.allApiRouteFiles[path].methods.find(row=>row.name===verb).reviewedUncertified.priorProof;
+    const row=manifest.allApiRouteFiles[path].methods.find(row=>row.name===verb);
+    return row.reviewedUncertified?.priorProof??row.historicalOracleSourceWithdrawal.priorProof;
   });
   const historicalHeldCount=file=>heldProofs.filter(proof=>proof.file===file).length;
   const mergedProofCredits = verifyMergedProofCredits(manifest);
@@ -116,8 +120,9 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   for (const spec of cases) {
     const route = spec.slice("GET ".length);
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]?.methods.find((m) => m.name === "GET");
-    if(isVerifiedOracleHold(manifest,"src/app/api/"+route+"/route.ts","GET")) {
-      if(method.reviewedUncertified.priorProof.file==="scripts/qa/tenant-high-risk-01-http.mjs") heldHighRisk++;
+    if(isVerifiedOracleSupersession(manifest,"src/app/api/"+route+"/route.ts","GET")) {
+      const prior=method.reviewedUncertified?.priorProof??method.historicalOracleSourceWithdrawal.priorProof;
+      if(prior.file==="scripts/qa/tenant-high-risk-01-http.mjs") heldHighRisk++;
       continue;
     }
     assert.equal(method?.status, "COVERED", spec + " must have actual executed own/victim evidence");
@@ -178,7 +183,10 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       const method = methodsByKey.get(key);
       assert.ok(method, key + ": reviewed route and method must still exist");
       const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';
-      if(isVerifiedOracleHold(manifest,path,verb)&&method.reviewedUncertified.priorProof.file===suite.file) return "HELD";
+      if(isVerifiedOracleSupersession(manifest,path,verb)){
+        const prior=method.reviewedUncertified?.priorProof??method.historicalOracleSourceWithdrawal.priorProof;
+        if(prior.file===suite.file)return "SUPERSEDED";
+      }
       const inheritedMainSources = new Map([
         ["GET compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
         ["POST compliance/statutory-remittances/payment-evidence", "scripts/qa/tenant-manifest-driven-http.mjs"],
@@ -195,7 +203,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
       if (method.status === "GAP") assert.equal(method.testedBy, null);
       return method.status === "COVERED" && method.testedBy?.file !== suite.file ? "INHERITED" : method.status;
     });
-    const added = statuses.filter((status) => status === "COVERED"||status==="HELD").length;
+    const added = statuses.filter((status) => status === "COVERED"||status==="SUPERSEDED").length;
     const inherited = statuses.filter((status) => status === "INHERITED").length;
     assert.ok(added === 0 || added + inherited === suite.methods.length,
       suite.file + ": an incomplete/partial proof suite cannot silently receive credit");
@@ -209,7 +217,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     for (const key of suite.methods) {
       const method = methodsByKey.get(key);
       const at=key.indexOf(' ');
-      if(isVerifiedOracleHold(manifest,'src/app/api/'+key.slice(at+1)+'/route.ts',key.slice(0,at))) continue;
+      if(isVerifiedOracleSupersession(manifest,'src/app/api/'+key.slice(at+1)+'/route.ts',key.slice(0,at))) continue;
       if (method.testedBy?.file !== suite.file) {
         assert.ok(["scripts/qa/tenant-manifest-driven-http.mjs",
           "scripts/qa/dole-13th-month-http.mjs",
@@ -278,7 +286,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
     "The seven non-process money methods plus payroll submit-review and release retain their exact own-success/foreign-denial proofs");
   assert.deepEqual(Object.values(manifest.allApiRouteFiles)
     .filter(r => r.methods.some(m => m.testedBy?.file === "scripts/qa/tenant-money-lifecycle-http.mjs") && r.route.startsWith("payroll-runs/"))
-    .map(r => r.route).sort(), ["payroll-runs/[id]/release", "payroll-runs/[id]/submit-review"].filter(route=>!isVerifiedOracleHold(manifest,'src/app/api/'+route+'/route.ts','POST')),
+    .map(r => r.route).sort(), ["payroll-runs/[id]/release", "payroll-runs/[id]/submit-review"].filter(route=>!isVerifiedOracleSupersession(manifest,'src/app/api/'+route+'/route.ts','POST')),
     "Only submit-review and release borrow the money-lifecycle payroll journey");
   assert.ok(moneyMethods.every(m => m.status === "COVERED" && m.testedBy.ownPositiveLine &&
     m.testedBy.foreignDenialLine && m.testedBy.unchangedDbLine && m.testedBy.forgedSelectorLine));
@@ -291,7 +299,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   const preRunMethod = methodsByKey.get("GET payroll-runs/[id]/pre-run-readiness");
   const preRunProofFile = "scripts/qa/tenant-second-pass-http.mjs";
   const preRunLines = readFileSync(preRunProofFile, "utf8").split("\n");
-  if(!isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/process/route.ts","POST")) {
+  if(!isVerifiedOracleSupersession(manifest,"src/app/api/payroll-runs/[id]/process/route.ts","POST")) {
   assert.equal(processMethod?.status, "COVERED", "Calculation entry must retain method-specific tenant authorization");
   assert.equal(preRunMethod?.status, "COVERED", "Readiness GET must retain method-specific tenant authorization");
   assert.equal(processMethod?.testedBy?.file, preRunProofFile);
@@ -321,7 +329,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   assert.match(preRunLines[preRunMethod.testedBy.unchangedDbLine - 1] ?? "",
     /assert\.deepEqual\(victimAfter, victimBefore/,
     "Denied cross-tenant pre-run read must leave victim rows unchanged");
-  } else assert.ok(isVerifiedOracleHold(manifest,"src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts","GET"));
+  } else assert.ok(isVerifiedOracleSupersession(manifest,"src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts","GET"));
   assert.match(harness, /PRERUN_STATUTORY_VERIFICATION_UNRECORDED/,
     "No source-only test may invent official verification to pass money CI");
 

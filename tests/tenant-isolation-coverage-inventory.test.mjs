@@ -2,6 +2,7 @@ import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/q
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import {assertHistoricalHttpWorkflowCheckout,historicalHttpWorkflowCheckoutSource} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import { verifyInvitationAcceptCredits } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
@@ -7594,6 +7595,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           const expected = file === reviewed.helperFile ? pendingUiChange.helperBlobSha :
             file === reviewed.unitTestFile ? serverGate.migratedSummaryTestBlobSha :
             file === reviewed.workflowFile ? workflowAddition.workflowBlobSha : sha;
+          if(file==='.github/workflows/security-http-smoke.yml'){
+            assertHistoricalHttpWorkflowCheckout(file,expected);continue;
+          }
           assert.equal(gitBlobSha(readFileSync(file)), expected,
             "HR Work Queue current helper or historical evidence changed without renewed review: " + file);
         }
@@ -7645,7 +7649,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const runner = readFileSync(callerFile, "utf8");
         assert.equal(gitBlobSha(Buffer.from(runner)), callerReceipt.pins[callerFile]);
         assert.match(runner, /verifyHcmWorkQueueIsolation\(f,\{request,expectStatus\}\)/);
-        const workflow = readFileSync(reviewed.workflowFile, "utf8");
+        // This is the exact historical workflow reconstructed from the reviewed
+        // checkout-only hardening, not a claim that the old page proof reran.
+        const workflow = historicalHttpWorkflowCheckoutSource(reviewed.workflowFile,workflowAddition.workflowBlobSha);
         assert.match(workflow, /npx tsx scripts\/qa\/tenant-second-pass-http\.mjs/);
         // The legacy HR Work Queue evidence stays tied to the original workflow.
         // Verify the new version differs ONLY by the bounded, disposable managed

@@ -1,9 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import {load} from 'js-yaml';
+import {assertHistoricalHttpWorkflowCheckout} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa/payroll-run-credit-renewal-contract.mjs';
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
+
+test('fresh HTTP reproof checks out the exact proposed head with no persisted credentials',()=>{
+  const workflow=load(readFileSync('.github/workflows/security-http-smoke.yml','utf8'));
+  const steps=workflow.jobs['security-http-acceptance'].steps;
+  assert.match(steps[0].uses,/^actions\/checkout@[a-f0-9]{40}$/);
+  assert.deepEqual(steps[0].with,{'persist-credentials':false,ref:'${{ github.event.pull_request.head.sha || github.sha }}'});
+  assert.equal(steps[1].env.EXPECTED_SOURCE_SHA,'${{ github.event.pull_request.head.sha || github.sha }}');
+  assert.equal(steps[1].run,'test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"');
+});
+test('historical unaccepted page evidence permits only the source-sealed checkout change',()=>{
+  const file='.github/workflows/security-http-smoke.yml',expected='cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736';
+  assert.equal(assertHistoricalHttpWorkflowCheckout(file,expected),true);
+  assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,'0'.repeat(40)));
+  assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>readFileSync(p,...args)+'\n# unreviewed change'));
+});
 
 test('historical nine-cohort counters cover nineteen methods; changed shared accounting runner requires a fresh PG16 execution',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
