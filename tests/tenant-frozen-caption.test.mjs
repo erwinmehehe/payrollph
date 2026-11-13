@@ -77,6 +77,12 @@ test("checkout summary matches every current batch, total and provisional label"
   const captions = section.split("\n").filter(line => line.startsWith("Frozen subtotal"));
   assert.equal(captions.length, 1, "One unambiguous current summary is required");
   const incomplete = rows.length - provisional.length;
-  const summary = `Frozen subtotal (2026-11-11 classification proposal): **${totals[1]} COVERED + ${totals[2]} PUBLIC-BY-DESIGN + ${totals[3]} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${totals[4]} GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED and 8 PUBLIC-BY-DESIGN**. ${incomplete} batches remain INCOMPLETE; ${provisional.join(", ")} remain PROVISIONAL \u2014 NOT ACCEPTED.`;
+  const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8")).metrics;
+  const outside = [[m.coveredAfter - totals[1], "COVERED"], [m.publicByDesign - totals[2], "PUBLIC-BY-DESIGN"],
+    [m.privilegedOperationsTokenOnly - totals[3], "PRIVILEGED-OPERATIONS-TOKEN-ONLY"], [m.gap - totals[4], "GAP"]];
+  assert.ok(outside.every(([n]) => Number.isSafeInteger(n) && n >= 0));
+  assert.equal(outside.reduce((sum, [n]) => sum + n, 0), m.methods - totals[0]);
+  const outsideText = outside.filter(([n]) => n > 0).map(([n, status]) => n + " " + status).join(" + ");
+  const summary = `Frozen subtotal (2026-11-11 classification proposal): **${totals[1]} COVERED + ${totals[2]} PUBLIC-BY-DESIGN + ${totals[3]} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${totals[4]} GAP = 406**. Relative to the live ${m.methods}-method ledger, the other **${m.methods - totals[0]} methods** are **${outsideText}**. ${incomplete} batches remain INCOMPLETE; ${provisional.join(", ")} remain PROVISIONAL \u2014 NOT ACCEPTED.`;
   assert.equal(captions[0], summary, "Frozen summary must reflect the verified current table");
 });

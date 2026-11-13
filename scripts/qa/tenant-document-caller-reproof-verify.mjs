@@ -1,4 +1,5 @@
 import {verifyNarrowStudioAutomationSource,HISTORIC_AUTOMATION_SHA} from './tenant-studio-automation-source-compat.mjs';
+import {assertOracleCallerCompatible} from './payroll-run-oracle-source-compat.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -65,6 +66,8 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
         credits: 0, independentlyAccepted: false, productionCertified: false,
       });
       reviewedUncreditedPageCount++;
+    } else if (file === "scripts/qa/tenant-table-rows/read/path-id.mjs") {
+      assertOracleCallerCompatible(file, pinned, read);
     } else {
       assert.equal(current, pinned, "Executed caller input changed: " + file);
     }

@@ -166,7 +166,7 @@ test("F-04: tenant history read proof is independently pinned to a populated own
   assert.match(lines[proof.ownRowAssertionLine - 1], /f\.historyRows\[idx\]\.id, \[f\.historyRows\[0\]\.id\]/);
   const denied = lines.slice(proof.foreignDenialLine - 1, proof.foreignDenialLine + 4).join("\n");
   assert.match(denied, /f\.victimRun\.id \+ "&include=history"/);
-  assert.match(denied, /\{ cookie: attackerCookie \}\), 403/);
+  assert.match(denied, /\{ cookie: attackerCookie \}\), 404/);
   assert.match(readFileSync(".github/workflows/security-http-smoke.yml", "utf8"),
     /PAYROLL_CALCULATION_HISTORY_ENABLED: "true"/);
 });

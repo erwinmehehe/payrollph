@@ -199,7 +199,7 @@ export async function verifyPayrollExportsPostTenantIsolation() {
       for (const actor of [attacker.owner, attacker.second, attacker.employeeUser]) {
         for (const run of [v.provider, v.manual]) {
           for (const body of modes) {
-            await refused(request(path(run), actor.cookie, "POST", { ...body, organizationId: attacker.org.id, legalEntityId: attacker.entity.id }), 403,
+            await refused(request(path(run), actor.cookie, "POST", { ...body, organizationId: attacker.org.id, legalEntityId: attacker.entity.id }), 404,
               "foreign " + body.mode + " on the victim run");
           }
         }
@@ -294,7 +294,7 @@ export async function verifyPayrollExportsPostTenantIsolation() {
       modes: ["preflight", "disburse", "complete-manual"], ownJourneys: receipts.length, refusals,
       syntheticProviderOnly: true, syntheticBatchTransfers: 2, realProviderContacted: false, realMoneyMoved: false,
       victimOwnPositive: true, fullSnapshotsUnchanged: true, productionTested: false, coverageCredits: 0, independentlyAccepted: false,
-      knownFindingsNotClosedByThisProof: ["a foreign run answers 403 while a missing run answers 404 (run-ID existence oracle)"],
+      knownFindingsNotClosedByThisProof: ["full run-ID oracle closure is tracked by the separate nineteen-method comparison and renewal cohort"],
     }));
     return { method: EXPORTS_POST_METHOD, credited: 0 };
   } finally {

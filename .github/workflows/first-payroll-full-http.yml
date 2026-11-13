@@ -17,6 +17,7 @@ on:
       - 'src/app/api/employees/**'
       - 'src/app/api/workforce/timesheets/**'
       - 'src/app/api/payroll-runs/**'
+      - 'src/lib/payroll-run-membership.ts'
       - 'src/app/api/approvals/**'
       - 'src/lib/payroll-*.ts'
       - 'src/lib/exporters.ts'

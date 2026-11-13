@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { CHECKOUT_INPUT_BLOBS } from '../scripts/qa/tenant-billing-checkout-credit-pins.mjs';
 import { CHECKOUT_PATH, CHECKOUT_RECEIPT, checkoutEvidence, verifyCheckoutCredit } from '../scripts/qa/tenant-billing-checkout-credit.mjs';
+import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 const manifest = () => JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 
 test('only the merged real-PG16 two-employer checkout receipt earns one method', () => {
@@ -35,7 +36,14 @@ test('borrowed employer-proof anchors and fabricated receipts cannot promote a m
 
 test('partial exports and unrelated GAPs receive zero credits from this verifier', () => {
   const m = manifest();
+  const oracleHolds = verifyOracleSourceHolds(m);
   for (const path of ['payroll-runs/[id]/exports', 'payroll-runs/[id]/xendit-payout', 'automation-studio']) {
+    const route = 'src/app/api/' + path + '/route.ts';
+    if (oracleHolds.has('POST ' + route)) {
+      const held = m.allApiRouteFiles[route].methods.find(x => x.name === 'POST');
+      assert.equal(held.status, 'GAP'); assert.equal(held.testedBy, null);
+      continue;
+    }
     if(path==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
     if(path==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     assert.equal(m.allApiRouteFiles['src/app/api/' + path + '/route.ts'].methods.find(x => x.name === 'POST').status, 'GAP');

@@ -1,4 +1,6 @@
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
+import { oracleWithdrawalDelta } from './helpers/tenant-counts.mjs';
+import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
@@ -77,7 +79,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
     const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
-    const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP'?1:0;
+    const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP' && m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED'?1:0;
     const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
     const yearEndHold = yearEndHoldDelta(base.manifest, m) - yearEndRenewalDelta(base.manifest, m);
     // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
@@ -88,7 +90,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
-    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold;
+    const expectedNetCredits=delta+readyDelta+approvalsDelta+studioDelta+exportsDelta+restoredWorkerCredit-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -104,6 +106,11 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["POST", "automation-studio"],
     ["GET", "readiness/workspace"],
   ]) {
+    const path='src/app/api/'+route+'/route.ts';
+    if(verifyOracleSourceHolds(m).has(verb+' '+path)){
+      const held=m.allApiRouteFiles[path].methods.find(x=>x.name===verb);
+      assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
+    }
     if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
     if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}

@@ -15,7 +15,7 @@ import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/secu
 export const dynamic = "force-dynamic";
 
 async function loadCloseState(request: Request, runId: number, userId: number) {
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(userId, runId);
   if (!run) return { error: Response.json({ error: "Payroll run not found." }, { status: 404 }) };
 
   const denied = await assertOrganizationRole(
@@ -234,3 +234,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     filingEvidenceGapsAcknowledged: result.state.requiresFilingEvidenceAcknowledgement,
   });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

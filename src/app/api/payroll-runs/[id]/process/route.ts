@@ -23,10 +23,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
-  if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const run = await findPayrollRunForMember(user.id, runId);
+  if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
   const deniedOrg = await assertOrganizationRole(
     user.id,
     run.organizationId,
@@ -193,3 +193,4 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   return Response.json({ run: fresh, queue, processResult, attendanceCutoffGate, timesheetGate });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

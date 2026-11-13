@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import test from "node:test";
+import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const plan = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
@@ -111,8 +112,16 @@ test("closure plan schedules every original GAP exactly once in priority order",
   }
   assert.equal(scheduled.size, 406, "Frozen 2026-10-21 closure queue is 406 distinct method gaps");
   assert.deepEqual(sizes, [26, 26, 33, 33, 27, 39, 38, 39, 39, 40, 33, 33]);
+  const oracleHolds = verifyOracleSourceHolds(manifest);
+  const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
+    .map(match => match[1] + " " + match[2]));
+  for (const key of supplemental) {
+    const [verb, route] = key.split(" "), path = "src/app/api/" + route + "/route.ts";
+    assert.ok(oracleHolds.has(verb + " " + path), "supplemental queue must have exact reviewed source withdrawal: " + key);
+    assert.ok(!scheduled.has(key), "a frozen method must not be counted twice");
+  }
   for (const [key, value] of current) {
-    if (value.status === "GAP") assert.ok(scheduled.has(key), "Unsheduled new/remaining GAP: " + key);
+    if (value.status === "GAP") assert.ok(scheduled.has(key) || supplemental.has(key), "Unsheduled new/remaining GAP: " + key);
   }
   for (const key of scheduled.keys()) assert.ok(current.has(key),
     "Removed/renamed method still in plan; reconcile this batch and manifest: " + key);

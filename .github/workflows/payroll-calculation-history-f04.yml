@@ -9,6 +9,7 @@ on:
       - "src/lib/payroll-calculation-history.ts"
       - "src/lib/payroll-engine.ts"
       - "src/app/api/payroll-runs/route.ts"
+      - 'src/lib/payroll-run-membership.ts'
       - "tests/payroll-calculation-history*.test.ts"
       - "tests/payroll-e2e-fictional-postgres.test.ts"
 permissions:

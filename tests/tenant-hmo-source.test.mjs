@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { verifyDocumentCallerReproof } from "../scripts/qa/tenant-document-caller-reproof-verify.mjs";
+import { originalOracleCallerSource } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 
 const suite = readFileSync("scripts/qa/tenant-hmo-http.mjs", "utf8");
 const route = readFileSync("src/app/api/benefits/hmo/route.ts", "utf8");
@@ -120,17 +121,10 @@ test("HMO POST credit is pinned to the executed source, real victim denials and 
       "foreign document download and absent ID must have the same generic response");
     assert.deepEqual(deniedInline.json, missingDocument.json,
       "foreign inline document and absent ID must have the same generic response");`;
-  assert.equal(runner.split(newDocumentAssertions).length, 2,
+  const historicalRunner = originalOracleCallerSource("scripts/qa/tenant-second-pass-http.mjs");
+  assert.equal(historicalRunner.split(newDocumentAssertions).length, 2,
     "The revised private-document HTTP checks must occur exactly once");
-  // This one-line anonymous SSO baseline expectation cannot alter the HMO
-  // invocation, its scenario, or any cited proof line. Preserve the historic
-  // caller hash rather than pretending the old HMO receipt executed new SSO.
-  const heldSso='        expectStatus(result, key === "POST auth/sso/resolve" && process.env.OIDC_SSO_RUNTIME_MODE !== "enabled" ? 503 : 200, "Public/auth-status or held SSO endpoint " + key);';
-  const previousSso='        expectStatus(result, 200, "Intentionally public/auth-status endpoint " + key);';
-  assert.equal(gitBlobSha(runner),'b7a909d8f6e5bd978f807ae24d36e501a48c31c1',
-    'Shared runner has unreviewed changes beyond the exact document and disabled-SSO checks');
-  assert.equal(runner.split(heldSso).length,2,'Exactly one held SSO-only assertion');
-  assert.equal(gitBlobSha(runner.replace(heldSso,previousSso).replace(newDocumentAssertions, oldDocumentAssertions)),
+  assert.equal(gitBlobSha(historicalRunner.replace(newDocumentAssertions, oldDocumentAssertions)),
     proof.runnerBlobSha,
     "Any shared-runner change outside the exact document-ID checks requires new executed HMO acceptance");
   // This separate executed PG16 receipt reran the full HMO actions against

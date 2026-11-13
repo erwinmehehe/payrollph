@@ -65,7 +65,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  const run = await findPayrollRunForMember(user.id, runId);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
   const denied = await assertOrganizationRole(
@@ -297,3 +297,4 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     rows: changedRows,
   }, { headers: { "Cache-Control": "private, no-store" } });
 }
+import { findPayrollRunForMember } from "@/lib/payroll-run-membership";

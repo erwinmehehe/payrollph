@@ -28,6 +28,7 @@ on:
       - "src/app/api/web-bundy/**"
       - "src/app/api/payroll/**"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/bir/**"
       - "src/app/api/year-end/**"
       - "src/app/api/payroll-earnings/**"
@@ -117,6 +118,7 @@ on:
       - "src/app/api/web-bundy/**"
       - "src/app/api/payroll/**"
       - "src/app/api/payroll-runs/**"
+      - 'src/lib/payroll-run-membership.ts'
       - "src/app/api/bir/**"
       - "src/app/api/year-end/**"
       - "src/app/api/payroll-earnings/**"

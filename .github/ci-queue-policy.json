@@ -1,5 +1,6 @@
 {
   "supersedePrRuns": [
+    "payroll-run-oracle.yml",
     "tenant-worker360-credit-preview.yml",
     "a5-private-object-acceptance.yml",
     "a5-vault-migration-rehearsal.yml",

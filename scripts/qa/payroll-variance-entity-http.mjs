@@ -159,11 +159,11 @@ export async function verifyPayrollVarianceEmployerIsolation({
       assert.equal(own.data?.summary?.calculatedEntries, 1);
       assert.equal(own.data?.legalEntityId, actor.ownEntity);
       const other = await request(ctx, on, path(actor.otherRunId));
-      assert.equal(other.status, 403, actor.name + ": other tenant's real owned run denied");
+      assert.equal(other.status, 404, actor.name + ": other tenant's real owned run denied");
       const victim = await request(ctx, on, path(victimRun));
-      assert.equal(victim.status, 403, actor.name + ": higher-ID real victim run denied");
+      assert.equal(victim.status, 404, actor.name + ": higher-ID real victim run denied");
       assert.ok(!JSON.stringify(victim.data).includes("C-VICTIM-VARIANCE-" + nonce));
-      checks.push("Variance " + actor.name + " real own 200 / foreign 403 / high-ID victim 403");
+      checks.push("Variance " + actor.name + " real own 200 / foreign 404 / high-ID victim 404");
     }
     const a = contexts[0];
     const wrongSelection = await request(a, on, path(aRun) + "?legalEntityId=" + a2.id);
