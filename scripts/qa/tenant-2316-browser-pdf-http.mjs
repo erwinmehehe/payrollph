@@ -99,11 +99,12 @@ export async function prove2316BrowserPdf() {
   // Fail before ANY DB/Next/Playwright module import.
   requireDisposableBrowserPdf();
   verifyBrowserPdfSources();
-  const [database,s,orm,browserModule,cryptoModule,totpModule,secretModule,
-    governmentIdModule,fixture,certificateModule,certificateServer]=await Promise.all([
+  const [database,s,orm,fixture,browserModule,cryptoModule,totpModule,secretModule,
+    governmentIdModule,certificateFixture,certificateModule,certificateServer]=await Promise.all([
       import("../../src/db/index.ts"),
       import("../../src/db/schema.ts"),
       import("drizzle-orm"),
+      import("./tenant-table-http.mjs"),
       import("playwright"),
       import("../../src/lib/crypto.ts"),
       import("../../src/lib/totp.ts"),
@@ -119,7 +120,7 @@ export async function prove2316BrowserPdf() {
   const {generateTotp,generateTotpSecret}=totpModule;
   const {encryptTotpSecret}=secretModule;
   const {encryptGovernmentId}=governmentIdModule;
-  const {certificateReview}=fixture;
+  const {certificateReview}=certificateFixture;
   const {prepare2316Certificate}=certificateModule;
   const {load2316CertificateSource}=certificateServer;
   let browser;
