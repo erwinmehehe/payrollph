@@ -9,6 +9,7 @@ import {verifyFilingPatchCredit,FILING_PATH} from "./tenant-filing-patch-credit.
 import { verifyCheckoutCredit, CHECKOUT_PATH } from './tenant-billing-checkout-credit.mjs';
 import { verifyYearEndCredits } from "./tenant-year-end-credit.mjs";
 import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
+import {verifiedOracleRenewalKeys} from './payroll-run-oracle-hold.mjs';
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -187,7 +188,9 @@ export function verifyInvitationAcceptCredits(m) {
       // The payroll exports POST: only with its own provisional, unaccepted, loopback-synthetic receipt (exact pins are verified
       // by the inventory test's dedicated test).
       const exportsPath = "src/app/api/payroll-runs/[id]/exports/route.ts";
-      const exportsPromotions = promoted.filter(key => key === "POST " + exportsPath);
+      const renewed=verifiedOracleRenewalKeys(m);
+      const payrollRenewals=promoted.filter(key=>renewed.has(key));
+      const exportsPromotions = promoted.filter(key => key === "POST " + exportsPath&&!renewed.has(key));
       if (exportsPromotions.length) {
         const exportsPost = m.allApiRouteFiles[exportsPath].methods.find(row => row.name === "POST");
         assert.equal(exportsPost?.testedBy?.file, "scripts/qa/tenant-payroll-exports-post-http.mjs");
@@ -219,7 +222,7 @@ export function verifyInvitationAcceptCredits(m) {
       }
       const oidcPromotions = promoted.filter(key => key === 'GET ' + OIDC_CALLBACK);
       if (oidcPromotions.length) assert.equal(verifyOidcCallbackCredit(m), 1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions].sort(),
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...payrollRenewals].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.

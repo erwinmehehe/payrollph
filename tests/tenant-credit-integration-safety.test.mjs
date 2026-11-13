@@ -52,6 +52,7 @@ function checkLedger(data) {
 }
 
 function checkExistingPayout(data) {
+  if(isVerifiedOracleRenewal(data,'src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts','POST'))return;
   const method = getMethod(
     data, "src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "POST"
   );
@@ -125,4 +126,4 @@ test("merge guard refuses unproved promotion of an independent #1805 method", ()
   method.testedBy=null;
   assert.throws(() => validate(altered), /requires source-pinned proof/);
 });
-import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";

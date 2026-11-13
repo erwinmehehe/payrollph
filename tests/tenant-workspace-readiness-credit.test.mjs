@@ -40,8 +40,9 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     assert.equal(currentWorker.status, "COVERED");
     verifyWorker360PageCredit(m);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
+    const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
     const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' ? verifyOidcCallbackCredit(m) : 0;
-    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m);
+    const expectedNetCredits=delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);
@@ -93,6 +94,7 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
     ["src/app/api/approvals/[id]/route.ts", "PATCH"],
     ["src/app/api/payroll-runs/[id]/exports/route.ts", "POST"],
   ]) {
+    if(isVerifiedOracleRenewal(m,route,verb))continue;
     if(verifyOracleSourceHolds(m).has(verb+' '+route)){
       const held=m.allApiRouteFiles[route].methods.find(x=>x.name===verb);
       assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
@@ -108,7 +110,8 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.productionTested, false);
   assert.equal(m.allApiRouteFiles[ROUTE_PATH].methods[0].testedBy.launchApproved, false);
 });
-import { oracleWithdrawalDelta } from './helpers/tenant-counts.mjs';
+import { oracleWithdrawalDelta,oracleRenewalDelta } from './helpers/tenant-counts.mjs';
+import {isVerifiedOracleRenewal} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
 
