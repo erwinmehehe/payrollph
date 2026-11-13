@@ -154,6 +154,33 @@ export function verifyFivePageProofInputs(read = readFileSync) {
   return true;
 }
 
+/**
+ * Preserve the immutable Worker 360 / payroll historical source-verifier
+ * receipts without rewriting the verifier's originally accepted 16-GAP model.
+ * This validation-only clone masks precisely the new five provisional rows.
+ * The committed coverage manifest always retains all 10 actual COVERED pages.
+ */
+export function historicWorker360ProofView(manifest) {
+  const old = structuredClone(manifest);
+  assert.equal(old.scopedPages.length, 21, "Historical validator requires unchanged inventory");
+  assert.equal(old.scopedPages.filter(p => p.status === "COVERED").length, 10,
+    "Only five additional page receipts are permitted");
+  for (const t of TARGETS) {
+    const page = old.scopedPages.find(p => p.path === t.path);
+    assert.ok(page && page.status === "COVERED", "Missing newly credited page: " + t.path);
+    assert.deepEqual(page.testedBy, citation(t), "Cannot mask an unproved current page");
+    page.status = "GAP";
+    page.reason = "Historical Worker 360 count verification only; current separate proof retained";
+    delete page.testedBy;
+  }
+  assert.match(old.acceptanceStatus, /^NOT ACCEPTED: 5 API methods and 11 page\\/action GAPs/);
+  old.acceptanceStatus = old.acceptanceStatus.replace(
+    /^NOT ACCEPTED: 5 API methods and 11 page\\/action GAPs/,
+    "NOT ACCEPTED: 5 API methods and 16 page/action GAPs");
+  assert.equal(old.scopedPages.filter(p => p.status === "GAP").length, 16);
+  return old;
+}
+
 export function expectedFivePageCreditManifest(original, read = readFileSync) {
   verifyFivePageProofInputs(read);
   const m = structuredClone(original);
