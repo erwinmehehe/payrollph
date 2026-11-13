@@ -11,11 +11,16 @@ import {
 } from "./tenant-prior-review-worker-contract.mjs";
 
 const plain = value => JSON.parse(JSON.stringify(value));
+const CERT_PAGE = "/workspace/2316";
+const certPath = (orgId, workerId, separationId) =>
+  CERT_PAGE + "?organizationId=" + orgId + "&employeeId=" + workerId +
+  (separationId === undefined ? "" : "&separationId=" + separationId) + "&taxYear=2026";
 const pathFor = (orgId, employeeId) =>
   PAGE + "?organizationId=" + orgId + (employeeId === undefined ? "" : "&employeeId=" + employeeId);
 
 async function getLocal(path, cookie) {
-  assert.ok(path === "/api/account" || path === PAGE || path.startsWith(PAGE + "?"),
+  assert.ok(path === "/api/account" || path === PAGE || path.startsWith(PAGE + "?") ||
+    path === CERT_PAGE || path.startsWith(CERT_PAGE + "?"),
     "PRIOR_WORKER_REFUSED: no unreviewed paths");
   const response = await fetch(ORIGIN + path, {
     method: "GET", headers: cookie ? { cookie } : {}, redirect: "manual",
@@ -41,7 +46,7 @@ export async function provePriorWorkerBoundary() {
   ]);
   const tables = [
     "organizations", "legalEntities", "employees", "userLegalEntityGrants",
-    "payrollRuns", "yearEndPriorEvidence", "auditEvents",
+    "payrollRuns", "yearEndPriorEvidence", "separationRecords", "auditEvents",
   ];
   async function snapshot(orgId) {
     const state = {};
@@ -117,6 +122,26 @@ export async function provePriorWorkerBoundary() {
     await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
       .where(eq(s.sessions.id, scopedSession.id));
 
+    // A released, source-frozen historic payroll employer allows the positive
+    // 2316 case; absent separation must never disclose an ungranted worker.
+    for (const actor of subjects) {
+      const [sep] = await db.insert(s.separationRecords).values({
+        organizationId: actor.org.id, employeeId: actor.worker.id,
+        separationType: "resignation", noticeDate: "2026-09-01",
+        lastDay: "2026-09-30", status: "released",
+        computationSnapshot: {
+          sourceFingerprint: { employeeLegalEntityId: actor.entity.id },
+        },
+      }).returning({ id: s.separationRecords.id });
+      actor.certificateSeparationId = sep.id;
+    }
+    const [otherSep] = await db.insert(s.separationRecords).values({
+      organizationId: a.org.id, employeeId: otherWorker.id,
+      separationType: "resignation", noticeDate: "2026-09-01",
+      lastDay: "2026-09-30", status: "released",
+      computationSnapshot: { sourceFingerprint: { employeeLegalEntityId: otherEntity.id } },
+    }).returning({ id: s.separationRecords.id });
+
     const before = new Map(await Promise.all(subjects.map(async subject =>
       [subject.org.id, await snapshot(subject.org.id)])));
     async function unchanged(label) {
@@ -165,6 +190,38 @@ export async function provePriorWorkerBoundary() {
     }
     assert.equal(ownPositives, 4);
     assert.equal(crossTenantDenials, 8);
+
+    // Multi-entity enabled, actual signed-in 2316 SSR against one parent with
+    // two legal employers. The old worker-only query returned 200 guidance for
+    // a real foreign-entity worker; a nonexistent worker returned 404.
+    // That difference exposed foreign worker existence.
+    for (const actor of [a, b]) {
+      const ownUnreleasedSelector = await getLocal(
+        certPath(actor.org.id, actor.worker.id), actor.cookie);
+      assert.equal(ownUnreleasedSelector.status, 200,
+        "Own legal-employer worker may request released-separation guidance");
+      assert.ok(ownUnreleasedSelector.text.includes("Select a released final-pay separation"));
+      const ownReleased = await getLocal(
+        certPath(actor.org.id, actor.worker.id, actor.certificateSeparationId), actor.cookie);
+      assert.equal(ownReleased.status, 200,
+        "Own released frozen employer may render the 2316 review");
+      assert.ok(ownReleased.text.includes("Prepare an unsigned Form 2316"));
+      await unchanged("2316 own guidance and released review");
+    }
+    for (const path of [
+      certPath(a.org.id, otherWorker.id),
+      certPath(a.org.id, otherWorker.id, otherSep.id),
+      certPath(a.org.id, victim.worker.id),
+      certPath(b.org.id, a.worker.id),
+    ]) {
+      const result = await getLocal(path, a.cookie);
+      assert.equal(result.status, 404, "2316 foreign/legal-employer worker must hard deny");
+      assert.ok(!result.text.includes(otherWorker.employeeNo),
+        "2316 denial must not reveal a same-parent foreign worker");
+      assert.ok(!result.text.includes('data-organization-id="'),
+        "2316 denial must never mount a private tax UI");
+      await unchanged("2316 same-parent/foreign worker denial");
+    }
     await deny(pathFor(a.org.id, otherWorker.id), a.cookie,
       "same-tenant worker from ungranted legal employer");
     await deny(pathFor(a.org.id, a.worker.id), scopedSession.cookie,
@@ -187,6 +244,9 @@ export async function provePriorWorkerBoundary() {
     assert.equal(stillAuthenticated.json?.profile?.id, a.owner.id);
     await deny(pathFor(a.org.id, a.worker.id), a.cookie,
       "revoked active membership with valid session");
+    const revoked2316 = await getLocal(certPath(a.org.id, a.worker.id), a.cookie);
+    assert.equal(revoked2316.status, 404,
+      "2316 selected worker must deny revoked employer membership");
     await unchanged("final tenant SQL snapshots");
 
     assert.ok(deniedCases >= 32, "All independent denial paths must execute");
@@ -204,6 +264,9 @@ export async function provePriorWorkerBoundary() {
       family: "prior-employer-worker-ssr", employers: 3, independentOwners: 2,
       ownPositives, crossTenantDenials, deniedCases,
       sameTenantDifferentLegalEmployerDenied: true, revokedSessionDenied: true,
+      certificateOwnGuidanceAndReleasedPositives: 4,
+      certificateForeignWorkerDenials: 4,
+      certificateRevokedMemberDenied: true,
       immutableEmployerTables: tables.length, sourceOutageFailsClosed: true,
       pageActionCredits: 0, apiMethodCredits: 0,
       independentlyAccepted: false, productionCertified: false,
