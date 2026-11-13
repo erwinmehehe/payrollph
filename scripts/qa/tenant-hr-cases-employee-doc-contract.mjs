@@ -41,7 +41,11 @@ export function refuseUnsafeHrEmployeeDoc(env = process.env) {
 export function assertOwnedDocument(res, ownText, otherMarkers) {
   assert.equal(res.status, 200, "Actual owned sanitized COE must be HTTP 200");
   assert.match(res.headers.get("content-type") ?? "", /text\/plain/i);
-  assert.match(res.headers.get("cache-control") ?? "", /private.*no-store/i);
+  const cacheControl = res.headers.get("cache-control") ?? "";
+  assert.match(cacheControl, /\bno-store\b/i,
+    "HR documents must never be stored in a shared or browser cache");
+  assert.doesNotMatch(cacheControl, /\bpublic\b/i,
+    "A private HR certificate must not be publicly cacheable");
   assert.equal(res.text, ownText, "Own generated document bytes must match persisted source");
   for (const marker of otherMarkers)
     assert.ok(!res.text.includes(marker), "COE bytes leaked foreign marker");
