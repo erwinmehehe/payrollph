@@ -66,6 +66,7 @@ export function readStudioDependencyRenewal(read=readFileSync){
  assert.ok(Object.keys(r.inputBlobs).length>=200,'Complete transitive source union required');
  for(const [p,sha]of Object.entries(r.inputBlobs)){
   if(p==='next.config.ts') assertReviewedReadinessHeaderOnInvitationConfig(read(p),sha);
+  else if(p==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(p),sha,read);
   else if(p==='scripts/qa/tenant-money-lifecycle-http.mjs'||p==='scripts/qa/tenant-table-rows/read/path-id.mjs') assertOracleCallerCompatible(p,sha,read);
   else assert.equal(blob(read(p)),sha,'Renewed runtime/proof source drift: '+p);
  }
@@ -79,6 +80,7 @@ export function assertReciptedStudioEngine(family,p,historicalSha,read=readFileS
  assert.equal(p,ENGINE);assert.equal(historicalSha,OLD_ENGINE);
  const r=readStudioDependencyRenewal(read);assert.ok(r.families[family],'Unproved dependency family');return true;
 }
+import {assertHistoricalPinnedNetworkPreserved} from './tenant-node22-pinned-source-compat.mjs';
 export function studioDependencyRenewalRef(family,read=readFileSync){
  const r=readStudioDependencyRenewal(read);assert.ok(r.families[family]);return {receiptFile:RENEWAL_FILE,receiptBlobSha:SEALED,family,
   jobs:r.families[family].jobs.map(j=>({id:j.job,run:j.run,sourceHead:j.head})),engineBlob:CURRENT_ENGINE,scopeBlob:SCOPE_SHA,
