@@ -953,7 +953,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     "The original frozen batch population must not change");
   assert.equal(frozenGaps+oracleHolds.size-frozenOracleHolds, m.metrics.gap, "Frozen and supplementary renewals cannot hide GAPs");
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-14 MKT-01 source-linked regeneration): **" + frozenCovered + " COVERED + "
+    "Frozen subtotal (2026-11-11 classification proposal): **" + frozenCovered + " COVERED + "
     + frozenPublic + " PUBLIC-BY-DESIGN + " + frozenPrivileged
     + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + frozenGaps + " GAP = 406**"),
     "Current frozen subtotal must preserve prior credits while tracking only nine relabels");
