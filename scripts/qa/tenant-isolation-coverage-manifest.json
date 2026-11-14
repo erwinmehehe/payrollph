@@ -46910,7 +46910,7 @@
         "contractFile": "scripts/qa/tenant-report-builder-page-contract.mjs",
         "contractBlobSha": "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
         "contractTestFile": "tests/tenant-report-builder-page-contract.test.mjs",
-        "contractTestBlobSha": "5bc277a20661a404a459d8276bfb6ebf06c4d771",
+        "contractTestBlobSha": "d7f08b2cfa0068027e9e6cb099380f45ca97d26d",
         "unitTestFile": "tests/tenant-report-builder.test.ts",
         "unitTestBlobSha": "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
         "workflowFile": ".github/workflows/tenant-report-builder-page-qa.yml",
