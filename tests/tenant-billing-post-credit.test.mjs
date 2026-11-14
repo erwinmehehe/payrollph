@@ -1,5 +1,6 @@
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {xenditPostCreditDelta,verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
+import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { oracleWithdrawalDelta,oracleRenewalDelta,reviewedOidcSourceSupersession } from './helpers/tenant-counts.mjs';
@@ -105,7 +106,7 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const currentMkt01=m.allApiRouteFiles[mkt01Path].methods.find(x=>x.name==="GET");
     const mkt01Delta=mainMkt01.status==="GAP" && currentMkt01.status==="COVERED"
       ? verifyMkt01Credit(m) : 0;
-    const expectedNetCredits=xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m)+mkt01Delta;
+    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m)+mkt01Delta;
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');

@@ -224,6 +224,8 @@ export function verifyInvitationAcceptCredits(m) {
       }
       const oidcPromotions = promoted.filter(key => key === 'GET ' + OIDC_CALLBACK);
       if (oidcPromotions.length) assert.equal(verifyOidcCallbackCredit(m), 1);
+      const oidcStartPromotions=promoted.filter(key=>key==='GET '+OIDC_START);
+      if(oidcStartPromotions.length)assert.equal(verifyOidcBatchMethod(m,OIDC_START),1);
       const xenditPromotions=promoted.filter(key=>key==='POST '+XENDIT_POST_PATH);
       if(xenditPromotions.length)assert.equal(verifyXenditPostCredit(m),1);
       // Exactly one operator-only report GET may coexist with invitations.
@@ -236,7 +238,7 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(verifyMkt01Credit(m),1,
           "Only the executed source-sealed MKT-01 operator GET credit may coexist");
       }
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...xenditPromotions,...mkt01Promotions,...payrollRenewals].sort(),
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...mkt01Promotions,...payrollRenewals].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
@@ -254,3 +256,4 @@ export function verifyInvitationAcceptCredits(m) {
 }
 
 import {verifyOidcCallbackCredit, OIDC_CALLBACK} from './tenant-oidc-full-credit.mjs';
+import {verifyOidcBatchMethod,OIDC_START} from './tenant-oidc-batch-credit-verify.mjs';

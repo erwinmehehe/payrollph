@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { historicOidcBatchView, verifyOidcBatchCredits } from "../scripts/qa/tenant-oidc-batch-credit-verify.mjs";
 import {
   TARGETS, verifyFivePageProofInputs, verifyFivePageCredits,
   expectedFivePageCreditManifest, gitBlobSha,
@@ -25,6 +26,9 @@ test("five page-only credits preserve the API ledger; only separately proved MKT
     .find(method => method.name === "GET");
   assert.equal(marketingGet?.status, "COVERED", "Only the reviewed operator-only MKT-01 GET may receive its separate method credit");
   assert.equal(assertMkt01Receipt(m), 1, "MKT-01 needs its exact source-pinned PG16 receipt");
+  assert.equal(verifyOidcBatchCredits(m), 2, "Require both independent OIDC source-verified receipts");
+  assert.equal(historicOidcBatchView(m).metrics.gap, m.metrics.gap + 2,
+    "Historical page accounting withdraws precisely the two OIDC method credits");
   // Live method classifications must be tallied rather than frozen to a
   // historical main-branch count. The page generator and MKT-01 verifier
   // independently reject any unrelated API or page promotion.

@@ -269,6 +269,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(key===OIDC_START+' GET'&&method.status==='COVERED'){
+    assert.equal(verifyOidcBatchMethod(manifest,OIDC_START),1);
+    assert.equal(currentBlob,method.testedBy.routeBlobSha);return true;
+  }
   if(method.status==='COVERED'&&method.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
     const at=key.lastIndexOf(' '),path=key.slice(0,at),verb=key.slice(at+1);
     assert.ok(isVerifiedOracleRenewal(manifest,path,verb));return true;
@@ -4803,6 +4807,9 @@ test("all credited proof links point to the claimed route and every recertified 
       if (path === OIDC_CALLBACK && method.name === 'GET') {
         assert.equal(verifyOidcCallbackCredit(manifest), 1);
         continue;
+      }
+      if(path===OIDC_START&&method.name==='GET'){
+        assert.equal(verifyOidcBatchMethod(manifest,path),1);continue;
       }
       if (path === CHECKOUT_PATH && method.name === "POST") {
         assert.equal(verifyCheckoutCredit(manifest), 1);
@@ -9343,6 +9350,7 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
 });
 
 import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+import {verifyOidcBatchMethod,OIDC_START} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 
 test("payroll exports POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
   const routePath = "src/app/api/payroll-runs/[id]/exports/route.ts";

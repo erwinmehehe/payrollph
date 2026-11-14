@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
+import { verifyOidcBatchCredits, historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -59,9 +60,28 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   // Preserve the original sealed source, allowing the precisely reviewed
   // generator change only with MKT-01's independent operator-only proof.
   if (hasMkt01) assert.equal(assertMkt01Receipt(manifest), 1);
+  const oidcStart = manifest.allApiRouteFiles["src/app/api/auth/sso/start/route.ts"]?.methods.find(row => row.name === "GET");
+  const oidcCallback = manifest.allApiRouteFiles["src/app/api/auth/sso/callback/route.ts"]?.methods.find(row => row.name === "GET");
+  const hasOidcBatch = oidcStart?.status === "COVERED" && oidcCallback?.status === "COVERED";
+  if (hasOidcBatch) {
+    assert.equal(verifyOidcBatchCredits(manifest, read), 2,
+      "PAGE_COMPAT_REFUSED: independently executed, source-pinned OIDC start/callback required");
+    assert.equal(hasMkt01, true,
+      "PAGE_COMPAT_REFUSED: merged OIDC accounting must retain MKT-01 operator proof");
+  }
   const pinnedGenerator = hasMkt01 ? REVIEWED_GENERATOR_MKT_BLOB : REVIEWED_GENERATOR_BLOB;
+  let generator = String(read(GENERATOR));
+  if (hasOidcBatch) {
+    assert.equal(renewalBlob(generator), "d3067d1a83350f587dfb5c11442ea85d449e73ae",
+      "PAGE_COMPAT_REFUSED: only the exact reviewed combined OIDC/MKT generator is allowed");
+    generator = uniqueSwap(generator, "import { historicOidcBatchView } from \"./tenant-oidc-batch-credit-verify.mjs\";\n", "");
+    generator = uniqueSwap(generator, "  assert.equal(historicOidcBatchView(m, read).metrics.gap, expectedApiGaps,", "  assert.equal(m.metrics.gap, expectedApiGaps,");
+    generator = uniqueSwap(generator, "  assert.match(historicOidcBatchView(m, read).acceptanceStatus, acceptancePrefix);", "  assert.match(m.acceptanceStatus, acceptancePrefix);");
+    generator = uniqueSwap(generator, "  m.acceptanceStatus = m.acceptanceStatus.replace(\n    /^NOT ACCEPTED: \\d+ API methods and (16|11) page\\/action GAPs/, nextPrefix);", "  m.acceptanceStatus = m.acceptanceStatus.replace(acceptancePrefix, nextPrefix);");
+  }
+  assert.equal(renewalBlob(generator), pinnedGenerator,
+    "PAGE_COMPAT_REFUSED: historical page generator must reconstruct with no unrelated source changes");
   for (const [path, blob] of [
-    [GENERATOR, pinnedGenerator],
     [WORKFLOW, REVIEWED_WORKFLOW_BLOB],
     [WORKER_VERIFIER, HISTORICAL_WORKER_VERIFIER_BLOB],
   ]) assert.equal(renewalBlob(read(path)), blob,
@@ -76,9 +96,9 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   assert.equal(manifest.metrics.gap,
     methods.filter(method => method.status === "GAP").length);
   const expectedGaps = hasMkt01 ? 4 : 5;
-  assert.equal(manifest.metrics.gap, expectedGaps,
-    "PAGE_COMPAT_REFUSED: no unrelated method may earn a coverage credit");
-  assert.match(manifest.acceptanceStatus,
+  assert.equal(historicOidcBatchView(manifest, read).metrics.gap, expectedGaps,
+    "PAGE_COMPAT_REFUSED: only the two independently source-verified OIDC methods may join MKT-01");
+  assert.match(historicOidcBatchView(manifest, read).acceptanceStatus,
     new RegExp("^NOT ACCEPTED: " + expectedGaps + " API methods and 11 page/action GAPs"));
   for (const [path, sourceSha, proof, proofSha] of REVIEWED_PAGES) {
     const row = manifest.scopedPages.find(p => p.path === path);
