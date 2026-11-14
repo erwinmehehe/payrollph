@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { verifiedExitPayrollTrace } from "@/lib/approved-exit-payroll";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -347,6 +347,24 @@ export async function GET(request: Request) {
     ? and(eq(separationRecords.organizationId, organizationId), eq(separationRecords.employeeId, employeeId))
     : eq(separationRecords.organizationId, organizationId);
 
+  // Released and already-computed final-pay records belong to the legal
+  // employer frozen in their source fingerprint, not the worker's current
+  // employer after a transfer. A draft without a computed snapshot is the
+  // only case that may use the worker's current legal-employer assignment.
+  // Malformed, missing, null or non-numeric historical attribution fails
+  // closed in multi-entity mode; never backfill from the current employee.
+  const selectedEmployerPredicate = selectedLegalEntityId === null ? undefined : or(
+    and(
+      eq(separationRecords.status, "draft"),
+      sql`${separationRecords.computationSnapshot} = '{}'::jsonb`,
+      eq(employees.legalEntityId, selectedLegalEntityId),
+    ),
+    and(
+      sql`jsonb_typeof(${separationRecords.computationSnapshot} #> '{sourceFingerprint,employeeLegalEntityId}') = 'number'`,
+      sql`(${separationRecords.computationSnapshot} #>> '{sourceFingerprint,employeeLegalEntityId}') = ${String(selectedLegalEntityId)}`,
+    ),
+  );
+
   const records = await db.select({
     sep: separationRecords,
     employee: employees,
@@ -355,7 +373,7 @@ export async function GET(request: Request) {
     .innerJoin(employees, eq(separationRecords.employeeId, employees.id))
     .where(and(
       access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)),
-      ...(selectedLegalEntityId === null ? [] : [eq(employees.legalEntityId, selectedLegalEntityId)]),
+      selectedEmployerPredicate,
     ))
     .orderBy(desc(separationRecords.id));
 
@@ -388,7 +406,8 @@ export async function GET(request: Request) {
       basicRate: employee.basicRate,
       hireDate: employee.startDate,
     })),
-  });
+  }, { headers: { "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff" } });
 }
 
 export async function POST(request: Request) {
