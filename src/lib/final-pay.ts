@@ -1,4 +1,5 @@
 import { annualize } from "@/lib/annualization";
+import { annualizeWithPrior, type PriorEvidence } from "./year-end-prior-evidence";
 import { round2 } from "@/lib/round";
 import { storedMoneyCentavos, verifiedPesosFromCentavos } from "@/lib/stored-money-centavos";
 import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
@@ -154,6 +155,8 @@ export function computeFinalPay(input: {
   otherBenefits: number;
   finalStatutoryDeductions?: number;
   loanDeductions: number;
+  /** Approved, prior-employer Form 2316 values, never user-body fields. */
+  priorEmployerEvidence?: { evidence: PriorEvidence; taxYear: number };
 }) {
   const basicSalaryEarnedYtd = round2(
     Math.max(0, input.releasedBasicYtd)
@@ -232,7 +235,7 @@ export function computeFinalPay(input: {
       + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay),
   );
-  const annualized = annualize({
+  const singleEmployerAnnualized = annualize({
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
     otherBenefits: Math.max(0, input.otherBenefits),
@@ -245,6 +248,12 @@ export function computeFinalPay(input: {
       Math.max(0, input.mweTaxableSupplementaryCompensationYtd ?? 0)
       + finalTaxableSupplementaryCompensation,
   });
+
+  // Keep prior-employer withholding as a tax credit, not as current-employer WHT.
+  // RR 11-2018 section 2.79(B)(5)(b), Steps 1-4 applies to termination too.
+  const annualized = input.priorEmployerEvidence
+    ? annualizeWithPrior(singleEmployerAnnualized, input.priorEmployerEvidence.evidence, input.priorEmployerEvidence.taxYear)
+    : singleEmployerAnnualized;
 
   // annualize().adjustment is taxDue - taxWithheld:
   // negative means refund (addition), positive means collection (deduction).

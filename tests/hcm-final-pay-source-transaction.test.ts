@@ -261,7 +261,12 @@ test("all three source-money decisions read from their own transaction and never
   // Three source-money decisions, one independent local-access cutoff,
   // and one clearance-waiver decision must remain serializable. Neither
   // access action may silently weaken or replace source-money protections.
-  assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 5);
+  // The extra SERIALIZABLE block is a separate, read-only prior-employer
+  // evidence intake. The original three money-source decisions, last-day
+  // local-access gate, and clearance waiver all remain SERIALIZABLE.
+  assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 6);
+  assert.ok(api.includes("loadReviewedPriorForFinalPay(priorEvidenceScope, tx)"),
+    "the sixth transaction must read approved prior-employer evidence, not settle money");
   const cutoffStart = api.indexOf('if (action === "revoke_local_access")');
   const waiverStart = api.indexOf('if (action === "waive_clearance")');
   assert.ok(cutoffStart >= 0 && waiverStart > cutoffStart);

@@ -1039,6 +1039,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
+      // Historical Worker 360 evidence predates the five separately proven
+      // #1973 pages. Mask only those five receipts while verifying the sealed
+      // old method cohort against origin/main; the live ledger stays at 11 gaps.
       const receipt = verifyFiveMethodCredits(historicWorker360ProofView(baseline), readMainFile);
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
@@ -1418,6 +1421,22 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       if (expectedOriginalMain[path][verb] === "COVERED") mainExpectedOracleWithdrawals++;
       expectedOriginalMain[path][verb] = "GAP";
     }
+    // Main may already carry MKT-01's sole operator GET credit after branch
+    // synchronization. Reconcile only its immutable, independently pinned
+    // fictional-PG16 receipt; this grants no new tenant-private credit and
+    // does not imply privacy, security, or production acceptance.
+    const baselineMkt01Row = baseline.allApiRouteFiles[mktPath]
+      ?.methods.find(row => row.name === "GET");
+    const baselineMkt01Credits = baselineMkt01Row?.status === "COVERED"
+      ? verifyMkt01Credit(baseline) : 0;
+    if (baselineMkt01Credits) {
+      assert.equal(baselineMkt01Credits, 1, "main MKT-01 may credit only the operator GET");
+      expectedOriginalMain[mktPath].GET = "COVERED";
+    } else {
+      assert.equal(baselineMkt01Row?.status, "GAP");
+      assert.equal(baselineMkt01Row?.testedBy, null,
+        "unverified main MKT-01 must remain a GAP");
+    }
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1431,13 +1450,13 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       COVERED: baselineXenditCredits + mainOidcCredits + baselineStudioCredits + baselineApprovalCredits + baselineReadinessCredits + baselineCheckoutCredits + baselineFilingCredits + snapshot.counts.COVERED - mainWorkerDemotion - mainExpectedOracleWithdrawals + compliancePostCredits.length +
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
-        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits,
+        (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits + baselineMkt01Credits,
       "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
       GAP: snapshot.counts.GAP - baselineXenditCredits - mainOidcCredits + mainWorkerDemotion + mainExpectedOracleWithdrawals - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - baselineMkt01Credits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
