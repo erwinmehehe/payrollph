@@ -65,6 +65,19 @@ async function prove() {
     actors.push(actor);
   }
   const [ownerA, ownerB, actualVictim] = actors;
+  // Only this fictional owner's browser performs a real password+TOTP login.
+  // Direct API denial fixtures remain separate, pre-existing persisted sessions.
+  const browserPassword = "Fictional-PriorEmployer-Login-P0!";
+  const [{ hashPassword }, { generateTotp, generateTotpSecret }, { encryptTotpSecret }] =
+    await Promise.all([
+      import("../../src/lib/crypto.ts"), import("../../src/lib/totp.ts"),
+      import("../../src/lib/security-secret.ts")
+    ]);
+  const browserTotpSecret = generateTotpSecret();
+  await db.update(s.users).set({
+    passwordHash: hashPassword(browserPassword),
+    totpSecret: encryptTotpSecret(browserTotpSecret), totpEnabled: true
+  }).where(orm.eq(s.users.id, ownerA.owner.id));
   assert.ok(actualVictim.org.id > ownerA.org.id && actualVictim.org.id > ownerB.org.id);
   assert.ok(actualVictim.worker.id > ownerA.worker.id &&
     actualVictim.worker.id > ownerB.worker.id,
@@ -187,10 +200,25 @@ async function prove() {
       const url = new URL(route.request().url());
       return url.origin === ORIGIN ? route.continue() : route.abort();
     });
-    await context.addCookies([{
-      name: "__Host-linaw_session", value: ownerA.cookie.split("=")[1],
-      url: ORIGIN, httpOnly: true, secure: true, sameSite: "Lax",
-    }]);
+    const loginResponse = await context.request.post(ORIGIN + "/api/auth/login", {
+      data: { email: ownerA.owner.email, password: browserPassword,
+        totpCode: generateTotp(browserTotpSecret) },
+      headers: { origin: ORIGIN, "sec-fetch-site": "same-origin" },
+      failOnStatusCode: false, timeout: 45000
+    });
+    const loginBody = await loginResponse.json();
+    assert.equal(loginResponse.status(), 200,
+      "Real localhost password+TOTP login required: " +
+      (loginBody?.code ?? loginBody?.error ?? loginResponse.status()));
+    assert.equal(loginBody.user?.email, ownerA.owner.email);
+    const loginCookies = await context.cookies(ORIGIN);
+    assert.ok(loginCookies.some(item => item.name === "__Host-linaw_session" &&
+      /^[a-f0-9]{64}$/.test(item.value)),
+      "Real local login must issue browser session without CDP injection");
+    const account = await context.request.get(ORIGIN + "/api/account",
+      { failOnStatusCode: false, timeout: 30000 });
+    assert.equal(account.status(), 200);
+    assert.equal((await account.json()).profile?.id, ownerA.owner.id);
     const page = await context.newPage();
     const response = await page.goto(pageFor(ownerA.org.id,ownerA.worker.id),
       {waitUntil:"domcontentloaded",timeout:60000});
