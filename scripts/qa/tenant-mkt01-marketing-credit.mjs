@@ -121,12 +121,39 @@ function heading(manifest) {
     "No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.";
 }
 function withCurrentHeading(doc, m) {
-  if (doc.startsWith(HEADLINE)) {
-    const at = doc.indexOf("\n\n");
+  // Reconcile current MKT-01 after the independent SSO/payroll/Studio banners.
+  // Those earlier generators verify their existing header order and counts.
+  const stripMkt = text => {
+    if (!text.startsWith(HEADLINE)) return text;
+    const at = text.indexOf("\n\n");
     assert.ok(at > 0, "MKT-01 heading drift");
+    return text.slice(at + 2);
+  };
+  doc = stripMkt(doc);
+  let preceding = "";
+  const sso = "> **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** ";
+  const payroll = "> **PAYROLL RUN ORACLE — RENEWED:** ";
+  const studio = "> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** ";
+  for (const prefix of [sso, payroll, studio]) {
+    if (!doc.startsWith(prefix)) continue;
+    const at = doc.indexOf("\n\n");
+    assert.ok(at > 0, "Reviewed accounting banner missing separator: " + prefix);
+    let banner = doc.slice(0, at);
+    if (prefix === payroll) banner = payroll +
+      "19 source-sealed provisional method renewals; " +
+      m.metrics.coveredAfter + " COVERED / " + m.metrics.gap +
+      " GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.";
+    if (prefix === studio) banner = studio +
+      m.metrics.methods + " methods = " + m.metrics.coveredAfter + " COVERED + " +
+      m.metrics.publicByDesign + " PUBLIC-BY-DESIGN + " +
+      m.metrics.privilegedOperationsTokenOnly + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " +
+      m.metrics.gap + " GAP. Eleven actions, eight executed proof jobs and all six source families; " +
+      m.scopedPages.filter(x => x.status === "GAP").length +
+      " separate page/action gaps remain. No production or external-provider acceptance.";
+    preceding += banner + "\n\n";
     doc = doc.slice(at + 2);
   }
-  return heading(m) + "\n\n" + doc;
+  return preceding + heading(m) + "\n\n" + stripMkt(doc);
 }
 export function regeneratedOverview(doc, m) {
   const lines = withCurrentHeading(doc, m).split("\n");
@@ -141,7 +168,15 @@ export function regeneratedOverview(doc, m) {
     return result;
   });
   assert.equal(seen, 1, "operator endpoint must have exactly one source-linked overview row");
-  return next.join("\n");
+  return next.join("\n")
+    .replace(/^\\| coveredAfter \\| \\d+ \\|$/m, "| coveredAfter | " + m.metrics.coveredAfter + " |")
+    .replace(/^\\| gap \\| \\d+ \\|$/m, "| gap | " + m.metrics.gap + " |")
+    .replace(/(\\*\\*RELEASE BLOCKER:\\*\\* )\\d+ API methods and \\d+ business-ID page entries/,
+      "$1" + m.metrics.gap + " API methods and " +
+      m.scopedPages.filter(p => p.status === "GAP").length + " business-ID page entries")
+    .replace(/(\\*\\*NOT ACCEPTED\\*\\*: )\\d+ method gaps and \\d+ page\\/action gaps/,
+      "$1" + m.metrics.gap + " method gaps and " +
+      m.scopedPages.filter(p => p.status === "GAP").length + " page/action gaps");
 }
 export function regeneratedClosure(doc, m) {
   doc = withCurrentHeading(doc, m);
@@ -156,6 +191,7 @@ export function regeneratedClosure(doc, m) {
   const fresh = { COVERED: 0, "PUBLIC-BY-DESIGN": 0,
     "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0, GAP: 0 };
   let frozenMethods = 0, incomplete = 0;
+  const provisional = [];
   const lines = block.split("\n");
   for (const section of sections) {
     const [header, ...content] = section.split("\n");
@@ -172,6 +208,7 @@ export function regeneratedClosure(doc, m) {
       count[method.status]++; fresh[method.status]++; frozenMethods++;
     }
     if (count.GAP) incomplete++;
+    else provisional.push(id);
     const at = lines.findIndex(x => x.startsWith("| ") && x.includes("**" + id + "**"));
     assert.ok(at >= 0, "missing frozen batch summary: " + id);
     const old = lines[at].split("|").map(v => v.trim());
@@ -184,16 +221,21 @@ export function regeneratedClosure(doc, m) {
   const i = lines.findIndex(s => s.startsWith("Frozen subtotal ("));
   assert.ok(i >= 0, "frozen subtotal missing");
   const x = m.metrics;
-  lines[i] = "Frozen subtotal (2026-11-14 MKT-01 source-linked regeneration): **" +
+  const outside = [
+    [x.coveredAfter - fresh.COVERED, "COVERED"],
+    [x.publicByDesign - fresh["PUBLIC-BY-DESIGN"], "PUBLIC-BY-DESIGN"],
+    [x.privilegedOperationsTokenOnly - fresh["PRIVILEGED-OPERATIONS-TOKEN-ONLY"], "PRIVILEGED-OPERATIONS-TOKEN-ONLY"],
+    [x.gap - fresh.GAP, "GAP"]
+  ];
+  assert.ok(outside.every(([n]) => Number.isSafeInteger(n) && n >= 0));
+  lines[i] = "Frozen subtotal (2026-11-11 classification proposal): **" +
     fresh.COVERED + " COVERED + " + fresh["PUBLIC-BY-DESIGN"] + " PUBLIC-BY-DESIGN + " +
     fresh["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " +
     fresh.GAP + " GAP = 406**. Relative to the live " + x.methods +
     "-method ledger, the other **" + (x.methods - 406) + " methods** are **" +
-    (x.coveredAfter - fresh.COVERED) + " COVERED + " +
-    (x.publicByDesign - fresh["PUBLIC-BY-DESIGN"]) + " PUBLIC-BY-DESIGN + " +
-    (x.privilegedOperationsTokenOnly - fresh["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]) +
-    " TOKEN-ONLY + " + (x.gap - fresh.GAP) + " GAP**. " +
-    incomplete + " batches remain INCOMPLETE. All other batches remain PROVISIONAL — NOT ACCEPTED.";
+    outside.filter(([n]) => n > 0).map(([n, s]) => n + " " + s).join(" + ") +
+    "**. " + incomplete + " batches remain INCOMPLETE; " +
+    provisional.join(", ") + " remain PROVISIONAL — NOT ACCEPTED.";
   block = lines.join("\n");
   return doc.slice(0, start) + block + doc.slice(end);
 }
