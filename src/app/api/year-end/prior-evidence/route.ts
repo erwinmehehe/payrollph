@@ -26,7 +26,14 @@ async function respond(request: Request) {
     }
     return Response.json({ record: await priorIntake(scope, user, input) }, { headers });
   } catch (error) {
-    const code = error instanceof Error && /^(PRIOR_|PERA_)/.test(error.message) ? error.message : "PRIOR_INTAKE_UNAVAILABLE";
+    const internalCode = error instanceof Error && /^(PRIOR_|PERA_)/.test(error.message)
+      ? error.message : "PRIOR_INTAKE_UNAVAILABLE";
+    // An organization-level payroll operator must not learn whether an
+    // arbitrary employee ID exists in another legal employer. Preserve
+    // internal authorization logic while making both denied HTTP cases
+    // indistinguishable (same status, body and cache policy).
+    const code = ["PRIOR_EMPLOYEE_NOT_FOUND", "PRIOR_ENTITY_ACCESS_DENIED"]
+      .includes(internalCode) ? "PRIOR_RECORD_UNAVAILABLE" : internalCode;
     return Response.json({ error: "Evidence could not be loaded or changed. Reload and review the current source; bound or settled payroll requires a separate correction.", code }, { status: 409, headers });
   }
 }
