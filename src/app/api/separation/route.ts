@@ -43,6 +43,7 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { assertFinalPayPriorSnapshot, loadReviewedPriorForFinalPay, priorEvidenceSnapshot } from "@/lib/final-pay-prior-employer-server";
 import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { frozenFinalPayLegalEntityId } from "@/lib/bir-2316-employer";
 import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
@@ -1217,8 +1218,12 @@ export async function PATCH(request: Request) {
 
   if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
 
+  // Missing, foreign-parent and same-parent ungranted separation IDs have
+  // the same public refusal; a forged ID cannot enumerate private HR records.
+  const unavailable = () => Response.json(
+    { error: "Separation record not found." }, { status: 404 });
   const [sep] = await db.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
-  if (!sep) return Response.json({ error: "Separation record not found." }, { status: 404 });
+  if (!sep) return unavailable();
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -1226,9 +1231,9 @@ export async function PATCH(request: Request) {
     PEOPLE_PAYROLL_ROLES,
     "Your role is not allowed to manage separation and final pay.",
   );
-  if (denied) return denied;
+  if (denied) return unavailable();
   const access = await getAccess(user.id, sep.organizationId);
-  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (!access) return unavailable();
   const [employee] = await db.select({
     orgUnitId: employees.orgUnitId,
     legalEntityId: employees.legalEntityId,
@@ -1238,16 +1243,29 @@ export async function PATCH(request: Request) {
   }).from(employees)
     .where(and(eq(employees.id, sep.employeeId), eq(employees.organizationId, sep.organizationId)))
     .limit(1);
-  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  if (!employee) return unavailable();
   const scope = assertScope(access, employee.orgUnitId);
-  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  if (!scope.ok) return unavailable();
   if (criticalReleaseFlagEnabled("multiEntity")) {
     const entity = await resolveMultiEntityContext({
       userId: user.id, organizationId: sep.organizationId, request, requested: body.legalEntityId,
     });
-    if (!entity.ok) return entity.response;
-    if (entity.context.group || assertEntityResource(entity.context, employee.legalEntityId)) {
-      return Response.json({ code: "ENTITY_ACCESS_DENIED", error: "Worker is not in the selected legal employer." }, { status: 403 });
+    if (!entity.ok) return unavailable();
+    // PATCH must authorize the same frozen employer as the GET listing and
+    // Form 2316. Once a final-pay snapshot exists, NEVER fall back to the
+    // worker's current legal employer after a transfer. Only a draft with
+    // literally no computation snapshot may use current attribution.
+    const frozenEmployerId = frozenFinalPayLegalEntityId(sep.computationSnapshot);
+    const isUncomputedDraft = sep.status === "draft" &&
+      sep.computationSnapshot !== null &&
+      typeof sep.computationSnapshot === "object" &&
+      !Array.isArray(sep.computationSnapshot) &&
+      Object.keys(sep.computationSnapshot).length === 0;
+    const authoritativeEntityId = frozenEmployerId ??
+      (isUncomputedDraft ? employee.legalEntityId : null);
+    if (entity.context.group ||
+      assertEntityResource(entity.context, authoritativeEntityId)) {
+      return unavailable();
     }
   }
 
