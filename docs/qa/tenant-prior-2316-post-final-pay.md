@@ -54,7 +54,11 @@ replace a hash without reviewing the changed authorization behavior.
    with two different same-parent legal-employer grants. It asserts old
    released records stay with the frozen employer, mutable unsnapshotted draft
    records follow the current employer, and missing/string-valued frozen
-   employer IDs never become accessible. It also compares actual GET
+   employer IDs never become accessible. The runner also issues safe
+   **PATCH /api/separation** requests with an unrecognized action, proving
+   that the frozen employer reaches a 400 without mutations while the
+   new employer, a nonexistent ID and invalid historical attribution
+   receive identical 404 denials. It compares actual GET
    `/api/year-end/2316-certificate` response status/body/cache for a real
    ungranted source versus an unknown separation.
 3. `tenant-2316-browser-pdf-qa.yml`: isolated Chromium + PG16 with
@@ -132,13 +136,15 @@ real synthetic browser/HTTP regression cases:
    authorized record remain distinguishable for actionable recovery.
 2. **Separation historical employer:** In multi-entity mode the GET list
    applies a database-side source-fingerprint predicate when the snapshot
-   contains a verified JSON **number** employer ID. A bare draft with
-   `computationSnapshot = {}` can use the current employee entity; a
-   released/approved snapshot without valid historical attribution cannot
-   silently inherit the employee's new employer. The response adds
-   `Cache-Control: private, no-store` for sensitive separation data.
-   Unit-scoped access is still additionally subject to the existing org-unit
-   check; this is not a historical org-unit reconstruction.
+   contains a verified JSON **number** employer ID. PATCH now uses the same
+   frozen employer via `frozenFinalPayLegalEntityId()`, before any mutation.
+   A bare draft with `computationSnapshot = {}` can use the current employee
+   entity; a released/approved snapshot without valid attribution cannot
+   inherit the employee's new employer. Missing and foreign-record PATCH
+   requests receive the same 404, concealing private separation existence.
+   The GET response adds `Cache-Control: private, no-store`. Unit-scoped
+   access still uses the existing current org-unit check; this is not a
+   historical org-unit reconstruction.
 3. **BIR 2316 certificate existence parity:** After an authorized employer
    is selected, both an unknown frozen source and one in an ungranted legal
    employer now return identical 404 JSON; the transactionally reloaded
