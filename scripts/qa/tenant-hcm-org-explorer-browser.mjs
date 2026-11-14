@@ -7,6 +7,9 @@ import assert from "node:assert/strict";
 import { ORIGIN, PAGE } from "./tenant-hcm-org-explorer-page-contract.mjs";
 
 const COOKIE_PREFIX = "__Host-linaw_session=";
+// Chromium accepts Secure __Host- cookies over literal localhost in isolated HTTP CI.
+// Keep the stricter server/DB sandbox gate pinned to 127.0.0.1.
+const BROWSER_ORIGIN = "http://localhost:3000";
 
 export async function proveOrgExplorerHydratedBrowser({
   cookie, operatorUserId, a, b, victim, unchanged
@@ -31,15 +34,15 @@ export async function proveOrgExplorerHydratedBrowser({
     const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
     await context.addCookies([{
       name: "__Host-linaw_session", value: cookie.slice(COOKIE_PREFIX.length),
-      url: ORIGIN, secure: true, httpOnly: true, sameSite: "Lax"
+      url: BROWSER_ORIGIN, secure: true, httpOnly: true, sameSite: "Lax"
     }]);
     // No external IdP, provider, analytics, or other outbound browser traffic.
     await context.route("**/*", route => {
       const address = new URL(route.request().url());
-      return address.origin === ORIGIN ? route.continue() : route.abort();
+      return address.origin === BROWSER_ORIGIN ? route.continue() : route.abort();
     });
 
-    const session = await context.request.get(ORIGIN + "/api/account",
+    const session = await context.request.get(BROWSER_ORIGIN + "/api/account",
       { timeout: 30000, failOnStatusCode: false });
     assert.equal(session.status(), 200, "Browser must hold a real authenticated session");
     const sessionBody = await session.json();
@@ -49,7 +52,7 @@ export async function proveOrgExplorerHydratedBrowser({
     const page = await context.newPage();
     let ownHydratedPages = 0;
     let selectedHistories = 0;
-    const routeFor = actor => ORIGIN + PAGE + "?organizationId=" + actor.org.id;
+    const routeFor = actor => BROWSER_ORIGIN + PAGE + "?organizationId=" + actor.org.id;
 
     for (const actor of [a, b, a]) {
       const response = await page.goto(routeFor(actor),
