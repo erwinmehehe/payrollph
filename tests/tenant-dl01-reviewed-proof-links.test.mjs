@@ -1,3 +1,4 @@
+import { verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 /** Bookkeeping regression only; the real three-employer HTTP/PG16 suites provide coverage. */
 import assert from 'node:assert/strict'; import { verifyWorker360PageCredit } from '../scripts/qa/tenant-five-method-credit-verify.mjs';
 import { readFileSync } from 'node:fs';
@@ -99,7 +100,7 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
     p.path === 'src/app/hcm/manager-decision-inbox/page.tsx');
   assert.equal(coveredPage.status, 'COVERED');
   assert.equal(coveredPage.testedBy?.file, 'scripts/qa/hcm-manager-inbox-page-http.mjs');
-  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, verifyWorker360PageCredit(manifest));
+  assert.equal(manifest.scopedPages.filter(p => p.status === 'GAP').length, verifyCurrentScopedPageGapCount(manifest));
   const probation = manifest.allApiRouteFiles['src/app/api/hcm/probation-reviews/route.ts'].methods;
   assert.deepEqual(probation.map(method => method.name), ['GET','POST','PATCH']);
   assert.ok(probation.every(method =>

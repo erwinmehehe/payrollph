@@ -1,3 +1,4 @@
+import { TARGETS, verifyFivePageCredits, historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 /**
  * Source-only fail-closed wiring test. Never substitutes for the real HTTP/PG16
  * three-employer run; a method remains GAP until linked to completed proof.
@@ -168,21 +169,22 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     assert.equal(preRun?.status, "COVERED");
   }
   assert.equal(manifest.scopedPages.length, manifest.metrics.scopedPagesAndActions);
-  assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, verifyWorker360PageCredit(manifest));
-  assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
-  assert.equal(verifyWorker360PageCredit(manifest), 16,
+  assert.equal(manifest.scopedPages.filter(x => x.status === "GAP").length, verifyCurrentScopedPageGapCount(manifest));
+  assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)),2);
+  assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16,
     "Only the exact-source Worker 360 PG16 SSR page proof may reduce the page GAP count");
   const coveredPages = manifest.scopedPages.filter(x => x.status === "COVERED");
-  assert.deepEqual(coveredPages.map(x => x.path), [
+  assert.equal(verifyFivePageCredits(manifest), TARGETS.length);
+  assert.deepEqual(coveredPages.map(x => x.path).sort(), [
     "src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx",
     "src/app/hcm/manager-decision-inbox/page.tsx",
     "src/app/hcm/manager-direct-reports/page.tsx",
-    "src/app/hcm/worker-360/page.tsx",
-  ]);
-  assert.equal(coveredPages[0].testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
-  assert.equal(coveredPages[1].testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
-  assert.equal(coveredPages[2].testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
-  assert.equal(coveredPages[3].testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
+    "src/app/hcm/worker-360/page.tsx", ...TARGETS.map(target => target.path),
+  ].sort());
+  assert.equal(coveredPages.find(p=>p.path==="src/app/app/page.tsx").testedBy?.file, "scripts/qa/tenant-scoped-page-probes.mjs");
+  assert.equal(coveredPages.find(p=>p.path==="src/app/hcm/command-center/page.tsx").testedBy?.file, "scripts/qa/hcm-people-home-page-http.mjs");
+  assert.equal(coveredPages.find(p=>p.path==="src/app/hcm/manager-decision-inbox/page.tsx").testedBy?.file, "scripts/qa/hcm-manager-inbox-page-http.mjs");
+  assert.equal(coveredPages.find(p=>p.path==="src/app/hcm/manager-direct-reports/page.tsx").testedBy?.file, "scripts/qa/hcm-manager-direct-reports-http.mjs");
   assert.equal(manifest.scopedPages.find(p => p.path === "src/app/hcm/worker-360/page.tsx")?.status, "COVERED");
   assert.equal(manifest.scopedPages.find(p => p.path === "src/app/hcm/worker-360/page.tsx")?.testedBy?.file, "scripts/qa/tenant-hcm-worker360-entity-http.mjs");
 });

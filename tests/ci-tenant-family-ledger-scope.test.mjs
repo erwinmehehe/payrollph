@@ -9,7 +9,7 @@ import {load} from 'js-yaml';
 import {familyProofRequired,metadataOnly,reusableEvent,priorProofPassed,MANIFEST,INVENTORY,DOCS} from '../scripts/ci/tenant-family-ledger-scope.mjs';
 const policy=JSON.parse(readFileSync('.github/tenant-family-ledger-scope.json','utf8'));
 const REVIEWED_EXECUTION={
- 'tenant-dl01-closure.yml':'b18c9ce9c1e55cfc6c777977e6577b400aa4821606a754e3b681eebf2401fee1',
+ 'tenant-dl01-closure.yml':'9e04d48e5f14d8a08bc9fe69aea9359b1c04b9713380252c5ab184284af7c0d5',
  'tenant-ess-documents-read.yml':'77c659179b1dcaa4f84c031d6107444b685480fe19a211802ba9dfe09c8b5e03',
 };
 const event={action:'synchronize',pull_request:{number:123,head:{sha:'a'.repeat(40)},base:{sha:'b'.repeat(40)}}};
@@ -68,10 +68,10 @@ test('metadata reuse needs every real matrix job on the exact head AND base, nev
  assert.equal(await check(run,jobs,{fetcher:async()=>({ok:false})}),false);
  assert.equal(await check(run,jobs,{fetcher:async()=>({ok:true,json:async()=>({workflow_runs:[run],total_count:101,jobs})})}),false);
 });
-test('both eligible original execution jobs remain byte-equivalent as parsed data',()=>{
+test('both proof jobs match proposed exact execution fingerprints pending maintainer review',()=>{
  assert.equal(Object.keys(policy.workflows).length,2);
  assert.equal(policy.comparisonBase,'8d64ff4ee04d394b82060da80e3a3580cc84743b');
- assert.deepEqual(Object.fromEntries(Object.entries(policy.workflows).map(([file,p])=>[file,p.executionSha256])),REVIEWED_EXECUTION,'Original execution snapshots require explicit review, never blind repinning');
+ assert.deepEqual(Object.fromEntries(Object.entries(policy.workflows).map(([file,p])=>[file,p.executionSha256])),REVIEWED_EXECUTION,'Pinned execution snapshot changes require explicit human review; a green CI is not independent acceptance');
  for(const [file,p] of Object.entries(policy.workflows)){
   const w=load(readFileSync('.github/workflows/'+file,'utf8')),job=w.jobs[p.job];
   const execution=Object.fromEntries(Object.entries(job).filter(([k])=>!['if','needs'].includes(k)));

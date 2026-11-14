@@ -1,3 +1,4 @@
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -31,7 +32,7 @@ test("historical issued GET credit survives exact GET overlay plus POST-only aut
   assert.equal(assertHistoricalDemandSourceCompatible(staffingRoute,
     manifest.allApiRouteFiles[staffingRoute]),
     "513975b118713becbf98caffa7d813a5b8c33c71");
-  assert.equal(verifyMoreCredits(manifest), 3,
+  assert.equal(verifyMoreCredits(historicWorker360ProofView(manifest)), 3,
     "Only the original three reviewed method credits remain");
 });
 
@@ -55,7 +56,7 @@ test("source drift and changed synthetic evidence fail closed instead of borrowi
         staffingRoute, manifest.allApiRouteFiles[staffingRoute], changedRead),
       "Staffing historical proof must refuse a changed route: " + path);
     } else {
-      assert.throws(() => verifyMoreCredits(manifest, changedRead),
+      assert.throws(() => verifyMoreCredits(historicWorker360ProofView(manifest), changedRead),
         "Issued GET or pinned evidence must fail: " + path);
     }
   }
@@ -74,7 +75,7 @@ test("historical GET credit cannot be promoted or used to certify issued POST", 
   ]) {
     const changed = structuredClone(original);
     mutate(changed.allApiRouteFiles[issuedRoute]);
-    assert.throws(() => verifyMoreCredits(changed),
+    assert.throws(() => verifyMoreCredits(historicWorker360ProofView(changed)),
       "Historical receipt cannot certify a changed status, source or unrevised write");
   }
 });

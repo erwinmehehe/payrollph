@@ -1,3 +1,4 @@
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {xenditPostCreditDelta,verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
@@ -89,9 +90,9 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
     const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
     const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
-    assert.equal(verifyWorker360LegalEmployerCredits(m),2);
+    assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(m)),2);
     assert.equal(currentWorker.status, "COVERED");
-    verifyWorker360PageCredit(m);
+    verifyWorker360PageCredit(historicWorker360ProofView(m));
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
     const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
     const callback=m.allApiRouteFiles[OIDC_CALLBACK].methods[0];

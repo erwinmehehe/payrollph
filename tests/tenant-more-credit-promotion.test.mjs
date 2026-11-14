@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 // These source pins supplement, NEVER substitute for, completed real PG16 HTTP.
 const manifest = JSON.parse(readFileSync(
@@ -11,7 +12,8 @@ const manifest = JSON.parse(readFileSync(
 
 test("three historical credits remain distinct from the later source-pinned self-profile proof", () => {
   assertLiveTenantCounts(assert, manifest);
-  assert.equal(verifyMoreCredits(manifest), 3);
+  const historical = historicWorker360ProofView(manifest);
+  assert.equal(verifyMoreCredits(historical), 3);
   const profile = manifest.allApiRouteFiles["src/app/api/self/profile/route.ts"];
   const patch = profile.methods.find(m => m.name === "PATCH");
   assert.equal(patch?.status, "COVERED", "New #1762 exact-source receipt, not the old #1518 receipt");
@@ -19,7 +21,7 @@ test("three historical credits remain distinct from the later source-pinned self
   assert.equal(patch?.testedBy?.independentlyAccepted, false);
   assert.equal(patch?.reviewedUncertified, undefined);
   assert.equal(profile.gitBlobSha, "41d26b23678e8822aff4701a611c429e97f659c3");
-  const recovery = verifyFiveMethodCredits(manifest);
+  const recovery = verifyFiveMethodCredits(historical);
   assert.equal(recovery.methodsCredited, 3);
   assert.equal(recovery.methodsHeld, 0);
 });
@@ -29,7 +31,7 @@ test("tampered source, forged receipt, fourth credit or invalid profile proof al
   const tamper = fn => {
     const modified = structuredClone(manifest);
     fn(modified, modified.allApiRouteFiles[route].methods.find(m => m.name === "GET"));
-    assert.throws(() => verifyMoreCredits(modified));
+    assert.throws(() => verifyMoreCredits(historicWorker360ProofView(modified)));
   };
   tamper((_m, entry) => { entry.testedBy.prNumber = 1492; });
   tamper((_m, entry) => { entry.testedBy.foreignDenialLine = 133; });
@@ -53,7 +55,7 @@ test("tampered source, forged receipt, fourth credit or invalid profile proof al
   tamper(modified => { profilePatch(modified).testedBy.independentlyAccepted = true; });
   tamper(modified => { profilePatch(modified).reviewedUncertified = { reviewStatus: "APPROVED" }; });
   const source = "scripts/qa/tenant-self-schedule-receipts-http.mjs";
-  assert.throws(() => verifyMoreCredits(manifest, path =>
+  assert.throws(() => verifyMoreCredits(historicWorker360ProofView(manifest), path =>
     readFileSync(path, "utf8") + (path === source ? "\n// tampered" : "")),
     /reviewed source blob drift/);
 });

@@ -1,0 +1,245 @@
+name: Tenant Five Scoped Pages — Source-Current PG16 Credit Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-five-scoped-pages-credit.yml"
+      - "scripts/qa/tenant-five-page-work-items-*.mjs"
+      - "scripts/qa/tenant-five-scoped-page-credit.mjs"
+      - "tests/tenant-five-page-*.test.mjs"
+      - "tests/tenant-scoped-pages.test.mjs"
+      - "tests/tenant-isolation-coverage-inventory.test.mjs"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "scripts/qa/tenant-five-method-credit-verify.mjs"
+      - "scripts/qa/tenant-worker360-legal-employer-credit.mjs"
+      - "scripts/qa/tenant-people-pages-*.mjs"
+      - "scripts/qa/tenant-hcm-my-team-*.mjs"
+      - "scripts/qa/tenant-team-leave-*.mjs"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "src/app/app/engagement/page.tsx"
+      - "src/app/app/goals-reviews/page.tsx"
+      - "src/app/hcm/my-team/page.tsx"
+      - "src/app/hcm/team-leave-calendar/page.tsx"
+      - "src/app/hcm/work-items/page.tsx"
+      - "src/app/api/hcm/work-items/route.ts"
+      - "src/app/api/hcm/my-team/route.ts"
+      - "src/app/api/hcm/team-leave-calendar/route.ts"
+      - "src/app/api/hcm/engagement-surveys/route.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/organization-auth-policy.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "src/lib/multi-entity-hcm-hold.ts"
+      - "src/lib/hcm-single-entity-scope.ts"
+      - "src/lib/tenant-people-page-employer.ts"
+      - "src/lib/tenant-engagement-employee-scope.ts"
+      - "src/lib/hcm-my-team-*.ts"
+      - "src/lib/hcm-team-leave-calendar-*.ts"
+      - "src/lib/hcm-work-items-page-tenancy.ts"
+      - "src/lib/hcm-scoped-read-validation.ts"
+      - "src/components/engagement-survey-page.tsx"
+      - "src/components/hcm-my-team.tsx"
+      - "src/components/hcm-team-leave-calendar.tsx"
+      - "src/components/hcm-work-queue.tsx"
+      - "src/db/index.ts"
+      - "src/db/schema.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  page-http-reproof:
+    name: Real PG16 SSR — ${{ matrix.family }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - family: engagement-goals
+            people: "true"
+            myteam: "false"
+            leave: "false"
+            proof: "node --import tsx scripts/qa/tenant-people-pages-http.mjs"
+          - family: my-team
+            people: "false"
+            myteam: "true"
+            leave: "false"
+            proof: "node --import tsx scripts/qa/tenant-hcm-my-team-http.mjs"
+          - family: team-leave
+            people: "false"
+            myteam: "false"
+            leave: "true"
+            proof: "node --import tsx scripts/qa/tenant-team-leave-http.mjs"
+          - family: work-items
+            people: "false"
+            myteam: "false"
+            leave: "false"
+            proof: "node --import tsx scripts/qa/tenant-five-page-work-items-http.mjs"
+    env:
+      GITHUB_ACTIONS: "true"
+      CI: "true"
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_SECOND_PASS_MODE: isolated-ci-only
+      TENANT_FIVE_PAGE_WORK_ITEMS: fictional-pg16-only
+      TENANT_PEOPLE_PAGES_PROOF: fictional-only
+      TENANT_HCM_MY_TEAM_PROOF: fictional-pg16-only
+      TENANT_TEAM_LEAVE_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      MULTI_ENTITY_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      HCM_MY_TEAM_ENABLED: ${{ matrix.myteam }}
+      HCM_TEAM_LEAVE_CALENDAR_ENABLED: ${{ matrix.leave }}
+      HCM_TEAM_LEAVE_CALENDAR_ORG_IDS: "1,2,3"
+      ENGAGEMENT_SURVEY_ENABLED: ${{ matrix.people }}
+      GOALS_REVIEW_CYCLE_ENABLED: ${{ matrix.people }}
+      REQUIRE_PRIVILEGED_MFA: "true"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      WORKER_TOKEN: ""
+      CRON_SECRET: ""
+      SMTP_PASSWORD: ""
+      SMTP_URL: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      AWS_SECRET_ACCESS_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked out PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Source pins, contract negatives, forbidden flags and unsafe-target controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.family }}" in
+            engagement-goals)
+              node --test tests/tenant-people-pages-contract.test.mjs
+              node --import tsx --test tests/tenant-people-page-employer.test.ts
+              node --import tsx --test tests/tenant-people-ssr-multi-entity-hold.test.ts
+              ;;
+            my-team)
+              node --test tests/tenant-hcm-my-team-contract.test.mjs
+              ;;
+            team-leave)
+              node --test tests/tenant-team-leave-contract.test.mjs
+              ;;
+            work-items)
+              node --test tests/tenant-five-page-work-items-contract.test.mjs
+              ;;
+            *) exit 1 ;;
+          esac
+          node --check scripts/qa/tenant-five-page-work-items-http.mjs
+          node --check scripts/qa/tenant-five-scoped-page-credit.mjs
+      - name: Generate test-only ephemeral encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create empty disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated synthetic baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build exact PR-head Next app, feature ON only in this disposable job
+        run: npm run build
+      - name: Start localhost-only Next production server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-five-scoped-pages.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-five-scoped-pages.log
+          exit 1
+      - name: Execute actual fictional two-employer and higher-ID victim HTTP/SSR proof
+        env:
+          NODE_ENV: production
+        run: ${{ matrix.proof }}
+      - name: Bounded failed synthetic-server logs
+        if: failure()
+        run: tail -n 80 /tmp/tenant-five-scoped-pages.log || true
+
+  manifest-credit:
+    name: Regenerated manifest and exact-five-page credit assertions
+    needs: [page-http-reproof]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact PR-head SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Recompute page status and metrics using the generator; no manual count drift
+        run: |
+          node scripts/qa/tenant-five-scoped-page-credit.mjs --check
+          node scripts/qa/tenant-five-scoped-page-credit.mjs --write
+          git diff --exit-code -- scripts/qa/tenant-isolation-coverage-manifest.json
+          node --test tests/tenant-five-scoped-page-credit.test.mjs tests/tenant-scoped-pages.test.mjs

@@ -2,7 +2,7 @@
 
 > **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 458 COVERED / 5 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 458 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP. Eleven actions, eight executed proof jobs and all six source families; 16 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 458 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP. Eleven actions, eight executed proof jobs and all six source families; 11 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **PR #1952 OIDC CALLBACK SOURCE PROOF — NOT ACCEPTED:** 498 API methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP; 16 page/action GAPs. [Synthetic HTTPS IdP / PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274) supports one distinct provisional callback GET. Merged #1956 keeps 19 separate payroll-run methods on source hold. SSO start/resolve and all other unproved surfaces stay GAP. Independent security, identity, payroll/privacy and production acceptance remain PENDING.
 

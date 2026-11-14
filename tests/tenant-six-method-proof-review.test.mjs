@@ -32,6 +32,7 @@ import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-s
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const cases = [
@@ -537,7 +538,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   // Three unrelated methods have now passed on their own exact-final-head
   // fictional-PG16/real-HTTP receipts. Run the strict byte/anchor/CI-receipt
   // verifier before allowing ONLY these three distinct new promotions.
-  const recovery = verifyFiveMethodCredits(m);
+  assert.equal(verifyFivePageCredits(m), 5, "New scoped pages require their own source-current four-part proof");
+  const recovery = verifyFiveMethodCredits(historicWorker360ProofView(m));
   assert.equal(recovery.methodsCredited, 3);
   assert.equal(recovery.methodsHeld, 0);
   for (const evidence of EVIDENCE) {
