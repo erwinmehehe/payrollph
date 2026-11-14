@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { verifyMkt01Credit } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 import test from "node:test";
 import {
   requireDisposableMkt01, assertMkt01Aggregate, assertMkt01Denied,
@@ -116,8 +117,12 @@ test("MKT-01 targets precisely the existing platform marketing report, not a ten
   ]) assert.ok(!aggregator.includes(forbidden), "report queries raw prospect PII: " + forbidden);
   const ledger = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
   const method = ledger.allApiRouteFiles[MKT01_ROUTE]?.methods.find(m => m.name === "GET");
-  assert.equal(method?.status, "GAP", "platform operator read is not tenant-scoped COVERED");
-  assert.equal(method?.testedBy, null, "no unearned method credit");
+  assert.equal(method?.status, "COVERED", "operator-only aggregate is credited but not public");
+  assert.equal(method?.testedBy?.operatorScoped, true);
+  assert.equal(method?.testedBy?.publicByDesign, false);
+  assert.equal(method?.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(method?.reviewedUncertified, undefined);
+  assert.equal(verifyMkt01Credit(), 1, "source-pinned receipt and generated manifest/closure docs");
   assert.match(ledger.acceptanceStatus, /^NOT ACCEPTED:/);
 });
 
