@@ -113,9 +113,12 @@ async function prove() {
   ];
   async function snapshot(orgId) {
     const result = {};
-    for (const [name, table] of tables) result[name] = await db.select()
-      .from(table).where(orm.eq(table.organizationId, orgId))
-      .orderBy(table.id ?? table.organizationId);
+    for (const [name, table] of tables) {
+      const scopeColumn = name === "organizations" ? s.organizations.id : table.organizationId;
+      result[name] = await db.select()
+        .from(table).where(orm.eq(scopeColumn, orgId))
+        .orderBy(table.id ?? scopeColumn);
+    }
     return result;
   }
   async function request(path, cookie, method="GET", body) {
