@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
 import {STUDIO_POST_PATH,STUDIO_RECEIPT,readStudioPostReceipt,verifyStudioPostResults,verifyStudioPostCredit,reconcileStudioPostCredit} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {RENEWAL_FILE,readStudioDependencyRenewal,verifyRenewalResults} from '../scripts/qa/tenant-studio-dependency-renewal.mjs';
+import {assertLiveTenantCounts} from './helpers/tenant-counts.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 const clone=x=>JSON.parse(JSON.stringify(x));
 test('only the complete eight-job, eleven-action Studio cohort earns one distinct method',()=>{
@@ -13,9 +14,12 @@ test('MKT-01 operator-only GET cannot rewrite or multiply the separate Studio cr
  assert.equal(operator.status,'COVERED');
  assert.equal(operator.testedBy.operatorScoped,true);
  assert.equal(operator.testedBy.publicByDesign,false);
- assert.equal(m.metrics.coveredAfter,459);assert.equal(m.metrics.gap,4);
- assert.match(m.acceptanceStatus,/SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 458 COVERED \/ 5 GAP;/);
- assert.doesNotMatch(m.acceptanceStatus,/SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 459 COVERED \/ 4 GAP;/);
+ // Recompute from all method rows; MKT-01 must never pin a shared live total.
+ const {live}=assertLiveTenantCounts(assert,m);
+ const historical=[...m.acceptanceStatus.matchAll(/SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: (\\d+) COVERED \\/ (\\d+) GAP;/g)];
+ assert.ok(historical.length>0,'The earlier Studio proof note must remain present');
+ assert.ok(historical.every(([,covered,gap])=>Number(covered)<live.coveredAfter && Number(gap)>live.gap),
+   'Current MKT-01 method must not be counted as another Studio credit');
  const result=reconcileStudioPostCredit({write:false});
  assert.equal(result.credited,0);
  assert.equal(manifest().acceptanceStatus,m.acceptanceStatus);

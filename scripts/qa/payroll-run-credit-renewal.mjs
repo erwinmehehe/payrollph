@@ -105,7 +105,9 @@ function documents(m){
     }
     text=text.replace(/^> \*\*PAYROLL RUN ORACLE — (?:SOURCE HOLD|RENEWED):\*\*[^\n]*\n\n/,'');
     text=preceding+banner+'\n\n'+text;
-    text=text.replace(/^(> \*\*(?:RELEASE BLOCKER|NOT ACCEPTED)\*\*:? )\d+ (?:API )?(?:methods|method gaps)/gm,
+    // This is the live release blocker, not the historical #1593
+    // "NOT ACCEPTED" checkpoint. Never rewrite source-era counts.
+    text=text.replace(/^(> \*\*RELEASE BLOCKER:\*\* )\d+ (?:API )?methods/m,
       '$1'+m.metrics.gap+' API methods');
     // Only the first, live Studio banner is current. Later repeats are
     // historical source-evidence snapshots and must never be rewritten.
