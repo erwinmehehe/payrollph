@@ -369,8 +369,13 @@ test("Phase 7 separation source re-inventory preserves existing tenant evidence,
   const review = record.sourceRevisionReview;
   assert.equal(record.gitBlobSha, fingerprint, "route changes require fresh source review");
   assert.equal(review.previousRouteBlobSha, "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a");
+  assert.equal(review.priorEmployerFixPreviousRouteBlobSha, "eba576d431d4d0631c3b3b58941c9f9e065a0373",
+    "the previously reviewed Separation handler must remain linked in the provenance chain");
+  assert.equal(review.priorEmployerFlagOnRealHttpProof, "PENDING",
+    "flag-ON tenant proof cannot be silently inherited from older flag-OFF receipts");
+  assert.equal(review.priorEmployerFictionalPgTest, "tests/final-pay-prior-employer-pg.test.ts");
   assert.equal(review.currentRouteBlobSha, fingerprint);
-  assert.deepEqual(review.changedMethods, ["POST", "PATCH"]);
+  assert.deepEqual(review.changedMethods, ["GET", "POST", "PATCH"]);
   assert.equal(review.priorTenantIsolationHttpProof, "scripts/qa/payroll-approved-exit-http.mjs");
   assert.equal(review.taxContractFile, "tests/final-pay-tax-classification.test.ts");
   assert.equal(review.newTenantIsolationMethodCredits, 0);

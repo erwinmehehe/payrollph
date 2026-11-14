@@ -32157,12 +32157,16 @@
       ]
     },
     "src/app/api/separation/route.ts": {
-      "gitBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
+      "gitBlobSha": "a4d45ab01a5ede8f6f195ba09d3eb3e8f31de3fa",
       "sourceRevisionReview": {
-        "kind": "phase7-final-pay-tax-classification-provisional-source-reconciliation",
+        "kind": "phase7-and-prior-employer-final-pay-provisional-source-reconciliation",
         "previousRouteBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
-        "currentRouteBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
-        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET tenant handling remains unchanged. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held.",
+        "currentRouteBlobSha": "a4d45ab01a5ede8f6f195ba09d3eb3e8f31de3fa",
+        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET, POST and PATCH now check the selected legal-employer boundary with the multi-entity flag enabled; GET filters sensitive final-pay rows to one authorized legal employer. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held. Superseding separation annualization change (this PR): GET/POST/PATCH changed; previous-employer Form 2316 is maker/checker approved, legal-entity scoped, and its approval digest/revision is revalidated inside initiation, finance approval and release transactions. The existing proof covers prior employer flag-OFF separation, NOT new flag-ON legal-employer cross-tenant HTTP. New flag-ON PostgreSQL read/denial/source-drift regression is synthetic only. Zero new method credits. Fresh exact-head flag-ON own/foreign HTTP and independent financial/security approval remain PENDING; no production activation.",
+        "priorEmployerFixPreviousRouteBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
+        "priorEmployerTaxContractFile": "tests/final-pay-prior-employer-annualization.test.ts",
+        "priorEmployerFictionalPgTest": "tests/final-pay-prior-employer-pg.test.ts",
+        "priorEmployerFlagOnRealHttpProof": "PENDING",
         "priorTenantIsolationHttpProof": "scripts/qa/payroll-approved-exit-http.mjs",
         "taxContractFile": "tests/final-pay-tax-classification.test.ts",
         "newTenantIsolationMethodCredits": 0,
@@ -32170,6 +32174,7 @@
         "independentPhilippineTaxAndSecurityReview": "PENDING",
         "productionCertified": false,
         "changedMethods": [
+          "GET",
           "POST",
           "PATCH"
         ]

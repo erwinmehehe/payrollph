@@ -38,7 +38,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   flag-on-money:
-    runs-on: ubuntu-latest
+    # Playwright 1.55.0 installs Chromium with apt deps on Ubuntu 24.04;
+    # ubuntu-latest is rolling to Ubuntu 26.04 where this pinned version fails.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       TZ: Asia/Manila
