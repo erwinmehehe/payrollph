@@ -38,10 +38,19 @@ credit. It does not overlap the pending Studio or classification PR scopes.
    reject result-only success and preserve the source Git blob identity of
    the page, both API handlers, scope/plan guards, SQL loader, auth and client.
 
-See the new dedicated contract, test and exact-head workflow:
+The follow-up workflow also **attempts actual hydrated Chromium behavior**:
+an explicitly dual-granted HR session visits employer A, selects a persisted
+position and its worker assignment history, switches to employer B and does
+the same, then returns to A. The same browser session must receive HTTP 404
+for the unrelated higher-ID victim. Browser navigations recheck all ten
+employers' protected business and audit rows for read-only behavior.
+
+See the dedicated proof, browser extension, contract tests and exact-head workflow:
 - scripts/qa/tenant-hcm-org-explorer-page-contract.mjs
 - scripts/qa/tenant-hcm-org-explorer-page-http.mjs
+- scripts/qa/tenant-hcm-org-explorer-browser.mjs
 - tests/tenant-hcm-org-explorer-page-contract.test.mjs
+- tests/tenant-hcm-org-explorer-browser-contract.test.mjs
 - .github/workflows/tenant-hcm-org-explorer-page-qa.yml
 
 ## Client-scope regression guard (2026-11-14)
@@ -60,28 +69,32 @@ contract** ensures that:
 - Both requests use no-store reads, abort in-flight work on scope changes,
   and clear stale data when a scoped read fails.
 
-**Evidence limit:** This regression checks source invariants; it is not
-hydrated-browser or user-interaction execution evidence. The existing real
-HTTP/PG16 proof remains separate. This change grants **ZERO credits**;
-the Org Explorer page remains **GAP / NOT ACCEPTED** until an actual
-multi-employer Chromium tenant-switch/position-selection proof and the
-required security/privacy review pass on current source.
+**Evidence limit:** The static regression alone cannot prove user behavior.
+The same exact-head workflow now contains a separate **real Chromium
+A → B → A / position-history / higher-ID victim denial stage**, pending actual
+successful execution. It does not yet prove an in-flight delayed A response
+cannot race a within-page navigation, or establish a deployment-specific
+privacy acceptance. **ZERO credits**: the Org Explorer page remains
+**GAP / NOT ACCEPTED** pending passing exact-head CI, review of real browser
+evidence, any remaining stale-response race proof and independent HR/privacy/
+security signoff.
 
 ## Not included / review holds
 
 - **ZERO credits**: this PR does not change the tenant isolation coverage
   manifest, page/action GAP status, API method status, route implementation or
   acceptance ledger. A passing job remains engineering evidence only.
-- The page is a client-rendered graph shell. **This runner does not prove
-  hydrated Chromium interactions**, rapid employer switching or selection
-  of a position by a browser user. These need a separate browser acceptance.
+- The follow-up adds a hydrated Chromium A → B → A and position-click
+  candidate on the same fictional PG16 fixture. Its **result is not presumed
+  passing** until the exact-head job finishes; within-page delayed-response
+  races and independent review remain open.
 - Graph/history APIs now reject repeated organizationId/positionId selectors
   instead of choosing a first value. The dedicated real-HTTP runner exercises
   duplicate same/foreign employer and foreign-position requests as HTTP 400.
   Any new handler edits require refreshed exact-head tests before review.
-- No cross-employer access from users legitimately authorized to *both*
-  employers is adjudicated by this proof; those users must be reviewed
-  against the intended multi-employer access policy.
+- The explicit operator granted access to A and B is exercised in Chromium
+  while the unrelated higher-ID victim stays denied. This does not establish
+  every multi-employer grant, switching policy or source-revocation behavior.
 - No production employer, HR, tax, bank, payroll, provider, migration, real
   worker process, feature activation, deployment, payouts or money used.
 - An independent HR/privacy/security reviewer must check own/foreign,
