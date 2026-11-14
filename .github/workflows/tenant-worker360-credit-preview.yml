@@ -45,7 +45,24 @@ jobs:
           # On this exact-five-page PR, validate the Worker 360 receipt on a
           # historical 16-GAP clone; never rewrite its immutable source or
           # attempt to downgrade the five separately proved current pages.
-          if node -e 'const m=require("./scripts/qa/tenant-isolation-coverage-manifest.json"); if(m.scopedPages.filter(p=>p.status==="COVERED").length!==10) process.exit(1)'; then
+          if node -e 'const m=require("./scripts/qa/tenant-isolation-coverage-manifest.json"); if(m.scopedPages.filter(p=>p.status==="COVERED").length!==16) process.exit(1)'; then
+            node scripts/qa/tenant-six-scoped-page-credit.mjs --check
+            node --input-type=module -e '
+              import assert from "node:assert/strict";
+              import { readFileSync } from "node:fs";
+              import { verifySixPageCredits, historicSixPageView, selectedTargets } from "./scripts/qa/tenant-six-scoped-page-credit.mjs";
+              import { verifyFivePageCredits, historicWorker360ProofView } from "./scripts/qa/tenant-five-scoped-page-credit.mjs";
+              import { verifyWorker360PageCredit } from "./scripts/qa/tenant-five-method-credit-verify.mjs";
+              import { verifyWorker360LegalEmployerCredits } from "./scripts/qa/tenant-worker360-legal-employer-credit.mjs";
+              const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+              assert.equal(verifySixPageCredits(live), selectedTargets().length);
+              const historical = historicSixPageView(live);
+              assert.equal(verifyFivePageCredits(historical), 5);
+              const workerHistory = historicWorker360ProofView(historical);
+              assert.equal(verifyWorker360LegalEmployerCredits(workerHistory), 2);
+              assert.equal(verifyWorker360PageCredit(workerHistory), 16);
+            '
+          elif node -e 'const m=require("./scripts/qa/tenant-isolation-coverage-manifest.json"); if(m.scopedPages.filter(p=>p.status==="COVERED").length!==10) process.exit(1)'; then
             node scripts/qa/tenant-five-scoped-page-credit.mjs --check
             node scripts/qa/tenant-five-scoped-page-credit.mjs --verify-historical-worker360
           else
