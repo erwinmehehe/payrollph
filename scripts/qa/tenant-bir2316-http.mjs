@@ -307,13 +307,26 @@ try {
 
     expectStatus(await request(context, ON, draftPath(other)),
       403, "Same-tenant other legal employer's offboarding draft denied");
-    expectStatus(await request(context, ON, sourcePath(other)),
-      403, "Same-tenant other legal employer's 2316 source denied");
-    expectStatus(await request(context, ON, sourcePath(other), {
+    const otherSource = expectStatus(await request(context, ON, sourcePath(other)),
+      404, "Same-tenant other legal employer's 2316 source is concealed");
+    const otherPdf = expectStatus(await request(context, ON, sourcePath(other), {
       method: "POST", body: {
         sourceDigest: ownSource.json.sourceDigest, review: reviewForZeroAnnualization(),
       },
-    }), 403, "Same-tenant other legal employer's unsigned PDF denied");
+    }), 404, "Same-tenant other legal employer's unsigned PDF is concealed");
+    const unknownSeparation = { ...other,
+      separationId: other.separationId + 1000000 };
+    const unknownSource = expectStatus(await request(context, ON, sourcePath(unknownSeparation)),
+      404, "Unknown historical separation must match other-employer refusal");
+    const unknownPdf = expectStatus(await request(context, ON, sourcePath(unknownSeparation), {
+      method: "POST", body: {
+        sourceDigest: ownSource.json.sourceDigest, review: reviewForZeroAnnualization(),
+      },
+    }), 404, "Unknown 2316 PDF must match other-employer refusal");
+    assert.deepEqual(otherSource.json, unknownSource.json,
+      "Same-parent worker's historical 2316 source existence may not be inferred");
+    assert.deepEqual(otherPdf.json, unknownPdf.json,
+      "Same-parent 2316 PDF existence may not be inferred");
     expectStatus(await request(context, ON, sourcePath(own), {
       headers: { "x-legal-entity-id": String(otherEmployer.id) },
     }), 403, "Ungrantable other-employer selector denied before tax data");
