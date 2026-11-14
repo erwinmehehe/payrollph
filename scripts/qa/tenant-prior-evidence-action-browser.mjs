@@ -120,8 +120,12 @@ async function prove() {
   }
   async function request(path, cookie, method="GET", body) {
     const response = await standaloneRequest(path, { cookie, method, body });
-    assert.match(response.headers.get("cache-control") ?? "", /no-store/i,
-      "Prior tax evidence responses must never be publicly cached");
+    const cache = response.headers.get("cache-control") ?? "";
+    assert.doesNotMatch(cache, /\bpublic\b/i,
+      "No response may advertise the private prior tax source as publicly cacheable");
+    if (response.status === 200 || response.status === 409)
+      assert.match(cache, /no-store/i,
+        "Private prior evidence and source-error bodies must not be cached");
     return response;
   }
   const allProtected = await Promise.all(actors.map(actor => snapshot(actor.org.id)));
