@@ -15,7 +15,7 @@ import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { verifyOidcBatchCredits, historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
-import { verifySixPageCredits, historicSixPageView, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
+import { expectedSixPageManifest, historicSixPageView, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -66,8 +66,15 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     // HTTP assertion anchors, unchanged API and previous five credits pass.
     assert.equal(coveredPages, 16, "PAGE_COMPAT_REFUSED: unreviewed extra pages");
     assert.equal(openPages, 5, "PAGE_COMPAT_REFUSED: unreviewed missing page GAPs");
-    assert.equal(verifySixPageCredits(live, read), selectedTargets(read).length,
-      "PAGE_COMPAT_REFUSED: six-page source/head receipts not verified");
+    // Do not call verifySixPageCredits here: its historical five-page
+    // verifier checks payroll-renewal source compatibility and would recurse.
+    // The independent six-page generator validates every current source,
+    // immutable proof-line marker, exact receipt and API ledger; the original
+    // compatibility assertions below validate the reconstructed five pages.
+    assert.equal(selectedTargets(read).length, 6,
+      "PAGE_COMPAT_REFUSED: an unreviewed subset cannot borrow payroll evidence");
+    assert.deepEqual(live, expectedSixPageManifest(live, read),
+      "PAGE_COMPAT_REFUSED: six-page current-source receipts fail regeneration");
     manifest = historicSixPageView(live, read);
   }
   const marketing = manifest.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
