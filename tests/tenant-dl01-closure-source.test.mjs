@@ -137,6 +137,32 @@ test("DL-01 isolated proof user has narrow, verified checkout permissions", () =
     "Readability must be demonstrated before the network isolation proof starts");
 });
 
+test("DL-01 isolated proof propagates only explicitly required fictional environment through sudo", () => {
+  const workflow = file(".github/workflows/tenant-dl01-closure.yml");
+  assert.doesNotMatch(workflow, /sudo -E -u dl01proof/,
+    "sudo -E is unreliable on newer runners and must not pass GitHub job secrets");
+  assert.match(workflow, /sudo -u dl01proof -- env -i HOME="\$proof_home"/,
+    "restricted UID must receive a clean environment, not the runner's inherited environment");
+  assert.ok(workflow.includes('proof_env+=("$key=${!key}")'),
+    "all required variables must be explicitly forwarded as separate quoted arguments");
+  assert.ok(workflow.includes('if [[ ! -v "$key" ]]; then'),
+    "missing proof variables must stop the job before local adapters launch");
+  const start = workflow.indexOf("proof_keys=(");
+  const end = workflow.indexOf("proof_env=()", start);
+  assert.ok(start > 0 && end > start, "proof environment allowlist must be present");
+  const keys = workflow.slice(start, end).split(/\s+/);
+  for (const key of [
+    "CI", "GITHUB_ACTIONS", "DATABASE_URL", "DL01_PROOF_URL",
+    "TENANT_DL01_CLOSURE_PROOF", "PAYMONGO_SECRET_KEY",
+    "PAYMONGO_DISBURSEMENTS_ENABLED", "MALWARE_SCAN_URL",
+    "DOCUMENT_OBJECT_STORAGE_ENDPOINT", "PII_ENCRYPTION_KEY",
+    "BANK_DATA_ENCRYPTION_KEY", "TOTP_ENCRYPTION_KEY", "NODE_EXTRA_CA_CERTS",
+  ]) assert.ok(keys.includes(key), "isolated fixture missing required variable: " + key);
+  for (const forbidden of ["GITHUB_TOKEN", "GH_TOKEN", "NEON_DATABASE_URL", "PRODUCTION_DATABASE_URL"]) {
+    assert.ok(!keys.includes(forbidden), "do not leak privileged runner context: " + forbidden);
+  }
+});
+
 test("DL-01 fixture uses distinct canonical semi-monthly periods for independently released payout modes", () => {
   const first = releasedFixturePeriod("PROVIDER");
   const second = releasedFixturePeriod("MANUAL");
