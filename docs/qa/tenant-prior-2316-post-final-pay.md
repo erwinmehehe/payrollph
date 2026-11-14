@@ -97,6 +97,18 @@ into main, as has #1979's Org Explorer browser proof. This PR's exact-head
 successes on the older branch do **not** establish integration with either
 later main change.
 
+## Reproof trigger completeness
+
+The previous exact-head workflows did not watch every dependency exercised by
+the combined prior-employer / 2316 browser QA. All three workflows now
+explicitly watch the same 30 shared source, authorization, identity/MFA,
+year-end validation, client-component, migration-fixture, and test inputs.
+The cross-page source test rejects missing watcher entries, missing PR
+head checkout, or missing disposable PostgreSQL 16. The prior-employer SSR
+workflow's two separately cited manifest/inventory SHA references were
+renewed to the exact new workflow blob; **no page or API credit changed**.
+This closes a CI trigger gap, not the application-access risks below.
+
 ## Independent review blockers identified from source
 
 **These are source-identified authorization/privacy risks, not independently
