@@ -203,10 +203,22 @@ export function expectedSixPageManifest(input, read = readFileSync) {
     ["privilegedOperationsTokenOnly", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"],
   ]) m.metrics[name] = methods.filter(p => p.status === status).length;
   m.metrics.scopedPagesAndActions = m.scopedPages.length;
+  // Compute baseline counts from the actual page rows, not a pinned
+  // headline that goes stale as independently proved page work lands.
+  const selectedAlreadyCredited = selected.filter(t =>
+    input.scopedPages.find(p => p.path === t.path)?.status === "COVERED").length;
+  const coveredBefore = input.scopedPages.filter(p => p.status === "COVERED").length
+    - selectedAlreadyCredited;
+  const openBefore = input.scopedPages.filter(p => p.status === "GAP").length
+    + selectedAlreadyCredited;
   const covered = m.scopedPages.filter(p => p.status === "COVERED").length;
   const open = m.scopedPages.filter(p => p.status === "GAP").length;
-  assert.equal(covered, 10 + selected.length, "SIX_PAGE_REFUSED: unrelated coverage changed");
-  assert.equal(open, 11 - selected.length, "SIX_PAGE_REFUSED: unrelated gap changed");
+  assert.equal(covered, coveredBefore + selected.length,
+    "SIX_PAGE_REFUSED: unrelated coverage changed");
+  assert.equal(open, openBefore - selected.length,
+    "SIX_PAGE_REFUSED: unrelated gap changed");
+  assert.equal(covered + open, m.scopedPages.length,
+    "SIX_PAGE_REFUSED: every page needs one proven status");
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and \d+ page\/action GAPs/);
   m.acceptanceStatus = m.acceptanceStatus.replace(
     /^NOT ACCEPTED: \d+ API methods and \d+ page\/action GAPs/,
