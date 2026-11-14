@@ -3,9 +3,11 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   TARGETS, selectedTargets, verifySixInputs, verifySixPageCredits,
-  expectedSixPageManifest, historicSixPageView, gitBlobSha
+  expectedSixPageManifest, historicSixPageView, gitBlobSha,
+  verifyCurrentScopedPageGapCount
 } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import { verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { zeroCreditSsoProofFixture } from "../scripts/qa/payroll-run-sso-proof-fixture.mjs";
 
 const manifest = JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -96,5 +98,37 @@ test("fail closed when six-page source, proof, classification or totals are alte
     mutate(changed);
     assert.throws(() => verifySixPageCredits(changed),
       /SIX_PAGE_REFUSED|FIVE_PAGE_CREDIT_REFUSED|Expected|expected|match|equal|21|11/i);
+  }
+});
+
+test("SSO zero-credit replay may downgrade exactly 19 API methods, never page evidence", () => {
+  const fixture = zeroCreditSsoProofFixture(manifest);
+  assert.equal(fixture.metrics.gap, manifest.metrics.gap + 19);
+  assert.deepEqual(fixture.scopedPages, manifest.scopedPages);
+  const prior = {
+    CI: process.env.CI, GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
+    TENANT_SECOND_PASS_MODE: process.env.TENANT_SECOND_PASS_MODE
+  };
+  process.env.CI = "true";
+  process.env.GITHUB_ACTIONS = "true";
+  process.env.TENANT_SECOND_PASS_MODE = "isolated-ci-only";
+  try {
+    assert.equal(verifyCurrentScopedPageGapCount(fixture), 5,
+      "Exact withdrawn-method fixture must retain only independently sealed page evidence");
+    const altered = structuredClone(fixture);
+    altered.scopedPages[0].reason += " TEST-TAMPER";
+    assert.throws(() => verifyCurrentScopedPageGapCount(altered),
+      /SIX_PAGE_REFUSED|AssertionError/,
+      "Any changed page evidence must be refused even in the SSO fixture");
+    const alteredMethod = structuredClone(fixture);
+    alteredMethod.allApiRouteFiles["src/app/api/marketing/leads/route.ts"].methods[0].status = "GAP";
+    assert.throws(() => verifyCurrentScopedPageGapCount(alteredMethod),
+      /SIX_PAGE_REFUSED|AssertionError/,
+      "The fixture must not be used to downgrade unreviewed API methods");
+  } finally {
+    for (const [key, value] of Object.entries(prior)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 });

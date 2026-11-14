@@ -88,7 +88,7 @@ test('each sealed fresh input set equals the full locked-compiler import closure
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
           '361b9d545766d110e9522198432604ac13de47b6'],
         ['scripts/qa/tenant-six-scoped-page-credit.mjs',
-          '9cd4a8c1f7b0bdb6f0ce02d295bb1db78414efb3'],
+          '06297abfa53667088a42871bd8ce2b7de8b04105'],
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
           '7c06411860c77bb77484d9fe9f15e83a8793cc6f'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',

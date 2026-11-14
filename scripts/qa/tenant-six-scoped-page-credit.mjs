@@ -4,6 +4,7 @@
  * be retained. Earlier five-page and Worker360 credits remain immutable.
  */
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { verifyFivePageCredits, verifyCurrentScopedPageGapCount as verifyHistoricScopedPageGapCount } from "./tenant-five-scoped-page-credit.mjs";
@@ -299,6 +300,54 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
   const gaps = manifest.scopedPages.filter(page => page.status === "GAP").length;
   if (gaps === 11 || gaps === 16)
     return verifyHistoricScopedPageGapCount(manifest, read);
+  // The SSO caller reproof deliberately withdraws exactly 19 older API
+  // method credits in a disposable CI copy. That accounting downgrade must
+  // not invalidate independently sealed page receipts or silently authorize
+  // a different page/API ledger. Require the exact reversible fixture, then
+  // verify all page evidence against Git's unchanged committed PR head.
+  if (gaps === 5 && process.env.CI === "true" &&
+      process.env.GITHUB_ACTIONS === "true" &&
+      process.env.TENANT_SECOND_PASS_MODE === "isolated-ci-only" &&
+      manifest.metrics.gap === 21) {
+    const headText = execFileSync("git", ["show", "HEAD:" + MANIFEST], {
+      encoding: "utf8", maxBuffer: 8 * 1024 * 1024
+    });
+    const head = JSON.parse(headText);
+    assert.equal(head.metrics.gap, 2,
+      "SIX_PAGE_REFUSED: SSO fixture must start with the exact current 2-GAP API ledger");
+    const expected = structuredClone(head);
+    let held = 0;
+    for (const entry of Object.values(expected.allApiRouteFiles)) {
+      for (const row of entry.methods) {
+        if (row.status !== "COVERED" ||
+            row.testedBy?.kind !== "payroll-run-source-renewal-real-http-pg16" ||
+            row.historicalOracleSourceWithdrawal?.kind !==
+              "payroll-run-membership-oracle-source-withdrawal") continue;
+        row.status = "GAP";
+        row.testedBy = null;
+        row.reviewedUncertified = structuredClone(row.historicalOracleSourceWithdrawal);
+        delete row.historicalOracleSourceWithdrawal;
+        row.reason = "Fictional CI-only bootstrap: current caller receipt pending; zero credits. Not a committed ledger change.";
+        held++;
+      }
+    }
+    assert.equal(held, 19, "SIX_PAGE_REFUSED: SSO may only withdraw nineteen sealed renewals");
+    const allMethods = Object.values(expected.allApiRouteFiles).flatMap(entry => entry.methods);
+    expected.metrics.coveredAfter = allMethods.filter(row => row.status === "COVERED").length;
+    expected.metrics.gap = allMethods.filter(row => row.status === "GAP").length;
+    assert.equal(expected.metrics.coveredAfter, head.metrics.coveredAfter - 19);
+    assert.equal(expected.metrics.gap, head.metrics.gap + 19);
+    expected.acceptanceStatus = expected.acceptanceStatus.replace(
+      /^NOT ACCEPTED: \d+ API methods/,
+      "NOT ACCEPTED: " + expected.metrics.gap + " API methods");
+    assert.deepEqual(manifest, expected,
+      "SIX_PAGE_REFUSED: unreviewed SSO fixture mutation, page credit, API method or SQL proof drift");
+    const sealedRead = (path, ...args) =>
+      path === MANIFEST ? Buffer.from(headText) : read(path, ...args);
+    assert.equal(verifySixPageCredits(head, sealedRead), selectedTargets(sealedRead).length,
+      "SIX_PAGE_REFUSED: held SSO fixture does not certify independent page proofs");
+    return gaps;
+  }
   assert.equal(verifySixPageCredits(manifest, read), selectedTargets(read).length,
     "SIX_PAGE_REFUSED: live page probe requires every source-sealed receipt");
   return gaps;
