@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyPayoutProfileCredit } from "../scripts/qa/tenant-payout-profile-credit.mjs";
+import { verifyMkt01Credit } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
@@ -899,8 +900,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     assert.equal(expectedStatuses[path][verb],'COVERED','Only an actually inherited credit may be withdrawn');
     expectedStatuses[path][verb]='GAP';
   }
+  // One separately executed, source-pinned fictional-PG16 operator aggregate
+  // credit. Do not allow other historical GAP promotions. All route, runner,
+  // contract, workflow, denials, SQL snapshots and manifest totals are checked.
+  const mktPath = "src/app/api/marketing/leads/route.ts";
+  assert.equal(expectedStatuses[mktPath].GET, "GAP");
+  const mkt01Credits = verifyMkt01Credit();
+  assert.equal(mkt01Credits, 1);
+  expectedStatuses[mktPath].GET = "COVERED";
   assert.deepEqual(methodStatuses(m), expectedStatuses,
-    "Preserves inherited payroll and Worker 360 receipts while holding the changed OIDC callback uncredited");
+    "Preserves inherited exact-source credits and credits only the separately proven operator GET");
   const expectedCounts = {
     COVERED: snapshot.counts.COVERED + compliancePostCredits.length + creditedYearEndPromotions.length + issuedPromotions.length + payoutCredits + recovery.methodsCredited + resendCredits + subscriptionsCredits + staffingGetCredits + effectiveChangeCredits + reviewReleaseCredits + mweDecisionCredits + accountPasswordCredits + authLogoutCredits + receiptCredits + rootCredits + payoutReconciliationCredits + exportsPostCredits + payrollRunActionsCredits + emailCredits + careersPatchCredits + billingCredits + posDemandCredits + transfersCredits + birCandidateCredits + yearEndCredits + spendManagedCredits + migrationCredits + mergedRecoveryCredits + securityCredits + enterpriseCredits + accountEmailRequestCredits + invitationAcceptCredits,
     "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1,
@@ -918,6 +927,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   expectedCounts["PUBLIC-BY-DESIGN"] += architecturePublic.length;
   expectedCounts["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] += 1;
   expectedCounts.COVERED-=oracleHolds.size;expectedCounts.GAP+=oracleHolds.size;
+  expectedCounts.COVERED += mkt01Credits;
+  expectedCounts.GAP -= mkt01Credits;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
@@ -933,16 +944,16 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
     return plan.includes('- `'+verb+' /api/'+m.allApiRouteFiles[path].route+'` — [source]');
   }).length;
-  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits + oidcCallbackCredits + xenditPostCredits - frozenOracleHolds;
+  const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits + oidcCallbackCredits + xenditPostCredits - frozenOracleHolds + mkt01Credits;
   const frozenPublic = 7 + architecturePublic.length;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
   const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
-    - architecturePublic.length - 1 - oidcCallbackCredits - xenditPostCredits + frozenOracleHolds; // Worker 360 source-current credit and separate OIDC callback proof.
+    - architecturePublic.length - 1 - oidcCallbackCredits - xenditPostCredits + frozenOracleHolds - mkt01Credits; // Worker 360, OIDC hold, plus distinct operator GET.
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
   assert.equal(frozenGaps+oracleHolds.size-frozenOracleHolds, m.metrics.gap, "Frozen and supplementary renewals cannot hide GAPs");
   assert.ok(plan.includes(
-    "Frozen subtotal (2026-11-11 classification proposal): **" + frozenCovered + " COVERED + "
+    "Frozen subtotal (2026-11-14 MKT-01 source-linked regeneration): **" + frozenCovered + " COVERED + "
     + frozenPublic + " PUBLIC-BY-DESIGN + " + frozenPrivileged
     + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " + frozenGaps + " GAP = 406**"),
     "Current frozen subtotal must preserve prior credits while tracking only nine relabels");

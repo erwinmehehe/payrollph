@@ -37,6 +37,7 @@ import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "
 import { verifyEnterprisePostCredit } from "../scripts/qa/tenant-enterprise-admin-credit.mjs";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
+import { verifyMkt01Credit } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 /**
  * Complete-surface tenant-isolation manifest and drift guard.
  *
@@ -6376,6 +6377,14 @@ test("all credited proof links point to the claimed route and every recertified 
           ["GET", "POST"].includes(method.name)) {
         assert.equal(verifyInvitationAcceptCredits(manifest), 2,
           "Both separately executed invitation source/job receipts must verify");
+        continue;
+      }
+      // Exact one-method operator aggregate receipt. Do not extend the general
+      // evidence-file allowlist or credit a tenant-private/public endpoint.
+      if (path === "src/app/api/marketing/leads/route.ts" && method.name === "GET") {
+        assert.equal(proof.file, "scripts/qa/tenant-mkt01-marketing-report-http.mjs");
+        assert.equal(verifyMkt01Credit(), 1,
+          "operator-only PG16 200/403/401/503, forged selectors, immutable SQL and source pins");
         continue;
       }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
