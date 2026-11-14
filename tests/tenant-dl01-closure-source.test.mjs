@@ -141,7 +141,7 @@ test("DL-01 isolated proof propagates only explicitly required fictional environ
   const workflow = file(".github/workflows/tenant-dl01-closure.yml");
   assert.doesNotMatch(workflow, /sudo -E -u dl01proof/,
     "sudo -E is unreliable on newer runners and must not pass GitHub job secrets");
-  assert.match(workflow, /sudo -u dl01proof -- env -i HOME="\\$proof_home"/,
+  assert.match(workflow, /sudo -u dl01proof -- env -i HOME="\$proof_home"/,
     "restricted UID must receive a clean environment, not the runner's inherited environment");
   assert.ok(workflow.includes('proof_env+=("$key=${!key}")'),
     "all required variables must be explicitly forwarded as separate quoted arguments");
@@ -150,7 +150,7 @@ test("DL-01 isolated proof propagates only explicitly required fictional environ
   const start = workflow.indexOf("proof_keys=(");
   const end = workflow.indexOf("proof_env=()", start);
   assert.ok(start > 0 && end > start, "proof environment allowlist must be present");
-  const keys = workflow.slice(start, end).split(/\\s+/);
+  const keys = workflow.slice(start, end).split(/\s+/);
   for (const key of [
     "CI", "GITHUB_ACTIONS", "DATABASE_URL", "DL01_PROOF_URL",
     "TENANT_DL01_CLOSURE_PROOF", "PAYMONGO_SECRET_KEY",
