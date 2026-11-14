@@ -153,6 +153,7 @@ async function prove() {
   try {
     let ownSaves = 0, ownLoads = 0, denied = 0, browserActions = 0;
     const initialA = evidence("A-" + uuid), initialB = evidence("B-" + uuid);
+    const initialVictim = evidence("VICTIM-" + uuid);
     for (const [actor, input] of [[ownerA, initialA], [ownerB, initialB]]) {
       const save = await request(scopeFor(actor.org.id, actor.worker.id),
         actor.cookie, "POST", { action: "save", evidence: input, expectedDigest: "" });
@@ -170,6 +171,20 @@ async function prove() {
       await victimsUnchanged("Own evidence lifecycle");
     }
 
+    // Unlike an empty synthetic victim, this real higher-ID worker owns a
+    // persisted private tax record. A foreign success would now expose actual
+    // sensitive fixture bytes instead of passing against an empty source.
+    const victimSave = await request(
+      scopeFor(actualVictim.org.id, actualVictim.worker.id), actualVictim.cookie,
+      "POST", { action: "save", evidence: initialVictim, expectedDigest: "" });
+    assert.equal(victimSave.status, 200, "Victim must have nonempty saved private evidence");
+    const victimLoad = await request(
+      scopeFor(actualVictim.org.id, actualVictim.worker.id), actualVictim.cookie);
+    assert.equal(victimLoad.status, 200);
+    assert.equal(victimLoad.json?.record?.evidence?.employerName,
+      initialVictim.employerName);
+    allProtected[2] = await snapshot(actualVictim.org.id);
+
     const sameMaker = await request(scopeFor(ownerA.org.id, ownerA.worker.id),
       ownerA.cookie, "POST", {
         action: "approve", expectedDigest: (await request(
@@ -179,6 +194,11 @@ async function prove() {
       "Maker may not be their own checker");
     denied++;
 
+    // Keep separate post-authorization baselines for BOTH targeted employers:
+    // otherwise checking only the third-party victim could miss a mutation
+    // to employer B or an ungranted worker inside employer A.
+    const beforeDeniedA = await snapshot(ownerA.org.id);
+    const beforeDeniedB = await snapshot(ownerB.org.id);
     const otherOrg = await request(scopeFor(ownerB.org.id, ownerB.worker.id), ownerA.cookie);
     assert.ok([403,404].includes(otherOrg.status),
       "Real foreign-employer source must be refused");
@@ -190,10 +210,24 @@ async function prove() {
       "Real same-parent ungranted worker must not yield private prior tax evidence");
     assert.ok(!sameParent.text.includes(ungrantedWorker.employeeNo));
     denied++;
+    const foreignVictim = await request(
+      scopeFor(actualVictim.org.id, actualVictim.worker.id), ownerA.cookie);
+    assert.ok([403, 404].includes(foreignVictim.status),
+      "Higher-ID real foreign worker with saved evidence must be denied");
+    assert.ok(!foreignVictim.text.includes(initialVictim.employerName) &&
+      !foreignVictim.text.includes(actualVictim.worker.employeeNo),
+      "Foreign victim source bytes cannot appear in denial");
+    denied++;
+    assert.deepEqual(await snapshot(ownerA.org.id), beforeDeniedA,
+      "Same-parent ungranted worker denial must not mutate source or audit SQL");
+    assert.deepEqual(await snapshot(ownerB.org.id), beforeDeniedB,
+      "Foreign employer B denial must not mutate private records or audit SQL");
     await victimsUnchanged("Cross-employer and same-parent denial");
 
-    // Hydrated browser uses one actual persisted session but does not claim
-    // a real password/TOTP login; that proof belongs to independent browser QA.
+    // The hydrated actor uses an actual local password+TOTP login.
+    // The separately authorized checker remains a synthetic MFA-verified
+    // session: independent identity-provider and production login acceptance
+    // is NOT established by this fictional test.
     browser = await chromium.launch({headless:true});
     const context = await browser.newContext({viewport:{width:1280,height:800}});
     await context.route("**/*", route => {
@@ -280,6 +314,7 @@ async function prove() {
       orm.eq(s.userLegalEntityGrants.legalEntityId,ownerA.entity.id),
     )).returning({id:s.userLegalEntityGrants.id});
     assert.equal(deleted.length,1);
+    const beforeRevokedReads = await snapshot(ownerA.org.id);
     const revoked = await request(scopeFor(ownerA.org.id,ownerA.worker.id),ownerA.cookie);
     assert.notEqual(revoked.status,200,"Revoked entity grant cannot read approved tax data");
     assert.ok(!revoked.text.includes(revisedName));
@@ -289,9 +324,11 @@ async function prove() {
       {waitUntil:"domcontentloaded",timeout:60000});
     assert.equal(refused?.status(),404);
     denied++;
+    assert.deepEqual(await snapshot(ownerA.org.id), beforeRevokedReads,
+      "Revoked maker cannot mutate private source or audit SQL");
     await victimsUnchanged("Revoked grant");
 
-    assert.ok(denied>=6 && ownSaves===2 && ownLoads===2 && browserActions===3,
+    assert.ok(denied>=7 && ownSaves===2 && ownLoads===2 && browserActions===3,
       "All source lifecycle and foreign-denial checks must execute");
     const result = {
       family:"prior-evidence-hydrated-actions-real-api-pg16",
@@ -299,6 +336,11 @@ async function prove() {
       ownSavePositives:ownSaves,ownSourceLoads:ownLoads,hydratedBrowserActions:browserActions,
       rejectedForeignOrStaleActions:denied,
       exactDigestRevisionAndIndependentChecker:true,
+      populatedHigherIdForeignPriorEvidence:true,
+      employerBAndSameParentDeniedSqlUnchanged:true,
+      revokedMakerSqlUnchanged:true,
+      fictionalActorPasswordTotpLogin:true,
+      checkerUsesSyntheticMfaVerifiedSession:true,
       revokedLegalEmployerDenied:true,protectedSqlTables:tables.length,
       realProviderCalls:0,pageActionCredits:0,apiMethodCredits:0,
       independentSecurityReview:"PENDING",productionCertified:false,
