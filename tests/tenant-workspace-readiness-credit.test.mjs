@@ -1,5 +1,5 @@
 import {xenditPostCreditDelta} from '../scripts/qa/tenant-xendit-post-credit.mjs';
-import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
+import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";

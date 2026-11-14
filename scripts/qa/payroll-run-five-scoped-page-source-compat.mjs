@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
-import { historicOidcBatchView } from "./tenant-oidc-batch-credit.mjs";
+import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -55,7 +55,7 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   // recognize the two separately executed OIDC receipts. No page proof changes.
   let generator=String(read(GENERATOR));
   if(renewalBlob(generator)!==REVIEWED_GENERATOR_BLOB){
-  generator=uniqueSwap(generator,'import { historicOidcBatchView } from "./tenant-oidc-batch-credit.mjs";\n','');
+  generator=uniqueSwap(generator,'import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";\n','');
   generator=uniqueSwap(generator,'assert.equal(historicOidcBatchView(m, read).metrics.gap, 5);','assert.equal(m.metrics.gap, 5);');
   generator=uniqueSwap(generator,'assert.match(historicOidcBatchView(m, read).acceptanceStatus,','assert.match(m.acceptanceStatus,');
   generator=uniqueSwap(generator,'/^NOT ACCEPTED: \\d+ API methods and (16|11) page\\/action GAPs/, nextPrefix);','/^NOT ACCEPTED: 5 API methods and (16|11) page\\/action GAPs/, nextPrefix);');

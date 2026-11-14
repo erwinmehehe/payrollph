@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
+import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {oidcFullExecution,verifyOidcCallbackCredit,OIDC_CALLBACK,OIDC_RECEIPT} from '../scripts/qa/tenant-oidc-full-credit.mjs';
 import {assertHistoricalPinnedNetworkPreserved} from '../scripts/qa/tenant-node22-pinned-source-compat.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));

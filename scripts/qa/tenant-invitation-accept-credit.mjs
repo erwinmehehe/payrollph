@@ -245,4 +245,4 @@ export function verifyInvitationAcceptCredits(m) {
 }
 
 import {verifyOidcCallbackCredit, OIDC_CALLBACK} from './tenant-oidc-full-credit.mjs';
-import {verifyOidcBatchMethod,OIDC_START} from './tenant-oidc-batch-credit.mjs';
+import {verifyOidcBatchMethod,OIDC_START} from './tenant-oidc-batch-credit-verify.mjs';

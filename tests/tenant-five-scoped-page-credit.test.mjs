@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
+import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {
   TARGETS, verifyFivePageProofInputs, verifyFivePageCredits,
   expectedFivePageCreditManifest, gitBlobSha,

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
-import {verifyOidcBatchMethod} from './tenant-oidc-batch-credit.mjs';
+import {verifyOidcBatchMethod} from './tenant-oidc-batch-credit-verify.mjs';
 export const OIDC_CALLBACK='src/app/api/auth/sso/callback/route.ts';
 export const OIDC_RECEIPT='scripts/qa/tenant-oidc-full-renewal-receipt.json';
 const HARNESS='scripts/qa/tenant-oidc-full-http.mjs';

@@ -1,6 +1,6 @@
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {xenditPostCreditDelta,verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
-import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
+import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { oracleWithdrawalDelta,oracleRenewalDelta,reviewedOidcSourceSupersession } from './helpers/tenant-counts.mjs';

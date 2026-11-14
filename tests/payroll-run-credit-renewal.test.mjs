@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
 import {isReviewedFiveScopedPageProbeInput} from '../scripts/qa/payroll-run-five-scoped-page-source-compat.mjs';
+import {verifyOidcBatchCredits} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {isReviewedHeldSsoSecondPassInput} from '../scripts/qa/payroll-run-sso-source-reproof.mjs';
 import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
 import {verifyFreshPayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal-fresh-contract.mjs';
@@ -60,19 +61,21 @@ test('each sealed fresh input set equals the full locked-compiler import closure
         'Unreviewed execution input or import drift: '+name+': '+file);
       actual[file]=expected;
     }
-    // The changed page probe imports two new, separately source-sealed,
-    // page-only accounting modules. They cannot retroactively enter an
-    // immutable payroll execution receipt or extend its method credits.
+    // The page probe imports page accounting and the pure OIDC ledger view.
+    // Validate the two executed identity receipts, reconstruct the immutable
+    // page generator above, and pin exactly these bookkeeping modules. Neither
+    // may enter an archived execution receipt or its nineteen method credits.
     if(name==='secondPass'){
       assert.ok(isReviewedFiveScopedPageProbeInput(name,
         'scripts/qa/tenant-scoped-page-probes.mjs',
         cohort.sourcePins['scripts/qa/tenant-scoped-page-probes.mjs']));
       const reviewedPageOnlyImports = new Map([
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          '08335292d7534ac3618f59b6959bbd8133483dd7'],
-        ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          '7a373c60e33f9f276cf1c3f3007795b3fe3e1715'],
+          '366ece764403d9d88a92b2374eadeb78e2c62ff0'],
+        ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
+          '7ae4c1899d1b63fb47d4f92913f8fb367d3d9162'],
       ]);
+      assert.equal(verifyOidcBatchCredits(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'))),2);
       for(const [path,expectedSha] of reviewedPageOnlyImports){
         if(!Object.hasOwn(actual,path))continue;
         assert.equal(actual[path],expectedSha,'Unreviewed new page-only import: '+path);

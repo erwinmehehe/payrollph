@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {readOidcBatchExecution,verifyOidcBatchMethod,verifyOidcBatchCredits,historicOidcBatchView,
- OIDC_START,OIDC_BATCH_CALLBACK,OIDC_BATCH_RECEIPT} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
+ OIDC_START,OIDC_BATCH_CALLBACK,OIDC_BATCH_RECEIPT} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 const row=(m,path)=>m.allApiRouteFiles[path].methods.find(x=>x.name==='GET');
