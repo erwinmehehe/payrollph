@@ -1,12 +1,13 @@
 # Previous-employer review + BIR 2316 — post-final-pay tenant boundary
 
-**Scope:** Re-run the existing source-sealed real PostgreSQL 16 / localhost HTTP
-proofs for `/workspace/prior-employer` and `/workspace/2316` on the same
-proposed head that incorporates merged #1975's final-pay prior-employer change.
-This is **source and test orchestration only**. No application source, tax
-calculation, previous-employer evidence, API responses, released payroll,
-provider credentials, live feature flags, database migrations or production
-state is changed. **0 additional page or API method credits.**
+**Scope:** Fix the actual employer-authorization and employee-existence leaks
+identified after #1975 while re-running exact-head fictional PostgreSQL 16 /
+localhost browser/API evidence for `/workspace/prior-employer` and
+`/workspace/2316`. This PR **now changes three application API routes**:
+the separation listing, prior-evidence GET/POST error policy and Form 2316
+certificate preview GET/POST error policy. It does not change final-pay
+arithmetic, persisted payroll money, third-party providers, feature flags,
+schema migrations, or production state. **Zero new page or API-method credits.**
 
 ## Why this is needed
 
@@ -48,7 +49,14 @@ replace a hash without reviewing the changed authorization behavior.
 2. `tenant-2316-ssr-transfer-qa.yml`: synthetic PG16, separate owners,
    populated own 200, genuine foreign 404, frozen historical employer after
    current worker transfer, ungranted same-parent workers, revoked employer
-   grants/membership, and protected SQL snapshots unchanged.
+   grants/membership, and protected SQL snapshots unchanged. The strengthened
+   runner **directly calls `GET /api/separation`** before and after transfer
+   with two different same-parent legal-employer grants. It asserts old
+   released records stay with the frozen employer, mutable unsnapshotted draft
+   records follow the current employer, and missing/string-valued frozen
+   employer IDs never become accessible. It also compares actual GET
+   `/api/year-end/2316-certificate` response status/body/cache for a real
+   ungranted source versus an unknown separation.
 3. `tenant-2316-browser-pdf-qa.yml`: isolated Chromium + PG16 with
    password/TOTP logins, hydrated source review, actual GET and PDF POST,
    reviewed unsigned PDF bytes, digest-stale refusal, forged/foreign
@@ -62,8 +70,9 @@ replace a hash without reviewing the changed authorization behavior.
    checker. It exercises real HTTP prior-evidence GET/save, hydrated
    prior-employer form load/revision, checker approval of the current digest,
    self-approval and stale-digest denials, genuine cross-employer refusal,
-   same-parent worker refusal, and post-revocation API/page denial.
-   The genuine higher-ID victim also has its own persisted, nonempty prior-tax
+   same-parent worker refusal, post-revocation API/page denial, and matching
+   GET **and** POST error bodies for a real ungranted employee versus an
+   unknown employee. The genuine higher-ID victim also has its own persisted, nonempty prior-tax
    source. The runner compares **all protected employer-B SQL**, same-parent
    ungranted-employer SQL, revoked maker SQL and the higher-ID victim SQL after
    denied requests, rather than checking only an unrelated empty victim.
@@ -109,40 +118,50 @@ workflow's two separately cited manifest/inventory SHA references were
 renewed to the exact new workflow blob; **no page or API credit changed**.
 This closes a CI trigger gap, not the application-access risks below.
 
-## Independent review blockers identified from source
+## Authorization/privacy repairs (source committed; final-head proof required)
 
-**These are source-identified authorization/privacy risks, not independently
-confirmed production exploits.** Green synthetic QA is not sufficient to
-declare them resolved. None is fixed by this QA-only change:
+These issues were identified through source review; they were **not**
+confirmed as production exploits. They now have concrete runtime fixes and
+real synthetic browser/HTTP regression cases:
 
-1. **Employee-existence oracle** — `src/app/api/year-end/prior-evidence/route.ts`
-   forwards the distinct internal `PRIOR_EMPLOYEE_NOT_FOUND` and
-   `PRIOR_ENTITY_ACCESS_DENIED` values in a 409 JSON `code`. A payroll
-   operator with employer membership but without another legal-entity grant
-   may distinguish a real ungranted employee from an unknown ID. The current
-   test establishes **denial**, not indistinguishable responses. Require
-   a reviewed non-disclosing response policy and real same-parent negative
-   cases, including the unknown ID.
-2. **Released final-pay employer drift** — `GET /api/separation` filters its
-   joined records with `employees.legalEntityId` (the *current* employer).
-   A released separation / BIR source binds its historical legal employer to
-   `separationRecords.computationSnapshot.sourceFingerprint.employeeLegalEntityId`.
-   Following a transfer, the list can therefore select by a different entity
-   from the authorized historical source. Require a separate exact-head
-   two-employer transferred-worker PostgreSQL HTTP test, and a reviewed,
-   fail-closed policy for incomplete legacy snapshots. This QA-only PR does
-   **not** claim to fix the runtime route.
-3. **Certificate source error parity** — the early frozen separation guard
-   in `/api/year-end/2316-certificate` returns a 404 for an absent source,
-   but `assertEntityResource` may return a different denial for an
-   ungranted historical employer. The current proof verifies confidentiality
-   and reauthorization, **not** identical status/body/cache behavior.
-   Require identity/privacy review of the relevant authorization policies.
+1. **Prior-employer employee-existence parity:** The external 409 response
+   maps both internal `PRIOR_EMPLOYEE_NOT_FOUND` and
+   `PRIOR_ENTITY_ACCESS_DENIED` to `PRIOR_RECORD_UNAVAILABLE`, with the
+   same response body and private `no-store` policy on GET and POST.
+   Internal authorization remains fail-closed and source errors for an
+   authorized record remain distinguishable for actionable recovery.
+2. **Separation historical employer:** In multi-entity mode the GET list
+   applies a database-side source-fingerprint predicate when the snapshot
+   contains a verified JSON **number** employer ID. A bare draft with
+   `computationSnapshot = {}` can use the current employee entity; a
+   released/approved snapshot without valid historical attribution cannot
+   silently inherit the employee's new employer. The response adds
+   `Cache-Control: private, no-store` for sensitive separation data.
+   Unit-scoped access is still additionally subject to the existing org-unit
+   check; this is not a historical org-unit reconstruction.
+3. **BIR 2316 certificate existence parity:** After an authorized employer
+   is selected, both an unknown frozen source and one in an ungranted legal
+   employer now return identical 404 JSON; the transactionally reloaded
+   source-entity check also responds with the same 404. No PDF is generated
+   and no private source is returned in either case.
 
-**No page credits, acceptance flags or release approvals can be earned merely
-by adding source checks for these known-open risks.** If product source is
-changed, renew the reviewed SHA pins and run full exact-head PG16/browser
-tests; do not replace a pin without inspecting the change.
+The existing historical method proof receipts retain their original Git
+blob SHAs and workflow run IDs. The *new* handler blobs are recorded
+separately in `sourceRevisionReview`. This is **not a new claim that old
+tests executed on changed handlers**: reproof must be completed and inspected
+on the actual final PR head. If a PG16 fixture fails, fix the source or test;
+do not relabel another endpoint as covered to mask it.
+
+## Open product and release limitations
+
+This PR does **not** certify signed BIR filing, historic org-unit attribution,
+every tax computation variant, outside provider behavior, production login,
+live data, or real payroll disbursement. These are distinct surfaces.
+The two full workspace pages remain `GAP` with zero new page credits.
+No independent tax/security review has been performed, and none is implied
+by a green CI badge. A solo maintainer can make and document the repository
+merge decision after checking the exact-head results; production tax/legal
+compliance deserves separate specialist validation where appropriate.
 
 ## Exact-head and base-current limitations
 
@@ -156,15 +175,17 @@ overwrite newer accepted/main OIDC or page-proof records with this branch's
 older manifest. Independently inspect final-head test failures, skipped
 cases, SQL snapshots and reviewer sign-offs before merging.
 
-## Required human sign-offs before any credit or release
+## Solo-maintainer acceptance checklist
 
-- Verify the exact-head GitHub Actions runs; review synthetic own/victim
-  responses, source pins, protected SQL snapshots, browser logs and skipped
-  tests, not only a green summary badge.
-- Independently approve cross-employer access logic, post-transfer frozen
-  legal-employer selection, prior-evidence privacy, checker separation of
-  duties, final-pay tax source stability, and the authorized withholding
-  certificate lifecycle.
-- Keep every production money/provider/SSO/filer control disabled until
-  separate owner approvals. Do not merge into `main` based solely on a
-  source-only CI repair or provisional coverage numbers.
+- Review the actual final commit's full CI, PG16 transfer/denial matrices,
+  prior-employer browser actions, both GET/POST error-parity cases, refusal
+  tests, unchanged protected SQL, and source seals.
+- Confirm both workspace pages remain `GAP`, no extra API/page credits were
+  created, historic source receipts were not rewritten, and the proposed
+  `main` merge tree does not downgrade newer accepted OIDC/Org Explorer work.
+- Decide whether the remaining *product* limits above are acceptable for
+  the intended deployment. Document the owner decision. No fictional
+  second approver or independent review should be recorded.
+- Keep production money, filing, disbursement, providers and scheduler
+  disabled unless separately authorized and tested. The PR is never a
+  regulatory certification or automatic production rollout.
