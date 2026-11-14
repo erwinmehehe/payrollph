@@ -4,6 +4,16 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "src/app/api/separation/route.ts"
+      - "src/lib/final-pay-prior-employer-server.ts"
+      - "src/lib/final-pay.ts"
+      - "src/app/api/year-end/prior-evidence/route.ts"
+      - "src/app/api/year-end/2316-certificate/route.ts"
+      - "src/lib/year-end-prior-evidence-server.ts"
+      - "src/lib/bir-2316-certificate-server.ts"
+      - "tests/final-pay-prior-employer-annualization.test.ts"
+      - "tests/tenant-prior-2316-post-final-pay.test.mjs"
+      - "docs/qa/tenant-prior-2316-post-final-pay.md"
       - "src/app/workspace/2316/**"
       - "src/components/workspace/certificate-2316-review.tsx"
       - "src/app/api/year-end/2316-certificate/**"
@@ -29,6 +39,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "scripts/qa/tenant-2316-browser-pdf-*.mjs"
+      - "scripts/qa/tenant-prior-evidence-action-browser.mjs"
       - "scripts/qa/tenant-2316-ssr-transfer-*.mjs"
       - "tests/tenant-2316-browser-pdf-contract.test.mjs"
       - ".github/workflows/tenant-2316-browser-pdf-qa.yml"
@@ -44,7 +55,7 @@ concurrency:
 
 jobs:
   form2316-browser-pdf:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CI: "true"
@@ -102,6 +113,8 @@ jobs:
           node --check scripts/qa/tenant-2316-browser-pdf-contract.mjs
           node --check scripts/qa/tenant-2316-browser-pdf-http.mjs
           node --test tests/tenant-2316-browser-pdf-contract.test.mjs
+          node --test tests/tenant-prior-2316-post-final-pay.test.mjs
+          node --import tsx --test tests/final-pay-prior-employer-annualization.test.ts
           node --import tsx --test tests/tenant-2316-legal-employer-worker.test.ts
       - name: Generate unique disposable encryption keys
         shell: bash
@@ -139,6 +152,12 @@ jobs:
         env:
           NODE_ENV: production
         run: node --import tsx scripts/qa/tenant-2316-browser-pdf-http.mjs
+      - name: Prove hydrated prior-employer load/save, independent checker and tenant denials
+        env:
+          NODE_ENV: production
+        run: |
+          node --check scripts/qa/tenant-prior-evidence-action-browser.mjs
+          node --import tsx scripts/qa/tenant-prior-evidence-action-browser.mjs
       - name: Bounded server logs only on failure
         if: failure()
         run: tail -n 80 /tmp/tenant-2316-browser-pdf.log || true

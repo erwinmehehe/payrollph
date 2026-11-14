@@ -4,6 +4,16 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "src/app/api/separation/route.ts"
+      - "src/lib/final-pay-prior-employer-server.ts"
+      - "src/lib/final-pay.ts"
+      - "src/app/api/year-end/prior-evidence/route.ts"
+      - "src/app/api/year-end/2316-certificate/route.ts"
+      - "src/lib/year-end-prior-evidence-server.ts"
+      - "src/lib/bir-2316-certificate-server.ts"
+      - "tests/final-pay-prior-employer-annualization.test.ts"
+      - "tests/tenant-prior-2316-post-final-pay.test.mjs"
+      - "docs/qa/tenant-prior-2316-post-final-pay.md"
       - "src/app/workspace/prior-employer/page.tsx"
       - "src/app/workspace/2316/page.tsx"
       - "tests/tenant-2316-legal-employer-worker.test.ts"
@@ -80,6 +90,7 @@ jobs:
           node --check scripts/qa/tenant-prior-review-worker-contract.mjs
           node --check scripts/qa/tenant-prior-review-worker-http.mjs
           node --test tests/tenant-prior-review-worker-contract.test.mjs
+          node --test tests/tenant-prior-2316-post-final-pay.test.mjs
           node --import tsx --test tests/tenant-prior-review-worker.test.ts
           node --import tsx --test tests/tenant-2316-legal-employer-worker.test.ts
       - name: Generate disposable encryption keys
