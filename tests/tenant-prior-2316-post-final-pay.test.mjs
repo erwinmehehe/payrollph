@@ -13,13 +13,13 @@ import test from "node:test";
 export const SEALED_SOURCES = Object.freeze({
   "src/app/workspace/prior-employer/page.tsx": "e55809f26075c142240675826a0c353d403a20e6",
   "src/app/workspace/2316/page.tsx": "f4badb3f1782812aab672665340e967911cff2cb",
-  "src/app/api/year-end/prior-evidence/route.ts": "d2fc2fa7c4257d7e33545c8a23ea310abae7077d",
-  "src/app/api/year-end/2316-certificate/route.ts": "b33979302d7e9db18ba49a1bb7b4c8d7e5e09194",
+  "src/app/api/year-end/prior-evidence/route.ts": "b7d3cde4a9d66f408c40c9e34ce50cacc3dc540b",
+  "src/app/api/year-end/2316-certificate/route.ts": "df2fa42c9f3995f7ebb62a3141ba2c0c3140161d",
   "src/lib/year-end-prior-evidence-server.ts": "c900ac326fc1836fd51602952ce966beeaf8c084",
   "src/lib/bir-2316-certificate-server.ts": "34c7be32a808b9a6835ef54e40c7a9fabc695e16",
   "src/lib/bir-2316-employer.ts": "ffe0a3d3b9be43be9befd4e1607d942249eaf7e3",
   "src/lib/final-pay-prior-employer-server.ts": "fe30da71932ec42d6302232891f0f1abd89c1abc",
-  "src/app/api/separation/route.ts": "a4d45ab01a5ede8f6f195ba09d3eb3e8f31de3fa",
+  "src/app/api/separation/route.ts": "d3a7d1bcb04be2d746e9c370bcc28c5a5c67db8b",
   "src/lib/final-pay.ts": "bcbcfbc89a6728ffaa08f84df3fad4ce34922189",
   "src/lib/tenant-prior-review-worker.ts": "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
   "src/lib/tenant-payroll-review-page.ts": "37766e6f9ec0dd8d1098bc8987bbd5de899a3739",
@@ -141,6 +141,19 @@ export function verifyPostFinalPayWorkspaceSources(read = readFileSync) {
   assert.equal((separation.match(/await assertFinalPayPriorSnapshot\(/g) ?? []).length, 3,
     "Initiation, finance approval and release must each recheck the approved source");
 
+  // App-level remediation must be checked by the same source-sealed review
+  // as the final-pay authority chain, not only by the real browser proof.
+  includesAll(priorApi, [
+    '"PRIOR_EMPLOYEE_NOT_FOUND"', '"PRIOR_ENTITY_ACCESS_DENIED"',
+    '"PRIOR_RECORD_UNAVAILABLE"', '.includes(internalCode)',
+  ], "Prior API existence-oracle response parity");
+  includesAll(separation, [
+    "const selectedEmployerPredicate = selectedLegalEntityId === null",
+    "jsonb_typeof(", "sourceFingerprint,employeeLegalEntityId",
+    'eq(separationRecords.status, "draft")',
+    "eq(employees.legalEntityId, selectedLegalEntityId)",
+    '"Cache-Control": "private, no-store"',
+  ], "Released separation historic employer selector");
   const certApi = files["src/app/api/year-end/2316-certificate/route.ts"];
   ordered(certApi, [
     "await getSessionUser()", "await assertOrganizationRole(",
@@ -150,6 +163,11 @@ export function verifyPostFinalPayWorkspaceSources(read = readFileSync) {
     "assertEntityResource(entityScope.context, source.legalEntityId)",
     "input.sourceDigest !== sourceDigest", "await render2316CertificatePdf(source, review)",
   ], "2316 API frozen historical employer and unsigned PDF");
+  includesAll(certApi, [
+    'if (!frozen || assertEntityResource(entityScope.context,',
+    '{ error: "Certificate source not found." }, { status: 404, headers }',
+    "if (sourceDenied) return Response.json(",
+  ], "2316 unknown-vs-ungranted source parity");
   const certificateSource = files["src/lib/bir-2316-certificate-server.ts"];
   includesAll(certificateSource, [
     'separation.status !== "released"',
