@@ -88,7 +88,10 @@ jobs:
         run: |
           node --check scripts/qa/final-pay-prior-employer-http.mjs
           npm run db:push
-          node scripts/qa/apply-isolated-baseline.mjs
+      # Preserve the repository-wide CI contract: install the guarded baseline
+      # only after schema push completes in its own preceding workflow step.
+      - name: Apply reviewed disposable PG16 baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build production-mode Next against fictional DB (no providers)
         run: npm run build
       - name: Start localhost-only server
