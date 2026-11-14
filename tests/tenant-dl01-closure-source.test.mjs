@@ -64,7 +64,15 @@ test("No production code, real key, bucket or external host can be used in adapt
   assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED: 'false'/);
   assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED=true/);
   assert.doesNotMatch(workflow, /secrets\./, "CI must never import GitHub production secrets");
-  assert.doesNotMatch(workflow, /NEON_DATABASE_URL|PRODUCTION_DATABASE_URL/);
+  // Naming a forbidden env variable in an assert-absent preflight is safe;
+  // injecting it into YAML or forwarding it to the proof UID is not.
+  assert.doesNotMatch(workflow,
+    /(?:^|\\s)(?:NEON_DATABASE_URL|PRODUCTION_DATABASE_URL)\\s*[:=]/m,
+    "Production database credentials cannot be passed into fictional proof");
+  for (const name of ["NEON_DATABASE_URL", "PRODUCTION_DATABASE_URL"]) {
+    assert.ok(workflow.includes('"' + name + '"'),
+      "Production database env must be explicitly denied by the proof preflight: " + name);
+  }
 });
 test("All four independent security clauses are present in shared runner and families", () => {
   const shared = file("scripts/qa/tenant-dl01-closure-shared.mjs");
