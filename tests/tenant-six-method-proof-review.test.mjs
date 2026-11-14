@@ -1028,7 +1028,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
       const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
-      const receipt = verifyFiveMethodCredits(baseline, readMainFile);
+      // Historical Worker 360 evidence predates the five separately proven
+      // #1973 pages. Mask only those five receipts while verifying the sealed
+      // old method cohort against origin/main; the live ledger stays at 11 gaps.
+      const receipt = verifyFiveMethodCredits(historicWorker360ProofView(baseline), readMainFile);
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
         "Historical five-method holds must reflect only the dedicated validated transfer promotion");
