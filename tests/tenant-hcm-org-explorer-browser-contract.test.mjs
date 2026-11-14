@@ -30,8 +30,10 @@ test("fictional Chromium refuses remote env and verifies actual A-B-A history cl
   assert.match(browser, /process\.env\.DATABASE_URL/);
   assert.match(browser, /await import\("playwright"\)/);
   assert.match(browser, /context\.addCookies/);
-  assert.match(browser, /context\.request\.get\(ORIGIN \+ "\/api\/account"/);
-  assert.match(browser, /return address\.origin === ORIGIN \? route\.continue\(\) : route\.abort\(\)/);
+  assert.match(browser, /const BROWSER_ORIGIN = "http:\/\/localhost:3000"/);
+  assert.match(browser, /url: BROWSER_ORIGIN, secure: true, httpOnly: true/);
+  assert.match(browser, /context\.request\.get\(BROWSER_ORIGIN \+ "\/api\/account"/);
+  assert.match(browser, /return address\.origin === BROWSER_ORIGIN \? route\.continue\(\) : route\.abort\(\)/);
   assert.match(browser, /for \(const actor of \[a, b, a\]\)/);
   assert.match(browser, /actor\.position\.code/);
   assert.match(browser, /Recorded worker reference #/);
