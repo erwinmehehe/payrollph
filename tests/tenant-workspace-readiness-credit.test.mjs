@@ -2,6 +2,7 @@ import {xenditPostCreditDelta} from '../scripts/qa/tenant-xendit-post-credit.mjs
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import { historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -31,6 +32,7 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   const m = manifest();
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
+  assert.equal(verifyCurrentScopedPageGapCount(m), 11);
   const base=baseTenantManifest();
   if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP' && m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED'?1:0;
     const yearEndHold=yearEndHoldDelta(base.manifest,m)-yearEndRenewalDelta(base.manifest,m);
@@ -38,9 +40,12 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
     const formerWorker = base.manifest.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
     const currentWorker = m.allApiRouteFiles[workerPath].methods.find(x => x.name === "GET");
-    assert.equal(verifyWorker360LegalEmployerCredits(m),2);
+    // The original Worker 360 source verifier was sealed at 16 page gaps.
+    // Preserve its historical view without downgrading the five new live credits.
+    const historicalWorker360 = historicWorker360ProofView(m);
+    assert.equal(verifyWorker360LegalEmployerCredits(historicalWorker360),2);
     assert.equal(currentWorker.status, "COVERED");
-    verifyWorker360PageCredit(m);
+    assert.equal(verifyWorker360PageCredit(historicalWorker360), 16);
     const restoredWorkerCredit = formerWorker.status === "GAP" ? 1 : 0;
     const renewedExports=isVerifiedOracleRenewal(m,'src/app/api/payroll-runs/[id]/exports/route.ts','POST')?exportsDelta:0;
     const callback=m.allApiRouteFiles[OIDC_CALLBACK].methods[0];
