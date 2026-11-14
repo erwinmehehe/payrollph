@@ -9,7 +9,7 @@ import {
 } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { assertMkt01Receipt } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
-import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, expectedSixPageManifest, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 
 const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 assert.equal(verifySixPageCredits(live), selectedTargets().length,
@@ -60,7 +60,11 @@ test("five page-only credits preserve the API ledger; only separately proved MKT
 
 test("generator re-computation is byte-identical and does not touch unrelated ledger fields", () => {
   const normalized = JSON.stringify(expectedFivePageCreditManifest(m), null, 2) + "\n";
-  assert.equal(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"), normalized);
+  assert.equal(JSON.stringify(m, null, 2) + "\n", normalized,
+    "The original five-page ledger must still regenerate byte-for-byte");
+  assert.equal(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"),
+    JSON.stringify(expectedSixPageManifest(live), null, 2) + "\n",
+    "The live six-page ledger must independently regenerate byte-for-byte");
   assert.equal(m.metrics.routeFiles, Object.keys(m.allApiRouteFiles).length);
   const methods = Object.values(m.allApiRouteFiles).flatMap(f => f.methods);
   assert.equal(m.metrics.coveredAfter, methods.filter(x => x.status === "COVERED").length);
