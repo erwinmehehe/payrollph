@@ -1,0 +1,136 @@
+name: SAML public metadata fresh decision proof (PG16 HTTP, zero credits)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'src/app/api/auth/saml/metadata/**'
+      - 'src/lib/saml.ts'
+      - 'src/lib/security-request.ts'
+      - 'scripts/qa/tenant-saml-metadata-*.mjs'
+      - 'tests/tenant-saml-metadata-*.test.mjs'
+      - 'scripts/qa/tenant-table-env.mjs'
+      - '.github/workflows/tenant-saml-metadata-public-http.yml'
+      - '.github/workflows/tenant-saml-metadata-fresh-http.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-saml-fresh-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  public-saml-metadata:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SAML_FRESH_PROOF_MODE: fictional-pg16-public-metadata
+      SAML_PROOF_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      SAML_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TENANT_SAML_METADATA_MODE: isolated-ci-only
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      OPENAI_API_KEY: ''
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_LIVE_APPROVED: 'false'
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export isolated disposable PostgreSQL environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          echo 'TENANT_SAML_METADATA_MODE=isolated-ci-only' >> "$GITHUB_ENV"
+          for flag in FINAL_PAY_SIGNED_REVIEW_ENABLED EXACT_THIRTEENTH_CENTAVOS_ENABLED PAYROLL_CALCULATION_HISTORY_ENABLED NEXT_CSP_ENABLED; do
+            echo "$flag=false" >> "$GITHUB_ENV"
+          done
+      - name: Exact head, source pins, handler regressions and zero-credit inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SAML_PROOF_HEAD_SHA"
+          node --check scripts/qa/tenant-saml-metadata-public-contract.mjs
+          node --check scripts/qa/tenant-saml-metadata-public-http.mjs
+          node --test tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+          git cat-file -e "${SAML_PROOF_BASE_SHA}^{commit}"
+          npm run tenant:repin:check -- --base "$SAML_PROOF_BASE_SHA"
+      - name: Ephemeral encryption keys only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PG16 schema
+        run: npm run db:push
+      - name: Apply reviewed test-only baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production Next against disposable DB
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-saml-public.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$SECURITY_SMOKE_URL/login" >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 40 /tmp/tenant-saml-public.log || true
+          exit 1
+      - name: Enabled XML, disabled/missing privacy, forged selectors and unchanged SQL
+        run: node --import tsx scripts/qa/tenant-saml-metadata-fresh-http.mjs
+      - name: Retain sanitized fresh public-boundary receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tenant-saml-metadata-fresh-receipt
+          path: /tmp/payrollph-saml-metadata-public/receipt.json
+          if-no-files-found: error
+      - name: Print bounded localhost failures only
+        if: failure()
+        run: |
+          if test -f /tmp/tenant-saml-public.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/tenant-saml-public.log | tail -n 20 | cut -c 1-160 || true
+          fi
