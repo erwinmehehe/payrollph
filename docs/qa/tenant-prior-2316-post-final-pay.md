@@ -51,10 +51,22 @@ replace a hash without reviewing the changed authorization behavior.
    grants/membership, and protected SQL snapshots unchanged.
 3. `tenant-2316-browser-pdf-qa.yml`: isolated Chromium + PG16 with
    password/TOTP logins, hydrated source review, actual GET and PDF POST,
-   reviewed unsigned PDF bytes, digest-stale refusal, forged/foreign provider
-   and employer requests, historical transfer and revoke checks.
+   reviewed unsigned PDF bytes, digest-stale refusal, forged/foreign
+   employer requests, historical transfer and revoke checks.
    The existing final-pay prior-employer **unit regression** is executed
    alongside the cross-page source contract.
+4. `scripts/qa/tenant-prior-evidence-action-browser.mjs` runs **after**
+   the separate 2316 browser/PDF proof in the same disposable PG16 job.
+   It seeds independent fictional company owners, a genuine higher-ID
+   victim, a same-parent ungranted employee and a separately authorized
+   checker. It exercises real HTTP prior-evidence GET/save, hydrated
+   prior-employer form load/revision, checker approval of the current digest,
+   self-approval and stale-digest denials, genuine cross-employer refusal,
+   same-parent worker refusal, and post-revocation API/page denial.
+   Persisted protected victim SQL is compared before and after actions.
+   The browser uses a fictional persisted session: this runner **does not**
+   claim genuine password/TOTP browser login. It is additional candidate
+   evidence, not an accepted full-page credit.
 
 All three run with real database assertions against **fictional local PG16
 only**; production providers, worker, scheduler and payment flags stay OFF.
@@ -67,10 +79,11 @@ claimed until the jobs finish successfully and logs are inspected.
 Keep both pages `GAP`, `pageActionCredits: 0`, and
 `independentlyAccepted: false`. Successful source checks and isolated
 SSR/browser API evidence are still not independent review or full
-production-page-action acceptance. In particular, the prior-employer client
-load, save, **different-user checker approval** and negative API mutation
-lifecycle require a separate integrated browser/API+PG16 acceptance receipt
-before the prior-employer page can be proposed for a whole-page credit.
+production-page-action acceptance. The additional prior-employer browser
+runner now tests load, save and **different-user checker approval** on
+fictional PG16, but its exact-final-head execution and independent inspection
+remain mandatory. It is not a receipt of approved production sign-in, all
+prior-evidence policy variants, or an accepted whole-page action surface.
 Existing 2316 unsigned PDF evidence does not establish statutory filing,
 approved certificate signature, payment or historical document delivery.
 
