@@ -63,10 +63,14 @@ replace a hash without reviewing the changed authorization behavior.
    prior-employer form load/revision, checker approval of the current digest,
    self-approval and stale-digest denials, genuine cross-employer refusal,
    same-parent worker refusal, and post-revocation API/page denial.
-   Persisted protected victim SQL is compared before and after actions.
-   The browser uses a fictional persisted session: this runner **does not**
-   claim genuine password/TOTP browser login. It is additional candidate
-   evidence, not an accepted full-page credit.
+   The genuine higher-ID victim also has its own persisted, nonempty prior-tax
+   source. The runner compares **all protected employer-B SQL**, same-parent
+   ungranted-employer SQL, revoked maker SQL and the higher-ID victim SQL after
+   denied requests, rather than checking only an unrelated empty victim.
+   The maker browser uses a **real localhost password + TOTP login with fictional
+   credentials**; the separate checker is a different persisted user with a
+   **synthetic MFA-verified session**, not an independently proven real login.
+   This remains QA candidate evidence, not an accepted full-page credit.
 
 All three run with real database assertions against **fictional local PG16
 only**; production providers, worker, scheduler and payment flags stay OFF.
@@ -88,7 +92,57 @@ Existing 2316 unsigned PDF evidence does not establish statutory filing,
 approved certificate signature, payment or historical document delivery.
 
 The anonymous SSO resolve and disabled SAML metadata API policy holds are
-separate and untouched, as is PR #1977's unmerged OIDC proof accounting.
+separate and untouched. PR #1977's OIDC proof accounting has since merged
+into main, as has #1979's Org Explorer browser proof. This PR's exact-head
+successes on the older branch do **not** establish integration with either
+later main change.
+
+## Independent review blockers identified from source
+
+**These are source-identified authorization/privacy risks, not independently
+confirmed production exploits.** Green synthetic QA is not sufficient to
+declare them resolved. None is fixed by this QA-only change:
+
+1. **Employee-existence oracle** — `src/app/api/year-end/prior-evidence/route.ts`
+   forwards the distinct internal `PRIOR_EMPLOYEE_NOT_FOUND` and
+   `PRIOR_ENTITY_ACCESS_DENIED` values in a 409 JSON `code`. A payroll
+   operator with employer membership but without another legal-entity grant
+   may distinguish a real ungranted employee from an unknown ID. The current
+   test establishes **denial**, not indistinguishable responses. Require
+   a reviewed non-disclosing response policy and real same-parent negative
+   cases, including the unknown ID.
+2. **Released final-pay employer drift** — `GET /api/separation` filters its
+   joined records with `employees.legalEntityId` (the *current* employer).
+   A released separation / BIR source binds its historical legal employer to
+   `separationRecords.computationSnapshot.sourceFingerprint.employeeLegalEntityId`.
+   Following a transfer, the list can therefore select by a different entity
+   from the authorized historical source. Require a separate exact-head
+   two-employer transferred-worker PostgreSQL HTTP test, and a reviewed,
+   fail-closed policy for incomplete legacy snapshots. This QA-only PR does
+   **not** claim to fix the runtime route.
+3. **Certificate source error parity** — the early frozen separation guard
+   in `/api/year-end/2316-certificate` returns a 404 for an absent source,
+   but `assertEntityResource` may return a different denial for an
+   ungranted historical employer. The current proof verifies confidentiality
+   and reauthorization, **not** identical status/body/cache behavior.
+   Require identity/privacy review of the relevant authorization policies.
+
+**No page credits, acceptance flags or release approvals can be earned merely
+by adding source checks for these known-open risks.** If product source is
+changed, renew the reviewed SHA pins and run full exact-head PG16/browser
+tests; do not replace a pin without inspecting the change.
+
+## Exact-head and base-current limitations
+
+The previously checked PR head `a05b562d4811456c8539f880610f2768385d8004`
+had 49 successful GitHub Actions workflows and one skipped workflow. That
+is historic QA evidence only: newer QA changes in this PR must pass on their
+**own** final head. At review time, this branch was also behind `main`,
+which has merged #1977 and #1979; source review and CI after an eventual
+integration/rebase must re-establish the full evidence ledger. Never
+overwrite newer accepted/main OIDC or page-proof records with this branch's
+older manifest. Independently inspect final-head test failures, skipped
+cases, SQL snapshots and reviewer sign-offs before merging.
 
 ## Required human sign-offs before any credit or release
 
