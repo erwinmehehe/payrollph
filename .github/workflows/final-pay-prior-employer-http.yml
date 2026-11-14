@@ -1,0 +1,114 @@
+name: Final-pay prior-employer flag-ON Separation HTTP acceptance (fictional PG16)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/final-pay-prior-employer-http.yml'
+      - 'scripts/qa/final-pay-prior-employer-http.mjs'
+      - 'src/app/api/separation/**'
+      - 'src/lib/final-pay-prior-employer-server.ts'
+      - 'src/lib/final-pay.ts'
+      - 'src/lib/year-end-prior-evidence*'
+      - 'src/lib/multi-entity-server.ts'
+      - 'src/db/**'
+      - 'tests/final-pay-prior-employer-*.test.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prior-final-pay-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fictional-flag-on-separation:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Manila
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: 'true'
+      MULTI_ENTITY_ENABLED: 'true'
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export disposable local-only environment, providers OFF
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys (fictional only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Source syntax and disposable PG16 schema
+        run: |
+          node --check scripts/qa/final-pay-prior-employer-http.mjs
+          npm run db:push
+          node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next against fictional DB (no providers)
+        run: npm run build
+      - name: Start localhost-only server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/prior-final-pay-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/prior-final-pay-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/prior-final-pay-next.log
+          exit 1
+      - name: Real authenticated flag-ON Separation HTTP, same-org foreign denial, three-actor fictional release
+        run: node --import tsx scripts/qa/final-pay-prior-employer-http.mjs
+      - name: Diagnostic server output on failure
+        if: failure()
+        run: cat /tmp/prior-final-pay-next.log || true
