@@ -53,7 +53,6 @@ async function prove() {
   const v = await pool.query("SHOW server_version_num");
   assert.equal(Math.floor(Number(v.rows[0].server_version_num) / 10000), 16,
     "Only disposable PostgreSQL 16 is permitted");
-  const [a, b, victim] = [];
   // Existing 2316 browser proof may have already seeded its own fictional rows:
   // identify all of this test's employers by new random names, not by IDs.
   const actors = [];
