@@ -9,6 +9,7 @@ on:
       - "scripts/qa/tenant-hcm-org-explorer-page-contract.mjs"
       - "scripts/qa/tenant-hcm-org-explorer-page-http.mjs"
       - "tests/tenant-hcm-org-explorer-page-contract.test.mjs"
+      - "tests/tenant-hcm-org-explorer-client-scope.test.mjs"
       - "src/app/hcm/org-explorer/**"
       - "src/app/api/hcm/org-explorer/**"
       - "src/app/api/hcm/position-history/**"
@@ -99,6 +100,7 @@ jobs:
           node --check scripts/qa/tenant-hcm-org-explorer-page-contract.mjs
           node --check scripts/qa/tenant-hcm-org-explorer-page-http.mjs
           node --test tests/tenant-hcm-org-explorer-page-contract.test.mjs
+          node --test tests/tenant-hcm-org-explorer-client-scope.test.mjs
           node --test tests/tenant-hcm-page-api-ci-coverage.test.mjs
       - name: Generate ephemeral-only encryption keys
         shell: bash
