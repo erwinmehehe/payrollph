@@ -23,6 +23,8 @@ function refuseUnsafeEnvironment() {
   assert.equal(url.pathname, "/app_db");
   assert.equal(url.username, "postgres");
   assert.equal(process.env.SECURITY_SMOKE_URL, "http://127.0.0.1:3000");
+  assert.equal(process.env.FINAL_PAY_FLAG_OFF_PROOF_URL, "http://127.0.0.1:3001",
+    "Flag-toggle proof must use only the second localhost-only fictional server");
 }
 refuseUnsafeEnvironment();
 
@@ -36,15 +38,16 @@ const [{ db, pool }, s, { eq }, { priorIntake }, { freezeSeparationIntent }] =
   ]);
 
 const base = process.env.SECURITY_SMOKE_URL;
+const flagOffBase = process.env.FINAL_PAY_FLAG_OFF_PROOF_URL;
 function expect(response, code, label) {
   assert.equal(response.status, code,
     label + " expected " + code + " got " + response.status + " " + response.text.slice(0, 400));
   return response.json;
 }
-async function http(path, cookie, method = "GET", body) {
-  const response = await fetch(base + path, {
+async function http(path, cookie, method = "GET", body, targetBase = base) {
+  const response = await fetch(targetBase + path, {
     method, cache: "no-store", redirect: "manual",
-    headers: { cookie, origin: base, "sec-fetch-site": "same-origin",
+    headers: { cookie, origin: targetBase, "sec-fetch-site": "same-origin",
       "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -188,6 +191,21 @@ async function prove() {
       clearanceReason: "Fictional department clearance only; no outside action",
     }), 200, "Independent reviewer " + field + " clearance");
   }
+  // A separate Next process sharing this disposable DB switches the flag OFF
+  // after the reviewed-2316 package was created ON. The authenticated Finance
+  // approval must fail closed, without mutating the prior evidence or package.
+  const beforeFlagToggle = await db.select().from(s.separationRecords)
+    .where(eq(s.separationRecords.id, id));
+  const toggledOff = expect(await http("/api/separation", cookies[1], "PATCH", {
+    id, action: "approve",
+  }, flagOffBase), 409, "Flag OFF after reviewed prior-employer preparation blocks approval");
+  assert.equal(toggledOff.code, "FINAL_PAY_PRIOR_EMPLOYER_EVIDENCE_CHANGED");
+  const afterFlagToggle = await db.select().from(s.separationRecords)
+    .where(eq(s.separationRecords.id, id));
+  assert.deepEqual(afterFlagToggle, beforeFlagToggle,
+    "Flag-OFF rejection must leave the existing final-pay package unchanged");
+  assert.equal(afterFlagToggle[0].status, "draft");
+
   await db.update(s.yearEndPriorEvidence).set({ revision: priorRow.revision + 1 })
     .where(eq(s.yearEndPriorEvidence.id, priorRow.id));
   const stale = expect(await http("/api/separation", cookies[1], "PATCH", {
@@ -220,7 +238,7 @@ async function prove() {
     reviewedPriorEvidence: true, independentEvidenceChecker: true,
     verifiedTaxDue: 750, verifiedNetFinalPay: 15700,
     foreignReadHidden: true, foreignPostDenied: true, foreignPatchDenied: true,
-    changedEvidenceApprovalDenied: true,
+    changedEvidenceApprovalDenied: true, flagOffApprovalDenied: true,
     independentFinancialChecker: true, thirdReleaseActor: true,
     fictionalDbStatusOnly: true, bankSettlement: false,
     externalProvider: false, productionFlagEnabled: false,

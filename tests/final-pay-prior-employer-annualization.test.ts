@@ -139,3 +139,15 @@ test("Prepared prior-employer snapshot blocks flag OFF before creation transacti
   assert.match(post, /criticalReleaseFlagEnabled\("yearEndPriorEvidence"\) \|\| computationSnapshot\.priorEmployerEvidence !== undefined/,
     "The initiation transaction must reject a previously flag-ON snapshot even after flag switched OFF");
 });
+
+test("Flag-transition HTTP proof requires a distinct localhost-only OFF server and unchanged database", () => {
+  const runner = readFileSync("scripts/qa/final-pay-prior-employer-http.mjs", "utf8");
+  const workflow = readFileSync(".github/workflows/final-pay-prior-employer-http.yml", "utf8");
+  assert.match(runner, /FINAL_PAY_FLAG_OFF_PROOF_URL/);
+  assert.match(runner, /assert\.equal\(toggledOff\.code, "FINAL_PAY_PRIOR_EMPLOYER_EVIDENCE_CHANGED"\)/);
+  assert.match(runner, /assert\.deepEqual\(afterFlagToggle, beforeFlagToggle/);
+  assert.match(workflow, /Start second isolated flag-OFF server against the same fictional PG16 database/);
+  assert.match(workflow, /YEAR_END_PRIOR_EVIDENCE_ENABLED: 'false'/);
+  assert.match(workflow, /127\.0\.0\.1:3001/);
+  assert.match(workflow, /image: postgres:16/);
+});

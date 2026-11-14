@@ -107,8 +107,31 @@ jobs:
           done
           cat /tmp/prior-final-pay-next.log
           exit 1
-      - name: Real authenticated flag-ON Separation HTTP, same-org foreign denial, three-actor fictional release
+      - name: Start second isolated flag-OFF server against the same fictional PG16 database
+        shell: bash
+        env:
+          YEAR_END_PRIOR_EVIDENCE_ENABLED: 'false'
+        run: |
+          set -euo pipefail
+          # No production flag change: only this runner-local process sees OFF.
+          nohup npm start -- -H 127.0.0.1 -p 3001 > /tmp/prior-final-pay-flag-off-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3001/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/prior-final-pay-flag-off-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/prior-final-pay-flag-off-next.log
+          exit 1
+      - name: Real authenticated flag-ON/OFF Separation HTTP, same-org foreign denial, three-actor fictional release
+        env:
+          FINAL_PAY_FLAG_OFF_PROOF_URL: 'http://127.0.0.1:3001'
         run: node --import tsx scripts/qa/final-pay-prior-employer-http.mjs
       - name: Diagnostic server output on failure
         if: failure()
-        run: cat /tmp/prior-final-pay-next.log || true
+        run: |
+          cat /tmp/prior-final-pay-next.log || true
+          cat /tmp/prior-final-pay-flag-off-next.log || true
