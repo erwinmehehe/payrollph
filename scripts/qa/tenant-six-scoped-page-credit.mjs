@@ -82,6 +82,9 @@ export const TARGETS = Object.freeze([
      'seedEmployer("VICTIM"'],
     "Process mutation/approval, hydrated actions, legal-employer multi-entity, production and independent privacy review"),
 ]);
+const REPORT_PAGE_CONTRACT_TEST = "tests/tenant-report-builder-page-contract.test.mjs";
+const REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA = "d7f08b2cfa0068027e9e6cb099380f45ca97d26d";
+const REPORT_PAGE_CONTRACT_TEST_HISTORICAL_SHA = "5bc277a20661a404a459d8276bfb6ebf06c4d771";
 const CERT_2316_WORKER_TEST = "tests/tenant-2316-legal-employer-worker.test.ts";
 const CERT_2316_WORKER_TEST_CURRENT_SHA = "6b20e0a017d26acbc0d877e184e98ea37dc0a768";
 const CERT_2316_WORKER_TEST_HISTORICAL_SHA = "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7";
@@ -123,6 +126,9 @@ export function verifySixInputs(read = readFileSync) {
   assert.ok(!workflow.includes("secrets."),
     "SIX_PAGE_REFUSED: credential-backed workflow is forbidden");
   const selected = selectedTargets(read);
+  if (selected.some(t => t.key === "report")) assert.equal(
+    gitBlobSha(read(REPORT_PAGE_CONTRACT_TEST)), REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA,
+    "SIX_PAGE_REFUSED: strengthened report-builder contract test changed");
   if (selected.some(t => t.key === "2316")) assert.equal(
     gitBlobSha(read(CERT_2316_WORKER_TEST)), CERT_2316_WORKER_TEST_CURRENT_SHA,
     "SIX_PAGE_REFUSED: original 2316 source-only guard must be re-pinned to current proof");
@@ -199,6 +205,15 @@ export function expectedSixPageManifest(input, read = readFileSync) {
       assert.equal(row.reason, reason(t), "SIX_PAGE_REFUSED: reason drift");
       assert.deepEqual(row.testedBy, expected, "SIX_PAGE_REFUSED: evidence drift " + t.path);
     }
+  }
+  if (selected.some(t => t.key === "report")) {
+    const record = m.scopedPages.find(p => p.path === "src/app/workspace/report-builder/page.tsx");
+    const proof = record?.reviewedUncertified;
+    assert.equal(proof?.contractTestFile, REPORT_PAGE_CONTRACT_TEST);
+    assert.ok([REPORT_PAGE_CONTRACT_TEST_HISTORICAL_SHA, REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA]
+      .includes(proof?.contractTestBlobSha),
+      "SIX_PAGE_REFUSED: unknown report-builder contract-test SHA");
+    proof.contractTestBlobSha = REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA;
   }
   // Update only the source pin for the stronger, fully executed 2316
   // negative-control test. The historical uncredited candidate stays
