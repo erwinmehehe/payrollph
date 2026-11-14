@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { verifySixPageCredits, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const PAGE = "/workspace/2316";
@@ -76,7 +77,21 @@ export function verify2316Sources() {
   const entry = manifest.scopedPages.find(item =>
     item.path === "src/app/workspace/2316/page.tsx");
   assert.equal(entry?.blob, SOURCE_PINS["src/app/workspace/2316/page.tsx"]);
-  assert.equal(entry?.status, "GAP", "This proof cannot silently grant page credit");
+  // Do not weaken the original GAP refusal. A COVERED candidate must have
+  // the stricter six-page evidence ledger and current source, never a
+  // synthetic-only proof whose status was hand-edited.
+  if (entry?.status === "GAP") {
+    assert.equal(entry.testedBy, undefined, "No receipt for a historical GAP");
+  } else {
+    assert.equal(entry?.status, "COVERED", "No unreviewed classification");
+    assert.equal(verifySixPageCredits(manifest), selectedTargets().length,
+      "Certificate credit requires the complete source-pinned six-page ledger");
+    assert.equal(entry.testedBy?.file, "scripts/qa/tenant-2316-ssr-transfer-http.mjs");
+    assert.equal(entry.testedBy?.sourcePageBlobSha, SOURCE_PINS["src/app/workspace/2316/page.tsx"]);
+    assert.equal(entry.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(entry.testedBy?.independentlyAccepted, false);
+    assert.equal(entry.testedBy?.productionCertified, false);
+  }
   assert.equal(entry?.reviewedUncertified?.pageActionCredits, 0);
   assert.match(manifest.acceptanceStatus, /NOT ACCEPTED/);
   return true;
