@@ -523,8 +523,29 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       ["proofBlobSha", pin.proofFile, pin.proofSha],
       ["workflowBlobSha", pin.workflowFile, pin.workflowSha],
     ]) {
+      // #1978 preserves the original #1730 workflow/run/hash receipt.
+      // A current privacy hardening pass is source-pinned separately, and
+      // must be re-proven by the new exact-head PG16 HTTP workflow.
       assert.equal(receipt?.[field], expectedSha, label + " immutable " + field);
-      assert.equal(blobSha(file), expectedSha, label + " actual file hash " + file);
+      if (field === "routeBlobSha" &&
+          pin.path === "src/app/api/year-end/prior-evidence/route.ts") {
+        const renewed = m.allApiRouteFiles[pin.path].sourceRevisionReview;
+        const current = "b7d3cde4a9d66f408c40c9e34ce50cacc3dc540b";
+        assert.equal(renewed?.previousRouteBlobSha, expectedSha,
+          "Historic #1730 route receipt must not be rewritten");
+        assert.equal(renewed?.currentRouteBlobSha, current);
+        assert.equal(renewed?.priorReceiptHistoricalOnly, true);
+        assert.equal(renewed?.newTenantIsolationMethodCredits, 0);
+        assert.equal(renewed?.productionCertified, false);
+        assert.equal(blobSha(file), current,
+          "Changed prior-evidence handler requires renewed current-source test");
+        const now = readFileSync(file, "utf8");
+        for (const marker of ['"PRIOR_EMPLOYEE_NOT_FOUND"',
+          '"PRIOR_ENTITY_ACCESS_DENIED"', '"PRIOR_RECORD_UNAVAILABLE"',
+          '.includes(internalCode)']) assert.ok(now.includes(marker),
+            "Employee existence parity must survive the source revision");
+      } else assert.equal(blobSha(file), expectedSha,
+        label + " actual file hash " + file);
     }
     assert.equal(receipt?.file, pin.proofFile);
     assert.equal(receipt?.workflowFile, pin.workflowFile);
