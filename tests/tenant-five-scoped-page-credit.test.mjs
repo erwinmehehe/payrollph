@@ -6,18 +6,25 @@ import {
   expectedFivePageCreditManifest, gitBlobSha,
   historicWorker360ProofView, verifyCurrentScopedPageGapCount,
 } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { assertMkt01Receipt } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const copy = () => structuredClone(m);
 
-test("only five named original GAP pages are source-current credited; all APIs unchanged", () => {
+test("five page-only credits preserve the API ledger; only separately proved MKT-01 may reduce its GAP", () => {
   assert.equal(verifyFivePageProofInputs(), true);
   assert.equal(verifyFivePageCredits(m), 5);
   assert.equal(m.scopedPages.length, 21);
   assert.equal(m.scopedPages.filter(x => x.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(x => x.status === "GAP").length, 11);
   assert.equal(m.metrics.methods, Object.values(m.allApiRouteFiles).flatMap(file => file.methods).length);
-  assert.equal(m.metrics.gap, 5);
+  // #1973 credits five pages only. PR #1976 independently credits one
+  // operator-scoped marketing GET, never a tenant-private page or a second API.
+  const marketingGet = m.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
+    .find(method => method.name === "GET");
+  const mktCredit = marketingGet?.status === "COVERED" ? assertMkt01Receipt(m) : 0;
+  assert.equal(m.metrics.coveredAfter, 458 + mktCredit);
+  assert.equal(m.metrics.gap, 5 - mktCredit);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.deepEqual(TARGETS.map(x => x.path), [
     "src/app/app/engagement/page.tsx",
