@@ -169,12 +169,12 @@ export function regeneratedOverview(doc, m) {
   });
   assert.equal(seen, 1, "operator endpoint must have exactly one source-linked overview row");
   return next.join("\n")
-    .replace(/^\\| coveredAfter \\| \\d+ \\|$/m, "| coveredAfter | " + m.metrics.coveredAfter + " |")
-    .replace(/^\\| gap \\| \\d+ \\|$/m, "| gap | " + m.metrics.gap + " |")
-    .replace(/(\\*\\*RELEASE BLOCKER:\\*\\* )\\d+ API methods and \\d+ business-ID page entries/,
+    .replace(/^\| coveredAfter \| \d+ \|$/m, "| coveredAfter | " + m.metrics.coveredAfter + " |")
+    .replace(/^\| gap \| \d+ \|$/m, "| gap | " + m.metrics.gap + " |")
+    .replace(/(\*\*RELEASE BLOCKER:\*\* )\d+ API methods and \d+ business-ID page entries/,
       "$1" + m.metrics.gap + " API methods and " +
       m.scopedPages.filter(p => p.status === "GAP").length + " business-ID page entries")
-    .replace(/(\\*\\*NOT ACCEPTED\\*\\*: )\\d+ method gaps and \\d+ page\\/action gaps/,
+    .replace(/(\*\*NOT ACCEPTED\*\*: )\d+ method gaps and \d+ page\/action gaps/,
       "$1" + m.metrics.gap + " method gaps and " +
       m.scopedPages.filter(p => p.status === "GAP").length + " page/action gaps");
 }
