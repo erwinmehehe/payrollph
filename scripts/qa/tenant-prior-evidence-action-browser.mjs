@@ -220,6 +220,28 @@ async function prove() {
       "Real same-parent ungranted worker must not yield private prior tax evidence");
     assert.ok(!sameParent.text.includes(ungrantedWorker.employeeNo));
     denied++;
+    // Unknown and real-but-ungranted employees must be indistinguishable.
+    // Repeat both GET and POST because both routes previously returned the
+    // distinct internal existence code in a 409 JSON response.
+    const impossibleWorkerId = actualVictim.worker.id + 1000000;
+    const unknown = await request(
+      scopeFor(ownerA.org.id, impossibleWorkerId), ownerA.cookie);
+    assert.equal(unknown.status, sameParent.status);
+    assert.deepEqual(unknown.json, sameParent.json,
+      "Prior GET must not expose employee existence by error body or code");
+    assert.equal(unknown.headers.get("cache-control"),
+      sameParent.headers.get("cache-control"));
+    denied++;
+    const forbiddenSave = { action: "save", evidence: initialA, expectedDigest: "" };
+    const sameParentPost = await request(
+      scopeFor(ownerA.org.id, ungrantedWorker.id), ownerA.cookie, "POST", forbiddenSave);
+    const unknownPost = await request(
+      scopeFor(ownerA.org.id, impossibleWorkerId), ownerA.cookie, "POST", forbiddenSave);
+    assert.equal(sameParentPost.status, 409);
+    assert.equal(unknownPost.status, sameParentPost.status);
+    assert.deepEqual(unknownPost.json, sameParentPost.json,
+      "Prior POST must not expose employee existence by error body or code");
+    denied += 2;
     const foreignVictim = await request(
       scopeFor(actualVictim.org.id, actualVictim.worker.id), ownerA.cookie);
     assert.ok([403, 404].includes(foreignVictim.status),
@@ -338,7 +360,7 @@ async function prove() {
       "Revoked maker cannot mutate private source or audit SQL");
     await victimsUnchanged("Revoked grant");
 
-    assert.ok(denied>=7 && ownSaves===2 && ownLoads===2 && browserActions===3,
+    assert.ok(denied>=10 && ownSaves===2 && ownLoads===2 && browserActions===3,
       "All source lifecycle and foreign-denial checks must execute");
     const result = {
       family:"prior-evidence-hydrated-actions-real-api-pg16",
@@ -347,6 +369,7 @@ async function prove() {
       rejectedForeignOrStaleActions:denied,
       exactDigestRevisionAndIndependentChecker:true,
       populatedHigherIdForeignPriorEvidence:true,
+      priorEmployeeExistenceResponsesIndistinguishable:true,
       employerBAndSameParentDeniedSqlUnchanged:true,
       revokedMakerSqlUnchanged:true,
       fictionalActorPasswordTotpLogin:true,
