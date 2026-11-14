@@ -53,9 +53,15 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   // Reconstruct the exactly reviewed five-page probe before reconstructing
   // the immutable original. Neither swap touches the real 42-request
   // positive/foreign/victim-denial/snapshot assertions.
-  assert.equal(renewalBlob(probe), REVIEWED_SIX_PROBE_BLOB,
-    "PAGE_COMPAT_REFUSED: unreviewed six-page probe change");
-  const reviewedFive = uniqueSwap(probe, REVISED_SIX, REVISED);
+  const sixProbe = renewalBlob(probe) === REVIEWED_SIX_PROBE_BLOB;
+  // Historical main files are supplied by the negative-control tests through
+  // the injected reader. Require the exact original five-page blob there.
+  // The live six-page ledger cannot borrow that old probe.
+  assert.ok(sixProbe || renewalBlob(probe) === REVIEWED_PROBE_BLOB,
+    "PAGE_COMPAT_REFUSED: unknown page-probe source");
+  const reviewedFive = sixProbe
+    ? uniqueSwap(probe, REVISED_SIX, REVISED)
+    : probe;
   assert.equal(renewalBlob(reviewedFive), REVIEWED_PROBE_BLOB,
     "PAGE_COMPAT_REFUSED: original five-page probe does not reconstruct");
   const historical = uniqueSwap(reviewedFive, REVISED, ORIGINAL);
@@ -69,6 +75,8 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   const expanded = coveredPages !== 10 || openPages !== 11;
   let manifest = live;
   if (expanded) {
+    assert.equal(sixProbe, true,
+      "PAGE_COMPAT_REFUSED: new page credit requires the new six-page probe guard");
     // A future page-credit expansion cannot borrow historical payroll proof.
     // Reconstruct the 10/11 view ONLY after the exact six-page source, real
     // HTTP assertion anchors, unchanged API and previous five credits pass.
