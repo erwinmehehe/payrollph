@@ -4,6 +4,15 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "src/app/workspace/prior-employer/page.tsx"
+      - "src/app/workspace/2316/page.tsx"
+      - "src/components/workspace/year-end-prior-review.tsx"
+      - "src/lib/year-end-prior-evidence.ts"
+      - "src/lib/multi-entity-policy.ts"
+      - "src/lib/tenant-prior-review-worker.ts"
+      - "src/lib/tenant-payroll-review-page.ts"
+      - "tests/tenant-prior-review-worker-contract.test.mjs"
+      - "tests/tenant-2316-ssr-transfer.test.mjs"
       - "src/app/api/separation/route.ts"
       - "src/lib/final-pay-prior-employer-server.ts"
       - "src/lib/final-pay.ts"
