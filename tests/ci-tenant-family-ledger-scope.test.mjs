@@ -9,7 +9,7 @@ import {load} from 'js-yaml';
 import {familyProofRequired,metadataOnly,reusableEvent,priorProofPassed,MANIFEST,INVENTORY,DOCS} from '../scripts/ci/tenant-family-ledger-scope.mjs';
 const policy=JSON.parse(readFileSync('.github/tenant-family-ledger-scope.json','utf8'));
 const REVIEWED_EXECUTION={
- 'tenant-dl01-closure.yml':'b18c9ce9c1e55cfc6c777977e6577b400aa4821606a754e3b681eebf2401fee1',
+ 'tenant-dl01-closure.yml':'b8d40fff76995444ebe1df403ad2832603d47de90b1f57a30564d089efa222ba',
  'tenant-ess-documents-read.yml':'77c659179b1dcaa4f84c031d6107444b685480fe19a211802ba9dfe09c8b5e03',
 };
 const event={action:'synchronize',pull_request:{number:123,head:{sha:'a'.repeat(40)},base:{sha:'b'.repeat(40)}}};
@@ -68,9 +68,21 @@ test('metadata reuse needs every real matrix job on the exact head AND base, nev
  assert.equal(await check(run,jobs,{fetcher:async()=>({ok:false})}),false);
  assert.equal(await check(run,jobs,{fetcher:async()=>({ok:true,json:async()=>({workflow_runs:[run],total_count:101,jobs})})}),false);
 });
-test('both eligible original execution jobs remain byte-equivalent as parsed data',()=>{
+test('both eligible execution jobs exactly match explicit source-pinned approval snapshots',()=>{
  assert.equal(Object.keys(policy.workflows).length,2);
  assert.equal(policy.comparisonBase,'8d64ff4ee04d394b82060da80e3a3580cc84743b');
+ assert.equal(policy.workflows['tenant-dl01-closure.yml'].previousExecutionSha256,'b18c9ce9c1e55cfc6c777977e6577b400aa4821606a754e3b681eebf2401fee1',
+   'Retain the pre-fix DL-01 execution fingerprint as provenance; no silent baseline replacement');
+ assert.equal(policy.workflows['tenant-dl01-closure.yml'].executionRevisionScope,
+   'CI-only restricted UID sudo env -i explicit synthetic proof variable allowlist; unchanged three-employer verification, kernel egress, PG16, provider stubs and full regression; independent review pending');
+ const dl01=readFileSync('.github/workflows/tenant-dl01-closure.yml','utf8');
+ for(const s of ['proof_keys=(', 'sudo -u dl01proof -- env -i', 'proof_env+=("$key=${!key}")',
+   'sudo iptables -I OUTPUT 1 -m owner', 'sudo ip6tables -I OUTPUT 1 -m owner',
+   'proof timeout --signal=TERM --kill-after=10s 300s',
+   'Full repository Node test suite against the separate throwaway app_db'])
+   assert.ok(dl01.includes(s),'The only approved SHA refresh cannot remove DL-01 invariant: '+s);
+ for(const forbidden of ['sudo -E -u dl01proof','GITHUB_TOKEN GH_TOKEN','NEON_DATABASE_URL PRODUCTION_DATABASE_URL'])
+   assert.ok(!dl01.includes(forbidden),'Do not broaden restricted proof environment: '+forbidden);
  assert.deepEqual(Object.fromEntries(Object.entries(policy.workflows).map(([file,p])=>[file,p.executionSha256])),REVIEWED_EXECUTION,'Original execution snapshots require explicit review, never blind repinning');
  for(const [file,p] of Object.entries(policy.workflows)){
   const w=load(readFileSync('.github/workflows/'+file,'utf8')),job=w.jobs[p.job];
