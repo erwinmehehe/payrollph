@@ -539,7 +539,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   // Three unrelated methods have now passed on their own exact-final-head
   // fictional-PG16/real-HTTP receipts. Run the strict byte/anchor/CI-receipt
   // verifier before allowing ONLY these three distinct new promotions.
-  assert.equal(verifyFivePageCredits(m), 5, "New scoped pages require their own source-current four-part proof");
+  // The merged OIDC receipt verifier reads proof lines with .split(). Pass
+  // UTF-8 source text explicitly; unencoded readFileSync returns a Buffer.
+  // All byte SHA / source-anchor / GAP assertions still execute unchanged.
+  const readProofText = (file, encoding) => readFileSync(file, encoding ?? "utf8");
+  assert.equal(verifyFivePageCredits(m, readProofText), 5,
+    "New scoped pages require their own source-current four-part proof");
   const recovery = verifyFiveMethodCredits(historicWorker360ProofView(m));
   assert.equal(recovery.methodsCredited, 3);
   assert.equal(recovery.methodsHeld, 0);
