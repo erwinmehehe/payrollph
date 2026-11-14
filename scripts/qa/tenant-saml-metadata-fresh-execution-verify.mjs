@@ -1,24 +1,30 @@
 /** Inspected execution evidence; grants no classification or coverage credit. */
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
 import {collectFreshSamlInputs,assertFreshSamlResult} from './tenant-saml-metadata-fresh-inputs.mjs';
 export const FRESH_SAML_RECEIPT='scripts/qa/tenant-saml-metadata-fresh-executed-receipt.json';
-export const FRESH_SAML_EVIDENCE='https://github.com/erwinmehehe/payrollph/actions/runs/43597028855/job/132453621488';
-export function verifyFreshSamlExecution(read=readFileSync){
+export const FRESH_SAML_EVIDENCE='https://github.com/erwinmehehe/payrollph/actions/runs/43600190245/job/132463076678';
+export function verifyFreshSamlExecution(read=readFileSync,list=readdirSync){
+ assert.equal(createHash('sha256').update(read('scripts/qa/tenant-saml-metadata-initial-executed-receipt.json')).digest('hex'),
+  '07d0dfef13aa9852a6e52aa1f25bd2342bcc1b7349a0dac4692cc11d24ca1c2a','Initial executed SAML receipt changed');
  const raw=read(FRESH_SAML_RECEIPT);
- assert.equal(createHash('sha256').update(raw).digest('hex'),'07d0dfef13aa9852a6e52aa1f25bd2342bcc1b7349a0dac4692cc11d24ca1c2a','Executed SAML metadata receipt changed');
+ assert.equal(createHash('sha256').update(raw).digest('hex'),'f1eaed5965db7ef722f33f4b0d692071159fa5494a41e1f047f794eaf4f48aec','Executed SAML metadata receipt changed');
  const r=JSON.parse(raw);
  assert.deepEqual(Object.keys(r).sort(),['schema','sourceHead','runId','inputs','result'].sort());
- assert.equal(r.schema,'saml-public-metadata-fresh-pg16-v1');assert.equal(r.runId,'43597028855');
- assert.equal(r.sourceHead,'a255404fd8ff712c1564052346963ad89ecaf939');
+ assert.equal(r.schema,'saml-public-metadata-fresh-pg16-v1');assert.equal(r.runId,'43600190245');
+ assert.equal(r.sourceHead,'c85f7022dada3af9f8fe50e5bf2ee120256725da');
  assert.equal(r.result.proofHeadSha,r.sourceHead);assertFreshSamlResult(r.result);
  assert.equal(r.result.requests,48);assert.equal(r.result.protectedOrganizationTables,260);
- assert.equal(Object.keys(r.inputs.pins).length,203);assert.equal(r.inputs.sqlInventory.length,152);
+ assert.equal(Object.keys(r.inputs.pins).length,208);assert.equal(r.inputs.sqlInventory.length,152);
  for(const[path,expected]of Object.entries(r.inputs.pins)){
   const bytes=read(path);const blob=createHash('sha1').update('blob '+Buffer.byteLength(bytes)+'\0').update(bytes).digest('hex');
   assert.equal(blob,expected,'SAML metadata executed input drift: '+path);
  }
  assert.deepEqual(collectFreshSamlInputs(),r.inputs,'Executed roots, import graph or SQL inventory changed');
+ // Also exercise the SQL catalog independently so an injected/additional file
+ // can never inherit a previously executed baseline.
+ assert.deepEqual(list('drizzle').filter(p=>/^\d{4}_.+\.sql$/.test(p)).sort().map(p=>'drizzle/'+p),
+  r.inputs.sqlInventory,'Executed SQL inventory changed');
  return r;
 }

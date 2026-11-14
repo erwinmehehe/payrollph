@@ -87,9 +87,11 @@ test('each sealed fresh input set equals the full locked-compiler import closure
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
           'e7341e979612c00151d0351924b89a37476c40a2'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
-          '7ae4c1899d1b63fb47d4f92913f8fb367d3d9162'],
+          'c7f5986f71d1e68df93ba391b891ade2685857fa'],
         ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
           '6b71ba5a442e263064b260e260abbc6334d4a04c'],
+        ['scripts/qa/tenant-saml-metadata-privacy-verify.mjs','adb087454e668257a9f149dbe7574ce2f7042557'],
+        ['scripts/qa/tenant-saml-metadata-public-policy.mjs','13571ec83005ee6220ee99a9649482597d61c682'],
       ]);
       for(const [path,expectedSha] of reviewedPageOnlyImports){
         if(!Object.hasOwn(actual,path))continue;
@@ -182,7 +184,9 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     const expectedBanners=file.endsWith('coverage-inventory.md')?3:2;
     assert.equal(studioBanners.length,expectedBanners,
       'Keep exactly the historical Studio accounting snapshots in each document');
-    assert.match(studioBanners[0],/461 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 2 GAP/);
+    const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json')).metrics;
+    assert.ok(studioBanners[0].includes(live.coveredAfter+' COVERED + '+live.publicByDesign+
+      ' PUBLIC-BY-DESIGN + '+live.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+live.gap+' GAP'));
     // The historical Studio snapshots are retained byte-for-byte; OIDC
     // recovery updates only the first live summary, not the older 460/3
     // checkpoints or their original 16/17 page-gap accounting.

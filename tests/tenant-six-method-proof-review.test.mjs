@@ -1,4 +1,6 @@
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
+import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
+import {SAML_PUBLIC_PATH} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {ORACLE_HELD_METHODS,isVerifiedOracleSupersession,isVerifiedOracleRenewal,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -912,6 +914,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const mkt01Credits = verifyMkt01Credit();
   assert.equal(mkt01Credits, 1);
   expectedStatuses[mktPath].GET = "COVERED";
+  const samlPublicLabels=m.allApiRouteFiles[SAML_PUBLIC_PATH].methods[0].status==='PUBLIC-BY-DESIGN'?verifySamlPublicClassification(m):0;
+  assert.equal(expectedStatuses[SAML_PUBLIC_PATH].GET,'GAP');
+  if(samlPublicLabels)expectedStatuses[SAML_PUBLIC_PATH].GET='PUBLIC-BY-DESIGN';
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited exact-source credits and credits only the separately proven operator GET");
   const expectedCounts = {
@@ -934,6 +939,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   expectedCounts.COVERED-=oracleHolds.size;expectedCounts.GAP+=oracleHolds.size;
   expectedCounts.COVERED += mkt01Credits;
   expectedCounts.GAP -= mkt01Credits;
+  expectedCounts['PUBLIC-BY-DESIGN']+=samlPublicLabels;expectedCounts.GAP-=samlPublicLabels;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
@@ -950,10 +956,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     return plan.includes('- `'+verb+' /api/'+m.allApiRouteFiles[path].route+'` — [source]');
   }).length;
   const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits + oidcCallbackCredits + oidcStartCredits + xenditPostCredits - frozenOracleHolds + mkt01Credits;
-  const frozenPublic = 7 + architecturePublic.length;
+  const frozenPublic = 7 + architecturePublic.length + samlPublicLabels;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
   const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
-    - architecturePublic.length - 1 - oidcCallbackCredits - oidcStartCredits - xenditPostCredits + frozenOracleHolds - mkt01Credits; // Each OIDC and MKT-01 credit requires its own current-source receipt.
+    - architecturePublic.length - 1 - oidcCallbackCredits - oidcStartCredits - xenditPostCredits + frozenOracleHolds - mkt01Credits - samlPublicLabels; // Public metadata is a separately approved relabel, not a credit.
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
   assert.equal(frozenGaps+oracleHolds.size-frozenOracleHolds, m.metrics.gap, "Frozen and supplementary renewals cannot hide GAPs");
@@ -1444,6 +1450,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       assert.equal(baselineMkt01Row?.testedBy, null,
         "unproved main MKT-01 remains GAP");
     }
+    const baselineSamlPublic=baseline.allApiRouteFiles[SAML_PUBLIC_PATH].methods[0].status==='PUBLIC-BY-DESIGN'?verifySamlPublicClassification(baseline,readMainSource):0;
+    if(baselineSamlPublic)expectedOriginalMain[SAML_PUBLIC_PATH].GET='PUBLIC-BY-DESIGN';
     assert.deepEqual(methodStatuses(baseline), expectedOriginalMain,
       "origin/main may contain only independently pinned credits; unknown methods remain GAP");
     const expectedMainYearEndCredits = creditedYearEndPromotions.length +
@@ -1458,12 +1466,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         issuedPromotions.length + expectedMainYearEndCredits +
         (baselineHasPayout ? payoutCredits : 0) +
         (baselineHasRecovery ? EVIDENCE.length : 0) + mainProviderCredits.length + mainDedicatedCredits.length + baselineStaffingCredits + baselineMweCredits + baselineReceiptCredits + baselineRootCredits + baselineEmailCredits + baselineCareersCredits + baselineSpendManagedCredits + baselineMigrationCredits + baselineBillingCredits + baselineEnterpriseCredits + baselineRecovery.length + baselineSecurity.length + baselineAccountEmailRequestCredits + baselineInvitationCredits + baselineMkt01Credits,
-      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + baselinePublicReclassifications + baselineArchPublic,
+      "PUBLIC-BY-DESIGN": snapshot.counts["PUBLIC-BY-DESIGN"] + 1 + (baselinePublicReclassifications + baselineSamlPublic) + baselineArchPublic,
       "PRIVILEGED-OPERATIONS-TOKEN-ONLY": baselineTokenClassifications + baselineArchToken,
       GAP: snapshot.counts.GAP - baselineXenditCredits - mainOidcCredits - mainOidcStartCredits + mainWorkerDemotion + mainExpectedOracleWithdrawals - baselineArch - baselineStudioCredits - baselineApprovalCredits - baselineReadinessCredits - baselineCheckoutCredits - baselineFilingCredits - compliancePostCredits.length -
         issuedPromotions.length - expectedMainYearEndCredits -
         (baselineHasPayout ? payoutCredits : 0) -
-        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - baselineMkt01Credits - 1 - baselinePublicReclassifications - baselineTokenClassifications,
+        (baselineHasRecovery ? EVIDENCE.length : 0) - mainProviderCredits.length - mainDedicatedCredits.length - baselineStaffingCredits - baselineMweCredits - baselineReceiptCredits - baselineRootCredits - baselineEmailCredits - baselineCareersCredits - baselineSpendManagedCredits - baselineMigrationCredits - baselineBillingCredits - baselineEnterpriseCredits - baselineRecovery.length - baselineSecurity.length - baselineAccountEmailRequestCredits - baselineInvitationCredits - baselineMkt01Credits - 1 - (baselinePublicReclassifications + baselineSamlPublic) - baselineTokenClassifications,
     }, "origin/main has unexplained method count drift");
     const baselinePlan = execFileSync("git",
       ["show", "origin/main:docs/engineering/tenant-isolation-closure-plan.md"],
@@ -1501,11 +1509,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     const frozenCovered = reviewedStatuses.filter(status => status === "COVERED").length;
     assert.equal(statuses.filter(status => status === "COVERED").length, frozenCovered,
       "the frozen queue must match current main source-credited methods");
-    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + baselinePublicReclassifications + baselineArchPublic);
+    assert.equal(statuses.filter(status => status === "PUBLIC-BY-DESIGN").length, 3 + (baselinePublicReclassifications + baselineSamlPublic) + baselineArchPublic);
     assert.equal(statuses.filter(status => status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length, baselineTokenClassifications + baselineArchToken,
       "Every approved token-only operation must remain inside the frozen 406-method queue");
     assert.equal(statuses.filter(status => status === "GAP").length,
-      403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications - baselineArch);
+      403 - frozenCovered - (baselinePublicReclassifications + baselineSamlPublic) - baselineTokenClassifications - baselineArch);
     const incomplete = 12 - provisionalBatches.length;
     const names = provisionalBatches.length < 2 ? provisionalBatches[0] :
       provisionalBatches.slice(0, -1).join(", ") + " and " + provisionalBatches.at(-1);
@@ -1520,12 +1528,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
         : `${word} ${incomplete === 1 ? "batch remains" : "batches remain"} INCOMPLETE; ${names} ${provisionalBatches.length === 1 ? "remains" : "remain"} PROVISIONAL — NOT ACCEPTED.`;
     const expectedMainFrozen = snapshot.frozenSubtotal
       .replace("313 COVERED", frozenCovered + " COVERED")
-      .replace("2 PUBLIC-BY-DESIGN", (3 + baselinePublicReclassifications + baselineArchPublic) + " PUBLIC-BY-DESIGN")
+      .replace("2 PUBLIC-BY-DESIGN", (3 + (baselinePublicReclassifications + baselineSamlPublic) + baselineArchPublic) + " PUBLIC-BY-DESIGN")
       .replace("91 GAP",
         (baselineTokenClassifications + baselineArchToken
           ? (baselineTokenClassifications + baselineArchToken) + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + "
           : "") +
-        (403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications - baselineArch) + " GAP")
+        (403 - frozenCovered - (baselinePublicReclassifications + baselineSamlPublic) - baselineTokenClassifications - baselineArch) + " GAP")
 .replace("All 12 batches remain INCOMPLETE.", batchSummary);
     // Current main dates the frozen subtotal; earlier snapshots used a plain label.
     // Normalize ONLY that heading, never the verified counts or credited methods.
@@ -1545,8 +1553,8 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       const figures = /\*\*(\d+) COVERED \+ (\d+) PUBLIC-BY-DESIGN \+ (\d+) PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ (\d+) GAP = 406\*\*/.exec(datedMainFrozen);
       assert.ok(figures, "main's dated frozen subtotal must carry the four verified figures");
       assert.deepEqual(figures.slice(1).map(Number), [
-        frozenCovered, 3 + baselinePublicReclassifications + baselineArchPublic, baselineTokenClassifications + baselineArchToken,
-        403 - frozenCovered - baselinePublicReclassifications - baselineTokenClassifications - baselineArch,
+        frozenCovered, 3 + (baselinePublicReclassifications + baselineSamlPublic) + baselineArchPublic, baselineTokenClassifications + baselineArchToken,
+        403 - frozenCovered - (baselinePublicReclassifications + baselineSamlPublic) - baselineTokenClassifications - baselineArch,
       ], "origin/main's dated frozen subtotal must equal the verified baseline counts");
     } else if (actualMainFrozen !== correctMainFrozen) {
       // Historical main's summary accidentally omits PII-02 even though its
