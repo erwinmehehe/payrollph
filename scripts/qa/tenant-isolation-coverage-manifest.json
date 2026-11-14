@@ -41750,7 +41750,7 @@
             "ownPositiveLine": 273,
             "foreignDenialLine": 288,
             "scope": "Disposable PG16/HTTPS with two independently logged-in attacker organizations, own content/PDF success, real victim data and audit snapshots",
-            "unchangedDbLine": 356
+            "unchangedDbLine": 369
           }
         }
       ],
