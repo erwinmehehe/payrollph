@@ -43,9 +43,21 @@ Source/unit tests are not execution evidence. Failed setup means NOT_RUN.
 
 ## Execution status
 
-Fresh HTTP/PG16 execution: **NOT_RUN** at initial PR creation. Replace this
-section with inspected successful run/job evidence and actual counts only after
-the new workflow completes.
+Fresh HTTP/PG16 execution **PASSED** on exact source
+`a255404fd8ff712c1564052346963ad89ecaf939`:
+[run 43597028855 / job 132453621488](https://github.com/erwinmehehe/payrollph/actions/runs/43597028855/job/132453621488).
+All 48 requests passed, with 260 organization-owned tables protected, three
+enabled/three disabled controls, both attackers and a genuine higher-ID victim.
+The existing historical runner also passed separately on this head.
+
+The inspected artifact `tenant-saml-metadata-fresh-receipt` (ID 14115192331)
+matches the committed receipt byte-for-byte. Artifact archive SHA256:
+`7d7f53066bd59ab0a4e4c222a15debadb2bf08978c2304d4fd2a08ac425cc1ca`.
+Receipt SHA256:
+`07d0dfef13aa9852a6e52aa1f25bd2342bcc1b7349a0dac4692cc11d24ca1c2a`.
+Its verifier checks all 203 executed input pins and all 152 numbered SQL files.
+The evidence-attachment commit does not change any executed input. A later input
+change requires new real execution; this receipt never authorizes classification.
 
 ## Accounting and decision boundary
 
