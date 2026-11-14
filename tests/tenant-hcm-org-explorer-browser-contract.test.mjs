@@ -17,8 +17,11 @@ test("the real browser runs after hard refusal and against the same signed-in PG
     browserCall > seeded && revoked > browserCall,
   "Browser cannot run before local PG16, source-sealed three-employer fixture");
   assert.match(runner, /organizationId: b\.org\.id, userId: companyHr\.user\.id/);
-  assert.match(runner, /cookie: companyHr\.cookie, operatorUserId: companyHr\.user\.id/);
-  assert.match(runner, /a, b, victim, unchanged/);
+  assert.match(runner, /login: \{ email: companyHr\.user\.email, password: browserLoginPassword,/);
+  assert.match(runner, /totpSecret: browserTotpSecret \}, operatorUserId: companyHr\.user\.id/);
+  assert.match(runner, /passwordHash: hashPassword\(browserLoginPassword\)/);
+  assert.match(runner, /a, b, victim, unchanged, afterBrowserLogin/);
+  assert.match(runner, /async function afterBrowserLogin\(\)/);
   assert.match(runner, /clientBrowserInteractionsProven: true/);
   assert.match(runner, /browserEvidence,/);
 });
@@ -29,9 +32,12 @@ test("fictional Chromium refuses remote env and verifies actual A-B-A history cl
   assert.match(browser, /process\.env\.APP_BASE_URL/);
   assert.match(browser, /process\.env\.DATABASE_URL/);
   assert.match(browser, /await import\("playwright"\)/);
-  assert.match(browser, /context\.addCookies/);
+  assert.doesNotMatch(browser, /context\.addCookies/);
   assert.match(browser, /const BROWSER_ORIGIN = "http:\/\/localhost:3000"/);
-  assert.match(browser, /url: BROWSER_ORIGIN, secure: true, httpOnly: true/);
+  assert.match(browser, /context\.request\.post\(BROWSER_ORIGIN \+ "\/api\/auth\/login"/);
+  assert.match(browser, /generateTotp\(login\.totpSecret\)/);
+  assert.match(browser, /const cookies = await context\.cookies\(BROWSER_ORIGIN\)/);
+  assert.match(browser, /await afterBrowserLogin\(\)/);
   assert.match(browser, /context\.request\.get\(BROWSER_ORIGIN \+ "\/api\/account"/);
   assert.match(browser, /return address\.origin === BROWSER_ORIGIN \? route\.continue\(\) : route\.abort\(\)/);
   assert.match(browser, /for \(const actor of \[a, b, a\]\)/);
