@@ -132,6 +132,12 @@ export async function proveOrgExplorerPageIsolation() {
     }
 
     const companyHr = await roleUser("hr", null);
+    // A single explicitly granted HR operator can legitimately switch between
+    // these two companies; unrelated owner sessions still cannot cross them.
+    await db.insert(s.userOrganizations).values({
+      organizationId: b.org.id, userId: companyHr.user.id,
+      role: "hr", orgUnitId: null, active: true
+    });
     const unitHr = await roleUser("hr", a.unit.id);
     const bookkeeper = await roleUser("bookkeeper", null);
 
@@ -220,6 +226,15 @@ export async function proveOrgExplorerPageIsolation() {
     await deny(historyUrl(a.org.id, a.position.id), undefined, 401, "anonymous history");
     await unchanged("anonymous/role denials");
 
+    // Hydrated A -> B -> A navigation and real click-through position history.
+    // The browser module loads only after all sandbox/source hard guards.
+    const { proveOrgExplorerHydratedBrowser } =
+      await import("./tenant-hcm-org-explorer-browser.mjs");
+    const browserEvidence = await proveOrgExplorerHydratedBrowser({
+      cookie: companyHr.cookie, operatorUserId: companyHr.user.id,
+      a, b, victim, unchanged
+    });
+
     const [revoked] = await db.update(s.userOrganizations)
       .set({ active: false })
       .where(and(eq(s.userOrganizations.userId, a.owner.id),
@@ -247,7 +262,8 @@ export async function proveOrgExplorerPageIsolation() {
       higherIdVictim: true, ownPages, ownGraphs, ownHistories,
       foreignDenials, negativeChecks, verifiedProtectedTables: protectedTables.length,
       immutableEmployerAndAuditSql: true, revokedMembershipDenied: true,
-      serverRenderedPageAndBothReadApis: true, clientBrowserInteractionsProven: false,
+      serverRenderedPageAndBothReadApis: true, clientBrowserInteractionsProven: true,
+      browserEvidence,
       duplicateApiSelectorsProven: true, pageActionCredits: 0, apiMethodCredits: 0,
       independentlyAccepted: false, productionCertified: false,
       realUsers: 0, externalProviders: 0, moneyMoved: false
