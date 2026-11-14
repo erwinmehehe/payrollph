@@ -23,6 +23,7 @@ const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
 const WORKER_VERIFIER = "scripts/qa/tenant-five-method-credit-verify.mjs";
 const HISTORICAL_PROBE_BLOB = "fe310ca93f2d6ae2fd48ce72d2ee1cf451b55e20";
 const REVIEWED_PROBE_BLOB = "48a62c81c7d20b1d6980e2f9d610bbb9afdb7173";
+const REVIEWED_SIX_PROBE_BLOB = "9c9aa847986922dbb6bd2c4cf2c73f7737630fd7";
 const REVIEWED_GENERATOR_BLOB = "08335292d7534ac3618f59b6959bbd8133483dd7";
 const REVIEWED_GENERATOR_MKT_BLOB = "9cba2a1198ae02c5fe6d58c50fd2e2771c8ceb7a";
 const REVIEWED_WORKFLOW_BLOB = "4d475e51c601583ba4212e2c327207c5bb1b34dc";
@@ -32,6 +33,7 @@ const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 
 const ORIGINAL = '  assert.equal(pageGaps.length, (await import("./tenant-five-method-credit-verify.mjs")).verifyWorker360PageCredit(manifest), "Worker 360 SSR gap reduction requires source-pinned PG16 and review proof");';
 const REVISED = '  assert.equal(pageGaps.length, (await import("./tenant-five-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires the five exact-source proofs and original Worker 360 verification");';
+const REVISED_SIX = '  assert.equal(pageGaps.length, (await import("./tenant-six-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires the five exact-source proofs and original Worker 360 verification");';
 
 const REVIEWED_PAGES = Object.freeze([
   ["src/app/app/engagement/page.tsx", "6e84c87f63816042a847e4fbccfd970b84ceffa3", "scripts/qa/tenant-people-pages-http.mjs", "fad1f0ad45d41d158cee968e7b9de0188ed9030e"],
@@ -48,9 +50,15 @@ function uniqueSwap(source, from, to) {
 
 export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   const probe = String(read(PROBE));
-  assert.equal(renewalBlob(probe), REVIEWED_PROBE_BLOB,
-    "PAGE_COMPAT_REFUSED: unreviewed page-probe change");
-  const historical = uniqueSwap(probe, REVISED, ORIGINAL);
+  // Reconstruct the exactly reviewed five-page probe before reconstructing
+  // the immutable original. Neither swap touches the real 42-request
+  // positive/foreign/victim-denial/snapshot assertions.
+  assert.equal(renewalBlob(probe), REVIEWED_SIX_PROBE_BLOB,
+    "PAGE_COMPAT_REFUSED: unreviewed six-page probe change");
+  const reviewedFive = uniqueSwap(probe, REVISED_SIX, REVISED);
+  assert.equal(renewalBlob(reviewedFive), REVIEWED_PROBE_BLOB,
+    "PAGE_COMPAT_REFUSED: original five-page probe does not reconstruct");
+  const historical = uniqueSwap(reviewedFive, REVISED, ORIGINAL);
   assert.equal(renewalBlob(historical), HISTORICAL_PROBE_BLOB,
     "PAGE_COMPAT_REFUSED: historical second-pass page probe did not reconstruct");
   assert.equal(probe.split("\n").length, historical.split("\n").length,
