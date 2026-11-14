@@ -188,6 +188,26 @@ test("source-current previous employer and BIR 2316 pages retain #1975 employer/
   assert.equal(result.pageActionCredits, 0);
   assert.equal(result.productionCertified, false);
 });
+test("post-transfer direct separation GET and Form 2316 denial parity require real synthetic PG16 proof", () => {
+  const proof = readFileSync("scripts/qa/tenant-2316-ssr-transfer-http.mjs", "utf8");
+  const required = [
+    "requireDisposable2316Env();", "verify2316Sources();",
+    "const [legacySep] = await db.insert(s.separationRecords)",
+    "const [wrongTypeSep] = await db.insert(s.separationRecords)",
+    "const [newEmployerOperator] = await db.insert(s.users)",
+    "const listA = await separationList(a.cookie, a.org.id)",
+    "const listNewBefore = await separationList(newEmployerSession.cookie, a.org.id)",
+    "const historicOldEmployerList = await separationList(a.cookie, a.org.id)",
+    "const currentNewEmployerList = await separationList(newEmployerSession.cookie, a.org.id)",
+    "assert.deepEqual(foreignCert.json, missingCert.json",
+    "currentEmployerCannotReadPriorReleasedSeparation: true",
+    "malformedOrLegacyHistoricalSnapshotsFailClosed: true",
+    'independentSecurityReview: "PENDING", productionCertified: false',
+  ];
+  for (const marker of required)
+    assert.ok(proof.includes(marker),
+      "POST_FINAL_PAY_REVIEW_REQUIRED: missing executable PG16 source proof " + marker);
+});
 test("unknown changed source cannot reuse the old cross-page assurance", () => {
   for (const [path, find] of [
     [PRIOR, "assertEntityResource(entityScope.context, worker.legalEntityId)"],
