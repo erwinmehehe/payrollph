@@ -119,8 +119,11 @@ async function prove() {
 
   const tables = [
     ["organizations", s.organizations], ["legalEntities", s.legalEntities],
-    ["employees", s.employees], ["userLegalEntityGrants", s.userLegalEntityGrants],
-    ["userOrganizations", s.userOrganizations], ["yearEndPriorEvidence", s.yearEndPriorEvidence],
+    ["orgUnits", s.orgUnits], ["employees", s.employees],
+    ["userLegalEntityGrants", s.userLegalEntityGrants],
+    ["userOrganizations", s.userOrganizations],
+    ["yearEndPriorEvidence", s.yearEndPriorEvidence],
+    ["yearEndAdjustments", s.yearEndAdjustments],
     ["separationRecords", s.separationRecords], ["payrollRuns", s.payrollRuns],
     ["auditEvents", s.auditEvents],
   ];
@@ -132,6 +135,13 @@ async function prove() {
         .from(table).where(orm.eq(scopeColumn, orgId))
         .orderBy(table.id ?? scopeColumn);
     }
+    // Payroll entries inherit their organization from their actual run;
+    // checking only payroll_runs would miss an unauthorized row-level write.
+    result.payrollEntries = await db.select().from(s.payrollEntries)
+      .innerJoin(s.payrollRuns,
+        orm.eq(s.payrollEntries.payrollRunId, s.payrollRuns.id))
+      .where(orm.eq(s.payrollRuns.organizationId, orgId))
+      .orderBy(s.payrollEntries.id);
     return result;
   }
   async function request(path, cookie, method="GET", body) {
@@ -341,7 +351,7 @@ async function prove() {
       revokedMakerSqlUnchanged:true,
       fictionalActorPasswordTotpLogin:true,
       checkerUsesSyntheticMfaVerifiedSession:true,
-      revokedLegalEmployerDenied:true,protectedSqlTables:tables.length,
+      revokedLegalEmployerDenied:true,protectedSqlTables:tables.length + 1,
       realProviderCalls:0,pageActionCredits:0,apiMethodCredits:0,
       independentSecurityReview:"PENDING",productionCertified:false,
     };
