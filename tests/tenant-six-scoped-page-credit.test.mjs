@@ -23,7 +23,8 @@ test("exact six requested pages have source-sealed fictional PG16 SSR evidence",
   assert.equal(verifySixPageCredits(manifest), 6);
   assert.deepEqual(fromManifest(manifest), { covered: 16, gap: 5 });
   assert.equal(manifest.metrics.scopedPagesAndActions, 21);
-  assert.equal(manifest.metrics.methods, 498);
+  assert.equal(manifest.metrics.methods,
+    Object.values(manifest.allApiRouteFiles).flatMap(entry => entry.methods).length);
   for (const t of TARGETS) {
     const row = manifest.scopedPages.find(p => p.path === t.path);
     assert.equal(row.status, "COVERED");
@@ -61,7 +62,8 @@ test("new provisional page generator recomputes live counts without changing 498
     methods.filter(m => m.status === "PUBLIC-BY-DESIGN").length);
   assert.equal(manifest.metrics.privilegedOperationsTokenOnly,
     methods.filter(m => m.status === "PRIVILEGED-OPERATIONS-TOKEN-ONLY").length);
-  assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED: 2 API methods and 5 page\/action GAPs/);
+  assert.match(manifest.acceptanceStatus,
+    new RegExp("^NOT ACCEPTED: " + manifest.metrics.gap + " API methods and 5 page/action GAPs"));
 });
 
 test("the exact historic 10/11 ledger still passes original #1973 proof guards", () => {

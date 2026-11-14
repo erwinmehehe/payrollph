@@ -110,6 +110,17 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   }
   const pinnedGenerator = hasMkt01 ? REVIEWED_GENERATOR_MKT_BLOB : REVIEWED_GENERATOR_BLOB;
   let generator = String(read(GENERATOR));
+  // Reconstruct the previously reviewed five-page generator byte for byte.
+  // Its runtime proof guards now admit only source-verified six-page overlays;
+  // the original historical compiler inputs and method credits are unchanged.
+  if (expanded) {
+    assert.equal(renewalBlob(generator), "361b9d545766d110e9522198432604ac13de47b6",
+      "PAGE_COMPAT_REFUSED: unknown six-page-aware historical generator");
+    generator = uniqueSwap(generator, "export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === \"GAP\").length;\n  if (gaps === 5) {\n    assert.equal(verifySixPageCredits(m, read), 6,\n      \"SCOPED_PAGE_REFUSED: all six independent sources/receipts required\");\n    return gaps;\n  }", "export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === \"GAP\").length;");
+    generator = uniqueSwap(generator, "export function verifyFivePageCredits(m, read = readFileSync) {\n  // Later six-page candidates must pass their independent exact-source\n  // verifier before reusing this older five-page proof. Do not promote\n  // any new page or method solely from a covered count.\n  if (m.scopedPages.filter(p => p.status === \"COVERED\").length === 16) {\n    assert.equal(verifySixPageCredits(m, read), 6,\n      \"FIVE_PAGE_CREDIT_REFUSED: unproved six-page candidate ledger\");\n    return TARGETS.length;\n  }\n  const expected = expectedFivePageCreditManifest(m, read);", "export function verifyFivePageCredits(m, read = readFileSync) {\n  const expected = expectedFivePageCreditManifest(m, read);");
+    generator = uniqueSwap(generator, "export function historicWorker360ProofView(manifest) {\n  // Preserve the exact historical Worker360 proof view. A 16-covered ledger\n  // may be projected ONLY after all six new source and receipt anchors match.\n  // This is a read-only validation clone, not a new credit or approval.\n  const source = manifest.scopedPages.filter(p => p.status === \"COVERED\").length === 16\n    ? historicSixPageView(manifest)\n    : manifest;\n  const old = structuredClone(source);", "export function historicWorker360ProofView(manifest) {\n  const old = structuredClone(manifest);");
+    generator = uniqueSwap(generator, "import { historicOidcBatchView } from \"./tenant-oidc-batch-credit-verify.mjs\";\nimport { historicSixPageView, verifySixPageCredits } from \"./tenant-six-scoped-page-credit.mjs\";", "import { historicOidcBatchView } from \"./tenant-oidc-batch-credit-verify.mjs\";");
+  }
   if (hasOidcBatch) {
     assert.equal(renewalBlob(generator), "d3067d1a83350f587dfb5c11442ea85d449e73ae",
       "PAGE_COMPAT_REFUSED: only the exact reviewed combined OIDC/MKT generator is allowed");
