@@ -86,7 +86,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SAML_PROOF_HEAD_SHA"
           node --check scripts/qa/tenant-saml-metadata-public-contract.mjs
           node --check scripts/qa/tenant-saml-metadata-public-http.mjs
-          node --test tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+          node --test tests/tenant-saml-metadata-public-policy.test.mjs tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
           git cat-file -e "${SAML_PROOF_BASE_SHA}^{commit}"
           npm run tenant:repin:check -- --base "$SAML_PROOF_BASE_SHA"
       - name: Ephemeral encryption keys only

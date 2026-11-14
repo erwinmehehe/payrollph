@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
 import {requireIsolatedSamlProof} from './tenant-saml-metadata-public-contract.mjs';
 import {collectRenewalInputs} from './payroll-run-renewal-inputs.mjs';
+import {readSamlOwnerApproval} from './tenant-saml-metadata-public-policy.mjs';
 export function requireFreshSamlMetadataEnv(env=process.env){
  requireIsolatedSamlProof(env);
  assert.equal(env.SAML_FRESH_PROOF_MODE,'fictional-pg16-public-metadata');
@@ -18,7 +19,11 @@ export function collectFreshSamlInputs(){
   'scripts/qa/tenant-saml-metadata-fresh-inputs.mjs',
   'scripts/qa/tenant-saml-metadata-public-contract.mjs',
   'scripts/qa/tenant-saml-metadata-privacy-verify.mjs',
+  'docs/qa/tenant-saml-metadata-owner-approval.json',
+  'docs/qa/tenant-saml-metadata-fresh-decision.md',
+  'scripts/qa/tenant-saml-metadata-privacy-archive.json',
   'tests/tenant-saml-metadata-fresh.test.mjs',
+  'tests/tenant-saml-metadata-public-policy.test.mjs',
   'tests/tenant-saml-metadata-public.test.mjs',
   'tests/tenant-saml-metadata-disabled-route.test.mjs',
   'tests/tenant-saml-metadata-privacy-verify.test.mjs',
@@ -41,7 +46,9 @@ export function assertFreshSamlResult(r){
  assert.equal(r.fixtureProviderDisableWrites,1);assert.equal(r.classificationCandidate,'PUBLIC-BY-DESIGN');
  assert.equal(r.disabledProviderPublicPolicy,'CONCEAL_DISABLED_PROVIDERS');
  assert.ok(Number.isSafeInteger(r.protectedOrganizationTables)&&r.protectedOrganizationTables>100);
- assert.equal(r.currentStatus,'GAP');assert.equal(r.coverageCredits,0);
+ assert.ok(['GAP','PUBLIC-BY-DESIGN'].includes(r.currentStatus),'No tenant-private coverage claim for public metadata');
+ if(r.currentStatus==='PUBLIC-BY-DESIGN')readSamlOwnerApproval();
+ assert.equal(r.coverageCredits,0);
  assert.equal(r.independentlyAccepted,false);assert.equal(r.productionCertified,false);
  assert.equal(r.evidenceLabel,'SOLO_VERIFIED_DEV_RECOVERY');assert.equal(r.resolveHeld,true);
  assert.equal(r.postgresMajor,16);

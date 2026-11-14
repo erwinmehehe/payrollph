@@ -1,5 +1,6 @@
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
+import {historicalSamlMetadataView,samlPrivacyRead} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
@@ -300,7 +301,7 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // Exact-source uncredited privacy repair; this permits no coverage promotion.
   if (key === SAML_METADATA_ROUTE + " GET") {
     assert.equal(currentBlob, "4f8d12b9867de0c18aea8e447208e8470773350b");
-    assert.equal(verifySamlMetadataPrivacyHold(manifest), 0);
+    assert.equal(verifySamlMetadataPrivacyHold(historicalSamlMetadataView(manifest),samlPrivacyRead()), 0);
     return true;
   }
 

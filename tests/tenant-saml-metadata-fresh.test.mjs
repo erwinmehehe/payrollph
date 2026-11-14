@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {load} from 'js-yaml';
 import {requireFreshSamlMetadataEnv,collectFreshSamlInputs,assertFreshSamlResult} from '../scripts/qa/tenant-saml-metadata-fresh-inputs.mjs';
 import {verifySamlMetadataPrivacyHold} from '../scripts/qa/tenant-saml-metadata-privacy-verify.mjs';
+import {historicalSamlMetadataView,samlPrivacyRead} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 const env=()=>({CI:'true',GITHUB_ACTIONS:'true',NODE_ENV:'production',TENANT_SECOND_PASS_MODE:'isolated-ci-only',
  TENANT_SAML_METADATA_MODE:'isolated-ci-only',DATABASE_URL:'postgresql://postgres:postgres@127.0.0.1:5432/app_db',
  SECURITY_SMOKE_URL:'http://127.0.0.1:3000',APP_BASE_URL:'https://payroll.example.test',DEMO_MODE:'false',WORKER_ENABLED:'false',
@@ -51,7 +52,7 @@ test('complete input closure pins schema, subprocess baseline, source and every 
 });
 test('fresh evidence cannot silently classify metadata or lift anonymous resolve hold',()=>{
  const m=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
- assert.equal(verifySamlMetadataPrivacyHold(m),0);
+ assert.equal(verifySamlMetadataPrivacyHold(historicalSamlMetadataView(m),samlPrivacyRead()),0);
  const resolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods.find(r=>r.name==='POST');
  assert.equal(resolve.status,'GAP');assert.equal(resolve.testedBy,null);
 });

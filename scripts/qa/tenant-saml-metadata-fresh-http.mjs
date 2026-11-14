@@ -7,6 +7,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import {execFileSync} from "node:child_process";
 import {requireFreshSamlMetadataEnv,collectFreshSamlInputs,assertFreshSamlResult} from "./tenant-saml-metadata-fresh-inputs.mjs";
+import {historicalSamlMetadataView} from './tenant-saml-metadata-public-policy.mjs';
 import {
   ROUTE, ROUTE_BLOB, assertMetadata,
   assertSameMetadata, assertMissingMetadata, assertHiddenMetadata,
@@ -16,6 +17,8 @@ export async function verifySamlPublicHttp() {
   requireFreshSamlMetadataEnv(); // MUST precede all application and database imports.
   assert.equal(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),process.env.SAML_PROOF_HEAD_SHA);
   const inputs=collectFreshSamlInputs();
+  const liveManifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
+  historicalSamlMetadataView(liveManifest); // Strict GAP history or the exact owner-approved public label only.
   assert.match(process.env.SAML_PROOF_HEAD_SHA || "", /^[a-f0-9]{40}$/, "Exact proof head is required");
   const source = readFileSync(ROUTE);
   assert.equal(createHash("sha1").update("blob " + source.length + "\0")
@@ -184,7 +187,7 @@ export async function verifySamlPublicHttp() {
       disabledProviderPublicPolicy: "CONCEAL_DISABLED_PROVIDERS",
       enabledThenDisabledConcealed: true, fixtureProviderDisableWrites: 1,
       noTenantOrProviderSecrets: true, unchangedDbDuringHttp: true,
-      classificationCandidate: "PUBLIC-BY-DESIGN", currentStatus: "GAP", coverageCredits: 0,
+      classificationCandidate: "PUBLIC-BY-DESIGN", currentStatus: liveManifest.allApiRouteFiles[ROUTE].methods[0].status, coverageCredits: 0,
       independentlyAccepted: false, productionCertified: false,
       allOrganizationTablesProtected:true,protectedOrganizationTables:protectedTables.length,
       evidenceLabel:'SOLO_VERIFIED_DEV_RECOVERY',resolveHeld:true,
