@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { verifyFivePageCredits } from "./tenant-five-scoped-page-credit.mjs";
+import { verifyFivePageCredits, verifyCurrentScopedPageGapCount as verifyHistoricScopedPageGapCount } from "./tenant-five-scoped-page-credit.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const SELECTION = "scripts/qa/tenant-six-page-selection.json";
@@ -257,6 +257,20 @@ export function verifySixPageCredits(m, read = readFileSync) {
     "SIX_PAGE_REFUSED: prior five page credits must still pass unchanged");
   return selectedTargets(read).length;
 }
+/** The exploratory 42-request page probe must never mistake a new five-GAP
+ * ledger for Worker 360's historical 16-GAP view. Validate every six-page
+ * source SHA, HTTP assertion anchor, and prior five-page receipt first.
+ * Original 11/16-GAP ledgers still use the unchanged older verifier.
+ */
+export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
+  const gaps = manifest.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps === 11 || gaps === 16)
+    return verifyHistoricScopedPageGapCount(manifest, read);
+  assert.equal(verifySixPageCredits(manifest, read), selectedTargets(read).length,
+    "SIX_PAGE_REFUSED: live page probe requires every source-sealed receipt");
+  return gaps;
+}
+
 function main() {
   assert.ok(process.argv.length === 3 &&
     ["--write", "--check"].includes(process.argv[2]),
