@@ -1,0 +1,284 @@
+name: Tenant Six Scoped Pages - Final-Head PG16 Proof and Credit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-six-scoped-pages-credit.yml"
+      - "scripts/qa/tenant-six-page-selection.json"
+      - "scripts/qa/tenant-six-scoped-page-credit.mjs"
+      - "tests/tenant-six-scoped-page-credit.test.mjs"
+      - "tests/tenant-isolation-coverage-inventory.test.mjs"
+      - "tests/tenant-scoped-pages.test.mjs"
+      - "tests/tenant-five-scoped-page-credit.test.mjs"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "scripts/qa/tenant-hr-cases-page-*.mjs"
+      - "scripts/qa/tenant-report-builder-page-*.mjs"
+      - "scripts/qa/tenant-2316-ssr-transfer-*.mjs"
+      - "scripts/qa/tenant-prior-review-worker-*.mjs"
+      - "scripts/qa/tenant-hire-payroll-review-*.mjs"
+      - "scripts/qa/tenant-hcm-process-monitor-*.mjs"
+      - "src/app/hcm/hr-cases/page.tsx"
+      - "src/app/workspace/report-builder/page.tsx"
+      - "src/app/workspace/2316/page.tsx"
+      - "src/app/workspace/prior-employer/page.tsx"
+      - "src/app/hcm/hire-payroll-review/page.tsx"
+      - "src/app/hcm/process-monitor/page.tsx"
+      - "src/app/api/hr-cases/**"
+      - "src/app/api/reports/builder/**"
+      - "src/app/api/hcm/process-monitor/**"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/organization-auth-policy.ts"
+      - "src/lib/multi-entity-*.ts"
+      - "src/lib/tenant-*.ts"
+      - "src/lib/hcm-hire-payroll-review-*.ts"
+      - "src/lib/hr-case-*.ts"
+      - "src/lib/hcm-process-monitor*.ts"
+      - "src/db/schema.ts"
+      - "src/db/index.ts"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  page-http-reproof:
+    name: Exact-head PG16 SSR - ${{ matrix.family }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - family: hr
+            hr: "true"
+            report: "false"
+            tax: "false"
+            hire: "false"
+            monitor: "false"
+            multi: "false"
+            contract: scripts/qa/tenant-hr-cases-page-contract.mjs
+            proof: scripts/qa/tenant-hr-cases-page-http.mjs
+            test: tests/tenant-hr-cases-page-contract.test.mjs
+          - family: report
+            hr: "false"
+            report: "true"
+            tax: "false"
+            hire: "false"
+            monitor: "false"
+            multi: "false"
+            contract: scripts/qa/tenant-report-builder-page-contract.mjs
+            proof: scripts/qa/tenant-report-builder-page-http.mjs
+            test: tests/tenant-report-builder-page-contract.test.mjs
+          - family: 2316
+            hr: "false"
+            report: "false"
+            tax: "true"
+            hire: "false"
+            monitor: "false"
+            multi: "true"
+            contract: scripts/qa/tenant-2316-ssr-transfer-contract.mjs
+            proof: scripts/qa/tenant-2316-ssr-transfer-http.mjs
+            test: tests/tenant-2316-ssr-transfer.test.mjs
+          - family: prior
+            hr: "false"
+            report: "false"
+            tax: "true"
+            hire: "false"
+            monitor: "false"
+            multi: "true"
+            contract: scripts/qa/tenant-prior-review-worker-contract.mjs
+            proof: scripts/qa/tenant-prior-review-worker-http.mjs
+            test: tests/tenant-prior-review-worker-contract.test.mjs
+          - family: hire
+            hr: "false"
+            report: "false"
+            tax: "false"
+            hire: "true"
+            monitor: "false"
+            multi: "false"
+            contract: scripts/qa/tenant-hire-payroll-review-contract.mjs
+            proof: scripts/qa/tenant-hire-payroll-review-http.mjs
+            test: tests/tenant-hire-payroll-review-contract.test.mjs
+          - family: monitor
+            hr: "false"
+            report: "false"
+            tax: "true"
+            hire: "false"
+            monitor: "true"
+            multi: "false"
+            contract: scripts/qa/tenant-hcm-process-monitor-contract.mjs
+            proof: scripts/qa/tenant-hcm-process-monitor-http.mjs
+            test: tests/tenant-hcm-process-monitor-contract.test.mjs
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      TENANT_HR_CASE_PAGE_PROOF: fictional-pg16-only
+      TENANT_REPORT_PAGE_PROOF: fictional-only
+      TENANT_2316_SSR_TRANSFER_PROOF: fictional-pg16-only
+      TENANT_PRIOR_WORKER_PROOF: fictional-pg16-only
+      TENANT_HIRE_REVIEW_PROOF: fictional-pg16-only
+      TENANT_MONITOR_PAGE_PROOF: fictional-pg16-only
+      EMPLOYEE_HR_CASES_ENABLED: ${{ matrix.hr }}
+      TENANT_REPORT_BUILDER_ENABLED: ${{ matrix.report }}
+      MULTI_ENTITY_ENABLED: ${{ matrix.multi }}
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: ${{ matrix.tax }}
+      BIR_2316_CERTIFICATE_DRAFT_ENABLED: ${{ matrix.tax }}
+      BIR_2316_RECONCILIATION_ENABLED: ${{ matrix.tax }}
+      BIR_2316_WITHHOLDING_EVIDENCE_ENABLED: ${{ matrix.tax }}
+      HCM_HIRE_PAYROLL_REVIEW_ENABLED: ${{ matrix.hire }}
+      NEXT_PUBLIC_HCM_HIRE_PAYROLL_REVIEW_ENABLED: ${{ matrix.hire }}
+      HCM_HIRE_PAYROLL_REVIEW_ORG_IDS: "1,2,3"
+      HCM_PROCESS_MONITOR_ENABLED: ${{ matrix.monitor }}
+      HCM_PROCESS_MONITOR_ORG_IDS: "1,2,3"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      CRON_SECRET: ""
+      WORKER_TOKEN: ""
+      SMTP_URL: ""
+      SMTP_PASSWORD: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Source seal, refusal, negative contracts
+        env:
+          NODE_ENV: production
+        run: |
+          node --check "${{ matrix.contract }}"
+          node --check "${{ matrix.proof }}"
+          node --test "${{ matrix.test }}"
+          node --test tests/tenant-six-scoped-page-credit.test.mjs
+      - name: Generate ephemeral fictional-only encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Build a fresh disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated fictional data baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build feature-ON Next production mode for loopback ONLY
+        run: npm run build
+      - name: Start localhost-only application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-six-page.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-six-page.log
+          exit 1
+      - name: Actual two-attacker, real victim, own-foreign-forged-unchanged SSR proof
+        env:
+          NODE_ENV: production
+        run: node --import tsx "${{ matrix.proof }}"
+      - name: Bounded failed localhost server diagnostic
+        if: failure()
+        run: tail -n 80 /tmp/tenant-six-page.log || true
+
+  manifest-credit:
+    name: Manifest credit after six successful current-source page jobs
+    needs: [page-http-reproof]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify same PR head on credit gate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify generator, source seals, unchanged API method ledger
+        run: |
+          node --check scripts/qa/tenant-six-scoped-page-credit.mjs
+          node scripts/qa/tenant-six-scoped-page-credit.mjs --check
+          node --test tests/tenant-six-scoped-page-credit.test.mjs
+      - name: Verify every preexisting historical page and inventory guard
+        run: |
+          node --test tests/tenant-five-scoped-page-credit.test.mjs
+          node --test tests/tenant-scoped-pages.test.mjs
+          node --test tests/tenant-isolation-coverage-inventory.test.mjs
+      - name: Re-pin citations against origin/main and forbid any untracked drift
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          node scripts/qa/tenant-manifest-repin.mjs --base origin/main --write
+          git diff --exit-code -- scripts/qa/tenant-isolation-coverage-manifest.json docs/engineering/tenant-isolation-coverage-inventory.md
+          node scripts/qa/tenant-manifest-repin.mjs --base origin/main
