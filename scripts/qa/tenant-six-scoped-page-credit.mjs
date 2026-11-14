@@ -82,6 +82,9 @@ export const TARGETS = Object.freeze([
      'seedEmployer("VICTIM"'],
     "Process mutation/approval, hydrated actions, legal-employer multi-entity, production and independent privacy review"),
 ]);
+const CERT_2316_WORKER_TEST = "tests/tenant-2316-legal-employer-worker.test.ts";
+const CERT_2316_WORKER_TEST_CURRENT_SHA = "6b20e0a017d26acbc0d877e184e98ea37dc0a768";
+const CERT_2316_WORKER_TEST_HISTORICAL_SHA = "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7";
 export function gitBlobSha(content) {
   const b = Buffer.isBuffer(content) ? content : Buffer.from(content);
   return createHash("sha1").update("blob " + b.length + "\0").update(b).digest("hex");
@@ -120,6 +123,9 @@ export function verifySixInputs(read = readFileSync) {
   assert.ok(!workflow.includes("secrets."),
     "SIX_PAGE_REFUSED: credential-backed workflow is forbidden");
   const selected = selectedTargets(read);
+  if (selected.some(t => t.key === "2316")) assert.equal(
+    gitBlobSha(read(CERT_2316_WORKER_TEST)), CERT_2316_WORKER_TEST_CURRENT_SHA,
+    "SIX_PAGE_REFUSED: original 2316 source-only guard must be re-pinned to current proof");
   const anchors = new Map();
   assert.equal(new Set(TARGETS.map(t => t.path)).size, 6);
   for (const t of TARGETS) {
@@ -193,6 +199,18 @@ export function expectedSixPageManifest(input, read = readFileSync) {
       assert.equal(row.reason, reason(t), "SIX_PAGE_REFUSED: reason drift");
       assert.deepEqual(row.testedBy, expected, "SIX_PAGE_REFUSED: evidence drift " + t.path);
     }
+  }
+  // Update only the source pin for the stronger, fully executed 2316
+  // negative-control test. The historical uncredited candidate stays
+  // unaccepted; the six-page credit has its own separate testedBy receipt.
+  if (selected.some(t => t.key === "2316")) {
+    const record = m.scopedPages.find(p => p.path === "src/app/workspace/2316/page.tsx");
+    const proof = record?.reviewedUncertified?.workerWithoutSeparationBoundary;
+    assert.equal(proof?.unitTestFile, CERT_2316_WORKER_TEST);
+    assert.ok([CERT_2316_WORKER_TEST_HISTORICAL_SHA, CERT_2316_WORKER_TEST_CURRENT_SHA]
+      .includes(proof?.unitTestBlobSha),
+      "SIX_PAGE_REFUSED: unknown source-only 2316 unit proof pin");
+    proof.unitTestBlobSha = CERT_2316_WORKER_TEST_CURRENT_SHA;
   }
   const methods = Object.values(m.allApiRouteFiles).flatMap(entry => entry.methods);
   m.metrics.routeFiles = Object.keys(m.allApiRouteFiles).length;
