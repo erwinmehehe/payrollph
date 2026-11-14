@@ -16,7 +16,8 @@ test('MKT-01 operator-only GET cannot rewrite or multiply the separate Studio cr
  assert.equal(operator.testedBy.publicByDesign,false);
  // Recompute from all method rows; MKT-01 must never pin a shared live total.
  const {live}=assertLiveTenantCounts(assert,m);
- const historical=[...m.acceptanceStatus.matchAll(/SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: (\\d+) COVERED \\/ (\\d+) GAP;/g)];
+ const historyPattern=new RegExp('SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: ([0-9]+) COVERED / ([0-9]+) GAP;','g');
+ const historical=[...m.acceptanceStatus.matchAll(historyPattern)];
  assert.ok(historical.length>0,'The earlier Studio proof note must remain present');
  assert.ok(historical.every(([,covered,gap])=>Number(covered)<live.coveredAfter && Number(gap)>live.gap),
    'Current MKT-01 method must not be counted as another Studio credit');
