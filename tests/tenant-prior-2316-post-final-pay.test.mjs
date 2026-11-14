@@ -262,3 +262,74 @@ test("removing any foreign-SQL or login check invalidates the action-browser con
       "No previous successful browser receipt may substitute for " + marker);
   }
 });
+
+const TARGETED_WORKFLOWS = [
+  ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
+  ".github/workflows/tenant-2316-ssr-transfer-qa.yml",
+  ".github/workflows/tenant-2316-browser-pdf-qa.yml",
+];
+const SHARED_REPROOF_INPUTS = [
+  "src/app/workspace/prior-employer/page.tsx",
+  "src/app/workspace/2316/page.tsx",
+  "src/components/workspace/year-end-prior-review.tsx",
+  "src/components/workspace/certificate-2316-review.tsx",
+  "src/lib/year-end-prior-evidence.ts",
+  "src/lib/year-end-prior-evidence-server.ts",
+  "src/lib/multi-entity-policy.ts",
+  "src/lib/multi-entity-server.ts",
+  "src/lib/auth.ts",
+  "src/lib/access.ts",
+  "src/lib/permissions.ts",
+  "src/lib/organization-auth-policy.ts",
+  "src/lib/security-request.ts",
+  "src/lib/tenant-prior-review-worker.ts",
+  "src/lib/tenant-payroll-review-page.ts",
+  "src/lib/critical-release-flags.ts",
+  "src/lib/crypto.ts",
+  "src/lib/government-id-crypto.ts",
+  "src/lib/security-secret.ts",
+  "src/lib/totp.ts",
+  "src/db/schema.ts",
+  "src/db/index.ts",
+  "scripts/qa/tenant-table-http.mjs",
+  "scripts/qa/apply-isolated-baseline.mjs",
+  "tests/tenant-prior-review-worker-contract.test.mjs",
+  "tests/tenant-2316-ssr-transfer.test.mjs",
+  "tests/tenant-2316-browser-pdf-contract.test.mjs",
+  "tests/tenant-2316-legal-employer-worker.test.ts",
+  "package.json",
+  "package-lock.json"
+];
+
+export function verifyTargetedWorkflowWatchers(read = readFileSync) {
+  for (const path of TARGETED_WORKFLOWS) {
+    const source = String(read(path));
+    const selected = source.split("    paths:\n")[1]?.split("  workflow_dispatch:")[0];
+    assert.ok(selected,
+      "POST_FINAL_PAY_REVIEW_REQUIRED: missing pull-request path triggers " + path);
+    for (const dependency of SHARED_REPROOF_INPUTS)
+      assert.ok(selected.includes('      - "' + dependency + '"'),
+        "POST_FINAL_PAY_REVIEW_REQUIRED: " + path + " ignores " + dependency);
+    assert.ok(source.includes("github.event.pull_request.head.sha"),
+      "POST_FINAL_PAY_REVIEW_REQUIRED: exact-head PR checkout missing " + path);
+    assert.ok(source.includes("image: postgres:16"),
+      "POST_FINAL_PAY_REVIEW_REQUIRED: disposable PG16 missing " + path);
+  }
+  return true;
+}
+test("all three exact-head PG16 workflows watch shared identity, HR, 2316 and prior-evidence dependencies", () => {
+  assert.equal(verifyTargetedWorkflowWatchers(), true);
+});
+test("dropping any watched private source invalidates the three-workflow regression", () => {
+  const sourceToRemove = "src/components/workspace/year-end-prior-review.tsx";
+  for (const workflow of TARGETED_WORKFLOWS) {
+    const read = (path, ...args) => {
+      const contents = String(readFileSync(path, ...args));
+      return path === workflow ?
+        contents.replace('      - "' + sourceToRemove + '"\n', "") : contents;
+    };
+    assert.throws(() => verifyTargetedWorkflowWatchers(read),
+      /POST_FINAL_PAY_REVIEW_REQUIRED/,
+      workflow + " may not silently stop watching prior-employer browser hydration");
+  }
+});
