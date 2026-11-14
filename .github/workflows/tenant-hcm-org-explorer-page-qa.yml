@@ -8,6 +8,7 @@ on:
       - "docs/qa/tenant-hcm-org-explorer-page-isolation.md"
       - "scripts/qa/tenant-hcm-org-explorer-page-contract.mjs"
       - "scripts/qa/tenant-hcm-org-explorer-page-http.mjs"
+      - "scripts/qa/tenant-hcm-org-explorer-browser.mjs"
       - "tests/tenant-hcm-org-explorer-page-contract.test.mjs"
       - "tests/tenant-hcm-org-explorer-client-scope.test.mjs"
       - "src/app/hcm/org-explorer/**"
@@ -99,9 +100,15 @@ jobs:
         run: |
           node --check scripts/qa/tenant-hcm-org-explorer-page-contract.mjs
           node --check scripts/qa/tenant-hcm-org-explorer-page-http.mjs
+          node --check scripts/qa/tenant-hcm-org-explorer-browser.mjs
           node --test tests/tenant-hcm-org-explorer-page-contract.test.mjs
           node --test tests/tenant-hcm-org-explorer-client-scope.test.mjs
           node --test tests/tenant-hcm-page-api-ci-coverage.test.mjs
+      # Isolated local Chromium only; the browser rejects non-loopback requests.
+      - name: Install sandboxed Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
       - name: Generate ephemeral-only encryption keys
         shell: bash
         run: |
