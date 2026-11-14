@@ -183,9 +183,14 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     assert.equal(studioBanners.length,expectedBanners,
       'Keep exactly the historical Studio accounting snapshots in each document');
     assert.match(studioBanners[0],/461 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 2 GAP/);
+    // The historical Studio snapshots are retained byte-for-byte; OIDC
+    // recovery updates only the first live summary, not the older 460/3
+    // checkpoints or their original 16/17 page-gap accounting.
     for(const historic of studioBanners.slice(1))
-      assert.match(historic,/458 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 5 GAP/);
-    assert.ok(studioBanners.slice(1).some(line=>/17 separate page\/action gaps remain/.test(line)),
+      assert.match(historic,/460 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 3 GAP/);
+    if(file.endsWith('coverage-inventory.md'))
+      assert.match(studioBanners[1],/16 separate page\/action gaps remain/);
+    assert.match(studioBanners.at(-1),/17 separate page\/action gaps remain/,
       'Retain the older 17-page-gap Studio evidence without rewriting it');
 
   }
