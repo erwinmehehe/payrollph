@@ -33,8 +33,12 @@ import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_EVIDENCE } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 import { EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 
-const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifySixPageCredits(live), selectedTargets().length,
+  "New six-page receipts must pass before older six-METHOD ledger guards");
+const m = historicSixPageView(live);
 const cases = [
   ["POST", "bir/annual-employer/candidate", 1676, "abe1600a2df31f513cda152bed828fd5567fd72e",
     "b0344f6af31b58456772cd46a07af46291c11ad0", 136, 153, 157, 170, 68, "object ID > 6"],
@@ -1041,7 +1045,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       "The two transfer credits must be either both held or both independently evidenced");
     if (baselineHasRecovery) {
       // Verify the historical main ledger against main's own bytes for each historical proof source, not this feature's revised files.
-      const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { maxBuffer: 16 * 1024 * 1024 });
+      const readMainFile = path => execFileSync("git", ["show", "origin/main:" + path], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
       // Historical Worker 360 evidence predates the five separately proven
       // #1973 pages. Mask only those five receipts while verifying the sealed
       // old method cohort against origin/main; the live ledger stays at 11 gaps.

@@ -239,7 +239,23 @@ jobs:
       - run: npm ci
       - name: Recompute page status and metrics using the generator; no manual count drift
         run: |
+          # Preserve the immutable original five-page generator and verify it
+          # against its exact historical projection, only AFTER the separate
+          # six-page source/proof ledger has been exhaustively validated.
+          node scripts/qa/tenant-six-scoped-page-credit.mjs --check
+          cp scripts/qa/tenant-isolation-coverage-manifest.json /tmp/tenant-six-full-manifest.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import { readFileSync, writeFileSync } from "node:fs";
+            import { verifySixPageCredits, historicSixPageView, selectedTargets } from "./scripts/qa/tenant-six-scoped-page-credit.mjs";
+            const path = "scripts/qa/tenant-isolation-coverage-manifest.json";
+            const live = JSON.parse(readFileSync(path, "utf8"));
+            assert.equal(verifySixPageCredits(live), selectedTargets().length);
+            writeFileSync(path, JSON.stringify(historicSixPageView(live), null, 2) + "\n");
+          '
           node scripts/qa/tenant-five-scoped-page-credit.mjs --check
           node scripts/qa/tenant-five-scoped-page-credit.mjs --write
+          cp /tmp/tenant-six-full-manifest.json scripts/qa/tenant-isolation-coverage-manifest.json
+          node scripts/qa/tenant-six-scoped-page-credit.mjs --check
           git diff --exit-code -- scripts/qa/tenant-isolation-coverage-manifest.json
           node --test tests/tenant-five-scoped-page-credit.test.mjs tests/tenant-scoped-pages.test.mjs

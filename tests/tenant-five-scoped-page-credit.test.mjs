@@ -9,8 +9,12 @@ import {
 } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { assertMkt01Receipt } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 
-const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifySixPageCredits(live), selectedTargets().length,
+  "The new six-page receipts must be verified before the historical test view");
+const m = historicSixPageView(live);
 const copy = () => structuredClone(m);
 
 test("five page-only credits preserve the API ledger; only separately proved MKT-01 may reduce its GAP", () => {

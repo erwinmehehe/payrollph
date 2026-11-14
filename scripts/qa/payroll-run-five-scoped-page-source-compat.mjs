@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { verifyOidcBatchCredits, historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
+import { expectedSixPageManifest, historicSixPageView, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -25,6 +26,7 @@ const REVIEWED_PROBE_BLOB = "48a62c81c7d20b1d6980e2f9d610bbb9afdb7173";
 const REVIEWED_GENERATOR_BLOB = "08335292d7534ac3618f59b6959bbd8133483dd7";
 const REVIEWED_GENERATOR_MKT_BLOB = "9cba2a1198ae02c5fe6d58c50fd2e2771c8ceb7a";
 const REVIEWED_WORKFLOW_BLOB = "4d475e51c601583ba4212e2c327207c5bb1b34dc";
+const REVIEWED_SIX_PAGE_WORKFLOW_BLOB = "597ee23817180b5ac091fe8649f989d9421a1e67";
 const HISTORICAL_WORKER_VERIFIER_BLOB = "8b9b1cdee7ff5228a5558f2e326dff6019f19e8b";
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 
@@ -53,7 +55,28 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     "PAGE_COMPAT_REFUSED: historical second-pass page probe did not reconstruct");
   assert.equal(probe.split("\n").length, historical.split("\n").length,
     "PAGE_COMPAT_REFUSED: historical source-line pins must be preserved");
-  const manifest = JSON.parse(String(read(MANIFEST)));
+  const live = JSON.parse(String(read(MANIFEST)));
+  const coveredPages = live.scopedPages.filter(p => p.status === "COVERED").length;
+  const openPages = live.scopedPages.filter(p => p.status === "GAP").length;
+  const expanded = coveredPages !== 10 || openPages !== 11;
+  let manifest = live;
+  if (expanded) {
+    // A future page-credit expansion cannot borrow historical payroll proof.
+    // Reconstruct the 10/11 view ONLY after the exact six-page source, real
+    // HTTP assertion anchors, unchanged API and previous five credits pass.
+    assert.equal(coveredPages, 16, "PAGE_COMPAT_REFUSED: unreviewed extra pages");
+    assert.equal(openPages, 5, "PAGE_COMPAT_REFUSED: unreviewed missing page GAPs");
+    // Do not call verifySixPageCredits here: its historical five-page
+    // verifier checks payroll-renewal source compatibility and would recurse.
+    // The independent six-page generator validates every current source,
+    // immutable proof-line marker, exact receipt and API ledger; the original
+    // compatibility assertions below validate the reconstructed five pages.
+    assert.equal(selectedTargets(read).length, 6,
+      "PAGE_COMPAT_REFUSED: an unreviewed subset cannot borrow payroll evidence");
+    assert.deepEqual(live, expectedSixPageManifest(live, read),
+      "PAGE_COMPAT_REFUSED: six-page current-source receipts fail regeneration");
+    manifest = historicSixPageView(live, read);
+  }
   const marketing = manifest.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
     .find(method => method.name === "GET");
   const hasMkt01 = marketing?.status === "COVERED";
@@ -82,7 +105,10 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   assert.equal(renewalBlob(generator), pinnedGenerator,
     "PAGE_COMPAT_REFUSED: historical page generator must reconstruct with no unrelated source changes");
   for (const [path, blob] of [
-    [WORKFLOW, REVIEWED_WORKFLOW_BLOB],
+    // The original exact SHA is still mandatory on historical heads.
+    // The new exact SHA is permitted only after full six-page source and
+    // four-part proof receipt validation above, never merely by page count.
+    [WORKFLOW, expanded ? REVIEWED_SIX_PAGE_WORKFLOW_BLOB : REVIEWED_WORKFLOW_BLOB],
     [WORKER_VERIFIER, HISTORICAL_WORKER_VERIFIER_BLOB],
   ]) assert.equal(renewalBlob(read(path)), blob,
     "PAGE_COMPAT_REFUSED: unreviewed page-credit verifier/workflow: " + path);
