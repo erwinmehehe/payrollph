@@ -4,7 +4,8 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, appendFileSync } from "node:fs";
+import {writePrivateSamlReceipt} from './tenant-saml-metadata-artifact.mjs';
 import {execFileSync} from "node:child_process";
 import {requireFreshSamlMetadataEnv,collectFreshSamlInputs,assertFreshSamlResult} from "./tenant-saml-metadata-fresh-inputs.mjs";
 import {historicalSamlMetadataView} from './tenant-saml-metadata-public-policy.mjs';
@@ -197,8 +198,9 @@ export async function verifySamlPublicHttp() {
     assert.deepEqual(collectFreshSamlInputs(),inputs,'Execution source drifted during real HTTP proof');
     const receipt={schema:'saml-public-metadata-fresh-pg16-v1',sourceHead:process.env.SAML_PROOF_HEAD_SHA,
       runId:process.env.GITHUB_RUN_ID,inputs,result};
-    mkdirSync('/tmp/payrollph-saml-metadata-public',{recursive:true});
-    writeFileSync('/tmp/payrollph-saml-metadata-public/receipt.json',JSON.stringify(receipt,null,2)+'\n');
+    const receiptPath=writePrivateSamlReceipt(receipt);
+    assert.ok(process.env.GITHUB_OUTPUT,'Actual CI step output is required');
+    appendFileSync(process.env.GITHUB_OUTPUT,'receipt_path='+receiptPath+'\n');
     console.log('SAML_METADATA_FRESH_HTTP_PASS '+JSON.stringify(receipt));
   } finally {
     await pool.end();

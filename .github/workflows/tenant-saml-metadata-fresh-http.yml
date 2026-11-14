@@ -86,7 +86,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SAML_PROOF_HEAD_SHA"
           node --check scripts/qa/tenant-saml-metadata-public-contract.mjs
           node --check scripts/qa/tenant-saml-metadata-public-http.mjs
-          node --test tests/tenant-saml-metadata-public-policy.test.mjs tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
+          node --test tests/tenant-saml-metadata-artifact.test.mjs tests/tenant-saml-metadata-public-policy.test.mjs tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
           git cat-file -e "${SAML_PROOF_BASE_SHA}^{commit}"
           npm run tenant:repin:check -- --base "$SAML_PROOF_BASE_SHA"
       - name: Ephemeral encryption keys only
@@ -121,12 +121,13 @@ jobs:
           tail -n 40 /tmp/tenant-saml-public.log || true
           exit 1
       - name: Enabled XML, disabled/missing privacy, forged selectors and unchanged SQL
+        id: public_metadata_proof
         run: node --import tsx scripts/qa/tenant-saml-metadata-fresh-http.mjs
       - name: Retain sanitized fresh public-boundary receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: tenant-saml-metadata-fresh-receipt
-          path: /tmp/payrollph-saml-metadata-public/receipt.json
+          path: ${{ steps.public_metadata_proof.outputs.receipt_path }}
           if-no-files-found: error
       - name: Print bounded localhost failures only
         if: failure()

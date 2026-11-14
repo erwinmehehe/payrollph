@@ -17,6 +17,7 @@ export function collectFreshSamlInputs(){
   'src/app/api/auth/saml/metadata/[providerId]/route.ts',
   'scripts/qa/tenant-saml-metadata-fresh-http.mjs',
   'scripts/qa/tenant-saml-metadata-fresh-inputs.mjs',
+  'scripts/qa/tenant-saml-metadata-artifact.mjs','tests/tenant-saml-metadata-artifact.test.mjs',
   'scripts/qa/tenant-saml-metadata-public-contract.mjs',
   'scripts/qa/tenant-saml-metadata-privacy-verify.mjs',
   'docs/qa/tenant-saml-metadata-owner-approval.json',

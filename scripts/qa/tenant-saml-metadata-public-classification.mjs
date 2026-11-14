@@ -60,7 +60,29 @@ export async function classifySamlMetadata({write=false}={}){
  assert.ok(inventory.split('\n').includes('| publicByDesign | '+m.metrics.publicByDesign+' |'),'Live public-label count must match the classified ledger');
  return{write,relabelled:changed?1:0,newCoveredCredits:0,before,after:m.metrics,resolveHeld:true};
 }
+/** Input drift withdraws only this public label until its real proof is renewed. */
+export async function holdSamlMetadataForRenewal(){
+ const original=JSON.parse(readFileSync(MANIFEST));
+ assert.equal(original.allApiRouteFiles[SAML_PUBLIC_PATH].methods[0].status,'PUBLIC-BY-DESIGN');
+ const m=historicalSamlMetadataView(original);
+ assert.equal(m.metrics.coveredAfter,original.metrics.coveredAfter);
+ assert.equal(m.metrics.gap,original.metrics.gap+1);assert.equal(m.metrics.publicByDesign,original.metrics.publicByDesign-1);
+ m.acceptanceStatus+=' Approved metadata public label temporarily held pending renewed real PG16 proof after secure artifact-output input changes; owner decision and resolve hold unchanged.';
+ writeFileSync(MANIFEST,JSON.stringify(m,null,2)+'\n');
+ let inventory=readFileSync(INVENTORY,'utf8');
+ inventory=inventory.split('\n').map(l=>l.startsWith('| [`auth/saml/metadata/[providerId]` GET]')
+  ?l.replace(/\| \[owner-approved public XML \+ PG16\]\([^)]+\) \| \*\*PUBLIC-BY-DESIGN\*\* \|$/,'| NO VALID METHOD PROOF | **GAP** |'):l).join('\n');
+ writeFileSync(INVENTORY,inventory);await reconcileDocs(true);
+ for(const file of [INVENTORY,PLAN]){
+  let text=readFileSync(file,'utf8').replace(/^\| publicByDesign \| \d+ \|$/m,'| publicByDesign | '+m.metrics.publicByDesign+' |');
+  const lines=text.split('\n');lines[0]=lines[0].replace(/\*\*498 methods = \d+ COVERED \/ \d+ PUBLIC-BY-DESIGN \/ 12 TOKEN-ONLY \/ \d+ GAP\*\*/,
+   '**498 methods = '+m.metrics.coveredAfter+' COVERED / '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / '+m.metrics.gap+' GAP**');
+  writeFileSync(file,lines.join('\n'));
+ }
+ return{publicLabelsHeld:1,newCoveredCredits:0,resolveHeld:true};
+}
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- assert.ok(['--write','--check'].includes(process.argv[2]));
- classifySamlMetadata({write:process.argv[2]==='--write'}).then(r=>console.log(JSON.stringify(r))).catch(e=>{console.error(e);process.exitCode=1;});
+ assert.ok(['--write','--check','--hold-for-proof-renewal'].includes(process.argv[2]));
+ const work=process.argv[2]==='--hold-for-proof-renewal'?holdSamlMetadataForRenewal():classifySamlMetadata({write:process.argv[2]==='--write'});
+ work.then(r=>console.log(JSON.stringify(r))).catch(e=>{console.error(e);process.exitCode=1;});
 }

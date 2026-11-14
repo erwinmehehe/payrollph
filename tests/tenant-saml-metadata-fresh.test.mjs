@@ -41,7 +41,7 @@ test('fresh workflow checks out exact head, executes the new HTTP runner and ret
  assert.equal(j.env.SAML_FRESH_PROOF_MODE,'fictional-pg16-public-metadata');
  for(const k of ['XENDIT_PAYOUTS_ENABLED','XENDIT_PAYOUTS_LIVE_APPROVED','FINAL_PAY_MANUAL_RELEASE_ENABLED','NEXT_CSP_ENABLED'])assert.equal(j.env[k],'false');
  assert.ok(j.steps.some(s=>s.run==='node --import tsx scripts/qa/tenant-saml-metadata-fresh-http.mjs'));
- assert.ok(j.steps.some(s=>s.with?.path==='/tmp/payrollph-saml-metadata-public/receipt.json'));
+ assert.ok(j.steps.some(s=>s.with?.path==='${{ steps.public_metadata_proof.outputs.receipt_path }}'));
 });
 test('complete input closure pins schema, subprocess baseline, source and every numbered SQL file',()=>{
  const r=collectFreshSamlInputs();
