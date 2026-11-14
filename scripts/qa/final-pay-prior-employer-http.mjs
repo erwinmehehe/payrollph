@@ -177,9 +177,16 @@ async function prove() {
     .where(eq(s.separationRecords.id, id));
   expect(await http("/api/separation", cookies[3], "POST", payload),
     403, "Foreign same-org Separation POST");
-  expect(await http("/api/separation", cookies[3], "PATCH", {
+  const forbiddenPatch = await http("/api/separation", cookies[3], "PATCH", {
     id, action: "approve",
-  }), 403, "Foreign same-org Separation PATCH");
+  });
+  expect(forbiddenPatch, 404, "Foreign same-org Separation PATCH conceals record existence");
+  const unknownPatch = await http("/api/separation", cookies[3], "PATCH", {
+    id: id + 1000000, action: "approve",
+  });
+  expect(unknownPatch, 404, "Unknown Separation PATCH must be indistinguishable");
+  assert.deepEqual(forbiddenPatch.json, unknownPatch.json,
+    "A new-employer payroll caller cannot infer that a frozen separation exists");
   const afterDenials = await db.select().from(s.separationRecords)
     .where(eq(s.separationRecords.id, id));
   assert.deepEqual(afterDenials, beforeDenials);
