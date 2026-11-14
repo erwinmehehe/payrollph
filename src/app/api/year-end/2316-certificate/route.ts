@@ -45,16 +45,20 @@ async function respond(request: Request, mode: "source" | "pdf") {
         eq(separationRecords.organizationId, scope.organizationId),
         eq(separationRecords.employeeId, scope.employeeId),
       )).limit(1);
-    if (!frozen) return Response.json({ error: "Certificate source not found." }, { status: 404, headers });
-    const earlyDenied = assertEntityResource(entityScope.context, frozenFinalPayLegalEntityId(frozen.snapshot));
-    if (earlyDenied) return earlyDenied;
+    // Unknown and same-parent ungranted historical separations share an
+    // identical response, so IDs cannot be probed as an existence oracle.
+    if (!frozen || assertEntityResource(entityScope.context,
+      frozenFinalPayLegalEntityId(frozen.snapshot))) {
+      return Response.json({ error: "Certificate source not found." }, { status: 404, headers });
+    }
   }
   try {
     const source = await load2316CertificateSource(scope);
     // Second check binds the transactional certificate source, preventing
     // changed attribution between the preliminary guard and the response.
     const sourceDenied = assertEntityResource(entityScope.context, source.legalEntityId);
-    if (sourceDenied) return sourceDenied;
+    if (sourceDenied) return Response.json(
+      { error: "Certificate source not found." }, { status: 404, headers });
     const sourceDigest = certificateSourceDigest(source);
     if (mode === "source") {
       await recordAuditEvent({ organizationId: scope.organizationId, actor: user.name, action: "BIR 2316 preparer source viewed", resource: `Employee #${scope.employeeId} / ${scope.taxYear}`, metadata: { ...scope, plaintextPersisted: false } });
