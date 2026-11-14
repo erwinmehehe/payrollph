@@ -8,6 +8,7 @@ import {isVerifiedOracleRenewal} from '../scripts/qa/payroll-run-oracle-hold.mjs
 import { verifyOracleSourceHolds } from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
+import {verifyMkt01Credit} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -100,7 +101,12 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     if(callback.status==='GAP')verifyOidcCallbackHold(m);
     const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' && callback.status==='COVERED' ? verifyOidcCallbackCredit(m) : 0;
     const oidcWithdrawal=reviewedOidcSourceSupersession(base.manifest,m).size;
-    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
+    const mkt01Path="src/app/api/marketing/leads/route.ts";
+    const mainMkt01=base.manifest.allApiRouteFiles[mkt01Path].methods.find(x=>x.name==="GET");
+    const currentMkt01=m.allApiRouteFiles[mkt01Path].methods.find(x=>x.name==="GET");
+    const mkt01Delta=mainMkt01.status==="GAP" && currentMkt01.status==="COVERED"
+      ? verifyMkt01Credit(m) : 0;
+    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m)+mkt01Delta;
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -123,6 +129,11 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
       assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
     }
     if(route==='automation-studio'){assert.equal(verifyStudioPostCredit(m),1);continue;}
+    if(route==='marketing/leads'){
+      assert.equal(verifyMkt01Credit(m),1,
+        "MKT-01 operator GET must carry its own source-current PG16 receipt");
+      continue;
+    }
     if(route==='payroll-runs/[id]/xendit-payout'){assert.equal(verifyXenditPostCredit(m),1);continue;}
     if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     if(route==='readiness/workspace'){assert.equal(verifyWorkspaceReadinessCredit(m),1);continue;}

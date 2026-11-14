@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { verifyMkt01Credit } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
 import test from "node:test";
 import {
   requireDisposableMkt01, assertMkt01Aggregate, assertMkt01Denied,
@@ -28,6 +29,12 @@ function safeEnv() {
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
     XENDIT_PAYOUTS_ENABLED: "false", XENDIT_BILLING_ENABLED: "false",
     WORKER_ENABLED: "false", CENTRAL_SCHEDULER_ENABLED: "false",
+    NEXT_CSP_ENABLED: "false", MULTI_ENTITY_ENABLED: "false",
+    HCM_OVERPAYMENT_PREVIEW_ENABLED: "false",
+    PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false",
+    PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED: "false",
+    CALCULATION_HISTORY_ENABLED: "false",
+    PAYROLL_CALCULATION_HISTORY_ENABLED: "false",
     PAYMONGO_SECRET_KEY: "", XENDIT_SECRET_KEY: "",
     XENDIT_PAYOUT_SECRET_KEY: "", RESEND_API_KEY: "",
     POSTMARK_SERVER_TOKEN: "", SMTP_URL: "", STRIPE_SECRET_KEY: "",
@@ -51,6 +58,9 @@ test("MKT-01 refuses external databases, alternate mailboxes and live providers 
     ["XENDIT_PAYOUTS_ENABLED", "true"],
     ["XENDIT_BILLING_ENABLED", "true"],
     ["WORKER_ENABLED", "true"], ["CENTRAL_SCHEDULER_ENABLED", "true"],
+    ["NEXT_CSP_ENABLED", "true"], ["MULTI_ENTITY_ENABLED", "true"],
+    ["CALCULATION_HISTORY_ENABLED", "true"],
+    ["PAYROLL_CALCULATION_HISTORY_ENABLED", "true"],
     ["RESEND_API_KEY", "live"], ["STRIPE_SECRET_KEY", "live"],
     ["SMTP_URL", "smtp://remote.example"],
   ]) assert.throws(() => requireDisposableMkt01({ ...good, [key]: value }),
@@ -107,12 +117,16 @@ test("MKT-01 targets precisely the existing platform marketing report, not a ten
   ]) assert.ok(!aggregator.includes(forbidden), "report queries raw prospect PII: " + forbidden);
   const ledger = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
   const method = ledger.allApiRouteFiles[MKT01_ROUTE]?.methods.find(m => m.name === "GET");
-  assert.equal(method?.status, "GAP", "platform operator read is not tenant-scoped COVERED");
-  assert.equal(method?.testedBy, null, "no unearned method credit");
+  assert.equal(method?.status, "COVERED", "operator-only aggregate is credited but not public");
+  assert.equal(method?.testedBy?.operatorScoped, true);
+  assert.equal(method?.testedBy?.publicByDesign, false);
+  assert.equal(method?.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(method?.reviewedUncertified, undefined);
+  assert.equal(verifyMkt01Credit(), 1, "source-pinned receipt and generated manifest/closure docs");
   assert.match(ledger.acceptanceStatus, /^NOT ACCEPTED:/);
 });
 
-test("MKT-01 runner is independent, DB-backed, adversarial and read-only", () => {
+test("MKT-01 runner is isolated, DB-backed, adversarial and read-only", () => {
   const source = readFileSync(runnerPath, "utf8");
   assert.ok(source.indexOf("requireDisposableMkt01();") <
     source.indexOf('import("../../src/db/index.ts")'),
@@ -122,12 +136,24 @@ test("MKT-01 runner is independent, DB-backed, adversarial and read-only", () =>
     "marketing_leads", "user_organizations", "mfa_verified_at",
     "revoked_at", "assertMkt01Denied", "assertMkt01Aggregate",
     "assertMkt01Unchanged", "newCoverageCredits: 0",
-    "const authorizedB = await realGet(", "const forgedUrl = PATH +",
+    "const authorizedB = await auditedGet(", "const forgedUrl = PATH +",
     "assert.deepEqual(stableAggregate(forgedReport)",
     "twoIndependentOperatorSuccesses: true",
     "forgedHigherIdSelectorsIgnored: true",
+    "forgedQueryHeaderCookieEmployerBusinessLegalEmployerEmailIgnored: true",
+    "emptyAndUnsetAllowlist503: true",
+    "perRequestDurableRowsUnchanged: true",
     "independentSecurityReview: \"PENDING\"",
   ]) assert.ok(source.includes(marker), "MKT-01 proof check missing: " + marker);
+  for (const marker of [
+    "employerId:", "businessId:", "legalEmployerId:", "email: victim.email",
+    "forgedHeaders", "forgedCookie", '["-999", 1, 0]',
+    '["NaN", 90, 3]', '["1000000000000", 365, 3]',
+    'disabledAllowlistServer("empty", 3001)',
+    'disabledAllowlistServer("unset", 3002)',
+    "const justBefore = await state();",
+    "assertMkt01Unchanged(justBefore, await state()",
+  ]) assert.ok(source.includes(marker), "missing adversarial probe: " + marker);
   assert.ok(!source.includes("https://api."), "no external provider calls allowed");
 });
 

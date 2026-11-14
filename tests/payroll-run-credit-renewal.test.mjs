@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
 import {isReviewedFiveScopedPageProbeInput} from '../scripts/qa/payroll-run-five-scoped-page-source-compat.mjs';
+import {assertMkt01Receipt} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import {verifyOidcBatchCredits} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {isReviewedHeldSsoSecondPassInput} from '../scripts/qa/payroll-run-sso-source-reproof.mjs';
 import {readHistoricalPayrollRenewal,HISTORICAL_RENEWAL_RECEIPT} from '../scripts/qa/payroll-run-credit-renewal-history.mjs';
@@ -61,21 +62,35 @@ test('each sealed fresh input set equals the full locked-compiler import closure
         'Unreviewed execution input or import drift: '+name+': '+file);
       actual[file]=expected;
     }
-    // The page probe imports page accounting and the pure OIDC ledger view.
-    // Validate the two executed identity receipts, reconstruct the immutable
-    // page generator above, and pin exactly these bookkeeping modules. Neither
-    // may enter an archived execution receipt or its nineteen method credits.
+    // The changed page probe imports two new, separately source-sealed,
+    // page-only accounting modules. They cannot retroactively enter an
+    // immutable payroll execution receipt or extend its method credits.
     if(name==='secondPass'){
       assert.ok(isReviewedFiveScopedPageProbeInput(name,
         'scripts/qa/tenant-scoped-page-probes.mjs',
         cohort.sourcePins['scripts/qa/tenant-scoped-page-probes.mjs']));
+      const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+      const marketingGet=manifest.allApiRouteFiles['src/app/api/marketing/leads/route.ts']?.methods
+        .find(method=>method.name==='GET');
+      // The standalone MKT-01 proof cannot alter an old payroll receipt.
+      // Permit its exact reviewed accounting imports only after independent
+      // operator-only receipt/source validation; fail on every other new input.
+      const mktCredit=marketingGet?.status==='COVERED'?assertMkt01Receipt(manifest):0;
+      // The exact archived payroll proof is unchanged. Recognize only this
+      // source-pinned MKT-01/OIDC ledger adaptation, after both separate
+      // independent synthetic execution receipts verify completely.
+      assert.equal(mktCredit,1,"Operator-only MKT-01 receipt required");
+      assert.equal(verifyOidcBatchCredits(manifest),2,"Both OIDC protocol receipts required");
       const reviewedPageOnlyImports = new Map([
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          '366ece764403d9d88a92b2374eadeb78e2c62ff0'],
+          'd3067d1a83350f587dfb5c11442ea85d449e73ae'],
+        ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
+          'e7341e979612c00151d0351924b89a37476c40a2'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
           '7ae4c1899d1b63fb47d4f92913f8fb367d3d9162'],
+        ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
+          '6b71ba5a442e263064b260e260abbc6334d4a04c'],
       ]);
-      assert.equal(verifyOidcBatchCredits(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'))),2);
       for(const [path,expectedSha] of reviewedPageOnlyImports){
         if(!Object.hasOwn(actual,path))continue;
         assert.equal(actual[path],expectedSha,'Unreviewed new page-only import: '+path);
@@ -160,5 +175,18 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     const text=readFileSync(file,'utf8');
     assert.match(text,/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
     assert.match(text.split('\n\n')[1],/^> \*\*PAYROLL RUN ORACLE — RENEWED:/);
+    // The independently source-verified MKT-01 and OIDC receipts change only the live totals, not historical Studio proofs.
+    const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
+    // The inventory records two older Studio checkpoints, while the plan
+    // retains one. Neither may be manufactured or erased during reconciliation.
+    const expectedBanners=file.endsWith('coverage-inventory.md')?3:2;
+    assert.equal(studioBanners.length,expectedBanners,
+      'Keep exactly the historical Studio accounting snapshots in each document');
+    assert.match(studioBanners[0],/461 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 2 GAP/);
+    for(const historic of studioBanners.slice(1))
+      assert.match(historic,/458 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 5 GAP/);
+    assert.ok(studioBanners.slice(1).some(line=>/17 separate page\/action gaps remain/.test(line)),
+      'Retain the older 17-page-gap Studio evidence without rewriting it');
+
   }
 });

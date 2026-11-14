@@ -1,3 +1,4 @@
+import {assertMkt01Receipt} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import {xenditPostCreditDelta} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
@@ -53,7 +54,9 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
     if(callback.status==='GAP')verifyOidcCallbackHold(m);
     const oidcDelta = base.manifest.allApiRouteFiles[OIDC_CALLBACK].methods[0].status === 'GAP' && callback.status==='COVERED' ? verifyOidcCallbackCredit(m) : 0;
     const oidcWithdrawal=reviewedOidcSourceSupersession(base.manifest,m).size;
-    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m);
+    const mkt01Path='src/app/api/marketing/leads/route.ts';
+    const mkt01Delta=base.manifest.allApiRouteFiles[mkt01Path].methods.find(x=>x.name==='GET').status==='GAP' ? assertMkt01Receipt(m) : 0;
+    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+approvalDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m)+mkt01Delta;
     assert.equal(m.metrics.coveredAfter-base.manifest.metrics.coveredAfter,expectedNetCredits);
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(base.manifest.metrics.gap-m.metrics.gap,expectedNetCredits+relabels.gapRelabels);

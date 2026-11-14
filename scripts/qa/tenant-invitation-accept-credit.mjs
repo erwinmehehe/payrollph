@@ -1,4 +1,5 @@
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from './tenant-xendit-post-credit.mjs';
+import {verifyMkt01Credit} from './tenant-mkt01-marketing-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from './tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from './tenant-workspace-readiness-credit.mjs';
@@ -227,7 +228,17 @@ export function verifyInvitationAcceptCredits(m) {
       if(oidcStartPromotions.length)assert.equal(verifyOidcBatchMethod(m,OIDC_START),1);
       const xenditPromotions=promoted.filter(key=>key==='POST '+XENDIT_POST_PATH);
       if(xenditPromotions.length)assert.equal(verifyXenditPostCredit(m),1);
-      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...payrollRenewals].sort(),
+      // Exactly one operator-only report GET may coexist with invitations.
+      // It must carry its own exact route/runner/contract/workflow/job receipt;
+      // unlike ordinary employer methods it is not PUBLIC-BY-DESIGN.
+      const mkt01Path="src/app/api/marketing/leads/route.ts";
+      const mkt01Promotions=promoted.filter(key=>key==="GET "+mkt01Path);
+      if(mkt01Promotions.length) {
+        assert.equal(mkt01Promotions.length,1);
+        assert.equal(verifyMkt01Credit(m),1,
+          "Only the executed source-sealed MKT-01 operator GET credit may coexist");
+      }
+      assert.deepEqual(promoted, [...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...mkt01Promotions,...payrollRenewals].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
