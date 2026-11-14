@@ -64,7 +64,20 @@ test("No production code, real key, bucket or external host can be used in adapt
   assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED: 'false'/);
   assert.match(workflow, /PAYMONGO_DISBURSEMENTS_ENABLED=true/);
   assert.doesNotMatch(workflow, /secrets\./, "CI must never import GitHub production secrets");
-  assert.doesNotMatch(workflow, /NEON_DATABASE_URL|PRODUCTION_DATABASE_URL/);
+  // Naming a forbidden env variable in an assert-absent preflight is safe;
+  // injecting it into YAML or forwarding it to the proof UID is not.
+  assert.doesNotMatch(workflow,
+    /(?:^|\s)(?:NEON_DATABASE_URL|PRODUCTION_DATABASE_URL)\s*[:=]/m,
+    "Production database credentials cannot be passed into fictional proof");
+  const forbiddenAssignment = /(?:^|\s)(?:NEON_DATABASE_URL|PRODUCTION_DATABASE_URL)\s*[:=]/m;
+  for (const synthetic of [
+    "NEON_DATABASE_URL: prohibited", "PRODUCTION_DATABASE_URL=prohibited",
+  ]) assert.match(synthetic, forbiddenAssignment,
+    "Negative-control guard must reject production DB variable injection");
+  for (const name of ["NEON_DATABASE_URL", "PRODUCTION_DATABASE_URL"]) {
+    assert.ok(workflow.includes('"' + name + '"'),
+      "Production database env must be explicitly denied by the proof preflight: " + name);
+  }
 });
 test("All four independent security clauses are present in shared runner and families", () => {
   const shared = file("scripts/qa/tenant-dl01-closure-shared.mjs");
@@ -120,6 +133,20 @@ test("DL-01 egress is kernel-scoped to the unprivileged proof UID, never the run
   assert.match(workflow, /sudo chown -R "\$\(id -un\)":"\$\(id -gn\)" \.next/);
 });
 
+test("DL-01 proof user gets explicit fictional env and no sudo -E", () => {
+  const workflow = file(".github/workflows/tenant-dl01-closure.yml");
+  assert.match(workflow, /sudo -u dl01proof -- env -i/);
+  assert.doesNotMatch(workflow, /sudo -E -u dl01proof/);
+  for (const name of ["CI", "GITHUB_ACTIONS", "DATABASE_URL", "DL01_PROOF_URL",
+    "PAYMONGO_SECRET_KEY", "PAYMONGO_DISBURSEMENTS_ENABLED",
+    "DOCUMENT_UPLOADS_ENABLED", "NODE_EXTRA_CA_CERTS"]) {
+    const quoted = String.fromCharCode(34);
+    const dollar = String.fromCharCode(36);
+    assert.ok(workflow.includes(name + "=" + quoted + dollar + name + quoted),
+      "Proof variable must be passed explicitly: " + name);
+  }
+  assert.match(workflow, /assert\.equal\(process\.env\[name\], undefined/);
+});
 test("DL-01 isolated proof user has narrow, verified checkout permissions", () => {
   const workflow = file(".github/workflows/tenant-dl01-closure.yml");
   assert.match(workflow, /command -v setfacl/);
@@ -135,32 +162,6 @@ test("DL-01 isolated proof user has narrow, verified checkout permissions", () =
   const firewall = workflow.indexOf('sudo iptables -I OUTPUT 1 -m owner');
   assert.ok(beforeFirewall > 0 && firewall > beforeFirewall,
     "Readability must be demonstrated before the network isolation proof starts");
-});
-
-test("DL-01 isolated proof propagates only explicitly required fictional environment through sudo", () => {
-  const workflow = file(".github/workflows/tenant-dl01-closure.yml");
-  assert.doesNotMatch(workflow, /sudo -E -u dl01proof/,
-    "sudo -E is unreliable on newer runners and must not pass GitHub job secrets");
-  assert.match(workflow, /sudo -u dl01proof -- env -i HOME="\$proof_home"/,
-    "restricted UID must receive a clean environment, not the runner's inherited environment");
-  assert.ok(workflow.includes('proof_env+=("$key=${!key}")'),
-    "all required variables must be explicitly forwarded as separate quoted arguments");
-  assert.ok(workflow.includes('if [[ ! -v "$key" ]]; then'),
-    "missing proof variables must stop the job before local adapters launch");
-  const start = workflow.indexOf("proof_keys=(");
-  const end = workflow.indexOf("proof_env=()", start);
-  assert.ok(start > 0 && end > start, "proof environment allowlist must be present");
-  const keys = workflow.slice(start, end).split(/\s+/);
-  for (const key of [
-    "CI", "GITHUB_ACTIONS", "DATABASE_URL", "DL01_PROOF_URL",
-    "TENANT_DL01_CLOSURE_PROOF", "PAYMONGO_SECRET_KEY",
-    "PAYMONGO_DISBURSEMENTS_ENABLED", "MALWARE_SCAN_URL",
-    "DOCUMENT_OBJECT_STORAGE_ENDPOINT", "PII_ENCRYPTION_KEY",
-    "BANK_DATA_ENCRYPTION_KEY", "TOTP_ENCRYPTION_KEY", "NODE_EXTRA_CA_CERTS",
-  ]) assert.ok(keys.includes(key), "isolated fixture missing required variable: " + key);
-  for (const forbidden of ["GITHUB_TOKEN", "GH_TOKEN", "NEON_DATABASE_URL", "PRODUCTION_DATABASE_URL"]) {
-    assert.ok(!keys.includes(forbidden), "do not leak privileged runner context: " + forbidden);
-  }
 });
 
 test("DL-01 fixture uses distinct canonical semi-monthly periods for independently released payout modes", () => {

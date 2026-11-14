@@ -1,3 +1,4 @@
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
 import test from "node:test";
@@ -264,7 +265,7 @@ test("already credited and partial-action methods are not double-counted", () =>
   // These three methods have newer, distinct exact-final-head PG16 receipts.
   // Do not mistake their provisional coverage for a historical promotion or
   // accept a status flip without the fail-closed SHA/line/CI verifier.
-  const recovered = verifyFiveMethodCredits(manifest);
+  const recovered = verifyFiveMethodCredits(historicWorker360ProofView(manifest));
   assert.equal(recovered.methodsCredited, 3);
   assert.equal(recovered.methodsHeld, 0);
   for (const [key, proofPr, proofRun] of [
@@ -308,7 +309,7 @@ test("already credited and partial-action methods are not double-counted", () =>
     "POST self/schedule-receipts",
     "GET workforce/demand-observations/issued",
   ];
-  assert.equal(verifyMoreCredits(manifest), 3,
+  assert.equal(verifyMoreCredits(historicWorker360ProofView(manifest)), 3,
     "only three new distinct, source-matched, fully exercised methods");
   assert.ok(threeNew.every(key => !targets.some(([existing]) => existing === key)),
     "existing #1509 credits must keep their independent proof owners");

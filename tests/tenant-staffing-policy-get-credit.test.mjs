@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
+import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_ROUTE, STAFFING_GET_HELPER_BLOBS } from
   "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
 const load = () => JSON.parse(readFileSync(
@@ -18,8 +19,11 @@ test("source-current dual-mode PG16 proves one provisional staffing GET method o
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   // Only the separate executed legal-employer proof may restore this page;
   // the historic organization-only receipt still cannot be borrowed.
-  assert.equal(verifyWorker360LegalEmployerCredits(m),2);
-  assert.equal(verifyWorker360PageCredit(m), 16);
+  assert.equal(verifyFivePageCredits(m), 5,
+    "Five new scoped pages have independent source-current provisional receipts");
+  const historicWorker = historicWorker360ProofView(m);
+  assert.equal(verifyWorker360LegalEmployerCredits(historicWorker), 2);
+  assert.equal(verifyWorker360PageCredit(historicWorker), 16);
 });
 test("no invented review, stale source, empty modes, duplicated or borrowed receipts", () => {
   const m = load();

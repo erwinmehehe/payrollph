@@ -4,12 +4,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { tallyTenantManifest } from "./helpers/tenant-counts.mjs";
+import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 
 const readManifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const mutation = (change) => {
   const manifest = readManifest();
+  assert.equal(verifyFivePageCredits(manifest), 5, "Five new page proofs must remain source-valid");
   change(manifest);
-  assert.throws(() => verifyFiveMethodCredits(manifest));
+  assert.throws(() => verifyFiveMethodCredits(historicWorker360ProofView(manifest)));
 };
 
 test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_RECOVERY credits", () => {
@@ -46,7 +48,9 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   assert.equal(worker360Page?.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
   assert.equal(worker360Page?.testedBy?.priorSourceBlobSha,
     "337034f839c17a30077e2cfe5991c640e0c6a5e9");
-  assert.deepEqual(verifyFiveMethodCredits(manifest), {
+  assert.equal(verifyFivePageCredits(manifest), 5,
+    "All five new page credits must be separately source and proof pinned");
+  assert.deepEqual(verifyFiveMethodCredits(historicWorker360ProofView(manifest)), {
     status: "PASS", label: "SOLO_VERIFIED_DEV_RECOVERY", methodsCredited: 3,
     methodsHeld: 0, covered: live.coveredAfter, publicByDesign: live.publicByDesign, gap: live.gap,
     pageActionGaps: 16, productionTested: false, independentlyAccepted: false,
