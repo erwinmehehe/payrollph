@@ -12,7 +12,7 @@ export const ORIGIN = "http://localhost:3000";
 export const PAGE = "/workspace/2316";
 export const API = "/api/year-end/2316-certificate";
 export const CURRENT_SOURCE = Object.freeze({
-  "src/app/api/year-end/2316-certificate/route.ts": "b33979302d7e9db18ba49a1bb7b4c8d7e5e09194",
+  "src/app/api/year-end/2316-certificate/route.ts": "df2fa42c9f3995f7ebb62a3141ba2c0c3140161d",
   "src/components/workspace/certificate-2316-review.tsx": "8e384c18e4db3e5520c936343b1ede56a2bbfd4c",
   "src/lib/bir-2316-certificate-server.ts": "34c7be32a808b9a6835ef54e40c7a9fabc695e16",
   "src/lib/bir-2316-withholding-server.ts": "35219040fe695c461d028ecf06e4590eaa95b12f",
@@ -44,6 +44,9 @@ export function verifyBrowserPdfSources() {
   }
   const api = readFileSync("src/app/api/year-end/2316-certificate/route.ts", "utf8");
   const component = readFileSync("src/components/workspace/certificate-2316-review.tsx", "utf8");
+  assert.ok(api.includes('if (!frozen || assertEntityResource(entityScope.context,') &&
+    api.includes('if (sourceDenied) return Response.json('),
+    "2316 browser/API proof must preserve unknown-vs-ungranted source refusal parity");
   const gate = api.indexOf("await assertOrganizationRole(");
   const entity = api.indexOf("await resolveMultiEntityContext(");
   const frozen = api.indexOf("frozenFinalPayLegalEntityId(frozen.snapshot)");
