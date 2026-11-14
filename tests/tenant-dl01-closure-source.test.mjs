@@ -67,8 +67,13 @@ test("No production code, real key, bucket or external host can be used in adapt
   // Naming a forbidden env variable in an assert-absent preflight is safe;
   // injecting it into YAML or forwarding it to the proof UID is not.
   assert.doesNotMatch(workflow,
-    /(?:^|\\s)(?:NEON_DATABASE_URL|PRODUCTION_DATABASE_URL)\\s*[:=]/m,
+    /(?:^|\s)(?:NEON_DATABASE_URL|PRODUCTION_DATABASE_URL)\s*[:=]/m,
     "Production database credentials cannot be passed into fictional proof");
+  const forbiddenAssignment = /(?:^|\s)(?:NEON_DATABASE_URL|PRODUCTION_DATABASE_URL)\s*[:=]/m;
+  for (const synthetic of [
+    "NEON_DATABASE_URL: prohibited", "PRODUCTION_DATABASE_URL=prohibited",
+  ]) assert.match(synthetic, forbiddenAssignment,
+    "Negative-control guard must reject production DB variable injection");
   for (const name of ["NEON_DATABASE_URL", "PRODUCTION_DATABASE_URL"]) {
     assert.ok(workflow.includes('"' + name + '"'),
       "Production database env must be explicitly denied by the proof preflight: " + name);
