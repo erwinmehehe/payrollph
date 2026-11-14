@@ -7,6 +7,7 @@ import {
   historicWorker360ProofView, verifyCurrentScopedPageGapCount,
 } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { assertMkt01Receipt } from "../scripts/qa/tenant-mkt01-marketing-credit.mjs";
+import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 
 const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const copy = () => structuredClone(m);
@@ -22,9 +23,12 @@ test("five page-only credits preserve the API ledger; only separately proved MKT
   // operator-scoped marketing GET, never a tenant-private page or a second API.
   const marketingGet = m.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
     .find(method => method.name === "GET");
-  const mktCredit = marketingGet?.status === "COVERED" ? assertMkt01Receipt(m) : 0;
-  assert.equal(m.metrics.coveredAfter, 458 + mktCredit);
-  assert.equal(m.metrics.gap, 5 - mktCredit);
+  assert.equal(marketingGet?.status, "COVERED", "Only the reviewed operator-only MKT-01 GET may receive its separate method credit");
+  assert.equal(assertMkt01Receipt(m), 1, "MKT-01 needs its exact source-pinned PG16 receipt");
+  // Live method classifications must be tallied rather than frozen to a
+  // historical main-branch count. The page generator and MKT-01 verifier
+  // independently reject any unrelated API or page promotion.
+  assertLiveTenantCounts(assert, m);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.deepEqual(TARGETS.map(x => x.path), [
     "src/app/app/engagement/page.tsx",
