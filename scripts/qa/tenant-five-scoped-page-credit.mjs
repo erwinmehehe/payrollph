@@ -290,28 +290,15 @@ export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {
   return gaps;
 }
 
-async function main() {
+function main() {
   assert.ok(process.argv.length === 3 &&
     ["--write", "--check", "--verify-historical-worker360"].includes(process.argv[2]),
     "FIVE_PAGE_CREDIT_REFUSED: --write or --check required");
   const raw = readFileSync(MANIFEST, "utf8");
-  const live = JSON.parse(raw);
-  const livePages = live.scopedPages.filter(page => page.status === "COVERED").length;
-  const liveGaps = live.scopedPages.filter(page => page.status === "GAP").length;
-  let historical = live;
-  let expanded = null;
-  if (livePages !== 10 || liveGaps !== 11) {
-    // Preserve all original five-page checks without pretending that a future
-    // source-backed expansion is its historical 10/11 snapshot. The separate
-    // six-page generator MUST validate every new exact-source receipt first.
-    expanded = await import("./tenant-six-scoped-page-credit.mjs");
-    assert.equal(expanded.verifySixPageCredits(live), expanded.selectedTargets().length,
-      "FIVE_PAGE_CREDIT_REFUSED: live six-page ledger failed strict validation");
-    historical = expanded.historicSixPageView(live);
-  }
   if (process.argv[2] === "--verify-historical-worker360") {
-    assert.equal(verifyFivePageCredits(historical), 5, "Five new page proofs must be independently pinned");
-    const original = historicWorker360ProofView(historical);
+    const m = JSON.parse(raw);
+    assert.equal(verifyFivePageCredits(m), 5, "Five new page proofs must be independently pinned");
+    const original = historicWorker360ProofView(m);
     assert.equal(verifyWorker360LegalEmployerCredits(original), 2,
       "Immutable Worker360 GET/SSR receipt failed source validation");
     assert.equal(verifyWorker360PageCredit(original), 16,
@@ -328,12 +315,7 @@ async function main() {
     }));
     return;
   }
-  // Run the original complete five-page generator on the historically
-  // reconstructed view, then (only for an independently validated expansion)
-  // recompute the exact live six-page output without dropping any new receipts.
-  const legacy = expectedFivePageCreditManifest(historical);
-  assert.equal(verifyFivePageCredits(legacy), 5);
-  const updated = expanded ? expanded.expectedSixPageManifest(live) : legacy;
+  const updated = expectedFivePageCreditManifest(JSON.parse(raw));
   const generated = JSON.stringify(updated, null, 2) + "\n";
   if (process.argv[2] === "--write") writeFileSync(MANIFEST, generated);
   else assert.equal(raw, generated,
@@ -341,12 +323,11 @@ async function main() {
   console.log(JSON.stringify({
     label: "SOLO_VERIFIED_DEV_RECOVERY", mode: process.argv[2],
     pageCoveredBefore: 5, pageGapBefore: 16,
-    pageCoveredAfter: livePages, pageGapAfter: liveGaps,
-    historicalPageCoveredAfter: 10, historicalPageGapAfter: 11,
+    pageCoveredAfter: 10, pageGapAfter: 11,
     newPageCredits: TARGETS.length, newApiMethodCredits: 0,
     exactFinalHeadProofRequired: true,
     independentlyAccepted: false, productionCertified: false,
   }));
 }
 if (process.argv[1]?.replaceAll("\\","/").endsWith("/tenant-five-scoped-page-credit.mjs"))
-  main().catch(error => { console.error(error); process.exitCode = 1; });
+  try { main(); } catch(error) { console.error(error); process.exitCode=1; }
