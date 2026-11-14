@@ -13,8 +13,9 @@ retain identical no-store 404s. SAML authentication remains unimplemented/OFF.
 
 ## Renewed real proof
 
-[PG16 job 132463076678](https://github.com/erwinmehehe/payrollph/actions/runs/43600190245/job/132463076678)
-passed on `c85f7022dada3af9f8fe50e5bf2ee120256725da`, before applying the label.
+[PG16 job 132472217596](https://github.com/erwinmehehe/payrollph/actions/runs/43603213932/job/132472217596)
+passed on `b951f2de1bb15f0694a8699ea531e7937db82661`, after syncing main and
+fixing CodeQL's insecure temporary-file finding, before reapplying the label.
 All **48 HTTP requests** passed against production Next and actual PostgreSQL 16:
 two signed-in attackers, an anonymous caller, genuine higher-ID victim, three
 enabled controls, three disabled controls, forged selectors, missing/OIDC/invalid
@@ -22,12 +23,20 @@ refusals and enabled-to-disabled concealment. Every HTTP read preserved eight
 core/identity snapshots and all **260 organization-owned tables**. The only SQL
 write was the explicitly isolated fictional one-bit provider-disable fixture.
 
-The downloaded artifact (ID 14115863849) matches the committed receipt exactly.
-ZIP SHA256: `0a40cde497a6734a9c5a6fb468e7ec4fe8486beb4690559c2c6272b42466392c`.
-Receipt SHA256: `f1eaed5965db7ef722f33f4b0d692071159fa5494a41e1f047f794eaf4f48aec`.
-The full import graph, **208 execution inputs** and all **152 numbered SQL files**
+The downloaded artifact (ID 14117271485) matches the committed receipt exactly.
+ZIP SHA256: `39fb80f9541f8d24efba7590d24fd458ee00dc7e8a9c7a5a1f28d54c6fa3a20d`.
+Receipt SHA256: `1cb32979074b7c71d1fd0cb4e1c49ffd8dc1a0bd564f34ec7671167a860914de`.
+The full import graph, **210 execution inputs** and all **152 numbered SQL files**
 remain source-matched. The original first-run receipt is retained byte-for-byte
 as `tenant-saml-metadata-initial-executed-receipt.json`.
+The previous approval-aware receipt is also retained byte-for-byte as
+`tenant-saml-metadata-before-tempfix-executed-receipt.json`. Neither archived
+receipt substitutes for the renewed source-current execution.
+
+Receipt creation now uses a private randomly named directory, an exclusive
+0600 file write and the exact generated path passed through the CI step output.
+The label was withdrawn while this executed input changed and reapplied only
+after the fresh HTTP proof passed. No security alert suppression was added.
 
 ## Guards and historical evidence
 

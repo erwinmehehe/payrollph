@@ -23,5 +23,5 @@ test('owner approval without executed evidence, source drift or expanded labels 
 });
 test('the complete locked-compiler import graph and every execution root still match',()=>{
  const r=verifyFreshSamlExecution();assert.deepEqual(collectFreshSamlInputs(),r.inputs);
- assert.equal(Object.keys(r.inputs.pins).length,208);
+ assert.equal(Object.keys(r.inputs.pins).length,210);
 });
