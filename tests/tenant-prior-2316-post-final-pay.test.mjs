@@ -19,7 +19,7 @@ export const SEALED_SOURCES = Object.freeze({
   "src/lib/bir-2316-certificate-server.ts": "34c7be32a808b9a6835ef54e40c7a9fabc695e16",
   "src/lib/bir-2316-employer.ts": "ffe0a3d3b9be43be9befd4e1607d942249eaf7e3",
   "src/lib/final-pay-prior-employer-server.ts": "fe30da71932ec42d6302232891f0f1abd89c1abc",
-  "src/app/api/separation/route.ts": "d3a7d1bcb04be2d746e9c370bcc28c5a5c67db8b",
+  "src/app/api/separation/route.ts": "5867788194578cfb5a0aa8c717543371b0fa352c",
   "src/lib/final-pay.ts": "bcbcfbc89a6728ffaa08f84df3fad4ce34922189",
   "src/lib/tenant-prior-review-worker.ts": "3d5cf7b07b0970a9912e4ed6fcee31290449bc1e",
   "src/lib/tenant-payroll-review-page.ts": "37766e6f9ec0dd8d1098bc8987bbd5de899a3739",
@@ -152,6 +152,10 @@ export function verifyPostFinalPayWorkspaceSources(read = readFileSync) {
     "jsonb_typeof(", "sourceFingerprint,employeeLegalEntityId",
     'eq(separationRecords.status, "draft")',
     "eq(employees.legalEntityId, selectedLegalEntityId)",
+    "const frozenEmployerId = frozenFinalPayLegalEntityId(sep.computationSnapshot)",
+    "const authoritativeEntityId = frozenEmployerId ??",
+    "if (!entity.ok) return unavailable();",
+    "assertEntityResource(entity.context, authoritativeEntityId)",
     '"Cache-Control": "private, no-store"',
   ], "Released separation historic employer selector");
   const certApi = files["src/app/api/year-end/2316-certificate/route.ts"];
@@ -201,6 +205,9 @@ test("post-transfer direct separation GET and Form 2316 denial parity require re
     "const currentNewEmployerList = await separationList(newEmployerSession.cookie, a.org.id)",
     "assert.deepEqual(foreignCert.json, missingCert.json",
     "currentEmployerCannotReadPriorReleasedSeparation: true",
+    "frozenEmployerPatchGrantedOnlyToHistoricOwner: true",
+    "foreignAndUnknownSeparationPatchResponseParity: true",
+    "const newEmployerForeignPatch = await nonMutatingSeparationPatch(",
     "malformedOrLegacyHistoricalSnapshotsFailClosed: true",
     'independentSecurityReview: "PENDING", productionCertified: false',
   ];
