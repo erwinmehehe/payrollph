@@ -315,7 +315,7 @@ try {
       },
     }), 404, "Same-tenant other legal employer's unsigned PDF is concealed");
     const unknownSeparation = { ...other,
-      separationId: other.separationId + 1000000 };
+      id: other.id + 1000000 };
     const unknownSource = expectStatus(await request(context, ON, sourcePath(unknownSeparation)),
       404, "Unknown historical separation must match other-employer refusal");
     const unknownPdf = expectStatus(await request(context, ON, sourcePath(unknownSeparation), {
