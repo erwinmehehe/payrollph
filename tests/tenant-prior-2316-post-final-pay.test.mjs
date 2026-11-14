@@ -196,3 +196,66 @@ test("an invented full-page coverage promotion is rejected without changing the 
   };
   assert.throws(() => verifyPostFinalPayWorkspaceSources(read), /must remain GAP/);
 });
+
+const ACTION_BROWSER = "scripts/qa/tenant-prior-evidence-action-browser.mjs";
+export function verifyPriorEvidenceActionBrowserContract(read = readFileSync) {
+  const source = String(read(ACTION_BROWSER));
+  const required = [
+    "requireDisposableBrowserPdf();", "verifyBrowserPdfSources();",
+    "verifyPriorWorkerSource();", 'import("../../src/db/index.ts")',
+    'import("playwright")', "await context.request.post(ORIGIN + \"/api/auth/login\"",
+    "totpCode: generateTotp(browserTotpSecret)",
+    "assert.equal(account.status(), 200)",
+    'const initialVictim = evidence("VICTIM-" + uuid)',
+    "assert.equal(victimSave.status, 200",
+    "allProtected[2] = await snapshot(actualVictim.org.id)",
+    "assert.deepEqual(await snapshot(ownerA.org.id), beforeDeniedA",
+    "assert.deepEqual(await snapshot(ownerB.org.id), beforeDeniedB",
+    "await victimsUnchanged(\"Cross-employer and same-parent denial\")",
+    "assert.deepEqual(await snapshot(ownerA.org.id), beforeRevokedReads",
+    "await victimsUnchanged(\"Revoked grant\")",
+    "assert.equal(check.status,200",
+    "assert.equal(sameMaker.status, 409",
+    "assert.equal(stale.status,409)",
+    "assert.equal(bad?.status(),404",
+    "assert.equal(refused?.status(),404)",
+    "independentSecurityReview:\"PENDING\",productionCertified:false",
+    "realProviderCalls:0,pageActionCredits:0,apiMethodCredits:0",
+  ];
+  for (const marker of required)
+    assert.ok(source.includes(marker),
+      "POST_FINAL_PAY_REVIEW_REQUIRED: missing action-browser evidence " + marker);
+  for (const auth of [
+    "requireDisposableBrowserPdf();", "verifyBrowserPdfSources();",
+    "verifyPriorWorkerSource();",
+  ]) assert.ok(source.indexOf(auth) < source.indexOf('import("../../src/db/index.ts")'),
+    "POST_FINAL_PAY_REVIEW_REQUIRED: unsafe application import before " + auth);
+  assert.ok(source.indexOf("const beforeDeniedB = await snapshot(ownerB.org.id)") <
+    source.indexOf("const otherOrg = await request("),
+    "POST_FINAL_PAY_REVIEW_REQUIRED: foreign B SQL must be snapshotted before denial");
+  assert.ok(source.indexOf("const beforeDeniedA = await snapshot(ownerA.org.id)") <
+    source.indexOf("const sameParent = await request("),
+    "POST_FINAL_PAY_REVIEW_REQUIRED: same-parent SQL must be snapshotted before denial");
+  assert.doesNotMatch(source, /context\.addCookies\(/,
+    "POST_FINAL_PAY_REVIEW_REQUIRED: do not inject privileged browser cookies");
+  return true;
+}
+test("prior-evidence action browser proves populated victim, real MFA and protected denial SQL", () => {
+  assert.equal(verifyPriorEvidenceActionBrowserContract(), true);
+});
+test("removing any foreign-SQL or login check invalidates the action-browser contract", () => {
+  for (const marker of [
+    "assert.deepEqual(await snapshot(ownerB.org.id), beforeDeniedB",
+    "assert.deepEqual(await snapshot(ownerA.org.id), beforeDeniedA",
+    "allProtected[2] = await snapshot(actualVictim.org.id)",
+    "totpCode: generateTotp(browserTotpSecret)",
+  ]) {
+    const read = candidate => {
+      const original = readFileSync(candidate, "utf8");
+      return candidate === ACTION_BROWSER ? original.replace(marker, "REMOVED_SOURCE_PROOF") : original;
+    };
+    assert.throws(() => verifyPriorEvidenceActionBrowserContract(read),
+      /POST_FINAL_PAY_REVIEW_REQUIRED/,
+      "No previous successful browser receipt may substitute for " + marker);
+  }
+});
