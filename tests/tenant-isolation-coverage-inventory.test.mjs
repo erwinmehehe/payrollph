@@ -31,6 +31,7 @@ import { verifyFollowOnCredits } from "../scripts/qa/tenant-follow-on-credit-ver
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
+import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -4154,8 +4155,8 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(method.status, "COVERED");
     assert.equal(method.reviewedUncertified, undefined);
     assert.equal(method.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
-    assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
-    assert.equal(verifyWorker360PageCredit(manifest), 16);
+    assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)), 2);
+    assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16, "Original Worker 360 evidence remains source-pinned; five new pages checked separately");
     return;
   }
   // This route changed the *within-company legal-employer* boundary, which
@@ -4795,7 +4796,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (method.status !== "COVERED") continue;
       if(isVerifiedOracleRenewal(manifest,path,method.name))continue; // Separate complete executed/source-sealed cohort.
       if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
-        assert.equal(verifyWorker360LegalEmployerCredits(manifest),2);
+        assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)),2);
         continue;
       }
       if (path === OIDC_CALLBACK && method.name === 'GET') {
@@ -4884,7 +4885,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (proof?.verifiedMainCommit === "fe3ad8901bfa714d59639d9f59a13cf133eeab36") {
         // Three exact proof-owned methods on unchanged merged source blobs.
         // The #1524 self-profile route is a source-reviewed GAP; no stale credit.
-        assert.equal(verifyMoreCredits(manifest), 3);
+        assert.equal(verifyMoreCredits(historicWorker360ProofView(manifest)), 3);
         continue;
       }
       if (proof?.file === "scripts/qa/tenant-hmo-http.mjs") {
@@ -6282,7 +6283,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (recovered) {
         assert.equal(proof?.file, recovered.file,
           "Provisional method credit cannot borrow another proof runner");
-        assert.equal(verifyFiveMethodCredits(manifest).methodsCredited, FIVE_METHOD_EVIDENCE.length,
+        assert.equal(verifyFiveMethodCredits(historicWorker360ProofView(manifest)).methodsCredited, FIVE_METHOD_EVIDENCE.length,
           "All three exact-head source/contract/workflow receipts must pass");
         continue;
       }
@@ -7054,8 +7055,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const pageBlobSha = isEngagement
           ? "48132ee7356603136d7ac660086b3812ef28ed94"
           : "4989da5727ea5a55d0565fec6eb0af71cbb6046c";
-        assert.equal(entry.status, "GAP", "People page must remain an unaccepted GAP");
-        assert.equal(entry.testedBy, undefined, "Unaccepted page proof cannot claim a method/page credit");
+        if (entry.status === "COVERED") {
+          assert.equal(verifyFivePageCredits(manifest), 5,
+            "Only exact-current People SSR proof may promote this page");
+        } else {
+          assert.equal(entry.status, "GAP", "Unknown People page status");
+          assert.equal(entry.testedBy, undefined, "Historical page proof does not credit GAP");
+        }
         assert.equal(baseline.app[path], originalPageBlobSha, "People page original SHA must remain pinned");
         // Historical #1876 and employee receipts remain pinned to the prior
         // versions. This new page-only embargo is a separate zero-credit candidate
@@ -7110,7 +7116,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
           priorPassedJob: "https://github.com/erwinmehehe/payrollph/actions/runs/42590838431/job/129071762836",
           credits: 0, independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited People/HR PG16 source evidence may be linked");
-        assert.match(entry.reason, /^Still GAP: #1876 /);
+        if (entry.status === "GAP") assert.match(entry.reason, /^Still GAP: #1876 /);
+        else assert.match(entry.reason, /^SOLO_VERIFIED_DEV_RECOVERY:/,
+          "Current People page credit requires source-current proof");
         if (isEngagement) {
           // The old People SSR candidate stays historical. This separate
           // source-current zero-credit guard must not rewrite its passed job.
@@ -7576,12 +7584,18 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const previousUiPageSha = "268f84811df574a7240d2fe17996f4674630d3b2";
         const historicalPageSha = "378bf6b6050e488fe7ebeb48b4a18710152f88c1";
         const originalPageSha = "5bfadf60b5e91fec3b0c2e841564f73b72bc5ef3";
-        assert.equal(entry.status, "GAP", "Work Queue remains unaccepted");
-        assert.equal(entry.testedBy, undefined, "No premature page coverage credit");
+        if (entry.status === "COVERED") {
+          assert.equal(verifyFivePageCredits(manifest), 5,
+            "Work Queue current SSR must have standalone PG16 reproof");
+        } else {
+          assert.equal(entry.status, "GAP", "Unknown Work Queue page status");
+          assert.equal(entry.testedBy, undefined, "No unaccepted Work Queue credit");
+        }
         assert.equal(current, pageSha, "Changed HR Work Queue must renew its exact review");
         assert.equal(entry.blob, pageSha);
         assert.equal(baseline.app[path], originalPageSha);
-        assert.match(entry.reason, /^Still GAP: #1658/);
+        if (entry.status === "GAP") assert.match(entry.reason, /^Still GAP: #1658/);
+        else assert.match(entry.reason, /^SOLO_VERIFIED_DEV_RECOVERY:/);
         assert.deepEqual(reviewed, {
           kind: "hcm-work-items-client-GET-PG16-unaccepted",
           pageBlobSha: historicalPageSha,
@@ -8187,8 +8201,8 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.equal(entry.status, "COVERED");
         assert.equal(entry.reviewedUncertified, undefined);
         assert.equal(entry.testedBy?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
-        assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
-        assert.equal(verifyWorker360PageCredit(manifest), 16);
+        assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)), 2);
+        assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16);
         continue;
       }
       assert.ok(["COVERED", "PUBLIC-BY-DESIGN"].includes(entry.status),

@@ -1,3 +1,4 @@
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
@@ -15,7 +16,7 @@ test("Worker 360 legal-employer reproof is credited, never a public/token-only r
     "src/app/hcm/worker-360/page.tsx");
   assert.equal(api.methods[0].status, "COVERED");
   assert.equal(page.status, "COVERED");
-  assert.equal(verifyWorker360LegalEmployerCredits(manifest), 2);
+  assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)), 2);
   assert.deepEqual([...reviewedWorker360LegalEmployerSupersession(before, manifest)], []);
   assert.deepEqual(verifyArchitecturalRelabelDelta(assert, before, manifest),
     { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 });
@@ -28,7 +29,7 @@ test("Worker 360 legal-employer reproof is credited, never a public/token-only r
   ]) {
     const forged = structuredClone(manifest);
     mutate(forged);
-    assert.throws(() => verifyWorker360LegalEmployerCredits(forged));
+    assert.throws(() => verifyWorker360LegalEmployerCredits(historicWorker360ProofView(forged)));
   }
 });
 test("historical source supersession still refuses forged Worker 360 GAP retirement", () => {

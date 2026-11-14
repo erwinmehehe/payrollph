@@ -215,38 +215,41 @@ jobs:
           sudo chown dl01proof:dl01proof /tmp/dl01-fixture.key
           sudo chmod 600 /tmp/dl01-fixture.key
           sudo chown -R dl01proof:dl01proof .next
-          # Modern sudo on GitHub runners can ignore -E entirely. Passing
-          # the runner's full environment would also expose unnecessary
-          # GitHub credentials to PR code. Explicitly pass only the synthetic,
-          # disposable DL01 proof context through sudo env -i.
-          proof_keys=(
-            CI GITHUB_ACTIONS TZ DATABASE_URL DL01_PROOF_URL APP_BASE_URL
-            TRUSTED_APP_ORIGINS DEMO_MODE REQUIRE_PRIVILEGED_MFA
-            TENANT_DL01_CLOSURE_PROOF FAIL_CLOSED_GUARD_BASE_REF
-            YEAR_END_PRIOR_EVIDENCE_ENABLED DOCUMENT_UPLOADS_ENABLED
-            EMPLOYEE_DOCUMENT_VAULT_ENABLED EMPLOYEE_IMPORT_PREVIEW_ENABLED
-            PAYMONGO_DISBURSEMENTS_ENABLED PAYMONGO_SECRET_KEY
-            PAYMONGO_WALLET_ID PAYMONGO_WEBHOOK_SECRET
-            PAYROLL_PAYOUT_PROVIDER PAYROLL_UNDERPAYMENT_POSTING_ENABLED
-            XENDIT_PAYOUTS_ENABLED XENDIT_SECRET_KEY
-            MALWARE_SCAN_URL MALWARE_SCAN_TOKEN
-            DOCUMENT_OBJECT_STORAGE_ENDPOINT DOCUMENT_OBJECT_STORAGE_BUCKET
-            DOCUMENT_OBJECT_STORAGE_REGION DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID
-            DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY
-            PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY
-            NODE_EXTRA_CA_CERTS
-          )
-          proof_env=()
-          for key in "${proof_keys[@]}"; do
-            if [[ ! -v "$key" ]]; then
-              echo "::error::DL01 required isolated proof variable unavailable: $key"
-              exit 1
-            fi
-            proof_env+=("$key=${!key}")
-          done
           proof() {
-            sudo -u dl01proof -- env -i HOME="$proof_home" PATH="$PATH" \
-              NPM_CONFIG_CACHE="$proof_home/.npm" "${proof_env[@]}" "$@"
+            # GitHub runner sudo may ignore -E. Pass ONLY disposable, locally
+            # bound test settings to the restricted UID. env -i also discards
+            # the runner identity, proxies, and any unintended credentials.
+            sudo -u dl01proof -- env -i \
+              HOME="$proof_home" PATH="$PATH" NPM_CONFIG_CACHE="$proof_home/.npm" \
+              CI="$CI" GITHUB_ACTIONS="$GITHUB_ACTIONS" TZ="$TZ" \
+              DATABASE_URL="$DATABASE_URL" DL01_PROOF_URL="$DL01_PROOF_URL" \
+              APP_BASE_URL="$APP_BASE_URL" TRUSTED_APP_ORIGINS="$TRUSTED_APP_ORIGINS" \
+              DEMO_MODE="$DEMO_MODE" REQUIRE_PRIVILEGED_MFA="$REQUIRE_PRIVILEGED_MFA" \
+              TENANT_DL01_CLOSURE_PROOF="$TENANT_DL01_CLOSURE_PROOF" \
+              PAYMONGO_DISBURSEMENTS_ENABLED="$PAYMONGO_DISBURSEMENTS_ENABLED" \
+              XENDIT_PAYOUTS_ENABLED="$XENDIT_PAYOUTS_ENABLED" \
+              XENDIT_SECRET_KEY="$XENDIT_SECRET_KEY" \
+              PAYROLL_PAYOUT_PROVIDER="$PAYROLL_PAYOUT_PROVIDER" \
+              PAYROLL_UNDERPAYMENT_POSTING_ENABLED="$PAYROLL_UNDERPAYMENT_POSTING_ENABLED" \
+              YEAR_END_PRIOR_EVIDENCE_ENABLED="$YEAR_END_PRIOR_EVIDENCE_ENABLED" \
+              DOCUMENT_UPLOADS_ENABLED="$DOCUMENT_UPLOADS_ENABLED" \
+              EMPLOYEE_DOCUMENT_VAULT_ENABLED="$EMPLOYEE_DOCUMENT_VAULT_ENABLED" \
+              EMPLOYEE_IMPORT_PREVIEW_ENABLED="$EMPLOYEE_IMPORT_PREVIEW_ENABLED" \
+              MALWARE_SCAN_URL="$MALWARE_SCAN_URL" MALWARE_SCAN_TOKEN="$MALWARE_SCAN_TOKEN" \
+              DOCUMENT_OBJECT_STORAGE_ENDPOINT="$DOCUMENT_OBJECT_STORAGE_ENDPOINT" \
+              DOCUMENT_OBJECT_STORAGE_BUCKET="$DOCUMENT_OBJECT_STORAGE_BUCKET" \
+              DOCUMENT_OBJECT_STORAGE_REGION="$DOCUMENT_OBJECT_STORAGE_REGION" \
+              DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID="$DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID" \
+              DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY="$DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY" \
+              PAYMONGO_WALLET_ID="$PAYMONGO_WALLET_ID" \
+              PAYMONGO_WEBHOOK_SECRET="$PAYMONGO_WEBHOOK_SECRET" \
+              PAYMONGO_SECRET_KEY="$PAYMONGO_SECRET_KEY" \
+              NODE_EXTRA_CA_CERTS="$NODE_EXTRA_CA_CERTS" \
+              FAIL_CLOSED_GUARD_BASE_REF="$FAIL_CLOSED_GUARD_BASE_REF" \
+              PII_ENCRYPTION_KEY="$PII_ENCRYPTION_KEY" \
+              BANK_DATA_ENCRYPTION_KEY="$BANK_DATA_ENCRYPTION_KEY" \
+              TOTP_ENCRYPTION_KEY="$TOTP_ENCRYPTION_KEY" \
+              "$@"
           }
           cleanup() {
             sudo pkill -TERM -u dl01proof 2>/dev/null || true
@@ -286,6 +289,28 @@ jobs:
           proof node --check scripts/qa/tenant-dl01-network-preload.mjs
           proof test -r node_modules/next/dist/bin/next
           proof test -r .next/BUILD_ID
+          # Fail before opening the proof's network-isolated servers if sudo
+          # ever drops the explicit fixture values or leaks runner credentials.
+          proof node --input-type=module -e '
+            import assert from "node:assert/strict";
+            assert.equal(process.env.CI, "true");
+            assert.equal(process.env.GITHUB_ACTIONS, "true");
+            assert.equal(process.env.TENANT_DL01_CLOSURE_PROOF, "isolated-ci-only");
+            assert.equal(process.env.DATABASE_URL,
+              "postgresql://postgres:postgres@127.0.0.1:5432/payroll_dl01_test");
+            assert.equal(process.env.DL01_PROOF_URL, "http://127.0.0.1:3011");
+            assert.equal(process.env.PAYMONGO_SECRET_KEY, "sk_test_synthetic_no_network");
+            assert.equal(process.env.PAYMONGO_DISBURSEMENTS_ENABLED, "true");
+            assert.equal(process.env.XENDIT_PAYOUTS_ENABLED, "false");
+            assert.equal(process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED, "true");
+            assert.equal(process.env.DOCUMENT_UPLOADS_ENABLED, "true");
+            assert.equal(process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED, "true");
+            assert.equal(process.env.NODE_EXTRA_CA_CERTS, "/tmp/dl01-fixture.crt");
+            for (const name of ["GITHUB_TOKEN", "GH_TOKEN", "HTTP_PROXY", "HTTPS_PROXY",
+              "ALL_PROXY", "NEON_DATABASE_URL", "PRODUCTION_DATABASE_URL"]) {
+              assert.equal(process.env[name], undefined, "Unapproved inherited variable: " + name);
+            }
+          '
           echo "DL01 isolated UID can load repo scripts, Next build and dependencies"
           sudo iptables -I OUTPUT 1 -m owner --uid-owner "$proof_uid" ! -d 127.0.0.0/8 -j REJECT
           sudo ip6tables -I OUTPUT 1 -m owner --uid-owner "$proof_uid" ! -d ::1/128 -j REJECT

@@ -73,3 +73,11 @@ The new tests specifically bind the missing **separation** application to the Ph
 2. NIRC **§32(B)(7)(e)** as amended by **RA 10963** — combined 13th month and other benefits exemption.
 3. BIR Revenue Memorandum Circular **50-2018** — excess de minimis and the benefits pool.
 4. BIR Revenue Regulations **29-2025**, §1 amending RR 2-98 §2.78.1(A)(3) — unused private vacation leave (12 days effective January 2026), unchanged by this patch: https://bir-cdn.bir.gov.ph/BIR/pdf/RR%20No.%2029-2025.pdf.
+
+## Current-head reconciliation and review fixes (November 14, 2026)
+
+- Merged the final-pay remediation onto a newer `main` while preserving the independently updated DL-01 restricted-runner workflow, proof ledger, and their newer source guards.
+- With `MULTI_ENTITY_ENABLED=true`, the Separation **GET** response is filtered by the authorized selected legal employer; **POST** and **PATCH** enforce the persisted worker's legal employer, not merely organization membership. Group-wide aggregate roles are not authority to view individual final-pay records.
+- A prepared prior-employer evidence snapshot cannot pass the creation transaction if `YEAR_END_PRIOR_EVIDENCE_ENABLED` switched OFF after computation. The Finance approval and release gates still revalidate the approved digest/revision.
+- Added source regressions and disposable PostgreSQL same-organization/different-legal-employer denial tests. No new production privileges, payouts, provider calls or tenant isolation coverage credits.
+- Remaining acceptance is **not complete** until the flag-ON authenticated Separation API's positive and negative multi-employer cases are proved on the merged head, along with independent human payroll/tax and security sign-offs. Do not merge or enable production flags based on source tests or previous flag-OFF HTTP evidence.

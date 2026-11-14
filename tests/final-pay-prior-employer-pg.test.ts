@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, organizations, userOrganizations, users, yearEndPriorEvidence } from "../src/db/schema";
+import { employees, legalEntities, organizations, userLegalEntityGrants, userOrganizations, users, yearEndPriorEvidence } from "../src/db/schema";
 import { assertFinalPayPriorSnapshot, loadReviewedPriorForFinalPay } from "../src/lib/final-pay-prior-employer-server";
 import { priorIntake } from "../src/lib/year-end-prior-evidence-server";
 
@@ -119,5 +119,85 @@ test("Disposable PG: approved prior-2316 source is required and fingerprint-chec
     else process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = previous;
     if (oldPii === undefined) delete process.env.PII_ENCRYPTION_KEY;
     else process.env.PII_ENCRYPTION_KEY = oldPii;
+  }
+});
+
+test("Disposable PG: same organization, different legal employer cannot decrypt approved prior income", { skip: !isolated }, async () => {
+  const priorFlag = process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
+  const entityFlag = process.env.MULTI_ENTITY_ENABLED;
+  const piiKey = process.env.PII_ENCRYPTION_KEY;
+  const suffix = randomBytes(6).toString("hex");
+  process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = "true";
+  process.env.MULTI_ENTITY_ENABLED = "true";
+  if (!piiKey) process.env.PII_ENCRYPTION_KEY = randomBytes(32).toString("hex");
+  const [org] = await db.insert(organizations).values({
+    name: "FICTIONAL two-entity prior " + suffix, legalName: "Two-entity Prior Inc", plan: "Core",
+  }).returning();
+  const [allowed, foreign] = await db.insert(legalEntities).values([
+    { organizationId: org.id, code: "PRIMARY", legalName: "Fictional Primary", displayName: "Primary", primaryEntity: true },
+    { organizationId: org.id, code: "FOREIGN", legalName: "Fictional Foreign", displayName: "Foreign" },
+  ]).returning();
+  const [worker] = await db.insert(employees).values({
+    organizationId: org.id, legalEntityId: allowed.id, employeeNo: "2ENT-" + suffix,
+    firstName: "Fictional", lastName: "TwoEntity", title: "QA", avatarInitials: "FT",
+    basicRate: "30000.00", startDate: "2026-07-01", region: "NCR", mwe: false,
+  }).returning();
+  const actors = await db.insert(users).values(["maker", "checker", "foreign"].map(role => ({
+    name: "Fictional " + role, email: "fp-entity-" + role + "-" + suffix + "@example.invalid",
+    passwordHash: "never-login",
+  }))).returning();
+  try {
+    await db.insert(userOrganizations).values(actors.map(actor => ({
+      userId: actor.id, organizationId: org.id, role: "owner", active: true,
+    })));
+    await db.insert(userLegalEntityGrants).values(actors.map((actor, index) => ({
+      organizationId: org.id, userId: actor.id,
+      legalEntityId: index === 2 ? foreign.id : allowed.id,
+    })));
+    const scope = { organizationId: org.id, employeeId: worker.id, taxYear: 2026 };
+    const evidence = {
+      status: "verified", employerName: "Fictional Earlier Employer", employerTin: "123456789-0000",
+      periodFrom: "2026-01-01", periodTo: "2026-06-30", taxableIncome: "165000.00",
+      taxWithheld: "1500.00", exemptBenefits: "0.00", sourceReference: "FICTIONAL-TWO-ENTITY-" + suffix,
+      sourceSha256: "a".repeat(64), peraCredit: "0.00", peraReference: "", peraSha256: "",
+    };
+    await priorIntake(scope, { id: actors[0].id, name: actors[0].name }, {
+      action: "save", evidence, expectedDigest: "",
+    });
+    const current = await priorIntake(scope, { id: actors[0].id, name: actors[0].name }) as { digest: string };
+    await priorIntake(scope, { id: actors[1].id, name: actors[1].name }, {
+      action: "approve", expectedDigest: current.digest,
+    });
+    const owned = { ...scope, actorUserId: actors[0].id };
+    const denied = { ...scope, actorUserId: actors[2].id };
+    const reviewed = await db.transaction(tx => loadReviewedPriorForFinalPay(owned, tx));
+    assert.ok(reviewed);
+    assert.equal(reviewed.evidence.taxableIncome, "165000.00");
+    await assert.rejects(db.transaction(tx => loadReviewedPriorForFinalPay(denied, tx)),
+      /FINAL_PAY_PRIOR_EMPLOYER_ENTITY_ACCESS_DENIED/,
+      "an owner of a different legal employer in the SAME organization must not read approved evidence");
+    await assert.rejects(db.transaction(tx => assertFinalPayPriorSnapshot(denied, reviewed.snapshot, tx)),
+      /FINAL_PAY_PRIOR_EMPLOYER_EVIDENCE_CHANGED/,
+      "cross-employer actor must not approve/release previously prepared evidence");
+    const unchanged = await db.select().from(yearEndPriorEvidence)
+      .where(eq(yearEndPriorEvidence.employeeId, worker.id));
+    assert.equal(unchanged.length, 1);
+    assert.equal(unchanged[0].sourceDigest, current.digest);
+  } finally {
+    await db.delete(yearEndPriorEvidence).where(eq(yearEndPriorEvidence.organizationId, org.id));
+    await db.delete(userLegalEntityGrants).where(eq(userLegalEntityGrants.organizationId, org.id));
+    await db.delete(employees).where(eq(employees.organizationId, org.id));
+    await db.delete(legalEntities).where(eq(legalEntities.organizationId, org.id));
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+    for (const actor of actors) {
+      await db.delete(userOrganizations).where(eq(userOrganizations.userId, actor.id));
+      await db.delete(users).where(eq(users.id, actor.id));
+    }
+    if (priorFlag === undefined) delete process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED;
+    else process.env.YEAR_END_PRIOR_EVIDENCE_ENABLED = priorFlag;
+    if (entityFlag === undefined) delete process.env.MULTI_ENTITY_ENABLED;
+    else process.env.MULTI_ENTITY_ENABLED = entityFlag;
+    if (piiKey === undefined) delete process.env.PII_ENCRYPTION_KEY;
+    else process.env.PII_ENCRYPTION_KEY = piiKey;
   }
 });

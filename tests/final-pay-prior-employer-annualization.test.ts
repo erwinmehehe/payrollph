@@ -118,3 +118,24 @@ test("Separation route reads approved evidence and rechecks its digest during pr
   assert.ok((route.match(/assertFinalPayPriorSnapshot\(/g) ?? []).length >= 3,
     "initiation, approval and release each recheck the encrypted evidence digest under transaction");
 });
+
+test("Separation legal-employer boundary is enforced at GET, POST and PATCH", () => {
+  const route = readFileSync("src/app/api/separation/route.ts", "utf8");
+  const get = route.slice(route.indexOf("export async function GET"), route.indexOf("export async function POST"));
+  const post = route.slice(route.indexOf("export async function POST"), route.indexOf("export async function PATCH"));
+  const patch = route.slice(route.indexOf("export async function PATCH"));
+  assert.match(get, /resolveMultiEntityContext\(/);
+  assert.match(get, /eq\(employees\.legalEntityId, selectedLegalEntityId\)/,
+    "GET must filter actual persisted worker legal employer, not only organization");
+  for (const [name, handler] of [["POST", post], ["PATCH", patch]] as const) {
+    assert.match(handler, /resolveMultiEntityContext\(/, name + " needs selected employer authorization");
+    assert.match(handler, /assertEntityResource\(/, name + " must authorize persisted worker employer");
+  }
+});
+
+test("Prepared prior-employer snapshot blocks flag OFF before creation transaction", () => {
+  const route = readFileSync("src/app/api/separation/route.ts", "utf8");
+  const post = route.slice(route.indexOf("export async function POST"), route.indexOf("export async function PATCH"));
+  assert.match(post, /criticalReleaseFlagEnabled\("yearEndPriorEvidence"\) \|\| computationSnapshot\.priorEmployerEvidence !== undefined/,
+    "The initiation transaction must reject a previously flag-ON snapshot even after flag switched OFF");
+});

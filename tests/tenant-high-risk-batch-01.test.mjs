@@ -1,3 +1,4 @@
+import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyOracleSourceHolds,isVerifiedOracleSupersession} from '../scripts/qa/payroll-run-oracle-hold.mjs';
@@ -112,7 +113,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // The five-method review credits exactly three methods, while both transfer methods remain GAP.
   // Only subtract these from the historical 124/359 baseline when the full fail-closed
   // source/blob/line/PG16 receipt verifier succeeds. Do not infer credits from live totals.
-  const fiveMethodCredits = verifyFiveMethodCredits(manifest).methodsCredited;
+  const fiveMethodCredits = verifyFiveMethodCredits(historicWorker360ProofView(manifest)).methodsCredited;
   assert.equal(fiveMethodCredits, 3, "The three independently pinned final-head proof receipts must stay complete");
   const cases = [...source.matchAll(/^\s+"(GET [^"]+)",$/gm)].map((m) => m[1]);
   assert.equal(cases.length, 16, "Never silently narrow the tested Batch 01 method set");
@@ -592,7 +593,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // the six exact-source verified follow-on credits from the current ledger.
   const followOnCredits = verifyFollowOnCredits(manifest);
   assert.equal(followOnCredits, 6);
-  const newDisjointCredits = verifyMoreCredits(manifest);
+  const newDisjointCredits = verifyMoreCredits(historicWorker360ProofView(manifest));
   assert.equal(newDisjointCredits, 3, "two receipts plus one issued-demand GET, excluding #1524 profile");
   // #1537 promotes one distinct HMO POST, but never GET or other benefits methods.
   // Keep its source-pinned HTTP credit separate from the historical 124/359 ledger.
@@ -832,7 +833,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // blob and prior historical receipt rather than borrowing its old credit.
   const oidcCredits=callback.status==='COVERED'
     ? verifyOidcCallbackCredit(manifest) : verifyOidcCallbackHold(manifest);
-  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(manifest)/2)+oidcCredits;
+  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest))/2)+oidcCredits;
   const checkoutCredits = verifyCheckoutCredit(manifest);
   const readinessCredits=verifyWorkspaceReadinessCredit(manifest);
   const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==="PATCH").status==="COVERED" ? verifyFilingPatchCredit(manifest) : 0;

@@ -42,6 +42,7 @@ import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { assertFinalPayPriorSnapshot, loadReviewedPriorForFinalPay, priorEvidenceSnapshot } from "@/lib/final-pay-prior-employer-server";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { loadFinalPayRetroSourcePeriods } from "@/lib/final-pay-retro-source-lookup";
 import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
@@ -331,6 +332,17 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
+  // Scope employee-level final-pay reads to ONE selected legal employer.
+  // Organization membership alone does not authorize other legal entities.
+  let selectedLegalEntityId: number | null = null;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    const entity = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+    if (!entity.ok) return entity.response;
+    if (entity.context.group || entity.context.legalEntityId === null) {
+      return Response.json({ code: "ENTITY_ACCESS_DENIED", error: "Select an authorized legal employer." }, { status: 403 });
+    }
+    selectedLegalEntityId = entity.context.legalEntityId;
+  }
   const filter = employeeId > 0
     ? and(eq(separationRecords.organizationId, organizationId), eq(separationRecords.employeeId, employeeId))
     : eq(separationRecords.organizationId, organizationId);
@@ -341,7 +353,10 @@ export async function GET(request: Request) {
   })
     .from(separationRecords)
     .innerJoin(employees, eq(separationRecords.employeeId, employees.id))
-    .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
+    .where(and(
+      access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)),
+      ...(selectedLegalEntityId === null ? [] : [eq(employees.legalEntityId, selectedLegalEntityId)]),
+    ))
     .orderBy(desc(separationRecords.id));
 
   const offboardingEnabled = criticalReleaseFlagEnabled("offboardingClearance");
@@ -417,6 +432,15 @@ export async function POST(request: Request) {
     const sources = await loadFinalPaySources({ organizationId, employeeId, lastDay });
     const scope = assertScope(access, sources.employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+    if (criticalReleaseFlagEnabled("multiEntity")) {
+      const entity = await resolveMultiEntityContext({
+        userId: user.id, organizationId, request, requested: body.legalEntityId,
+      });
+      if (!entity.ok) return entity.response;
+      if (entity.context.group || assertEntityResource(entity.context, sources.employee.legalEntityId)) {
+        return Response.json({ code: "ENTITY_ACCESS_DENIED", error: "Worker is not in the selected legal employer." }, { status: 403 });
+      }
+    }
     if (lastDay < String(sources.employee.startDate)) {
       return Response.json({ error: "Last day cannot be before the employee's hire date." }, { status: 400 });
     }
@@ -933,7 +957,7 @@ export async function POST(request: Request) {
         }
       }
 
-      if (criticalReleaseFlagEnabled("yearEndPriorEvidence")) {
+      if (criticalReleaseFlagEnabled("yearEndPriorEvidence") || computationSnapshot.priorEmployerEvidence !== undefined) {
         await assertFinalPayPriorSnapshot(priorEvidenceScope, computationSnapshot.priorEmployerEvidence, tx);
       }
 
@@ -1198,6 +1222,15 @@ export async function PATCH(request: Request) {
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    const entity = await resolveMultiEntityContext({
+      userId: user.id, organizationId: sep.organizationId, request, requested: body.legalEntityId,
+    });
+    if (!entity.ok) return entity.response;
+    if (entity.context.group || assertEntityResource(entity.context, employee.legalEntityId)) {
+      return Response.json({ code: "ENTITY_ACCESS_DENIED", error: "Worker is not in the selected legal employer." }, { status: 403 });
+    }
+  }
 
   if (action === "approve" || action === "release") {
     const mfaDenied = requireSensitiveActionMfa(user);

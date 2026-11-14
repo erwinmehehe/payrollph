@@ -375,7 +375,7 @@ test("Phase 7 separation source re-inventory preserves existing tenant evidence,
     "flag-ON tenant proof cannot be silently inherited from older flag-OFF receipts");
   assert.equal(review.priorEmployerFictionalPgTest, "tests/final-pay-prior-employer-pg.test.ts");
   assert.equal(review.currentRouteBlobSha, fingerprint);
-  assert.deepEqual(review.changedMethods, ["POST", "PATCH"]);
+  assert.deepEqual(review.changedMethods, ["GET", "POST", "PATCH"]);
   assert.equal(review.priorTenantIsolationHttpProof, "scripts/qa/payroll-approved-exit-http.mjs");
   assert.equal(review.taxContractFile, "tests/final-pay-tax-classification.test.ts");
   assert.equal(review.newTenantIsolationMethodCredits, 0);
