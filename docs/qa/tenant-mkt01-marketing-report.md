@@ -1,35 +1,33 @@
-# MKT-01: Marketing operator report privacy boundary
+# MKT-01 - marketing leads GET, operator-scoped aggregate credit
 
-**Distinct family**: platform marketing analytics, not payroll, year-end/tax, billing, private documents, enterprise administration, account email, or workforce planning. This draft starts from main and edits ONLY these five new files: a dedicated workflow, contract, real-HTTP runner, test and this note.
+**Credit category:** SOLO_VERIFIED_DEV_RECOVERY - provisional method evidence from a sole-owner fictional PostgreSQL 16 HTTP proof. NOT PUBLIC-BY-DESIGN, NOT independent review, NOT employer-specific data access.
 
-## Exact surface
+**Source pins:** `src/app/api/marketing/leads/route.ts` at `69a046c25fb59ccc75c47b41d44c26b585e898b3`; `src/lib/marketing-report.ts` at `7371a252be449829b09e7a0ff501d77eb6d811fd`. Neither covered source was modified.
 
-- GET /api/marketing/leads, source blob 69a046c25fb59ccc75c47b41d44c26b585e898b3
-- Supporting src/lib/marketing-report.ts, source blob 7371a252be449829b09e7a0ff501d77eb6d811fd
-- The reporting endpoint intentionally aggregates **platform marketing enquiries**, not tenant-private employee or company objects. Its access boundary is an exact configured fictional email allowlist plus recent session-level MFA.
-- It remains **GAP with testedBy:null** in the shared tenant-isolation inventory. No new method COVERED credit, transfer of tenant proofs, independent acceptance or production certification.
+**Successful real-HTTP proof:** [GitHub Actions job 43530460939/132246563132](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132), executed on exact checked-out head `bfedf16fecf0ff4e918da68972ac7a18488c4a4b`; genuine production-mode localhost Next against disposable PG16 and fictional identities/leads.
 
-## Disposable proof matrix
+## Four mandatory proof results
 
-In a brand-new, empty localhost PostgreSQL 16 database and an actual Next production build:
+1. **Authorized positive (200, aggregate only).** Two separately signed-in fictional allowlisted operators succeed when their sessions have recent MFA. Three recent fictitious demo/trial leads aggregate into count-only buckets. Seeded distinctive private names, email addresses, company names, notes and message strings are forbidden from the entire response.
+2. **Real denials.** Persisted signed-in higher-ID foreign employer owner outside the allowlist => **403**; anonymous => **401**; allowlisted operator without recent MFA => **403, MFA_REQUIRED**; revoked operator session => **401**. Two additional real production-mode localhost Next servers with an **empty** and **unset** allowlist => **503**.
+3. **Read-only database.** Immediately around **every** endpoint request, compare before/after snapshots of all fictional marketing leads and every discovered table with an organization, employer, legal-employer, business, company, or user ownership key; also include organizations, payroll runs, audit events and users. Rows remain identical. Explicit fixture session-MFA/refreshed/revocation changes happen between requests; they are not report side effects.
+4. **Forged selectors and days bounds.** Higher-ID foreign `employerId`, `businessId`, `legalEmployerId` and `email` (plus organization/worker ID and raw-format) in the **query**, **headers**, **cookie** and all combined do not alter the aggregate beyond a generated timestamp. Negative/zero `days` clamp to 1, huge values to 365, and NaN/Infinity/malformed values fall back to 90. Every forged request receives an unchanged-database check.
 
-1. Create three fictional organizations and three real, separate signed-in owner identities; victim organization/user IDs are higher than both comparators. No real emails or provider credentials.
-2. Insert three recent fictional demo/trial marketing leads plus an older excluded lead. Names, email addresses, companies and messages are unique private sentinels; the report must return only grouped counts and approved marketing dimensions.
-3. Anonymous GET is 401. Valid fresh-MFA user not in the operator allowlist is 403. Allowlisted but 48-hour stale-MFA user is 403 / MFA_REQUIRED. Legitimate allowlisted, freshly MFA-verified operator GET is 200 with real aggregate counts.
-4. Requested report days clamp to the reviewed [1, 365] interval; malformed days use 90. A 400-day-old lead never appears.
-5. The accepted JSON must never contain the sentinels for prospect names, email addresses, companies, or notes. Compare durable marketing leads, organizations, memberships, audit events and payroll runs before and after all HTTP probes.
-6. Revoking the allowed user's real session makes the same cookie return 401, while all lead and payroll snapshots remain byte-identical.
+## Coverage and untested boundaries
 
-**Scope limitation**: this test does NOT certify that every free-text UTM or URL segment is de-identified; the real report groups attacker-supplied campaign dimensions and requires separate privacy review before broad exposure. It is not a per-employer isolation proof. No production read, email delivery, payout, external HTTP provider or worker job is authorized.
+The shared manifest gives exactly **one provisional COVERED GET method credit** after reconciliation; the standalone proof runner correctly reports `newCoverageCredits: 0` before review. The method is **operator-scoped**: a platform-wide aggregate report protected by the configured operator email allowlist and recent MFA, **not** a public endpoint and **not** evidence of ordinary employer-tenant record access.
 
-## Isolation from other open PRs
+**Not tested:** the actual deployed operator allowlist or env configuration; human MFA enrollment/UAT; arbitrary free-text campaign, attribution or landing-path metadata de-identification; marketing consent; independent security/privacy sign-off; production readiness or broader tenant isolation. The aggregator may group free-text campaign/landing dimension labels: this proof establishes exclusion of seeded prospect private fields, not a universal privacy guarantee for every possible attacker-controlled attribution string.
 
-The PR never edits production routes, marketing helpers, authentication, the manifest, tenant-table rows, shared test suites, migrations, money paths or provider keys. GitHub must confirm the five new paths do not overlap ANY open PR before merging. Exact-head PG16 CI and independent security/privacy approval are still required.
+No customer data, production database or SQL, Neon, migrations, provider calls, real secrets, payouts, money, CSP or calculation-history flags were enabled. Owner-only label **SOLO_VERIFIED_DEV_RECOVERY**. Independent review and production acceptance stay **PENDING**. Other method/page gaps are unchanged.
 
-**NOT ACCEPTED. Draft only.** Successful synthetic proof is not deployment permission, a global tenant security certificate or new coverage credit.
+## Deterministic source-linked regeneration
 
-## 2026-11-12 candidate upgrade — DO NOT CREDIT YET
+```sh
+node --test tests/tenant-mkt01-marketing-report.test.mjs
+node scripts/qa/tenant-mkt01-marketing-credit.mjs --write
+node scripts/qa/tenant-mkt01-marketing-credit.mjs --check
+git diff -- scripts/qa/tenant-isolation-coverage-manifest.json docs/engineering/tenant-isolation-coverage-inventory.md docs/engineering/tenant-isolation-closure-plan.md
+```
 
-The initial merged #1848 proof produced a successful fictional PG16 HTTP run on a historical PR head but expressly granted zero credits. This renewed runner adds a *second real signed-in allowlisted operator success* after proving stale-MFA denial, real higher-ID forged `organizationId`/`employeeId`/`runId` query parameters, and an attempted `format=raw` override. The JSON report must remain byte-consistent except for the generated `since` timestamp. The unallowlisted higher-ID outsider must still be 403, and durable lead/employer/audit/payroll snapshots must remain unchanged.
-
-**Credit gate stays closed** until this candidate passes on its exact final PR head and the separate method-specific source/workflow/CI receipt and shared ledger accounting are reconciled and accepted. The API aggregates platform-wide marketing requests by design. It is not a tenant-private employer read. Free-text UTM/campaign and landing-path values are not fully de-identified by this test; independent privacy/security review remains PENDING. No merge, deployment or production authorization is implied.
+The tooling derives aggregate method counts and the frozen twelve-batch subtotal from current source-linked method statuses, never from hand-entered counts. Preserve the passing route/report/runner/contract/workflow blob pins, and rerun real HTTP on any changed covered source. This proposal requires a passing exact **final PR head** run before review or merge.
