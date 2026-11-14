@@ -138,6 +138,7 @@ function reconcileDocs(m,write){
 export function reconcileStudioPostCredit({write=false}={}){
  const path='scripts/qa/tenant-isolation-coverage-manifest.json',m=JSON.parse(readFileSync(path,'utf8'));
  const before={covered:m.metrics.coveredAfter,gap:m.metrics.gap},row=m.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST');
+  const studioNewlyCredited=row.status==='GAP';
  if(row.status==='GAP'){
   assert.equal(row.testedBy,null);row.testedBy=expectedStudioPostProof();row.status='COVERED';delete row.reviewedUncertified;
   row.reason='SOLO_VERIFIED_DEV_RECOVERY: complete source-sealed eleven-action PG16 HTTP Studio cohort, all six operational sources, persisted own recovery/session/access/benefit effects, real victim/forged denials and unchanged foreign SQL. External providers and production acceptance are not granted.';
@@ -153,7 +154,15 @@ export function reconcileStudioPostCredit({write=false}={}){
  assert.equal(before.covered+before.gap,m.metrics.coveredAfter+m.metrics.gap,'No unrelated reclassification');
  m.acceptanceStatus=m.acceptanceStatus.replace(/^NOT ACCEPTED: \d+ API methods/,'NOT ACCEPTED: '+m.metrics.gap+' API methods');
  const note=' SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: '+m.metrics.coveredAfter+' COVERED / '+m.metrics.gap+' GAP; complete current-source action cohort, no production acceptance.';
- if(!m.acceptanceStatus.includes(note.trim()))m.acceptanceStatus+=note;
+ // A separately proven later method (for example the MKT-01 operator GET)
+  // changes live counts, not this already-issued Studio POST credit's
+  // historical checkpoint. Never append a duplicate Studio credit receipt.
+  if(studioNewlyCredited){
+    if(!m.acceptanceStatus.includes(note.trim()))m.acceptanceStatus+=note;
+  }else{
+    assert.ok(m.acceptanceStatus.includes('SOLO_VERIFIED_DEV_RECOVERY Studio POST credit:'),
+      'Previously issued Studio POST proof must preserve its historical note');
+  }
  reconcileDocs(m,write);
  if(write)writeFileSync(path,JSON.stringify(m,null,2)+'\n');
  else assert.deepEqual(JSON.parse(readFileSync(path,'utf8')),m,'Run the reviewed Studio credit writer with --write first');

@@ -136,5 +136,11 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     const text=readFileSync(file,'utf8');
     assert.match(text,/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
     assert.match(text.split('\n\n')[1],/^> \*\*PAYROLL RUN ORACLE — RENEWED:/);
+    // MKT-01 changes the current totals, not the older Studio proof snapshots.
+    const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
+    assert.ok(studioBanners.length>=3,'Historical Studio accounting banners must be retained');
+    assert.match(studioBanners[0],/459 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 4 GAP/);
+    assert.match(studioBanners[1],/458 COVERED \+ 23 PUBLIC-BY-DESIGN \+ 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ 5 GAP/);
+
   }
 });

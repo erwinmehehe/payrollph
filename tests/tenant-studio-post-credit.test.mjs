@@ -8,6 +8,19 @@ test('only the complete eight-job, eleven-action Studio cohort earns one distinc
  assert.equal(verifyStudioPostCredit(manifest()),1);assert.equal(reconcileStudioPostCredit({write:false}).credited,0);
  assert.equal(r.cohort.scope.result.resolution.families.length,6);
 });
+test('MKT-01 operator-only GET cannot rewrite or multiply the separate Studio credit',()=>{
+ const m=manifest(),operator=m.allApiRouteFiles['src/app/api/marketing/leads/route.ts'].methods.find(x=>x.name==='GET');
+ assert.equal(operator.status,'COVERED');
+ assert.equal(operator.testedBy.operatorScoped,true);
+ assert.equal(operator.testedBy.publicByDesign,false);
+ assert.equal(m.metrics.coveredAfter,459);assert.equal(m.metrics.gap,4);
+ assert.match(m.acceptanceStatus,/SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 458 COVERED \/ 5 GAP;/);
+ assert.doesNotMatch(m.acceptanceStatus,/SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: 459 COVERED \/ 4 GAP;/);
+ const result=reconcileStudioPostCredit({write:false});
+ assert.equal(result.credited,0);
+ assert.equal(manifest().acceptanceStatus,m.acceptanceStatus);
+});
+
 test('missing modes, borrowed jobs, failed positives or real-provider claims cannot pass',()=>{
  const r=readStudioPostReceipt();for(const mutate of [x=>delete x.cohort.language,x=>delete x.cohort.sessions,x=>x.cohort.sessions.result.sharedGlobalSessionPreserved=false,x=>delete x.actionProofs['save-rule'],
   x=>x.cohort.scope.job=x.cohort.draft.job,x=>x.cohort.scope.conclusion='failure',x=>x.cohort.scope.result.own=0,

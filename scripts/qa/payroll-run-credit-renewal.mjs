@@ -107,7 +107,9 @@ function documents(m){
     text=preceding+banner+'\n\n'+text;
     text=text.replace(/^(> \*\*(?:RELEASE BLOCKER|NOT ACCEPTED)\*\*:? )\d+ (?:API )?(?:methods|method gaps)/gm,
       '$1'+m.metrics.gap+' API methods');
-    text=text.replace(/(complete Studio POST proposal:\*\* )\d+ methods = \d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP\./g,
+    // Only the first, live Studio banner is current. Later repeats are
+    // historical source-evidence snapshots and must never be rewritten.
+    text=text.replace(/^(> \*\*SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:\*\* )\d+ methods = \d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ PRIVILEGED-OPERATIONS-TOKEN-ONLY \+ \d+ GAP\./m,
       '$1'+m.metrics.methods+' methods = '+m.metrics.coveredAfter+' COVERED + '+m.metrics.publicByDesign+' PUBLIC-BY-DESIGN + '+m.metrics.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+m.metrics.gap+' GAP.');
     if(key==='inventory')inventory=text;else plan=text;
   }

@@ -11,7 +11,9 @@
         "POST payroll-runs/[id]/exports",
         "POST year-end/prior-evidence"
       ],
-      "executionSha256": "b18c9ce9c1e55cfc6c777977e6577b400aa4821606a754e3b681eebf2401fee1",
+      "executionSha256": "b8d40fff76995444ebe1df403ad2832603d47de90b1f57a30564d089efa222ba",
+      "previousExecutionSha256": "b18c9ce9c1e55cfc6c777977e6577b400aa4821606a754e3b681eebf2401fee1",
+      "executionRevisionScope": "CI-only restricted UID sudo env -i explicit synthetic proof variable allowlist; unchanged three-employer verification, kernel egress, PG16, provider stubs and full regression; independent review pending",
       "originalIf": "${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}",
       "proofJobs": [
         "whole-batch"
