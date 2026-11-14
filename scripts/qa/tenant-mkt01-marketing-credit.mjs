@@ -205,7 +205,14 @@ export function artifacts() {
     [CLOSURE]: regeneratedClosure(readFileSync(CLOSURE, "utf8"), m)
   };
 }
-export function verifyMkt01Credit() {
+export function verifyMkt01Credit(candidate) {
+  if (candidate) {
+    const current = JSON.parse(readFileSync(MANIFEST, "utf8"));
+    const target = candidate.allApiRouteFiles?.[ROOT]?.methods?.find(m => m.name === "GET");
+    const audited = current.allApiRouteFiles?.[ROOT]?.methods?.find(m => m.name === "GET");
+    assert.deepEqual(target, audited,
+      "Only the source-pinned, exact operator GET receipt may coexist with other family credits");
+  }
   for (const [path, generated] of Object.entries(artifacts()))
     assert.equal(readFileSync(path, "utf8"), generated,
       path + " metrics/summary not generated from actual method statuses - run --write");
