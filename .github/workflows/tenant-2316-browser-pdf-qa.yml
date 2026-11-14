@@ -39,6 +39,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "scripts/qa/tenant-2316-browser-pdf-*.mjs"
+      - "scripts/qa/tenant-prior-evidence-action-browser.mjs"
       - "scripts/qa/tenant-2316-ssr-transfer-*.mjs"
       - "tests/tenant-2316-browser-pdf-contract.test.mjs"
       - ".github/workflows/tenant-2316-browser-pdf-qa.yml"
@@ -151,6 +152,12 @@ jobs:
         env:
           NODE_ENV: production
         run: node --import tsx scripts/qa/tenant-2316-browser-pdf-http.mjs
+      - name: Prove hydrated prior-employer load/save, independent checker and tenant denials
+        env:
+          NODE_ENV: production
+        run: |
+          node --check scripts/qa/tenant-prior-evidence-action-browser.mjs
+          node --import tsx scripts/qa/tenant-prior-evidence-action-browser.mjs
       - name: Bounded server logs only on failure
         if: failure()
         run: tail -n 80 /tmp/tenant-2316-browser-pdf.log || true
