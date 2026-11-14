@@ -156,7 +156,7 @@ async function prove() {
   assert.equal(frozen?.digest, saved.digest);
   assert.equal(frozen?.revision, priorRow.revision);
   assert.equal(Number(created.prorated13thMonth), 1250);
-  assert.equal(Number(created.taxDue), 750);
+  assert.equal(Number(created.computationSnapshot?.annualization?.taxDue), 750);
   assert.equal(Number(created.netFinalPay), 15700);
   assert.equal(created.computationSnapshot?.annualization?.taxWithheld, 0,
     "Prior WHT must not be current-employer withholding");
