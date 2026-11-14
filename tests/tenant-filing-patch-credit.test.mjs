@@ -1,3 +1,4 @@
+import {assertMkt01Receipt} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import {verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
@@ -43,6 +44,11 @@ test('filing pass preserves six independent holds and the distinct BIR and billi
   if(route==='payroll-runs/[id]/xendit-payout'){assert.equal(verifyXenditPostCredit(m),1);continue;}
   if(route==='payroll-runs/[id]/exports'){const x=m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
   const row=m.allApiRouteFiles['src/app/api/'+route+'/route.ts'].methods.find(x=>x.name===verb);
+   if(route==='marketing/leads') {
+     assert.equal(assertMkt01Receipt(m),1,'Operator MKT-01 requires its exact-source PG16 proof');
+     assert.equal(row.status,'COVERED');
+     continue;
+   }
    if(route==='hcm/work-items/escalate') {
      assert.equal(row.status,'PRIVILEGED-OPERATIONS-TOKEN-ONLY');
      assert.equal(row.privilegedOperation?.methodCoverageCredits,0);
