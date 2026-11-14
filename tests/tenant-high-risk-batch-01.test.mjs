@@ -1,4 +1,5 @@
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyOidcBatchMethod,OIDC_START} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
 import {verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyOracleSourceHolds,isVerifiedOracleSupersession} from '../scripts/qa/payroll-run-oracle-hold.mjs';
@@ -833,7 +834,7 @@ test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant pr
   // blob and prior historical receipt rather than borrowing its old credit.
   const oidcCredits=callback.status==='COVERED'
     ? verifyOidcCallbackCredit(manifest) : verifyOidcCallbackHold(manifest);
-  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest))/2)+oidcCredits;
+  const approvalsCredits=verifyApprovalsCredit(manifest)+(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest))/2)+oidcCredits+verifyOidcBatchMethod(manifest,OIDC_START);
   const checkoutCredits = verifyCheckoutCredit(manifest);
   const readinessCredits=verifyWorkspaceReadinessCredit(manifest);
   const filingPatchCredits=manifest.allApiRouteFiles[FILING_PATH].methods.find(m=>m.name==="PATCH").status==="COVERED" ? verifyFilingPatchCredit(manifest) : 0;

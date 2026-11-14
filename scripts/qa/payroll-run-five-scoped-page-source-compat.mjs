@@ -13,6 +13,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
+import { historicOidcBatchView } from "./tenant-oidc-batch-credit.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -50,8 +51,17 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     "PAGE_COMPAT_REFUSED: historical second-pass page probe did not reconstruct");
   assert.equal(probe.split("\n").length, historical.split("\n").length,
     "PAGE_COMPAT_REFUSED: historical source-line pins must be preserved");
+  // Reconstruct the immutable page generator: only the API ledger view may
+  // recognize the two separately executed OIDC receipts. No page proof changes.
+  let generator=String(read(GENERATOR));
+  if(renewalBlob(generator)!==REVIEWED_GENERATOR_BLOB){
+  generator=uniqueSwap(generator,'import { historicOidcBatchView } from "./tenant-oidc-batch-credit.mjs";\n','');
+  generator=uniqueSwap(generator,'assert.equal(historicOidcBatchView(m, read).metrics.gap, 5);','assert.equal(m.metrics.gap, 5);');
+  generator=uniqueSwap(generator,'assert.match(historicOidcBatchView(m, read).acceptanceStatus,','assert.match(m.acceptanceStatus,');
+  generator=uniqueSwap(generator,'/^NOT ACCEPTED: \\d+ API methods and (16|11) page\\/action GAPs/, nextPrefix);','/^NOT ACCEPTED: 5 API methods and (16|11) page\\/action GAPs/, nextPrefix);');
+  assert.equal(renewalBlob(generator),REVIEWED_GENERATOR_BLOB,'PAGE_COMPAT_REFUSED: page generator changed beyond the verified OIDC ledger view');
+  }
   for (const [path, blob] of [
-    [GENERATOR, REVIEWED_GENERATOR_BLOB],
     [WORKFLOW, REVIEWED_WORKFLOW_BLOB],
     [WORKER_VERIFIER, HISTORICAL_WORKER_VERIFIER_BLOB],
   ]) assert.equal(renewalBlob(read(path)), blob,
@@ -67,7 +77,7 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     methods.filter(method => method.status === "COVERED").length);
   assert.equal(manifest.metrics.gap,
     methods.filter(method => method.status === "GAP").length);
-  assert.match(manifest.acceptanceStatus,
+  assert.match(historicOidcBatchView(manifest, read).acceptanceStatus,
     /^NOT ACCEPTED: 5 API methods and 11 page\/action GAPs/);
   for (const [path, sourceSha, proof, proofSha] of REVIEWED_PAGES) {
     const row = manifest.scopedPages.find(p => p.path === path);

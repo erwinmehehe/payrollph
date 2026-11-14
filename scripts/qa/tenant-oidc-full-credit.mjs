@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
+import {verifyOidcBatchMethod} from './tenant-oidc-batch-credit.mjs';
 export const OIDC_CALLBACK='src/app/api/auth/sso/callback/route.ts';
 export const OIDC_RECEIPT='scripts/qa/tenant-oidc-full-renewal-receipt.json';
 const HARNESS='scripts/qa/tenant-oidc-full-http.mjs';
@@ -39,6 +40,7 @@ function expected(read=readFileSync){const r=oidcFullExecution(read),lines=read(
   scope:'Real production Next and disposable PG16 with synthetic CA-verified HTTPS IdP, client-authenticated token exchange, S256 PKCE and RSA/JWKS verification. Two employer-owned real sessions, forged selectors ignored, 43 refused callbacks with unchanged victim/account/membership/identity/session/audit SQL, two authenticated foreign API denials and a successful genuine victim comparator. No real IdP or production acceptance.'};
 }
 export function verifyOidcCallbackCredit(m,read=readFileSync){const e=m.allApiRouteFiles[OIDC_CALLBACK],row=e.methods.find(x=>x.name==='GET');
+ if(row.testedBy?.kind==='oidc-start-callback-batch-real-https-pg16')return verifyOidcBatchMethod(m,OIDC_CALLBACK,read);
  assert.equal(e.gitBlobSha,'a27d855a81751498cc907134e8e9dde7400c9f58');assert.equal(row.status,'COVERED');assert.equal(row.reviewedUncertified,undefined);assert.deepEqual(row.testedBy,expected(read));return 1;
 }
 function reconcileClosure(m,write){

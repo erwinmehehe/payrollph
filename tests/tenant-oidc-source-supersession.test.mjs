@@ -2,11 +2,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
 import {
   OIDC_CALLBACK, verifyOidcCallbackHold, verifyOidcHistoricalReceipt,
 } from "../scripts/qa/tenant-oidc-source-supersession.mjs";
-const manifest = () => JSON.parse(readFileSync(
-  "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const manifest = () => historicOidcBatchView(JSON.parse(readFileSync(
+  "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8")));
 const changed = mutate => {
   const m = manifest();
   mutate(m.allApiRouteFiles[OIDC_CALLBACK].methods[0], m);

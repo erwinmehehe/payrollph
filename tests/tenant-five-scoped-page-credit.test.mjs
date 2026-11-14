@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
 import {
   TARGETS, verifyFivePageProofInputs, verifyFivePageCredits,
   expectedFivePageCreditManifest, gitBlobSha,
@@ -17,7 +18,7 @@ test("only five named original GAP pages are source-current credited; all APIs u
   assert.equal(m.scopedPages.filter(x => x.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(x => x.status === "GAP").length, 11);
   assert.equal(m.metrics.methods, Object.values(m.allApiRouteFiles).flatMap(file => file.methods).length);
-  assert.equal(m.metrics.gap, 5);
+  assert.equal(historicOidcBatchView(m).metrics.gap, 5);
   assert.equal(m.metrics.scopedPagesAndActions, 21);
   assert.deepEqual(TARGETS.map(x => x.path), [
     "src/app/app/engagement/page.tsx",

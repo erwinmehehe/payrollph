@@ -12,7 +12,7 @@ SAML metadata, marketing, final pay and the scoped-page PRs are out of scope.
 
 ## Required executed proof
 
-- Two independent employers and a genuine higher-ID victim each start a real
+- Two fictional attacker employers and a genuine higher-ID victim each start a real
   HTTPS authorization flow. Their persisted one-use state, nonce, encrypted
   verifier, PKCE challenge, callback URI and initiating-browser cookie must bind
   to exactly the selected verified-domain provider. Forged employer/account
@@ -44,3 +44,21 @@ Evidence is SOLO_VERIFIED_DEV_RECOVERY, never independent acceptance.
 Only the disposable CI server enables the existing SSO runtime mode. The
 deployed default-OFF policy and all money/provider/history/CSP flags remain
 unchanged. No production database, real identities, email or provider credentials.
+
+## Executed result and credit proposal
+
+[Run 43553920124, job 132322353286](https://github.com/erwinmehehe/payrollph/actions/runs/43553920124/job/132322353286)
+passed on source `92309ae90163d8e2fdd8a0578cb20933ae8730d3`:
+3 genuine starts, 4 cross-provider refusals, 16 malformed-start refusals,
+2 own logins, 43 callback refusals, 2 authenticated foreign-read refusals,
+a successful genuine victim comparator and 9 default-OFF controls.
+TLS/RSA/JWKS/PKCE were real; no real provider was contacted.
+
+The sealed receipt pins 214 execution inputs, including all 152 numbered SQL
+baseline files. The restricted writer promotes only the two GET methods:
+458 COVERED / 5 GAP becomes 460 COVERED / 3 GAP on this branch's base.
+Anonymous resolve stays GAP by owner decision. These are provisional
+SOLO_VERIFIED_DEV_RECOVERY credits, with independent review and production
+acceptance pending. The historical GAP records and prior receipts are retained.
+The final PR head must retain every execution pin and pass CI; changes to an
+executed input require renewing the proof. No production activation is granted.

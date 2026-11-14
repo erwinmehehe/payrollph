@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import {historicOidcBatchView} from '../scripts/qa/tenant-oidc-batch-credit.mjs';
 import {oidcFullExecution,verifyOidcCallbackCredit,OIDC_CALLBACK,OIDC_RECEIPT} from '../scripts/qa/tenant-oidc-full-credit.mjs';
 import {assertHistoricalPinnedNetworkPreserved} from '../scripts/qa/tenant-node22-pinned-source-compat.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
@@ -9,7 +10,7 @@ test('historical HTTPS/PG16 evidence remains real but is not a current callback 
  const r=JSON.parse(readFileSync(OIDC_RECEIPT,'utf8'));
  assert.equal(r.ownLogins,2);assert.equal(r.refusedCallbacks,43);
  assert.equal(r.jobConclusion,'success');
- const m=manifest(),row=m.allApiRouteFiles[OIDC_CALLBACK].methods.find(x=>x.name==='GET');
+ const m=historicOidcBatchView(manifest()),row=m.allApiRouteFiles[OIDC_CALLBACK].methods.find(x=>x.name==='GET');
  assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
  assert.equal(row.reviewedUncertified?.linkedIdentityBoundary?.priorProofSuperseded,true);
  assert.equal(row.reviewedUncertified?.linkedIdentityBoundary?.credits,0);
