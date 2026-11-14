@@ -6,13 +6,12 @@
 import assert from "node:assert/strict";
 import { ORIGIN, PAGE } from "./tenant-hcm-org-explorer-page-contract.mjs";
 
-const COOKIE_PREFIX = "__Host-linaw_session=";
-// Chromium accepts Secure __Host- cookies over literal localhost in isolated HTTP CI.
-// Keep the stricter server/DB sandbox gate pinned to 127.0.0.1.
+// Production login sets a Secure host-only cookie on literal localhost.
+// The sandbox gate still pins the app and disposable database to loopback.
 const BROWSER_ORIGIN = "http://localhost:3000";
 
 export async function proveOrgExplorerHydratedBrowser({
-  cookie, operatorUserId, a, b, victim, unchanged
+  login, operatorUserId, a, b, victim, unchanged, afterBrowserLogin
 }) {
   assert.equal(process.env.TENANT_ORG_EXPLORER_BROWSER_PROOF,
     "fictional-chromium-only", "ORG_EXPLORER_BROWSER_REFUSED: missing fictional browser gate");
@@ -21,9 +20,12 @@ export async function proveOrgExplorerHydratedBrowser({
   assert.equal(process.env.DATABASE_URL,
     "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
     "ORG_EXPLORER_BROWSER_REFUSED: non-disposable database");
-  assert.ok(cookie?.startsWith(COOKIE_PREFIX) &&
-    /^[a-f0-9]{64}$/.test(cookie.slice(COOKIE_PREFIX.length)),
-  "ORG_EXPLORER_BROWSER_REFUSED: invalid fictional session");
+  assert.ok(login && /^[^@\s]+@example\.invalid$/.test(login.email) &&
+    typeof login.password === "string" && login.password.length >= 16 &&
+    typeof login.totpSecret === "string" && login.totpSecret.length > 0,
+    "ORG_EXPLORER_BROWSER_REFUSED: missing fictional-only login credentials");
+  assert.equal(typeof afterBrowserLogin, "function",
+    "ORG_EXPLORER_BROWSER_REFUSED: missing post-login SQL baseline review");
   assert.ok(a.org.id !== b.org.id && victim.org.id > a.org.id &&
     victim.org.id > b.org.id, "Distinct higher-ID employer victim required");
 
@@ -32,15 +34,28 @@ export async function proveOrgExplorerHydratedBrowser({
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
-    await context.addCookies([{
-      name: "__Host-linaw_session", value: cookie.slice(COOKIE_PREFIX.length),
-      url: BROWSER_ORIGIN, secure: true, httpOnly: true, sameSite: "Lax"
-    }]);
     // No external IdP, provider, analytics, or other outbound browser traffic.
     await context.route("**/*", route => {
       const address = new URL(route.request().url());
       return address.origin === BROWSER_ORIGIN ? route.continue() : route.abort();
     });
+
+    // Real local password+TOTP authentication (not CDP cookie injection).
+    // A genuine Set-Cookie response installs the same production-style host-only session.
+    const { generateTotp } = await import("../../src/lib/totp.ts");
+    const signedIn = await context.request.post(BROWSER_ORIGIN + "/api/auth/login", {
+      data: { email: login.email, password: login.password,
+        totpCode: generateTotp(login.totpSecret) },
+      headers: { origin: BROWSER_ORIGIN, "sec-fetch-site": "same-origin" },
+      timeout: 45000, failOnStatusCode: false
+    });
+    const loginBody = await signedIn.json();
+    assert.equal(signedIn.status(), 200,
+      "Real local MFA login required: " + (loginBody?.code ?? loginBody?.error ?? signedIn.status()));
+    assert.equal(loginBody.user?.email, login.email);
+    const cookies = await context.cookies(BROWSER_ORIGIN);
+    assert.ok(cookies.some(item => item.name === "__Host-linaw_session" &&
+      /^[a-f0-9]{64}$/.test(item.value)), "Real local login must install host-only session");
 
     const session = await context.request.get(BROWSER_ORIGIN + "/api/account",
       { timeout: 30000, failOnStatusCode: false });
@@ -48,6 +63,7 @@ export async function proveOrgExplorerHydratedBrowser({
     const sessionBody = await session.json();
     assert.equal(sessionBody.profile?.id, operatorUserId,
       "Browser must authenticate the intended dual-employer HR user");
+    await afterBrowserLogin();
 
     const page = await context.newPage();
     let ownHydratedPages = 0;
