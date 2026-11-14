@@ -44,6 +44,29 @@ See the new dedicated contract, test and exact-head workflow:
 - tests/tenant-hcm-org-explorer-page-contract.test.mjs
 - .github/workflows/tenant-hcm-org-explorer-page-qa.yml
 
+## Client-scope regression guard (2026-11-14)
+
+The follow-up adds `tests/tenant-hcm-org-explorer-client-scope.test.mjs` to
+the existing exact-PR-head Org Explorer PG16 workflow. This **static source
+contract** ensures that:
+
+- The server authenticates and authorizes the explicit employer before
+  mounting the client, including rejection of duplicated employer selectors.
+- Both client fetches bind the current employer, and position history binds
+  the currently selected position. Response validators check those IDs.
+- Graph, unit selection, position selection and history remain keyed to
+  their current scope; late or aborted responses cannot display prior-employer
+  or prior-position data.
+- Both requests use no-store reads, abort in-flight work on scope changes,
+  and clear stale data when a scoped read fails.
+
+**Evidence limit:** This regression checks source invariants; it is not
+hydrated-browser or user-interaction execution evidence. The existing real
+HTTP/PG16 proof remains separate. This change grants **ZERO credits**;
+the Org Explorer page remains **GAP / NOT ACCEPTED** until an actual
+multi-employer Chromium tenant-switch/position-selection proof and the
+required security/privacy review pass on current source.
+
 ## Not included / review holds
 
 - **ZERO credits**: this PR does not change the tenant isolation coverage
