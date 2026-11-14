@@ -8,7 +8,10 @@ on:
       - "docs/qa/tenant-hcm-org-explorer-page-isolation.md"
       - "scripts/qa/tenant-hcm-org-explorer-page-contract.mjs"
       - "scripts/qa/tenant-hcm-org-explorer-page-http.mjs"
+      - "scripts/qa/tenant-hcm-org-explorer-browser.mjs"
       - "tests/tenant-hcm-org-explorer-page-contract.test.mjs"
+      - "tests/tenant-hcm-org-explorer-client-scope.test.mjs"
+      - "tests/tenant-hcm-org-explorer-browser-contract.test.mjs"
       - "src/app/hcm/org-explorer/**"
       - "src/app/api/hcm/org-explorer/**"
       - "src/app/api/hcm/position-history/**"
@@ -38,7 +41,7 @@ concurrency:
 
 jobs:
   isolated-org-explorer:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       CI: "true"
@@ -47,6 +50,7 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
       TENANT_ORG_EXPLORER_PROOF: fictional-pg16-only
+      TENANT_ORG_EXPLORER_BROWSER_PROOF: fictional-chromium-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
       SECURITY_SMOKE_URL: http://127.0.0.1:3000
@@ -98,8 +102,16 @@ jobs:
         run: |
           node --check scripts/qa/tenant-hcm-org-explorer-page-contract.mjs
           node --check scripts/qa/tenant-hcm-org-explorer-page-http.mjs
+          node --check scripts/qa/tenant-hcm-org-explorer-browser.mjs
           node --test tests/tenant-hcm-org-explorer-page-contract.test.mjs
+          node --test tests/tenant-hcm-org-explorer-client-scope.test.mjs
+          node --test tests/tenant-hcm-org-explorer-browser-contract.test.mjs
           node --test tests/tenant-hcm-page-api-ci-coverage.test.mjs
+      # Isolated local Chromium only; the browser rejects non-loopback requests.
+      - name: Install sandboxed Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
       - name: Generate ephemeral-only encryption keys
         shell: bash
         run: |
