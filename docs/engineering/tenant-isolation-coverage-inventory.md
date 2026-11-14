@@ -1,8 +1,10 @@
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** The changed employer-scoped OIDC callback source supersedes its earlier provisional receipt; callback GET stays GAP until fresh enabled and default-OFF source-current proof. Combined proposal after preserving nineteen separately renewed payroll methods: **498 methods = 458 COVERED / 23 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 5 GAP**; 16 page/action GAPs remain. No independent acceptance or production SSO authorization.
 
-> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 458 COVERED / 5 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
+> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 459 COVERED / 4 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 458 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP. Eleven actions, eight executed proof jobs and all six source families; 11 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 459 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 4 GAP. Eleven actions, eight executed proof jobs and all six source families; 11 separate page/action gaps remain. No production or external-provider acceptance.
+
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 459 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 4 GAP; 11 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
 > **Year-end GET and POST credit renewed again (provisional, NOT ACCEPTED):** 439 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 24 GAP. #1957 made `src/lib/year-end.ts` apply one de minimis ceiling per category and statutory period across imported and calculated pay (golden Phase 14) and held the pair at zero. The fictional PG16 real-HTTP proof (`annualize-and-bind-isolated`) then ran on the main merge commit [`ba70678f3`](https://github.com/erwinmehehe/payrollph/commit/ba70678f30e24436dcaac853e0b047adbbe3f96a): [run 43372002300, job 131709669757](https://github.com/erwinmehehe/payrollph/actions/runs/43372002300/job/131709669757). It credits only these two methods; the `year-end.ts` pin is renewed (`b2b52a79`). Independent payroll/security review stays PENDING; not production certified; no government filing.
 
@@ -166,7 +168,7 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 5 API methods and 11 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 4 API methods and 11 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **NOT ACCEPTED**: 5 API methods and 16 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
@@ -196,7 +198,7 @@ Current provisional ledger including the separate #1427 Compliance Evidence, #14
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 5 method gaps and 11 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 4 method gaps and 11 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
@@ -277,10 +279,10 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | routeFiles | 295 |
 | methods | 498 |
 | coveredBefore | 20 |
-| coveredAfter | 458 |
+| coveredAfter | 459 |
 | publicByDesign | 23 |
 | privilegedOperationsTokenOnly | 12 |
-| gap | 5 |
+| gap | 4 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -647,7 +649,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`managed-payroll` POST](../../src/app/api/managed-payroll/route.ts#L109) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L18, enforceSameOriginMutation L21 | searchParams.get("organizationId") L91, body.organizationId L118, body.organizationId L188 | NO VALID METHOD PROOF | **GAP** |
 | [`managed-payroll` PATCH](../../src/app/api/managed-payroll/route.ts#L179) | session, query, body | assertOrganizationRole L12, getAccess L13, getSessionUser L18, enforceSameOriginMutation L21 | searchParams.get("organizationId") L91, body.organizationId L118, body.organizationId L188 | NO VALID METHOD PROOF | **GAP** |
 | [`managed-payroll/runs/[id]/approve` POST](../../src/app/api/managed-payroll/runs/[id]/approve/route.ts#L17) | session, body | getSessionUser L12, enforceSameOriginMutation L15, enforceSameOriginMutation L18, getSessionUser L20 | none found | [SOLO_VERIFIED_DEV_RECOVERY PG16 HTTP](../../scripts/qa/tenant-managed-client-approval-http.mjs#L78) | **COVERED** |
-| [`marketing/leads` GET](../../src/app/api/marketing/leads/route.ts#L16) | session, query | getSessionUser L1, getSessionUser L17 | none found | NO VALID METHOD PROOF | **GAP** |
+| [`marketing/leads` GET](../../src/app/api/marketing/leads/route.ts#L16) | session, query | getSessionUser L1, getSessionUser L17 | none found | [MKT-01 operator-only PG16 proof](../../scripts/qa/tenant-mkt01-marketing-report-http.mjs#L160) | **COVERED** |
 | [`migrations` GET](../../src/app/api/migrations/route.ts#L61) | session, query, body | enforceSameOriginMutation L4, assertOrganizationRole L16, getAccess L16, getSessionUser L18 | searchParams.get("organizationId") L67, body.organizationId L163 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/people.mjs#L50) | **COVERED** |
 | [`migrations` POST](../../src/app/api/migrations/route.ts#L107) | session, query, body | enforceSameOriginMutation L4, assertOrganizationRole L16, getAccess L16, getSessionUser L18 | searchParams.get("organizationId") L67, body.organizationId L163 | [Provisional PG16 HTTP receipt](https://github.com/erwinmehehe/payrollph/actions/runs/42326040103/job/128261441543) | **COVERED** |
 | [`multi-entity/context` GET](../../src/app/api/multi-entity/context/route.ts#L13) | session, query, body | getSessionUser L4, enforceSameOriginMutation L7, getSessionUser L15, enforceSameOriginMutation L27 | searchParams.get("organizationId") L17, body.organizationId L32, body.legalEntityId L35 | [Tenant-table own-marker/victim PG16 proof](../../scripts/qa/tenant-table-http.mjs#L251) — [family row](../../scripts/qa/tenant-table-rows/read/multi-entity.mjs#L11) | **COVERED** |

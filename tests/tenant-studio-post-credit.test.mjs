@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
 import {STUDIO_POST_PATH,STUDIO_RECEIPT,readStudioPostReceipt,verifyStudioPostResults,verifyStudioPostCredit,reconcileStudioPostCredit} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {RENEWAL_FILE,readStudioDependencyRenewal,verifyRenewalResults} from '../scripts/qa/tenant-studio-dependency-renewal.mjs';
+import {assertLiveTenantCounts} from './helpers/tenant-counts.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 const clone=x=>JSON.parse(JSON.stringify(x));
 test('only the complete eight-job, eleven-action Studio cohort earns one distinct method',()=>{
@@ -8,6 +9,23 @@ test('only the complete eight-job, eleven-action Studio cohort earns one distinc
  assert.equal(verifyStudioPostCredit(manifest()),1);assert.equal(reconcileStudioPostCredit({write:false}).credited,0);
  assert.equal(r.cohort.scope.result.resolution.families.length,6);
 });
+test('MKT-01 operator-only GET cannot rewrite or multiply the separate Studio credit',()=>{
+ const m=manifest(),operator=m.allApiRouteFiles['src/app/api/marketing/leads/route.ts'].methods.find(x=>x.name==='GET');
+ assert.equal(operator.status,'COVERED');
+ assert.equal(operator.testedBy.operatorScoped,true);
+ assert.equal(operator.testedBy.publicByDesign,false);
+ // Recompute from all method rows; MKT-01 must never pin a shared live total.
+ const {live}=assertLiveTenantCounts(assert,m);
+ const historyPattern=new RegExp('SOLO_VERIFIED_DEV_RECOVERY Studio POST credit: ([0-9]+) COVERED / ([0-9]+) GAP;','g');
+ const historical=[...m.acceptanceStatus.matchAll(historyPattern)];
+ assert.ok(historical.length>0,'The earlier Studio proof note must remain present');
+ assert.ok(historical.every(([,covered,gap])=>Number(covered)<live.coveredAfter && Number(gap)>live.gap),
+   'Current MKT-01 method must not be counted as another Studio credit');
+ const result=reconcileStudioPostCredit({write:false});
+ assert.equal(result.credited,0);
+ assert.equal(manifest().acceptanceStatus,m.acceptanceStatus);
+});
+
 test('missing modes, borrowed jobs, failed positives or real-provider claims cannot pass',()=>{
  const r=readStudioPostReceipt();for(const mutate of [x=>delete x.cohort.language,x=>delete x.cohort.sessions,x=>x.cohort.sessions.result.sharedGlobalSessionPreserved=false,x=>delete x.actionProofs['save-rule'],
   x=>x.cohort.scope.job=x.cohort.draft.job,x=>x.cohort.scope.conclusion='failure',x=>x.cohort.scope.result.own=0,

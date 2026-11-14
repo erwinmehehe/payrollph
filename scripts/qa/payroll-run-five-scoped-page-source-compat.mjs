@@ -13,6 +13,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
+import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -21,6 +22,7 @@ const WORKER_VERIFIER = "scripts/qa/tenant-five-method-credit-verify.mjs";
 const HISTORICAL_PROBE_BLOB = "fe310ca93f2d6ae2fd48ce72d2ee1cf451b55e20";
 const REVIEWED_PROBE_BLOB = "48a62c81c7d20b1d6980e2f9d610bbb9afdb7173";
 const REVIEWED_GENERATOR_BLOB = "08335292d7534ac3618f59b6959bbd8133483dd7";
+const REVIEWED_GENERATOR_MKT_BLOB = "9cba2a1198ae02c5fe6d58c50fd2e2771c8ceb7a";
 const REVIEWED_WORKFLOW_BLOB = "4d475e51c601583ba4212e2c327207c5bb1b34dc";
 const HISTORICAL_WORKER_VERIFIER_BLOB = "8b9b1cdee7ff5228a5558f2e326dff6019f19e8b";
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
@@ -50,14 +52,20 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     "PAGE_COMPAT_REFUSED: historical second-pass page probe did not reconstruct");
   assert.equal(probe.split("\n").length, historical.split("\n").length,
     "PAGE_COMPAT_REFUSED: historical source-line pins must be preserved");
+  const manifest = JSON.parse(String(read(MANIFEST)));
+  const marketing = manifest.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
+    .find(method => method.name === "GET");
+  const hasMkt01 = marketing?.status === "COVERED";
+  // Preserve the original sealed source, allowing the precisely reviewed
+  // generator change only with MKT-01's independent operator-only proof.
+  if (hasMkt01) assert.equal(assertMkt01Receipt(manifest), 1);
+  const pinnedGenerator = hasMkt01 ? REVIEWED_GENERATOR_MKT_BLOB : REVIEWED_GENERATOR_BLOB;
   for (const [path, blob] of [
-    [GENERATOR, REVIEWED_GENERATOR_BLOB],
+    [GENERATOR, pinnedGenerator],
     [WORKFLOW, REVIEWED_WORKFLOW_BLOB],
     [WORKER_VERIFIER, HISTORICAL_WORKER_VERIFIER_BLOB],
   ]) assert.equal(renewalBlob(read(path)), blob,
     "PAGE_COMPAT_REFUSED: unreviewed page-credit verifier/workflow: " + path);
-
-  const manifest = JSON.parse(String(read(MANIFEST)));
   assert.equal(manifest.scopedPages.length, 21);
   assert.equal(manifest.scopedPages.filter(p => p.status === "COVERED").length, 10);
   assert.equal(manifest.scopedPages.filter(p => p.status === "GAP").length, 11);
@@ -67,8 +75,11 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     methods.filter(method => method.status === "COVERED").length);
   assert.equal(manifest.metrics.gap,
     methods.filter(method => method.status === "GAP").length);
+  const expectedGaps = hasMkt01 ? 4 : 5;
+  assert.equal(manifest.metrics.gap, expectedGaps,
+    "PAGE_COMPAT_REFUSED: no unrelated method may earn a coverage credit");
   assert.match(manifest.acceptanceStatus,
-    /^NOT ACCEPTED: 5 API methods and 11 page\/action GAPs/);
+    new RegExp("^NOT ACCEPTED: " + expectedGaps + " API methods and 11 page/action GAPs"));
   for (const [path, sourceSha, proof, proofSha] of REVIEWED_PAGES) {
     const row = manifest.scopedPages.find(p => p.path === path);
     assert.equal(row?.status, "COVERED", "PAGE_COMPAT_REFUSED: new page receipt absent");

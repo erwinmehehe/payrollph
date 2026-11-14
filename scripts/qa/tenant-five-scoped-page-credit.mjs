@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
 import { verifyWorker360PageCredit, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
+import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -223,13 +224,23 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
   ]) m.metrics[field] = methods.filter(x => x.status === status).length;
   m.metrics.scopedPagesAndActions = m.scopedPages.length;
   assert.equal(m.metrics.methods, methods.length);
-  assert.equal(m.metrics.gap, 5);
+  // #1973 proves five pages only. A separate MKT-01 method may reduce the
+  // API-gap count from five to four, but only with its complete source-pinned
+  // operator-only PG16 receipt. Never infer an additional page or method credit.
+  const marketing = m.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
+    .find(row => row.name === "GET");
+  const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;
+  if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,
+    "The sole additional method must be independently source-pinned");
+  assert.equal(m.metrics.gap, expectedApiGaps,
+    "Five-page proof must not silently reclassify unrelated API methods");
   assert.equal(m.scopedPages.filter(p => p.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 11);
   const nextPrefix = "NOT ACCEPTED: " + m.metrics.gap + " API methods and 11 page/action GAPs";
-  assert.match(m.acceptanceStatus, /^NOT ACCEPTED: 5 API methods and (16|11) page\/action GAPs/);
-  m.acceptanceStatus = m.acceptanceStatus.replace(
-    /^NOT ACCEPTED: 5 API methods and (16|11) page\/action GAPs/, nextPrefix);
+  const acceptancePrefix = new RegExp("^NOT ACCEPTED: " + expectedApiGaps +
+    " API methods and (16|11) page/action GAPs");
+  assert.match(m.acceptanceStatus, acceptancePrefix);
+  m.acceptanceStatus = m.acceptanceStatus.replace(acceptancePrefix, nextPrefix);
   const note = " Current five page-only SOLO_VERIFIED_DEV_RECOVERY proposals: 10/21 scoped pages " +
     "COVERED, 11 GAP; exact-final-head disposable PG16 jobs are mandatory; no new API method credits, " +
     "hydrated browser, production or independent HR/security acceptance.";
