@@ -22,6 +22,11 @@ test("the real browser runs after hard refusal and against the same signed-in PG
   assert.match(runner, /passwordHash: hashPassword\(browserLoginPassword\)/);
   assert.match(runner, /a, b, victim, unchanged, afterBrowserLogin/);
   assert.match(runner, /async function afterBrowserLogin\(\)/);
+  // Real MFA login may append audit rows only for the two granted employers.
+  // The proof must still reject any change to protected source tables or C's audit.
+  assert.match(runner, /for \(const name of protectedTables\.filter\(name => name !== "auditEvents"\)\)/);
+  assert.match(runner, /if \(actor !== a && actor !== b\)/);
+  assert.match(runner, /assert\.deepEqual\(current\.auditEvents, previous\.auditEvents,/);
   assert.match(runner, /clientBrowserInteractionsProven: true/);
   assert.match(runner, /browserEvidence,/);
 });
