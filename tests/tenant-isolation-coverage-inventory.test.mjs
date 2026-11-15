@@ -5197,7 +5197,7 @@ test("all credited proof links point to the claimed route and every recertified 
           proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
           proof.unchangedDbLine ?? null,
         ], [expected[2], expected[2], expected[3],
-          method.name === "POST" ? 356 : null],
+          method.name === "POST" ? 369 : null],
         key + ": method-specific HTTP line pins changed without review");
         const integration = readFileSync(proof.file, "utf8");
         const lines = integration.split("\n");
@@ -6240,8 +6240,32 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
         assert.ok(["GET", "POST"].includes(method.name));
-        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
-        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        // Prior-evidence has a reviewed #1978 privacy-only route revision.
+        // Preserve the #1730/#STA-01 historical HTTP proof's source seal;
+        // it must not be relabeled as evidence that ran on the new handler.
+        if (entry.route === "year-end/prior-evidence") {
+          const revised = entry.sourceRevisionReview;
+          assert.equal(proof.routeBlobSha, revised?.previousRouteBlobSha,
+            "The historical credited run must retain its original route SHA");
+          assert.equal(revised?.currentRouteBlobSha, entry.gitBlobSha,
+            "The new privacy handler must be separately source-pinned");
+          assert.equal(revised?.priorReceiptHistoricalOnly, true);
+          assert.equal(revised?.newTenantIsolationMethodCredits, 0);
+          assert.equal(revised?.currentExactHeadPg16, "PENDING");
+          assert.equal(revised?.productionCertified, false);
+          const handler = readFileSync(path, "utf8");
+          for (const code of ["PRIOR_EMPLOYEE_NOT_FOUND",
+                              "PRIOR_ENTITY_ACCESS_DENIED",
+                              "PRIOR_RECORD_UNAVAILABLE"]) {
+            assert.ok(handler.includes('"' + code + '"'),
+              "The current privacy denial policy must remain visible in source");
+          }
+          assert.match(handler, /includes\(internalCode\) \? "PRIOR_RECORD_UNAVAILABLE" : internalCode/);
+          assert.equal(gitBlobSha(Buffer.from(handler)), revised.currentRouteBlobSha);
+        } else {
+          assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+          assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        }
         assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
         assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
         const approved = [
@@ -7877,7 +7901,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
             proofFile: "scripts/qa/tenant-prior-review-worker-http.mjs",
             proofBlobSha: "db38b5ce9e33c42feb81a69929849c2c52a6d004",
             workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-            workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+            workflowBlobSha: "7ac2155d1d512086c7da4cd45ca88db3e42ca011",
             unitTestFile: "tests/tenant-2316-legal-employer-worker.test.ts",
             unitTestBlobSha: "6b20e0a017d26acbc0d877e184e98ea37dc0a768",
             exactFinalHeadPg16: "PENDING",
@@ -7897,7 +7921,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
             contractTestFile: "tests/tenant-prior-review-worker-contract.test.mjs",
             contractTestBlobSha: "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
             workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-            workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+            workflowBlobSha: "7ac2155d1d512086c7da4cd45ca88db3e42ca011",
             proofStatus: "EXACT_PR_HEAD_PG16_PENDING",
             pageActionCredits: 0, apiMethodCredits: 0,
             independentlyAccepted: false, productionCertified: false,
@@ -9344,7 +9368,19 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
   assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
   assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the proof changed; re-run the workflow and re-credit");
   assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-bir1604c-candidate-post-contract.test.mjs")));
-  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  // Historical passing BIR POST proof must retain its ORIGINAL workflow hash.
+  // The only current workflow drift is an exact two-runner Ubuntu 24.04 pin:
+  // Playwright 1.55 cannot install Chromium on ubuntu26.04-x64. This does not
+  // re-credit the historical run as an exact-head run of the revised workflow.
+  assert.equal(proof.workflowBlobSha, "2df699021ea770cecb0d09837415ff74ed622bb4",
+    "Historical BIR receipt/workflow hash must not be rewritten");
+  assert.equal(gitBlobSha(Buffer.from(workflow)), "d25561c9d6e8f6a98168a79bd3dd815c2be0dfdd",
+    "Only the exact reviewed CI runner repair is permitted");
+  assert.equal(workflow.split("runs-on: ubuntu-24.04").length - 1, 2,
+    "Both synthetic BIR jobs must use the Playwright-compatible Ubuntu runner");
+  assert.equal(gitBlobSha(Buffer.from(workflow.replaceAll(
+    "runs-on: ubuntu-24.04", "runs-on: ubuntu-latest"))), proof.workflowBlobSha,
+    "Every byte other than the two CI runner labels must match the historical receipt");
   assert.equal(proof.routeBlobSha, api.gitBlobSha);
   assert.equal(proof.line, proof.ownPositiveLine);
   assert.equal(proof.ownPositiveLine, proof.ownDownloadLine);

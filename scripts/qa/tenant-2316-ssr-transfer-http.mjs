@@ -18,9 +18,16 @@ const certPath = (orgId, workerId, separationId, year = "2026") =>
   (workerId === undefined ? "" : "&employeeId=" + workerId) +
   (separationId === undefined ? "" : "&separationId=" + separationId) +
   "&taxYear=" + year;
+const separationListPath = orgId =>
+  "/api/separation?organizationId=" + orgId;
+const certificateSourcePath = (orgId, workerId, separationId) =>
+  "/api/year-end/2316-certificate?organizationId=" + orgId +
+  "&employeeId=" + workerId + "&taxYear=2026&separationId=" + separationId;
 
 async function getLocal(path, cookie) {
-  assert.ok(path === "/api/account" || path === PAGE || path.startsWith(PAGE + "?"),
+  assert.ok(path === "/api/account" || path === PAGE || path.startsWith(PAGE + "?") ||
+    path.startsWith("/api/separation?organizationId=") ||
+    path.startsWith("/api/year-end/2316-certificate?organizationId="),
     "TENANT_2316_REFUSED: unreviewed HTTP destination");
   const response = await fetch(ORIGIN + path, {
     method: "GET", headers: cookie ? { cookie } : {},
@@ -29,7 +36,8 @@ async function getLocal(path, cookie) {
   });
   const text = await response.text();
   let json = null;
-  if (path === "/api/account") {
+  if (path === "/api/account" || path.startsWith("/api/separation?") ||
+      path.startsWith("/api/year-end/2316-certificate?")) {
     try { json = JSON.parse(text); } catch { /* Status checks still required. */ }
   }
   return { status: response.status, text, headers: response.headers, json };
@@ -128,6 +136,21 @@ export async function prove2316SsrTransferBoundary() {
       separationType: "resignation", noticeDate: "2026-10-01",
       lastDay: "2026-10-31", status: "draft",
     }).returning({ id: s.separationRecords.id });
+    // Released records without a trustworthy NUMERIC frozen entity may
+    // not fall back to the worker's mutable current employer.
+    const [legacySep] = await db.insert(s.separationRecords).values({
+      organizationId: a.org.id, employeeId: a.worker.id,
+      separationType: "resignation", noticeDate: "2026-07-01",
+      lastDay: "2026-07-31", status: "released", computationSnapshot: {},
+    }).returning({ id: s.separationRecords.id });
+    const [wrongTypeSep] = await db.insert(s.separationRecords).values({
+      organizationId: a.org.id, employeeId: a.worker.id,
+      separationType: "resignation", noticeDate: "2026-08-01",
+      lastDay: "2026-08-31", status: "released",
+      computationSnapshot: {
+        sourceFingerprint: { employeeLegalEntityId: String(a.entity.id) },
+      },
+    }).returning({ id: s.separationRecords.id });
 
     const [scopedUser] = await db.insert(s.users).values({
       email: "2316-scoped-" + nonce + "@example.invalid",
@@ -141,6 +164,25 @@ export async function prove2316SsrTransferBoundary() {
     const scopedSession = await fixture.standaloneMakeSession(scopedUser.id);
     await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
       .where(eq(s.sessions.id, scopedSession.id));
+    // A second organization-A owner has only the *new* legal employer grant.
+    // This is essential: a transferred worker's RELEASED old-employer
+    // record must not become visible to the new employer's operator.
+    const [newEmployerOperator] = await db.insert(s.users).values({
+      email: "2316-new-entity-" + nonce + "@example.invalid",
+      name: "Fictional new-entity-only owner " + nonce,
+      role: "owner", passwordHash: "fictional-session-only", totpEnabled: true,
+    }).returning();
+    await db.insert(s.userOrganizations).values({
+      userId: newEmployerOperator.id, organizationId: a.org.id,
+      role: "owner", active: true,
+    });
+    await db.insert(s.userLegalEntityGrants).values({
+      userId: newEmployerOperator.id, organizationId: a.org.id,
+      legalEntityId: otherEntity.id,
+    });
+    const newEmployerSession = await fixture.standaloneMakeSession(newEmployerOperator.id);
+    await db.update(s.sessions).set({ mfaVerifiedAt: new Date() })
+      .where(eq(s.sessions.id, newEmployerSession.id));
 
     const tables = [
       "organizations", "legalEntities", "employees", "userLegalEntityGrants",
@@ -171,6 +213,34 @@ export async function prove2316SsrTransferBoundary() {
     }
 
     let ownReleased = 0, ownGuidance = 0, denied = 0;
+    let directSeparationReads = 0, directSeparationPatchChecks = 0;
+    async function separationList(cookie, orgId) {
+      const response = await getLocal(separationListPath(orgId), cookie);
+      assert.equal(response.status, 200,
+        "Source-backed selected-employer separation GET must succeed");
+      assert.ok(Array.isArray(response.json?.separations),
+        "Separation list must contain real JSON records");
+      assert.match(response.headers.get("cache-control") ?? "", /no-store/i,
+        "Private financial/tax separation list must not be publicly cacheable");
+      directSeparationReads++;
+      await unchanged("Direct separation GET");
+      return response.json.separations;
+    }
+    async function nonMutatingSeparationPatch(cookie, id) {
+      // An unknown action checks the full PATCH authorization boundary but
+      // cannot mutate payroll, employee state, statutory evidence or audit.
+      const result = await fixture.standaloneRequest("/api/separation", {
+        method: "PATCH", cookie, body: { id, action: "qa_unrecognized_noop" },
+      });
+      directSeparationPatchChecks++;
+      return result;
+    }
+    const assertOnlyIds = (list, includes, excludes, label) => {
+      const ids = new Set(list.map(sep => sep.id));
+      for (const id of includes) assert.ok(ids.has(id), label + " must include " + id);
+      for (const id of excludes) assert.ok(!ids.has(id),
+        label + " must NOT reveal ungranted, stale or spoofed record " + id);
+    };
     async function deny(path, cookie, label) {
       const response = await getLocal(path, cookie);
       assertDenied2316(response, deniedSubjects, label);
@@ -193,6 +263,41 @@ export async function prove2316SsrTransferBoundary() {
       ownGuidance++;
       await unchanged("own worker-only guidance");
     }
+
+    // A source-backed GET list must match the selected legal employer, not
+    // merely its organization or the worker's present employer. Test before
+    // and after the transfer using two distinct real same-parent operators.
+    const listA = await separationList(a.cookie, a.org.id);
+    assertOnlyIds(listA, [a.separationId, draftSep.id],
+      [foreignSep.id, legacySep.id, wrongTypeSep.id],
+      "Old employer before transfer");
+    const listNewBefore = await separationList(newEmployerSession.cookie, a.org.id);
+    assertOnlyIds(listNewBefore, [foreignSep.id],
+      [a.separationId, draftSep.id, legacySep.id, wrongTypeSep.id],
+      "New employer before transfer");
+    const listB = await separationList(b.cookie, b.org.id);
+    assertOnlyIds(listB, [b.separationId], [a.separationId, victim.separationId],
+      "Independent second employer");
+    const crossParent = await getLocal(separationListPath(victim.org.id), a.cookie);
+    assert.ok([403,404].includes(crossParent.status),
+      "Foreign organization may not list final-pay tax source");
+    assert.ok(!crossParent.text.includes(victim.worker.employeeNo));
+    await unchanged("Cross-parent direct separation list refusal");
+
+    // An authorized parent-org actor sees the SAME source response for an
+    // unknown separation and a real but ungranted historical legal employer.
+    const missingCert = await getLocal(
+      certificateSourcePath(a.org.id, otherWorker.id, foreignSep.id + 1000000),
+      a.cookie);
+    const foreignCert = await getLocal(
+      certificateSourcePath(a.org.id, otherWorker.id, foreignSep.id), a.cookie);
+    assert.equal(missingCert.status, 404);
+    assert.equal(foreignCert.status, missingCert.status);
+    assert.deepEqual(foreignCert.json, missingCert.json,
+      "Form 2316 source must not disclose historical separation existence");
+    assert.equal(foreignCert.headers.get("cache-control"),
+      missingCert.headers.get("cache-control"));
+    await unchanged("Certificate existence-oracle response parity");
 
     // A is genuinely denied both worker-only and released-separation views
     // of the other legal employer inside A's own parent organization.
@@ -249,6 +354,46 @@ export async function prove2316SsrTransferBoundary() {
       .where(and(eq(s.employees.organizationId, a.org.id),
         eq(s.employees.id, a.worker.id)));
     before = await freeze();
+    const historicOldEmployerList = await separationList(a.cookie, a.org.id);
+    assertOnlyIds(historicOldEmployerList, [a.separationId],
+      [draftSep.id, foreignSep.id, legacySep.id, wrongTypeSep.id],
+      "Old employer AFTER worker transfer");
+    const currentNewEmployerList = await separationList(newEmployerSession.cookie, a.org.id);
+    assertOnlyIds(currentNewEmployerList, [foreignSep.id, draftSep.id],
+      [a.separationId, legacySep.id, wrongTypeSep.id],
+      "New employer AFTER worker transfer");
+    // The PATCH side must honor the same frozen employer boundary as GET.
+    // The old employer may reach the safe unknown-action 400 (no mutation),
+    // while the new employer receives exactly the same 404 as a missing ID.
+    const oldEmployerPatch = await nonMutatingSeparationPatch(
+      a.cookie, a.separationId);
+    assert.equal(oldEmployerPatch.status, 400,
+      "Frozen former employer is authorized to reach the non-mutating action gate");
+    const newEmployerForeignPatch = await nonMutatingSeparationPatch(
+      newEmployerSession.cookie, a.separationId);
+    const newEmployerMissingPatch = await nonMutatingSeparationPatch(
+      newEmployerSession.cookie, a.separationId + 1000000);
+    assert.equal(newEmployerForeignPatch.status, 404);
+    assert.equal(newEmployerMissingPatch.status, 404);
+    assert.deepEqual(newEmployerForeignPatch.json, newEmployerMissingPatch.json,
+      "PATCH may not disclose another legal employer's separation existence");
+    const newEmployerDraftPatch = await nonMutatingSeparationPatch(
+      newEmployerSession.cookie, draftSep.id);
+    assert.equal(newEmployerDraftPatch.status, 400,
+      "New employer can reach non-mutating gate for the worker's current-entity draft");
+    const oldEmployerDraftPatch = await nonMutatingSeparationPatch(
+      a.cookie, draftSep.id);
+    assert.equal(oldEmployerDraftPatch.status, 404,
+      "Former employer can no longer operate an unsnapshotted current-entity draft");
+    for (const closed of [legacySep.id, wrongTypeSep.id]) {
+      const oldDenied = await nonMutatingSeparationPatch(a.cookie, closed);
+      const newDenied = await nonMutatingSeparationPatch(
+        newEmployerSession.cookie, closed);
+      assert.equal(oldDenied.status, 404);
+      assert.equal(newDenied.status, 404,
+        "Malformed historical employer cannot grant cross-entity PATCH access");
+    }
+    await unchanged("Historical and current separation PATCH legal-employer denial");
     const historical = await getLocal(
       certPath(a.org.id, a.worker.id, a.separationId), a.cookie);
     assertOwn2316(historical, a, subjects, "released");
@@ -270,6 +415,11 @@ export async function prove2316SsrTransferBoundary() {
     assert.equal(validAccount.json?.profile?.id, a.owner.id);
     await deny(certPath(a.org.id, a.worker.id, a.separationId), a.cookie,
       "revoked frozen legal-employer grant");
+    const revokedPatch = await nonMutatingSeparationPatch(
+      a.cookie, a.separationId);
+    assert.equal(revokedPatch.status, 404,
+      "Revoked frozen employer grant must fail PATCH even with valid session");
+    await unchanged("Revoked frozen employer PATCH");
     await deny(certPath(a.org.id, otherWorker.id, foreignSep.id), a.cookie,
       "revoked grant never expands to other employer");
 
@@ -291,7 +441,9 @@ export async function prove2316SsrTransferBoundary() {
 
     assert.equal(ownReleased, 3);
     assert.equal(ownGuidance, 3);
-    assert.ok(denied >= 30, "Full transfer/revocation/forgery matrix must execute");
+    assert.ok(denied >= 30 && directSeparationReads >= 5 &&
+      directSeparationPatchChecks >= 10,
+      "Full transfer, real separation GET, revocation and forgery matrix must execute");
     const result = {
       family: "form2316-ssr-transfer-boundary",
       fictionalEmployers: 3, genuineSeparateOwners: 3, ownReleased,
@@ -300,6 +452,14 @@ export async function prove2316SsrTransferBoundary() {
       sameParentUngrantableWorkerDenied: true,
       transferredHistoricalEmployerRetained: true,
       workerOnlyCurrentEmployerDeniedAfterTransfer: true,
+      directSeparationReads, directSeparationPatchChecks,
+      frozenReleasedEmployerWinsAfterTransfer: true,
+      frozenEmployerPatchGrantedOnlyToHistoricOwner: true,
+      foreignAndUnknownSeparationPatchResponseParity: true,
+      currentEmployerCannotReadPriorReleasedSeparation: true,
+      draftFollowsCurrentEmployerAfterTransfer: true,
+      malformedOrLegacyHistoricalSnapshotsFailClosed: true,
+      certificateUnknownAndUngrantResponseParity: true,
       revokedLegalEmployerGrantDenied: true,
       revokedMembershipDenied: true, protectedSqlTables: tables.length,
       apiMethodCredits: 0, pageActionCredits: 0,

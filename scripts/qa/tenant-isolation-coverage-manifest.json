@@ -32176,12 +32176,12 @@
       ]
     },
     "src/app/api/separation/route.ts": {
-      "gitBlobSha": "a4d45ab01a5ede8f6f195ba09d3eb3e8f31de3fa",
+      "gitBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
       "sourceRevisionReview": {
         "kind": "phase7-and-prior-employer-final-pay-provisional-source-reconciliation",
         "previousRouteBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
-        "currentRouteBlobSha": "a4d45ab01a5ede8f6f195ba09d3eb3e8f31de3fa",
-        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET, POST and PATCH now check the selected legal-employer boundary with the multi-entity flag enabled; GET filters sensitive final-pay rows to one authorized legal employer. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held. Superseding separation annualization change (this PR): GET/POST/PATCH changed; previous-employer Form 2316 is maker/checker approved, legal-entity scoped, and its approval digest/revision is revalidated inside initiation, finance approval and release transactions. The existing proof covers prior employer flag-OFF separation, NOT new flag-ON legal-employer cross-tenant HTTP. New flag-ON PostgreSQL read/denial/source-drift regression is synthetic only. Zero new method credits. Fresh exact-head flag-ON own/foreign HTTP and independent financial/security approval remain PENDING; no production activation.",
+        "currentRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
+        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET, POST and PATCH now check the selected legal-employer boundary with the multi-entity flag enabled; GET filters sensitive final-pay rows to one authorized legal employer. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held. Superseding separation annualization change (this PR): GET/POST/PATCH changed; previous-employer Form 2316 is maker/checker approved, legal-entity scoped, and its approval digest/revision is revalidated inside initiation, finance approval and release transactions. The existing proof covers prior employer flag-OFF separation, NOT new flag-ON legal-employer cross-tenant HTTP. New flag-ON PostgreSQL read/denial/source-drift regression is synthetic only. Zero new method credits. Fresh exact-head flag-ON own/foreign HTTP and independent financial/security approval remain PENDING; no production activation. Security correction after transfer: Runtime GET now selects a released/computed separation by the frozen numeric legal-employer fingerprint, never by the worker's mutable current employer; only an unsnapshotted draft may use current entity. Missing/legacy attribution fails closed. Direct selected-employer PG16 HTTP transfer/denial proof must pass on exact PR head. PATCH now uses the same frozen historical employer for all record actions, including clearance and final-pay, and returns the same non-disclosing 404 for absent/foreign org, missing entity grant and invalid frozen source. Real PG16 must reprove permitted old-employer no-op 400 versus new-employer and unknown 404 without SQL mutation.",
         "priorEmployerFixPreviousRouteBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
         "priorEmployerTaxContractFile": "tests/final-pay-prior-employer-annualization.test.ts",
         "priorEmployerFictionalPgTest": "tests/final-pay-prior-employer-pg.test.ts",
@@ -32202,7 +32202,7 @@
       "methods": [
         {
           "name": "GET",
-          "line": 291,
+          "line": 317,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -32216,7 +32216,7 @@
         },
         {
           "name": "POST",
-          "line": 355,
+          "line": 414,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -32230,7 +32230,7 @@
         },
         {
           "name": "PATCH",
-          "line": 1031,
+          "line": 1207,
           "status": "COVERED",
           "reason": "Provisional until dedicated exact-head approved-exit HTTP/PG acceptance passes; not complete security signoff.",
           "testedBy": {
@@ -41806,12 +41806,12 @@
       ]
     },
     "src/app/api/year-end/2316-certificate/route.ts": {
-      "gitBlobSha": "b33979302d7e9db18ba49a1bb7b4c8d7e5e09194",
+      "gitBlobSha": "df2fa42c9f3995f7ebb62a3141ba2c0c3140161d",
       "route": "year-end/2316-certificate",
       "methods": [
         {
           "name": "GET",
-          "line": 84,
+          "line": 88,
           "status": "COVERED",
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
@@ -41824,7 +41824,7 @@
         },
         {
           "name": "POST",
-          "line": 85,
+          "line": 89,
           "status": "COVERED",
           "reason": "Provisional exact-method real HTTPS + PG16 own success, higher-ID foreign victim 403, same-tenant ungranted employer 403, forged selector and revoked-grant denial; independent CI/security review still required",
           "testedBy": {
@@ -41833,7 +41833,7 @@
             "ownPositiveLine": 273,
             "foreignDenialLine": 288,
             "scope": "Disposable PG16/HTTPS with two independently logged-in attacker organizations, own content/PDF success, real victim data and audit snapshots",
-            "unchangedDbLine": 356
+            "unchangedDbLine": 369
           }
         }
       ],
@@ -41945,15 +41945,26 @@
           "line": 46,
           "token": "employeeId"
         }
-      ]
+      ],
+      "sourceRevisionReview": {
+        "kind": "authorization-and-privacy-source-hardening-no-new-credit",
+        "previousRouteBlobSha": "b33979302d7e9db18ba49a1bb7b4c8d7e5e09194",
+        "currentRouteBlobSha": "df2fa42c9f3995f7ebb62a3141ba2c0c3140161d",
+        "scope": "Privacy-only GET/POST response change: nonexistent and ungranted same-parent frozen sources produce the same 404 JSON with no-store. Historical provider-free 2316 source proof remains unchanged; new exact-head PG16 browser/HTTP required.",
+        "priorReceiptHistoricalOnly": true,
+        "currentExactHeadPg16": "PENDING",
+        "newTenantIsolationMethodCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     "src/app/api/year-end/prior-evidence/route.ts": {
-      "gitBlobSha": "d2fc2fa7c4257d7e33545c8a23ea310abae7077d",
+      "gitBlobSha": "b7d3cde4a9d66f408c40c9e34ce50cacc3dc540b",
       "route": "year-end/prior-evidence",
       "methods": [
         {
           "name": "GET",
-          "line": 33,
+          "line": 40,
           "status": "COVERED",
           "reason": "SOLO_VERIFIED_DEV_RECOVERY: sole repository reviewer @erwinmehehe; method-specific four-part proof successful on exact final head 066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5 in disposable PostgreSQL 16 real-HTTP CI run 41446394999. Authenticated fictional own employer positives for all read-decrypted actions, genuine higher-ID victim employer/record denial, unchanged victim payroll/tax/employee/evidence/audit SQL and forged selector containment. Year-end artifacts are internal draft source documents, NOT official BIR filings. No independent review claimed, no production, money, payout or provider authority.",
           "testedBy": {
@@ -41986,7 +41997,7 @@
         },
         {
           "name": "POST",
-          "line": 34,
+          "line": 41,
           "status": "COVERED",
           "reason": "SOLO_VERIFIED_DEV_RECOVERY: sole repository reviewer @erwinmehehe; method-specific four-part proof successful on exact final head 066c1d6b405365ff9ddacc229b8d0ce5cbc68aa5 in disposable PostgreSQL 16 real-HTTP CI run 41446394999. Authenticated fictional own employer positives for all save/approve actions, genuine higher-ID victim employer/record denial, unchanged victim payroll/tax/employee/evidence/audit SQL and forged selector containment. Year-end artifacts are internal draft source documents, NOT official BIR filings. No independent review claimed, no production, money, payout or provider authority.",
           "testedBy": {
@@ -42103,7 +42114,18 @@
           "line": 17,
           "token": "organizationId"
         }
-      ]
+      ],
+      "sourceRevisionReview": {
+        "kind": "authorization-and-privacy-source-hardening-no-new-credit",
+        "previousRouteBlobSha": "d2fc2fa7c4257d7e33545c8a23ea310abae7077d",
+        "currentRouteBlobSha": "b7d3cde4a9d66f408c40c9e34ce50cacc3dc540b",
+        "scope": "Privacy-only GET/POST response change: ungranted same-parent and unknown employee IDs return the same private no-store 409 JSON. Historical #1730 original route/reviewer/PG16 receipt remains unchanged, and newly added exact-head browser/HTTP checks must verify the revised response.",
+        "priorReceiptHistoricalOnly": true,
+        "currentExactHeadPg16": "PENDING",
+        "newTenantIsolationMethodCredits": 0,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
     },
     "src/app/api/year-end/route.ts": {
       "gitBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
@@ -46645,7 +46667,7 @@
           "proofFile": "scripts/qa/tenant-prior-review-worker-http.mjs",
           "proofBlobSha": "db38b5ce9e33c42feb81a69929849c2c52a6d004",
           "workflowFile": ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-          "workflowBlobSha": "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+          "workflowBlobSha": "7ac2155d1d512086c7da4cd45ca88db3e42ca011",
           "unitTestFile": "tests/tenant-2316-legal-employer-worker.test.ts",
           "unitTestBlobSha": "6b20e0a017d26acbc0d877e184e98ea37dc0a768",
           "exactFinalHeadPg16": "PENDING",
@@ -46656,15 +46678,15 @@
       },
       "testedBy": {
         "file": "scripts/qa/tenant-2316-ssr-transfer-http.mjs",
-        "line": 187,
-        "ownPositiveLine": 187,
-        "foreignDenialLine": 211,
-        "unchangedDbLine": 168,
-        "forgedSelectorLine": 233,
-        "revokedDenialLine": 272,
-        "victimIdOrderingLine": 87,
+        "line": 257,
+        "ownPositiveLine": 257,
+        "foreignDenialLine": 316,
+        "unchangedDbLine": 210,
+        "forgedSelectorLine": 338,
+        "revokedDenialLine": 417,
+        "victimIdOrderingLine": 95,
         "sourcePageBlobSha": "f4badb3f1782812aab672665340e967911cff2cb",
-        "proofBlobSha": "7f4fb04ae57a72ccd981ca4f36771adf2c62cc06",
+        "proofBlobSha": "281d1a94bcfa1bee7eace8b8b6437c80972082b6",
         "contractFile": "scripts/qa/tenant-2316-ssr-transfer-contract.mjs",
         "contractBlobSha": "3f958858c125d6c1541d1a23cd0e5a1b693e1e60",
         "workflowFile": ".github/workflows/tenant-six-scoped-pages-credit.yml",
@@ -46892,7 +46914,7 @@
           "contractTestFile": "tests/tenant-prior-review-worker-contract.test.mjs",
           "contractTestBlobSha": "ba2bb5f0d33298d6b31cd5ebb8e61b74ddf308ea",
           "workflowFile": ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
-          "workflowBlobSha": "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
+          "workflowBlobSha": "7ac2155d1d512086c7da4cd45ca88db3e42ca011",
           "proofStatus": "EXACT_PR_HEAD_PG16_PENDING",
           "pageActionCredits": 0,
           "apiMethodCredits": 0,
