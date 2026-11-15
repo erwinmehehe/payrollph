@@ -1,3 +1,5 @@
+> **2026-11-16 CANDIDATE — public Careers SSR, not a private tenant credit:** `src/app/careers/page.tsx` is classified PUBLIC-BY-DESIGN from the owner-approved 2026-11-09 anonymous Careers contract. Among 21 scoped pages: **20 provisional COVERED / 1 public / 0 GAP**. The **API method ledger is unchanged: 461 COVERED / 24 public / 12 token-only / 1 GAP**. The dedicated current-PR-head fictional PG16 HTTP job and independent security/HR privacy review are still required. This is not launch, recruitment, private tenant access, or production acceptance. Historical count notes below remain historical.
+
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
 > **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 1 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
