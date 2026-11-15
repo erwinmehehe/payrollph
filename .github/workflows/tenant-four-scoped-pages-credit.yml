@@ -1,0 +1,298 @@
+name: Tenant Four Scoped Pages - Exact-Head PG16 Proof and Credit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-four-scoped-pages-credit.yml"
+      - "scripts/qa/tenant-four-page-selection.json"
+      - "scripts/qa/tenant-four-scoped-page-credit.mjs"
+      - "scripts/qa/tenant-four-ess-receipts-http.mjs"
+      - "tests/tenant-four-scoped-page-credit.test.mjs"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - "scripts/qa/tenant-scoped-page-probes.mjs"
+      - "tests/tenant-isolation-coverage-inventory.test.mjs"
+      - "tests/tenant-scoped-pages.test.mjs"
+      - "tests/tenant-five-scoped-page-credit.test.mjs"
+      - "tests/tenant-page-gap-guards.test.mjs"
+      - "tests/tenant-self-schedule-page-contract.test.mjs"
+      - "src/app/hcm/action-center/page.tsx"
+      - "src/app/hcm/org-explorer/page.tsx"
+      - "src/app/billing/setup/page.tsx"
+      - "src/app/self/schedule-receipts/page.tsx"
+      - "src/app/api/self/schedule-receipts/route.ts"
+      - "src/lib/access.ts"
+      - "src/lib/auth.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/tenant-*.ts"
+      - "src/lib/hcm-org-explorer-*.ts"
+      - "src/lib/hcm-people-home-*.ts"
+      - "scripts/qa/tenant-hcm-action-center-*.mjs"
+      - "scripts/qa/tenant-hcm-org-explorer-*.mjs"
+      - "scripts/qa/tenant-billing-setup-*.mjs"
+      - "scripts/qa/tenant-self-schedule-*.mjs"
+      - "src/db/schema.ts"
+      - "src/db/index.ts"
+      - "scripts/qa/tenant-table-http.mjs"
+      - "scripts/qa/apply-isolated-baseline.mjs"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  selection:
+    name: Validate scope and choose page proof jobs
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact checked-out PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Choose only selected pages; ESS requires two real HTTP runners
+        id: select
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import {readFileSync, appendFileSync} from "node:fs";
+          const s = JSON.parse(readFileSync("scripts/qa/tenant-four-page-selection.json", "utf8"));
+          assert.equal(s.schema, "tenant-four-page-proof-selection-v1");
+          assert.equal(s.status, "CANDIDATE_EXACT_HEAD_CI_REQUIRED");
+          assert.equal(s.independentlyAccepted, false);
+          assert.equal(s.productionCertified, false);
+          assert.ok(Array.isArray(s.selected) && s.selected.length > 0);
+          assert.equal(new Set(s.selected).size, s.selected.length);
+          assert.ok(s.selected.every(x => ["action","org","billing","ess"].includes(x)));
+          const all = [
+            {family:"action", key:"action", action:"true", org:"false", ess:"false", mfa:"true",
+             proof:"scripts/qa/tenant-hcm-action-center-http.mjs",
+             contract:"scripts/qa/tenant-hcm-action-center-contract.mjs",
+             test:"tests/tenant-hcm-action-center-contract.test.mjs"},
+            {family:"org", key:"org", action:"false", org:"true", ess:"false", mfa:"true",
+             proof:"scripts/qa/tenant-hcm-org-explorer-page-http.mjs",
+             contract:"scripts/qa/tenant-hcm-org-explorer-page-contract.mjs",
+             test:"tests/tenant-hcm-org-explorer-page-contract.test.mjs"},
+            {family:"billing", key:"billing", action:"false", org:"false", ess:"false", mfa:"true",
+             proof:"scripts/qa/tenant-billing-setup-page-http.mjs",
+             contract:"tests/tenant-billing-setup-boundary.test.mjs",
+             test:"tests/tenant-billing-setup-boundary.test.mjs"},
+            {family:"ess-page", key:"ess", action:"false", org:"false", ess:"true", mfa:"false",
+             proof:"scripts/qa/tenant-self-schedule-page-http.mjs",
+             contract:"tests/tenant-self-schedule-page-contract.test.mjs",
+             test:"tests/tenant-self-schedule-page-contract.test.mjs"},
+            {family:"ess-receipts", key:"ess", action:"false", org:"false", ess:"true", mfa:"false",
+             proof:"scripts/qa/tenant-four-ess-receipts-http.mjs",
+             contract:"scripts/qa/tenant-self-schedule-receipts-contract.mjs",
+             test:"tests/tenant-self-schedule-receipts-contract.test.mjs"},
+          ];
+          const include = all.filter(row => s.selected.includes(row.key));
+          assert.equal(include.length, s.selected.length + Number(s.selected.includes("ess")));
+          appendFileSync(process.env.GITHUB_OUTPUT, "matrix=" + JSON.stringify({include}) + "\n");
+          NODE
+
+  page-http-reproof:
+    name: Exact-head fictional PG16 HTTP - ${{ matrix.family }}
+    needs: [selection]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.selection.outputs.matrix) }}
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: ${{ matrix.mfa }}
+      TENANT_ACTION_CENTER_PROOF: fictional-pg16-only
+      TENANT_ORG_EXPLORER_PROOF: fictional-pg16-only
+      TENANT_ORG_EXPLORER_BROWSER_PROOF: fictional-chromium-only
+      TENANT_BILLING_PAGE_PROOF: fictional-only
+      TENANT_SECOND_PASS_MODE: isolated-ci-only
+      TENANT_RECEIPT_MODE: fictional-only
+      HCM_PEOPLE_HOME_ENABLED: ${{ matrix.action }}
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: ${{ matrix.action }}
+      HCM_PEOPLE_HOME_ORG_IDS: "8,9,10"
+      HCM_ORG_EXPLORER_ENABLED: ${{ matrix.org }}
+      NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED: ${{ matrix.org }}
+      HCM_ORG_EXPLORER_ORG_IDS: "8,9,10"
+      NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS: "8,9,10"
+      HCM_ENTERPRISE_PLAN_GATE_ENABLED: "false"
+      REQUEST_SCHEMA_READONLY_ENABLED: "true"
+      WFM_SCHEDULE_RECEIPTS_ENABLED: ${{ matrix.ess }}
+      WFM_SCHEDULE_RECEIPTS_ALLOWED_ORGANIZATION_IDS: "1,2,3"
+      MULTI_ENTITY_ENABLED: "false"
+      MULTI_ENTITY_TRANSFERS_ENABLED: "false"
+      NEXT_CSP_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: "false"
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: "false"
+      BIR_1604C_DAT_CANDIDATE_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      CRON_SECRET: ""
+      WORKER_TOKEN: ${{ matrix.ess == 'true' && 'ci-worker-token-fictional-receipt' || '' }}
+      SMTP_URL: ""
+      SMTP_PASSWORD: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      PAYMONGO_SECRET_KEY: ""
+      PAYMONGO_WEBHOOK_SECRET: ""
+      XENDIT_SECRET_KEY: ""
+      XENDIT_PAYOUT_SECRET_KEY: ""
+      XENDIT_CALLBACK_TOKEN: ""
+      STRIPE_SECRET_KEY: ""
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      VERCEL: ""
+      MALWARE_SCAN_URL: ""
+      MALWARE_SCAN_TOKEN: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out exact PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify original source guards and contract tests
+        env:
+          NODE_ENV: production
+        run: |
+          node --check "${{ matrix.contract }}"
+          node --check "${{ matrix.proof }}"
+          node --test "${{ matrix.test }}"
+          if [ "${{ matrix.family }}" = "org" ]; then
+            node --test tests/tenant-hcm-org-explorer-client-scope.test.mjs
+            node --test tests/tenant-hcm-org-explorer-browser-contract.test.mjs
+          fi
+          if [ "${{ matrix.family }}" = "billing" ]; then
+            node --import tsx --test tests/tenant-page-id.test.ts
+          fi
+      - name: Install local Chromium only for org A-B-A proof
+        if: matrix.family == 'org'
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          timeout 240s npx playwright install --only-shell chromium
+      - name: Create ephemeral fictional-only encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create clean PG16 schema
+        run: npm run db:push
+      - name: Apply isolated disposable baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode Next for localhost only
+        run: npm run build
+      - name: Start isolated Next localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-four-page.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-four-page.log
+          exit 1
+      - name: Prove own SSR 200, real foreign, unchanged victim SQL and forged/revoked
+        env:
+          NODE_ENV: production
+        run: node --import tsx "${{ matrix.proof }}"
+      - name: Bounded failure log
+        if: failure()
+        run: tail -n 80 /tmp/tenant-four-page.log || true
+
+  manifest-credit:
+    name: Credit only after every selected exact-head PG16 job passes
+    needs: [page-http-reproof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact PR head on credit gate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify strict source-sealed, generated page-only receipts
+        run: |
+          node --check scripts/qa/tenant-four-scoped-page-credit.mjs
+          node scripts/qa/tenant-four-scoped-page-credit.mjs --check
+          node --test tests/tenant-four-scoped-page-credit.test.mjs
+      - name: Preserve all original inventory, guard and legacy page tests
+        run: |
+          node --test tests/tenant-five-scoped-page-credit.test.mjs
+          node --test tests/tenant-page-gap-guards.test.mjs
+          node --test tests/tenant-scoped-pages.test.mjs
+          node --test tests/tenant-self-schedule-page-contract.test.mjs
+          node --test tests/tenant-isolation-coverage-inventory.test.mjs
+      - name: Re-fetch origin/main to ensure no source-drift re-pin
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          node scripts/qa/tenant-manifest-repin.mjs --base origin/main --write
+          git diff --exit-code -- scripts/qa/tenant-isolation-coverage-manifest.json docs/engineering/tenant-isolation-coverage-inventory.md
+          node scripts/qa/tenant-manifest-repin.mjs --base origin/main

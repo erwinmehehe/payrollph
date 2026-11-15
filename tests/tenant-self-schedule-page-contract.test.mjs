@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { requireDisposableScheduleReceipt } from "../scripts/qa/tenant-self-schedule-receipts-contract.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 
 const page = readFileSync("src/app/self/schedule-receipts/page.tsx", "utf8");
 const proof = readFileSync("scripts/qa/tenant-self-schedule-page-http.mjs", "utf8");
@@ -38,7 +39,12 @@ test("PII-02 page keeps employee identity, role, membership and feature guards a
 });
 
 test("new page proof rejects fake evidence and keeps existing receipt API ledger unchanged", () => {
-  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.equal(verifyFourPageCredits(live), selectedFourPages().length);
+  const manifest = historicFourPageView(live);
+  const credited = live.scopedPages.find(row => row.path === "src/app/self/schedule-receipts/page.tsx");
+  assert.equal(credited?.status, "COVERED", "Live source-exact ESS receipt requires both selected PG16 suites");
+  assert.equal(credited?.testedBy?.companionReceiptProof, "scripts/qa/tenant-four-ess-receipts-http.mjs");
   const entry = manifest.scopedPages.find(row => row.path === "src/app/self/schedule-receipts/page.tsx");
   assert.equal(entry.status, "GAP", "No new page coverage credit is accepted");
   assert.equal(entry.testedBy, undefined);

@@ -8,9 +8,14 @@ import {
 } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import { verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { zeroCreditSsoProofFixture } from "../scripts/qa/payroll-run-sso-proof-fixture.mjs";
+import {verifyFourPageCredits, historicFourPageView, expectedFourPageManifest,
+  verifyCurrentScopedPageGapCount as verifyFourCurrent} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 
-const manifest = JSON.parse(readFileSync(
+const live = JSON.parse(readFileSync(
   "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifyFourPageCredits(live), 4,
+  "Six previously accepted pages require every current four-page receipt");
+const manifest = historicFourPageView(live);
 
 const fromManifest = m => ({
   covered: m.scopedPages.filter(page => page.status === "COVERED").length,
@@ -56,7 +61,7 @@ test("new provisional page generator recomputes live counts without changing 498
   const expected = expectedSixPageManifest(manifest);
   assert.deepEqual(expected, manifest);
   assert.equal(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"),
-    JSON.stringify(expected, null, 2) + "\n");
+    JSON.stringify(expectedFourPageManifest(live), null, 2) + "\n");
   const methods = Object.values(manifest.allApiRouteFiles).flatMap(f => f.methods);
   assert.equal(manifest.metrics.coveredAfter, methods.filter(m => m.status === "COVERED").length);
   assert.equal(manifest.metrics.gap, methods.filter(m => m.status === "GAP").length);
@@ -102,9 +107,10 @@ test("fail closed when six-page source, proof, classification or totals are alte
 });
 
 test("SSO zero-credit replay may downgrade exactly 19 API methods, never page evidence", () => {
-  const fixture = zeroCreditSsoProofFixture(manifest);
-  assert.equal(fixture.metrics.gap, manifest.metrics.gap + 19);
-  assert.deepEqual(fixture.scopedPages, manifest.scopedPages);
+  const fixture = zeroCreditSsoProofFixture(live);
+  assert.deepEqual(fromManifest(live), {covered: 20, gap: 1});
+  assert.equal(fixture.metrics.gap, live.metrics.gap + 19);
+  assert.deepEqual(fixture.scopedPages, live.scopedPages);
   const samlMetadataPath = "src/app/api/auth/saml/metadata/[providerId]/route.ts";
   assert.equal(manifest.allApiRouteFiles[samlMetadataPath].methods[0].status,
     "PUBLIC-BY-DESIGN", "Approved public SAML metadata must remain independently classified");
@@ -119,17 +125,17 @@ test("SSO zero-credit replay may downgrade exactly 19 API methods, never page ev
   process.env.GITHUB_ACTIONS = "true";
   process.env.TENANT_SECOND_PASS_MODE = "isolated-ci-only";
   try {
-    assert.equal(verifyCurrentScopedPageGapCount(fixture), 5,
-      "Exact withdrawn-method fixture must retain only independently sealed page evidence");
+    assert.equal(verifyFourCurrent(fixture), 1,
+      "Exact withdrawn-method fixture must retain all ten separately proven page credits");
     const altered = structuredClone(fixture);
     altered.scopedPages[0].reason += " TEST-TAMPER";
-    assert.throws(() => verifyCurrentScopedPageGapCount(altered),
-      /SIX_PAGE_REFUSED|AssertionError/,
+    assert.throws(() => verifyFourCurrent(altered),
+      /FOUR_PAGE_REFUSED|SIX_PAGE_REFUSED|AssertionError/,
       "Any changed page evidence must be refused even in the SSO fixture");
     const alteredMethod = structuredClone(fixture);
     alteredMethod.allApiRouteFiles["src/app/api/marketing/leads/route.ts"].methods[0].status = "GAP";
-    assert.throws(() => verifyCurrentScopedPageGapCount(alteredMethod),
-      /SIX_PAGE_REFUSED|AssertionError/,
+    assert.throws(() => verifyFourCurrent(alteredMethod),
+      /FOUR_PAGE_REFUSED|SIX_PAGE_REFUSED|AssertionError/,
       "The fixture must not be used to downgrade unreviewed API methods");
   } finally {
     for (const [key, value] of Object.entries(prior)) {

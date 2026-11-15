@@ -12,6 +12,7 @@ import { verifyWorker360PageCredit, verifyFiveMethodCredits } from "./tenant-fiv
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 import { historicSixPageView, verifySixPageCredits } from "./tenant-six-scoped-page-credit.mjs";
+import { historicFourPageView, verifyFourPageCredits } from "./tenant-four-scoped-page-credit.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -166,12 +167,15 @@ export function verifyFivePageProofInputs(read = readFileSync) {
  * The committed coverage manifest always retains all 10 actual COVERED pages.
  */
 export function historicWorker360ProofView(manifest) {
-  // Preserve the exact historical Worker360 proof view. A 16-covered ledger
-  // may be projected ONLY after all six new source and receipt anchors match.
-  // This is a read-only validation clone, not a new credit or approval.
-  const source = manifest.scopedPages.filter(p => p.status === "COVERED").length === 16
-    ? historicSixPageView(manifest)
+  // A current 20-covered ledger must first independently validate all four
+  // new page receipts, then reconstruct the original 16-covered ledger.
+  // The original six-page receipt and Worker360 historical checks stay intact.
+  const current = manifest.scopedPages.filter(p => p.status === "COVERED").length === 20
+    ? (verifyFourPageCredits(manifest), historicFourPageView(manifest))
     : manifest;
+  const source = current.scopedPages.filter(p => p.status === "COVERED").length === 16
+    ? historicSixPageView(current)
+    : current;
   const old = structuredClone(source);
   assert.equal(old.scopedPages.length, 21, "Historical validator requires unchanged inventory");
   assert.equal(old.scopedPages.filter(p => p.status === "COVERED").length, 10,
@@ -258,6 +262,11 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
 }
 
 export function verifyFivePageCredits(m, read = readFileSync) {
+  if (m.scopedPages.filter(p => p.status === "COVERED").length === 20) {
+    assert.equal(verifyFourPageCredits(m, read), 4,
+      "FIVE_PAGE_CREDIT_REFUSED: four additional source-sealed pages not verified");
+    return TARGETS.length;
+  }
   // Later six-page candidates must pass their independent exact-source
   // verifier before reusing this older five-page proof. Do not promote
   // any new page or method solely from a covered count.
@@ -279,6 +288,11 @@ export function verifyFivePageCredits(m, read = readFileSync) {
  */
 export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {
   const gaps = m.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps === 1) {
+    assert.equal(verifyFourPageCredits(m, read), 4,
+      "SCOPED_PAGE_REFUSED: exact four additional page receipts required");
+    return gaps;
+  }
   if (gaps === 5) {
     assert.equal(verifySixPageCredits(m, read), 6,
       "SCOPED_PAGE_REFUSED: all six independent sources/receipts required");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { TARGETS, verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFour} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 import { readFileSync } from "node:fs";
 
 // Source-order regression only; this is not a real HTTP/PG16 isolation receipt.
@@ -21,15 +22,23 @@ const gapPaths = Object.freeze([
 ]);
 
 test("only uncredited page/action gaps remain explicit", () => {
-  const manifest = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
+  const live = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
+  assert.equal(verifyFourPageCredits(live), selectedFour().length,
+    "Four later page receipts must pass exact source and victim-denial validation");
+  const manifest = historicFourPageView(live);
   assert.equal(verifySixPageCredits(manifest), selectedTargets().length,
-    "Six newly proposed page receipts must pass exact source/anchor validation");
+    "Six earlier page receipts must remain exact source/anchor validated");
   const historical = historicSixPageView(manifest);
   assert.deepEqual(historical.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), [...gapPaths].sort());
   const sixPaths = new Set(selectedTargets().map(target => target.path));
   assert.deepEqual(manifest.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), gapPaths.filter(path => !sixPaths.has(path)).sort());
+  const fourPaths = new Set(selectedFour().map(target => target.path));
+  assert.deepEqual(live.scopedPages.filter(row => row.status === "GAP")
+    .map(row => row.path).sort(),
+    gapPaths.filter(path => !sixPaths.has(path) && !fourPaths.has(path)).sort(),
+    "Only the remaining Careers page may retain the explicit new-head GAP");
   assert.equal(manifest.scopedPages.length, 21);
   assert.equal(verifyFivePageCredits(historical), TARGETS.length,
     "All five historical receipts must remain independently source-pinned");

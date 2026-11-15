@@ -45,7 +45,7 @@ jobs:
           # On this exact-five-page PR, validate the Worker 360 receipt on a
           # historical 16-GAP clone; never rewrite its immutable source or
           # attempt to downgrade the five separately proved current pages.
-          if node -e 'const m=require("./scripts/qa/tenant-isolation-coverage-manifest.json"); if(m.scopedPages.filter(p=>p.status==="COVERED").length!==16) process.exit(1)'; then
+          if node -e 'const m=require("./scripts/qa/tenant-isolation-coverage-manifest.json"); if(![16,20].includes(m.scopedPages.filter(p=>p.status==="COVERED").length)) process.exit(1)'; then
             node scripts/qa/tenant-six-scoped-page-credit.mjs --check
             node --input-type=module -e '
               import assert from "node:assert/strict";
