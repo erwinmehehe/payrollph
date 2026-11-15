@@ -5183,7 +5183,7 @@ test("all credited proof links point to the claimed route and every recertified 
           proof.line, proof.ownPositiveLine, proof.foreignDenialLine,
           proof.unchangedDbLine ?? null,
         ], [expected[2], expected[2], expected[3],
-          method.name === "POST" ? 356 : null],
+          method.name === "POST" ? 369 : null],
         key + ": method-specific HTTP line pins changed without review");
         const integration = readFileSync(proof.file, "utf8");
         const lines = integration.split("\n");
