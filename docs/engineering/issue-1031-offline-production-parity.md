@@ -19,12 +19,13 @@
 2. scripts/lib/issue-1031-offline-parity.mjs validates export completeness and reuses the existing #1386/#1605/#1613 ratchet functions, not a rewritten comparison algorithm. It also uses the existing exact-path migration source inventory.
 3. scripts/qa/issue-1031-compare-offline.mjs reads two private JSON files and writes a private report; it has no DB/network code.
 4. Fictional fixtures and tests, plus a small source-only CI job.
+5. An **independent**, synthetic-only disposable PG18 CI job executes the owner-export SQL and asserts catalog index attributes. The original offline fixture job still uses no database.
 
 ## Export V2: comprehensive index metadata from read-only catalogs
 
 The initial shared #1075 query is reused unchanged, and the offline-only export now enriches its non-constraint index rows with the PG18 fields already understood by #1605: DESC ordering and NULLS FIRST/LAST flags from `pg_index.indoption`, INCLUDE columns, index `reloptions` (storage options), explicit tablespace, and `indnullsnotdistinct`. The offline comparer rejects missing/malformed fields and blocks drift in each one. **V1 exports must be regenerated**: only the complete V2 format is accepted. Other source-guard behavior has not been relaxed.
 
-Fictional adversarial tests exercise each metadata field. Before using this as a comprehensive index-parity acceptance gate, an authorized operator must also execute the printed SQL on an isolated, disposable PostgreSQL 18 instance, verify the produced V2 JSON validates and confirm expected index metadata. This is not production authentication or historical migration replay evidence.
+Fictional adversarial tests exercise each metadata field, while the separate `issue-1031-disposable-pg18-export.yml` CI job runs the printed V2 SQL against a disposable PostgreSQL 18 instance and validates its catalog index metadata. This verifies an isolated synthetic index case, **not** the owner's real reference export, production authentication, or historical migration replay provenance. The production export and DBA signoff remain independent.
 
 ## Owner prerequisites — STOP if any is missing
 
