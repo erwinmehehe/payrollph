@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../../scripts/qa/tenant-year-end-credit.mjs";
 import { reviewedWorker360LegalEmployerSupersession,reviewedOidcSourceSupersession } from "./tenant-counts.mjs";
 import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
+import {verifySamlPublicClassification} from '../../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
+import {SAML_PUBLIC_PATH} from '../../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 
 const PUBLIC = [
   ["src/app/api/setup/route.ts", "GET"],
@@ -181,6 +183,13 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
   for (const [key, old] of before) {
     const current = after.get(key);
     assert.ok(current, "API method disappeared: " + key);
+    if(key==='GET '+SAML_PUBLIC_PATH&&current.method.status==='PUBLIC-BY-DESIGN'){
+      assert.ok(['GAP','PUBLIC-BY-DESIGN'].includes(old.method.status));
+      assert.equal(verifySamlPublicClassification(afterManifest,read),1);
+      assert.equal(current.route.gitBlobSha,old.route.gitBlobSha,'Public classification cannot change runtime source');
+      if(old.method.status==='GAP'){changes.gapRelabels++;changes.publicByDesign++;}
+      continue;
+    }
     // Exact source withdrawals are neither public classifications nor credits.
     if (old.method.status === "COVERED" && current.method.status === "GAP" && oracleHolds.has(key)) continue;
     if (YEAR_END_KEYS.has(key) && old.method.status === "COVERED" && current.method.status === "GAP" && yearEndHoldDelta(beforeManifest, afterManifest) === 2) continue;
@@ -266,7 +275,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
     }
     if (old.method.status === "GAP") changes.gapRelabels++;
   }
-  assert.ok(changes.publicByDesign <= 8 && changes.privilegedTokenOnly <= 1,
+  assert.ok(changes.publicByDesign <= 9 && changes.privilegedTokenOnly <= 1,
     "Only the named nine uncredited architecture relabels are permitted");
   return changes;
 }

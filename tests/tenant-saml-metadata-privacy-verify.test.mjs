@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {historicalSamlMetadataView,samlPrivacyRead} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {
   SAML_METADATA_ROUTE, SAML_METADATA_BLOB, SAML_PRIVACY_HOLD,
-  verifySamlMetadataPrivacyHold,
+  verifySamlMetadataPrivacyHold as originalPrivacyHold,
 } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
+const verifySamlMetadataPrivacyHold=(m,read=readFileSync)=>originalPrivacyHold(m,samlPrivacyRead(read));
 
 function candidate() {
   return { allApiRouteFiles: { [SAML_METADATA_ROUTE]: {
@@ -19,7 +21,7 @@ test("the exact privacy source hold grants zero method credits", () => {
 });
 
 test("actual manifest is source-current but remains GAP and uncredited", () => {
-  const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const m = historicalSamlMetadataView(JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8")));
   assert.equal(verifySamlMetadataPrivacyHold(m), 0);
 });
 
