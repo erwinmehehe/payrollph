@@ -109,8 +109,8 @@ test("fail closed when six-page source, proof, classification or totals are alte
 test("SSO zero-credit replay may downgrade exactly 19 API methods, never page evidence", () => {
   const fixture = zeroCreditSsoProofFixture(live);
   assert.deepEqual(fromManifest(live), {covered: 20, gap: 1});
-  assert.equal(fixture.metrics.gap, manifest.metrics.gap + 19);
-  assert.deepEqual(fixture.scopedPages, manifest.scopedPages);
+  assert.equal(fixture.metrics.gap, live.metrics.gap + 19);
+  assert.deepEqual(fixture.scopedPages, live.scopedPages);
   const samlMetadataPath = "src/app/api/auth/saml/metadata/[providerId]/route.ts";
   assert.equal(manifest.allApiRouteFiles[samlMetadataPath].methods[0].status,
     "PUBLIC-BY-DESIGN", "Approved public SAML metadata must remain independently classified");
@@ -130,12 +130,12 @@ test("SSO zero-credit replay may downgrade exactly 19 API methods, never page ev
     const altered = structuredClone(fixture);
     altered.scopedPages[0].reason += " TEST-TAMPER";
     assert.throws(() => verifyFourCurrent(altered),
-      /SIX_PAGE_REFUSED|AssertionError/,
+      /FOUR_PAGE_REFUSED|SIX_PAGE_REFUSED|AssertionError/,
       "Any changed page evidence must be refused even in the SSO fixture");
     const alteredMethod = structuredClone(fixture);
     alteredMethod.allApiRouteFiles["src/app/api/marketing/leads/route.ts"].methods[0].status = "GAP";
     assert.throws(() => verifyFourCurrent(alteredMethod),
-      /SIX_PAGE_REFUSED|AssertionError/,
+      /FOUR_PAGE_REFUSED|SIX_PAGE_REFUSED|AssertionError/,
       "The fixture must not be used to downgrade unreviewed API methods");
   } finally {
     for (const [key, value] of Object.entries(prior)) {
