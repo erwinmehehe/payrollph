@@ -1,0 +1,41 @@
+{
+  "schema": "payrollph-owner-public-contract-approval-v1",
+  "decisionPacketPullRequest": 1982,
+  "ownerLogin": "erwinmehehe",
+  "approvedOn": "2026-11-15",
+  "status": "APPROVED",
+  "authorization": {
+    "response": "2",
+    "context": "Reply to the decision packet message of 2026-11-15 offering: 1 keep held, 2 approve as PUBLIC-BY-DESIGN as is (providerName included, no route change), 3 approve after removing providerName. The owner first replied approve option 3; after being told that option would hold the OIDC start and callback credits and that the app never reads providerName, the owner replied 2.",
+    "notIndependentCertification": true
+  },
+  "method": "POST",
+  "route": "src/app/api/auth/sso/resolve/route.ts",
+  "routeBlobSha": "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299",
+  "classification": "PUBLIC-BY-DESIGN",
+  "reviewedPacket": {
+    "path": "docs/qa/tenant-sso-resolve-public-decision.md",
+    "gitBlobSha": "9cc204694ceb6228afb0dc7cf5508a9e850f0ff9"
+  },
+  "publicFields": [
+    "available: whether the email's domain is a verified domain of an enabled OIDC provider in the same employer",
+    "providerId: numeric, sequential provider ID, needed to build the start URL",
+    "providerName: free text chosen by the employer admin; it can contain the employer's name",
+    "startUrl: /api/auth/sso/start?providerId=...&loginHint=... where the hint is the caller's own email echoed back"
+  ],
+  "excludedFields": [
+    "employer identity or organization ID",
+    "worker, membership, session, bank, payroll or audit data",
+    "client IDs or secrets and IdP entity or certificate data"
+  ],
+  "approvedDisclosure": "Anonymous callers can learn that an email domain uses single sign-on and receive the provider ID and the employer-chosen provider name; every other case returns one identical available:false body. The runtime flag keeps the endpoint off by default in production.",
+  "scope": {
+    "methodsRelabelled": 1,
+    "newCoveredCredits": 0,
+    "providerNameDisclosed": true,
+    "runtimeChanges": false,
+    "productionActivation": false,
+    "providerCalls": false,
+    "independentAcceptance": false
+  }
+}
