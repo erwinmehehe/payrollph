@@ -1,0 +1,41 @@
+{
+  "schema": "payrollph-owner-public-contract-approval-v1",
+  "pullRequest": 1981,
+  "ownerLogin": "erwinmehehe",
+  "approvedOn": "2026-11-14",
+  "status": "APPROVED",
+  "authorization": {
+    "response": "approve the SAML metadata public classification, keep resolve held. watch 1981, fix any failing checks and merge when ready",
+    "notIndependentCertification": true
+  },
+  "method": "GET",
+  "route": "src/app/api/auth/saml/metadata/[providerId]/route.ts",
+  "routeBlobSha": "4f8d12b9867de0c18aea8e447208e8470773350b",
+  "classification": "PUBLIC-BY-DESIGN",
+  "reviewedPacket": {
+    "commit": "cbde77f1391ae5028d543d817cba8c1c7a19cc31",
+    "path": "docs/qa/tenant-saml-metadata-fresh-decision.md",
+    "gitBlobSha": "1182f4554af6ceedadad64e701eb8598d4564f30"
+  },
+  "publicFields": [
+    "canonical HTTPS application origin",
+    "enabled SAML provider ID in service-provider entity ID and ACS URL",
+    "static XML protocol, binding, NameID format and signature-policy attributes"
+  ],
+  "excludedFields": [
+    "provider or tenant names",
+    "email or worker identity",
+    "client credentials or IdP certificates",
+    "session, bank, payroll or audit data"
+  ],
+  "approvedDisclosure": "Enabled SAML provider existence is observable; disabled, OIDC and missing IDs remain identical no-store 404s",
+  "scope": {
+    "methodsRelabelled": 1,
+    "newCoveredCredits": 0,
+    "resolveStatus": "GAP",
+    "runtimeChanges": false,
+    "productionActivation": false,
+    "providerCalls": false,
+    "independentAcceptance": false
+  }
+}

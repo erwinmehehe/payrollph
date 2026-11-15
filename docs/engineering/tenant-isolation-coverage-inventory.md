@@ -1,10 +1,10 @@
-> **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 23 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 2 GAP**. Independent identity/privacy/security and production acceptance PENDING.
+> **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
-> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 2 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
+> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 1 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 461 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 2 GAP. Eleven actions, eight executed proof jobs and all six source families; 5 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 461 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP. Eleven actions, eight executed proof jobs and all six source families; 5 separate page/action gaps remain. No production or external-provider acceptance.
 
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 461 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 2 GAP; 5 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 461 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP; 5 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
 > **Year-end GET and POST credit renewed again (provisional, NOT ACCEPTED):** 439 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 24 GAP. #1957 made `src/lib/year-end.ts` apply one de minimis ceiling per category and statutory period across imported and calculated pay (golden Phase 14) and held the pair at zero. The fictional PG16 real-HTTP proof (`annualize-and-bind-isolated`) then ran on the main merge commit [`ba70678f3`](https://github.com/erwinmehehe/payrollph/commit/ba70678f30e24436dcaac853e0b047adbbe3f96a): [run 43372002300, job 131709669757](https://github.com/erwinmehehe/payrollph/actions/runs/43372002300/job/131709669757). It credits only these two methods; the `year-end.ts` pin is renewed (`b2b52a79`). Independent payroll/security review stays PENDING; not production certified; no government filing.
 
@@ -168,7 +168,7 @@
 
 **#1429 provisional People Home browser proof (no release):** The changed tenant-scoped `/hcm/command-center` page now has a dedicated [real Chromium/PG16 page proof](../../scripts/qa/hcm-people-home-page-http.mjs#L35) in the [existing HCM synthetic browser workflow](../../.github/workflows/hcm-people-home-browser-qa.yml). Two independently authenticated HR users have membership in **only their own fictional employer** and render real, nonempty own-source 200 HTML. A third, populated, **higher-ID victim is also enabled by the same flag and numeric allowlist**; each attacker receives 404 for the victim, without victim markers or changes to the victim's employees, provisioning, payroll or audit rows. This is provisional, source-pinned page-only coverage: **4 of 21 scoped pages provisionally COVERED, 17 GAP**. Exact-PR-head browser and security checks, independent review and rollout approval remain required. The release and global tenant-isolation acceptance remain **NO-GO**.
 
-> **RELEASE BLOCKER:** 2 API methods and 5 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
+> **RELEASE BLOCKER:** 1 API methods and 5 business-ID page entries still lack complete method-specific acceptance or a valid public/token-only classification. The existing 42-route anonymous probe is not a pass for these methods. **DO NOT CLOSE** tenant-isolation acceptance or merge as 'full coverage'.
 
 > **NOT ACCEPTED**: 3 API methods and 16 page/action gaps remain. #1591's three source-pinned credits and #1592's staffing-policy POST/PATCH credits are already included in main; #1593 adds only three separate provisional DL-02 credits. At that historic #1593 checkpoint, staffing-policy GET, web-bundy/evidence POST, and self-profile PATCH remained GAP; #1760's separately proven source-current self/profile PATCH is provisionally covered. Independent tenant-wide and production acceptance are not granted.
 
@@ -198,7 +198,7 @@ Current provisional ledger including the separate #1427 Compliance Evidence, #14
 
 **Existing canonical real-HTTP regression preserved:** [`scripts/qa/tenant-second-pass-http.mjs#L941`](../../scripts/qa/tenant-second-pass-http.mjs#L941) seeds actual fictional Released payroll entries. It verifies own PDF 200 with bytes ([L967](../../scripts/qa/tenant-second-pass-http.mjs#L967)), real other-employer ID 404, revokes actual old-employer membership while retaining another active employer grant, proves the SAME account is still signed in ([L994](../../scripts/qa/tenant-second-pass-http.mjs#L994)), denies the previously readable PDF with exact 403 ([L1002](../../scripts/qa/tenant-second-pass-http.mjs#L1002)), and verifies the payroll row is unchanged ([L1008](../../scripts/qa/tenant-second-pass-http.mjs#L1008)). Audit-added same-tenant coworker, document/leave/legal-employer role proofs remain separately active in the same CI harness; the duplicate stale-membership test was removed.
 
-**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 2 method gaps and 5 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
+**Disposition:** 1 source-identified former-employer payslip authorization defect fixed earlier on main, with the already merged contribution-evidence active-membership authorization guard from #1328; 0 confirmed live/pre-fix exploits reproduced. Broader audit still **NOT ACCEPTED**: 1 method gaps and 5 page/action gaps. #1260 is merged. Source merge does not constitute tenant-isolation certification, and this PR's reconciled head requires fresh exact-head CI.
 
 ## Approved-exit Separation evidence
 
@@ -280,9 +280,9 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | methods | 498 |
 | coveredBefore | 20 |
 | coveredAfter | 461 |
-| publicByDesign | 23 |
+| publicByDesign | 24 |
 | privilegedOperationsTokenOnly | 12 |
-| gap | 2 |
+| gap | 1 |
 | scopedPagesAndActions | 21 |
 | confirmedLeaksFound | 0 |
 | confirmedLeaksFixed | 0 |
@@ -422,7 +422,7 @@ All 295 API route files and 498 exported methods in the current manifest are lis
 | [`auth/me` GET](../../src/app/api/auth/me/route.ts#L6) | session | getSessionUser L1, getSessionUser L8 | none found | [reviewed fictional PG16 HTTP #1475](../../scripts/qa/tenant-identity-account-http.mjs#L117) ([exact-head run](https://github.com/erwinmehehe/payrollph/actions/runs/40503386113)) | **COVERED** |
 | [`auth/reset-password` POST](../../src/app/api/auth/reset-password/route.ts#L12) | body | enforceSameOriginMutation L10, enforceSameOriginMutation L13 | none found | NO VALID METHOD PROOF | **PUBLIC-BY-DESIGN** |
 | [`auth/saml/acs/[providerId]` POST](../../src/app/api/auth/saml/acs/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | evidenced disabled SAML no-data 503 #1896; zero tenant-private credits | **PUBLIC-BY-DESIGN** |
-| [`auth/saml/metadata/[providerId]` GET](../../src/app/api/auth/saml/metadata/[providerId]/route.ts#L9) | NONE FOUND | NONE FOUND | none found | NO VALID METHOD PROOF | **GAP** |
+| [`auth/saml/metadata/[providerId]` GET](../../src/app/api/auth/saml/metadata/[providerId]/route.ts#L9) | NONE FOUND | NONE FOUND | none found | [owner-approved public XML + PG16](https://github.com/erwinmehehe/payrollph/actions/runs/43603213932/job/132472217596) | **PUBLIC-BY-DESIGN** |
 | [`auth/saml/start/[providerId]` GET](../../src/app/api/auth/saml/start/[providerId]/route.ts#L8) | NONE FOUND | NONE FOUND | none found | evidenced disabled SAML no-data 503 #1896; zero tenant-private credits | **PUBLIC-BY-DESIGN** |
 | [`auth/sso/callback` GET](../../src/app/api/auth/sso/callback/route.ts#L27) | query | NONE FOUND | none found | [current HTTPS IdP / PG16](https://github.com/erwinmehehe/payrollph/actions/runs/43553920124/job/132322353286) | **COVERED** |
 | [`auth/sso/resolve` POST](../../src/app/api/auth/sso/resolve/route.ts#L9) | body | enforceSameOriginMutation L4, enforceSameOriginMutation L10 | none found | NO VALID METHOD PROOF | **GAP** |

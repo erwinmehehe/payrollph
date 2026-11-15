@@ -1,5 +1,6 @@
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
+import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -149,8 +150,9 @@ test("two disabled SAML provider endpoints are public no-data refusals, not meta
     assert.match(src, /samlDisabledBoundaryResponse\(\)/);
     assert.doesNotMatch(src, /identityProviders|db\.select|buildSamlServiceProviderMetadata/);
   }
-  assert.equal(method(["src/app/api/auth/saml/metadata/[providerId]/route.ts", "GET"]).status, "GAP",
-    "Metadata exposes provider existence and must not borrow disabled-login evidence");
+  assert.equal(method(["src/app/api/auth/saml/metadata/[providerId]/route.ts", "GET"]).status, "PUBLIC-BY-DESIGN");
+  assert.equal(verifySamlPublicClassification(manifest),1,
+    'Metadata needs its separate owner approval and fresh enabled/disabled HTTP proof; disabled-login evidence cannot classify it');
 });
 
 test("HCM SLA cron is a privileged global token-only operation, never an employer-session credit", () => {
@@ -238,7 +240,7 @@ test("classification cannot invent coverage, approve itself, change source or re
     ["arbitrary proof path", m => { candidate(m, prelogin[0]).classificationEvidence.proofFile = "unreviewed.mjs"; }],
     ["fake SAML success", m => { candidate(m, disabledSaml[0]).classificationEvidence.activeSamlLoginProven = true; }],
     ["missing method", m => { m.allApiRouteFiles[prelogin[0][0]].methods = []; }],
-    ["unrelated metadata retirement", m => { candidate(m, ["src/app/api/auth/saml/metadata/[providerId]/route.ts", "GET"]).status = "PUBLIC-BY-DESIGN"; }],
+    ["metadata cannot borrow older disabled-login approval", m => { candidate(m, ["src/app/api/auth/saml/metadata/[providerId]/route.ts", "GET"]).classificationEvidence.file = OWNER_APPROVAL_FILE; }],
   ];
   for (const [label, mutate] of cases) {
     const forged = structuredClone(manifest); mutate(forged);
