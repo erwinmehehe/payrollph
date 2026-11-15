@@ -26,6 +26,7 @@ export const ORIGINAL_REVIEW = {
   "independentlyAccepted": false,
   "productionCertified": false
 };
+export const PUBLIC_NOTE = " Public Careers page is classified PUBLIC-BY-DESIGN from the previously owner-approved recruiting boundary, not private COVERED. Exactly 20/21 pages remain provisionally COVERED and one public; zero page GAP labels, no added private credits, independent privacy/security acceptance and launch review PENDING.";
 export const CLASSIFIED_REASON = "PUBLIC-BY-DESIGN (owner-approved recruiting boundary): anonymous Careers SSR accepts only a canonical explicit positive employer ID, then projects employer name and published/open vacancies with the five approved public job fields. Exact-source fictional PG16 HTTP proof must pass on this PR head. No private tenant entitlement, applicant/employee/payroll reads, new API method credit, production activation, or independent security/privacy acceptance.";
 export const PUBLIC_BOUNDARY = Object.freeze({
   "kind": "public-careers-ssr-owner-approved-recruiting",
@@ -117,6 +118,8 @@ export function verifyCareersPublicPage(manifest, read=readFileSync) {
   assert.equal(manifest.scopedPages.filter(p=>p.status==="GAP").length,0);
   assert.match(manifest.acceptanceStatus,
     new RegExp("^NOT ACCEPTED: " + manifest.metrics.gap + " API methods and 0 page/action GAPs remain"));
+  assert.ok(manifest.acceptanceStatus.endsWith(PUBLIC_NOTE),
+    "CAREERS_PUBLIC_REFUSED: public page acceptance note has drifted");
   return 1;
 }
 /**
@@ -135,8 +138,9 @@ export function historicalCareersPageView(manifest, read=readFileSync) {
   page.status="GAP";
   page.reason=ORIGINAL_GAP_REASON;
   delete page.publicBoundary;
-  view.acceptanceStatus=view.acceptanceStatus.replace(
-    /^NOT ACCEPTED: (\d+) API methods and 0 page\/action GAPs remain/,
+  assert.ok(view.acceptanceStatus.endsWith(PUBLIC_NOTE));
+  view.acceptanceStatus=view.acceptanceStatus.slice(0, -PUBLIC_NOTE.length).replace(
+    /^NOT ACCEPTED: (\\d+) API methods and 0 page\\/action GAPs remain/,
     "NOT ACCEPTED: $1 API methods and 1 page/action GAPs remain");
   return view;
 }
