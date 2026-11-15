@@ -27,7 +27,7 @@ export const ORIGINAL_REVIEW = {
   "productionCertified": false
 };
 export const PUBLIC_NOTE = " Public Careers page is classified PUBLIC-BY-DESIGN from the previously owner-approved recruiting boundary, not private COVERED. Exactly 20/21 pages remain provisionally COVERED and one public; zero page GAP labels, no added private credits, independent privacy/security acceptance and launch review PENDING.";
-export const CLASSIFIED_REASON = "PUBLIC-BY-DESIGN (owner-approved recruiting boundary): anonymous Careers SSR accepts only a canonical explicit positive employer ID, then projects employer name and published/open vacancies with the five approved public job fields. Exact-source fictional PG16 HTTP proof must pass on this PR head. No private tenant entitlement, applicant/employee/payroll reads, new API method credit, production activation, or independent security/privacy acceptance.";
+export const CLASSIFIED_REASON = "PUBLIC-BY-DESIGN (owner-approved recruiting boundary): anonymous Careers SSR accepts only a canonical explicit positive employer ID, then projects employer name and explicitly published requisitions (open/interviewing) linked to a same-employer open position with the five approved public job fields. Exact-source fictional PG16 HTTP proof must pass on this PR head. No private tenant entitlement, applicant/employee/payroll reads, new API method credit, production activation, or independent security/privacy acceptance.";
 export const PUBLIC_BOUNDARY = Object.freeze({
   "kind": "public-careers-ssr-owner-approved-recruiting",
   "ownerApprovalDate": "2026-11-09",
@@ -37,6 +37,10 @@ export const PUBLIC_BOUNDARY = Object.freeze({
   "proofBlobSha": "6efef6eb6965d1deba1fe8d64446936a09553813",
   "workflowFile": ".github/workflows/tenant-edg01-careers-public-get-http.yml",
   "workflowBlobSha": "c9f89477a1e013d3ae4c7c50b1d737df1d257269",
+  "predicateFile": "src/lib/careers-privacy-gates.ts",
+  "predicateBlobSha": "f878db55d51c4f8a0a6ab4893ef8af5e80f4dff6",
+  "clientFile": "src/components/careers-board.tsx",
+  "clientBlobSha": "17abb6d811886a18891900a113f7b616f4c8b7d2",
   "publicJobFields": [
     "id",
     "title",
@@ -102,6 +106,18 @@ export function verifyCareersPublicPage(manifest, read=readFileSync) {
     "CAREERS_PUBLIC_REFUSED: real-HTTP fixture proof changed");
   assert.equal(blob(read,PUBLIC_BOUNDARY.workflowFile),PUBLIC_BOUNDARY.workflowBlobSha,
     "CAREERS_PUBLIC_REFUSED: PG16 workflow changed");
+  assert.equal(blob(read,PUBLIC_BOUNDARY.predicateFile),PUBLIC_BOUNDARY.predicateBlobSha,
+    "CAREERS_PUBLIC_REFUSED: published-only SQL predicate drifted");
+  assert.equal(blob(read,PUBLIC_BOUNDARY.clientFile),PUBLIC_BOUNDARY.clientBlobSha,
+    "CAREERS_PUBLIC_REFUSED: public React client fields/actions drifted");
+  const predicate=String(read(PUBLIC_BOUNDARY.predicateFile));
+  for (const marker of [
+    "eq(jobRequisitions.organizationId, organizationId)",
+    "careersPublishedSql} = true",
+    "in ('open', 'interviewing')",
+    "eligible_position.organization_id =",
+    "eligible_position.status = 'open'",
+  ]) assert.ok(predicate.includes(marker),"CAREERS_PUBLIC_REFUSED: missing private-boundary SQL predicate "+marker);
   const source=String(read(CAREERS_PAGE));
   const consent=source.indexOf("const notice = careersNoticeConfig();");
   const parse=source.indexOf('typeof raw !== "string"');
