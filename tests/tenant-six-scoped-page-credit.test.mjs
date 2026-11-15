@@ -105,6 +105,12 @@ test("SSO zero-credit replay may downgrade exactly 19 API methods, never page ev
   const fixture = zeroCreditSsoProofFixture(manifest);
   assert.equal(fixture.metrics.gap, manifest.metrics.gap + 19);
   assert.deepEqual(fixture.scopedPages, manifest.scopedPages);
+  const samlMetadataPath = "src/app/api/auth/saml/metadata/[providerId]/route.ts";
+  assert.equal(manifest.allApiRouteFiles[samlMetadataPath].methods[0].status,
+    "PUBLIC-BY-DESIGN", "Approved public SAML metadata must remain independently classified");
+  assert.deepEqual(fixture.allApiRouteFiles[samlMetadataPath],
+    manifest.allApiRouteFiles[samlMetadataPath],
+    "The 19-method SSO replay must not demote or alter the reviewed SAML metadata contract");
   const prior = {
     CI: process.env.CI, GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
     TENANT_SECOND_PASS_MODE: process.env.TENANT_SECOND_PASS_MODE
