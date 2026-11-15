@@ -41,7 +41,7 @@ export const TARGETS = Object.freeze([
   define("2316", "src/app/workspace/2316/page.tsx",
     "f4badb3f1782812aab672665340e967911cff2cb",
     "scripts/qa/tenant-2316-ssr-transfer-http.mjs",
-    "7f4fb04ae57a72ccd981ca4f36771adf2c62cc06",
+    "281d1a94bcfa1bee7eace8b8b6437c80972082b6",
     "scripts/qa/tenant-2316-ssr-transfer-contract.mjs",
     "3f958858c125d6c1541d1a23cd0e5a1b693e1e60",
     ["assertOwn2316(ownReleasedPage", "await deny(certPath(actor.org.id, foreign.worker.id)",

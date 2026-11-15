@@ -31,7 +31,7 @@ employee/entity checks before SSR mounting, frozen released employer for
 historical 2316, repeat source-entity authorization before an unsigned PDF,
 and source approval digest/revision/tax-year revalidation before separation
 initiation, finance approval and release. Mutation tests reject changed source
-or an invented page COVERED status.
+or a forged provisional page COVERED receipt.
 
 This is a **source-only regression**. It does not prove application security
 without the real HTTP and database tests below. If any inspected source changes,
@@ -93,10 +93,13 @@ claimed until the jobs finish successfully and logs are inspected.
 
 ## Coverage and acceptance boundaries
 
-Keep both pages `GAP`, `pageActionCredits: 0`, and
-`independentlyAccepted: false`. Successful source checks and isolated
-SSR/browser API evidence are still not independent review or full
-production-page-action acceptance. The additional prior-employer browser
+After synchronizing with `main`, preserve its existing source-pinned six-page
+provisional `COVERED` SSR/GET receipts for both workspace pages. Those
+receipts require exact-final-head PG16 reproof and retain
+`reviewedUncertified.pageActionCredits: 0`, `methodCredits: 0`, and
+`independentlyAccepted: false`. This PR awards **zero new credits**.
+Successful source checks and isolated SSR/browser API evidence are still not
+independent review or full production-page-action acceptance. The additional prior-employer browser
 runner now tests load, save and **different-user checker approval** on
 fictional PG16, but its exact-final-head execution and independent inspection
 remain mandatory. It is not a receipt of approved production sign-in, all
@@ -163,7 +166,7 @@ do not relabel another endpoint as covered to mask it.
 This PR does **not** certify signed BIR filing, historic org-unit attribution,
 every tax computation variant, outside provider behavior, production login,
 live data, or real payroll disbursement. These are distinct surfaces.
-The two full workspace pages remain `GAP` with zero new page credits.
+The two workspace pages retain `main`'s existing provisional SSR/GET receipts; this PR adds zero page or API credits. Full-page-action and production acceptance remain unproved.
 No independent tax/security review has been performed, and none is implied
 by a green CI badge. A solo maintainer can make and document the repository
 merge decision after checking the exact-head results; production tax/legal
@@ -174,11 +177,12 @@ compliance deserves separate specialist validation where appropriate.
 The previously checked PR head `a05b562d4811456c8539f880610f2768385d8004`
 had 49 successful GitHub Actions workflows and one skipped workflow. That
 is historic QA evidence only: newer QA changes in this PR must pass on their
-**own** final head. At review time, this branch was also behind `main`,
-which has merged #1977 and #1979; source review and CI after an eventual
-integration/rebase must re-establish the full evidence ledger. Never
-overwrite newer accepted/main OIDC or page-proof records with this branch's
-older manifest. Independently inspect final-head test failures, skipped
+**own** final head. The branch has now incorporated `main` via sync commit `a60d7e4`.
+That merge also brought the six-page provisional SSR/GET receipts.
+The Form 2316 proof script changed in this PR, so its exact Git blob pin and
+line citations must match the changed proof and be independently re-executed
+on the resulting final head; earlier successful runs are not a substitute.
+Do not overwrite newer accepted/main OIDC or page-proof records. Independently inspect final-head test failures, skipped
 cases, SQL snapshots and reviewer sign-offs before merging.
 
 ## Solo-maintainer acceptance checklist
@@ -186,9 +190,10 @@ cases, SQL snapshots and reviewer sign-offs before merging.
 - Review the actual final commit's full CI, PG16 transfer/denial matrices,
   prior-employer browser actions, both GET/POST error-parity cases, refusal
   tests, unchanged protected SQL, and source seals.
-- Confirm both workspace pages remain `GAP`, no extra API/page credits were
-  created, historic source receipts were not rewritten, and the proposed
-  `main` merge tree does not downgrade newer accepted OIDC/Org Explorer work.
+- Confirm both workspace pages retain only `main`'s provisional, source-pinned
+  SSR/GET receipts; no new API/page-action credits were created. Re-execute
+  the changed Form 2316 proof on the final head, keep historical receipts
+  intact, and verify the merged tree does not downgrade OIDC/Org Explorer work.
 - Decide whether the remaining *product* limits above are acceptable for
   the intended deployment. Document the owner decision. No fictional
   second approver or independent review should be recorded.

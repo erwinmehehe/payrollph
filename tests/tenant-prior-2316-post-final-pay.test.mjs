@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { selectedTargets, verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 
 export const SEALED_SOURCES = Object.freeze({
   "src/app/workspace/prior-employer/page.tsx": "e55809f26075c142240675826a0c353d403a20e6",
@@ -55,15 +56,28 @@ export function verifyPostFinalPayWorkspaceSources(read = readFileSync) {
     files[path] = String(raw);
   }
   const m = JSON.parse(String(read(MANIFEST, "utf8")));
-  for (const path of [PRIOR, CERT]) {
+  // Main's six-page PG16 gate may already carry provisional source-pinned
+  // SSR/GET receipts. This source-only review must neither erase those
+  // receipts nor turn them into independent review, API or page-action credits.
+  const selected = new Set(selectedTargets(read).map(item => item.key));
+  assert.ok(selected.has("prior") && selected.has("2316"),
+    "POST_FINAL_PAY_REVIEW_REQUIRED: both existing workspace proofs must be selected");
+  assert.equal(verifySixPageCredits(m, read), selected.size,
+    "POST_FINAL_PAY_REVIEW_REQUIRED: provisional page proofs must be source-current");
+  for (const [path, family] of [[PRIOR, "prior"], [CERT, "2316"]]) {
     const matches = m.scopedPages.filter(row => row.path === path);
     assert.equal(matches.length, 1, "Only one scoped page entry " + path);
     const page = matches[0];
     assert.equal(page.blob, SEALED_SOURCES[path],
       "Manifest page source must match inspected application bytes");
-    assert.equal(page.status, "GAP", "Unreviewed full-page action must remain GAP");
+    assert.equal(page.status, "COVERED",
+      "Existing provisional main page proof may not be silently withdrawn or promoted");
+    assert.equal(page.testedBy?.proofFamily, family);
+    assert.equal(page.testedBy?.pageProofStatus, "FINAL_HEAD_CI_REQUIRED");
+    assert.equal(page.testedBy?.independentlyAccepted, false);
+    assert.equal(page.testedBy?.methodCredits, 0);
     assert.equal(page.reviewedUncertified?.pageActionCredits, 0,
-      "SSR/API evidence cannot award a whole-page credit");
+      "SSR/API evidence cannot award a whole-page action credit");
     assert.equal(page.reviewedUncertified?.independentlyAccepted, false);
   }
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
@@ -183,12 +197,12 @@ export function verifyPostFinalPayWorkspaceSources(read = readFileSync) {
   assert.match(historical, /employeeLegalEntityId/);
   return { scope: "source-only exact-current-final-pay", pageActionCredits: 0,
     apiMethodCredits: 0, independentSecurityReview: "PENDING",
-    productionCertified: false, bothPageGapsPreserved: true };
+    productionCertified: false, existingProvisionalPageReceiptsVerified: true };
 }
 
 test("source-current previous employer and BIR 2316 pages retain #1975 employer/grant/revision controls", () => {
   const result = verifyPostFinalPayWorkspaceSources();
-  assert.equal(result.bothPageGapsPreserved, true);
+  assert.equal(result.existingProvisionalPageReceiptsVerified, true);
   assert.equal(result.pageActionCredits, 0);
   assert.equal(result.productionCertified, false);
 });
@@ -231,15 +245,26 @@ test("unknown changed source cannot reuse the old cross-page assurance", () => {
       path + " may not borrow a previous successful receipt");
   }
 });
-test("an invented full-page coverage promotion is rejected without changing the manifest", () => {
+test("a forged prior-employer provisional receipt is rejected without changing the manifest", () => {
   const read = (path, ...args) => {
     const value = readFileSync(path, ...args);
     if (path !== MANIFEST) return value;
     const m = JSON.parse(String(value));
-    m.scopedPages.find(item => item.path === PRIOR).status = "COVERED";
+    m.scopedPages.find(item => item.path === PRIOR).testedBy.proofBlobSha = "0".repeat(40);
     return JSON.stringify(m);
   };
-  assert.throws(() => verifyPostFinalPayWorkspaceSources(read), /must remain GAP/);
+  assert.throws(() => verifyPostFinalPayWorkspaceSources(read), /SIX_PAGE_REFUSED/);
+});
+test("a fabricated page-action credit is rejected even with a valid source receipt", () => {
+  const read = (path, ...args) => {
+    const value = readFileSync(path, ...args);
+    if (path !== MANIFEST) return value;
+    const m = JSON.parse(String(value));
+    m.scopedPages.find(item => item.path === CERT).reviewedUncertified.pageActionCredits = 1;
+    return JSON.stringify(m);
+  };
+  assert.throws(() => verifyPostFinalPayWorkspaceSources(read),
+    /SIX_PAGE_REFUSED|page action credit|page-action credit/);
 });
 
 const ACTION_BROWSER = "scripts/qa/tenant-prior-evidence-action-browser.mjs";
