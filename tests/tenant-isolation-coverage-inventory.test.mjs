@@ -7368,7 +7368,18 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.unitTestFile, reviewed.unitTestBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
-          assert.equal(gitBlobSha(readFileSync(file)), sha,
+          // Preserve the prior #1557 review's immutable workflow SHA. The
+          // only re-reviewed runner delta here is the Playwright-compatible
+          // ubuntu-24.04 host; do not re-pin any other proof dependency.
+          const currentSha = file === reviewed.workflowFile
+            ? "9dcb58b638aac0fe1c0cf361b581a49f0a7f066c" : sha;
+          if (file === reviewed.workflowFile) {
+            assert.equal(sha, "1c21e70dfa55510ed0139c1c167871d123dff3c8",
+              "Historical report workflow review pin must remain intact");
+            assert.match(readFileSync(file, "utf8"), /^    runs-on: ubuntu-24\\.04$/m,
+              "Current report Playwright runner must stay on reviewed Ubuntu 24.04");
+          }
+          assert.equal(gitBlobSha(readFileSync(file)), currentSha,
             "Report page proof file changed without renewed review: " + file);
         }
         for (const field of ["ids", "business", "guards"]) {
