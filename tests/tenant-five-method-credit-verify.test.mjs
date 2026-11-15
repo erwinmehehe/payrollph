@@ -5,8 +5,15 @@ import test from "node:test";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { tallyTenantManifest } from "./helpers/tenant-counts.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 
-const readManifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const readManifest = () => {
+  const live = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.equal(verifySixPageCredits(live), selectedTargets().length,
+    "Every newly credited page must have a source-exact receipt first");
+  return historicSixPageView(live);
+};
 const mutation = (change) => {
   const manifest = readManifest();
   assert.equal(verifyFivePageCredits(manifest), 5, "Five new page proofs must remain source-valid");

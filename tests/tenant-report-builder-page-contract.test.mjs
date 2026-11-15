@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import test from "node:test";
 import {
   REPORT_PAGE_ORIGIN, requireDisposableReportPageEnv, assertOwnReportPage,
@@ -103,11 +104,24 @@ test("the feature-ON page gate precedes client render and its runner is exact-he
   const source = readFileSync("src/app/workspace/report-builder/page.tsx", "utf8");
   const runner = readFileSync("scripts/qa/tenant-report-builder-page-http.mjs", "utf8");
   const workflow = readFileSync(".github/workflows/tenant-report-builder-page-qa.yml", "utf8");
-  const manifest = JSON.parse(readFileSync(
+  const live = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  // The old GET-only candidate remains an uncredited historical GAP.
+  // Only the separately source-sealed final-head six-page HTTP receipt can
+  // justify the new provisional SSR classification.
+  assert.equal(verifySixPageCredits(live), selectedTargets().length);
+  const manifest = historicSixPageView(live);
   assert.equal(manifest.scopedPages.find(p =>
     p.path === "src/app/workspace/report-builder/page.tsx")?.status, "GAP",
-  "Do not promote a page/action GAP from this focused GET-only proof");
+    "A focused GET-only test alone cannot promote the historical GAP");
+  const candidate = live.scopedPages.find(p =>
+    p.path === "src/app/workspace/report-builder/page.tsx");
+  assert.equal(candidate?.status, "COVERED", "Require separately proved SSR page");
+  assert.equal(candidate?.testedBy?.sourcePageBlobSha,
+    "24512c4c9f727ca02589e53da81cf38ffed264c9");
+  assert.equal(candidate?.testedBy?.methodCredits, 0);
+  assert.equal(candidate?.testedBy?.independentlyAccepted, false);
+  assert.equal(candidate?.testedBy?.productionCertified, false);
   for (const marker of [
     "getSessionUser()", "criticalReleaseFlagEnabled(\"tenantReportBuilder\")",
     "explicitReportBuilderEmployerId(params.organizationId)",

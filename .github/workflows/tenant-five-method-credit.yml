@@ -51,5 +51,24 @@ jobs:
             node scripts/qa/tenant-five-scoped-page-credit.mjs --check
             node scripts/qa/tenant-five-scoped-page-credit.mjs --verify-historical-worker360
           else
-            node scripts/qa/tenant-five-method-credit-verify.mjs
+            # A six-page candidate ledger is NOT the historical Worker360
+            # ledger. Verify all six exact source/HTTP anchors first, then
+            # reconstruct the reviewed 10/11 and 5/16 historical views for
+            # the original immutable three-method source-credit verifier.
+            node scripts/qa/tenant-six-scoped-page-credit.mjs --check
+            node --input-type=module -e '
+              import assert from "node:assert/strict";
+              import { readFileSync } from "node:fs";
+              import { verifySixPageCredits, historicSixPageView, selectedTargets } from "./scripts/qa/tenant-six-scoped-page-credit.mjs";
+              import { historicWorker360ProofView } from "./scripts/qa/tenant-five-scoped-page-credit.mjs";
+              import { verifyFiveMethodCredits } from "./scripts/qa/tenant-five-method-credit-verify.mjs";
+              const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+              assert.equal(verifySixPageCredits(manifest), selectedTargets().length);
+              const historical = historicWorker360ProofView(historicSixPageView(manifest));
+              const verified = verifyFiveMethodCredits(historical);
+              assert.equal(verified.pageActionGaps, 16);
+              assert.equal(verified.independentlyAccepted, false);
+              assert.equal(verified.productionTested, false);
+              console.log("Historic three-method and Worker 360 receipts remain intact; six new pages are provisional only.");
+            '
           fi

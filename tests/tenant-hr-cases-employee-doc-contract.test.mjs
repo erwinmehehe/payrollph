@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import {
   ORIGIN, SOURCE_PINS, refuseUnsafeHrEmployeeDoc, verifyHrEmployeeDocPins,
   assertOwnedDocument, assertDeniedPrivate, assertUnchanged,
@@ -73,8 +74,15 @@ test("the real fixture tests linked employee POST, COE GET, hydrated UI and revo
   const workflow = readFileSync(".github/workflows/tenant-hr-cases-employee-coe-browser-qa.yml", "utf8");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  assert.equal(manifest.scopedPages.find(row =>
-    row.path === "src/app/hcm/hr-cases/page.tsx")?.status, "GAP");
+  const hrPage = manifest.scopedPages.find(row =>
+    row.path === "src/app/hcm/hr-cases/page.tsx");
+  assert.equal(verifySixPageCredits(manifest), 6,
+    "HR Cases page cannot borrow unrelated employee-document API proof");
+  assert.equal(hrPage?.status, "COVERED");
+  assert.equal(hrPage.testedBy?.pageProofStatus, "FINAL_HEAD_CI_REQUIRED");
+  assert.equal(hrPage.testedBy?.methodCredits, 0);
+  assert.equal(hrPage.testedBy?.independentlyAccepted, false);
+  assert.equal(hrPage.testedBy?.productionCertified, false);
   for (const marker of [
     "refuseUnsafeHrEmployeeDoc();", "verifyHrEmployeeDocPins();",
     'import("../../src/db/index.ts")', 'import("playwright")',

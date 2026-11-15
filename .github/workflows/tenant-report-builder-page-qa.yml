@@ -40,7 +40,8 @@ concurrency:
 
 jobs:
   report-page-tenant-isolation:
-    runs-on: ubuntu-latest
+    # Playwright 1.55's headless Chromium shell is supported on Ubuntu 24.04, not 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       CI: "true"

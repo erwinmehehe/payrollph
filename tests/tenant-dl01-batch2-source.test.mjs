@@ -1,4 +1,5 @@
 import { TARGETS, verifyFivePageCredits, historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 /**
  * Source-only fail-closed wiring test. Never substitutes for the real HTTP/PG16
  * three-employer run; a method remains GAP until linked to completed proof.
@@ -173,8 +174,12 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
   assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)),2);
   assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(manifest)), 16,
     "Only the exact-source Worker 360 PG16 SSR page proof may reduce the page GAP count");
-  const coveredPages = manifest.scopedPages.filter(x => x.status === "COVERED");
-  assert.equal(verifyFivePageCredits(manifest), TARGETS.length);
+  // Verify six new source/HTTP receipts first, then replay the original
+  // independently sealed ten-page list on its strict 10/11 historical view.
+  assert.equal(verifySixPageCredits(manifest), selectedTargets().length);
+  const historical = historicSixPageView(manifest);
+  const coveredPages = historical.scopedPages.filter(x => x.status === "COVERED");
+  assert.equal(verifyFivePageCredits(historical), TARGETS.length);
   assert.deepEqual(coveredPages.map(x => x.path).sort(), [
     "src/app/app/page.tsx", "src/app/hcm/command-center/page.tsx",
     "src/app/hcm/manager-decision-inbox/page.tsx",

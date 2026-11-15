@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import {
   ORIGIN, SOURCE_PINS, requireDisposableExportEnv, verifyExportSourcePins,
   assertOwnPreview, assertOwnCsv, assertDeniedExport, assertProtectedUnchanged,
@@ -121,9 +122,15 @@ test("proof requires real POST, own/foreign/revoked/audit controls and zero new 
     "npm run build", "apply-isolated-baseline.mjs",
     "node --import tsx scripts/qa/tenant-report-builder-export-http.mjs",
   ]) assert.ok(workflow.includes(marker), "Missing exact-head fictional PG16 gate: " + marker);
-  assert.equal(manifest.scopedPages.find(p =>
-    p.path === "src/app/workspace/report-builder/page.tsx")?.status, "GAP",
-  "Page must remain uncredited pending complete independent review");
+  const page = manifest.scopedPages.find(p =>
+    p.path === "src/app/workspace/report-builder/page.tsx");
+  assert.equal(verifySixPageCredits(manifest), 6,
+    "Report Builder SSR candidate requires six independent exact-source page proofs");
+  assert.equal(page?.status, "COVERED");
+  assert.equal(page.testedBy?.pageProofStatus, "FINAL_HEAD_CI_REQUIRED");
+  assert.equal(page.testedBy?.methodCredits, 0);
+  assert.equal(page.testedBy?.independentlyAccepted, false);
+  assert.equal(page.testedBy?.productionCertified, false);
 });
 
 test("report export CI reruns on shared dependencies and every source-pinned authorization path", () => {
