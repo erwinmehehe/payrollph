@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Offline file-to-file comparison: NO database client, credentials or network. */
-import { readFileSync, openSync, writeFileSync, closeSync, unlinkSync, statSync } from "node:fs";
+import { constants, readSync, fstatSync, openSync, writeFileSync, closeSync, unlinkSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inventoryMigrationSources } from "../lib/migration-receipt-audit.mjs";
@@ -12,10 +12,29 @@ function pathOutsideRepository(p) {
   if (file === ROOT || file.startsWith(ROOT + sep)) throw Error("EXPORT_FILES_MUST_STAY_OUTSIDE_GIT");
   return file;
 }
+const MAX_EXPORT_BYTES = 32 * 1024 * 1024;
 function readPrivateJson(path) {
   const file = pathOutsideRepository(path);
-  if (statSync(file).size > 32 * 1024 * 1024) throw Error("OFFLINE_EXPORT_TOO_LARGE");
-  return readFileSync(file, "utf8");
+  // Open a single descriptor, never stat(path) then reopen(path): that
+  // introduces a TOCTOU race. Refuse symlinks and nonregular files.
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > MAX_EXPORT_BYTES) throw Error("OFFLINE_EXPORT_TOO_LARGE");
+    const chunks = [];
+    let bytes = 0;
+    while (true) {
+      const chunk = Buffer.allocUnsafe(Math.min(65536, MAX_EXPORT_BYTES - bytes + 1));
+      const count = readSync(fd, chunk, 0, chunk.length, null);
+      if (count === 0) break;
+      bytes += count;
+      if (bytes > MAX_EXPORT_BYTES) throw Error("OFFLINE_EXPORT_TOO_LARGE");
+      chunks.push(chunk.subarray(0, count));
+    }
+    return Buffer.concat(chunks, bytes).toString("utf8");
+  } finally {
+    closeSync(fd);
+  }
 }
 function usage() {
   throw Error("USAGE: node scripts/qa/issue-1031-compare-offline.mjs --reference PRIVATE_PG18_JSON --production PRIVATE_PRODUCTION_JSON --report PRIVATE_REPORT_JSON");
