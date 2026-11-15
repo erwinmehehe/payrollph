@@ -6,7 +6,7 @@
 
 The applicant-facing Careers board is deliberately anonymous. A signed-in employer-A user's access rights do **not** dictate whether they may see employer B's intentionally published vacancies. It would be a false tenant-isolation test to demand 403 for a legitimate anonymous visitor.
 
-The permitted public response is the explicitly selected employer's name and at most 60 `careers_published=true` / `status=open` requisitions, projecting only `id`, `title`, `department`, `description`, `employmentType`. Do not expose applicant contact/consent records, worker IDs, payroll, pay amounts, bank details, drafts or unpublished/closed roles. The selection must be a single canonical, safe positive integer and require the configured privacy notice and schema-readiness guards **before** employer or requisition SQL. No source changes are proposed to these protections.
+The permitted public response is the explicitly selected employer's name and at most 60 `careers_published=true` requisitions with status `open` or `interviewing`, attached to an `open` position within the same employer, projecting only `id`, `title`, `department`, `description`, `employmentType`. Do not expose applicant contact/consent records, worker IDs, payroll, pay amounts, bank details, drafts or unpublished/closed roles. The selection must be a single canonical, safe positive integer and require the configured privacy notice and schema-readiness guards **before** employer or requisition SQL. No source changes are proposed to these protections.
 
 ## Source-pinned existing proof and new classification guard
 
