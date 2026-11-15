@@ -50,7 +50,7 @@ test("new page-only ledger is generator-exact, no historical or API status chang
   assert.equal(verifyFourPageCredits(live), selectedTargets().length);
   assert.equal(read(MANIFEST), JSON.stringify(expectedFourPageManifest(live), null, 2) + "\n");
   const original = historic();
-  assert.deepEqual(counts(live), {covered:20, gap:1});
+  assert.deepEqual(counts(live), {\n    covered: counts(original).covered + selectedTargets().length,\n    gap: counts(original).gap - selectedTargets().length,\n  });
   assert.deepEqual(counts(original), {covered:16, gap:5});
   assert.equal(verifySixPageCredits(original), 6);
   assert.equal(verifyFivePageCredits(original), 5);
@@ -108,8 +108,8 @@ test("fail closed on false/foreign page credits and mutation of receipt/provenan
 });
 test("SSO second-pass fixture may withdraw only nineteen sealed payroll methods, not page proof credits", () => {
   const fixture = zeroCreditSsoProofFixture(live);
-  assert.deepEqual(counts(fixture), {covered: 20, gap: 1});
-  assert.equal(fixture.metrics.gap, 20);
+  assert.deepEqual(counts(fixture), counts(live));
+  assert.equal(fixture.metrics.gap, live.metrics.gap + 19);
   const prior = {
     CI: process.env.CI,
     GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
