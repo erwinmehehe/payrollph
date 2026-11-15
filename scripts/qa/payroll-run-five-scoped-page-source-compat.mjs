@@ -17,6 +17,7 @@ import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { verifyOidcBatchCredits, historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 import { expectedSixPageManifest, historicSixPageView, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
 import { expectedFourPageManifest, historicFourPageView, selectedTargets as selectedFourTargets } from "./tenant-four-scoped-page-credit.mjs";
+import { verifyCareersPublicPage } from "./tenant-careers-public-page-classification.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -79,7 +80,19 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   const live = JSON.parse(String(read(MANIFEST)));
   const liveCovered = live.scopedPages.filter(p => p.status === "COVERED").length;
   const liveOpen = live.scopedPages.filter(p => p.status === "GAP").length;
-  const fourExpanded = liveCovered === 20 && liveOpen === 1;
+  const publicPages = live.scopedPages.filter(p => p.status === "PUBLIC-BY-DESIGN");
+  // The sole new class is the previously owner-approved anonymous Careers
+  // board. Verify its exact source/predicate/client/PG16 fixture/workflow;
+  // it never counts as a twenty-first private page credit.
+  if (publicPages.length) {
+    assert.deepEqual(publicPages.map(p=>p.path), ["src/app/careers/page.tsx"],
+      "PAGE_COMPAT_REFUSED: unreviewed public page label");
+    assert.equal(verifyCareersPublicPage(live, read), 1,
+      "PAGE_COMPAT_REFUSED: public Careers historical replay must be sealed");
+  }
+  const fourExpanded = liveCovered === 20 &&
+    (liveOpen === 1 && publicPages.length === 0 ||
+     liveOpen === 0 && publicPages.length === 1);
   let sixLedger = live;
   if (fourExpanded) {
     assert.equal(fourProbe, true,
