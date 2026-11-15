@@ -11,6 +11,7 @@ import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-em
 import { verifyWorker360PageCredit, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
+import { historicFourPageView, verifyFourPageCredits } from "./tenant-four-scoped-page-credit.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -165,7 +166,12 @@ export function verifyFivePageProofInputs(read = readFileSync) {
  * The committed coverage manifest always retains all 10 actual COVERED pages.
  */
 export function historicWorker360ProofView(manifest) {
-  const old = structuredClone(manifest);
+  // A later four-page ledger cannot borrow Worker 360 history without a
+  // separate exact-source, exact-proof four-page receipt verification.
+  const source = manifest.scopedPages.filter(p => p.status === "COVERED").length === 14
+    ? (verifyFourPageCredits(manifest), historicFourPageView(manifest))
+    : manifest;
+  const old = structuredClone(source);
   assert.equal(old.scopedPages.length, 21, "Historical validator requires unchanged inventory");
   assert.equal(old.scopedPages.filter(p => p.status === "COVERED").length, 10,
     "Only five additional page receipts are permitted");
@@ -251,6 +257,14 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
 }
 
 export function verifyFivePageCredits(m, read = readFileSync) {
+  // Treat the new four-page ledger as an overlay ONLY after all four proof
+  // hashes, selectors, old GAP explanations, API ledger and original five-page
+  // receipts verify. No caller can promote a page merely by changing a count.
+  if (m.scopedPages.filter(p => p.status === "COVERED").length === 14) {
+    assert.equal(verifyFourPageCredits(m, read), 4,
+      "FIVE_PAGE_CREDIT_REFUSED: unverified four-page overlay");
+    return TARGETS.length;
+  }
   const expected = expectedFivePageCreditManifest(m, read);
   assert.deepEqual(m, expected,
     "FIVE_PAGE_CREDIT_REFUSED: ledger or metrics not regenerated and exact-proof pinned");
@@ -264,6 +278,11 @@ export function verifyFivePageCredits(m, read = readFileSync) {
  */
 export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {
   const gaps = m.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps === 7) {
+    assert.equal(verifyFourPageCredits(m, read), 4,
+      "SCOPED_PAGE_REFUSED: all four source-current four-part proofs required");
+    return gaps;
+  }
   if (gaps !== 11) {
     assert.equal(verifyWorker360PageCredit(m, read), gaps,
       "SCOPED_PAGE_REFUSED: historical Worker 360 gap verification failed");

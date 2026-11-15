@@ -101,6 +101,25 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   }
   const pinnedGenerator = hasMkt01 ? REVIEWED_GENERATOR_MKT_BLOB : REVIEWED_GENERATOR_BLOB;
   let generator = String(read(GENERATOR));
+  // The historical compiler still requires the byte-identical five-page
+  // generator. Permit the later four-page-aware validation branches ONLY
+  // when the exact sealed source reconstructs the old version.
+  if (expanded) {
+    assert.equal(renewalBlob(generator), "25365c27beb9c4febeb47309fed1508b740d84eb",
+      "PAGE_COMPAT_REFUSED: unreviewed four-page-aware generator");
+    generator = uniqueSwap(generator,
+      'import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";\nimport { historicFourPageView, verifyFourPageCredits } from "./tenant-four-scoped-page-credit.mjs";',
+      'import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";');
+    generator = uniqueSwap(generator,
+      'export function historicWorker360ProofView(manifest) {\n  // A later four-page ledger cannot borrow Worker 360 history without a\n  // separate exact-source, exact-proof four-page receipt verification.\n  const source = manifest.scopedPages.filter(p => p.status === "COVERED").length === 14\n    ? (verifyFourPageCredits(manifest), historicFourPageView(manifest))\n    : manifest;\n  const old = structuredClone(source);',
+      'export function historicWorker360ProofView(manifest) {\n  const old = structuredClone(manifest);');
+    generator = uniqueSwap(generator,
+      'export function verifyFivePageCredits(m, read = readFileSync) {\n  // Treat the new four-page ledger as an overlay ONLY after all four proof\n  // hashes, selectors, old GAP explanations, API ledger and original five-page\n  // receipts verify. No caller can promote a page merely by changing a count.\n  if (m.scopedPages.filter(p => p.status === "COVERED").length === 14) {\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      "FIVE_PAGE_CREDIT_REFUSED: unverified four-page overlay");\n    return TARGETS.length;\n  }\n  const expected = expectedFivePageCreditManifest(m, read);',
+      'export function verifyFivePageCredits(m, read = readFileSync) {\n  const expected = expectedFivePageCreditManifest(m, read);');
+    generator = uniqueSwap(generator,
+      'export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === "GAP").length;\n  if (gaps === 7) {\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      "SCOPED_PAGE_REFUSED: all four source-current four-part proofs required");\n    return gaps;\n  }',
+      'export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === "GAP").length;');
+  }
   if (hasOidcBatch) {
     assert.equal(renewalBlob(generator), "d3067d1a83350f587dfb5c11442ea85d449e73ae",
       "PAGE_COMPAT_REFUSED: only the exact reviewed combined OIDC/MKT generator is allowed");

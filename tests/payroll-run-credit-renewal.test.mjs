@@ -83,11 +83,11 @@ test('each sealed fresh input set equals the full locked-compiler import closure
       assert.equal(verifyOidcBatchCredits(manifest),2,"Both OIDC protocol receipts required");
       const reviewedPageOnlyImports = new Map([
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          'd3067d1a83350f587dfb5c11442ea85d449e73ae'],
+          '25365c27beb9c4febeb47309fed1508b740d84eb'],
         ['scripts/qa/tenant-four-scoped-page-credit.mjs',
           '062ff1e0869595eac5b959cbb8b2f11a8389684b'],
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          '2c3e20ef81a2a1c68e8834dd5d9b8aeb6520b39f'],
+          'cf6ea0c4ac5255e728324a35f6719eff54694455'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
           'c7f5986f71d1e68df93ba391b891ade2685857fa'],
         ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
