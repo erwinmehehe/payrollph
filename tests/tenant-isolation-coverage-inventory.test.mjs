@@ -1,5 +1,7 @@
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
+import {historicalSamlMetadataView,samlPrivacyRead} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
+import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
@@ -269,6 +271,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(key===OIDC_START+' GET'&&method.status==='COVERED'){
+    assert.equal(verifyOidcBatchMethod(manifest,OIDC_START),1);
+    assert.equal(currentBlob,method.testedBy.routeBlobSha);return true;
+  }
   if(method.status==='COVERED'&&method.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
     const at=key.lastIndexOf(' '),path=key.slice(0,at),verb=key.slice(at+1);
     assert.ok(isVerifiedOracleRenewal(manifest,path,verb));return true;
@@ -296,7 +302,8 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
   // Exact-source uncredited privacy repair; this permits no coverage promotion.
   if (key === SAML_METADATA_ROUTE + " GET") {
     assert.equal(currentBlob, "4f8d12b9867de0c18aea8e447208e8470773350b");
-    assert.equal(verifySamlMetadataPrivacyHold(manifest), 0);
+    if(method.status==='PUBLIC-BY-DESIGN'){assert.equal(verifySamlPublicClassification(manifest),1);return true;}
+    assert.equal(verifySamlMetadataPrivacyHold(historicalSamlMetadataView(manifest),samlPrivacyRead()), 0);
     return true;
   }
 
@@ -4803,6 +4810,9 @@ test("all credited proof links point to the claimed route and every recertified 
       if (path === OIDC_CALLBACK && method.name === 'GET') {
         assert.equal(verifyOidcCallbackCredit(manifest), 1);
         continue;
+      }
+      if(path===OIDC_START&&method.name==='GET'){
+        assert.equal(verifyOidcBatchMethod(manifest,path),1);continue;
       }
       if (path === CHECKOUT_PATH && method.name === "POST") {
         assert.equal(verifyCheckoutCredit(manifest), 1);
@@ -9343,6 +9353,7 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
 });
 
 import {verifyOidcCallbackCredit, OIDC_CALLBACK} from '../scripts/qa/tenant-oidc-full-credit.mjs';
+import {verifyOidcBatchMethod,OIDC_START} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 
 test("payroll exports POST credit requires the exact passing run, byte-pinned inputs and every cited proof line", () => {
   const routePath = "src/app/api/payroll-runs/[id]/exports/route.ts";

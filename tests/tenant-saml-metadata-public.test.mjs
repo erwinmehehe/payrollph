@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {historicalSamlMetadataView} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {
   ROUTE, ROUTE_BLOB, HIDDEN_PROVIDER_BODY, requireIsolatedSamlProof,
   assertMetadata, assertSameMetadata, assertMissingMetadata, assertHiddenMetadata,
@@ -32,7 +33,7 @@ function xml(id) {
 
 test("repaired SAML GET remains GAP and selects only public fields from enabled SAML providers", () => {
   const source = readFileSync(ROUTE, "utf8");
-  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const manifest = historicalSamlMetadataView(JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8")));
   const entry = manifest.allApiRouteFiles[ROUTE];
   assert.equal(blobSha(source), ROUTE_BLOB, "new route source requires new public proof");
   assert.equal(entry.gitBlobSha, ROUTE_BLOB);

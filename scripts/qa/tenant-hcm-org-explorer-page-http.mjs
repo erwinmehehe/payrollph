@@ -132,6 +132,25 @@ export async function proveOrgExplorerPageIsolation() {
     }
 
     const companyHr = await roleUser("hr", null);
+    // Only this fictional HR operator receives credentials for a real localhost
+    // password+TOTP login. Other fixture actors remain separately authenticated.
+    const browserLoginPassword = "Fictional-OrgExplorer-Login-P0!";
+    const [{ hashPassword }, { generateTotpSecret }, { encryptTotpSecret }] =
+      await Promise.all([
+        import("../../src/lib/crypto.ts"), import("../../src/lib/totp.ts"),
+        import("../../src/lib/security-secret.ts")
+      ]);
+    const browserTotpSecret = generateTotpSecret();
+    await db.update(s.users).set({
+      passwordHash: hashPassword(browserLoginPassword),
+      totpSecret: encryptTotpSecret(browserTotpSecret), totpEnabled: true
+    }).where(eq(s.users.id, companyHr.user.id));
+    // A single explicitly granted HR operator can legitimately switch between
+    // these two companies; unrelated owner sessions still cannot cross them.
+    await db.insert(s.userOrganizations).values({
+      organizationId: b.org.id, userId: companyHr.user.id,
+      role: "hr", orgUnitId: null, active: true
+    });
     const unitHr = await roleUser("hr", a.unit.id);
     const bookkeeper = await roleUser("bookkeeper", null);
 
@@ -141,6 +160,24 @@ export async function proveOrgExplorerPageIsolation() {
       for (const actor of all) assertSqlUnchanged(
         baselines.get(actor.org.id), await snapshot(actor.org.id),
         label + " / " + actor.label);
+    }
+    async function afterBrowserLogin() {
+      // A successful real MFA login can append audit entries to the two
+      // authorized employers. Preserve all prior rows and every other protected
+      // table, and refuse even an audit append on any unrelated employer.
+      for (const actor of all) {
+        const previous = baselines.get(actor.org.id);
+        const current = await snapshot(actor.org.id);
+        for (const name of protectedTables.filter(name => name !== "auditEvents"))
+          assert.deepEqual(current[name], previous[name],
+            "Browser login unexpectedly changed protected " + actor.label + " " + name);
+        assert.deepEqual(current.auditEvents.slice(0, previous.auditEvents.length),
+          previous.auditEvents, "Browser login rewrote existing audit rows");
+        if (actor !== a && actor !== b)
+          assert.deepEqual(current.auditEvents, previous.auditEvents,
+            "Browser login wrote audit rows outside two authorized employers");
+        baselines.set(actor.org.id, current);
+      }
     }
     async function deny(path, cookie, expected, label, foreign = false) {
       const response = await httpGet(path, cookie);
@@ -220,6 +257,16 @@ export async function proveOrgExplorerPageIsolation() {
     await deny(historyUrl(a.org.id, a.position.id), undefined, 401, "anonymous history");
     await unchanged("anonymous/role denials");
 
+    // Hydrated A -> B -> A navigation and real click-through position history.
+    // The browser module loads only after all sandbox/source hard guards.
+    const { proveOrgExplorerHydratedBrowser } =
+      await import("./tenant-hcm-org-explorer-browser.mjs");
+    const browserEvidence = await proveOrgExplorerHydratedBrowser({
+      login: { email: companyHr.user.email, password: browserLoginPassword,
+        totpSecret: browserTotpSecret }, operatorUserId: companyHr.user.id,
+      a, b, victim, unchanged, afterBrowserLogin
+    });
+
     const [revoked] = await db.update(s.userOrganizations)
       .set({ active: false })
       .where(and(eq(s.userOrganizations.userId, a.owner.id),
@@ -247,7 +294,8 @@ export async function proveOrgExplorerPageIsolation() {
       higherIdVictim: true, ownPages, ownGraphs, ownHistories,
       foreignDenials, negativeChecks, verifiedProtectedTables: protectedTables.length,
       immutableEmployerAndAuditSql: true, revokedMembershipDenied: true,
-      serverRenderedPageAndBothReadApis: true, clientBrowserInteractionsProven: false,
+      serverRenderedPageAndBothReadApis: true, clientBrowserInteractionsProven: true,
+      browserEvidence,
       duplicateApiSelectorsProven: true, pageActionCredits: 0, apiMethodCredits: 0,
       independentlyAccepted: false, productionCertified: false,
       realUsers: 0, externalProviders: 0, moneyMoved: false

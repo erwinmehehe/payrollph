@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
 import { verifyWorker360PageCredit, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
+import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -232,15 +233,16 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
   const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;
   if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,
     "The sole additional method must be independently source-pinned");
-  assert.equal(m.metrics.gap, expectedApiGaps,
+  assert.equal(historicOidcBatchView(m, read).metrics.gap, expectedApiGaps,
     "Five-page proof must not silently reclassify unrelated API methods");
   assert.equal(m.scopedPages.filter(p => p.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 11);
   const nextPrefix = "NOT ACCEPTED: " + m.metrics.gap + " API methods and 11 page/action GAPs";
   const acceptancePrefix = new RegExp("^NOT ACCEPTED: " + expectedApiGaps +
     " API methods and (16|11) page/action GAPs");
-  assert.match(m.acceptanceStatus, acceptancePrefix);
-  m.acceptanceStatus = m.acceptanceStatus.replace(acceptancePrefix, nextPrefix);
+  assert.match(historicOidcBatchView(m, read).acceptanceStatus, acceptancePrefix);
+  m.acceptanceStatus = m.acceptanceStatus.replace(
+    /^NOT ACCEPTED: \d+ API methods and (16|11) page\/action GAPs/, nextPrefix);
   const note = " Current five page-only SOLO_VERIFIED_DEV_RECOVERY proposals: 10/21 scoped pages " +
     "COVERED, 11 GAP; exact-final-head disposable PG16 jobs are mandatory; no new API method credits, " +
     "hydrated browser, production or independent HR/security acceptance.";
