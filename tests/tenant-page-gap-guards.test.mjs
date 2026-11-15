@@ -36,9 +36,11 @@ test("only uncredited page/action gaps remain explicit", () => {
     .map(row => row.path).sort(), gapPaths.filter(path => !sixPaths.has(path)).sort());
   const fourPaths = new Set(selectedFour().map(target => target.path));
   assert.deepEqual(live.scopedPages.filter(row => row.status === "GAP")
-    .map(row => row.path).sort(),
-    gapPaths.filter(path => !sixPaths.has(path) && !fourPaths.has(path)).sort(),
-    "Only the remaining Careers page may retain the explicit new-head GAP");
+    .map(row => row.path).sort(), [],
+    "No remaining page GAP label: Careers must be the one public-only exception");
+  assert.deepEqual(live.scopedPages.filter(row => row.status === "PUBLIC-BY-DESIGN")
+    .map(row => row.path), ["src/app/careers/page.tsx"]);
+  assert.equal(live.scopedPages.filter(row => row.status === "COVERED").length, 20);
   assert.equal(manifest.scopedPages.length, 21);
   assert.equal(verifyFivePageCredits(historical), TARGETS.length,
     "All five historical receipts must remain independently source-pinned");
