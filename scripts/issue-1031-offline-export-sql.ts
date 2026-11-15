@@ -20,6 +20,46 @@ function journalSql(kind: "production" | "disposable-pg18", table: "historic" | 
     "ORDER BY migration_path), '[]'::jsonb) " +
     "FROM public.payrollph_schema_migrations)";
 }
+
+/**
+ * Enrich only the offline export with index attributes that the existing
+ * #1605 guard already understands. Keep #1075's shared catalog query intact.
+ * A missing catalog match returns NULL details and fails offline validation.
+ */
+const offlineIndexAugmentationSql = `
+SELECT c.table_name, c.kind, c.object_name,
+ CASE WHEN c.kind = 'index' THEN c.details || meta.details ELSE c.details END AS details
+FROM offline_catalog c
+LEFT JOIN LATERAL (
+ SELECT pg_catalog.jsonb_build_object(
+   'key_desc', (SELECT COALESCE(
+     pg_catalog.jsonb_agg((ind.indoption[pos.n - 1] & 1) <> 0 ORDER BY pos.n),
+     '[]'::jsonb)
+     FROM pg_catalog.generate_series(1, ind.indnkeyatts) AS pos(n)),
+   'key_nulls_first', (SELECT COALESCE(
+     pg_catalog.jsonb_agg((ind.indoption[pos.n - 1] & 2) <> 0 ORDER BY pos.n),
+     '[]'::jsonb)
+     FROM pg_catalog.generate_series(1, ind.indnkeyatts) AS pos(n)),
+   'include', (SELECT COALESCE(
+     pg_catalog.jsonb_agg(att.attname ORDER BY pos.n), '[]'::jsonb)
+     FROM pg_catalog.generate_series(ind.indnkeyatts + 1, ind.indnatts) AS pos(n)
+     JOIN pg_catalog.pg_attribute att
+       ON att.attrelid = tbl.oid AND att.attnum = ind.indkey[pos.n - 1]),
+   'options', COALESCE(pg_catalog.to_jsonb(idx.reloptions), '[]'::jsonb),
+   'tablespace', CASE WHEN idx.reltablespace = 0 THEN NULL ELSE tsp.spcname END,
+   'nulls_not_distinct', ind.indnullsnotdistinct
+ ) AS details
+ FROM pg_catalog.pg_namespace ns
+ JOIN pg_catalog.pg_class tbl ON tbl.relnamespace = ns.oid
+ JOIN pg_catalog.pg_index ind ON ind.indrelid = tbl.oid
+ JOIN pg_catalog.pg_class idx ON idx.oid = ind.indexrelid
+ LEFT JOIN pg_catalog.pg_tablespace tsp ON tsp.oid = idx.reltablespace
+ WHERE c.kind = 'index' AND ns.nspname = 'public'
+   AND tbl.relkind IN ('r', 'p') AND tbl.relname = c.table_name
+   AND idx.relname = c.object_name
+) meta ON TRUE
+`;
+
 export function buildIssue1031OfflineExportSql(kind: "production" | "disposable-pg18"): string {
   if (!["production", "disposable-pg18"].includes(kind)) throw Error("INVALID_EXPORT_KIND");
   const historical = journalSql(kind, "historic");
@@ -36,19 +76,21 @@ export function buildIssue1031OfflineExportSql(kind: "production" | "disposable-
     "SET LOCAL search_path = pg_catalog;",
     "WITH offline_catalog AS (",
     fullSchemaCatalogSql.trim(),
+    "), enriched_catalog AS (",
+    offlineIndexAugmentationSql.trim(),
     "), payload AS (",
     " SELECT",
     " (SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(",
     "   'table_name', c.table_name, 'kind', c.kind, 'object_name', c.object_name,",
     "   'details', c.details) ORDER BY c.table_name, c.kind, c.object_name),",
-    "   '[]'::jsonb) FROM offline_catalog c) AS catalog_rows,",
-    " (SELECT pg_catalog.count(*) FROM offline_catalog) AS catalog_count,",
-    " (SELECT pg_catalog.count(*) FROM offline_catalog WHERE kind = 'table') AS table_count,",
+    "   '[]'::jsonb) FROM enriched_catalog c) AS catalog_rows,",
+    " (SELECT pg_catalog.count(*) FROM enriched_catalog) AS catalog_count,",
+    " (SELECT pg_catalog.count(*) FROM enriched_catalog WHERE kind = 'table') AS table_count,",
     " " + historical + " AS historical_rows,",
     " " + applied + " AS applied_rows",
     ")",
     "SELECT pg_catalog.jsonb_build_object(",
-    " 'formatVersion', 1,",
+    " 'formatVersion', 2,",
     " 'exportKind', '" + kind + "',",
     " 'postgresMajor', current_setting('server_version_num')::integer / 10000,",
     " 'catalogRows', catalog_rows,",
@@ -57,7 +99,7 @@ export function buildIssue1031OfflineExportSql(kind: "production" | "disposable-
     " 'historicalReceipts', historical_rows,",
     " 'appliedMigrations', applied_rows,",
     " 'journalRowCount', pg_catalog.jsonb_array_length(historical_rows) + pg_catalog.jsonb_array_length(applied_rows),",
-    " 'completed', 'ISSUE_1031_CATALOG_EXPORT_COMPLETE_V1'",
+    " 'completed', 'ISSUE_1031_CATALOG_EXPORT_COMPLETE_V2'",
     ") FROM payload;",
     "ROLLBACK;",
     "",
