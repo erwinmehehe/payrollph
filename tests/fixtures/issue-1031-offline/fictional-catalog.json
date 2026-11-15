@@ -1,0 +1,64 @@
+{
+  "fictionalOnly": true,
+  "catalog": [
+    {
+      "table_name": "fictional_payroll",
+      "kind": "table",
+      "object_name": "fictional_payroll",
+      "details": {}
+    },
+    {
+      "table_name": "fictional_payroll",
+      "kind": "column",
+      "object_name": "id",
+      "details": {
+        "type": "integer",
+        "nullable": false,
+        "default": null,
+        "identity": null
+      }
+    },
+    {
+      "table_name": "fictional_payroll",
+      "kind": "column",
+      "object_name": "amount",
+      "details": {
+        "type": "numeric(14,2)",
+        "nullable": false,
+        "default": null,
+        "identity": null
+      }
+    },
+    {
+      "table_name": "fictional_payroll",
+      "kind": "index",
+      "object_name": "fictional_payroll_amount_idx",
+      "details": {
+        "unique": false,
+        "method": "btree",
+        "keys": [
+          "amount"
+        ],
+        "predicate": null,
+        "valid": true,
+        "ready": true,
+        "key_desc": [
+          false
+        ],
+        "key_nulls_first": [
+          false
+        ],
+        "include": [],
+        "options": [],
+        "tablespace": null,
+        "nulls_not_distinct": false
+      }
+    }
+  ],
+  "inventory": [
+    {
+      "path": "drizzle/0001_fictional_rehearsal.sql",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ]
+}

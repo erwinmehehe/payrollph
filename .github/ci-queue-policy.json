@@ -25,6 +25,8 @@
     "independent-journey-853-qa.yml",
     "isolated-release-schema-rehearsal.yml",
     "issue-0129-fk-name-reconcile-ci.yml",
+    "issue-1031-disposable-pg18-export.yml",
+    "issue-1031-offline-production-parity.yml",
     "issue-1031-schema-diff-ci.yml",
     "issue-1031-source-shape-analysis.yml",
     "issue-1054-forward-schema-rehearsal.yml",

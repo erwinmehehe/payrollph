@@ -1,0 +1,59 @@
+name: Issue 1031 Disposable PG18 Export Contract (Fictional Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/issue-1031-disposable-pg18-export.yml"
+      - "scripts/issue-1031-offline-export-sql.ts"
+      - "scripts/check-issue-1031-full-schema-diff.ts"
+      - "scripts/lib/issue-1031-offline-parity.mjs"
+      - "tests/issue-1031-offline-pg18.test.mjs"
+  workflow_dispatch:
+
+# Supersede older PR fixture runs; main/manual evidence is independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pg18-contract:
+    name: Synthetic PG18 index metadata export; no production access
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ""
+      PRODUCTION_DATABASE_URL: ""
+      MIGRATION_TARGET_DATABASE_URL: ""
+      NEON_DATABASE_URL: ""
+      ISSUE1031_DISPOSABLE_PG_URL: postgresql://fixture:fixture@127.0.0.1:5432/issue1031_offline_fixture
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: fixture
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_DB: issue1031_offline_fixture
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fixture -d issue1031_offline_fixture"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify printed V2 SQL and complete index metadata against disposable PG18
+        run: ./node_modules/.bin/tsx --test tests/issue-1031-offline-pg18.test.mjs
+      - name: Confirm fictional PG18 only
+        run: echo "SYNTHETIC_PG18_ONLY_NO_NEON_NO_PRODUCTION_NO_PAYROLL_NO_MIGRATION_REPLAY"
