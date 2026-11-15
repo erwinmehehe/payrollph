@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { verifyFivePageCredits, verifyCurrentScopedPageGapCount as verifyHistoricScopedPageGapCount } from "./tenant-five-scoped-page-credit.mjs";
 import { verifyFourPageCredits, historicFourPageView } from "./tenant-four-scoped-page-credit.mjs";
+import { assertSsoResolveHeldOrApproved } from "./tenant-sso-resolve-public-policy.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const SELECTION = "scripts/qa/tenant-six-page-selection.json";
@@ -327,7 +328,7 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
   if (gaps === 5 && process.env.CI === "true" &&
       process.env.GITHUB_ACTIONS === "true" &&
       process.env.TENANT_SECOND_PASS_MODE === "isolated-ci-only" &&
-      manifest.metrics.gap === 20) {
+      (manifest.metrics.gap === 20 || manifest.metrics.gap === 19)) {
     const headText = execFileSync("git", ["show", "HEAD:" + MANIFEST], {
       encoding: "utf8", maxBuffer: 8 * 1024 * 1024
     });
@@ -336,8 +337,10 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
     // the API GAP count from two to one. A disposable SSO hold still withdraws
     // EXACTLY nineteen source-sealed payroll methods; it never demotes the
     // public SAML classification or any independently verified page credit.
-    assert.equal(head.metrics.gap, 1,
-      "SIX_PAGE_REFUSED: SSO fixture must start with the exact current 1-GAP API ledger");
+    assert.ok(head.metrics.gap === 1 || head.metrics.gap === 0,
+      "SIX_PAGE_REFUSED: SSO fixture must start with the exact current 0/1-GAP API ledger");
+    assertSsoResolveHeldOrApproved(head);
+    assert.equal(manifest.metrics.gap, head.metrics.gap + 19);
     const expected = structuredClone(head);
     let held = 0;
     for (const entry of Object.values(expected.allApiRouteFiles)) {

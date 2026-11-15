@@ -1,0 +1,47 @@
+{
+  "schema": "sso-resolve-public-pg16-v1",
+  "method": "POST /api/auth/sso/resolve",
+  "sourceHead": "5f8acdd303d59839f47f2a80a8489d5fba9dfee6",
+  "runId": "43722348996",
+  "jobId": "132836852192",
+  "jobConclusion": "success",
+  "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43722348996/job/132836852192",
+  "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+  "inputs": {
+    "src/app/api/auth/sso/resolve/route.ts": "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299",
+    "src/lib/tenant-sso-discovery.ts": "713b25dd4afad7a58afc5a01b69e55012d1b7613",
+    "src/lib/oidc-sso-runtime.ts": "cb94e6854b0387fa749b2fd346ce07db34f64f5b",
+    "scripts/qa/tenant-sso-discovery-http.mjs": "0024c4376c0dc771ff71eea697b91ec8c74aad3a",
+    "scripts/qa/tenant-sso-discovery-proof.mjs": "b4df7d81271f143172214d43daf6440b478ef0c9",
+    "tests/tenant-sso-discovery-contract.test.mjs": "bcbb051e1d3d680d646729dd01f1ddbbacc35085",
+    "tests/tenant-sso-discovery.test.ts": "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
+    ".github/workflows/tenant-sso-discovery-http.yml": "d917ba748c8deba27bdeaff766504d92a986c1a0"
+  },
+  "passedSteps": [
+    "Proof contract, parser tests and source-pinned GAP checks",
+    "Create disposable PostgreSQL 16 schema",
+    "Apply reviewed isolated schema baseline",
+    "Build production-mode Next for localhost",
+    "Start localhost-only Next server",
+    "Own domain positives, cross-employer FK denial, forged selector and immutable SQL"
+  ],
+  "result": {
+    "family": "SSO_DISCOVERY_DOMAIN_PROVIDER_TENANT_BOUNDARY",
+    "test": "fictional-PG16-production-mode-real-HTTP",
+    "twoIndependentEmployers": true,
+    "realHigherIdVictim": true,
+    "eachOwnVerifiedProviderPositive": true,
+    "forgedTenantSelectorsDoNotChangeLookup": true,
+    "crossEmployerDomainProviderJoinDenied": true,
+    "samlAndUnverifiedDomainsDenied": true,
+    "malformedAndCrossSiteDenied": true,
+    "unchangedEmployerProviderAuditAndSessionSql": true,
+    "completeMethodCredits": 0,
+    "independentSecurityReview": "PENDING",
+    "productionCertified": false
+  },
+  "coverageCredits": 0,
+  "independentSecurityReview": "PENDING",
+  "productionCertified": false,
+  "realProviderCalls": 0
+}

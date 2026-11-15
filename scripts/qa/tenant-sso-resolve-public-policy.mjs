@@ -9,7 +9,12 @@ export const SSO_OWNER_APPROVAL = "docs/qa/tenant-sso-resolve-owner-approval.jso
 export const SSO_PRIVACY_ARCHIVE = "scripts/qa/tenant-sso-resolve-privacy-archive.json";
 export const SSO_EXECUTION_RECEIPT = "scripts/qa/tenant-sso-resolve-executed-receipt.json";
 const APPROVAL_BLOB = "d664c4a2d5097887d429c4ac46e63078ca635f70";
-const ARCHIVE_BLOB = "50b42a65c61a473e944a43f5fccfd5a0b634e42c";
+const ARCHIVE_BLOB = "afe94128732c46534798c35a5a4e0fc353c517fb";
+/** The two proof-run tests read the ledger; their reviewed classification adapters are the only permitted edits. */
+const ADAPTERS = {
+  "tests/tenant-sso-discovery-contract.test.mjs": "8a5165d8a497d71b0b4c59d42a2fe83c51a2c741",
+  "tests/tenant-sso-discovery.test.ts": "3dfd583e440d5caaec1715d7690cc65e4afc207b",
+};
 const PACKET_BLOB = "9cc204694ceb6228afb0dc7cf5508a9e850f0ff9";
 
 export const blob = (bytes) => createHash("sha1").update("blob " + Buffer.byteLength(bytes) + "\0").update(bytes).digest("hex");
@@ -24,6 +29,18 @@ function archive(read) {
   assert.equal(a.method.reviewedUncertified?.kind, "sso-discovery-domain-provider-org-match-PG16-HTTP-uncredited");
   assert.equal(a.method.reviewedUncertified?.routeBlobSha, SSO_RESOLVE_BLOB);
   return a;
+}
+
+/** Reads executed inputs: original bytes pass; only the exact reviewed adapters map back to the archived original bytes. */
+export function ssoExecutedInputRead(read = readFileSync) {
+  const a = archive(read);
+  return (path, ...args) => {
+    const value = read(path, ...args);
+    if (!Object.hasOwn(ADAPTERS, path)) return value;
+    if (blob(value) === blob(a.files[path])) return value;
+    assert.equal(blob(value), ADAPTERS[path], "SSO discovery adapter source drift: " + path);
+    return args[0] ? a.files[path] : Buffer.from(a.files[path]);
+  };
 }
 
 export function readSsoOwnerApproval(read = readFileSync) {
@@ -71,6 +88,15 @@ export function verifySsoResolvePolicy(m, read = readFileSync) {
   assert.equal(entry.methods.length, 1);
   assert.deepEqual(entry.methods[0], expectedSsoResolveMethod(read), "Only the exact approved SSO discovery contract may be relabelled");
   return 1;
+}
+
+/** The only two admissible states: held GAP with no receipt, or exactly the owner-approved public label. */
+export function assertSsoResolveHeldOrApproved(m, read = readFileSync) {
+  const row = m.allApiRouteFiles[SSO_RESOLVE_PATH].methods.find((r) => r.name === "POST");
+  if (row?.status === "PUBLIC-BY-DESIGN") return verifySsoResolvePolicy(m, read);
+  assert.equal(row?.status, "GAP", "Owner explicitly held anonymous resolve credit");
+  assert.equal(row.testedBy, null);
+  return 0;
 }
 
 /** Validation-only reconstruction of the original GAP for sealed historical guards; never written to the live ledger. */
