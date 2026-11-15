@@ -391,7 +391,7 @@ test("Phase 7 separation source re-inventory preserves existing tenant evidence,
     "Foreign GET denied", "Foreign POST denied", "Foreign PATCH is indistinguishable from a missing separation",
     "Foreign separation mutations leave victim rows unchanged",
   ]) assert.ok(tenantProof.includes(token), "existing reviewed tenant proof missing: " + token);
-  assert.match(tenantProof, /expectStatus\(await request\("\/api\/separation", stranger, "PATCH", \{ id: separationId, action: "approve" \} \), 404,/,
+  assert.match(tenantProof, /expectStatus\(await request\("\/api\/separation", stranger, "PATCH", \{ id: separationId, action: "approve" \}\), 404,/,
     "Foreign separation PATCH must return the same opaque 404 as an unknown record");
   const source = sourceBytes.toString("utf8");
   const post = source.slice(source.indexOf("export async function POST("), source.indexOf("export async function PATCH("));
