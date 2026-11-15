@@ -79,7 +79,7 @@ test("offboarding draft enforces employer selection and frozen scope before tax 
 test("unsigned 2316 GET source and POST PDF share employer-scoped handler", () => {
   const source = readFileSync("src/app/api/year-end/2316-certificate/route.ts", "utf8");
   const resolve = source.indexOf("resolveMultiEntityContext({");
-  const early = source.indexOf("assertEntityResource(entityScope.context, frozenFinalPayLegalEntityId(frozen.snapshot))");
+  const early = source.search(/assertEntityResource\(entityScope\.context,\s*frozenFinalPayLegalEntityId\(frozen\.snapshot\)\)/);
   const load = source.indexOf("load2316CertificateSource(scope);");
   const recheck = source.indexOf("assertEntityResource(entityScope.context, source.legalEntityId)");
   const digest = source.indexOf("certificateSourceDigest(source)");
@@ -88,8 +88,10 @@ test("unsigned 2316 GET source and POST PDF share employer-scoped handler", () =
   assert.match(source, /eq\(separationRecords\.id, scope\.separationId\)/);
   assert.match(source, /eq\(separationRecords\.organizationId, scope\.organizationId\)/);
   assert.match(source, /eq\(separationRecords\.employeeId, scope\.employeeId\)/);
-  assert.match(source, /if \(earlyDenied\) return earlyDenied;/);
-  assert.match(source, /if \(sourceDenied\) return sourceDenied;/);
+  assert.match(source, /if \(!frozen \|\| assertEntityResource\(entityScope\.context,\s*frozenFinalPayLegalEntityId\(frozen\.snapshot\)\)\)\s*\{\s*return Response\.json\(\{ error: "Certificate source not found\." \}, \{ status: 404, headers \}\);/);
+  assert.match(source, /if \(sourceDenied\) return Response\.json\(\s*\{ error: "Certificate source not found\." \}, \{ status: 404, headers \}\);/);
+  assert.equal(source.split('{ error: "Certificate source not found." }').length - 1, 2,
+    "Unknown and ungranted historical sources must have the same opaque response");
   assert.match(source, /if \(scope\.separationId === undefined\)/);
   assert.match(source, /export const GET = \(request: Request\) => respond\(request, "source"\);/);
   assert.match(source, /export const POST = \(request: Request\) => respond\(request, "pdf"\);/);

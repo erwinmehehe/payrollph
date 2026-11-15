@@ -6236,8 +6236,32 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.productionCertified, false);
         assert.equal(path, "src/app/api/" + entry.route + "/route.ts");
         assert.ok(["GET", "POST"].includes(method.name));
-        assert.equal(proof.routeBlobSha, entry.gitBlobSha);
-        assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        // Prior-evidence has a reviewed #1978 privacy-only route revision.
+        // Preserve the #1730/#STA-01 historical HTTP proof's source seal;
+        // it must not be relabeled as evidence that ran on the new handler.
+        if (entry.route === "year-end/prior-evidence") {
+          const revised = entry.sourceRevisionReview;
+          assert.equal(proof.routeBlobSha, revised?.previousRouteBlobSha,
+            "The historical credited run must retain its original route SHA");
+          assert.equal(revised?.currentRouteBlobSha, entry.gitBlobSha,
+            "The new privacy handler must be separately source-pinned");
+          assert.equal(revised?.priorReceiptHistoricalOnly, true);
+          assert.equal(revised?.newTenantIsolationMethodCredits, 0);
+          assert.equal(revised?.currentExactHeadPg16, "PENDING");
+          assert.equal(revised?.productionCertified, false);
+          const handler = readFileSync(path, "utf8");
+          for (const code of ["PRIOR_EMPLOYEE_NOT_FOUND",
+                              "PRIOR_ENTITY_ACCESS_DENIED",
+                              "PRIOR_RECORD_UNAVAILABLE"]) {
+            assert.ok(handler.includes('"' + code + '"'),
+              "The current privacy denial policy must remain visible in source");
+          }
+          assert.match(handler, /includes\(internalCode\) \? "PRIOR_RECORD_UNAVAILABLE" : internalCode/);
+          assert.equal(gitBlobSha(Buffer.from(handler)), revised.currentRouteBlobSha);
+        } else {
+          assert.equal(proof.routeBlobSha, entry.gitBlobSha);
+          assert.equal(gitBlobSha(readFileSync(path)), proof.routeBlobSha);
+        }
         assert.equal(gitBlobSha(readFileSync(proof.file)), proof.proofBlobSha);
         assert.equal(gitBlobSha(readFileSync(proof.workflowFile)), proof.workflowBlobSha);
         const approved = [

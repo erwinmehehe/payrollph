@@ -63,7 +63,14 @@ const ROUTE_SOURCE_FIELDS = new Set(["currentMembershipGuardLine"]);
 function reviewedForeignSeparationPatchPrivacyDelta({
   path, method, kind, field, proof, cited, value, baseValue, before, now,
 }) {
-  if (baseRef !== "origin/main" ||
+  const matchesCurrentMain = (() => {
+    try { return execFileSync("git", ["rev-parse", "origin/main"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() ===
+      execFileSync("git", ["rev-parse", baseRef],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+    catch { return false; }
+  })();
+  if (!matchesCurrentMain ||
       path !== "src/app/api/separation/route.ts" ||
       method.name !== "PATCH" || kind !== "testedBy" ||
       field !== "foreignDenialLine" ||

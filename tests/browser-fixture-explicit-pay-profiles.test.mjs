@@ -112,7 +112,7 @@ test("approved-exit PostgreSQL HTTP fixture seeds only verified tenant-bound pay
   assert.match(lines[70], /const ownRead = expectStatus\(await request\("\/api\/separation\?/);
   assert.match(lines[73], /Foreign GET denied/);
   assert.match(lines[74], /Foreign POST denied/);
-  assert.match(lines[75], /Foreign PATCH denied/);
+  assert.match(lines[75], /\), 404, "Foreign PATCH is indistinguishable from a missing separation"/);
   assert.match(lines[77], /assert\.deepEqual\(afterForeign, beforeForeign/);
   assert.match(lines[81], /Foreign payroll creation denied/);
   assert.match(lines[83], /assert\.deepEqual\(payrollAfterForeign, payrollBeforeForeign/);
