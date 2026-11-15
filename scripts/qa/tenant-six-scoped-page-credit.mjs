@@ -19,6 +19,11 @@ export const WORKFLOW = ".github/workflows/tenant-six-scoped-pages-credit.yml";
 // its receipt for the current PR-head proof or award additional coverage.
 const HISTORIC_MAIN_MANIFEST_SHA = "c58c26ed95e039e32616a374dbba92eefdca76ef";
 const HISTORIC_MAIN_GENERATOR_SHA = "f966e4399d2b7507f4bab6c03dcd20e5d7134743";
+// #1983 merged four additional page-only proofs after the original #1978
+// branch diverged. An origin/main replay must verify that exact newer main
+// manifest and generator together, without borrowing current-head evidence.
+const POST_FOUR_PAGE_MAIN_MANIFEST_SHA = "686cac2b24beb7527d6dc35e9d67a2aee9a6fcce";
+const POST_FOUR_PAGE_MAIN_GENERATOR_SHA = "2083b4345a62af8c1aeb461c453a4628b06836da";
 const HISTORIC_MAIN_2316_PROOF_SHA = "7f4fb04ae57a72ccd981ca4f36771adf2c62cc06";
 const GENERATOR = "scripts/qa/tenant-six-scoped-page-credit.mjs";
 const define = (key, path, pageSha, proof, proofSha, contract, contractSha, anchors, notTested) =>
@@ -123,9 +128,14 @@ function line(source, marker, label) {
   return matches[0];
 }
 function isSealedHistoricMain(read) {
-  if (gitBlobSha(read(MANIFEST)) !== HISTORIC_MAIN_MANIFEST_SHA) return false;
-  assert.equal(gitBlobSha(read(GENERATOR)), HISTORIC_MAIN_GENERATOR_SHA,
-    "SIX_PAGE_REFUSED: historical main manifest requires its exact original generator");
+  const manifestSha = gitBlobSha(read(MANIFEST));
+  const expectedGeneratorSha = manifestSha === HISTORIC_MAIN_MANIFEST_SHA
+    ? HISTORIC_MAIN_GENERATOR_SHA
+    : manifestSha === POST_FOUR_PAGE_MAIN_MANIFEST_SHA
+      ? POST_FOUR_PAGE_MAIN_GENERATOR_SHA : null;
+  if (!expectedGeneratorSha) return false;
+  assert.equal(gitBlobSha(read(GENERATOR)), expectedGeneratorSha,
+    "SIX_PAGE_REFUSED: historical main manifest requires its exact reviewed generator");
   return true;
 }
 export function verifySixInputs(read = readFileSync) {

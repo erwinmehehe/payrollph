@@ -70,6 +70,9 @@ function reviewedForeignSeparationPatchPrivacyDelta({
   const reviewedBases = new Set([
     "1b437fbf2a05053fddb5acf1b50171590a6e788a",
     "2444b60e8d117935d16167476cc15a9683880788",
+    // #1983 changed only the page-credit ledger; it retained this exact
+    // separation proof, making it a separately pinned replay baseline.
+    "c3b5d9d0b630ff8d9822187abc737231c1405493",
   ]);
   const matchesReviewedBase = (() => {
     try {
