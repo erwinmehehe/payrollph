@@ -41,7 +41,17 @@
         ],
         "predicate": null,
         "valid": true,
-        "ready": true
+        "ready": true,
+        "key_desc": [
+          false
+        ],
+        "key_nulls_first": [
+          false
+        ],
+        "include": [],
+        "options": [],
+        "tablespace": null,
+        "nulls_not_distinct": false
       }
     }
   ],
