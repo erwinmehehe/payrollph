@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,7 @@ const historical = () => [{migrationPath: fixture.inventory[0].path,
 function snapshot(kind, rows = clone(fixture.catalog), receipts = historical(), applied = []) {
   if (kind === "disposable-pg18") { receipts = []; applied = []; }
   return {
-    formatVersion:1,
+    formatVersion:2,
     exportKind:kind,
     postgresMajor:18,
     catalogRows:rows,
@@ -64,6 +64,33 @@ test("fictional missing index is BLOCKING", () => {
   const rows = clone(fixture.catalog).filter(r => r.kind !== "index");
   assert.ok(has(report(snapshot("production", rows)), "index", "MISSING", "BLOCKING"));
 });
+test("PG18 index DESC, NULLS FIRST, INCLUDE, storage, tablespace and NULLS NOT DISTINCT drift block", () => {
+  const cases = [
+    ["DESC order", "key_desc", [true], "keys"],
+    ["NULLS FIRST", "key_nulls_first", [true], "keys"],
+    ["included column", "include", ["id"], "include"],
+    ["storage option", "options", ["fillfactor=70"], "options"],
+    ["tablespace", "tablespace", "other_space", "tablespace"],
+    ["NULLS NOT DISTINCT", "nulls_not_distinct", true, "nullsNotDistinct"],
+  ];
+  for (const [label, field, value, signatureField] of cases) {
+    const rows = clone(fixture.catalog);
+    rows.find(row => row.kind === "index").details[field] = value;
+    const drift = report(snapshot("production", rows)).differences.find(
+      item => item.kind === "index" && item.change === "DRIFT" && item.category === "BLOCKING");
+    assert.ok(drift, label + " must block");
+    assert.ok(drift.fields.includes(signatureField), label + " must identify changed signature field");
+  }
+});
+test("missing or malformed advanced PG18 index export fields fail closed", () => {
+  const missing = snapshot("production");
+  delete missing.catalogRows.find(row => row.kind === "index").details.key_desc;
+  assert.throws(() => report(missing), /OFFLINE_EXPORT_INVALID_OR_INCOMPLETE/);
+  const malformed = snapshot("production");
+  malformed.catalogRows.find(row => row.kind === "index").details.key_nulls_first = [0];
+  assert.throws(() => report(malformed), /OFFLINE_EXPORT_INVALID_OR_INCOMPLETE/);
+});
+
 test("fictional extra table and column are INFORMATIONAL", () => {
   const rows = clone(fixture.catalog);
   rows.push({table_name:"fictional_legacy",kind:"table",object_name:"fictional_legacy",details:{}});
@@ -117,6 +144,24 @@ test("CLI refuses malformed private JSON without writing report or using a DB", 
     assert.doesNotMatch(proc.stderr, /postgresql:\/\//);
   } finally { rmSync(temp,{force:true,recursive:true}); }
 });
+test("CLI refuses symlinked catalog input, without writing a report", () => {
+  if (process.platform === "win32") return;
+  const temp = mkdtempSync(join(tmpdir(), "fictional-1031-symlink-"));
+  try {
+    const ref = join(temp, "ref.json"), prod = join(temp, "prod.json");
+    const linked = join(temp, "linked-prod.json"), out = join(temp, "out.json");
+    writeFileSync(ref, JSON.stringify(snapshot("disposable-pg18")));
+    writeFileSync(prod, JSON.stringify(snapshot("production")));
+    symlinkSync(prod, linked);
+    const proc = spawnSync(process.execPath,
+      [join(ROOT, "scripts/qa/issue-1031-compare-offline.mjs"),
+        "--reference", ref, "--production", linked, "--report", out],
+      {encoding:"utf8", cwd:ROOT, timeout:10000});
+    assert.equal(proc.status, 2);
+    assert.equal(existsSync(out), false);
+  } finally { rmSync(temp, {force:true,recursive:true}); }
+});
+
 test("SQL printer reuses catalog query and never opens a DB", () => {
   const tsx = join(ROOT, "node_modules/.bin/tsx");
   if (!existsSync(tsx)) return; // dedicated CI installs dependencies first
@@ -128,6 +173,10 @@ test("SQL printer reuses catalog query and never opens a DB", () => {
     assert.match(result.stdout, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY/);
     assert.match(result.stdout, /ROLLBACK;/);
     assert.match(result.stdout, /pg_catalog\.pg_class/);
+    assert.match(result.stdout, /ind\.indoption/);
+    assert.match(result.stdout, /idx\.reloptions/);
+    assert.match(result.stdout, /ind\.indnullsnotdistinct/);
+    assert.match(result.stdout, /'formatVersion', 2/);
     assert.doesNotMatch(result.stdout, /postgresql:\/\/|NEON_DATABASE_URL|PRODUCTION_DATABASE_URL/);
     if (kind === "--production") assert.match(result.stdout, /payrollph_schema_migrations/);
   }
