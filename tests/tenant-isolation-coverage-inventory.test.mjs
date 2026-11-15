@@ -7376,7 +7376,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           if (file === reviewed.workflowFile) {
             assert.equal(sha, "1c21e70dfa55510ed0139c1c167871d123dff3c8",
               "Historical report workflow review pin must remain intact");
-            assert.match(readFileSync(file, "utf8"), /^    runs-on: ubuntu-24\\.04$/m,
+            assert.match(readFileSync(file, "utf8"), /^    runs-on: ubuntu-24\.04$/m,
               "Current report Playwright runner must stay on reviewed Ubuntu 24.04");
           }
           assert.equal(gitBlobSha(readFileSync(file)), currentSha,
