@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { verifySixPageCredits } from "./tenant-six-scoped-page-credit.mjs";
 import { gitBlobSha, requireDisposable2316Env, verify2316Sources } from "./tenant-2316-ssr-transfer-contract.mjs";
 
 // Literal localhost allows Chromium to retain production-style __Host- Secure cookies
@@ -69,7 +70,17 @@ export function verifyBrowserPdfSources() {
   assert.match(component, /<fieldset disabled=\{busy\}>/);
   const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
   const page = m.scopedPages.find(x => x.path === "src/app/workspace/2316/page.tsx");
-  assert.equal(page?.status,"GAP");
+  if (page?.status === "COVERED") {
+    // A provisional SSR page may be recognized only after six independent
+    // exact-source proofs; PDF issuance/filing still earns no extra credit.
+    assert.equal(verifySixPageCredits(m), 6,
+      "Form 2316 may not borrow a stale page or PDF proof");
+    assert.equal(page.testedBy?.independentlyAccepted, false);
+    assert.equal(page.testedBy?.methodCredits, 0);
+  } else {
+    assert.equal(page?.status, "GAP");
+    assert.equal(page?.testedBy, undefined);
+  }
   assert.equal(page?.reviewedUncertified?.pageActionCredits,0);
   assert.match(m.acceptanceStatus, /^NOT ACCEPTED:/);
   return true;

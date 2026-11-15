@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import {
   requireDisposableBrowserPdf, verifyBrowserPdfSources, CURRENT_SOURCE,
   assertNoProtectedMarkers, assertDeniedResult, assertUnsignedPdf, assert2316SnapshotUnchanged,
@@ -58,13 +59,17 @@ test("only a dedicated, provider-off disposable PostgreSQL 16 job may run",()=>{
     /TENANT_2316_REFUSED|2316 browser\/PDF runner/,
     "Unsafe "+key+" must fail before application/DB imports");
 });
-test("every form, withholding, API and PDF dependency is source-pinned; page stays GAP",()=>{
+test("Form 2316 PDF inputs remain source-pinned; provisional SSR stays unaccepted",()=>{
   assert.equal(verifyBrowserPdfSources(),true);
   assert.equal(Object.keys(CURRENT_SOURCE).length,8);
   const m=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
   const page=m.scopedPages.find(x=>x.path==="src/app/workspace/2316/page.tsx");
-  assert.equal(page.status,"GAP");assert.equal(page.reviewedUncertified.pageActionCredits,0);
-  assert.equal(page.testedBy,undefined);
+  assert.equal(verifySixPageCredits(m), 6);
+  assert.equal(page.status,"COVERED");
+  assert.equal(page.testedBy?.pageProofStatus, "FINAL_HEAD_CI_REQUIRED");
+  assert.equal(page.testedBy?.methodCredits, 0);
+  assert.equal(page.testedBy?.independentlyAccepted, false);
+  assert.equal(page.reviewedUncertified.pageActionCredits,0);
   assert.match(m.acceptanceStatus,/^NOT ACCEPTED/);
 });
 test("negative assertions reject fake 200, leaked data, or a forged PDF",async()=>{

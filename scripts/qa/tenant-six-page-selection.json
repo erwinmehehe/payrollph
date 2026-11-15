@@ -1,0 +1,16 @@
+{
+  "schema": "tenant-six-page-proof-selection-v1",
+  "scope": "six-requested-scoped-SSR-pages",
+  "selected": [
+    "hr",
+    "report",
+    "2316",
+    "prior",
+    "hire",
+    "monitor"
+  ],
+  "policy": "Selected pages remain provisional unless the exact final-head GitHub Actions PG16 jobs pass; any failing page must be removed from selection and manifest regenerated.",
+  "status": "CANDIDATE_EXACT_HEAD_CI_REQUIRED",
+  "independentlyAccepted": false,
+  "productionCertified": false
+}

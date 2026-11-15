@@ -81,11 +81,16 @@ test('each sealed fresh input set equals the full locked-compiler import closure
       // independent synthetic execution receipts verify completely.
       assert.equal(mktCredit,1,"Operator-only MKT-01 receipt required");
       assert.equal(verifyOidcBatchCredits(manifest),2,"Both OIDC protocol receipts required");
+      // Historical payroll receipts cannot absorb the six-page closure. The
+      // separate six-page compat verifier has already source-validated every
+      // candidate and reconstructed the immutable 10/11 ledger.
       const reviewedPageOnlyImports = new Map([
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          'd3067d1a83350f587dfb5c11442ea85d449e73ae'],
+          '361b9d545766d110e9522198432604ac13de47b6'],
+        ['scripts/qa/tenant-six-scoped-page-credit.mjs',
+          'f966e4399d2b7507f4bab6c03dcd20e5d7134743'],
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          'e7341e979612c00151d0351924b89a37476c40a2'],
+          '7c06411860c77bb77484d9fe9f15e83a8793cc6f'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
           'c7f5986f71d1e68df93ba391b891ade2685857fa'],
         ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
