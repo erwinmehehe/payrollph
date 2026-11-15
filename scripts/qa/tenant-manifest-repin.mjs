@@ -63,14 +63,17 @@ const ROUTE_SOURCE_FIELDS = new Set(["currentMembershipGuardLine"]);
 function reviewedForeignSeparationPatchPrivacyDelta({
   path, method, kind, field, proof, cited, value, baseValue, before, now,
 }) {
-  const matchesCurrentMain = (() => {
-    try { return execFileSync("git", ["rev-parse", "origin/main"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() ===
-      execFileSync("git", ["rev-parse", baseRef],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
-    catch { return false; }
+  // GitHub's source-pin workflow passes origin/main, while CI/PG18/DL-01
+  // pass the exact PR base commit SHA. Both MUST resolve to the one reviewed
+  // base; do not trust a drifting origin/main ref or any other commit.
+  const reviewedBaseSha = "1b437fbf2a05053fddb5acf1b50171590a6e788a";
+  const matchesReviewedBase = (() => {
+    try {
+      return execFileSync("git", ["rev-parse", "--verify", baseRef + "^{commit}"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() === reviewedBaseSha;
+    } catch { return false; }
   })();
-  if (!matchesCurrentMain ||
+  if (!matchesReviewedBase ||
       path !== "src/app/api/separation/route.ts" ||
       method.name !== "PATCH" || kind !== "testedBy" ||
       field !== "foreignDenialLine" ||
