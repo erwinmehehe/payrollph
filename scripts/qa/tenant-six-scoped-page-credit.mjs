@@ -12,6 +12,14 @@ import { verifyFivePageCredits, verifyCurrentScopedPageGapCount as verifyHistori
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const SELECTION = "scripts/qa/tenant-six-page-selection.json";
 export const WORKFLOW = ".github/workflows/tenant-six-scoped-pages-credit.yml";
+// Exact, immutable pre-#1978 main snapshot. Some older payroll renewal
+// checks deliberately replay main through an injected reader. Validate that
+// historical evidence against historical source bytes; never substitute
+// its receipt for the current PR-head proof or award additional coverage.
+const HISTORIC_MAIN_MANIFEST_SHA = "c58c26ed95e039e32616a374dbba92eefdca76ef";
+const HISTORIC_MAIN_GENERATOR_SHA = "f966e4399d2b7507f4bab6c03dcd20e5d7134743";
+const HISTORIC_MAIN_2316_PROOF_SHA = "7f4fb04ae57a72ccd981ca4f36771adf2c62cc06";
+const GENERATOR = "scripts/qa/tenant-six-scoped-page-credit.mjs";
 const define = (key, path, pageSha, proof, proofSha, contract, contractSha, anchors, notTested) =>
   ({key, path, pageSha, proof, proofSha, contract, contractSha, anchors, notTested});
 export const TARGETS = Object.freeze([
@@ -113,7 +121,14 @@ function line(source, marker, label) {
     "SIX_PAGE_REFUSED: ambiguous/missing proof anchor " + label + ": " + marker);
   return matches[0];
 }
+function isSealedHistoricMain(read) {
+  if (gitBlobSha(read(MANIFEST)) !== HISTORIC_MAIN_MANIFEST_SHA) return false;
+  assert.equal(gitBlobSha(read(GENERATOR)), HISTORIC_MAIN_GENERATOR_SHA,
+    "SIX_PAGE_REFUSED: historical main manifest requires its exact original generator");
+  return true;
+}
 export function verifySixInputs(read = readFileSync) {
+  const historicMain = isSealedHistoricMain(read);
   const workflow = String(read(WORKFLOW));
   for (const item of [
     "github.event.pull_request.head.sha", "git rev-parse HEAD", "image: postgres:16",
@@ -139,7 +154,9 @@ export function verifySixInputs(read = readFileSync) {
     assert.equal(gitBlobSha(read(t.path)), t.pageSha,
       "SIX_PAGE_REFUSED: changed page source " + t.path);
     if (!selected.includes(t)) continue;
-    assert.equal(gitBlobSha(read(t.proof)), t.proofSha,
+    const proofSha = historicMain && t.key === "2316"
+      ? HISTORIC_MAIN_2316_PROOF_SHA : t.proofSha;
+    assert.equal(gitBlobSha(read(t.proof)), proofSha,
       "SIX_PAGE_REFUSED: changed proof " + t.proof);
     assert.equal(gitBlobSha(read(t.contract)), t.contractSha,
       "SIX_PAGE_REFUSED: changed contract " + t.contract);
@@ -148,9 +165,9 @@ export function verifySixInputs(read = readFileSync) {
     anchors.set(t.key, t.anchors.map((marker, index) =>
       line(String(read(t.proof)), marker, t.key + "/" + index)));
   }
-  return {selected, anchors};
+  return {selected, anchors, historicMain};
 }
-function makeCitation(t, previousReason, lines) {
+function makeCitation(t, previousReason, lines, historicMain = false) {
   assert.ok(typeof previousReason === "string" &&
     previousReason.startsWith("Still GAP:"),
     "SIX_PAGE_REFUSED: prior GAP reason is required");
@@ -159,7 +176,8 @@ function makeCitation(t, previousReason, lines) {
     foreignDenialLine: lines[1], unchangedDbLine: lines[2],
     forgedSelectorLine: lines[3], revokedDenialLine: lines[4],
     victimIdOrderingLine: lines[5],
-    sourcePageBlobSha: t.pageSha, proofBlobSha: t.proofSha,
+    sourcePageBlobSha: t.pageSha,
+    proofBlobSha: historicMain && t.key === "2316" ? HISTORIC_MAIN_2316_PROOF_SHA : t.proofSha,
     contractFile: t.contract, contractBlobSha: t.contractSha,
     workflowFile: WORKFLOW, proofFamily: t.key,
     previousGapReason: previousReason,
@@ -182,7 +200,7 @@ function reason(t) {
 }
 const NOTE_PREFIX = " Six page-only SOLO_VERIFIED_DEV_RECOVERY candidates:";
 export function expectedSixPageManifest(input, read = readFileSync) {
-  const {selected, anchors} = verifySixInputs(read);
+  const {selected, anchors, historicMain} = verifySixInputs(read);
   const m = structuredClone(input);
   assert.equal(m.scopedPages.length, 21, "SIX_PAGE_REFUSED: original 21 pages changed");
   for (const t of TARGETS) {
@@ -195,7 +213,7 @@ export function expectedSixPageManifest(input, read = readFileSync) {
       continue;
     }
     const previous = row.status === "GAP" ? row.reason : row.testedBy?.previousGapReason;
-    const expected = makeCitation(t, previous, anchors.get(t.key));
+    const expected = makeCitation(t, previous, anchors.get(t.key), historicMain);
     if (row.status === "GAP") {
       assert.equal(row.testedBy, undefined, "SIX_PAGE_REFUSED: hidden stale credit");
       row.status = "COVERED";
@@ -264,14 +282,14 @@ export function expectedSixPageManifest(input, read = readFileSync) {
   return m;
 }
 export function historicSixPageView(input, read = readFileSync) {
-  const {selected, anchors} = verifySixInputs(read);
+  const {selected, anchors, historicMain} = verifySixInputs(read);
   const m = structuredClone(input);
   for (const t of selected) {
     const row = m.scopedPages.find(p => p.path === t.path);
     assert.equal(row?.status, "COVERED", "SIX_PAGE_REFUSED: missing selected page");
     assert.equal(row.reason, reason(t), "SIX_PAGE_REFUSED: reason altered");
     assert.deepEqual(row.testedBy, makeCitation(t, row.testedBy?.previousGapReason,
-      anchors.get(t.key)), "SIX_PAGE_REFUSED: unproven source receipt");
+      anchors.get(t.key), historicMain), "SIX_PAGE_REFUSED: unproven source receipt");
     row.reason = row.testedBy.previousGapReason;
     row.status = "GAP";
     delete row.testedBy;
