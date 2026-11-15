@@ -43649,7 +43649,7 @@
       ],
       "hasAction": false,
       "status": "PUBLIC-BY-DESIGN",
-      "reason": "PUBLIC-BY-DESIGN (owner-approved recruiting boundary): anonymous Careers SSR accepts only a canonical explicit positive employer ID, then projects employer name and published/open vacancies with the five approved public job fields. Exact-source fictional PG16 HTTP proof must pass on this PR head. No private tenant entitlement, applicant/employee/payroll reads, new API method credit, production activation, or independent security/privacy acceptance.",
+      "reason": "PUBLIC-BY-DESIGN (owner-approved recruiting boundary): anonymous Careers SSR accepts only a canonical explicit positive employer ID, then projects employer name and explicitly published requisitions (open/interviewing) linked to a same-employer open position with the five approved public job fields. Exact-source fictional PG16 HTTP proof must pass on this PR head. No private tenant entitlement, applicant/employee/payroll reads, new API method credit, production activation, or independent security/privacy acceptance.",
       "reviewedUncertified": {
         "kind": "public-careers-SSR-GET-PG16-canonical-selector-unaccepted",
         "originalPageBlobSha": "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3",
@@ -43672,6 +43672,10 @@
         "proofBlobSha": "6efef6eb6965d1deba1fe8d64446936a09553813",
         "workflowFile": ".github/workflows/tenant-edg01-careers-public-get-http.yml",
         "workflowBlobSha": "c9f89477a1e013d3ae4c7c50b1d737df1d257269",
+        "predicateFile": "src/lib/careers-privacy-gates.ts",
+        "predicateBlobSha": "f878db55d51c4f8a0a6ab4893ef8af5e80f4dff6",
+        "clientFile": "src/components/careers-board.tsx",
+        "clientBlobSha": "17abb6d811886a18891900a113f7b616f4c8b7d2",
         "publicJobFields": [
           "id",
           "title",
