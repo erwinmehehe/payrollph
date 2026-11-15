@@ -140,7 +140,7 @@ export function historicalCareersPageView(manifest, read=readFileSync) {
   delete page.publicBoundary;
   assert.ok(view.acceptanceStatus.endsWith(PUBLIC_NOTE));
   view.acceptanceStatus=view.acceptanceStatus.slice(0, -PUBLIC_NOTE.length).replace(
-    /^NOT ACCEPTED: (\\d+) API methods and 0 page\\/action GAPs remain/,
+    /^NOT ACCEPTED: (\d+) API methods and 0 page\/action GAPs remain/,
     "NOT ACCEPTED: $1 API methods and 1 page/action GAPs remain");
   return view;
 }
