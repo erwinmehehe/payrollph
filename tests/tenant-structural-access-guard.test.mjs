@@ -1,5 +1,6 @@
 import { TARGETS, verifyFivePageCredits, verifyCurrentScopedPageGapCount, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { selectedTargets, verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
+import {selectedTargets as selectedFour, verifyFourPageCredits} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 /**
  * All-API structural check: every direct/delegated route-to-DB call must show
  * an employer-scoped access mechanism OR a source-SHA-pinned exception with a
@@ -137,6 +138,9 @@ test("all scoped pages stay source-pinned; six further pages require independent
   const workerPath = "src/app/hcm/worker-360/page.tsx";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
   const six = selectedTargets();
+  const four = selectedFour();
+  assert.equal(verifyFourPageCredits(manifest), four.length,
+    "Additional four page receipts must be source/contract sealed");
   assert.equal(verifySixPageCredits(manifest), six.length,
     "Each six-page candidate must pass the exact-source and legacy evidence review");
   assert.equal(verifyFivePageCredits(manifest), TARGETS.length,
@@ -144,7 +148,7 @@ test("all scoped pages stay source-pinned; six further pages require independent
   assert.deepEqual(covered.map((page) => page.path).sort(),
     ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath,
       workerPath, ...TARGETS.map(target => target.path),
-      ...six.map(target => target.path)].sort(),
+      ...six.map(target => target.path), ...four.map(target => target.path)].sort(),
     "Static route analysis cannot silently certify any additional page");
   assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length,
     verifyCurrentScopedPageGapCount(manifest),
@@ -159,7 +163,8 @@ test("all scoped pages stay source-pinned; six further pages require independent
       continue;
     }
     if (TARGETS.some(target => target.path === page.path) ||
-        six.some(target => target.path === page.path)) {
+        six.some(target => target.path === page.path) ||
+        four.some(target => target.path === page.path)) {
       // Both distinct proof generators have validated exact source/proof bytes,
       // own/foreign/victim SQL anchors and the explicit nonacceptance boundary.
       assert.equal(page.testedBy?.methodCredits, 0);

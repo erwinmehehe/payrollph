@@ -1,7 +1,7 @@
 /**
  * Strict source-only guard for the distinct PII-02 employee schedule SSR GET.
- * This page remains an unaccepted manifest GAP: no credit can be inferred
- * from a successful isolated PG16 test without independent review.
+ * This historical source-only view remains an unaccepted GAP. Current page-only
+ * credit requires the separate strict four-page verifier and real final-head CI.
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -39,7 +39,7 @@ export function verifyUnacceptedSelfSchedulePage({ entry, currentBlob, originalB
     proofFile: "scripts/qa/tenant-self-schedule-page-http.mjs",
     proofBlobSha: "9b1fd190a2b2833b5ca6c4cf0bcab8a13feea050",
     contractFile: "tests/tenant-self-schedule-page-contract.test.mjs",
-    contractBlobSha: "1260712b620ce35063d2c64b77369309cb3d4cfe",
+    contractBlobSha: "5e606008a4f50550cb0357f3f2d1e1a6698a8551",
     workflowFile: ".github/workflows/tenant-self-schedule-page-http.yml",
     workflowBlobSha: "244f44c4bc6c320341eaf20377d97c08aba9c94c",
     ownPositiveLine: 98,

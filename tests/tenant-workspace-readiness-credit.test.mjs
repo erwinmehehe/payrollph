@@ -6,6 +6,7 @@ import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta 
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFour} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -35,10 +36,12 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   const m = manifest();
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
-  // A six-page candidate is counted as five remaining GAPs only if all
-  // new source/execution anchors pass; the old 11-GAP ledger is still sealed.
+  // The four new page-only receipts verify independently of the six merged
+  // receipts. Keep the original six-page and 10/11 historical views sealed.
+  assert.equal(verifyFourPageCredits(m), selectedFour().length);
   assert.equal(verifySixPageCredits(m), selectedTargets().length);
-  assert.equal(verifyCurrentScopedPageGapCount(m), 5);
+  assert.equal(verifyCurrentScopedPageGapCount(m), 1);
+  assert.equal(verifyCurrentScopedPageGapCount(historicFourPageView(m)), 5);
   assert.equal(verifyCurrentScopedPageGapCount(historicSixPageView(m)), 11);
   const base=baseTenantManifest();
   if(base){const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;const approvalDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;const delta=base.manifest.allApiRouteFiles[ROUTE_PATH].methods[0].status==='GAP'?1:0;const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP' && m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED'?1:0;

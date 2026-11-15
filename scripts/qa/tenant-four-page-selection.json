@@ -1,0 +1,14 @@
+{
+  "schema": "tenant-four-page-proof-selection-v1",
+  "scope": "four-scoped-SSR-pages-only",
+  "selected": [
+    "action",
+    "org",
+    "billing",
+    "ess"
+  ],
+  "policy": "A selected page may retain provisional credit only after its own exact-final-head fictional PG16 HTTP proof passes; ESS also requires the companion same-employer receipt API proof. Failing/blocked pages must be deselected and the generator rerun. Never credit API methods.",
+  "status": "CANDIDATE_EXACT_HEAD_CI_REQUIRED",
+  "independentlyAccepted": false,
+  "productionCertified": false
+}

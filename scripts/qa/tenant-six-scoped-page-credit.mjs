@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { verifyFivePageCredits, verifyCurrentScopedPageGapCount as verifyHistoricScopedPageGapCount } from "./tenant-five-scoped-page-credit.mjs";
+import { verifyFourPageCredits, historicFourPageView } from "./tenant-four-scoped-page-credit.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const SELECTION = "scripts/qa/tenant-six-page-selection.json";
@@ -182,6 +183,14 @@ function reason(t) {
 }
 const NOTE_PREFIX = " Six page-only SOLO_VERIFIED_DEV_RECOVERY candidates:";
 export function expectedSixPageManifest(input, read = readFileSync) {
+  // Four later, disjoint page-only proofs may coexist with the six original
+  // receipts, but ONLY after their independent current-source generator
+  // validates the entire API ledger and every specific page/proof/contract SHA.
+  if (input.scopedPages.filter(p => p.status === "COVERED").length === 20) {
+    assert.equal(verifyFourPageCredits(input, read), 4,
+      "SIX_PAGE_REFUSED: unreviewed four-page overlay");
+    return structuredClone(input);
+  }
   const {selected, anchors} = verifySixInputs(read);
   const m = structuredClone(input);
   assert.equal(m.scopedPages.length, 21, "SIX_PAGE_REFUSED: original 21 pages changed");
@@ -264,8 +273,13 @@ export function expectedSixPageManifest(input, read = readFileSync) {
   return m;
 }
 export function historicSixPageView(input, read = readFileSync) {
+  // First validate and remove only the later four-page overlay. Historical
+  // six-page proofs must still reconstruct precisely the original 10/11 view.
+  const source = input.scopedPages.filter(p => p.status === "COVERED").length === 20
+    ? (verifyFourPageCredits(input, read), historicFourPageView(input, read))
+    : input;
   const {selected, anchors} = verifySixInputs(read);
-  const m = structuredClone(input);
+  const m = structuredClone(source);
   for (const t of selected) {
     const row = m.scopedPages.find(p => p.path === t.path);
     assert.equal(row?.status, "COVERED", "SIX_PAGE_REFUSED: missing selected page");
@@ -298,6 +312,11 @@ export function verifySixPageCredits(m, read = readFileSync) {
  */
 export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
   const gaps = manifest.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps === 1) {
+    assert.equal(verifyFourPageCredits(manifest, read), 4,
+      "SIX_PAGE_REFUSED: all four source-exact additional page proofs required");
+    return gaps;
+  }
   if (gaps === 11 || gaps === 16)
     return verifyHistoricScopedPageGapCount(manifest, read);
   // The SSO caller reproof deliberately withdraws exactly 19 older API
@@ -368,7 +387,9 @@ function main() {
   else assert.equal(raw, output, "SIX_PAGE_REFUSED: manifest not generated");
   assert.equal(verifySixPageCredits(expected), selectedTargets().length);
   console.log(JSON.stringify({
-    evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY", beforeCovered: 10, beforeGaps: 11,
+    evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
+    beforeCovered: expected.scopedPages.filter(p => p.status === "COVERED").length - selectedTargets().length,
+    beforeGaps: expected.scopedPages.filter(p => p.status === "GAP").length + selectedTargets().length,
     afterCovered: expected.scopedPages.filter(p => p.status === "COVERED").length,
     afterGaps: expected.scopedPages.filter(p => p.status === "GAP").length,
     newApiMethodCredits: 0, selected: selectedTargets().map(p => p.key),

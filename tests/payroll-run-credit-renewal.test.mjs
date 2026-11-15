@@ -86,11 +86,13 @@ test('each sealed fresh input set equals the full locked-compiler import closure
       // candidate and reconstructed the immutable 10/11 ledger.
       const reviewedPageOnlyImports = new Map([
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          '361b9d545766d110e9522198432604ac13de47b6'],
+          '6d41c7f76cce4c6835994912b56a35eeb4315109'],
         ['scripts/qa/tenant-six-scoped-page-credit.mjs',
-          'f966e4399d2b7507f4bab6c03dcd20e5d7134743'],
+          '2083b4345a62af8c1aeb461c453a4628b06836da'],
+        ['scripts/qa/tenant-four-scoped-page-credit.mjs',
+          '43f4b303e6c2fd957f3301f4a5418584bda26306'],
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          '7c06411860c77bb77484d9fe9f15e83a8793cc6f'],
+          '56c6f539f4e21c91533e8ca85fbc61c2dbbf77cc'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
           'c7f5986f71d1e68df93ba391b891ade2685857fa'],
         ['scripts/qa/tenant-mkt01-marketing-credit.mjs',

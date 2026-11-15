@@ -16,6 +16,7 @@ import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { verifyOidcBatchCredits, historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 import { expectedSixPageManifest, historicSixPageView, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
+import { expectedFourPageManifest, historicFourPageView, selectedTargets as selectedFourTargets } from "./tenant-four-scoped-page-credit.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -24,6 +25,8 @@ const WORKER_VERIFIER = "scripts/qa/tenant-five-method-credit-verify.mjs";
 const HISTORICAL_PROBE_BLOB = "fe310ca93f2d6ae2fd48ce72d2ee1cf451b55e20";
 const REVIEWED_PROBE_BLOB = "48a62c81c7d20b1d6980e2f9d610bbb9afdb7173";
 const REVIEWED_SIX_PROBE_BLOB = "9c9aa847986922dbb6bd2c4cf2c73f7737630fd7";
+const REVIEWED_FOUR_PROBE_BLOB = "46b2282ae94331381ec199428dee35fee9589260";
+const REVIEWED_FOUR_GENERATOR_BLOB = "6d41c7f76cce4c6835994912b56a35eeb4315109";
 const REVIEWED_GENERATOR_BLOB = "08335292d7534ac3618f59b6959bbd8133483dd7";
 const REVIEWED_GENERATOR_MKT_BLOB = "9cba2a1198ae02c5fe6d58c50fd2e2771c8ceb7a";
 const REVIEWED_WORKFLOW_BLOB = "4d475e51c601583ba4212e2c327207c5bb1b34dc";
@@ -34,6 +37,7 @@ const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const ORIGINAL = '  assert.equal(pageGaps.length, (await import("./tenant-five-method-credit-verify.mjs")).verifyWorker360PageCredit(manifest), "Worker 360 SSR gap reduction requires source-pinned PG16 and review proof");';
 const REVISED = '  assert.equal(pageGaps.length, (await import("./tenant-five-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires the five exact-source proofs and original Worker 360 verification");';
 const REVISED_SIX = '  assert.equal(pageGaps.length, (await import("./tenant-six-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires the five exact-source proofs and original Worker 360 verification");';
+const REVISED_FOUR = '  assert.equal(pageGaps.length, (await import("./tenant-four-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires the five exact-source proofs and original Worker 360 verification");';
 
 const REVIEWED_PAGES = Object.freeze([
   ["src/app/app/engagement/page.tsx", "6e84c87f63816042a847e4fbccfd970b84ceffa3", "scripts/qa/tenant-people-pages-http.mjs", "fad1f0ad45d41d158cee968e7b9de0188ed9030e"],
@@ -53,14 +57,17 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   // Reconstruct the exactly reviewed five-page probe before reconstructing
   // the immutable original. Neither swap touches the real 42-request
   // positive/foreign/victim-denial/snapshot assertions.
-  const sixProbe = renewalBlob(probe) === REVIEWED_SIX_PROBE_BLOB;
-  // Historical main files are supplied by the negative-control tests through
-  // the injected reader. Require the exact original five-page blob there.
-  // The live six-page ledger cannot borrow that old probe.
+  const fourProbe = renewalBlob(probe) === REVIEWED_FOUR_PROBE_BLOB;
+  const sixProbe = fourProbe || renewalBlob(probe) === REVIEWED_SIX_PROBE_BLOB;
+  // A new source may reconstruct the old payroll input only through the
+  // separately source-sealed four -> six -> five -> original equivalence.
   assert.ok(sixProbe || renewalBlob(probe) === REVIEWED_PROBE_BLOB,
     "PAGE_COMPAT_REFUSED: unknown page-probe source");
+  const reviewedSix = fourProbe ? uniqueSwap(probe, REVISED_FOUR, REVISED_SIX) : probe;
+  if (sixProbe) assert.equal(renewalBlob(reviewedSix), REVIEWED_SIX_PROBE_BLOB,
+    "PAGE_COMPAT_REFUSED: current probe does not reconstruct sealed six-page source");
   const reviewedFive = sixProbe
-    ? uniqueSwap(probe, REVISED_SIX, REVISED)
+    ? uniqueSwap(reviewedSix, REVISED_SIX, REVISED)
     : probe;
   assert.equal(renewalBlob(reviewedFive), REVIEWED_PROBE_BLOB,
     "PAGE_COMPAT_REFUSED: original five-page probe does not reconstruct");
@@ -70,10 +77,26 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   assert.equal(probe.split("\n").length, historical.split("\n").length,
     "PAGE_COMPAT_REFUSED: historical source-line pins must be preserved");
   const live = JSON.parse(String(read(MANIFEST)));
-  const coveredPages = live.scopedPages.filter(p => p.status === "COVERED").length;
-  const openPages = live.scopedPages.filter(p => p.status === "GAP").length;
+  const liveCovered = live.scopedPages.filter(p => p.status === "COVERED").length;
+  const liveOpen = live.scopedPages.filter(p => p.status === "GAP").length;
+  const fourExpanded = liveCovered === 20 && liveOpen === 1;
+  let sixLedger = live;
+  if (fourExpanded) {
+    assert.equal(fourProbe, true,
+      "PAGE_COMPAT_REFUSED: twenty covered pages require reviewed four-page source");
+    assert.equal(selectedFourTargets(read).length, 4,
+      "PAGE_COMPAT_REFUSED: all four source-pinned receipts required");
+    // Only page-level checks run here: historic payroll source seals must
+    // not recursively validate a newer generation of their own verifier.
+    assert.deepEqual(live, expectedFourPageManifest(live, read),
+      "PAGE_COMPAT_REFUSED: four-page source, receipt, or API ledger mismatch");
+    sixLedger = historicFourPageView(live, read);
+  } else assert.equal(fourProbe, false,
+    "PAGE_COMPAT_REFUSED: current four-page probe cannot borrow another ledger");
+  const coveredPages = sixLedger.scopedPages.filter(p => p.status === "COVERED").length;
+  const openPages = sixLedger.scopedPages.filter(p => p.status === "GAP").length;
   const expanded = coveredPages !== 10 || openPages !== 11;
-  let manifest = live;
+  let manifest = sixLedger;
   if (expanded) {
     assert.equal(sixProbe, true,
       "PAGE_COMPAT_REFUSED: new page credit requires the new six-page probe guard");
@@ -89,9 +112,9 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     // compatibility assertions below validate the reconstructed five pages.
     assert.equal(selectedTargets(read).length, 6,
       "PAGE_COMPAT_REFUSED: an unreviewed subset cannot borrow payroll evidence");
-    assert.deepEqual(live, expectedSixPageManifest(live, read),
+    assert.deepEqual(sixLedger, expectedSixPageManifest(sixLedger, read),
       "PAGE_COMPAT_REFUSED: six-page current-source receipts fail regeneration");
-    manifest = historicSixPageView(live, read);
+    manifest = historicSixPageView(sixLedger, read);
   }
   const marketing = manifest.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
     .find(method => method.name === "GET");
@@ -110,6 +133,18 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   }
   const pinnedGenerator = hasMkt01 ? REVIEWED_GENERATOR_MKT_BLOB : REVIEWED_GENERATOR_BLOB;
   let generator = String(read(GENERATOR));
+  // Reconstruct the exact six-page-aware historical generator before any
+  // immutable payroll compiler source hash is reused.
+  if (fourExpanded) {
+    assert.equal(renewalBlob(generator), REVIEWED_FOUR_GENERATOR_BLOB,
+      "PAGE_COMPAT_REFUSED: unknown four-page-aware historical generator");
+    generator = uniqueSwap(generator, "export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === \"GAP\").length;\n  if (gaps === 1) {\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      \"SCOPED_PAGE_REFUSED: exact four additional page receipts required\");\n    return gaps;\n  }", "export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === \"GAP\").length;");
+    generator = uniqueSwap(generator, "export function verifyFivePageCredits(m, read = readFileSync) {\n  if (m.scopedPages.filter(p => p.status === \"COVERED\").length === 20) {\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      \"FIVE_PAGE_CREDIT_REFUSED: four additional source-sealed pages not verified\");\n    return TARGETS.length;\n  }\n  // Later six-page candidates", "export function verifyFivePageCredits(m, read = readFileSync) {\n  // Later six-page candidates");
+    generator = uniqueSwap(generator, "export function historicWorker360ProofView(manifest) {\n  // A current 20-covered ledger must first independently validate all four\n  // new page receipts, then reconstruct the original 16-covered ledger.\n  // The original six-page receipt and Worker360 historical checks stay intact.\n  const current = manifest.scopedPages.filter(p => p.status === \"COVERED\").length === 20\n    ? (verifyFourPageCredits(manifest), historicFourPageView(manifest))\n    : manifest;\n  const source = current.scopedPages.filter(p => p.status === \"COVERED\").length === 16\n    ? historicSixPageView(current)\n    : current;\n  const old = structuredClone(source);", "export function historicWorker360ProofView(manifest) {\n  // Preserve the exact historical Worker360 proof view. A 16-covered ledger\n  // may be projected ONLY after all six new source and receipt anchors match.\n  // This is a read-only validation clone, not a new credit or approval.\n  const source = manifest.scopedPages.filter(p => p.status === \"COVERED\").length === 16\n    ? historicSixPageView(manifest)\n    : manifest;\n  const old = structuredClone(source);");
+    generator = uniqueSwap(generator, "import { historicSixPageView, verifySixPageCredits } from \"./tenant-six-scoped-page-credit.mjs\";\nimport { historicFourPageView, verifyFourPageCredits } from \"./tenant-four-scoped-page-credit.mjs\";", "import { historicSixPageView, verifySixPageCredits } from \"./tenant-six-scoped-page-credit.mjs\";");
+    assert.equal(renewalBlob(generator), "361b9d545766d110e9522198432604ac13de47b6",
+      "PAGE_COMPAT_REFUSED: approved six-page generator did not reconstruct");
+  }
   // Reconstruct the previously reviewed five-page generator byte for byte.
   // Its runtime proof guards now admit only source-verified six-page overlays;
   // the original historical compiler inputs and method credits are unchanged.
