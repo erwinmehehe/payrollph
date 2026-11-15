@@ -5,6 +5,7 @@ import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersess
 import { verifyArchitecturalRelabelDelta, yearEndHoldDelta, yearEndRenewalDelta } from './helpers/tenant-architectural-classification-delta.mjs';
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
@@ -17,7 +18,11 @@ import {
   verifyWorkspaceReadinessReceipt, verifyWorkspaceReadinessCredit,
 } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 
-const manifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const manifest = () => {
+  const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.equal(verifyFourPageCredits(live), selectedFourPages().length);
+  return historicFourPageView(live);
+};
 const clone = x => structuredClone(x);
 
 test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence", () => {

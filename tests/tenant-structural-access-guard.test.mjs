@@ -1,4 +1,5 @@
 import { TARGETS, verifyFivePageCredits, verifyCurrentScopedPageGapCount, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 /**
  * All-API structural check: every direct/delegated route-to-DB call must show
  * an employer-scoped access mechanism OR a source-SHA-pinned exception with a
@@ -13,7 +14,9 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { inspectRouteHandler, traceFlaggedSource } from "../scripts/qa/tenant-delegated-trace.mjs";
 
-const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const liveFourPageManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifyFourPageCredits(liveFourPageManifest), selectedFourPages().length);
+const manifest = historicFourPageView(liveFourPageManifest);
 const inventory = manifest.allApiRouteFiles;
 const acceptable = new Set(["GAP", "COVERED", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
 function blobSha(bytes) {

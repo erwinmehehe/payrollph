@@ -4,10 +4,14 @@ import test from "node:test";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 import { verifyStaffingPolicyGetCredit, STAFFING_GET_ROUTE, STAFFING_GET_HELPER_BLOBS } from
   "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
-const load = () => JSON.parse(readFileSync(
-  "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const load = () => {
+  const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.equal(verifyFourPageCredits(live), selectedFourPages().length);
+  return historicFourPageView(live);
+};
 const clone = v => JSON.parse(JSON.stringify(v));
 test("source-current dual-mode PG16 proves one provisional staffing GET method only", () => {
   const m = load();

@@ -26,7 +26,7 @@ export async function probeManifestBusinessPages(f, { request, makeSession, expe
   const pages = manifest.scopedPages;
   assert.equal(pages.length, 21);
   const pageGaps = pages.filter((page) => page.status === "GAP");
-  assert.equal(pageGaps.length, (await import("./tenant-five-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires the five exact-source proofs and original Worker 360 verification");
+  assert.equal(pageGaps.length, (await import("./tenant-four-scoped-page-credit.mjs")).verifyCurrentScopedPageGapCount(manifest), "Scoped page GAP reduction requires all newly selected final-head source-sealed proofs plus the original five and Worker 360");
   const runSnapshot = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, f.orgs[0].id)).orderBy(payrollRuns.id);
   const employeeSnapshot = await db.select().from(employees)

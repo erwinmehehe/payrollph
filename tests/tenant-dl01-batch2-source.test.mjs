@@ -1,4 +1,5 @@
 import { TARGETS, verifyFivePageCredits, historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 /**
  * Source-only fail-closed wiring test. Never substitutes for the real HTTP/PG16
  * three-employer run; a method remains GAP until linked to completed proof.
@@ -13,7 +14,9 @@ import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-cred
 const path = "scripts/qa/tenant-dl01-batch2-http.mjs";
 const src = readFileSync(path, "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
-const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const liveFourPageManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifyFourPageCredits(liveFourPageManifest), selectedFourPages().length);
+const manifest = historicFourPageView(liveFourPageManifest);
 const keys = [
   ["POST", "compliance/statutory-remittances/posting-import"],
   ["GET", "compliance/contribution-issues/evidence"],

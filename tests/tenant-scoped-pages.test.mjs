@@ -3,8 +3,11 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 
-const m = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const liveFour = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifyFourPageCredits(liveFour), selectedFourPages().length);
+const m = historicFourPageView(liveFour);
 const pageProbe = readFileSync("scripts/qa/tenant-scoped-page-probes.mjs", "utf8");
 const harness = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
 test("all 21 business-ID pages have a real-HTTP two-attacker navigation probe", () => {

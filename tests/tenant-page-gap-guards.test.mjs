@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TARGETS, verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
 import { readFileSync } from "node:fs";
 
 // Source-order regression only; this is not a real HTTP/PG16 isolation receipt.
@@ -20,7 +21,14 @@ const gapPaths = Object.freeze([
 ]);
 
 test("only uncredited page/action gaps remain explicit", () => {
-  const manifest = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
+  const live = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
+  assert.equal(verifyFourPageCredits(live), selectedFourPages().length);
+  const manifest = historicFourPageView(live);
+  const opened = live.scopedPages.filter(row => row.status === "GAP").map(row => row.path).sort();
+  const previous = manifest.scopedPages.filter(row => row.status === "GAP").map(row => row.path);
+  const selected = new Set(selectedFourPages().map(row => row.path));
+  assert.deepEqual(opened, previous.filter(path => !selected.has(path)).sort(),
+    "Uncredited live GAPs must equal historical GAPs minus strictly sourced selection");
   assert.deepEqual(manifest.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), [...gapPaths].sort());
   assert.equal(manifest.scopedPages.length, 21);
