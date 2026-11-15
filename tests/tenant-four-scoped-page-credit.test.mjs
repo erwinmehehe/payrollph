@@ -50,7 +50,10 @@ test("new page-only ledger is generator-exact, no historical or API status chang
   assert.equal(verifyFourPageCredits(live), selectedTargets().length);
   assert.equal(read(MANIFEST), JSON.stringify(expectedFourPageManifest(live), null, 2) + "\n");
   const original = historic();
-  assert.deepEqual(counts(live), {\n    covered: counts(original).covered + selectedTargets().length,\n    gap: counts(original).gap - selectedTargets().length,\n  });
+  assert.deepEqual(counts(live), {
+    covered: counts(original).covered + selectedTargets().length,
+    gap: counts(original).gap - selectedTargets().length,
+  });
   assert.deepEqual(counts(original), {covered:16, gap:5});
   assert.equal(verifySixPageCredits(original), 6);
   assert.equal(verifyFivePageCredits(original), 5);
