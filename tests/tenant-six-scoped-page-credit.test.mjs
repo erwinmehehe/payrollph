@@ -108,7 +108,8 @@ test("fail closed when six-page source, proof, classification or totals are alte
 
 test("SSO zero-credit replay may downgrade exactly 19 API methods, never page evidence", () => {
   const fixture = zeroCreditSsoProofFixture(live);
-  assert.deepEqual(fromManifest(live), {covered: 20, gap: 1});
+  assert.deepEqual(fromManifest(live), {covered: 20, gap: 0});
+  assert.equal(live.scopedPages.filter(p=>p.status==="PUBLIC-BY-DESIGN").length,1);
   assert.equal(fixture.metrics.gap, live.metrics.gap + 19);
   assert.deepEqual(fixture.scopedPages, live.scopedPages);
   const samlMetadataPath = "src/app/api/auth/saml/metadata/[providerId]/route.ts";
@@ -125,7 +126,7 @@ test("SSO zero-credit replay may downgrade exactly 19 API methods, never page ev
   process.env.GITHUB_ACTIONS = "true";
   process.env.TENANT_SECOND_PASS_MODE = "isolated-ci-only";
   try {
-    assert.equal(verifyFourCurrent(fixture), 1,
+    assert.equal(verifyFourCurrent(fixture), 0,
       "Exact withdrawn-method fixture must retain all ten separately proven page credits");
     const altered = structuredClone(fixture);
     altered.scopedPages[0].reason += " TEST-TAMPER";
