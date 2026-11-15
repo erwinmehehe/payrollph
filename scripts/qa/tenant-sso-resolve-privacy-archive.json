@@ -1,0 +1,31 @@
+{
+  "schema": "sso-resolve-preclassification-archive-v1",
+  "method": {
+    "name": "POST",
+    "line": 14,
+    "status": "GAP",
+    "reason": "Still GAP: anonymous SSO discovery now binds each verified email domain to an enabled OIDC provider in the same employer and refuses malformed selectors or non-distributed throttling. A dedicated fictional PG16 production-mode HTTP candidate is required on the exact final head; public-discovery policy, independent identity/security review and complete method acceptance remain pending; zero credits. SSO first-pilot entrypoint now defaults OFF via exact-true runtime hold, with enabled-mode acceptance and independent identity/security review still PENDING. No new credit.",
+    "testedBy": null,
+    "reviewedUncertified": {
+      "kind": "sso-discovery-domain-provider-org-match-PG16-HTTP-uncredited",
+      "originalRouteBlobSha": "ecf9eb2ff759a4b39300abea5193356038aaad71",
+      "routeBlobSha": "d9366bd1fe6cb4bf00e33b166969cd1dfc8b0299",
+      "helperFile": "src/lib/tenant-sso-discovery.ts",
+      "helperBlobSha": "713b25dd4afad7a58afc5a01b69e55012d1b7613",
+      "proofFile": "scripts/qa/tenant-sso-discovery-http.mjs",
+      "proofBlobSha": "0024c4376c0dc771ff71eea697b91ec8c74aad3a",
+      "proofContractFile": "scripts/qa/tenant-sso-discovery-proof.mjs",
+      "proofContractBlobSha": "b4df7d81271f143172214d43daf6440b478ef0c9",
+      "contractTestFile": "tests/tenant-sso-discovery-contract.test.mjs",
+      "contractTestBlobSha": "bcbb051e1d3d680d646729dd01f1ddbbacc35085",
+      "unitTestFile": "tests/tenant-sso-discovery.test.ts",
+      "unitTestBlobSha": "ed023a12d7ebecbe4a5f4186932ef6f7d5ac2ad1",
+      "workflowFile": ".github/workflows/tenant-sso-discovery-http.yml",
+      "workflowBlobSha": "d917ba748c8deba27bdeaff766504d92a986c1a0",
+      "coverageCredits": 0,
+      "exactHeadPg16Http": "PENDING",
+      "independentSecurityReview": "PENDING",
+      "productionCertified": false
+    }
+  }
+}
