@@ -9353,7 +9353,19 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
   assert.equal(proof.evidence, "https://github.com/erwinmehehe/payrollph/actions/runs/" + proof.workflowRunId + "/job/" + proof.workflowJobId);
   assert.equal(proof.proofBlobSha, gitBlobSha(Buffer.from(harness)), "the proof changed; re-run the workflow and re-credit");
   assert.equal(proof.testBlobSha, gitBlobSha(readFileSync("tests/tenant-bir1604c-candidate-post-contract.test.mjs")));
-  assert.equal(proof.workflowBlobSha, gitBlobSha(Buffer.from(workflow)));
+  // Historical passing BIR POST proof must retain its ORIGINAL workflow hash.
+  // The only current workflow drift is an exact two-runner Ubuntu 24.04 pin:
+  // Playwright 1.55 cannot install Chromium on ubuntu26.04-x64. This does not
+  // re-credit the historical run as an exact-head run of the revised workflow.
+  assert.equal(proof.workflowBlobSha, "2df699021ea770cecb0d09837415ff74ed622bb4",
+    "Historical BIR receipt/workflow hash must not be rewritten");
+  assert.equal(gitBlobSha(Buffer.from(workflow)), "d25561c9d6e8f6a98168a79bd3dd815c2be0dfdd",
+    "Only the exact reviewed CI runner repair is permitted");
+  assert.equal(workflow.split("runs-on: ubuntu-24.04").length - 1, 2,
+    "Both synthetic BIR jobs must use the Playwright-compatible Ubuntu runner");
+  assert.equal(gitBlobSha(Buffer.from(workflow.replaceAll(
+    "runs-on: ubuntu-24.04", "runs-on: ubuntu-latest"))), proof.workflowBlobSha,
+    "Every byte other than the two CI runner labels must match the historical receipt");
   assert.equal(proof.routeBlobSha, api.gitBlobSha);
   assert.equal(proof.line, proof.ownPositiveLine);
   assert.equal(proof.ownPositiveLine, proof.ownDownloadLine);
