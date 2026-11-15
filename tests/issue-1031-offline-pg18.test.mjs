@@ -5,7 +5,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Client } from "pg";
-import { buildIssue1031OfflineExportSql } from "../scripts/issue-1031-offline-export-sql.ts";
 import { parseOfflineExport } from "../scripts/lib/issue-1031-offline-parity.mjs";
 
 const DISPOSABLE_URL = "postgresql://fixture:fixture@127.0.0.1:5432/issue1031_offline_fixture";
@@ -18,6 +17,7 @@ test("V2 SQL runs on a disposable PG18 and exports structural index metadata", {
   assert.equal(providedUrl, DISPOSABLE_URL, "refuse any other database identity");
   assert.equal(process.env.DATABASE_URL ?? "", "", "do not accept application DB credentials");
   assert.equal(process.env.PRODUCTION_DATABASE_URL ?? "", "", "no production credentials");
+  const { buildIssue1031OfflineExportSql } = await import("../scripts/issue-1031-offline-export-sql.ts");
   const client = new Client({connectionString: DISPOSABLE_URL, connectionTimeoutMillis: 5000});
   await client.connect();
   try {
