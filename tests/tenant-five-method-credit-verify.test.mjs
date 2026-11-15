@@ -5,12 +5,14 @@ import test from "node:test";
 import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { tallyTenantManifest } from "./helpers/tenant-counts.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
-import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 
 const readManifest = () => {
-  const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  assert.equal(verifyFourPageCredits(live), selectedFourPages().length);
-  return historicFourPageView(live);
+  const live = JSON.parse(readFileSync(
+    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  assert.equal(verifySixPageCredits(live), selectedTargets().length,
+    "Every newly credited page must have a source-exact receipt first");
+  return historicSixPageView(live);
 };
 const mutation = (change) => {
   const manifest = readManifest();

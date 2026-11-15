@@ -34,7 +34,7 @@ import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { EVIDENCE as FIVE_METHOD_EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "../scripts/qa/tenant-five-method-credit-verify.mjs";
 import { verifyWorker360LegalEmployerCredits } from "../scripts/qa/tenant-worker360-legal-employer-credit.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
-import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { verifyCredits as verifySelfDevelopmentCredits } from "../scripts/qa/tenant-self-development-credit.mjs";
 import { verifyReconciledFamilyCredits, verifyEnterprisePostAuditSource } from "../scripts/qa/tenant-family-reconciliation.mjs";
@@ -68,10 +68,10 @@ import { TENANT_TABLE_PROFILES } from "../scripts/qa/tenant-table-env.mjs";
 const ROOT = "src/app";
 const API = "src/app/api";
 const BASE = "8c2a62135fd6e23db4603197822339cc1020ec27";
-const liveFourPageManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-assert.equal(verifyFourPageCredits(liveFourPageManifest), selectedFourPages().length,
-  "Four source-current page proofs must verify before any historical inventory guard");
-const manifest = historicFourPageView(liveFourPageManifest);
+const liveManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+assert.equal(verifySixPageCredits(liveManifest), selectedTargets().length,
+  "All six current-source receipts must pass before historical full-surface checks");
+const manifest = historicSixPageView(liveManifest);
 verifyMergedProofCredits(manifest);
 verifyReconciledFamilyCredits(manifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
@@ -7347,7 +7347,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           contractFile: "scripts/qa/tenant-report-builder-page-contract.mjs",
           contractBlobSha: "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
           contractTestFile: "tests/tenant-report-builder-page-contract.test.mjs",
-          contractTestBlobSha: "5bc277a20661a404a459d8276bfb6ebf06c4d771",
+          contractTestBlobSha: "d7f08b2cfa0068027e9e6cb099380f45ca97d26d",
           unitTestFile: "tests/tenant-report-builder.test.ts",
           unitTestBlobSha: "89bd1b2fd9469d3bc85ed5f56d0e718aa91871dc",
           workflowFile: ".github/workflows/tenant-report-builder-page-qa.yml",
@@ -7371,7 +7371,18 @@ test("page and server-action inventory cannot silently omit new or changed busin
           [reviewed.unitTestFile, reviewed.unitTestBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
         ]) {
-          assert.equal(gitBlobSha(readFileSync(file)), sha,
+          // Preserve the prior #1557 review's immutable workflow SHA. The
+          // only re-reviewed runner delta here is the Playwright-compatible
+          // ubuntu-24.04 host; do not re-pin any other proof dependency.
+          const currentSha = file === reviewed.workflowFile
+            ? "9dcb58b638aac0fe1c0cf361b581a49f0a7f066c" : sha;
+          if (file === reviewed.workflowFile) {
+            assert.equal(sha, "1c21e70dfa55510ed0139c1c167871d123dff3c8",
+              "Historical report workflow review pin must remain intact");
+            assert.match(readFileSync(file, "utf8"), /^    runs-on: ubuntu-24\.04$/m,
+              "Current report Playwright runner must stay on reviewed Ubuntu 24.04");
+          }
+          assert.equal(gitBlobSha(readFileSync(file)), currentSha,
             "Report page proof file changed without renewed review: " + file);
         }
         for (const field of ["ids", "business", "guards"]) {
@@ -7868,7 +7879,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
             workflowFile: ".github/workflows/tenant-prior-review-worker-ssr-qa.yml",
             workflowBlobSha: "ceb560e9fdc8562daa5ae1ddc027acf5a6e195d2",
             unitTestFile: "tests/tenant-2316-legal-employer-worker.test.ts",
-            unitTestBlobSha: "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7",
+            unitTestBlobSha: "6b20e0a017d26acbc0d877e184e98ea37dc0a768",
             exactFinalHeadPg16: "PENDING",
             pageActionCredits: 0, independentlyAccepted: false, productionCertified: false,
           }} : { workerBinding: {

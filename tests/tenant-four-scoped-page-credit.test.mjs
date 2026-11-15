@@ -10,6 +10,8 @@ import {verifyFivePageCredits, historicWorker360ProofView} from
   "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {verifyWorker360PageCredit} from
   "../scripts/qa/tenant-five-method-credit-verify.mjs";
+import {verifySixPageCredits} from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
+import {zeroCreditSsoProofFixture} from "../scripts/qa/payroll-run-sso-proof-fixture.mjs";
 
 const read = path => readFileSync(path, "utf8");
 const live = JSON.parse(read(MANIFEST));
@@ -48,6 +50,9 @@ test("new page-only ledger is generator-exact, no historical or API status chang
   assert.equal(verifyFourPageCredits(live), selectedTargets().length);
   assert.equal(read(MANIFEST), JSON.stringify(expectedFourPageManifest(live), null, 2) + "\n");
   const original = historic();
+  assert.deepEqual(counts(live), {covered:20, gap:1});
+  assert.deepEqual(counts(original), {covered:16, gap:5});
+  assert.equal(verifySixPageCredits(original), 6);
   assert.equal(verifyFivePageCredits(original), 5);
   assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(original)), 16);
   assert.equal(counts(live).covered, counts(original).covered + selectedTargets().length);
@@ -99,5 +104,34 @@ test("fail closed on false/foreign page credits and mutation of receipt/provenan
     mutation(changed);
     assert.throws(() => verifyFourPageCredits(changed),
       /FOUR_PAGE_REFUSED|FIVE_PAGE_CREDIT_REFUSED|expected|Expected|strict|GAP|21/i);
+  }
+});
+test("SSO second-pass fixture may withdraw only nineteen sealed payroll methods, not page proof credits", () => {
+  const fixture = zeroCreditSsoProofFixture(live);
+  assert.deepEqual(counts(fixture), {covered: 20, gap: 1});
+  assert.equal(fixture.metrics.gap, 20);
+  const prior = {
+    CI: process.env.CI,
+    GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
+    TENANT_SECOND_PASS_MODE: process.env.TENANT_SECOND_PASS_MODE,
+  };
+  process.env.CI = "true";
+  process.env.GITHUB_ACTIONS = "true";
+  process.env.TENANT_SECOND_PASS_MODE = "isolated-ci-only";
+  try {
+    assert.equal(verifyCurrentScopedPageGapCount(fixture), 1);
+    const changedPage = structuredClone(fixture);
+    changedPage.scopedPages.find(p => p.path === TARGETS[0].path).reason += " TAMPER";
+    assert.throws(() => verifyCurrentScopedPageGapCount(changedPage),
+      /FOUR_PAGE_REFUSED|AssertionError/);
+    const changedMethod = structuredClone(fixture);
+    changedMethod.allApiRouteFiles["src/app/api/marketing/leads/route.ts"].methods[0].status = "GAP";
+    assert.throws(() => verifyCurrentScopedPageGapCount(changedMethod),
+      /FOUR_PAGE_REFUSED|AssertionError/);
+  } finally {
+    for (const [key, value] of Object.entries(prior)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 });

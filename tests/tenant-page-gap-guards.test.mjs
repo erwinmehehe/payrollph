@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TARGETS, verifyFivePageCredits } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
-import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
+import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import { readFileSync } from "node:fs";
 
 // Source-order regression only; this is not a real HTTP/PG16 isolation receipt.
@@ -21,19 +21,18 @@ const gapPaths = Object.freeze([
 ]);
 
 test("only uncredited page/action gaps remain explicit", () => {
-  const live = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
-  assert.equal(verifyFourPageCredits(live), selectedFourPages().length);
-  const manifest = historicFourPageView(live);
-  const opened = live.scopedPages.filter(row => row.status === "GAP").map(row => row.path).sort();
-  const previous = manifest.scopedPages.filter(row => row.status === "GAP").map(row => row.path);
-  const selected = new Set(selectedFourPages().map(row => row.path));
-  assert.deepEqual(opened, previous.filter(path => !selected.has(path)).sort(),
-    "Uncredited live GAPs must equal historical GAPs minus strictly sourced selection");
-  assert.deepEqual(manifest.scopedPages.filter(row => row.status === "GAP")
+  const manifest = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json"));
+  assert.equal(verifySixPageCredits(manifest), selectedTargets().length,
+    "Six newly proposed page receipts must pass exact source/anchor validation");
+  const historical = historicSixPageView(manifest);
+  assert.deepEqual(historical.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), [...gapPaths].sort());
+  const sixPaths = new Set(selectedTargets().map(target => target.path));
+  assert.deepEqual(manifest.scopedPages.filter(row => row.status === "GAP")
+    .map(row => row.path).sort(), gapPaths.filter(path => !sixPaths.has(path)).sort());
   assert.equal(manifest.scopedPages.length, 21);
-  assert.equal(verifyFivePageCredits(manifest), TARGETS.length,
-    "All five removed GAP entries require their own exact-source page receipts");
+  assert.equal(verifyFivePageCredits(historical), TARGETS.length,
+    "All five historical receipts must remain independently source-pinned");
   assert.ok(manifest.scopedPages.every(row => row.status === "GAP" || row.status === "COVERED"));
 });
 

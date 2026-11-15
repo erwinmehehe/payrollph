@@ -1,0 +1,401 @@
+/**
+ * Provisional six-page proof + credit generator, independent of API methods.
+ * The exact-final-head fictional PG16 matrix MUST pass before a credit can
+ * be retained. Earlier five-page and Worker360 credits remain immutable.
+ */
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+import { verifyFivePageCredits, verifyCurrentScopedPageGapCount as verifyHistoricScopedPageGapCount } from "./tenant-five-scoped-page-credit.mjs";
+import { verifyFourPageCredits, historicFourPageView } from "./tenant-four-scoped-page-credit.mjs";
+
+export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
+export const SELECTION = "scripts/qa/tenant-six-page-selection.json";
+export const WORKFLOW = ".github/workflows/tenant-six-scoped-pages-credit.yml";
+const define = (key, path, pageSha, proof, proofSha, contract, contractSha, anchors, notTested) =>
+  ({key, path, pageSha, proof, proofSha, contract, contractSha, anchors, notTested});
+export const TARGETS = Object.freeze([
+  define("hr", "src/app/hcm/hr-cases/page.tsx",
+    "0d384a61699a9183bfd4fa55665a0d1154031442",
+    "scripts/qa/tenant-hr-cases-page-http.mjs",
+    "b5c930b19db80f78d889273e41fb442205c6ad9f",
+    "scripts/qa/tenant-hr-cases-page-contract.mjs",
+    "044be9f247cf8f4a55e6a68f47d5cf1ad669a7f5",
+    ["assertOwnHrPage(await httpGet(pagePath(actor.org.id)", "await deny(pagePath(foreign.org.id)",
+     "await verifyUnchanged(actor.label + \" denials\")", "duplicate page employer",
+     "revoked owner page", 'newEmployer("VICTIM")'],
+    "Hydrated HR case actions, COE delivery, multi-entity-on HR queue, production and independent privacy review"),
+  define("report", "src/app/workspace/report-builder/page.tsx",
+    "24512c4c9f727ca02589e53da81cf38ffed264c9",
+    "scripts/qa/tenant-report-builder-page-http.mjs",
+    "c4861818882fd4782a2eac383824e84336890a71",
+    "scripts/qa/tenant-report-builder-page-contract.mjs",
+    "7c8005b7d2b446d951d2727fd66b6575ea6c48ed",
+    ["assertOwnReportPage(await readLocal(pagePath(actor.org.id)",
+     "assertForeignReportPage(await readLocal(pagePath(other.org.id)",
+     "await snapshot(employer.org.id), actor.label + \" GETs for \" + employer.label)",
+     "const duplicate = await readLocal(pagePath(actor.org.id)",
+     "assertForeignReportPage(await readLocal(pagePath(a.org.id), a.cookie)",
+     'seedEmployer("VICTIM"'],
+    "Complete report builder POST/CSV user journeys, all client actions, multi-entity attribution and independent privacy review"),
+  define("2316", "src/app/workspace/2316/page.tsx",
+    "f4badb3f1782812aab672665340e967911cff2cb",
+    "scripts/qa/tenant-2316-ssr-transfer-http.mjs",
+    "7f4fb04ae57a72ccd981ca4f36771adf2c62cc06",
+    "scripts/qa/tenant-2316-ssr-transfer-contract.mjs",
+    "3f958858c125d6c1541d1a23cd0e5a1b693e1e60",
+    ["assertOwn2316(ownReleasedPage", "await deny(certPath(actor.org.id, foreign.worker.id)",
+     "assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)",
+     "noncanonical/replayed Form 2316 selector", "revoked frozen legal-employer grant",
+     'seedEmployer("VICTIM"'],
+    "PDF issuance, government filing, live payroll/tax, production, independent payroll-security review"),
+  define("prior", "src/app/workspace/prior-employer/page.tsx",
+    "e55809f26075c142240675826a0c353d403a20e6",
+    "scripts/qa/tenant-prior-review-worker-http.mjs",
+    "db38b5ce9e33c42feb81a69929849c2c52a6d004",
+    "scripts/qa/tenant-prior-review-worker-contract.mjs",
+    "428b115e1814942fdfbb43f799010745af55f3de",
+    ["assertPriorOwnPage(own, actor", "foreign worker under own employer",
+     "assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)",
+     "duplicate employer selector", "revoked active membership with valid session",
+     'seedEmployer("VICTIM"'],
+    "Prior-evidence edits/submissions, client actions, live filing, production, independent payroll-tax review"),
+  define("hire", "src/app/hcm/hire-payroll-review/page.tsx",
+    "ceb2fec2b4a16d77d04ce25fccffbe6a6770249f",
+    "scripts/qa/tenant-hire-payroll-review-http.mjs",
+    "38b87f3f71fd15e93ac096bcc9c16899fb76b0b2",
+    "scripts/qa/tenant-hire-payroll-review-contract.mjs",
+    "188a60edbf47b81e8c471d6cde75a8a11b7c8d28",
+    ["assertOwnedHirePage(response", "await deny(pathFor(actor.org.id, outsider.worker.id)",
+     "assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)",
+     "duplicated worker selector", "revoked membership with still-valid session",
+     'seedEmployer("VICTIM"'],
+    "Hire/payroll mutations, broader legal-employer switching, calculation/release, production, independent HR review"),
+  define("monitor", "src/app/hcm/process-monitor/page.tsx",
+    "977ae3415144cfa509e709c9a9422d93b6a9f97a",
+    "scripts/qa/tenant-hcm-process-monitor-http.mjs",
+    "a49f666887b87a9b95de6e73b7d1190ab5e03fe1",
+    "scripts/qa/tenant-hcm-process-monitor-contract.mjs",
+    "bb65472687e93dd80706e7aa8f52187e545f0b29",
+    ["assertOwnMonitorPage(own, actor", "real foreign process under own employer",
+     "assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)",
+     "forged or duplicated selector", "revoked member still signed in",
+     'seedEmployer("VICTIM"'],
+    "Process mutation/approval, hydrated actions, legal-employer multi-entity, production and independent privacy review"),
+]);
+const REPORT_PAGE_CONTRACT_TEST = "tests/tenant-report-builder-page-contract.test.mjs";
+const REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA = "d7f08b2cfa0068027e9e6cb099380f45ca97d26d";
+const REPORT_PAGE_CONTRACT_TEST_HISTORICAL_SHA = "5bc277a20661a404a459d8276bfb6ebf06c4d771";
+const CERT_2316_WORKER_TEST = "tests/tenant-2316-legal-employer-worker.test.ts";
+const CERT_2316_WORKER_TEST_CURRENT_SHA = "6b20e0a017d26acbc0d877e184e98ea37dc0a768";
+const CERT_2316_WORKER_TEST_HISTORICAL_SHA = "40dcfc3cad8b8d5b204bc6d36605d7dd4bd18dc7";
+export function gitBlobSha(content) {
+  const b = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  return createHash("sha1").update("blob " + b.length + "\0").update(b).digest("hex");
+}
+export function selectedTargets(read = readFileSync) {
+  const s = JSON.parse(String(read(SELECTION)));
+  assert.equal(s.schema, "tenant-six-page-proof-selection-v1");
+  assert.equal(s.independentlyAccepted, false);
+  assert.equal(s.productionCertified, false);
+  assert.equal(s.status, "CANDIDATE_EXACT_HEAD_CI_REQUIRED");
+  assert.ok(Array.isArray(s.selected) && s.selected.length > 0,
+    "SIX_PAGE_REFUSED: no hold-only or empty PR");
+  assert.equal(new Set(s.selected).size, s.selected.length);
+  for (const key of s.selected) assert.ok(TARGETS.some(t => t.key === key),
+    "SIX_PAGE_REFUSED: page outside approved six");
+  return TARGETS.filter(t => s.selected.includes(t.key));
+}
+function line(source, marker, label) {
+  const lines = source.split("\n");
+  const matches = lines.flatMap((value, index) => value.includes(marker) ? [index + 1] : []);
+  assert.equal(matches.length, 1,
+    "SIX_PAGE_REFUSED: ambiguous/missing proof anchor " + label + ": " + marker);
+  return matches[0];
+}
+export function verifySixInputs(read = readFileSync) {
+  const workflow = String(read(WORKFLOW));
+  for (const item of [
+    "github.event.pull_request.head.sha", "git rev-parse HEAD", "image: postgres:16",
+    "npm run db:push", "apply-isolated-baseline.mjs", "npm run build",
+    "--hostname 127.0.0.1", "fail-fast: false", "needs: [page-http-reproof]",
+    'NEXT_CSP_ENABLED: "false"', 'PAYROLL_CALCULATION_HISTORY_ENABLED: "false"',
+    'WORKER_ENABLED: "false"', 'PAYMONGO_DISBURSEMENTS_ENABLED: "false"',
+    'XENDIT_PAYOUTS_ENABLED: "false"', 'XENDIT_BILLING_ENABLED: "false"',
+  ]) assert.ok(workflow.includes(item),
+    "SIX_PAGE_REFUSED: missing source-exact proof workflow guard " + item);
+  assert.ok(!workflow.includes("secrets."),
+    "SIX_PAGE_REFUSED: credential-backed workflow is forbidden");
+  const selected = selectedTargets(read);
+  if (selected.some(t => t.key === "report")) assert.equal(
+    gitBlobSha(read(REPORT_PAGE_CONTRACT_TEST)), REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA,
+    "SIX_PAGE_REFUSED: strengthened report-builder contract test changed");
+  if (selected.some(t => t.key === "2316")) assert.equal(
+    gitBlobSha(read(CERT_2316_WORKER_TEST)), CERT_2316_WORKER_TEST_CURRENT_SHA,
+    "SIX_PAGE_REFUSED: original 2316 source-only guard must be re-pinned to current proof");
+  const anchors = new Map();
+  assert.equal(new Set(TARGETS.map(t => t.path)).size, 6);
+  for (const t of TARGETS) {
+    assert.equal(gitBlobSha(read(t.path)), t.pageSha,
+      "SIX_PAGE_REFUSED: changed page source " + t.path);
+    if (!selected.includes(t)) continue;
+    assert.equal(gitBlobSha(read(t.proof)), t.proofSha,
+      "SIX_PAGE_REFUSED: changed proof " + t.proof);
+    assert.equal(gitBlobSha(read(t.contract)), t.contractSha,
+      "SIX_PAGE_REFUSED: changed contract " + t.contract);
+    assert.ok(workflow.includes(t.proof) && workflow.includes(t.contract),
+      "SIX_PAGE_REFUSED: real matrix execution missing " + t.key);
+    anchors.set(t.key, t.anchors.map((marker, index) =>
+      line(String(read(t.proof)), marker, t.key + "/" + index)));
+  }
+  return {selected, anchors};
+}
+function makeCitation(t, previousReason, lines) {
+  assert.ok(typeof previousReason === "string" &&
+    previousReason.startsWith("Still GAP:"),
+    "SIX_PAGE_REFUSED: prior GAP reason is required");
+  return {
+    file: t.proof, line: lines[0], ownPositiveLine: lines[0],
+    foreignDenialLine: lines[1], unchangedDbLine: lines[2],
+    forgedSelectorLine: lines[3], revokedDenialLine: lines[4],
+    victimIdOrderingLine: lines[5],
+    sourcePageBlobSha: t.pageSha, proofBlobSha: t.proofSha,
+    contractFile: t.contract, contractBlobSha: t.contractSha,
+    workflowFile: WORKFLOW, proofFamily: t.key,
+    previousGapReason: previousReason,
+    evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
+    postgresMajor: 16, actualFinalHeadRunRequired: true,
+    pageProofStatus: "FINAL_HEAD_CI_REQUIRED",
+    methodCredits: 0, independentlyAccepted: false,
+    independentSecurityReview: "PENDING", independentHrPrivacyReview: "PENDING",
+    productionTested: false, productionCertified: false,
+    notTested: t.notTested,
+  };
+}
+function reason(t) {
+  return "SOLO_VERIFIED_DEV_RECOVERY: provisional source-current fictional PG16 " +
+    "authenticated Next SSR/HTTP proof of a populated own employer 200; real higher-ID " +
+    "foreign employer or worker/process 404; forged/duplicate or revoked selector refusal; " +
+    "and byte-identical victim business/payroll/audit SQL. Exact-final-head PG16 test is required; " +
+    "no API method, independent HR/privacy/security, production or money authorization. " +
+    "Not tested: " + t.notTested + ".";
+}
+const NOTE_PREFIX = " Six page-only SOLO_VERIFIED_DEV_RECOVERY candidates:";
+export function expectedSixPageManifest(input, read = readFileSync) {
+  // Four later, disjoint page-only proofs may coexist with the six original
+  // receipts, but ONLY after their independent current-source generator
+  // validates the entire API ledger and every specific page/proof/contract SHA.
+  if (input.scopedPages.filter(p => p.status === "COVERED").length === 20) {
+    assert.equal(verifyFourPageCredits(input, read), 4,
+      "SIX_PAGE_REFUSED: unreviewed four-page overlay");
+    return structuredClone(input);
+  }
+  const {selected, anchors} = verifySixInputs(read);
+  const m = structuredClone(input);
+  assert.equal(m.scopedPages.length, 21, "SIX_PAGE_REFUSED: original 21 pages changed");
+  for (const t of TARGETS) {
+    const row = m.scopedPages.find(p => p.path === t.path);
+    assert.ok(row && row.blob === t.pageSha && row.hasAction === false,
+      "SIX_PAGE_REFUSED: wrong identity/blob/action " + t.path);
+    if (!selected.includes(t)) {
+      assert.equal(row.status, "GAP", "SIX_PAGE_REFUSED: unproved page promoted " + t.path);
+      assert.equal(row.testedBy, undefined, "SIX_PAGE_REFUSED: old receipt on unproved " + t.path);
+      continue;
+    }
+    const previous = row.status === "GAP" ? row.reason : row.testedBy?.previousGapReason;
+    const expected = makeCitation(t, previous, anchors.get(t.key));
+    if (row.status === "GAP") {
+      assert.equal(row.testedBy, undefined, "SIX_PAGE_REFUSED: hidden stale credit");
+      row.status = "COVERED";
+      row.reason = reason(t);
+      row.testedBy = expected;
+    } else {
+      assert.equal(row.status, "COVERED", "SIX_PAGE_REFUSED: unknown classification");
+      assert.equal(row.reason, reason(t), "SIX_PAGE_REFUSED: reason drift");
+      assert.deepEqual(row.testedBy, expected, "SIX_PAGE_REFUSED: evidence drift " + t.path);
+    }
+  }
+  if (selected.some(t => t.key === "report")) {
+    const record = m.scopedPages.find(p => p.path === "src/app/workspace/report-builder/page.tsx");
+    const proof = record?.reviewedUncertified;
+    assert.equal(proof?.contractTestFile, REPORT_PAGE_CONTRACT_TEST);
+    assert.ok([REPORT_PAGE_CONTRACT_TEST_HISTORICAL_SHA, REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA]
+      .includes(proof?.contractTestBlobSha),
+      "SIX_PAGE_REFUSED: unknown report-builder contract-test SHA");
+    proof.contractTestBlobSha = REPORT_PAGE_CONTRACT_TEST_CURRENT_SHA;
+  }
+  // Update only the source pin for the stronger, fully executed 2316
+  // negative-control test. The historical uncredited candidate stays
+  // unaccepted; the six-page credit has its own separate testedBy receipt.
+  if (selected.some(t => t.key === "2316")) {
+    const record = m.scopedPages.find(p => p.path === "src/app/workspace/2316/page.tsx");
+    const proof = record?.reviewedUncertified?.workerWithoutSeparationBoundary;
+    assert.equal(proof?.unitTestFile, CERT_2316_WORKER_TEST);
+    assert.ok([CERT_2316_WORKER_TEST_HISTORICAL_SHA, CERT_2316_WORKER_TEST_CURRENT_SHA]
+      .includes(proof?.unitTestBlobSha),
+      "SIX_PAGE_REFUSED: unknown source-only 2316 unit proof pin");
+    proof.unitTestBlobSha = CERT_2316_WORKER_TEST_CURRENT_SHA;
+  }
+  const methods = Object.values(m.allApiRouteFiles).flatMap(entry => entry.methods);
+  m.metrics.routeFiles = Object.keys(m.allApiRouteFiles).length;
+  m.metrics.methods = methods.length;
+  for (const [name, status] of [
+    ["coveredAfter", "COVERED"], ["gap", "GAP"],
+    ["publicByDesign", "PUBLIC-BY-DESIGN"],
+    ["privilegedOperationsTokenOnly", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"],
+  ]) m.metrics[name] = methods.filter(p => p.status === status).length;
+  m.metrics.scopedPagesAndActions = m.scopedPages.length;
+  // Compute baseline counts from the actual page rows, not a pinned
+  // headline that goes stale as independently proved page work lands.
+  const selectedAlreadyCredited = selected.filter(t =>
+    input.scopedPages.find(p => p.path === t.path)?.status === "COVERED").length;
+  const coveredBefore = input.scopedPages.filter(p => p.status === "COVERED").length
+    - selectedAlreadyCredited;
+  const openBefore = input.scopedPages.filter(p => p.status === "GAP").length
+    + selectedAlreadyCredited;
+  const covered = m.scopedPages.filter(p => p.status === "COVERED").length;
+  const open = m.scopedPages.filter(p => p.status === "GAP").length;
+  assert.equal(covered, coveredBefore + selected.length,
+    "SIX_PAGE_REFUSED: unrelated coverage changed");
+  assert.equal(open, openBefore - selected.length,
+    "SIX_PAGE_REFUSED: unrelated gap changed");
+  assert.equal(covered + open, m.scopedPages.length,
+    "SIX_PAGE_REFUSED: every page needs one proven status");
+  assert.match(m.acceptanceStatus, /^NOT ACCEPTED: \d+ API methods and \d+ page\/action GAPs/);
+  m.acceptanceStatus = m.acceptanceStatus.replace(
+    /^NOT ACCEPTED: \d+ API methods and \d+ page\/action GAPs/,
+    "NOT ACCEPTED: " + m.metrics.gap + " API methods and " + open + " page/action GAPs");
+  const note = NOTE_PREFIX + " " + covered + "/21 provisional COVERED, " + open +
+    " GAP; exact-head PG16 jobs remain required; no API-method credit, " +
+    "independent approval, payroll, provider or production activation.";
+  m.acceptanceStatus = m.acceptanceStatus.split(NOTE_PREFIX)[0] + note;
+  return m;
+}
+export function historicSixPageView(input, read = readFileSync) {
+  // First validate and remove only the later four-page overlay. Historical
+  // six-page proofs must still reconstruct precisely the original 10/11 view.
+  const source = input.scopedPages.filter(p => p.status === "COVERED").length === 20
+    ? (verifyFourPageCredits(input, read), historicFourPageView(input, read))
+    : input;
+  const {selected, anchors} = verifySixInputs(read);
+  const m = structuredClone(source);
+  for (const t of selected) {
+    const row = m.scopedPages.find(p => p.path === t.path);
+    assert.equal(row?.status, "COVERED", "SIX_PAGE_REFUSED: missing selected page");
+    assert.equal(row.reason, reason(t), "SIX_PAGE_REFUSED: reason altered");
+    assert.deepEqual(row.testedBy, makeCitation(t, row.testedBy?.previousGapReason,
+      anchors.get(t.key)), "SIX_PAGE_REFUSED: unproven source receipt");
+    row.reason = row.testedBy.previousGapReason;
+    row.status = "GAP";
+    delete row.testedBy;
+  }
+  assert.equal(m.scopedPages.filter(p => p.status === "COVERED").length, 10);
+  assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 11);
+  m.acceptanceStatus = m.acceptanceStatus.split(NOTE_PREFIX)[0].replace(
+    /^NOT ACCEPTED: \d+ API methods and \d+ page\/action GAPs/,
+    "NOT ACCEPTED: " + m.metrics.gap + " API methods and 11 page/action GAPs");
+  return m;
+}
+export function verifySixPageCredits(m, read = readFileSync) {
+  assert.deepEqual(m, expectedSixPageManifest(m, read),
+    "SIX_PAGE_REFUSED: manifest must be generator-exact");
+  const historical = historicSixPageView(m, read);
+  assert.equal(verifyFivePageCredits(historical, read), 5,
+    "SIX_PAGE_REFUSED: prior five page credits must still pass unchanged");
+  return selectedTargets(read).length;
+}
+/** The exploratory 42-request page probe must never mistake a new five-GAP
+ * ledger for Worker 360's historical 16-GAP view. Validate every six-page
+ * source SHA, HTTP assertion anchor, and prior five-page receipt first.
+ * Original 11/16-GAP ledgers still use the unchanged older verifier.
+ */
+export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
+  const gaps = manifest.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps === 1) {
+    assert.equal(verifyFourPageCredits(manifest, read), 4,
+      "SIX_PAGE_REFUSED: all four source-exact additional page proofs required");
+    return gaps;
+  }
+  if (gaps === 11 || gaps === 16)
+    return verifyHistoricScopedPageGapCount(manifest, read);
+  // The SSO caller reproof deliberately withdraws exactly 19 older API
+  // method credits in a disposable CI copy. That accounting downgrade must
+  // not invalidate independently sealed page receipts or silently authorize
+  // a different page/API ledger. Require the exact reversible fixture, then
+  // verify all page evidence against Git's unchanged committed PR head.
+  if (gaps === 5 && process.env.CI === "true" &&
+      process.env.GITHUB_ACTIONS === "true" &&
+      process.env.TENANT_SECOND_PASS_MODE === "isolated-ci-only" &&
+      manifest.metrics.gap === 20) {
+    const headText = execFileSync("git", ["show", "HEAD:" + MANIFEST], {
+      encoding: "utf8", maxBuffer: 8 * 1024 * 1024
+    });
+    const head = JSON.parse(headText);
+    // Main independently relabelled SAML metadata PUBLIC-BY-DESIGN, reducing
+    // the API GAP count from two to one. A disposable SSO hold still withdraws
+    // EXACTLY nineteen source-sealed payroll methods; it never demotes the
+    // public SAML classification or any independently verified page credit.
+    assert.equal(head.metrics.gap, 1,
+      "SIX_PAGE_REFUSED: SSO fixture must start with the exact current 1-GAP API ledger");
+    const expected = structuredClone(head);
+    let held = 0;
+    for (const entry of Object.values(expected.allApiRouteFiles)) {
+      for (const row of entry.methods) {
+        if (row.status !== "COVERED" ||
+            row.testedBy?.kind !== "payroll-run-source-renewal-real-http-pg16" ||
+            row.historicalOracleSourceWithdrawal?.kind !==
+              "payroll-run-membership-oracle-source-withdrawal") continue;
+        row.status = "GAP";
+        row.testedBy = null;
+        row.reviewedUncertified = structuredClone(row.historicalOracleSourceWithdrawal);
+        delete row.historicalOracleSourceWithdrawal;
+        row.reason = "Fictional CI-only bootstrap: current caller receipt pending; zero credits. Not a committed ledger change.";
+        held++;
+      }
+    }
+    assert.equal(held, 19, "SIX_PAGE_REFUSED: SSO may only withdraw nineteen sealed renewals");
+    const allMethods = Object.values(expected.allApiRouteFiles).flatMap(entry => entry.methods);
+    expected.metrics.coveredAfter = allMethods.filter(row => row.status === "COVERED").length;
+    expected.metrics.gap = allMethods.filter(row => row.status === "GAP").length;
+    assert.equal(expected.metrics.coveredAfter, head.metrics.coveredAfter - 19);
+    assert.equal(expected.metrics.gap, head.metrics.gap + 19);
+    expected.acceptanceStatus = expected.acceptanceStatus.replace(
+      /^NOT ACCEPTED: \d+ API methods/,
+      "NOT ACCEPTED: " + expected.metrics.gap + " API methods");
+    assert.deepEqual(manifest, expected,
+      "SIX_PAGE_REFUSED: unreviewed SSO fixture mutation, page credit, API method or SQL proof drift");
+    const sealedRead = (path, ...args) =>
+      path === MANIFEST ? Buffer.from(headText) : read(path, ...args);
+    assert.equal(verifySixPageCredits(head, sealedRead), selectedTargets(sealedRead).length,
+      "SIX_PAGE_REFUSED: held SSO fixture does not certify independent page proofs");
+    return gaps;
+  }
+  assert.equal(verifySixPageCredits(manifest, read), selectedTargets(read).length,
+    "SIX_PAGE_REFUSED: live page probe requires every source-sealed receipt");
+  return gaps;
+}
+
+function main() {
+  assert.ok(process.argv.length === 3 &&
+    ["--write", "--check"].includes(process.argv[2]),
+    "SIX_PAGE_REFUSED: --write/--check only");
+  const raw = readFileSync(MANIFEST, "utf8");
+  const expected = expectedSixPageManifest(JSON.parse(raw));
+  const output = JSON.stringify(expected, null, 2) + "\n";
+  if (process.argv[2] === "--write") writeFileSync(MANIFEST, output);
+  else assert.equal(raw, output, "SIX_PAGE_REFUSED: manifest not generated");
+  assert.equal(verifySixPageCredits(expected), selectedTargets().length);
+  console.log(JSON.stringify({
+    evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
+    beforeCovered: expected.scopedPages.filter(p => p.status === "COVERED").length - selectedTargets().length,
+    beforeGaps: expected.scopedPages.filter(p => p.status === "GAP").length + selectedTargets().length,
+    afterCovered: expected.scopedPages.filter(p => p.status === "COVERED").length,
+    afterGaps: expected.scopedPages.filter(p => p.status === "GAP").length,
+    newApiMethodCredits: 0, selected: selectedTargets().map(p => p.key),
+    exactFinalHeadCiRequired: true, independentlyAccepted: false,
+    productionCertified: false
+  }));
+}
+if (process.argv[1]?.replaceAll("\\", "/").endsWith("/tenant-six-scoped-page-credit.mjs"))
+  try { main(); } catch (error) { console.error(error); process.exitCode = 1; }

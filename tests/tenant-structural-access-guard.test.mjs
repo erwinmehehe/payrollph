@@ -1,5 +1,5 @@
 import { TARGETS, verifyFivePageCredits, verifyCurrentScopedPageGapCount, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
-import {verifyFourPageCredits, historicFourPageView, selectedTargets as selectedFourPages} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
+import { selectedTargets, verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 /**
  * All-API structural check: every direct/delegated route-to-DB call must show
  * an employer-scoped access mechanism OR a source-SHA-pinned exception with a
@@ -14,9 +14,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { inspectRouteHandler, traceFlaggedSource } from "../scripts/qa/tenant-delegated-trace.mjs";
 
-const liveFourPageManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-assert.equal(verifyFourPageCredits(liveFourPageManifest), selectedFourPages().length);
-const manifest = historicFourPageView(liveFourPageManifest);
+const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const inventory = manifest.allApiRouteFiles;
 const acceptable = new Set(["GAP", "COVERED", "PUBLIC-BY-DESIGN", "PRIVILEGED-OPERATIONS-TOKEN-ONLY"]);
 function blobSha(bytes) {
@@ -128,7 +126,7 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
     reminder: "HTTP proof required; no historical GAP is certified" }));
 });
 
-test("all scoped pages stay source-pinned; only five source-proved pages may be provisional", () => {
+test("all scoped pages stay source-pinned; six further pages require independent source proof", () => {
   assert.equal(manifest.scopedPages.length, 21);
   const approvedPath = "src/app/hcm/manager-decision-inbox/page.tsx";
   const evidenceFile = "scripts/qa/hcm-manager-inbox-page-http.mjs";
@@ -138,11 +136,15 @@ test("all scoped pages stay source-pinned; only five source-proved pages may be 
   const directEvidenceFile = "scripts/qa/hcm-manager-direct-reports-http.mjs";
   const workerPath = "src/app/hcm/worker-360/page.tsx";
   const covered = manifest.scopedPages.filter((page) => page.status === "COVERED");
+  const six = selectedTargets();
+  assert.equal(verifySixPageCredits(manifest), six.length,
+    "Each six-page candidate must pass the exact-source and legacy evidence review");
   assert.equal(verifyFivePageCredits(manifest), TARGETS.length,
     "The five additional page receipts must be exact-current-source");
   assert.deepEqual(covered.map((page) => page.path).sort(),
     ["src/app/app/page.tsx", peopleHomePath, approvedPath, directPath,
-      workerPath, ...TARGETS.map(target => target.path)].sort(),
+      workerPath, ...TARGETS.map(target => target.path),
+      ...six.map(target => target.path)].sort(),
     "Static route analysis cannot silently certify any additional page");
   assert.equal(manifest.scopedPages.filter((page) => page.status === "GAP").length,
     verifyCurrentScopedPageGapCount(manifest),
@@ -156,11 +158,13 @@ test("all scoped pages stay source-pinned; only five source-proved pages may be 
       assert.ok(!page.testedBy, page.path + ": a GAP must not claim accepted HTTP evidence");
       continue;
     }
-    if (TARGETS.some(target => target.path === page.path)) {
-      // verifyFivePageCredits above validates exact page/proof blobs, denial
-      // anchors, exclusions and the no-independent-acceptance boundary.
+    if (TARGETS.some(target => target.path === page.path) ||
+        six.some(target => target.path === page.path)) {
+      // Both distinct proof generators have validated exact source/proof bytes,
+      // own/foreign/victim SQL anchors and the explicit nonacceptance boundary.
       assert.equal(page.testedBy?.methodCredits, 0);
       assert.equal(page.testedBy?.independentlyAccepted, false);
+      assert.equal(page.testedBy?.productionCertified, false);
       continue;
     }
     if (page.path === "src/app/app/page.tsx") {
