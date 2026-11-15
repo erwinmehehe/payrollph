@@ -63,14 +63,22 @@ const ROUTE_SOURCE_FIELDS = new Set(["currentMembershipGuardLine"]);
 function reviewedForeignSeparationPatchPrivacyDelta({
   path, method, kind, field, proof, cited, value, baseValue, before, now,
 }) {
-  // GitHub's source-pin workflow passes origin/main, while CI/PG18/DL-01
-  // pass the exact PR base commit SHA. Both MUST resolve to the one reviewed
-  // base; do not trust a drifting origin/main ref or any other commit.
-  const reviewedBaseSha = "1b437fbf2a05053fddb5acf1b50171590a6e788a";
+  // Original PR base and the exact post-sync main contain the SAME old
+  // denial proof blob. Both are explicit reviewed baselines, not a wildcard.
+  // This exception remains limited to the one 403 -> opaque 404 assertion,
+  // with byte-identical surrounding lines and the new proof/route blob pins.
+  const reviewedBases = new Set([
+    "1b437fbf2a05053fddb5acf1b50171590a6e788a",
+    "2444b60e8d117935d16167476cc15a9683880788",
+  ]);
   const matchesReviewedBase = (() => {
     try {
-      return execFileSync("git", ["rev-parse", "--verify", baseRef + "^{commit}"],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() === reviewedBaseSha;
+      const resolvedBase = execFileSync("git", ["rev-parse", "--verify", baseRef + "^{commit}"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+      const sourceBlob = execFileSync("git", ["rev-parse", "--verify", baseRef + ":scripts/qa/payroll-approved-exit-http.mjs"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+      return reviewedBases.has(resolvedBase) &&
+        sourceBlob === "55108c2f73d2a25f168504d3f46fd69a5d59a292";
     } catch { return false; }
   })();
   if (!matchesReviewedBase ||

@@ -1083,7 +1083,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       // old method cohort against origin/main; the live ledger stays at 11 gaps.
       assert.equal(verifyFivePageCredits(baseline,readMainFile),5,
         'Validate main\'s five page receipts before constructing the historical Worker 360 view');
-      const receipt = verifyFiveMethodCredits(historicWorker360ProofView(baseline), readMainFile);
+      // Project the old six-page main receipt using old main's own proof
+      // source lines before checking the older Worker 360 ledger. A current
+      // PR-head proof must not silently replace a historical main receipt.
+      const historicMainPages = historicSixPageView(baseline, readMainFile);
+      const receipt = verifyFiveMethodCredits(historicWorker360ProofView(historicMainPages), readMainFile);
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
         "Historical five-method holds must reflect only the dedicated validated transfer promotion");
