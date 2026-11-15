@@ -308,13 +308,17 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
   if (gaps === 5 && process.env.CI === "true" &&
       process.env.GITHUB_ACTIONS === "true" &&
       process.env.TENANT_SECOND_PASS_MODE === "isolated-ci-only" &&
-      manifest.metrics.gap === 21) {
+      manifest.metrics.gap === 20) {
     const headText = execFileSync("git", ["show", "HEAD:" + MANIFEST], {
       encoding: "utf8", maxBuffer: 8 * 1024 * 1024
     });
     const head = JSON.parse(headText);
-    assert.equal(head.metrics.gap, 2,
-      "SIX_PAGE_REFUSED: SSO fixture must start with the exact current 2-GAP API ledger");
+    // Main independently relabelled SAML metadata PUBLIC-BY-DESIGN, reducing
+    // the API GAP count from two to one. A disposable SSO hold still withdraws
+    // EXACTLY nineteen source-sealed payroll methods; it never demotes the
+    // public SAML classification or any independently verified page credit.
+    assert.equal(head.metrics.gap, 1,
+      "SIX_PAGE_REFUSED: SSO fixture must start with the exact current 1-GAP API ledger");
     const expected = structuredClone(head);
     let held = 0;
     for (const entry of Object.values(expected.allApiRouteFiles)) {
