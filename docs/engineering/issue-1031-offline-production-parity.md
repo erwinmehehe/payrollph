@@ -20,6 +20,12 @@
 3. scripts/qa/issue-1031-compare-offline.mjs reads two private JSON files and writes a private report; it has no DB/network code.
 4. Fictional fixtures and tests, plus a small source-only CI job.
 
+## Export V2: comprehensive index metadata from read-only catalogs
+
+The initial shared #1075 query is reused unchanged, and the offline-only export now enriches its non-constraint index rows with the PG18 fields already understood by #1605: DESC ordering and NULLS FIRST/LAST flags from `pg_index.indoption`, INCLUDE columns, index `reloptions` (storage options), explicit tablespace, and `indnullsnotdistinct`. The offline comparer rejects missing/malformed fields and blocks drift in each one. **V1 exports must be regenerated**: only the complete V2 format is accepted. Other source-guard behavior has not been relaxed.
+
+Fictional adversarial tests exercise each metadata field. Before using this as a comprehensive index-parity acceptance gate, an authorized operator must also execute the printed SQL on an isolated, disposable PostgreSQL 18 instance, verify the produced V2 JSON validates and confirm expected index metadata. This is not production authentication or historical migration replay evidence.
+
 ## Owner prerequisites — STOP if any is missing
 
 1. Obtain owner, DBA and security approval for the production read-only inspection and verify the real deployed target, account and branch privately. A file label is not proof of target identity.
@@ -40,9 +46,9 @@ Execute ONLY on a separately approved DBA/operator workstation. No connection de
     # Only after exit 0 and owner verification of one complete JSON object:
     mv "$PRIVATE_DIR/production-catalog.json.tmp" "$PRIVATE_DIR/production-catalog.json"
 
-The generated SQL queries pg_catalog metadata for tables, columns, types, nullability, defaults, identity, named constraints and indexes. The ONLY non-catalog SELECTs are on two approved migration-control journals: migration path/checksum/disposition from payrollph_release_migration_receipts, and path/checksum from payrollph_schema_migrations. Those journal rows are permitted migration *metadata*, never business rows. SQL has no row SELECT from any employee/payroll/bank/application table.
+The generated SQL queries pg_catalog metadata for tables, columns, types, nullability, defaults, identity, named constraints and indexes (including their ordering, NULLS behavior, INCLUDE columns, storage settings and tablespace). The ONLY non-catalog SELECTs are on two approved migration-control journals: migration path/checksum/disposition from payrollph_release_migration_receipts, and path/checksum from payrollph_schema_migrations. Those journal rows are permitted migration *metadata*, never business rows. SQL has no row SELECT from any employee/payroll/bank/application table.
 
-**Before comparison, privately inspect the export.** It must be a single complete JSON object with completed=ISSUE_1031_CATALOG_EXPORT_COMPLETE_V1, correct exportKind, nonzero table/column counts and matching journal counts. Confirm it contains **no employee names, pay amounts, record values, passwords, API tokens, URLs, connection strings, or unexpected secrets inside catalog default expressions**. Do not paste raw files into GitHub, Slack, CI artifacts or logs. On any query/validation failure, remove the temporary file and STOP.
+**Before comparison, privately inspect the export.** It must be a single complete JSON object with completed=ISSUE_1031_CATALOG_EXPORT_COMPLETE_V2, correct exportKind, nonzero table/column counts and matching journal counts. Confirm it contains **no employee names, pay amounts, record values, passwords, API tokens, URLs, connection strings, or unexpected secrets inside catalog default expressions**. Do not paste raw files into GitHub, Slack, CI artifacts or logs. On any query/validation failure, remove the temporary file and STOP.
 
 ## Owner: prepare the disposable PostgreSQL 18 reference
 
