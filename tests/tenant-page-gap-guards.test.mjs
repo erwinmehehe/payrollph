@@ -34,7 +34,6 @@ test("only uncredited page/action gaps remain explicit", () => {
   const sixPaths = new Set(selectedTargets().map(target => target.path));
   assert.deepEqual(manifest.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), gapPaths.filter(path => !sixPaths.has(path)).sort());
-  const fourPaths = new Set(selectedFour().map(target => target.path));
   assert.deepEqual(live.scopedPages.filter(row => row.status === "GAP")
     .map(row => row.path).sort(), [],
     "No remaining page GAP label: Careers must be the one public-only exception");
