@@ -5,7 +5,7 @@
  */
 import { assertSourceBaselineParity, assertSourceBaselineConstraintParity } from "./source-baseline-parity.mjs";
 
-export const OFFLINE_EXPORT_END = "ISSUE_1031_CATALOG_EXPORT_COMPLETE_V1";
+export const OFFLINE_EXPORT_END = "ISSUE_1031_CATALOG_EXPORT_COMPLETE_V2";
 const KINDS = new Set(["table", "column", "primary_key", "foreign_key", "unique_constraint", "check", "index"]);
 const CATEGORIES = ["BLOCKING", "INFORMATIONAL", "NEEDS-OWNER-DECISION"];
 const PATH = /^drizzle\/[0-9]{4}_[a-z0-9][a-z0-9_-]*\.sql$/;
@@ -17,7 +17,8 @@ const FIELDS = {
   foreign_key: ["columns", "ref_table", "ref_columns", "on_delete", "on_update", "validated"],
   unique_constraint: ["columns", "nulls_not_distinct", "validated"],
   check: ["expression", "validated"],
-  index: ["unique", "method", "keys", "predicate", "valid", "ready"],
+  index: ["unique", "method", "keys", "predicate", "valid", "ready",
+    "key_desc", "key_nulls_first", "include", "options", "tablespace", "nulls_not_distinct"],
 };
 const TOP = ["formatVersion", "exportKind", "postgresMajor", "catalogRows", "catalogRowCount",
   "tableCount", "historicalReceipts", "appliedMigrations", "journalRowCount", "completed"];
@@ -46,7 +47,14 @@ function validateDetails(kind, d) {
   if (kind === "check" && (!string(d.expression) || typeof d.validated !== "boolean")) fail();
   if (kind === "index" && (typeof d.unique !== "boolean" || !string(d.method) ||
     !strings(d.keys) || !(d.predicate === null || typeof d.predicate === "string") ||
-    typeof d.valid !== "boolean" || typeof d.ready !== "boolean")) fail();
+    typeof d.valid !== "boolean" || typeof d.ready !== "boolean" ||
+    !Array.isArray(d.key_desc) || !Array.isArray(d.key_nulls_first) ||
+    d.key_desc.length !== d.keys.length || d.key_nulls_first.length !== d.keys.length ||
+    !d.key_desc.every(v => typeof v === "boolean") ||
+    !d.key_nulls_first.every(v => typeof v === "boolean") ||
+    !strings(d.include) || !strings(d.options) ||
+    !(d.tablespace === null || string(d.tablespace)) ||
+    typeof d.nulls_not_distinct !== "boolean")) fail();
 }
 function journalRow(row, historical) {
   const fields = historical ? ["migrationPath", "sha256", "disposition"] : ["migrationPath", "sha256"];
@@ -57,7 +65,7 @@ function journalRow(row, historical) {
 export function parseOfflineExport(data, kind) {
   let value;
   try { value = typeof data === "string" ? JSON.parse(data) : data; } catch { fail(); }
-  if (!object(value) || !sameKeys(value, TOP) || value.formatVersion !== 1 ||
+  if (!object(value) || !sameKeys(value, TOP) || value.formatVersion !== 2 ||
     value.completed !== OFFLINE_EXPORT_END || value.exportKind !== kind ||
     !Number.isInteger(value.postgresMajor) || value.postgresMajor < 16 ||
     (kind === "disposable-pg18" && value.postgresMajor !== 18) ||
@@ -199,7 +207,7 @@ export function buildOfflineReport(referenceInput, productionInput, inventory) {
   const counts = Object.fromEntries(CATEGORIES.map(c => [c,
     differences.filter(d => d.category === c).length]));
   return {
-    formatVersion:1,
+    formatVersion:2,
     evidenceScope:"CATALOG_ONLY_NOT_MIGRATION_RECEIPT_OR_RELEASE_APPROVAL",
     summary:{...counts,total:differences.length,referenceTables:reference.tableCount,
       exportedProductionTables:production.tableCount,repoNumberedSqlFiles:files.size,
