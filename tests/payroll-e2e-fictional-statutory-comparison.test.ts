@@ -327,6 +327,19 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
     const employeeNumbers = new Map(people.map((p) => [p.id, p.employeeNo]));
     const entriesByNumber = new Map(entries.map((e) => [employeeNumbers.get(e.employeeId), e]));
     const evidence: unknown[] = [];
+    // Evaluate EVERY independent employee/component before failing the test.
+    // A first mismatch must not hide subsequent real-engine discrepancies.
+    // This does not suppress or approve a discrepancy: the job fails after
+    // printing the complete fictional signed-centavo finding ledger.
+    const mismatches: Array<{
+      worker: string; component: string; expected: number; actual: number; deltaCentavos: number;
+    }> = [];
+    const check = (worker: string, component: string, actual: number, expected: number) => {
+      const deltaCentavos = centavos(actual) - centavos(expected);
+      if (deltaCentavos !== 0) {
+        mismatches.push({ worker, component, expected, actual, deltaCentavos });
+      }
+    };
     for (const c of workers) {
       const entry = entriesByNumber.get("SC-" + c.id);
       assert.ok(entry, c.id + " engine entry missing");
@@ -344,19 +357,19 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       assert.ok(erExpected, c.id + " employer reference missing");
       // Cutoff split is a PayrollPH policy; the official circulars certify
       // monthly rates only. Do not interpret this as agency-approved timing.
-      exact(gross, c.gross, c.id + " cutoff gross");
-      exact(sss, c.cutoffSss, c.id + " cutoff split SSS");
-      exact(hdmf, c.cutoffPag, c.id + " cutoff split HDMF");
-      exact(employer.sss, erExpected.sss, c.id + " cutoff employer SSS");
-      exact(employer.ec, erExpected.ec, c.id + " cutoff employer-only EC");
-      exact(employer.pagIbig, erExpected.pagIbig, c.id + " cutoff employer HDMF");
-      if (erExpected.philHealth !== null) exact(employer.philHealth, erExpected.philHealth, c.id + " cutoff employer PH");
-      if (c.cutoffPh !== null) exact(philHealth, c.cutoffPh, c.id + " cutoff split PH");
-      if (c.cutoffWht !== null) exact(wht, c.cutoffWht, c.id + " BIR semi-monthly taxable pay");
-      if (c.cutoffNet !== null) exact(net, c.cutoffNet, c.id + " reconciled net");
+      check(c.id, "cutoff gross", gross, c.gross);
+      check(c.id, "cutoff split SSS", sss, c.cutoffSss);
+      check(c.id, "cutoff split HDMF", hdmf, c.cutoffPag);
+      check(c.id, "cutoff employer SSS", employer.sss, erExpected.sss);
+      check(c.id, "cutoff employer-only EC", employer.ec, erExpected.ec);
+      check(c.id, "cutoff employer HDMF", employer.pagIbig, erExpected.pagIbig);
+      if (erExpected.philHealth !== null) check(c.id, "cutoff employer PH", employer.philHealth, erExpected.philHealth);
+      if (c.cutoffPh !== null) check(c.id, "cutoff split PH", philHealth, c.cutoffPh);
+      if (c.cutoffWht !== null) check(c.id, "BIR semi-monthly taxable pay", wht, c.cutoffWht);
+      if (c.cutoffNet !== null) check(c.id, "reconciled net", net, c.cutoffNet);
       if (c.loan) {
-        exact(net, 0.01, c.id + " very small nonnegative net");
-        exact(amount("LOAN-" + lines.find((line) => String(line.code ?? "").startsWith("LOAN-"))?.code?.replace("LOAN-", "")), c.loan, c.id + " loan application");
+        check(c.id, "very small nonnegative net", net, 0.01);
+        check(c.id, "loan application", amount("LOAN-" + lines.find((line) => String(line.code ?? "").startsWith("LOAN-"))?.code?.replace("LOAN-", "")), c.loan);
       }
       evidence.push({
         case: c.id, monthlySalary: c.salary, frequency: "semi-monthly",
@@ -382,6 +395,12 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
     }
     // Emit actual values with centavo differences for independent CI review.
     console.log("STATUTORY_COMPARISON_EVIDENCE " + JSON.stringify(evidence));
+    console.log("STATUTORY_COMPARISON_DISAGREEMENTS " + JSON.stringify({
+      referenceSourceDate: SOURCE_DATE, executedEnginePeriod: ENGINE_PERIOD,
+      checkedWorkers: workers.length, mismatches,
+    }));
+    assert.deepEqual(mismatches, [],
+      "Independent expected vs real-engine first-cutoff reconciliation must agree; do not mask source-boundary or rounding defects");
   } finally {
     if (organizationId !== null) await db.delete(organizations).where(eq(organizations.id, organizationId));
     await pool.end();
