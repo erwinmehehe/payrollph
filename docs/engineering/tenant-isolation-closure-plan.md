@@ -1,3 +1,5 @@
+> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD (NO NEW CREDITS):** 498 API methods = **438 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP**. Exactly 23 formerly provisionally credited methods are now **HELD / testedBy:null** because the NWPC wage-registry source changed. Prior source-sealed real-HTTP receipts are HISTORICAL ONLY. Fresh exact-head PG16 tenant evidence and independent review are required before any method may be re-credited. No production, payment, tax, migration or provider acceptance. The dated summaries below are historical snapshots and DO NOT supersede this current hold.
+
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
 > **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 1 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
@@ -244,20 +246,20 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 1 | **DL-01** | 26 | 22 | 2 | 0 | 2 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 33 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 2 | **MNY-01** | 33 | 23 | 0 | 0 | 10 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 3 | **STA-01** | 27 | 26 | 0 | 0 | 1 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 4 | **PII-02** | 38 | 34 | 2 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 6 | **EDG-01** | 33 | 16 | 10 | 6 | 1 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **377 COVERED + 16 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 1 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Current frozen subtotal after PR #1989 source withdrawal: **362 COVERED + 16 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 16 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **76 COVERED + 8 PUBLIC-BY-DESIGN + 8 GAP**. Historical pre-withdrawal figures remain in dated sections. 1 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
