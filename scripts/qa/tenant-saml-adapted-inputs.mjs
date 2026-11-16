@@ -9,7 +9,8 @@ const blob = (bytes) => createHash("sha1").update("blob " + Buffer.byteLength(by
 
 /** Unrecognised bytes pass through untouched so the receipt's own drift check still rejects them. */
 export function samlExecutedInputRead(read = readFileSync) {
-  const raw = read(SAML_ADAPTED_ARCHIVE);
+  // The archive is a tooling file pinned by blob; baseline reads from another revision never contain it.
+  const raw = readFileSync(SAML_ADAPTED_ARCHIVE);
   assert.equal(blob(raw), ARCHIVE_BLOB, "SAML adapted-inputs archive changed");
   const a = JSON.parse(raw);
   assert.equal(a.schema, "saml-adapted-executed-inputs-archive-v1");

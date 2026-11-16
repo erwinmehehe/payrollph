@@ -88,17 +88,18 @@ test('each sealed fresh input set equals the full locked-compiler import closure
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
           '6d41c7f76cce4c6835994912b56a35eeb4315109'],
         ['scripts/qa/tenant-six-scoped-page-credit.mjs',
-          '2083b4345a62af8c1aeb461c453a4628b06836da'],
+          'f75f5f860c7eab5af8d895d0b980a8bb8fe70c32'],
         ['scripts/qa/tenant-four-scoped-page-credit.mjs',
-          '43f4b303e6c2fd957f3301f4a5418584bda26306'],
+          '1d2db1bbab6e5715fe5f7baf0b50a09f42abdb11'],
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
           '56c6f539f4e21c91533e8ca85fbc61c2dbbf77cc'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
-          'c7f5986f71d1e68df93ba391b891ade2685857fa'],
+          'd8040e180c03d1a65040ffa5b21380939570ca7c'],
         ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
           '6b71ba5a442e263064b260e260abbc6334d4a04c'],
         ['scripts/qa/tenant-saml-metadata-privacy-verify.mjs','adb087454e668257a9f149dbe7574ce2f7042557'],
-        ['scripts/qa/tenant-saml-metadata-public-policy.mjs','13571ec83005ee6220ee99a9649482597d61c682'],
+        ['scripts/qa/tenant-saml-metadata-public-policy.mjs','d26291f6f1a640ef77d6190ad33e610c10ace9ee'],
+        ['scripts/qa/tenant-sso-resolve-public-policy.mjs','d7373a1e8b21506a90901e7d0b4e532e8bea74d6'],
       ]);
       for(const [path,expectedSha] of reviewedPageOnlyImports){
         if(!Object.hasOwn(actual,path))continue;
