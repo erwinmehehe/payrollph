@@ -10,6 +10,7 @@
  *  - Labor Code Art. 95: heading, five days and the listed exemptions come from a summary only.
  */
 import { round2 } from "@/lib/round";
+import {optionalStatutoryDays, requireStatutoryRecord, statutoryAmount, statutoryBoolean, statutoryDays, statutoryNumber} from "@/lib/statutory-input-validation";
 
 export const STATUTORY_LEAVE_RULE_VERSION = "PH-STATUTORY-LEAVE-2026-11-16";
 
@@ -153,12 +154,6 @@ export type StatutoryLeaveInput =
       grossMonthlyCompensation: number;
     };
 
-const nonNegativeInt = (value: number | undefined, label: string) => {
-  const v = value ?? 0;
-  if (!Number.isInteger(v) || v < 0) throw new RangeError(`${label} must be a non-negative integer`);
-  return v;
-};
-
 function base(kind: StatutoryLeaveKind): LeaveDecision {
   const rule = STATUTORY_LEAVE_RULES[kind];
   const flags: string[] = [];
@@ -180,10 +175,19 @@ function finish(d: LeaveDecision, entitled: number): LeaveDecision {
 }
 
 export function evaluateStatutoryLeave(input: StatutoryLeaveInput): LeaveDecision {
+  requireStatutoryRecord(input, "leave input");
+  if (typeof input.kind !== "string" || !Object.hasOwn(STATUTORY_LEAVE_RULES, input.kind)) {
+    throw new RangeError("Unknown statutory leave kind");
+  }
+  const record = input as unknown as Record<string, unknown>;
+  for (const key of ["alreadyEnjoysSameBenefit", "grantsAtLeastFivePaidVacationDays", "establishmentRegularlyEmploysFewerThanTen", "exemptedByLaborSecretary", "soloParent", "electsUnpaidExtension", "employerNotifiedOfPregnancy"]) {
+    statutoryBoolean(record[key], key, true);
+  }
   const d = base(input.kind);
   const rule = STATUTORY_LEAVE_RULES[input.kind];
   switch (input.kind) {
     case "SERVICE_INCENTIVE": {
+      statutoryNumber(input.aggregateServiceMonths, "aggregateServiceMonths");
       if (input.aggregateServiceMonths < SIL_MIN_SERVICE_MONTHS) d.blockers.push("LESS_THAN_ONE_YEAR_OF_AGGREGATE_SERVICE");
       if (input.alreadyEnjoysSameBenefit) d.blockers.push("EXEMPT_ALREADY_ENJOYS_SAME_BENEFIT");
       if (input.grantsAtLeastFivePaidVacationDays) d.blockers.push("EXEMPT_AT_LEAST_FIVE_DAYS_PAID_VACATION");
@@ -193,7 +197,7 @@ export function evaluateStatutoryLeave(input: StatutoryLeaveInput): LeaveDecisio
       return finish(d, rule.quantity);
     }
     case "MATERNITY_LIVE_BIRTH": {
-      const allocated = nonNegativeInt(input.allocatedToFatherOrCaregiver, "allocatedToFatherOrCaregiver");
+      const allocated = optionalStatutoryDays(input.allocatedToFatherOrCaregiver, "allocatedToFatherOrCaregiver");
       if (allocated > MATERNITY_MAX_FATHER_ALLOCATION_DAYS) d.blockers.push("ALLOCATION_EXCEEDS_SEVEN_DAYS");
       if (input.employerNotifiedOfPregnancy === false) {
         d.reviewFlags.push("EMPLOYER_NOT_NOTIFIED: late notice does not bar the benefit (IRR Rule VI Sec. 2(c)); SSS guidelines apply");
@@ -220,7 +224,9 @@ export function evaluateStatutoryLeave(input: StatutoryLeaveInput): LeaveDecisio
       return finish(d, rule.quantity);
     }
     case "PATERNITY": {
-      const prior = nonNegativeInt(input.priorPaidDeliveries, "priorPaidDeliveries");
+      statutoryBoolean(input.marriedToLegitimateSpouse, "marriedToLegitimateSpouse");
+      statutoryBoolean(input.cohabiting, "cohabiting");
+      const prior = statutoryDays(input.priorPaidDeliveries, "priorPaidDeliveries");
       if (!input.marriedToLegitimateSpouse) d.blockers.push("NOT_MARRIED_TO_LEGITIMATE_SPOUSE");
       if (!input.cohabiting) d.blockers.push("NOT_COHABITING_WITH_SPOUSE");
       if (prior >= PATERNITY_MAX_DELIVERIES) d.blockers.push("FIRST_FOUR_DELIVERIES_ALREADY_PAID");
@@ -230,9 +236,11 @@ export function evaluateStatutoryLeave(input: StatutoryLeaveInput): LeaveDecisio
       return finish(d, rule.quantity);
     }
     case "SOLO_PARENT": {
+      statutoryNumber(input.serviceMonths, "serviceMonths");
+      statutoryBoolean(input.soloParentStatusConfirmed, "soloParentStatusConfirmed");
       if (input.serviceMonths < SOLO_PARENT_MIN_SERVICE_MONTHS) d.blockers.push("LESS_THAN_SIX_MONTHS_OF_SERVICE");
       if (!input.soloParentStatusConfirmed) d.blockers.push("SOLO_PARENT_STATUS_NOT_CONFIRMED");
-      const used = nonNegativeInt(input.usedThisYear, "usedThisYear");
+      const used = optionalStatutoryDays(input.usedThisYear, "usedThisYear");
       const remaining = Math.max(0, rule.quantity - used);
       if (remaining === 0) d.blockers.push("ANNUAL_PARENTAL_LEAVE_ALREADY_USED");
       d.reviewFlags.push("FORFEITABLE_NONCUMULATIVE: unused days are forfeited at year end and never carried over");
@@ -241,10 +249,11 @@ export function evaluateStatutoryLeave(input: StatutoryLeaveInput): LeaveDecisio
       return finish(d, remaining);
     }
     case "VAWC": {
-      const ext = nonNegativeInt(input.protectionOrderExtensionDays, "protectionOrderExtensionDays");
-      const requested = nonNegativeInt(input.requestedDays, "requestedDays");
+      statutoryBoolean(input.victimSurvivorOrChildOfEmployee, "victimSurvivorOrChildOfEmployee");
+      const ext = optionalStatutoryDays(input.protectionOrderExtensionDays, "protectionOrderExtensionDays");
+      const requested = statutoryDays(input.requestedDays, "requestedDays");
       if (!input.victimSurvivorOrChildOfEmployee) d.blockers.push("NOT_A_VICTIM_UNDER_RA_9262");
-      const ceiling = rule.quantity + ext;
+      const ceiling = statutoryDays(rule.quantity + ext, "ceilingDays");
       d.extras = { ceilingDays: ceiling, requestedDays: requested };
       if (requested > ceiling) d.reviewFlags.push("REQUEST_EXCEEDS_CEILING: only up to ten days plus any protection-order extension is covered");
       d.reviewFlags.push("IN_ADDITION_TO_OTHER_PAID_LEAVES: do not deduct from vacation, sick or service incentive leave");
@@ -252,10 +261,13 @@ export function evaluateStatutoryLeave(input: StatutoryLeaveInput): LeaveDecisio
       return finish(d, Math.min(requested, ceiling));
     }
     case "GYNECOLOGICAL_SURGERY": {
+      statutoryNumber(input.serviceMonthsInLastTwelve, "serviceMonthsInLastTwelve", 12);
+      statutoryBoolean(input.surgeryCausedByGynecologicalDisorder, "surgeryCausedByGynecologicalDisorder");
+      statutoryAmount(input.grossMonthlyCompensation, "grossMonthlyCompensation");
       if (input.serviceMonthsInLastTwelve < GYNECOLOGICAL_MIN_SERVICE_MONTHS) d.blockers.push("LESS_THAN_SIX_MONTHS_SERVICE_IN_LAST_TWELVE");
       if (!input.surgeryCausedByGynecologicalDisorder) d.blockers.push("SURGERY_NOT_CAUSED_BY_GYNECOLOGICAL_DISORDER");
       if (!(input.grossMonthlyCompensation > 0)) d.blockers.push("GROSS_MONTHLY_COMPENSATION_REQUIRED");
-      d.extras = { maximumPay: round2(rule.quantity * Math.max(0, input.grossMonthlyCompensation)) };
+      d.extras = { maximumPay: round2(statutoryAmount(rule.quantity * input.grossMonthlyCompensation, "maximumPay")) };
       d.reviewFlags.push("ACTUAL_PERIOD_UP_TO_TWO_MONTHS_PER_MEDICAL_CERTIFICATION_NOT_VERIFIED");
       d.reviewFlags.push("CUMULATIVE_AND_CONVERTIBLE_NOT_ADDRESSED_BY_SEC_18");
       return finish(d, rule.quantity);

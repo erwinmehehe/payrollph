@@ -8,6 +8,7 @@
  * (official pages; sample computation images were not read) and the RA 11210 IRR on Lawphil.
  */
 import { round2 } from "@/lib/round";
+import {optionalStatutoryDays, requireStatutoryRecord, statutoryAmount, statutoryBoolean, statutoryDays, statutoryOffset} from "@/lib/statutory-input-validation";
 
 export const SSS_BENEFIT_RULE_VERSION = "SSS-BENEFITS-2026-11-16";
 /** Regular Program MSC limit for benefit computation (SSS Circular 2020-032 as cited on the benefit pages). */
@@ -38,29 +39,39 @@ export type AdscWindow = {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const monthIndex = (ym: string) => {
+  if (typeof ym !== "string") throw new RangeError("Contribution month must be YYYY-MM");
   const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
-  if (!m) throw new RangeError(`Invalid month ${ym}; expected YYYY-MM`);
+  if (!m) throw new RangeError("Invalid month; expected YYYY-MM");
   return Number(m[1]) * 12 + Number(m[2]) - 1;
 };
-const monthOf = (index: number) => `${Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
+const monthOf = (index: number) => {
+  const year = Math.floor(index / 12);
+  if (year < 100 || year > 9999) throw new RangeError("Derived contribution window is outside the supported calendar range");
+  return `${String(year).padStart(4, "0")}-${pad((index % 12) + 1)}`;
+};
 const parseDate = (value: string) => {
+  if (typeof value !== "string") throw new RangeError("Date must be YYYY-MM-DD");
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!m) throw new RangeError(`Invalid date ${value}; expected YYYY-MM-DD`);
+  if (!m) throw new RangeError("Invalid date; expected YYYY-MM-DD");
   const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const back = new Date(t);
   if (back.getUTCFullYear() !== Number(m[1]) || back.getUTCMonth() !== Number(m[2]) - 1 || back.getUTCDate() !== Number(m[3])) {
-    throw new RangeError(`Invalid calendar date ${value}`);
+    throw new RangeError("Invalid calendar date");
   }
   return t;
 };
 const fmt = (t: number) => {
   const d = new Date(t);
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  if (!Number.isFinite(t) || !Number.isFinite(d.getTime()) || d.getUTCFullYear() < 100 || d.getUTCFullYear() > 9999) {
+    throw new RangeError("Derived date is outside the supported calendar range");
+  }
+  return `${String(d.getUTCFullYear()).padStart(4, "0")}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 };
-export const addCalendarDays = (date: string, days: number) => fmt(parseDate(date) + days * 86_400_000);
+export const addCalendarDays = (date: string, days: number) => fmt(parseDate(date) + statutoryOffset(days, "days") * 86_400_000);
 export const addYears = (date: string, years: number) => {
   const d = new Date(parseDate(date));
-  const y = d.getUTCFullYear() + years;
+  const y = d.getUTCFullYear() + statutoryOffset(years, "years");
+  if (y < 100 || y > 9999) throw new RangeError("Derived year is outside the supported calendar range");
   const month = d.getUTCMonth();
   const last = new Date(Date.UTC(y, month + 1, 0)).getUTCDate();
   return fmt(Date.UTC(y, month, Math.min(d.getUTCDate(), last)));
@@ -96,6 +107,7 @@ export type AdscResult = {
 };
 
 export function computeAdsc(contributions: MonthlyContribution[], contingencyDate: string): AdscResult {
+  if (!Array.isArray(contributions)) throw new RangeError("contributions must be an array");
   const window = adscWindow(contingencyDate);
   const lo = monthIndex(window.windowStart);
   const hi = monthIndex(window.windowEnd);
@@ -103,12 +115,14 @@ export function computeAdsc(contributions: MonthlyContribution[], contingencyDat
   const seen = new Set<string>();
   const credits: number[] = [];
   for (const row of contributions) {
+    requireStatutoryRecord(row, "contribution");
     const idx = monthIndex(row.month);
-    if (!Number.isFinite(row.monthlySalaryCredit) || row.monthlySalaryCredit < 0) throw new RangeError(`Invalid MSC for ${row.month}`);
+    statutoryAmount(row.monthlySalaryCredit, "monthlySalaryCredit");
     if (seen.has(row.month)) throw new RangeError(`Duplicate contribution month ${row.month}`);
     seen.add(row.month);
+    const paidOn = row.paidOn === undefined ? null : parseDate(row.paidOn);
     if (idx < lo || idx > hi) continue;
-    if (row.paidOn && parseDate(row.paidOn) >= parseDate(semesterStartDate)) continue;
+    if (paidOn !== null && paidOn >= parseDate(semesterStartDate)) continue;
     credits.push(Math.min(row.monthlySalaryCredit, SSS_BENEFIT_MSC_CAP));
   }
   credits.sort((a, b) => b - a);
@@ -156,6 +170,12 @@ export type MaternityBenefitResult = {
 };
 
 export function computeMaternityBenefit(input: MaternityBenefitInput): MaternityBenefitResult {
+  requireStatutoryRecord(input, "maternity benefit input");
+  if (input.caseKind !== "LIVE_BIRTH" && input.caseKind !== "MISCARRIAGE_OR_ETP") throw new RangeError("Unknown maternity case kind");
+  statutoryBoolean(input.soloParent, "soloParent", true);
+  statutoryBoolean(input.differentialExemptByDole, "differentialExemptByDole", true);
+  if (input.fullPayPerLeaveDay !== undefined) statutoryAmount(input.fullPayPerLeaveDay, "fullPayPerLeaveDay");
+  if (input.applicationFiledOn !== undefined) parseDate(input.applicationFiledOn);
   const a = computeAdsc(input.contributions, input.contingencyDate);
   const days =
     input.caseKind === "MISCARRIAGE_OR_ETP"
@@ -175,8 +195,8 @@ export function computeMaternityBenefit(input: MaternityBenefitInput): Maternity
   if (input.differentialExemptByDole) {
     differential = 0;
   } else if (typeof input.fullPayPerLeaveDay === "number") {
-    if (!(input.fullPayPerLeaveDay >= 0)) throw new RangeError("fullPayPerLeaveDay must be non-negative");
-    differential = a.eligible ? Math.max(0, round2(input.fullPayPerLeaveDay * days - sssBenefit)) : null;
+    const fullPay = statutoryAmount(input.fullPayPerLeaveDay * days, "fullPayForLeave");
+    differential = a.eligible ? Math.max(0, round2(fullPay - sssBenefit)) : null;
   } else {
     flags.push("FULL_PAY_PER_LEAVE_DAY_REQUIRED_TO_PRICE_THE_DIFFERENTIAL");
   }
@@ -215,12 +235,14 @@ export type SicknessBenefitResult = {
 };
 
 export function computeSicknessBenefit(input: SicknessBenefitInput): SicknessBenefitResult {
+  requireStatutoryRecord(input, "sickness benefit input");
+  statutoryBoolean(input.companySickLeaveExhausted, "companySickLeaveExhausted");
   const a = computeAdsc(input.contributions, input.sicknessStartDate);
   for (const [label, v] of [["confinementDays", input.confinementDays], ["approvedDays", input.approvedDays]] as const) {
-    if (!Number.isInteger(v) || v < 0) throw new RangeError(`${label} must be a non-negative integer`);
+    statutoryDays(v, label);
   }
-  const paidYear = input.daysPaidThisCalendarYear ?? 0;
-  const paidIllness = input.daysPaidForSameIllness ?? 0;
+  const paidYear = optionalStatutoryDays(input.daysPaidThisCalendarYear, "daysPaidThisCalendarYear");
+  const paidIllness = optionalStatutoryDays(input.daysPaidForSameIllness, "daysPaidForSameIllness");
   const blockers: string[] = [];
   if (!a.eligible) blockers.push("FEWER_THAN_THREE_CONTRIBUTION_MONTHS_IN_WINDOW");
   if (input.confinementDays < SSS_SICKNESS_MIN_CONFINEMENT_DAYS) blockers.push("CONFINEMENT_UNDER_FOUR_DAYS");
@@ -257,6 +279,11 @@ export function sicknessDeadlines(input: {
   dischargeDate?: string;
   employeeNotifiedEmployerOn?: string;
 }): SicknessDeadlines {
+  requireStatutoryRecord(input, "sickness deadline input");
+  if (input.confinement !== "HOME" && input.confinement !== "HOSPITAL") throw new RangeError("Unknown confinement kind");
+  const start = parseDate(input.confinementStart);
+  if (input.employeeNotifiedEmployerOn !== undefined) parseDate(input.employeeNotifiedEmployerOn);
+  if (input.dischargeDate !== undefined && parseDate(input.dischargeDate) < start) throw new RangeError("dischargeDate precedes confinementStart");
   if (input.confinement === "HOSPITAL") {
     if (!input.dischargeDate) throw new RangeError("dischargeDate is required for hospital confinement");
     const by = addYears(input.dischargeDate, 1);
