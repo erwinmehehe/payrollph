@@ -153,6 +153,23 @@ export async function POST(request: Request) {
   catch { return Response.json({ error: "Private case encryption unavailable. No statement was stored." },
     { status: 503, headers: workplacePrivateHeaders }); }
   const row = await db.transaction(async tx => {
+    // Serialize complaint intake with officer revocation. A revoked officer
+    // must never become the only intake destination through a race.
+    const [intakeOfficer] = await tx.select({ userId: workplaceCaseOfficers.userId })
+      .from(workplaceCaseOfficers)
+      .innerJoin(users, eq(users.id, workplaceCaseOfficers.userId))
+      .innerJoin(userOrganizations, and(
+        eq(userOrganizations.userId, workplaceCaseOfficers.userId),
+        eq(userOrganizations.organizationId, workplaceCaseOfficers.organizationId),
+      ))
+      .where(and(
+        eq(workplaceCaseOfficers.organizationId, organizationId),
+        eq(workplaceCaseOfficers.legalEntityId, scope.legalEntityId!),
+        eq(workplaceCaseOfficers.userId, investigatorUserId),
+        eq(workplaceCaseOfficers.active, true),
+        eq(users.active, true), eq(userOrganizations.active, true),
+      )).for("update").limit(1);
+    if (!intakeOfficer) throw new Error("INTAKE_OFFICER_UNAVAILABLE");
     const [record] = await tx.insert(workplaceProtectedCases).values({
       organizationId, legalEntityId: scope.legalEntityId!,
       caseKind: body.caseKind as string, createdByUserId: session.id,
@@ -160,7 +177,7 @@ export async function POST(request: Request) {
     }).returning();
     // Never audit allegation text, the protected category or identity details.
     await recordAuditEvent({
-      organizationId, actor: "protected-case-user:" + String(session.id),
+      organizationId, actor: "confidential-case-intake",
       action: "Confidential workplace case received",
       resource: String(record.id),
       metadata: { caseId: record.id, legalEntityId: record.legalEntityId, private: true, status: "intake" },
@@ -222,6 +239,21 @@ export async function PATCH(request: Request) {
           newReviewerId === old.createdByUserId || newReviewerId === old.investigatorUserId) {
           throw new Error("CONFLICT_OR_UNAUTHORIZED");
         }
+        const [reviewer] = await tx.select({ userId: workplaceCaseOfficers.userId })
+          .from(workplaceCaseOfficers)
+          .innerJoin(users, eq(users.id, workplaceCaseOfficers.userId))
+          .innerJoin(userOrganizations, and(
+            eq(userOrganizations.userId, workplaceCaseOfficers.userId),
+            eq(userOrganizations.organizationId, workplaceCaseOfficers.organizationId),
+          ))
+          .where(and(
+            eq(workplaceCaseOfficers.organizationId, organizationId),
+            eq(workplaceCaseOfficers.legalEntityId, scope.legalEntityId!),
+            eq(workplaceCaseOfficers.userId, newReviewerId!),
+            eq(workplaceCaseOfficers.active, true),
+            eq(users.active, true), eq(userOrganizations.active, true),
+          )).for("update").limit(1);
+        if (!reviewer) throw new Error("REVIEWER_UNAVAILABLE");
         values = { reviewerUserId: newReviewerId!, updatedAt: new Date() };
       } else {
         const next = body.status as typeof PROTECTED_CASE_STATES[number];
@@ -238,7 +270,7 @@ export async function PATCH(request: Request) {
         eq(workplaceProtectedCases.id, id), eq(workplaceProtectedCases.organizationId, organizationId),
       )).returning();
       await recordAuditEvent({
-        organizationId, actor: "protected-case-officer:" + String(session.id),
+        organizationId, actor: "confidential-case-review",
         action: "Protected workplace case state recorded",
         resource: String(id), metadata: { caseId: id, action: body.action, status: updated.status,
           independentReview: body.action === "transition" && body.status === "closed" },
