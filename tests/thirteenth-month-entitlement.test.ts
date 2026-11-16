@@ -232,7 +232,7 @@ test("centavo rounding stays exact up to the supported one-trillion-peso basic b
   ]) {
     const got = computeThirteenthMonth({ basicCentavos, payouts: {} });
     assert.deepEqual(got.blockers, [], `c=${basicCentavos}`);
-    assert.equal(got.entitlementCentavos, Number((BigInt(basicCentavos) + 6n) / 12n),
+    assert.equal(got.entitlementCentavos, Number((BigInt(basicCentavos) + BigInt(6)) / BigInt(12)),
       `c=${basicCentavos}`);
   }
   const beyond = computeThirteenthMonth({ basicCentavos: 100_000_000_000_001, payouts: {} });
