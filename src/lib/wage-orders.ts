@@ -160,6 +160,13 @@ export function wageOrderFor(region: string, asOfDate?: string, wageClass?: Regi
       .filter((item) => item.region === normalized && item.effectiveOn <= date)
       .sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn))[0];
     if (preceding) return preceding;
+    // The newly upgraded regions have dated predecessors. Do not back-apply
+    // a November 2026 wage order to work older than our verified history.
+    // Regions without a recorded predecessor retain their existing lookup
+    // behavior until a separate, source-verified historical registry exists.
+    if (HISTORICAL_WAGE_ORDERS.some((item) => item.region === normalized)) {
+      throw new Error(`No verified wage-order history for Region ${normalized} on ${date}.`);
+    }
   }
   const applicable = FORTHCOMING_WAGE_ORDERS
     .filter((item) => item.region === normalized && item.effectiveOn <= date)
