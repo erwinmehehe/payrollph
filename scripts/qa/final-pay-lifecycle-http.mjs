@@ -156,9 +156,13 @@ async function journey(v, a) {
   await deny(v, a.maker, '/api/separation', 'POST', body, 422, 'foreign worker recomputation');
   await deny(v, a.maker, '/api/separation', 'POST', { ...body, organizationId: v.org.id }, 403, 'foreign employer recomputation');
   for (const action of ['clearance', 'approve', 'release', 'issue_coe', 'revoke_local_access', 'waive_clearance']) {
-    await deny(v, a.maker, '/api/separation', 'PATCH', { id: v.sep.id, action, organizationId: a.org.id, employeeId: a.worker.id }, 403, `foreign package ${action}`);
+    await deny(v, a.maker, '/api/separation', 'PATCH', { id: v.sep.id, action, organizationId: a.org.id, employeeId: a.worker.id }, 404, `foreign package ${action} is concealed`);
   }
-  await deny(a, a.employeeUser, '/api/separation', 'PATCH', { id: a.sep.id, action: 'approve' }, 403, 'employee cannot approve');
+  await deny(a, a.employeeUser, '/api/separation', 'PATCH', { id: a.sep.id, action: 'approve' }, 404, 'employee cannot probe private approval record');
+  await deny(v, a.maker, '/api/separation', 'PATCH', {
+    id: v.sep.id + 1000000, action: 'clearance',
+    organizationId: a.org.id, employeeId: a.worker.id,
+  }, 404, 'unknown separation PATCH matches foreign-separation refusal');
   await deny(a, a.employeeUser, `/api/separation?organizationId=${a.org.id}`, 'GET', undefined, 403, 'employee cannot list finance');
   for (const field of ['itCleared', 'adminCleared', 'financeCleared', 'hrCleared']) {
     const changed = status(await patch(a, a.checker, 'clearance', {

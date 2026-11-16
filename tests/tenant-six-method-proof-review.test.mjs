@@ -530,8 +530,29 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       ["proofBlobSha", pin.proofFile, pin.proofSha],
       ["workflowBlobSha", pin.workflowFile, pin.workflowSha],
     ]) {
+      // #1978 preserves the original #1730 workflow/run/hash receipt.
+      // A current privacy hardening pass is source-pinned separately, and
+      // must be re-proven by the new exact-head PG16 HTTP workflow.
       assert.equal(receipt?.[field], expectedSha, label + " immutable " + field);
-      assert.equal(blobSha(file), expectedSha, label + " actual file hash " + file);
+      if (field === "routeBlobSha" &&
+          pin.path === "src/app/api/year-end/prior-evidence/route.ts") {
+        const renewed = m.allApiRouteFiles[pin.path].sourceRevisionReview;
+        const current = "b7d3cde4a9d66f408c40c9e34ce50cacc3dc540b";
+        assert.equal(renewed?.previousRouteBlobSha, expectedSha,
+          "Historic #1730 route receipt must not be rewritten");
+        assert.equal(renewed?.currentRouteBlobSha, current);
+        assert.equal(renewed?.priorReceiptHistoricalOnly, true);
+        assert.equal(renewed?.newTenantIsolationMethodCredits, 0);
+        assert.equal(renewed?.productionCertified, false);
+        assert.equal(blobSha(file), current,
+          "Changed prior-evidence handler requires renewed current-source test");
+        const now = readFileSync(file, "utf8");
+        for (const marker of ['"PRIOR_EMPLOYEE_NOT_FOUND"',
+          '"PRIOR_ENTITY_ACCESS_DENIED"', '"PRIOR_RECORD_UNAVAILABLE"',
+          '.includes(internalCode)']) assert.ok(now.includes(marker),
+            "Employee existence parity must survive the source revision");
+      } else assert.equal(blobSha(file), expectedSha,
+        label + " actual file hash " + file);
     }
     assert.equal(receipt?.file, pin.proofFile);
     assert.equal(receipt?.workflowFile, pin.workflowFile);
@@ -546,7 +567,12 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   // Three unrelated methods have now passed on their own exact-final-head
   // fictional-PG16/real-HTTP receipts. Run the strict byte/anchor/CI-receipt
   // verifier before allowing ONLY these three distinct new promotions.
-  assert.equal(verifyFivePageCredits(m), 5, "New scoped pages require their own source-current four-part proof");
+  // The merged OIDC receipt verifier reads proof lines with .split(). Pass
+  // UTF-8 source text explicitly; unencoded readFileSync returns a Buffer.
+  // All byte SHA / source-anchor / GAP assertions still execute unchanged.
+  const readProofText = (file, encoding) => readFileSync(file, encoding ?? "utf8");
+  assert.equal(verifyFivePageCredits(m, readProofText), 5,
+    "New scoped pages require their own source-current four-part proof");
   const recovery = verifyFiveMethodCredits(historicWorker360ProofView(m));
   assert.equal(recovery.methodsCredited, 3);
   assert.equal(recovery.methodsHeld, 0);
@@ -1062,7 +1088,11 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
       // old method cohort against origin/main; the live ledger stays at 11 gaps.
       assert.equal(verifyFivePageCredits(baseline,readMainFile),5,
         'Validate main\'s five page receipts before constructing the historical Worker 360 view');
-      const receipt = verifyFiveMethodCredits(historicWorker360ProofView(baseline), readMainFile);
+      // Project the old six-page main receipt using old main's own proof
+      // source lines before checking the older Worker 360 ledger. A current
+      // PR-head proof must not silently replace a historical main receipt.
+      const historicMainPages = historicSixPageView(baseline, readMainFile);
+      const receipt = verifyFiveMethodCredits(historicWorker360ProofView(historicMainPages), readMainFile);
       assert.equal(receipt.methodsCredited, 3);
       assert.equal(receipt.methodsHeld, 2 - baselineTransferCredits,
         "Historical five-method holds must reflect only the dedicated validated transfer promotion");

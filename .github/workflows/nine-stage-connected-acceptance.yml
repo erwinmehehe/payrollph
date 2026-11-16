@@ -208,7 +208,7 @@ jobs:
         # Direct PR/main runs preserve all four modes. The clean-PG18 caller
         # runs exactly one separate, fresh guarded PG18 employer A/B journey.
         include: ${{ fromJSON(inputs.pg18_only && '[{"hire-mode":"governed","postgres":"18"}]' || '[{"hire-mode":"direct","postgres":"16"},{"hire-mode":"governed","postgres":"16"},{"hire-mode":"governed","postgres":"18"},{"hire-mode":"governed","postgres":"16","cutoff":"year-end"}]') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       NINE_STAGE_HIRE_MODE: ${{ matrix.hire-mode }}

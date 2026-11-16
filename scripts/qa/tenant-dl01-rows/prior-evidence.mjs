@@ -84,7 +84,7 @@ export async function verify(ctx) {
           body: method === "POST" ?
             { action: "save", expectedDigest: "", evidence: evidence("FORGED") } : undefined,
         }), 409, "DL-01 prior " + method + " denies victim-worker reference");
-      assert.equal(forged.json?.code, "PRIOR_EMPLOYEE_NOT_FOUND");
+      assert.equal(forged.json?.code, "PRIOR_RECORD_UNAVAILABLE");
       ctx.noVictim(forged, ctx.victim, "DL-01 prior forged selector");
     }
     assert.deepEqual(await victimSnapshot(ctx.victim), victimBefore,

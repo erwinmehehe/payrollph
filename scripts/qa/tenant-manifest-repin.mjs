@@ -55,6 +55,56 @@ const nowLines = (file) => linesAt(currentText, file, (f) => {
 // Fields that cite the ROUTE source, not the proof file. Never re-pinned against the proof file.
 const ROUTE_SOURCE_FIELDS = new Set(["currentMembershipGuardLine"]);
 
+// A reviewed #1978 evidence revision, NOT a generic source-hash or coverage waiver.
+// The API now intentionally returns an opaque 404 for a foreign separation PATCH
+// instead of 403. Preserve the original main receipt and demand an exact, single-
+// line replacement in its real disposable-HTTP proof. Any other change still
+// requires a new review and does not silently repin.
+function reviewedForeignSeparationPatchPrivacyDelta({
+  path, method, kind, field, proof, cited, value, baseValue, before, now,
+}) {
+  // Original PR base and the exact post-sync main contain the SAME old
+  // denial proof blob. Both are explicit reviewed baselines, not a wildcard.
+  // This exception remains limited to the one 403 -> opaque 404 assertion,
+  // with byte-identical surrounding lines and the new proof/route blob pins.
+  const reviewedBases = new Set([
+    "1b437fbf2a05053fddb5acf1b50171590a6e788a",
+    "2444b60e8d117935d16167476cc15a9683880788",
+    // #1983 changed only the page-credit ledger; it retained this exact
+    // separation proof, making it a separately pinned replay baseline.
+    "c3b5d9d0b630ff8d9822187abc737231c1405493",
+  ]);
+  const matchesReviewedBase = (() => {
+    try {
+      const resolvedBase = execFileSync("git", ["rev-parse", "--verify", baseRef + "^{commit}"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+      const sourceBlob = execFileSync("git", ["rev-parse", "--verify", baseRef + ":scripts/qa/payroll-approved-exit-http.mjs"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+      return reviewedBases.has(resolvedBase) &&
+        sourceBlob === "55108c2f73d2a25f168504d3f46fd69a5d59a292";
+    } catch { return false; }
+  })();
+  if (!matchesReviewedBase ||
+      path !== "src/app/api/separation/route.ts" ||
+      method.name !== "PATCH" || kind !== "testedBy" ||
+      field !== "foreignDenialLine" ||
+      proof.file !== "scripts/qa/payroll-approved-exit-http.mjs" ||
+      cited?.file !== proof.file || value !== 76 || baseValue !== 76 ||
+      before.length !== now.length) return false;
+
+  const record = manifest.allApiRouteFiles[path];
+  if (record.gitBlobSha !== "5867788194578cfb5a0aa8c717543371b0fa352c" ||
+      record.sourceRevisionReview?.newTenantIsolationMethodCredits !== 0 ||
+      record.sourceRevisionReview?.productionCertified !== false) return false;
+  const oldLine = '  expectStatus(await request("/api/separation", stranger, "PATCH", { id: separationId, action: "approve" }), 403, "Foreign PATCH denied");';
+  const newLine = '  expectStatus(await request("/api/separation", stranger, "PATCH", { id: separationId, action: "approve" }), 404, "Foreign PATCH is indistinguishable from a missing separation");';
+  if (before[75] !== oldLine || now[75] !== newLine ||
+      !before.every((line, index) => index === 75 || line === now[index])) return false;
+  const gitBlob = (file) => execFileSync("git", ["hash-object", file], { encoding: "utf8" }).trim();
+  return gitBlob(proof.file) === "85832346e2a260efe2d9af008209af11a3331836" &&
+    gitBlob(path) === record.gitBlobSha;
+}
+
 /**
  * Pick where a cited line moved: unique exact text, or, when the text repeats, the unique
  * candidate whose surrounding lines (4 above, 4 below) all still match the base file.
@@ -69,7 +119,7 @@ function relocate(before, now, value) {
   return { hits, at: exact.length === 1 ? exact[0] : undefined };
 }
 
-const moved = [], review = [];
+const moved = [], review = [], reviewedEvidence = [];
 const anchorMoves = new Map(); // "<file>#L<old>" -> new line
 let unchanged = 0, newCitations = 0;
 for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
@@ -154,6 +204,10 @@ for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
           moved.push(`${method.name} ${path} ${field}: ${value} -> ${at}`);
           proof[field] = at;
           anchorMoves.set(file + "#L" + value, at);
+        } else if (reviewedForeignSeparationPatchPrivacyDelta({
+          path, method, kind, field, proof, cited, value, baseValue, before, now,
+        })) {
+          reviewedEvidence.push(`${method.name} ${path} ${field}=${value}: approved 403-to-404 privacy denial change, exact proof and route Git blobs verified`);
         } else {
           review.push(`${method.name} ${path} ${field}=${value}: cited text ${hits.length ? "now appears " + hits.length + " times" : "was edited or removed"} (${JSON.stringify(text.trim().slice(0, 90))})`);
         }
@@ -175,7 +229,8 @@ if (write && moved.length) {
     if (next !== doc) writeFileSync(OVERVIEW, next);
   }
 }
-console.log(JSON.stringify({ base: baseRef, unchanged, newCitations, repinned: moved.length, needsReview: review.length, wrote: write && moved.length > 0 }, null, 1));
+console.log(JSON.stringify({ base: baseRef, unchanged, newCitations, repinned: moved.length, needsReview: review.length, reviewedEvidenceChanges: reviewedEvidence.length, wrote: write && moved.length > 0 }, null, 1));
 for (const line of moved) console.log("repin  " + line);
+for (const line of reviewedEvidence) console.log("REVIEWED " + line);
 for (const line of review) console.log("REVIEW " + line);
 if ((!write && moved.length) || review.length) process.exitCode = 1;

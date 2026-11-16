@@ -73,7 +73,7 @@ try {
   const beforeForeign = await db.select().from(separationRecords).where(eq(separationRecords.id, separationId));
   expectStatus(await request("/api/separation?organizationId=" + own.id, stranger), 403, "Foreign GET denied");
   expectStatus(await request("/api/separation", stranger, "POST", body), 403, "Foreign POST denied");
-  expectStatus(await request("/api/separation", stranger, "PATCH", { id: separationId, action: "approve" }), 403, "Foreign PATCH denied");
+  expectStatus(await request("/api/separation", stranger, "PATCH", { id: separationId, action: "approve" }), 404, "Foreign PATCH is indistinguishable from a missing separation");
   const afterForeign = await db.select().from(separationRecords).where(eq(separationRecords.id, separationId));
   assert.deepEqual(afterForeign, beforeForeign, "Foreign separation mutations leave victim rows unchanged");
 
