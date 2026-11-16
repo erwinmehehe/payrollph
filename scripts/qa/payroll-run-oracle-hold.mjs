@@ -104,7 +104,8 @@ export function isVerifiedOracleRenewal(manifest,path,verb){
 /** Historical receipt checks may be replaced only by a fully verified source
  * withdrawal OR the distinct new executed renewal, never a truthy receipt. */
 export function isVerifiedOracleSupersession(manifest,path,verb){
-  return isVerifiedOracleHold(manifest,path,verb)||isVerifiedOracleRenewal(manifest,path,verb);
+  return verifyWageRegistrySourceHold(manifest,path,verb) ||
+    isVerifiedOracleHold(manifest,path,verb) || isVerifiedOracleRenewal(manifest,path,verb);
 }
 export function verifiedOracleRenewalKeys(manifest){
   verifyOracleSourceHolds(manifest);
