@@ -17,7 +17,7 @@ import {
 } from "@/lib/ph-workplace-context";
 import {
   PROTECTED_CASE_KINDS, PROTECTED_CASE_STATES, isOneOf, positiveId, phCivilDate,
-  sha256Digest, mayReadProtectedCase, mayTransitionProtectedCase,
+  sha256Digest, mayReadProtectedCase, mayTransitionProtectedCase, protectedCaseDetailRequiresMfa,
 } from "@/lib/ph-workplace-compliance-policy";
 import { sealWorkplaceStatement, openWorkplaceStatement } from "@/lib/ph-workplace-statement-crypto";
 import {
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
   // List views are metadata-only. Decrypt a single statement ONLY on a
   // deliberate authenticated case-detail request; never bulk-prefetch allegations.
   if (requestedCaseId) {
-    if (session.role !== "employee") {
+    if (protectedCaseDetailRequiresMfa(session.role, officer)) {
       const mfa = requireSensitiveActionMfa(session);
       if (mfa) return mfa;
     }
