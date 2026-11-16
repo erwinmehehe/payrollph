@@ -6,6 +6,7 @@ on:
       - "tests/payroll-e2e-fictional-*.test.ts"
       - "docs/qa/payroll-e2e-*.md"
       - "src/lib/payroll-engine.ts"
+      - "src/lib/wage-orders.ts" # Registry change must re-run payroll tenant/money regression proof.
       - "src/lib/payroll-settlement.ts"
       - "src/lib/payroll-connected-release-gate-server.ts"
       - "src/lib/critical-release-flags.ts"
