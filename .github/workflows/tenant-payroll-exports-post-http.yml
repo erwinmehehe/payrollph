@@ -5,7 +5,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - '.github/workflows/tenant-payroll-exports-post-http.yml'
       - 'scripts/qa/tenant-payroll-exports-post-*.mjs'
       - 'scripts/qa/paymongo-http-proof-preload.mjs'

@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - "src/lib/automation.ts"
       - "src/lib/automation-recovery-scope.ts"
       - "scripts/qa/tenant-studio-triage-contract.mjs"

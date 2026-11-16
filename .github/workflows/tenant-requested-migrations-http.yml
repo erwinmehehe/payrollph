@@ -4,7 +4,6 @@ on:
     types: [opened, synchronize, reopened]
     branches: [main]
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - '.github/workflows/tenant-requested-migrations-http.yml'
       - 'scripts/qa/tenant-requested-migrations-http.mjs'
       - 'scripts/qa/migration-method-proof.mjs'

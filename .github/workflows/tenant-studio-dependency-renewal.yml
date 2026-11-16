@@ -8,7 +8,6 @@ name: Studio dependency receipt renewal (fictional PG16 HTTP)
       - synchronize
       - reopened
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - .github/workflows/tenant-studio-dependency-renewal.yml
       - src/lib/automation.ts
       - src/lib/automation-recovery-scope.ts

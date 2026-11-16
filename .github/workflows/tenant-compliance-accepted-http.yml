@@ -5,7 +5,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - '.github/workflows/tenant-compliance-accepted-http.yml'
       - 'scripts/qa/tenant-compliance-accepted-http.mjs'
       - 'tests/tenant-compliance-accepted-contract.test.mjs'

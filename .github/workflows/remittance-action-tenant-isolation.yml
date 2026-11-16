@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - "src/app/api/compliance/remittance-actions/route.ts"
       - "src/lib/statutory-remittance-task-scope.ts"
       - "src/lib/statutory-remittance-actions.ts"

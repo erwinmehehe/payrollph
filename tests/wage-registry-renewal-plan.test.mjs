@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
-import yaml from 'js-yaml';
+import {renewalWorkflow,generatedWorkflow,OUTPUT} from '../scripts/qa/wage-registry-renewal-workflow.mjs';
 import {readWageRenewalInventory,INVENTORY,captureWageRenewalInventory} from '../scripts/qa/wage-registry-renewal-plan.mjs';
 
 test('the renewal starts from exactly 75 immutable current-main withdrawals, not earlier credit guesses',()=>{
@@ -14,17 +13,18 @@ test('the renewal starts from exactly 75 immutable current-main withdrawals, not
  assert.throws(()=>readWageRenewalInventory(p=>p===INVENTORY?Buffer.concat([readFileSync(p),Buffer.from('\n')]):readFileSync(p)),/immutable/);
 });
 
-test('adding a renewal trigger preserves every original proof job, environment, assertion and permission',()=>{
- const {baseMainCommit}=readWageRenewalInventory();
- const files=execFileSync('git',['diff','--name-only',baseMainCommit,'--','.github/workflows'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
- assert.ok(files.length>0);
- for(const file of files){
-  const before=yaml.load(execFileSync('git',['show',baseMainCommit+':'+file],{encoding:'utf8'}));
-  const after=yaml.load(readFileSync(file,'utf8'));
-  assert.deepEqual(after.jobs,before.jobs,'Do not alter any executed proof instruction: '+file);
-  assert.deepEqual(after.permissions,before.permissions);
-  assert.ok(after.on.pull_request.paths.includes('scripts/qa/wage-registry-renewal-*'));
-  after.on.pull_request.paths=after.on.pull_request.paths.filter(p=>p!=='scripts/qa/wage-registry-renewal-*');
-  assert.deepEqual(after,before,'Only the opt-in renewal trigger may be added: '+file);
+test('the dedicated renewal preserves original recipes and requires the exact proposed checkout',()=>{
+ assert.equal(readFileSync(OUTPUT,'utf8'),generatedWorkflow());
+ const workflow=renewalWorkflow();assert.ok(Object.keys(workflow.jobs).length>=30);
+ assert.equal(workflow.permissions.contents,'read');assert.equal(workflow.permissions.actions,'read');
+ for(const job of Object.values(workflow.jobs)){
+  if(!job.steps.some(x=>x.uses?.startsWith('actions/checkout@')))continue;
+  const step=job.steps.find(x=>x.name==='Verify exact proposed renewal source');assert.ok(step);
+  assert.equal(step.env.WAGE_RENEWAL_EXPECTED_HEAD,'${{ github.event.pull_request.head.sha }}');
  }
+ const changed=renewalWorkflow((file,...rest)=>file.endsWith('tenant-spend-write-actions-http.yml')
+  ?readFileSync(file,...rest).toString().replace('node --import tsx scripts/qa/tenant-spend-write-actions-http.mjs','echo must-not-replace-proof'):readFileSync(file,...rest));
+ // Canonical generation detects any original recipe drift rather than borrowing
+ // old execution or relaxing its runtime assertions.
+ assert.notDeepEqual(changed.jobs['spend__spend-full-write-method'],workflow.jobs['spend__spend-full-write-method']);
 });

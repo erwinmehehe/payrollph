@@ -5,7 +5,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
-      - 'scripts/qa/wage-registry-renewal-*'
       - "src/lib/automation-recovery-scope.ts"
       - ".github/workflows/tenant-studio-draft-qa.yml"
       - "scripts/qa/tenant-studio-draft-contract.mjs"
