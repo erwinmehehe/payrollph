@@ -58,6 +58,10 @@ jobs:
           git worktree add --detach "$historical" "$base"
           trap 'git worktree remove --force "$historical"' EXIT
           ln -s "$GITHUB_WORKSPACE/node_modules" "$historical/node_modules"
+          # The immutable old test predates one exact owner-approved public SSO
+          # relabel on main. Verify that change, then patch ONLY this temp copy.
+          # No original test, proof receipt, or live coverage record is rewritten.
+          node scripts/qa/tenant-six-method-public-replay.mjs "$historical"
           (cd "$historical" && node --test tests/tenant-six-method-proof-review.test.mjs)
       - name: Verify exact-head 75 wage dependency holds (no credits)
         run: |
