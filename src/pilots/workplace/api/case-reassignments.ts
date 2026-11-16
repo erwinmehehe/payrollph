@@ -149,6 +149,7 @@ export async function POST(request: Request) {
         organizationId, legalEntityId: scope.legalEntityId!, caseId,
         officerRole: body.officerRole as string, previousOfficerUserId: previousId,
         replacementOfficerUserId: replacementId, requestedByUserId: session.id,
+        status: "pending",
       }).returning();
       await tx.insert(workplaceCaseAuditTrail).values({
         organizationId, legalEntityId: scope.legalEntityId!, caseId,
