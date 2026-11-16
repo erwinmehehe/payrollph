@@ -4646,6 +4646,21 @@ test("new dashboard, employee-directory and payroll-list coverage cites executab
     // Still verify old own/victim evidence anchors after checking current holds.
     assert.equal(method?.status, "COVERED", key + ": proof must remain classified");
     const proof = method.testedBy;
+    // Payroll-list GET was independently renewed using a separate exact-source
+    // PG16 receipt before the wage-source change. It is now GAP/HELD, and the
+    // archived proof is not the obsolete second-pass harness.
+    if (route === "payroll-runs" && proof?.kind === "payroll-run-source-renewal-real-http-pg16") {
+      const current = manifest.allApiRouteFiles[key].methods.find(item => item.name === "GET");
+      assert.equal(current.status, "GAP", "New wage source must keep payroll GET uncredited");
+      assert.equal(current.testedBy, null);
+      assert.ok(isVerifiedRunWithdrawal(key, "GET"), "Exact source hold required");
+      assert.equal(proof.method, "GET payroll-runs");
+      assert.equal(proof.receiptFile, "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json");
+      assert.equal(proof.receiptSha256,
+        "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9");
+      assert.equal(proof.productionCertified, false);
+      continue;
+    }
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs", key + ": not a real HTTP harness");
     const positive = evidenceLine(proof.file, proof.ownPositiveLine, key + " own-positive");
     const negative = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign-denial");
