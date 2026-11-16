@@ -2,15 +2,16 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { legalEntities, employees } from "@/db/schema";
 import { assertMembership, assertOrganizationRole, COMPENSATION_MANAGER_ROLES, getAccess } from "@/lib/access";
-import { criticalReleaseFlagEnabled, type CriticalReleaseFlag } from "@/lib/critical-release-flags";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workplacePilotFlagEnabled, type WorkplacePilotFlag } from "@/lib/ph-workplace-release-flags";
 import { positiveId } from "@/lib/ph-workplace-compliance-policy";
 
 /**
  * Pilot guard: no multi-legal-entity exposure until legal-entity RBAC is
  * independently tested. No automatic selection of a first legal employer.
  */
-export function workplaceFeatureEnabled(flag: CriticalReleaseFlag): boolean {
-  return criticalReleaseFlagEnabled(flag) && !criticalReleaseFlagEnabled("multiEntity");
+export function workplaceFeatureEnabled(flag: WorkplacePilotFlag): boolean {
+  return workplacePilotFlagEnabled(flag) && !criticalReleaseFlagEnabled("multiEntity");
 }
 
 export async function workplaceEntity(organizationId: number) {
