@@ -82,6 +82,34 @@ Cutoff **expected** is a manual application of the monthly official values, Payr
 | C18 | 20,000.00 | 10,000.00 | Semi-monthly | 500.00 / 250.00 / 100.00 / 0.00 / 0.01 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C19 | 400,000.00 | 200,000.00 | Semi-monthly | 875.00 / 1,250.00 / 100.00 / 51,103.30 / 146,671.70 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 
+### Employer-only first-cutoff evidence — SSS ER, EC, PHIC ER, HDMF ER
+
+These **separate employer liabilities are not employee deductions**. Each expected column is hand-worked from **S** page 1, **P** page 1 and **H** §C official **monthly employer shares**, with the repo's pre-existing first-cutoff half-collection **software convention**; that timing and half-cent allocation are not agency-certified. `EC` is employer-only. The CI test reads the **real engine's persisted trace** keys `sssEmployerCutoff`, `sssEmployerEcCutoff`, `philHealthEmployerCutoff` and `pagIbigEmployerCutoff`, emits an observed value and **signed centavo delta for each**, and refuses mismatches when a statutory oracle exists.
+
+| Worker | SSS employer / EC / PhilHealth employer / HDMF employer — first cutoff expected PHP | Engine employer actual | Employer-side Δ centavos | Status |
+| --- | --- | --- | --- | --- |
+| C01 | 250.00 / 5.00 / 125.00 / 15.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C02 | 250.00 / 5.00 / 125.00 / 15.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C03 | 250.00 / 5.00 / 125.00 / 52.50 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C04 | 275.00 / 5.00 / 125.00 / 52.50 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C05 | 450.00 / 5.00 / 125.00 / 90.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C06 | 500.00 / 5.00 / 125.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C07 | 500.00 / 5.00 / **NOT VERIFIED** / 100.00 | NOT RUN | NOT COMPUTED | PH share SOURCE NOT VERIFIED; other components pending |
+| C08 | 725.00 / 5.00 / 184.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C09 | 750.00 / 15.00 / 184.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C10 | 750.00 / 15.00 / 184.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C11 | 1,275.00 / 15.00 / 315.63 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C12 | 1,725.00 / 15.00 / 434.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C13 | 1,750.00 / 15.00 / 434.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C14 | 1,750.00 / 15.00 / **NOT VERIFIED** / 100.00 | NOT RUN | NOT COMPUTED | PH share SOURCE NOT VERIFIED; other components pending |
+| C15 | 1,750.00 / 15.00 / 1,250.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C16 | 1,750.00 / 15.00 / 1,250.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C17 | 825.00 / 15.00 / 208.50 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C18 | 1,000.00 / 15.00 / 250.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C19 | 1,750.00 / 15.00 / 1,250.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+
+**Output contract:** `STATUTORY_COMPARISON_MONTHLY_EVIDENCE` includes official monthly EE/ER shares, observed `computeSss`/`computePhilHealth`/`computePagIbig` values, and each `deltaCentavos` including null for unverified PhilHealth share. `STATUTORY_COMPARISON_EVIDENCE` includes the disposable database employer **and** employee cutoff amounts, and signed centavo differences. In both outputs, `null` is **not zero** and cannot count as AGREES.
+
 **Manual worked examples:**
 
 - **C04 versus C03, SSS exact boundary:** Official **S** page 1 sets salary **₱5,249.99** in lowest MSC **₱5,000**, EE **₱250**, ER **₱500**, EC **₱10**; at **₱5,250.00**, next MSC **₱5,500** yields EE **₱275**, ER **₱550**, EC **₱10**. Employer EC is **not deducted** from the worker. A half-cutoff employee deduction moves from **₱125.00** to **₱137.50**.
@@ -171,7 +199,7 @@ Separately, **four source-watch date fields are null** in `src/lib/statutory-rul
 ## Executable checks / integration evidence
 
 - New test: `tests/payroll-e2e-fictional-statutory-comparison.test.ts` (checked into this proposed branch). Pure tests statically assert the cited **19 monthly source rows**, **33 BIR vectors**, **DOLE basic/12** and **two benefit-pool** hand oracles. No expected value is generated from `src/lib/ph-statutory-rule-packs.ts` or `certification/**`.
-- Real DB test creates 19 fictional employees and payroll entries via `enqueuePayrollRun` / `drainPayrollQueue` and emits observed money values and `deltaCentavos`. It is **deliberately gated** to `CI=true`, `DEMO_MODE=false` and exactly `postgresql://postgres:postgres@127.0.0.1:5432/app_db`. On any other environment it reports an **explicit skip = NOT RUN**, never a pass. Delete the disposable synthetic organization and end the pool.
+- Real DB test creates 19 fictional employees and payroll entries (including employer SSS, EC, PHIC and HDMF liabilities) via `enqueuePayrollRun` / `drainPayrollQueue` and emits observed money values and `deltaCentavos`. It is **deliberately gated** to `CI=true`, `DEMO_MODE=false` and exactly `postgresql://postgres:postgres@127.0.0.1:5432/app_db`. On any other environment it reports an **explicit skip = NOT RUN**, never a pass. Delete the disposable synthetic organization and end the pool.
 - The repository's **existing** `.github/workflows/payroll-e2e-fictional.yml` targets `tests/payroll-e2e-fictional-*.test.ts` and initializes disposable PG16 and PG18; **no workflow edit**. Expected exact-head checks include PG16/18 targeted tests, full PG16 `npm test`, TypeScript, lint, build and other repository CI. **Record actual check conclusions from the PR head** before merge consideration.
 - This PR intentionally leaves **money, payout, provider, CSP and calculation-history flags OFF**; no release, posting, filing, submission, external calls, prod/Neon SQL, migration, schema, or real employer data. All evidence SOLO_DEV; no human practitioner signature, cash transfer, bank adapter or agency acceptance.
 - **Targeted local commands** (pure test safe outside CI; DB case explicitly skipped): `npx tsx --test tests/payroll-e2e-fictional-statutory-comparison.test.ts`; `npx tsc --noEmit`; `npm run lint`. **Connected DB** only in the guarded disposable PG CI workflow. Any green test is a reproducible engineering check, *not* statutory certification.
