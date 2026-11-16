@@ -68,6 +68,10 @@ function reviewedForeignSeparationPatchPrivacyDelta({
   // This exception remains limited to the one 403 -> opaque 404 assertion,
   // with byte-identical surrounding lines and the new proof/route blob pins.
   const reviewedBases = new Set([
+    // The signup RED fixture's frozen commit carries the same exact old
+    // 403 denial proof blob. Permit only its already-reviewed one-line
+    // 403 -> opaque 404 privacy change under the checks below.
+    "efd875a246bb38345ef805ea64363472af72414f",
     "1b437fbf2a05053fddb5acf1b50171590a6e788a",
     "2444b60e8d117935d16167476cc15a9683880788",
     // #1983 changed only the page-credit ledger; it retained this exact
