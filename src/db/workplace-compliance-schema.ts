@@ -150,9 +150,61 @@ export const workplaceProtectedCases = pgTable("workplace_protected_cases", {
     columns: [table.organizationId, table.legalEntityId, table.reviewerUserId],
     foreignColumns: [workplaceCaseOfficers.organizationId, workplaceCaseOfficers.legalEntityId, workplaceCaseOfficers.userId],
   }).onDelete("restrict"),
+  unique("workplace_cases_scope_id_uk").on(table.organizationId, table.legalEntityId, table.id),
   index("workplace_cases_investigator_idx").on(table.organizationId, table.legalEntityId, table.investigatorUserId, table.status),
   index("workplace_cases_creator_idx").on(table.organizationId, table.legalEntityId, table.createdByUserId),
   check("workplace_cases_kind_ck", sql.raw('"case_kind" in (\'gender_based_harassment\',\'other_harassment\',\'retaliation\',\'other\')')),
   check("workplace_cases_status_ck", sql.raw('"status" in (\'intake\',\'investigating\',\'review_pending\',\'closed\')')),
   check("workplace_cases_independent_review_ck", sql.raw('"reviewer_user_id" is null or "reviewer_user_id" <> "investigator_user_id"')),
+]);
+
+/** Restricted actor trail. Never expose through generic tenant audit exports or return complaint text. */
+export const workplaceCaseAuditTrail = pgTable("workplace_case_audit_trail", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").notNull(),
+  caseId: integer("case_id").notNull(),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  action: varchar("action", { length: 40 }).notNull(),
+  previousStatus: varchar("previous_status", { length: 24 }),
+  nextStatus: varchar("next_status", { length: 24 }),
+  previousOfficerUserId: integer("previous_officer_user_id"),
+  replacementOfficerUserId: integer("replacement_officer_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  foreignKey({
+    name: "workplace_case_audit_scope_fk",
+    columns: [table.organizationId, table.legalEntityId, table.caseId],
+    foreignColumns: [workplaceProtectedCases.organizationId, workplaceProtectedCases.legalEntityId, workplaceProtectedCases.id],
+  }).onDelete("restrict"),
+  index("workplace_case_audit_scope_created_idx").on(table.organizationId, table.legalEntityId, table.caseId, table.createdAt),
+  check("workplace_case_audit_action_ck", sql.raw('"action" in (\'intake\',\'reviewer_assigned\',\'status_changed\',\'reassignment_requested\',\'reassignment_approved\',\'reassignment_rejected\')')),
+]);
+
+/** Two-person human review before any investigator/reviewer transfer. */
+export const workplaceCaseReassignmentRequests = pgTable("workplace_case_reassignment_requests", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").notNull(),
+  caseId: integer("case_id").notNull(),
+  officerRole: varchar("officer_role", { length: 20 }).notNull(),
+  previousOfficerUserId: integer("previous_officer_user_id").notNull().references(() => users.id),
+  replacementOfficerUserId: integer("replacement_officer_user_id").notNull().references(() => users.id),
+  requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+}, table => [
+  foreignKey({
+    name: "workplace_case_reassignment_scope_fk",
+    columns: [table.organizationId, table.legalEntityId, table.caseId],
+    foreignColumns: [workplaceProtectedCases.organizationId, workplaceProtectedCases.legalEntityId, workplaceProtectedCases.id],
+  }).onDelete("restrict"),
+  uniqueIndex("workplace_case_reassignment_one_pending_uk")
+    .on(table.caseId, table.officerRole).where(sql`${table.status} = 'pending'`),
+  index("workplace_case_reassignment_scope_idx").on(table.organizationId, table.legalEntityId, table.status),
+  check("workplace_case_reassignment_role_ck", sql.raw('"officer_role" in (\'investigator\',\'reviewer\')')),
+  check("workplace_case_reassignment_status_ck", sql.raw('"status" in (\'pending\',\'approved\',\'rejected\')')),
+  check("workplace_case_reassignment_signer_ck", sql.raw('("status" = \'pending\' and "approved_by_user_id" is null and "approved_at" is null) or ("status" <> \'pending\' and "approved_by_user_id" is not null and "approved_at" is not null and "requested_by_user_id" <> "approved_by_user_id")')),
 ]);

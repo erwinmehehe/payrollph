@@ -139,9 +139,59 @@ CREATE TABLE workplace_protected_cases (
   CONSTRAINT workplace_cases_independent_review_ck CHECK
     (reviewer_user_id IS NULL OR reviewer_user_id <> investigator_user_id)
 );
+ALTER TABLE workplace_protected_cases
+  ADD CONSTRAINT workplace_cases_scope_id_uk UNIQUE (organization_id, legal_entity_id, id);
 CREATE INDEX workplace_cases_investigator_idx
   ON workplace_protected_cases(organization_id, legal_entity_id, investigator_user_id, status);
 CREATE INDEX workplace_cases_creator_idx
   ON workplace_protected_cases(organization_id, legal_entity_id, created_by_user_id);
+
+-- Source-only restricted accountability; never included in generic audit export.
+CREATE TABLE workplace_case_audit_trail (
+  id serial PRIMARY KEY,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  legal_entity_id integer NOT NULL,
+  case_id integer NOT NULL,
+  actor_user_id integer NOT NULL REFERENCES users(id),
+  action varchar(40) NOT NULL,
+  previous_status varchar(24),
+  next_status varchar(24),
+  previous_officer_user_id integer,
+  replacement_officer_user_id integer,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT workplace_case_audit_scope_fk FOREIGN KEY (organization_id, legal_entity_id, case_id)
+    REFERENCES workplace_protected_cases(organization_id, legal_entity_id, id) ON DELETE RESTRICT,
+  CONSTRAINT workplace_case_audit_action_ck CHECK
+    (action IN ('intake','reviewer_assigned','status_changed','reassignment_requested','reassignment_approved','reassignment_rejected'))
+);
+CREATE INDEX workplace_case_audit_scope_created_idx
+  ON workplace_case_audit_trail(organization_id, legal_entity_id, case_id, created_at);
+
+CREATE TABLE workplace_case_reassignment_requests (
+  id serial PRIMARY KEY,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  legal_entity_id integer NOT NULL,
+  case_id integer NOT NULL,
+  officer_role varchar(20) NOT NULL,
+  previous_officer_user_id integer NOT NULL REFERENCES users(id),
+  replacement_officer_user_id integer NOT NULL REFERENCES users(id),
+  requested_by_user_id integer NOT NULL REFERENCES users(id),
+  approved_by_user_id integer REFERENCES users(id),
+  status varchar(16) NOT NULL DEFAULT 'pending',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  approved_at timestamptz,
+  CONSTRAINT workplace_case_reassignment_scope_fk FOREIGN KEY (organization_id, legal_entity_id, case_id)
+    REFERENCES workplace_protected_cases(organization_id, legal_entity_id, id) ON DELETE RESTRICT,
+  CONSTRAINT workplace_case_reassignment_role_ck CHECK (officer_role IN ('investigator','reviewer')),
+  CONSTRAINT workplace_case_reassignment_status_ck CHECK (status IN ('pending','approved','rejected')),
+  CONSTRAINT workplace_case_reassignment_signer_ck CHECK (
+    (status = 'pending' AND approved_by_user_id IS NULL AND approved_at IS NULL) OR
+    (status <> 'pending' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL AND requested_by_user_id <> approved_by_user_id)
+  )
+);
+CREATE UNIQUE INDEX workplace_case_reassignment_one_pending_uk
+  ON workplace_case_reassignment_requests(case_id, officer_role) WHERE status = 'pending';
+CREATE INDEX workplace_case_reassignment_scope_idx
+  ON workplace_case_reassignment_requests(organization_id, legal_entity_id, status);
 
 COMMIT;

@@ -69,13 +69,14 @@ test("case statement encryption fails closed without a key and uses domain-separ
   const oldEnv = { PII_ENCRYPTION_KEY: "11".repeat(32) };
   const statement = "A fictional private workplace concern for restricted pilot testing.";
   assert.throws(() => sealWorkplaceStatement(statement, {}), /not configured/);
-  const sealed = sealWorkplaceStatement(statement, oldEnv);
+  const binding = { organizationId: 7, legalEntityId: 9, caseId: 41 };
+  const sealed = sealWorkplaceStatement(statement, binding, oldEnv);
   assert.equal(sealed.includes(statement), false);
-  assert.match(sealed, /^enc:ph-workplace-case:v1:/);
-  assert.equal(openWorkplaceStatement(sealed, oldEnv), statement);
+  assert.match(sealed, /^enc:ph-workplace-case:v2:/);
+  assert.equal(openWorkplaceStatement(sealed, binding, oldEnv), statement);
   const rotation = { PII_ENCRYPTION_KEY: "22".repeat(32), PII_ENCRYPTION_KEY_PREVIOUS: "11".repeat(32) };
-  assert.equal(openWorkplaceStatement(sealed, rotation), statement);
-  assert.throws(() => openWorkplaceStatement(sealed, { PII_ENCRYPTION_KEY: "22".repeat(32) }));
+  assert.equal(openWorkplaceStatement(sealed, binding, rotation), statement);
+  assert.throws(() => openWorkplaceStatement(sealed, binding, { PII_ENCRYPTION_KEY: "22".repeat(32) }));
   const parts = sealed.split(":");
   const last = parts.at(-1)!;
   // Replace a *decoded ciphertext byte* rather than a potentially unused
@@ -83,13 +84,23 @@ test("case statement encryption fails closed without a key and uses domain-separ
   const bytes = Buffer.from(last, "base64url");
   bytes[0] ^= 1;
   parts[parts.length - 1] = bytes.toString("base64url");
-  assert.throws(() => openWorkplaceStatement(parts.join(":"), oldEnv));
-  assert.throws(() => openWorkplaceStatement(statement, oldEnv));
+  assert.throws(() => openWorkplaceStatement(parts.join(":"), binding, oldEnv));
+  assert.throws(() => openWorkplaceStatement(statement, binding, oldEnv));
+  for (const changed of [
+    { ...binding, organizationId: 8 }, { ...binding, legalEntityId: 10 },
+    { ...binding, caseId: 42 },
+  ]) assert.throws(() => openWorkplaceStatement(sealed, changed, oldEnv),
+    "A case's ciphertext must fail authentication under another tenant/entity/case ID");
+  assert.throws(() => sealWorkplaceStatement(statement, { ...binding, caseId: 0 }, oldEnv));
 });
 test("new APIs do not write raw statements to the audit metadata or call external portals", () => {
   const conduct = readFileSync("src/pilots/workplace/api/protected-cases.ts", "utf8");
   const dole = readFileSync("src/pilots/workplace/api/dole-extended.ts", "utf8");
-  assert.ok(conduct.includes("sealWorkplaceStatement(statement)"));
+  assert.ok(conduct.includes("sealWorkplaceStatement(statement, {"));
+  assert.ok(conduct.includes('sealedStatement: "pending:transaction-only"'));
+  assert.ok(conduct.includes("await tx.insert(workplaceCaseAuditTrail).values({"));
+  assert.ok(conduct.includes("actorUserId: session.id"));
+  assert.ok(conduct.includes("openWorkplaceStatement(row.sealedStatement, {"));
   assert.ok(conduct.includes("mayReadProtectedCase("));
   assert.ok(conduct.includes("recordAuditEvent("));
   assert.ok(!conduct.includes("metadata: { statement"));
@@ -104,7 +115,7 @@ test("workplace schema is isolated from source-sealed payroll schema and include
   const config = readFileSync("drizzle.config.ts", "utf8");
   const sandboxConfig = readFileSync("drizzle.workplace-pilot.config.ts", "utf8");
   assert.doesNotMatch(core, /export const (doleExtendedReports|oshSafetyEvents|oshTrainingRecords|workplaceCaseOfficers|workplaceProtectedCases)\s*=/);
-  for (const table of ["doleExtendedReports", "oshSafetyEvents", "oshTrainingRecords", "workplaceCaseOfficers", "workplaceProtectedCases"]) {
+  for (const table of ["doleExtendedReports", "oshSafetyEvents", "oshTrainingRecords", "workplaceCaseOfficers", "workplaceProtectedCases", "workplaceCaseAuditTrail", "workplaceCaseReassignmentRequests"]) {
     assert.ok(isolated.includes("export const " + table + " = pgTable("), table);
   }
   assert.ok(!config.includes("./src/db/workplace-compliance-schema.ts"));
@@ -196,4 +207,18 @@ test("unreviewed workplace HTTP and SSR entrypoints remain unregistered until tw
     "src/pilots/workplace/ui/employee-workplace-concern.tsx",
     "src/pilots/workplace/ui/employer-workplace-compliance.tsx",
   ]) assert.equal(existsSync(path), true, "Pilot implementation source must remain available: " + path);
+});
+
+test("restricted audit and case reassignment schema preserve composite tenant case references", () => {
+  const schema = readFileSync("src/db/workplace-compliance-schema.ts", "utf8");
+  const sql = readFileSync("docs/engineering/migration-candidates/0139_ph_workplace_compliance_foundation.sql", "utf8");
+  const route = readFileSync("src/pilots/workplace/api/protected-cases.ts", "utf8");
+  for (const name of ["workplace_cases_scope_id_uk", "workplace_case_audit_scope_fk",
+    "workplace_case_reassignment_scope_fk", "workplace_case_reassignment_one_pending_uk"]) {
+    assert.ok(schema.includes(name), "Drizzle requires " + name);
+    assert.ok(sql.includes(name), "SQL candidate requires " + name);
+  }
+  assert.ok(route.includes('actorUserId: session.id'));
+  assert.ok(route.includes("await tx.insert(workplaceCaseAuditTrail).values({"));
+  assert.ok(!route.includes("metadata: { actorUserId"));
 });

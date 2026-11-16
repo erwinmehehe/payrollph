@@ -7,7 +7,7 @@
 import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { userOrganizations, users } from "@/db/schema";
-import { workplaceCaseOfficers, workplaceProtectedCases } from "@/db/workplace-compliance-schema";
+import { workplaceCaseOfficers, workplaceProtectedCases, workplaceCaseAuditTrail } from "@/db/workplace-compliance-schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
@@ -48,7 +48,9 @@ function presentCase(row: CaseRow) {
     reporterEmployeeId: row.reporterEmployeeId, investigatorUserId: row.investigatorUserId,
     reviewerUserId: row.reviewerUserId, status: row.status, incidentOn: row.incidentOn,
     externalEvidenceSha256: row.externalEvidenceSha256, createdAt: row.createdAt, updatedAt: row.updatedAt,
-    statement: openWorkplaceStatement(row.sealedStatement),
+    statement: openWorkplaceStatement(row.sealedStatement, {
+      organizationId: row.organizationId, legalEntityId: row.legalEntityId, caseId: row.id,
+    }),
   };
 }
 
@@ -154,10 +156,9 @@ export async function POST(request: Request) {
     limit: 5, windowMs: 60 * 60_000,
   });
   if (rate) return rate;
-  let sealedStatement: string;
-  try { sealedStatement = sealWorkplaceStatement(statement); }
-  catch { return Response.json({ error: "Private case encryption unavailable. No statement was stored." },
-    { status: 503, headers: workplacePrivateHeaders }); }
+  // Create the case ID within the same transaction before AES-GCM sealing. If
+  // sealing or the final update fails the placeholder is rolled back atomically;
+  // neither plaintext nor an unsealed committed case can be exposed.
   let row: { id: number; status: string };
   try {
     row = await db.transaction(async tx => {
@@ -181,9 +182,24 @@ export async function POST(request: Request) {
     const [record] = await tx.insert(workplaceProtectedCases).values({
       organizationId, legalEntityId: scope.legalEntityId!,
       caseKind: body.caseKind as string, createdByUserId: session.id,
-      reporterEmployeeId: worker?.id ?? null, investigatorUserId, sealedStatement, incidentOn,
+      reporterEmployeeId: worker?.id ?? null, investigatorUserId,
+      sealedStatement: "pending:transaction-only", incidentOn,
     }).returning();
-    // Never audit allegation text, the protected category or identity details.
+    const sealedStatement = sealWorkplaceStatement(statement, {
+      organizationId, legalEntityId: scope.legalEntityId!, caseId: record.id,
+    });
+    const [sealed] = await tx.update(workplaceProtectedCases).set({ sealedStatement })
+      .where(and(eq(workplaceProtectedCases.id, record.id),
+        eq(workplaceProtectedCases.organizationId, organizationId),
+        eq(workplaceProtectedCases.legalEntityId, scope.legalEntityId!)))
+      .returning({ id: workplaceProtectedCases.id });
+    if (!sealed) throw new Error("CASE_SEAL_FAILED");
+    await tx.insert(workplaceCaseAuditTrail).values({
+      organizationId, legalEntityId: scope.legalEntityId!, caseId: record.id,
+      actorUserId: session.id, action: "intake",
+    });
+    // Generic audit stays category/identity-free; the restricted audit trail
+    // binds authenticated actor ID to case ID for authorized incident review.
     await recordAuditEvent({
       organizationId, actor: "confidential-case-intake",
       action: "Confidential workplace case received",
@@ -284,7 +300,18 @@ export async function PATCH(request: Request) {
       }
       const [updated] = await tx.update(workplaceProtectedCases).set(values).where(and(
         eq(workplaceProtectedCases.id, id), eq(workplaceProtectedCases.organizationId, organizationId),
+        eq(workplaceProtectedCases.legalEntityId, scope.legalEntityId!),
       )).returning();
+      await tx.insert(workplaceCaseAuditTrail).values({
+        organizationId, legalEntityId: scope.legalEntityId!, caseId: id,
+        actorUserId: session.id,
+        action: body.action === "assign_reviewer" ? "reviewer_assigned" : "status_changed",
+        previousStatus: old.status, nextStatus: updated.status,
+        ...(body.action === "assign_reviewer" ? {
+          previousOfficerUserId: old.reviewerUserId,
+          replacementOfficerUserId: updated.reviewerUserId,
+        } : {}),
+      });
       await recordAuditEvent({
         organizationId, actor: "confidential-case-review",
         action: "Protected workplace case state recorded",
