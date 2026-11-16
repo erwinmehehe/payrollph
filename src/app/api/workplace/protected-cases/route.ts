@@ -1,6 +1,6 @@
 import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/db";
-import { workplaceCaseOfficers, workplaceProtectedCases } from "@/db/schema";
+import { workplaceCaseOfficers, workplaceProtectedCases, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
@@ -23,9 +23,15 @@ type CaseRow = typeof workplaceProtectedCases.$inferSelect;
 
 async function appointedOfficer(userId: number, organizationId: number, legalEntityId: number) {
   const [row] = await db.select({ userId: workplaceCaseOfficers.userId }).from(workplaceCaseOfficers)
+    .innerJoin(users, eq(users.id, workplaceCaseOfficers.userId))
+    .innerJoin(userOrganizations, and(
+      eq(userOrganizations.userId, workplaceCaseOfficers.userId),
+      eq(userOrganizations.organizationId, workplaceCaseOfficers.organizationId),
+    ))
     .where(and(eq(workplaceCaseOfficers.organizationId, organizationId),
       eq(workplaceCaseOfficers.legalEntityId, legalEntityId),
-      eq(workplaceCaseOfficers.userId, userId), eq(workplaceCaseOfficers.active, true))).limit(1);
+      eq(workplaceCaseOfficers.userId, userId), eq(workplaceCaseOfficers.active, true),
+      eq(users.active, true), eq(userOrganizations.active, true))).limit(1);
   return !!row;
 }
 function presentCase(row: CaseRow) {
