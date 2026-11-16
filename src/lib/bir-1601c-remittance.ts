@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { taxWithheldFromLineItems } from "@/lib/exporters";
+import { postedCentavos } from "@/lib/remittance-centavos-compare";
 
 export type Bir1601CFilingChannel = "non_efps" | "efps";
 export type BirEfpsGroup = "A" | "B" | "C" | "D" | "E";
@@ -89,15 +90,17 @@ export function compareBir1601cFiling(input: {
   const employeeCountDifference = input.reportedEmployeeCount == null
     ? null
     : input.reportedEmployeeCount - input.expectedEmployeeCount;
+  // Filing evidence and the signed payroll snapshot must agree to the cent.
+  const expectedCents = postedCentavos(input.expectedTaxWithheld);
+  const reportedCents = input.reportedTotal == null ? null : postedCentavos(input.reportedTotal);
+  const totalMatches = expectedCents !== null && reportedCents !== null
+    && expectedCents === reportedCents;
   return {
-    totalMatches: totalDifference != null && Math.abs(totalDifference) <= 0.01,
+    totalMatches,
     employeeCountMatches: employeeCountDifference === 0,
     totalDifference,
     employeeCountDifference,
-    matched:
-      totalDifference != null
-      && Math.abs(totalDifference) <= 0.01
-      && employeeCountDifference === 0,
+    matched: totalMatches && employeeCountDifference === 0,
   };
 }
 
